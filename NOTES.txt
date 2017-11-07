@@ -1,0 +1,19 @@
+Architecture
+------------
+
+A combination NURBS/meshed surface store.
+
+Defines a single array of vertices, single array
+of texture coordinates, single array of NURBS 3D control points,
+single array of NURBS 3D  knots, single array of NURBS 2D control points,
+single array of NURBS 2D knots, etc.
+
+Spaces in these arrays can be allocated and locked.
+Locking can be by the entire array, or subregions, and can be
+read only or read write.  There must be an order for locking the
+different arrays, and subregions of the arrays can be locked independently,
+ordered by array position and size. Initially only locking of the entire
+array will actually be implemented, but this could be improved later.
+
+Hierarchical assemblies and parts will be defined by reference into
+these master arrays. 
