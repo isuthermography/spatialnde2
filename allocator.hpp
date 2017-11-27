@@ -35,6 +35,8 @@ namespace snde {
        things, e.g. vertex array and curvature array 
        should be allocated in parallel */
 
+    std::mutex allocatormutex; // Always final mutex in locking order; protects the free list 
+    
   public: 
     snde_index _firstfree;
     snde_index _totalnchunks;
@@ -97,6 +99,7 @@ namespace snde {
   
     void _realloc(snde_index newnchunks) {
       // Must hold write lock on entire array
+      // must hold allocatormutex
       // *** NOTE: *** Caller responsible for adding to
       // last free block or adding new free block !!!
       _totalnchunks = newnchunks;
@@ -122,6 +125,8 @@ namespace snde {
       // Number of chunks we need... nelem/_allocchunksize rounding up
       snde_index allocchunks = (nelem+_allocchunksize-1)/_allocchunksize;
 
+      std::unique_lock<std::mutex> lock(allocatormutex);
+
       for (freeposptr=(char *)&_firstfree,freepos=_firstfree;
 	   freepos < _totalnchunks;
 	   freeposptr=nextfreeblockstartptr,freepos=nextfreeblockstart) {
@@ -137,9 +142,8 @@ namespace snde {
 	    freeposptroffset=freeposptr-((char *)*_arrayptr);
 	  }
 
-	
 	  this->_realloc(newnchunks);
-
+	  
 	  if (freeposptr != (char *)&_firstfree) {
 	    freeposptr=((char *)*_arrayptr)+freeposptroffset;
 	  }
@@ -196,7 +200,8 @@ namespace snde {
 	}
       
       }
-    
+
+      return SNDE_INDEX_INVALID;
     }
 
     void free(snde_index addr,snde_index nelem) {
@@ -214,6 +219,7 @@ namespace snde {
       char *priorblocksizeptr,*blocksizeptr;
     
       snde_index freechunks = (nelem+_allocchunksize-1)/_allocchunksize;
+      std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
 
       assert(addr > 0); /* addr==0 is wasted element allocated by constructor */
       assert(addr % _allocchunksize == 0); /* all addresses returned by alloc() are multiples of _allocchunksize */

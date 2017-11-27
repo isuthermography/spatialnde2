@@ -80,13 +80,13 @@ namespace snde {
     allocator<snde_triangleindices> *uv_triangle_alloc;
 
 
-    snde_box2 *uv_boxes;  // allocated by boxes_alloc... NOTE: Boxes are in part coordinates, not world coordinates 
+    snde_box2 *uv_boxes;  // allocated by uv_boxes_alloc... NOTE: Boxes are in part coordinates, not world coordinates 
     allocator<snde_box2> *uv_boxes_alloc;
 
     snde_index *uv_boxpolys;
     allocator<snde_index> *uv_boxpolys_alloc;
     
-    snde_boxcoord2 *uv_boxcoord; // allocated by boxes_alloc
+    snde_boxcoord2 *uv_boxcoord; // allocated by uv_boxes_alloc
 
     struct snde_mesheduv *mesheduv; /* array of meshed uv parameterizations */
     allocator<struct snde_mesheduv> mesheduv_alloc;
