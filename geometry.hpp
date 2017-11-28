@@ -16,20 +16,54 @@
 */
 
 
-#include "geometry_types.h"
-#include "geometry.h"
+//#include "geometry_types.h"
 
 namespace snde {  
   
   /* *** Where to store landmarks ***/
   /* Where to store frames? ***/
 
-  class snde_geometry {
+  class geometry {
+  public:
     struct snde_geometrydata geom;
 
-    snde_geometry() {
+    std::shared_ptr<arraymanager> manager;
+    /* All arrays allocated by a particular allocator are locked together by manager->locker */
+    
+    
+    geometry(double tol,std::shared_ptr<arraymanager> manager) {
+      memset(&geom,0,sizeof(geom)); // reset everything to NULL
+      this->manager=manager;
+      geom.tol=tol;
+
       
-    };
+      manager->add_allocated_array((void **)&geom.vertices,sizeof(*geom.vertices),0);
+      manager->add_follower_array((void **)&geom.vertices,(void **)&geom.principal_curvatures,sizeof(*geom.principal_curvatures));
+      manager->add_follower_array((void **)&geom.vertices,(void **)&geom.curvature_tangent_axes,sizeof(*geom.curvature_tangent_axes));
+
+
+
+      manager->add_allocated_array((void **)&geom.vertexidx,sizeof(*geom.vertexidx),0);
+      manager->add_follower_array((void **)&geom.vertices,(void **)&geom.refpoints,sizeof(*geom.refpoints));
+      manager->add_follower_array((void **)&geom.vertices,(void **)&geom.maxradius,sizeof(*geom.maxradius));
+      manager->add_follower_array((void **)&geom.vertices,(void **)&geom.normal,sizeof(*geom.normal));
+      manager->add_follower_array((void **)&geom.vertices,(void **)&geom.inplanemat,sizeof(*geom.inplanemat));
+      
+      
+
+      manager->add_allocated_array((void **)&geom.boxes,sizeof(*geom.boxes),0);
+      manager->add_follower_array((void **)&geom.boxes,(void **)&geom.boxcoord,sizeof(*geom.boxcoord));
+      
+      manager->add_allocated_array((void **)&geom.boxpolys,sizeof(*geom.boxpolys),0);
+
+
+
+      // ... need to initialize rest of struct...
+      // Probably want an array manager class to handle all of this
+      // initialization,
+      // also creation and caching of OpenCL buffers and OpenGL buffers. 
+      
+    }
   };
   
 }

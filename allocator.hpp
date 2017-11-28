@@ -29,18 +29,33 @@ namespace snde {
    
   */
 
+  /*
   class allocatorbase {
   public:
+    virtual void add_other_array(void **arrayptr, size_t elsize)=0;
     virtual snde_index alloc(snde_index nelem)=0;
     virtual void free(snde_index addr,snde_index nelem)=0;
     virtual ~allocatorbase()=0;
   };
+  */
+
+  struct arrayinfo {
+    void **arrayptr;
+    size_t elemsize;
+  };
   
-  template <class AT> class allocator : public allocatorbase {
+  class allocator /* : public allocatorbase*/ {
     /* !!!*** NOTE: will want allocator to be able to 
        handle parallel-indexed portions of arrays of different
        things, e.g. vertex array and curvature array 
        should be allocated in parallel */
+
+    /* 
+       all add_other_array() calls must be performed from a
+       single thread on initialization !!! 
+       
+       otherwise alloc() and free() are thread safe, */
+       
 
     std::mutex allocatormutex; // Always final mutex in locking order; protects the free list 
     
@@ -48,8 +63,8 @@ namespace snde {
     snde_index _firstfree;
     snde_index _totalnchunks;
 
-    memallocator *_memalloc;
-    lockmanager *_locker; // could be NULL if there is no locker
+    std::shared_ptr<memallocator> _memalloc;
+    std::shared_ptr<lockmanager> _locker; // could be NULL if there is no locker
     /* 
        Should lock things on allocation...
      
@@ -59,26 +74,36 @@ namespace snde {
     */
   
   
-    AT **_arrayptr;
+    //void **_arrayptr;
+    //size_t _elemsize;
 
+    // The arrays member is genuinely public for read access and
+    // may be iterated over. Note that it may only be written
+    // from the single thread during the initialization phase
+    std::deque<struct arrayinfo> arrays;
+    
+    
     /* Freelist structure ... But read via memcpy to avoid 
        aliasing problems... 
        snde_index freeblocksize  (in chunks)
        snde_index nextfreeblockstart ... nextfreeblockstart of last block should be _totalnchunks
     */
-    snde_index _allocchunksize; // size of chunks we allocate, in numbers of <AT> elements
+    snde_index _allocchunksize; // size of chunks we allocate, in numbers of elements
   
-    allocator<AT>(memallocator *memalloc,lockmanager *locker,AT **arrayptr,snde_index totalnelem) {
+    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,void **arrayptr,size_t elemsize,snde_index totalnelem) {
       // must hold writelock on array
     
       _memalloc=memalloc;
       _locker=locker; // could be NULL if there is no locker
       _firstfree=0;
-      _arrayptr=arrayptr;
+      //_arrayptr=arrayptr;
+      //_elemsize=elemsize;
 
-      //_allocchunksize = 2*sizeof(snde_index)/sizeof(AT);
+      arrays.push_back(arrayinfo{arrayptr,elemsize});
+      
+      //_allocchunksize = 2*sizeof(snde_index)/_elemsize;
       // Round up when determining chunk size
-      _allocchunksize = (2*sizeof(snde_index) + sizeof(AT)-1)/sizeof(AT);
+      _allocchunksize = (2*sizeof(snde_index) + elemsize-1)/elemsize;
 
       // _totalnchunks = totalnelem / _allocchunksize  but round up. 
       _totalnchunks = (totalnelem + _allocchunksize-1)/_allocchunksize;
@@ -87,14 +112,16 @@ namespace snde {
 	_totalnchunks=2;
       }
       // Perform memory allocation 
-      *_arrayptr = (AT *)_memalloc->malloc(_totalnchunks * _allocchunksize * sizeof(AT));
+      *arrays[0].arrayptr = _memalloc->malloc(_totalnchunks * _allocchunksize * elemsize);
       /* Single entry in free list, 
 	 set freeblocksize, marking _totalnchunk chunks free */
-      memcpy(*_arrayptr,&_totalnchunks,sizeof(snde_index));
+      memcpy(*arrays[0].arrayptr,&_totalnchunks,sizeof(snde_index));
       /* set nextfreeblockstart, */
-      memcpy(*_arrayptr + sizeof(snde_index),&_totalnchunks,sizeof(snde_index));
-    
-      _locker->set_array_size(_arrayptr,sizeof(AT),_totalnchunks*_allocchunksize);
+      memcpy((char *)(*arrays[0].arrayptr) + sizeof(snde_index),&_totalnchunks,sizeof(snde_index));
+
+      if (_locker) {
+	_locker->set_array_size(arrays[0].arrayptr,elemsize,_totalnchunks*_allocchunksize);
+      }
 
       // Permanently allocate (and waste) first chunk
       // so that an snde_index==0 is otherwise invalid
@@ -103,16 +130,34 @@ namespace snde {
     
     }
 
-  
+    void add_other_array(void **arrayptr, size_t elsize)
+    {
+      arrays.push_back(arrayinfo {arrayptr,elsize});
+
+      if (*arrays[0].arrayptr) {
+	/* if main array already allocated */
+	*arrayptr=_memalloc->calloc(_totalnchunks*_allocchunksize * elsize);
+      } else {
+	*arrayptr=NULL;
+      }
+    }
+    
     void _realloc(snde_index newnchunks) {
       // Must hold write lock on entire array
       // must hold allocatormutex
       // *** NOTE: *** Caller responsible for adding to
       // last free block or adding new free block !!!
       _totalnchunks = newnchunks;
-      *_arrayptr = (AT *)_memalloc->realloc(*_arrayptr,_totalnchunks * _allocchunksize * sizeof(AT));
+      //*arrays[0].arrayptr = _memalloc->realloc(*arrays[0].arrayptr,_totalnchunks * _allocchunksize * _elemsize);
 
-      _locker->set_array_size(_arrayptr,sizeof(AT),_totalnchunks*_allocchunksize);
+      /* resize all arrays  */
+      for (int cnt=0;cnt < arrays.size();cnt++) {
+	*arrays[cnt].arrayptr= _memalloc->realloc(*arrays[cnt].arrayptr,_totalnchunks * _allocchunksize * arrays[cnt].elemsize);
+      }
+      
+      if (_locker) {
+	_locker->set_array_size(arrays[0].arrayptr,arrays[0].elemsize,_totalnchunks*_allocchunksize);
+      }
       
     }
     
@@ -146,13 +191,13 @@ namespace snde {
 	  snde_index newnchunks=(snde_index)((_totalnchunks+allocchunks)*1.7); /* Reserve extra space, not just bare minimum */
 	
 	  if (freeposptr != (char *)&_firstfree) {
-	    freeposptroffset=freeposptr-((char *)*_arrayptr);
+	    freeposptroffset=freeposptr-((char *)*arrays[0].arrayptr);
 	  }
 
 	  this->_realloc(newnchunks);
 	  
 	  if (freeposptr != (char *)&_firstfree) {
-	    freeposptr=((char *)*_arrayptr)+freeposptroffset;
+	    freeposptr=((char *)*arrays[0].arrayptr)+freeposptroffset;
 	  }
 
 	  /*** NOTE: We could be a bit more sophisticated here and 
@@ -164,17 +209,17 @@ namespace snde {
 	  newfreeblocknchunks = newnchunks - freepos;
 	
 	  /* freeposptr should already be pointing here */
-	  memcpy(*_arrayptr + newfreeblockstart*_allocchunksize,&newfreeblocknchunks,sizeof(snde_index));
+	  memcpy((char *)*arrays[0].arrayptr + newfreeblockstart*_allocchunksize*arrays[0].elemsize,&newfreeblocknchunks,sizeof(snde_index));
 	  /* next block index */
-	  memcpy(((char *)(*_arrayptr + newfreeblockstart*_allocchunksize))+sizeof(snde_index),&newnchunks,sizeof(snde_index));
+	  memcpy((char *)*arrays[0].arrayptr + newfreeblockstart*_allocchunksize*arrays[0].elemsize+sizeof(snde_index),&newnchunks,sizeof(snde_index));
 	
 	  /* reallocation complete... This should be the final loop iteration */
 	}
       
 	/* normal start of loop begins here */
       
-	memcpy(&freeblocksize,*_arrayptr + freepos*_allocchunksize,sizeof(snde_index));
-	nextfreeblockstartptr=((char *)(*_arrayptr + freepos*_allocchunksize)) + sizeof(snde_index);
+	memcpy(&freeblocksize,(char *)*arrays[0].arrayptr + freepos*_allocchunksize*arrays[0].elemsize,sizeof(snde_index));
+	nextfreeblockstartptr=(char *)*arrays[0].arrayptr + freepos*_allocchunksize*arrays[0].elemsize + sizeof(snde_index);
 	memcpy(&nextfreeblockstart,nextfreeblockstartptr,sizeof(snde_index));
 
 	if (freeblocksize >= allocchunks) {
@@ -195,9 +240,9 @@ namespace snde {
 
 	    /* Write the new free block */
 	    /* block size */
-	    memcpy(*_arrayptr + newfreeblockstart*_allocchunksize,&newfreeblocknchunks,sizeof(snde_index));
+	    memcpy((char *)*arrays[0].arrayptr + newfreeblockstart*_allocchunksize*arrays[0].elemsize,&newfreeblocknchunks,sizeof(snde_index));
 	    /* next block index */
-	    memcpy(((char *)(*_arrayptr + newfreeblockstart*_allocchunksize))+sizeof(snde_index),&nextfreeblockstart,sizeof(snde_index));
+	    memcpy((char *)*arrays[0].arrayptr + newfreeblockstart*_allocchunksize*arrays[0].elemsize+sizeof(snde_index),&nextfreeblockstart,sizeof(snde_index));
 	  
 	  
 	  }
@@ -240,9 +285,9 @@ namespace snde {
 	   freeposptr=nextfreeblockstartptr,freepos=nextfreeblockstart,priorblocksizeptr=blocksizeptr) {
       
 	/* get info on this free block */
-	blocksizeptr=(char *)(*_arrayptr + freepos*_allocchunksize);
+	blocksizeptr=(char *)*arrays[0].arrayptr + freepos*_allocchunksize*arrays[0].elemsize;
 	memcpy(&freeblocksize,blocksizeptr,sizeof(snde_index));
-	nextfreeblockstartptr=((char *)(*_arrayptr + freepos*_allocchunksize)) + sizeof(snde_index);
+	nextfreeblockstartptr=(char *)*arrays[0].arrayptr + freepos*_allocchunksize*arrays[0].elemsize + sizeof(snde_index);
 	memcpy(&nextfreeblockstart,nextfreeblockstartptr,sizeof(snde_index));
 
       
@@ -268,10 +313,10 @@ namespace snde {
 	  memcpy(freeposptr,&newfreeblockstart,sizeof(snde_index));
 
 	  /* Write freeblocksize */
-	  memcpy(*_arrayptr + newfreeblockstart*_allocchunksize,&newfreeblocknchunks,sizeof(snde_index));
+	  memcpy((char *)*arrays[0].arrayptr + newfreeblockstart*_allocchunksize*arrays[0].elemsize,&newfreeblocknchunks,sizeof(snde_index));
 	
 	  /* Write nextfreeblockstart */
-	  memcpy(((char *)(*_arrayptr + newfreeblockstart*_allocchunksize))+sizeof(snde_index),&newfreeblocknextstart,sizeof(snde_index));
+	  memcpy((char *)*arrays[0].arrayptr + newfreeblockstart*_allocchunksize*arrays[0].elemsize+sizeof(snde_index),&newfreeblocknextstart,sizeof(snde_index));
 	  
 
 	  /* Now go back and try to join with the prior free region, 
@@ -291,9 +336,9 @@ namespace snde {
 	      newnewfreeblocknextstart = newfreeblocknextstart;
 	    
 	      /* Write freeblocksize */
-	      memcpy(*_arrayptr + newnewfreeblockstart*_allocchunksize,&newnewfreeblocknchunks,sizeof(snde_index));
+	      memcpy((char *)*arrays[0].arrayptr + newnewfreeblockstart*_allocchunksize*arrays[0].elemsize,&newnewfreeblocknchunks,sizeof(snde_index));
 	      /* Write nextfreeblockstart */
-	      memcpy(((char *)(*_arrayptr + newnewfreeblockstart*_allocchunksize))+sizeof(snde_index),&newnewfreeblocknextstart,sizeof(snde_index));
+	      memcpy((char *)*arrays[0].arrayptr + newnewfreeblockstart*_allocchunksize*arrays[0].elemsize+sizeof(snde_index),&newnewfreeblocknextstart,sizeof(snde_index));
 	    }
 	  
 	  }
@@ -308,11 +353,13 @@ namespace snde {
     ~allocator() {
       // _memalloc was provided by our creator and is not freed
       // _locker was provided by our creator and is not freed
-      assert(*_arrayptr);
-      
-      _memalloc->free(*_arrayptr);
-      
-      *_arrayptr = NULL;
+
+      // free all arrays
+      for (int cnt=0;cnt < arrays.size();cnt++) {
+	_memalloc->free(*arrays[cnt].arrayptr);
+	*(arrays[cnt].arrayptr) = NULL;
+      }
+      arrays.clear();
       
     }
   };

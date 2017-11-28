@@ -17,10 +17,11 @@ namespace snde {
     virtual void *calloc(std::size_t nbytes)=0;
     virtual void *realloc(void *ptr,std::size_t newsize)=0;
     virtual void free(void *ptr)=0;
-  
+    virtual ~memallocator()  {};
   };
 
   class cmemallocator: public memallocator {
+  public:
     void *malloc(std::size_t nbytes) {
       return std::malloc(nbytes);
     }
@@ -35,6 +36,10 @@ namespace snde {
 
     void free(void *ptr) {
       return std::free(ptr);
+    }
+
+    ~cmemallocator() {
+
     }
   };
 

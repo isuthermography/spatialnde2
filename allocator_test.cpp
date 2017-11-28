@@ -18,16 +18,15 @@ using namespace snde;
 int main(int argc, char *argv[])
 {
 
-  memallocator *lowlevel_alloc;
+  ;
   
-  allocator<float> *test_allocator;
   float *test_array;
 
   snde_index blockstart,blocksize;
 
-  lowlevel_alloc=new cmemallocator();
+  std::shared_ptr<memallocator> lowlevel_alloc(new cmemallocator());
   
-  test_allocator=new allocator<float>(lowlevel_alloc,NULL,&test_array,100000);
+  std::shared_ptr<allocator> test_allocator(new allocator(lowlevel_alloc,NULL,(void **)&test_array,sizeof(*test_array),100000));
 
   // allocate 7739 element array
 
@@ -41,8 +40,8 @@ int main(int argc, char *argv[])
   
   test_allocator->free(blockstart,blocksize);
 
-  delete test_allocator;
+  test_allocator.reset(); // discard allocator
 
-  delete lowlevel_alloc;
-  return 1;
+  lowlevel_alloc.reset(); // discard lowlevel allocator
+  return 0;
 }

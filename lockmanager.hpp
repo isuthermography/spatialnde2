@@ -22,7 +22,7 @@ namespace snde {
   };
 
   struct arrayregion {
-    void *array;
+    void **array;
     size_t indexstart;
     size_t indexend;
   };
@@ -337,8 +337,8 @@ namespace snde {
     /* These next few elements may ONLY be modified during
        initialization phase (single thread, etc.) */
   public:
-    std::vector<void *> _arrays; /* get array pointer from index */
-    std::map<void *,size_t> _arrayidx; /* get array index from pointer */
+    std::vector<void **> _arrays; /* get array pointer from index */
+    std::map<void **,size_t> _arrayidx; /* get array index from pointer */
     std::deque<arraylock> _locks; /* get lock from index */
     std::map<rwlock *,size_t> _idx_from_lockptr; /* get array index from lock pointer */
 
@@ -354,7 +354,9 @@ namespace snde {
       
     }
 
-    void addarray(void *array) {
+    void addarray(void **array) {
+      // array is pointer to pointer to array data, because
+      // the pointer to pointer remains fixed even as the array itself may be reallocated
       /* WARNING: ALL addarray() CALLS MUST BE ON INITIALIZATION
 	 FROM INITIALIZATION THREAD, BEFORE OTHER METHODS MAY 
 	 BE CALLED! */
@@ -376,7 +378,7 @@ namespace snde {
       
     }
     
-    void set_array_size(void *Arrayptr,size_t elemsize,snde_index nelem) {
+    void set_array_size(void **Arrayptr,size_t elemsize,snde_index nelem) {
       // We don't currently care about the array size
     }
 
@@ -403,33 +405,33 @@ namespace snde {
     }
 
 
-    rwlock_token_set get_locks_read_array(std::vector<rwlock_token_set> priors, void *array)
+    rwlock_token_set get_locks_read_array(std::vector<rwlock_token_set> priors, void **array)
     {
-      rwlock_token_set token_set;
+      rwlock_token_set token_set=std::make_shared<std::map<rwlock_lockable *,rwlock_token>>();;
       
       (*token_set)[&_locks[_arrayidx[array]].full_array.reader]=_get_lock_read_array(priors,_arrayidx[array]);
       
       return token_set;
     }
 
-    rwlock_token_set get_locks_read_arrays(std::vector<rwlock_token_set> priors, std::vector<void *> arrays)
+    rwlock_token_set get_locks_read_arrays(std::vector<rwlock_token_set> priors, std::vector<void **> arrays)
     {
-      rwlock_token_set token_set;
+      rwlock_token_set token_set=std::make_shared<std::map<rwlock_lockable *,rwlock_token>>();;
       
-      std::vector<void *> sorted_arrays(arrays);
+      std::vector<void **> sorted_arrays(arrays);
       
       std::sort(sorted_arrays.begin(), sorted_arrays.end(),
-          [ this ] (void *a, void *b) { return _arrayidx[a] < _arrayidx[b]; });
+          [ this ] (void **a, void **b) { return _arrayidx[a] < _arrayidx[b]; });
 
        
-      for (std::reverse_iterator<std::vector<void *>::iterator> array=sorted_arrays.rbegin(); array != sorted_arrays.rend(); array++) {      
+      for (std::reverse_iterator<std::vector<void **>::iterator> array=sorted_arrays.rbegin(); array != sorted_arrays.rend(); array++) {      
 	(*token_set)[&_locks[_arrayidx[*array]].full_array.reader]=_get_lock_read_array(priors,_arrayidx[*array]);
       }
       return token_set;
     }
 
     
-    rwlock_token_set get_locks_read_array_region(std::vector<rwlock_token_set> priors, void *array,size_t indexstart,size_t indexend)
+    rwlock_token_set get_locks_read_array_region(std::vector<rwlock_token_set> priors, void **array,size_t indexstart,size_t indexend)
     {
       // We do not currently implement region-granular locking
       return get_locks_read_array(priors,array); 
@@ -438,7 +440,7 @@ namespace snde {
     rwlock_token_set get_locks_read_arrays_region(std::vector<rwlock_token_set> priors, std::vector<struct arrayregion> arrays)
     {
       // We do not currently implement region-granular locking
-      std::vector<void *> arrayptrs(arrays.size()); 
+      std::vector<void **> arrayptrs(arrays.size()); 
 
       int cnt=0;
       for (std::vector<struct arrayregion>::iterator array=arrays.begin();array != arrays.end();array++,cnt++) {
@@ -471,7 +473,7 @@ namespace snde {
     
     rwlock_token_set get_locks_read_all(std::vector<rwlock_token_set> priors)
     {
-      rwlock_token_set tokens;
+      rwlock_token_set tokens=std::make_shared<std::map<rwlock_lockable *,rwlock_token>>();
       
       for (ssize_t cnt=_arrays.size()-1;cnt >= 0;cnt--) {
 	(*tokens)[&_locks[cnt].full_array.reader]=_get_lock_read_array(priors,cnt);
@@ -479,7 +481,7 @@ namespace snde {
       return tokens;
     }
 
-    rwlock_token_set get_locks_read_array(rwlock_token_set prior, void *array)
+    rwlock_token_set get_locks_read_array(rwlock_token_set prior, void **array)
     {
       std::vector<rwlock_token_set> priors;
       priors.emplace_back(prior);
@@ -487,7 +489,7 @@ namespace snde {
       return get_locks_read_array(priors,array);
     }
 
-    rwlock_token_set get_locks_read_arrays(rwlock_token_set prior, std::vector<void *> arrays)
+    rwlock_token_set get_locks_read_arrays(rwlock_token_set prior, std::vector<void **> arrays)
     {
       std::vector<rwlock_token_set> priors;
       priors.emplace_back(prior);
@@ -504,7 +506,7 @@ namespace snde {
       return get_locks_read_all(priors);
     }
 
-    rwlock_token_set get_locks_read_array(void *array)
+    rwlock_token_set get_locks_read_array(void **array)
     {
       return get_locks_read_array(std::vector<rwlock_token_set>(),array);
     }
@@ -536,32 +538,32 @@ namespace snde {
       
     }
     
-    rwlock_token_set get_locks_write_array(std::vector<rwlock_token_set> priors, void *array)
+    rwlock_token_set get_locks_write_array(std::vector<rwlock_token_set> priors, void **array)
     {
-      rwlock_token_set token_set;
+      rwlock_token_set token_set=std::make_shared<std::map<rwlock_lockable *,rwlock_token>>();;
       
       (*token_set)[&_locks[_arrayidx[array]].full_array.writer]=_get_lock_write_array(priors,_arrayidx[array]);
       
       return token_set;
     }
 
-    rwlock_token_set get_locks_write_arrays(std::vector<rwlock_token_set> priors, std::vector<void *> arrays)
+    rwlock_token_set get_locks_write_arrays(std::vector<rwlock_token_set> priors, std::vector<void **> arrays)
     {
-      rwlock_token_set token_set;
+      rwlock_token_set token_set=std::make_shared<std::map<rwlock_lockable *,rwlock_token>>();;
       
-      std::vector<void *> sorted_arrays(arrays);
+      std::vector<void **> sorted_arrays(arrays);
       
       std::sort(sorted_arrays.begin(), sorted_arrays.end(),
-          [ this ] (void *a, void *b) { return _arrayidx[a] < _arrayidx[b]; });
+          [ this ] (void **a, void **b) { return _arrayidx[a] < _arrayidx[b]; });
 
       
-      for (std::reverse_iterator<std::vector<void *>::iterator> array=sorted_arrays.rbegin(); array != sorted_arrays.rend(); array++) {      
+      for (std::reverse_iterator<std::vector<void **>::iterator> array=sorted_arrays.rbegin(); array != sorted_arrays.rend(); array++) {      
 	(*token_set)[&_locks[_arrayidx[*array]].full_array.writer]=_get_lock_write_array(priors,_arrayidx[*array]);
       }
       return token_set;
     }
 
-    rwlock_token_set get_locks_write_array_region(std::vector<rwlock_token_set> priors, void *array,size_t indexstart,size_t indexend)
+    rwlock_token_set get_locks_write_array_region(std::vector<rwlock_token_set> priors, void **array,size_t indexstart,size_t indexend)
     {
       // We do not currently implement region-granular locking
       return get_locks_write_array(priors,array); 
@@ -570,7 +572,7 @@ namespace snde {
     rwlock_token_set get_locks_write_arrays_region(std::vector<rwlock_token_set> priors, std::vector<struct arrayregion> arrays)
     {
       // We do not currently implement region-granular locking
-      std::vector<void *> arrayptrs(arrays.size()); 
+      std::vector<void **> arrayptrs(arrays.size()); 
       int cnt=0;
       
       for (std::vector<struct arrayregion>::iterator array=arrays.begin();array != arrays.end();array++,cnt++) {
@@ -601,7 +603,7 @@ namespace snde {
     
     rwlock_token_set get_locks_write_all(std::vector<rwlock_token_set> priors)
     {
-      rwlock_token_set tokens;
+      rwlock_token_set tokens=std::make_shared<std::map<rwlock_lockable *,rwlock_token>>();
       
       for (ssize_t cnt=_arrays.size()-1;cnt >= 0;cnt--) {
 	(*tokens)[&_locks[cnt].full_array.writer]=_get_lock_write_array(priors,cnt);
@@ -610,7 +612,7 @@ namespace snde {
     }
 
       
-    rwlock_token_set get_locks_write_array(rwlock_token_set prior, void *array)
+    rwlock_token_set get_locks_write_array(rwlock_token_set prior, void **array)
     {
       std::vector<rwlock_token_set> priors;
       priors.emplace_back(prior);
@@ -618,7 +620,7 @@ namespace snde {
       return get_locks_write_array(priors,array);
     }
 
-    rwlock_token_set get_locks_write_arrays(rwlock_token_set prior, std::vector<void *> arrays)
+    rwlock_token_set get_locks_write_arrays(rwlock_token_set prior, std::vector<void **> arrays)
     {
       std::vector<rwlock_token_set> priors;
       priors.emplace_back(prior);
@@ -636,7 +638,7 @@ namespace snde {
     }
 
 
-    rwlock_token_set get_locks_write_array(void *array)
+    rwlock_token_set get_locks_write_array(void **array)
     {
       return get_locks_write_array(std::vector<rwlock_token_set>(),array);
     }
