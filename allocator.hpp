@@ -356,8 +356,10 @@ namespace snde {
 
       // free all arrays
       for (int cnt=0;cnt < arrays.size();cnt++) {
-	_memalloc->free(*arrays[cnt].arrayptr);
-	*(arrays[cnt].arrayptr) = NULL;
+	if (*arrays[cnt].arrayptr) {
+	  _memalloc->free(*arrays[cnt].arrayptr);
+	  *(arrays[cnt].arrayptr) = NULL;
+	}
       }
       arrays.clear();
       

@@ -29,7 +29,9 @@ int main(int argc, char *argv[])
 
   lowlevel_alloc=std::make_shared<cmemallocator>();
 
+  //fprintf(stderr,"build manager...\n");
   manager=std::make_shared<simplearraymanager>(lowlevel_alloc);
+  //fprintf(stderr,"build geom...\n");
   geom=std::make_shared<geometry>(1e-6,manager);
 
   // Allocate space for 10000 vertices 
@@ -48,6 +50,7 @@ int main(int argc, char *argv[])
   rwlock_token_set vertices_lock=geom->manager->locker->get_locks_read_array(triangle_lock,(void **)&geom->geom.vertices);
 
   // not legitimate to lock all arrays right now because this would violate locking order
+  //fprintf(stderr,"release locks...\n");
 
   vertices_lock.reset();  // order of unlocks doesn't matter
   triangle_lock.reset();  // unlocks also happen automatically when the token_set leaves context. 

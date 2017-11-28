@@ -64,6 +64,14 @@ namespace snde {
       // also creation and caching of OpenCL buffers and OpenGL buffers. 
       
     }
+    
+    ~geometry()
+    {
+      // Destructor needs to wipe out manager's array pointers because they point into this geometry object, that
+      // is being destroyed
+      manager->clear();
+      
+    }
   };
   
 }

@@ -7,6 +7,7 @@ namespace snde {
     virtual void add_follower_array(void **allocatedptr,void **arrayptr,size_t elemsize)=0;
     virtual snde_index alloc(void **allocatedptr,snde_index nelem)=0;
     virtual void free(void **allocatedptr,snde_index addr,snde_index nelem)=0;
+    virtual void clear()=0; /* clear out all references to allocated and followed arrays */
     
     
     virtual ~arraymanager() {};
@@ -57,7 +58,10 @@ namespace snde {
       alloc->free(addr,nelem);    
     }
 
-  
+    virtual void clear() /* clear out all references to allocated and followed arrays */
+    {
+      allocators.clear();
+    }
   
 
     ~simplearraymanager() {
