@@ -6,6 +6,8 @@
 #include <vector>
 #include <map>
 #include <condition_variable>
+#include <deque>
+#include <algorithm>
 
 #include "geometry_types.h"
 #include "memallocator.hpp"

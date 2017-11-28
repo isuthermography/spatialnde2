@@ -8,7 +8,7 @@ all: allocator_test
 clean:
 	rm -f *~ allocator_test *.o *.bak
 
-allocator_test: allocator_test.o
+allocator_test: allocator_test.o lockmanager.o
 	$(CXX) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 .cpp.o:
@@ -16,4 +16,4 @@ allocator_test: allocator_test.o
 
 
 allocator_test.o: allocator_test.cpp
-
+lockmanager.o: lockmanager.cpp

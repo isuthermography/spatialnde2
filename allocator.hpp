@@ -1,5 +1,5 @@
-#ifndef SNDE_ALLOCATOR
-#define SNDE_ALLOCATOR
+#ifndef SNDE_ALLOCATOR_HPP
+#define SNDE_ALLOCATOR_HPP
 
 #include <stdint.h>
 
@@ -29,7 +29,14 @@ namespace snde {
    
   */
 
-  template <class AT> class allocator {
+  class allocatorbase {
+  public:
+    virtual snde_index alloc(snde_index nelem)=0;
+    virtual void free(snde_index addr,snde_index nelem)=0;
+    virtual ~allocatorbase()=0;
+  };
+  
+  template <class AT> class allocator : public allocatorbase {
     /* !!!*** NOTE: will want allocator to be able to 
        handle parallel-indexed portions of arrays of different
        things, e.g. vertex array and curvature array 
@@ -298,8 +305,18 @@ namespace snde {
       }
       assert(0); /* If this fails, it means the chunk being freed was not inside the array (!) */
     }
+    ~allocator() {
+      // _memalloc was provided by our creator and is not freed
+      // _locker was provided by our creator and is not freed
+      assert(*_arrayptr);
+      
+      _memalloc->free(*_arrayptr);
+      
+      *_arrayptr = NULL;
+      
+    }
   };
-    
+  
 }
 
-#endif /* SNDE_ALLOCATOR */
+#endif /* SNDE_ALLOCATOR_HPP */

@@ -1,7 +1,10 @@
 #ifndef SNDE_LOCKMANAGER
 #define SNDE_LOCKMANAGER
 
+
 namespace snde {
+
+  class rwlock;  // forward declaration
   
   class rwlock_lockable {
     // private to rwlock 
@@ -14,20 +17,8 @@ namespace snde {
       _rwlock_obj=lock;
     }
     
-    void lock() {
-      if (_writer) {
-	_rwlock_obj->lock_writer();
-      } else {
-	_rwlock_obj->lock_reader();
-      }
-    }
-    void unlock() {
-      if (_writer) {
-	_rwlock_obj->unlock_writer();
-      } else {
-	_rwlock_obj->unlock_reader();
-      }
-    }
+    void lock();  // implemented in lockmanager.cpp 
+    void unlock(); // implemented in lockmanager.cpp
   };
 
   struct arrayregion {
@@ -37,6 +28,7 @@ namespace snde {
   };
   
   class rwlock {
+  public:
     // loosely motivated by https://stackoverflow.com/questions/11032450/how-are-read-write-locks-implemented-in-pthread
     // * Instantiate snde::rwlock()
     // * To read lock, define a std::unique_lock<snde::rwlock> readlock(rwlock_object)
@@ -78,7 +70,7 @@ namespace snde {
       threadqueue.pop_front();
     }
     
-    void lock() { // lock for read
+    void lock_reader() { // lock for read
       std::unique_lock<std::mutex> adminlock(admin);
 
 
@@ -87,7 +79,7 @@ namespace snde {
       if (writelockcount > 0) {
 	/* add us to end of queue if locked for writing */
 	threadqueue.push_back(&cond);
-	_wait_for_top_of_queue(&cond);
+	_wait_for_top_of_queue(&cond,&adminlock);
       }
 
       /* been through queue once... now keep us on front of queue
@@ -95,7 +87,7 @@ namespace snde {
       while(writelockcount > 0) {
 	
 	threadqueue.push_front(&cond);
-	_wait_for_top_of_queue(&cond);	
+	_wait_for_top_of_queue(&cond,&adminlock);	
       }
       
       readlockcount++;
@@ -106,7 +98,7 @@ namespace snde {
 
     }
 
-    void unlock() {
+    void unlock_reader() {
       // unlock for read
       std::unique_lock<std::mutex> adminlock(admin);
       readlockcount--;
@@ -125,7 +117,7 @@ namespace snde {
       if (writelockcount > 0 || readlockcount > 0) {
 	/* add us to end of queue if locked for reading or writing */
 	threadqueue.push_back(&cond);
-	_wait_for_top_of_queue(&cond);
+	_wait_for_top_of_queue(&cond,&adminlock);
       }
 
       /* been through queue once... now keep us on front of queue
@@ -133,7 +125,7 @@ namespace snde {
       while(writelockcount > 0 || readlockcount > 0) {
 	
 	threadqueue.push_front(&cond);
-	_wait_for_top_of_queue(&cond);	
+	_wait_for_top_of_queue(&cond,&adminlock);	
       }
       
       writelockcount++;
@@ -164,6 +156,7 @@ namespace snde {
 
   };
 
+  
   // Persistent token of lock ownership
   typedef std::shared_ptr<std::lock_guard<rwlock_lockable>> rwlock_token;
 
@@ -183,6 +176,7 @@ namespace snde {
 
     }
   };
+
   
 
   class lockmanager {
@@ -207,9 +201,9 @@ namespace snde {
        are implicitly locked by locking the primary 
        array for that allocator 
 
-       The locking order is determined by the order of the 
+       The locking order is determined by the reverse of the (order of the 
        calls to addarray() which should generally match 
-       the order of the arrays in your structure that holds them.
+       the order of the arrays in your structure that holds them).
        
        Our API provides a means to request locking of 
        sub-regions of an array, but for now these 
@@ -232,8 +226,8 @@ namespace snde {
        Please note that you must follow the locking order convention 
        when doing this (or already hold the locks, if you just 
        want another lock token for a particular array or region)
-       The locking order convention for regions is that earlier regions
-       must be locked prior to later regions. 
+       The locking order convention for regions is that later regions
+       must be locked prior to earlier regions. 
        (Please note that the current version does not actually implement
        region-level granularity)
 
@@ -327,12 +321,11 @@ namespace snde {
 
 
     /* Thoughts: 
-       Should we reverse the default lock order, because later defined 
+       The default lock order is last to first, because later defined 
        structures (e.g. parts) will generally be higher level... 
        so as you traverse, you can lock the part database, figure out
        which vertices, lock those, and perhaps narrow or release your 
        hold on the part database. 
-       (we would have to flip the sort order in the arrays() calls.) 
     */
     
     
@@ -392,9 +385,9 @@ namespace snde {
     rwlock_token  _get_lock_read_array(std::vector<rwlock_token_set> priors, size_t arrayidx)
     {
       // prior is like a rwlock_token_set **
-      rwlock_lockable *lockobj=_locks[arrayidx].full_array.reader;
+      rwlock_lockable *lockobj=&_locks[arrayidx].full_array.reader;
 
-      for (rwlock_token_set::element_type::iterator prior=priors.begin(); prior != priors.end(); prior++) {
+      for (std::vector<rwlock_token_set>::iterator prior=priors.begin(); prior != priors.end(); prior++) {
 	//
 
 	if ((**prior).count(lockobj)) {
@@ -405,7 +398,7 @@ namespace snde {
       }
 
       /* if we got here, we do not have a token, need to make one */
-      return rwlock_token(lockobj);
+      return rwlock_token(new std::lock_guard<rwlock_lockable>(*lockobj));
       
     }
 
@@ -414,7 +407,7 @@ namespace snde {
     {
       rwlock_token_set token_set;
       
-      (*token_set)[_locks[cnt].full_array.reader]=_get_lock_read_array(priors,_arrayidx[array]);
+      (*token_set)[&_locks[_arrayidx[array]].full_array.reader]=_get_lock_read_array(priors,_arrayidx[array]);
       
       return token_set;
     }
@@ -426,11 +419,11 @@ namespace snde {
       std::vector<void *> sorted_arrays(arrays);
       
       std::sort(sorted_arrays.begin(), sorted_arrays.end(),
-          [] (void *a, void *b) { return _arrayidx[a] < _arrayidx[b]; });
+          [ this ] (void *a, void *b) { return _arrayidx[a] < _arrayidx[b]; });
 
-      
-      for (std:vector<void *>::iterator array=sorted_arrays->begin(); array != sorted_arrays->end(); array++) {      
-	(*token_set)[_locks[cnt].full_array.reader]=_get_lock_read_array(priors,_arrayidx[array]);
+       
+      for (std::reverse_iterator<std::vector<void *>::iterator> array=sorted_arrays.rbegin(); array != sorted_arrays.rend(); array++) {      
+	(*token_set)[&_locks[_arrayidx[*array]].full_array.reader]=_get_lock_read_array(priors,_arrayidx[*array]);
       }
       return token_set;
     }
@@ -447,7 +440,8 @@ namespace snde {
       // We do not currently implement region-granular locking
       std::vector<void *> arrayptrs(arrays.size()); 
 
-      for (std::vector<void *>::iterator array=arrays.begin(),int cnt=0;array != arrays.end();array++,cnt++) {
+      int cnt=0;
+      for (std::vector<struct arrayregion>::iterator array=arrays.begin();array != arrays.end();array++,cnt++) {
 	arrayptrs[cnt]=array->array;
       }
       
@@ -457,8 +451,8 @@ namespace snde {
     
     rwlock_token_set get_locks_read_arrays_region(rwlock_token_set prior, std::vector<struct arrayregion> arrays)
     {
-      std::vector<rwlock_token_set> priors(prior);
-      //priors.emplace_back(prior);
+      std::vector<rwlock_token_set> priors; //prior);
+      priors.emplace_back(prior);
 
       return get_locks_read_arrays_region(priors,arrays);
       
@@ -479,15 +473,15 @@ namespace snde {
     {
       rwlock_token_set tokens;
       
-      for (size_t cnt=0;cnt < _arrays.size();cnt++) {
-	tokens[_locks[cnt].full_array.reader]=_get_lock_read_array(priors,cnt);
+      for (ssize_t cnt=_arrays.size()-1;cnt >= 0;cnt--) {
+	(*tokens)[&_locks[cnt].full_array.reader]=_get_lock_read_array(priors,cnt);
       }
       return tokens;
     }
 
     rwlock_token_set get_locks_read_array(rwlock_token_set prior, void *array)
     {
-      wrlock_token_set_array priors;
+      std::vector<rwlock_token_set> priors;
       priors.emplace_back(prior);
 
       return get_locks_read_array(priors,array);
@@ -495,7 +489,7 @@ namespace snde {
 
     rwlock_token_set get_locks_read_arrays(rwlock_token_set prior, std::vector<void *> arrays)
     {
-      wrlock_token_set_array priors;
+      std::vector<rwlock_token_set> priors;
       priors.emplace_back(prior);
 
       return get_locks_read_arrays(priors,arrays);
@@ -504,7 +498,7 @@ namespace snde {
     
     rwlock_token_set get_locks_read_all(rwlock_token_set prior)
     {
-      wrlock_token_set_array priors;
+      std::vector<rwlock_token_set> priors;
       priors.emplace_back(prior);
 
       return get_locks_read_all(priors);
@@ -517,7 +511,7 @@ namespace snde {
 
     rwlock_token_set get_locks_read_all()
     {
-      return get_locks_read(std::vector<rwlock_token_set>());
+      return get_locks_read_all(std::vector<rwlock_token_set>());
     }
 
 
@@ -525,9 +519,9 @@ namespace snde {
     rwlock_token  _get_lock_write_array(std::vector<rwlock_token_set> priors, size_t arrayidx)
     {
       // prior is like a rwlock_token_set **
-      rwlock_lockable *lockobj=_locks[arrayidx].full_array.writer;
+      rwlock_lockable *lockobj=&_locks[arrayidx].full_array.writer;
 
-      for (rwlock_token_set::element_type::iterator prior=priors.begin(); prior != priors.end(); prior++) {
+      for (std::vector<rwlock_token_set>::iterator prior=priors.begin(); prior != priors.end(); prior++) {
 	//
 
 	if ((**prior).count(lockobj)) {
@@ -538,7 +532,7 @@ namespace snde {
       }
 
       /* if we got here, we do not have a token, need to make one */
-      return rwlock_token(lockobj);
+      return rwlock_token(new std::lock_guard<rwlock_lockable>(*lockobj));
       
     }
     
@@ -546,7 +540,7 @@ namespace snde {
     {
       rwlock_token_set token_set;
       
-      (*token_set)[_locks[cnt].full_array.writer]=_get_lock_write_array(priors,_arrayidx[array]);
+      (*token_set)[&_locks[_arrayidx[array]].full_array.writer]=_get_lock_write_array(priors,_arrayidx[array]);
       
       return token_set;
     }
@@ -558,11 +552,11 @@ namespace snde {
       std::vector<void *> sorted_arrays(arrays);
       
       std::sort(sorted_arrays.begin(), sorted_arrays.end(),
-          [] (void *a, void *b) { return _arrayidx[a] < _arrayidx[b]; });
+          [ this ] (void *a, void *b) { return _arrayidx[a] < _arrayidx[b]; });
 
       
-      for (std:vector<void *>::iterator array=sorted_arrays->begin(); array != sorted_arrays->end(); array++) {      
-	(*token_set)[_locks[cnt].full_array.writer]=_get_lock_write_array(priors,_arrayidx[array]);
+      for (std::reverse_iterator<std::vector<void *>::iterator> array=sorted_arrays.rbegin(); array != sorted_arrays.rend(); array++) {      
+	(*token_set)[&_locks[_arrayidx[*array]].full_array.writer]=_get_lock_write_array(priors,_arrayidx[*array]);
       }
       return token_set;
     }
@@ -577,8 +571,9 @@ namespace snde {
     {
       // We do not currently implement region-granular locking
       std::vector<void *> arrayptrs(arrays.size()); 
-
-      for (std::vector<void *>::iterator array=arrays.begin(),int cnt=0;array != arrays.end();array++,cnt++) {
+      int cnt=0;
+      
+      for (std::vector<struct arrayregion>::iterator array=arrays.begin();array != arrays.end();array++,cnt++) {
 	arrayptrs[cnt]=array->array;
       }
       
@@ -588,8 +583,8 @@ namespace snde {
 
     rwlock_token_set get_locks_write_arrays_region(rwlock_token_set prior, std::vector<struct arrayregion> arrays)
     {
-      std::vector<rwlock_token_set> priors(prior);
-      //priors.emplace_back(prior);
+      std::vector<rwlock_token_set> priors;
+      priors.emplace_back(prior);
 
       return get_locks_write_arrays_region(priors,arrays);
       
@@ -608,8 +603,8 @@ namespace snde {
     {
       rwlock_token_set tokens;
       
-      for (size_t cnt=0;cnt < _arrays.size();cnt++) {
-	tokens[_locks[cnt].full_array.writer]=_get_lock_write_array(priors,cnt);
+      for (ssize_t cnt=_arrays.size()-1;cnt >= 0;cnt--) {
+	(*tokens)[&_locks[cnt].full_array.writer]=_get_lock_write_array(priors,cnt);
       }
       return tokens;
     }
@@ -617,7 +612,7 @@ namespace snde {
       
     rwlock_token_set get_locks_write_array(rwlock_token_set prior, void *array)
     {
-      wrlock_token_set_array priors;
+      std::vector<rwlock_token_set> priors;
       priors.emplace_back(prior);
 
       return get_locks_write_array(priors,array);
@@ -625,7 +620,7 @@ namespace snde {
 
     rwlock_token_set get_locks_write_arrays(rwlock_token_set prior, std::vector<void *> arrays)
     {
-      wrlock_token_set_array priors;
+      std::vector<rwlock_token_set> priors;
       priors.emplace_back(prior);
 
       return get_locks_write_arrays(priors,arrays);
@@ -634,7 +629,7 @@ namespace snde {
 
     rwlock_token_set get_locks_write_all(rwlock_token_set prior)
     {
-      wrlock_token_set_array priors;
+      std::vector<rwlock_token_set> priors;
       priors.emplace_back(prior);
 
       return get_locks_write_all(priors);
@@ -658,7 +653,7 @@ namespace snde {
       for (std::map<rwlock_lockable *,rwlock_token>::iterator lockable_token=locks->begin();lockable_token != locks->end();lockable_token++) {
 	// lockable_token.first is reference to the lockable
 	// lockable_token.second is reference to the token
-	if (lockable_token->second.use_count != 1) {
+	if (lockable_token->second.use_count() != 1) {
 	  throw std::invalid_argument("Locks referenced by more than one token_set may not be downgraded");
 	  lockable_token->first->_rwlock_obj->downgrade();
 	}
