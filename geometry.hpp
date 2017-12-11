@@ -1,6 +1,7 @@
 #ifndef SNDE_GEOMETRY_HPP
 #define SNDE_GEOMETRY_HPP
 
+#include <cstring>
 
 /* Thoughts/updates: 
  * For OpenGL compatibility, drop everything down to triangle meshes

@@ -1,7 +1,7 @@
 #ifndef SNDE_ALLOCATOR_HPP
 #define SNDE_ALLOCATOR_HPP
 
-#include <stdint.h>
+#include <cstdint>
 
 #include "memallocator.hpp"
 
@@ -138,7 +138,7 @@ namespace snde {
 	/* if main array already allocated */
 	*arrayptr=_memalloc->calloc(_totalnchunks*_allocchunksize * elsize);
       } else {
-	*arrayptr=NULL;
+	      *arrayptr = nullptr;
       }
     }
     
@@ -180,10 +180,10 @@ namespace snde {
       std::unique_lock<std::mutex> lock(allocatormutex);
 
       for (freeposptr=(char *)&_firstfree,freepos=_firstfree;
-	   freepos < _totalnchunks;
+           freepos <= _totalnchunks;
 	   freeposptr=nextfreeblockstartptr,freepos=nextfreeblockstart) {
 
-	assert(!(freepos > _totalnchunks)); /* Last entry should line up with _totalnchunks */
+	      assert(freepos <= _totalnchunks); /* Last entry should line up with _totalnchunks */
 	if (freepos == _totalnchunks) {
 	  /* Overrun of allocated area... need to realloc */
 	
