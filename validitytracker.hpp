@@ -34,14 +34,41 @@ namespace snde {
       trackedregions.clear();
     }
 
-
     template <typename ... Args>
-    validitytracker<T> mark_region(snde_index firstelem, snde_index numelems,Args && ... args)
-    /* returns iterable validitytracker with blocks representing
-       the desired region */
+    std::pair<iterator,iterator> _breakupregion(iterator breakupregion, snde_index breakpoint,Args && ... args)
+      // Breakup the region specified by the iterator and breakpoint...
+      // return iterators to both pieces
     {
-      iterator region,breakupregion;
-      
+
+      // break into two parts
+      std::pair<std::shared_ptr<T>,std::shared_ptr<T>> regionparts = breakupregion->second->breakup(firstelem,std::forward<Args>(args) ...);
+
+      // erase from map
+      trackedregions.erase(breakupregion.first);
+
+      /* emplace first part of broken up region */
+      trackedregions[regionparts[0]->regionstart]=std::get<0>(regionparts);
+
+      /* emplace second part of broken up region */
+      trackedregions[regionparts[1]->regionstart]=regionparts[1];
+
+      // Create and return iterators to each 
+      return std::make_pair(trackedregions.lower_bound(regionparts[0]),trackedregions.lower_bound(regionparts[1]));
+    }
+    
+
+    
+    template <typename ... Args>
+    iterator _get_starting_region(snde_index firstelem,Args && ... args)
+    /* identify a preexisting region or split a preexisting region so that the startpoint >= specified firstelem or trackedregions.end()
+       
+       The returned iterator will never identify a region that starts prior to firstelem. The iterator may be trackedregions.end() which would mean there is no preexisting region that contained firstelem or started after firstelem
+
+       if the returned iterator identifies a region that start after firstelem, that would mean that there is no preexisting region that contains the space between firstelem and the returned iterator
+       */
+    {
+      iterator region,breakupregion,priorregion;
+
       /* identify first region where startpoint >= specified firstelem */
       region=trackedregions.lower_bound(firstelem);
       
@@ -53,35 +80,44 @@ namespace snde {
 	  breakupregion=region;
 	  breakupregion--;
 
+	  
 	  if (breakupregion->second->regionend > firstelem) {
 	    /* starts partway through breakupregion... perform breakup */
-	    std::pair<std::shared_ptr<T>,std::shared_ptr<T>> regionparts = breakupregion->second->breakup(firstelem,std::forward<Args>(args) ...);
-	    trackedregions.erase(breakupregion.first);
-
-	    /* emplace first part of broken up region */
-	    trackedregions[regionparts[0]->regionstart]=regionparts[0];
-
+	    std::tie(priorregion,region)=_breakupregion(breakupregion,firstelem,std::forward<Args>(args) ...);
+	  
+	    //region=trackedregions.lower_bound(firstelem);
+	    assert(region->first==firstelem);
+	    
 	    /* attempt to merge first part with anything prior */
+	    
 	    {
-	      iterator firstpieceiterator=trackedregions.lower_bound(regionparts[0]->regionstart);
-	      if (firstpieceiterator != trackedregions.begin()) {
-		iterator firstpieceprior=firstpieceiterator;
+	      if (priorregion != trackedregions.begin()) {
+		iterator firstpieceprior=priorregion;
 		firstpieceprior--;
-		if (firstpieceprior->second.attempt_merge(firstpieceiterator->second)) {
+		if (firstpieceprior->second.attempt_merge(priorregion->second)) {
 		  assert(firstpieceprior->second->regionend==firstelem); /* successful attempt_merge should have merged with successor */
-		  trackedregions.erase(firstpieceiterator->first);
+		  trackedregions.erase(priorregion->first);
 		}
 	      }
 	    }
 	    
-	    /* emplace second part of broken up region */
-	    trackedregions[regionparts[1]->regionstart]=regionparts[1];
-	    region=trackedregions.lower_bound(firstelem);
-	    assert(region->first==firstelem);
 	  }
 	}
 
       }
+      return region;
+    }
+    
+
+    template <typename ... Args>
+    validitytracker<T> mark_region(snde_index firstelem, snde_index numelems,Args && ... args)
+    /* mark specified region; returns iterable validitytracker with blocks representing
+       the desired region */
+    {
+      iterator region;
+
+      region=_get_starting_region(firstelem,std::forward<Args>(args) ...);
+
       /* region should now be a region where startpoint >= specified firstelem
 	 or trackedregions.end()
        */
@@ -130,19 +166,15 @@ namespace snde {
 	if (region->second->regionend > firstelem+numelems) {
 	  /* this region goes beyond our ROI...  */
 	  /* break it up */
-
-	  std::pair<std::shared_ptr<T>,std::shared_ptr<T>> regionparts = region->second->breakup(firstelem+numelems);
+	  iterator secondpieceiterator;
 	  
-	  trackedregions.erase(region.first);
-	  /* emplace first part of broken up region */
-	  trackedregions[regionparts[0]->regionstart]=regionparts[0];
-	  /* emplace second part of broken up region */
-	  trackedregions[regionparts[1]->regionstart]=regionparts[1];
+	  std::tie(region,secondpieceiterator)=_breakupregion(region,firstelem+numelems,std::forward<Args>(args) ...);
+
+	  assert(region->second->regionend == firstelem+numelems);
 
 	  /* attempt to merge second part of broken up region 
 	     with following */
 	  {
-	    iterator secondpieceiterator=trackedregions.lower_bound(regionparts[1]->regionstart);
 	    iterator secondpiecenext=secondpieceiterator;
 	    secondpiecenext++;
 	    if (secondpiecenext != trackedregions.end()) {
@@ -154,9 +186,6 @@ namespace snde {
 	    
 	  }
 	  
-	  /* get interator to first part of broken up region */
-	  region=trackedregions.lower_bound(regionparts[0]->regionstart);
-	  assert(region->second->regionend == firstelem+numelems);
 
 	  
 	  
@@ -176,14 +205,73 @@ namespace snde {
       return retval;
     }
 
-    /* ***!!! Need to implement clear_region() !!!*** */
+
+    
 
     template <typename ... Args>
     validitytracker<T> get_regions(snde_index firstelem, snde_index numelems,Args && ... args)
     /* returns iterable validitytracker with blocks representing
-       all marked segments of the desired region */
+       all currently marked segments of the desired region.
+       
+       Currently marked segments that overlap the desired region
+       will be split at the region boundary and only the 
+       inside component will be returned. 
+    */
     {
-      /* !!! *** */
+      iterator region;
+
+      region=_get_starting_region(firstelem,std::forward<Args>(args) ...);
+      /* region should now be a region where startpoint >= specified firstelem
+	 or trackedregions.end()
+       */
+      
+
+      validitytracker retval;
+      
+      while (region != trackedregions.end() && region->second->regionstart < firstelem+numelems) {
+
+	
+	if (region->second->regionend > firstelem+numelems) {
+	  /* this region goes beyond our ROI...  */
+	  /* break it up */
+	  iterator secondpieceiterator;
+
+
+	  std::tie(region,secondpieceiterator)=_breakupregion(region,firstelem+numelems,std::forward<Args>(args) ...);
+
+	  assert(region->second->regionend == firstelem+numelems);
+
+	  /* attempt to merge second part of broken up region 
+	     with following */
+	  {
+	    iterator secondpiecenext=secondpieceiterator;
+	    secondpiecenext++;
+	    if (secondpiecenext != trackedregions.end()) {
+	      if (secondpieceiterator->second->attempt_merge(secondpiecenext->second)) {
+		/* if merge succeeded, remove second piecenext */
+		trackedregions.erase(secondpiecenext->first);
+	      }
+	    }
+	    
+	  }
+	  
+
+	  
+	  
+	}
+	
+	/* now we've got a region that ends at or before firstelem+numelems */
+	assert (region->second->regionend <= firstelem+numelems);
+
+	/* add region to retval */
+	retval[region->second->regionstart]=region->second;
+
+	/* increment region */
+	region++;
+      }
+
+      return retval;
+      
     }
 
     template <typename ... Args>
@@ -191,7 +279,13 @@ namespace snde {
     /* returns iterable validitytracker with blocks representing
        any removed marked segments of the desired region */
     {
-      /* !!! *** */
+      validitytracker<T> marked_regions=get_regions(firstelem,numelems,std::forward<Args>(args) ...);
+
+      for (auto & region: marked_regions) {
+	trackedregions.erase(region.first);
+      }
+
+      return marked_regions;
     }
 
 

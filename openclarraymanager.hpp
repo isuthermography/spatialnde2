@@ -7,6 +7,8 @@
 
 #include "arraymanager.hpp"
 #include "validitytracker.hpp"
+#include "snde_error_opencl.hpp"
+
 
 extern "C" void snde_opencl_callback(cl_event event, cl_int event_command_exec_status, void *user_data);
 
