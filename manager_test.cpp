@@ -14,7 +14,6 @@
 #include <functional>
 #include <tuple>
 
-#include <CL/opencl.h>
 
 #include "geometry_types.h"
 #include "snde_error.hpp"

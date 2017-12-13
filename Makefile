@@ -15,7 +15,7 @@ commit: clean
 allocator_test: allocator_test.o lockmanager.o allocator.o
 	$(CXX) $(CPPFLAGS) -o $@ $^ $(LDFLAGS)
 
-manager_test: manager_test.o lockmanager.o arraymanager.o
+manager_test: manager_test.o lockmanager.o 
 	$(CXX) $(CPPFLAGS) -o $@ $^ $(LDFLAGS)
 
 .cpp.o:
@@ -26,4 +26,4 @@ allocator_test.o: allocator_test.cpp
 lockmanager.o: lockmanager.cpp
 manager_test.o: manager_test.cpp
 allocator.o: allocator.cpp
-arraymanager.o: arraymanager.cpp
+openclarraymanager.o: openclarraymanager.cpp
