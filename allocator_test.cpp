@@ -8,6 +8,8 @@
 #include <condition_variable>
 #include <deque>
 #include <algorithm>
+#include <unordered_map>
+#include <functional>
 
 #include "geometry_types.h"
 #include "memallocator.hpp"

@@ -2,15 +2,24 @@
 #include <assert.h>
 #include <string.h>
 #include <cstdint>
+#include <cstdarg>
+
 
 #include <vector>
 #include <map>
 #include <condition_variable>
 #include <deque>
 #include <algorithm>
+#include <unordered_map>
+#include <functional>
+#include <tuple>
+
+#include <CL/opencl.h>
 
 #include "geometry_types.h"
+#include "snde_error.hpp"
 #include "memallocator.hpp"
+#include "validitytracker.hpp"
 #include "allocator.hpp"
 #include "lockmanager.hpp"
 #include "arraymanager.hpp"

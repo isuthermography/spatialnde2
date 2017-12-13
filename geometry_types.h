@@ -211,11 +211,17 @@ struct snde_mesheduv {
 };
 
 struct snde_assemblyelement {
+  /***!!!*** NOTE: Because GPU code generally can't be 
+      recursive, we will need to provide a utility routine
+      that provides a flattened structure that can be 
+      iterated over (should this even be in the database? ... 
+      rather should probably dynamically generate flattened
+      partinstance structure with CPU prior to bulk computation) !!!***/
   snde_orientation3 orientation; /* orientation of this part/assembly relative to its parent */
   /* if assemblynum is set, this element is a sub-assembly */
   snde_index assemblynum;  
   /*  if assemblynum is SNDE_INDEX_INVALID, 
-      then ore or more of the following can be set...*/
+      then one or more of the following can be set...*/
   
   snde_index nurbspartnum;
   snde_index nurbspartnum_reduceddetail;
@@ -226,12 +232,15 @@ struct snde_assemblyelement {
 
 /* partinstance table created by walking the assembly structure and choosing level of detail */
 struct snde_partinstance {
-  snde_orientation3 orientation;
+  /* ***!!! (should this even be in the database? probably generated dynamically; see above) !!!***/
+   snde_orientation3 orientation;
   snde_index nurbspartnum; /* if nurbspartnum is SNDE_INDEX_INVALID, then there is a meshed representation only */
   snde_index meshedpartnum;
   snde_index discrete_parameterizationnum; /* index of the discrete parameterization */
   snde_index firstuvpatch; /* starting uv_patch # (snde_image) for this instance... # of patches is an attribute of mesheduv, or nurbsuv */ 
   snde_index mesheduvnum; /* numvertices arrays must match between partinstance and mesheduv */
+
+  /* ***!!! Also need to indicate "texture" image to reference uv parameterization ***/
 };
   
 

@@ -7,6 +7,7 @@
 #include <condition_variable>
 #include <deque>
 #include <algorithm>
+#include <unordered_map>
 
 #include "geometry_types.h"
 #include "lockmanager.hpp"

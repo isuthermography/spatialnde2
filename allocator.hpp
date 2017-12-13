@@ -65,6 +65,8 @@ namespace snde {
 
     std::shared_ptr<memallocator> _memalloc;
     std::shared_ptr<lockmanager> _locker; // could be NULL if there is no locker
+    std::deque<std::shared_ptr<std::function<void()>>> realloccallbacks; // locked by allocatormutex
+    
     /* 
        Should lock things on allocation...
      
@@ -130,8 +132,13 @@ namespace snde {
     
     }
 
-    void add_other_array(void **arrayptr, size_t elsize)
+    allocator(const allocator &)=delete; /* copy constructor disabled */
+    allocator& operator=(const allocator &)=delete; /* assignment disabled */
+
+    size_t add_other_array(void **arrayptr, size_t elsize)
+    /* returns index */
     {
+      size_t retval=arrays.size();
       arrays.push_back(arrayinfo {arrayptr,elsize});
 
       if (*arrays[0].arrayptr) {
@@ -160,7 +167,11 @@ namespace snde {
       }
       
     }
-    
+
+    snde_index total_nelem() {
+      std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
+      return _totalnchunks*_allocchunksize;
+    }
     
   
     snde_index alloc(snde_index nelem) {
@@ -170,6 +181,9 @@ namespace snde {
 
       snde_index newfreeblockstart;
       snde_index newfreeblocknchunks;
+      snde_index retsize;
+      
+      bool reallocflag=false;
 
       char *freeposptr;
       char *nextfreeblockstartptr;
@@ -195,6 +209,7 @@ namespace snde {
 	  }
 
 	  this->_realloc(newnchunks);
+	  reallocflag=true;
 	  
 	  if (freeposptr != (char *)&_firstfree) {
 	    freeposptr=((char *)*arrays[0].arrayptr)+freeposptroffset;
@@ -247,15 +262,48 @@ namespace snde {
 	  
 	  }
 
-
-	  return freepos*_allocchunksize;
+	  retsize=freepos*_allocchunksize;
+	  goto finished;
 	}
       
       }
 
-      return SNDE_INDEX_INVALID;
+      retsize=SNDE_INDEX_INVALID;
+    finished:
+
+      if (reallocflag) {
+	// notify recipients that we reallocated
+	std::deque<std::shared_ptr<std::function<void()>>> realloccallbacks_copy(realloccallbacks); // copy can be iterated with allocatormutex unlocked
+	
+	lock.unlock(); // release allocatormutex
+	for (std::deque<std::shared_ptr<std::function<void()>>>::iterator reallocnotify=realloccallbacks_copy.begin();reallocnotify != realloccallbacks_copy.end();reallocnotify++) {
+	  (**reallocnotify)();
+	}
+	
+      }
+      
+      return retsize;
     }
 
+    void register_realloc_callback(std::shared_ptr<std::function<void()>> callback)
+    {
+      std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
+      
+      realloccallbacks.emplace_back(callback);
+    }
+
+    void unregister_realloc_callback(std::shared_ptr<std::function<void()>> callback)
+    {
+      std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
+
+      for (std::deque<std::shared_ptr<std::function<void()>>>::iterator reallocnotify=realloccallbacks.begin();reallocnotify != realloccallbacks.end();reallocnotify++) {
+	if (*reallocnotify==callback) {
+	  realloccallbacks.erase(reallocnotify);
+	}
+      }
+    }
+
+    
     void free(snde_index addr,snde_index nelem) {
       // Number of chunks we need... nelem/_allocchunksize rounding up
       snde_index chunkaddr;
