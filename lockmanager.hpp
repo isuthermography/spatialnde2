@@ -1,6 +1,7 @@
 #ifndef SNDE_LOCKMANAGER
 #define SNDE_LOCKMANAGER
 
+#include <cassert>
 
 #include <cstdint>
 #include <cassert>
