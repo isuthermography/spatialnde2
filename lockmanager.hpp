@@ -14,6 +14,7 @@
 #include <algorithm>
 
 #include "geometry_types.h"
+#include "rangetracker.hpp"
 
 /* general locking api information:
 
@@ -72,6 +73,34 @@ namespace snde {
     snde_index numelems;
   };
 
+  class dirtyregion  {
+  public:
+    snde_index regionstart;
+    snde_index regionend;
+
+    dirtyregion(snde_index regionstart,snde_index regionend)
+    {
+      this->regionstart=regionstart;
+      this->regionend=regionend;
+    }
+
+    bool attempt_merge(dirtyregion &later)
+    {
+      assert(later.regionstart==regionend);
+      regionend=later.regionend;
+      return true;
+    }
+    std::shared_ptr<dirtyregion> breakup(snde_index breakpoint)
+    /* breakup method ends this region at breakpoint and returns
+       a new region starting at from breakpoint to the prior end */
+    {
+      std::shared_ptr<dirtyregion> newregion(new dirtyregion(breakpoint,regionend));
+      regionend=breakpoint;
+
+      return newregion;
+    }
+  };
+
   class rwlock {
   public:
     // loosely motivated by https://stackoverflow.com/questions/11032450/how-are-read-write-locks-implemented-in-pthread
@@ -90,9 +119,10 @@ namespace snde {
     rwlock_lockable reader;
     rwlock_lockable writer;
 
-    std::deque<std::pair<snde_index,snde_index>> writer_regions_firstelem_numelems;
 
-    std::deque<std::function<void(snde_index firstelem,snde_index numelems)>> dirtynotify; /* locked by admin, but functions should be called with admin lock unlocked (i.e. copy the deque before calling). This write lock will be locked */
+    rangetracker<struct dirtyregion> _dirtyregions; /* track dirty ranges during a write (all regions that are locked for write */
+
+    std::deque<std::function<void(snde_index firstelem,snde_index numelems)>> _dirtynotify; /* locked by admin, but functions should be called with admin lock unlocked (i.e. copy the deque before calling). This write lock will be locked */
 
     // For weak readers to support on-GPU caching of data, we would maintain a list of some sort
     // of these weak readers. Before we give write access, we would have to ask each weak reader
@@ -177,7 +207,8 @@ namespace snde {
       }
       std::unique_lock<std::mutex> adminlock(admin);
       /* Should probably merge with preexisting entries here... */
-      writer_regions_firstelem_numelems.emplace_back(firstelem,numelems);
+      
+      _dirtyregions.mark_region(firstelem,numelems);
       
     }
 
@@ -205,7 +236,7 @@ namespace snde {
 	_wait_for_top_of_queue(&cond,&adminlock);
       }
 
-      writer_regions_firstelem_numelems.emplace_back(firstelem,numelems);
+      _dirtyregions.mark_region(firstelem,numelems);
       
       writelockcount++;
     }
@@ -260,18 +291,19 @@ namespace snde {
 	throw std::invalid_argument("Can only unlock lock that has positive writelockcount");
       }
 
-      if (dirtynotify.size() > 0) {
-	std::deque<std::function<void(snde_index firstelem,snde_index numelems)>> dirtynotifycopy(dirtynotify);
+      if (_dirtynotify.size() > 0) {
+	std::deque<std::function<void(snde_index firstelem,snde_index numelems)>> dirtynotifycopy(_dirtynotify);
 
-	std::deque<std::pair<snde_index,snde_index>> writer_regions_firstelem_numelems;
-
-	// ***!!!! Need to iterate over writer_regions_firstelem_numelems;
-
-	// ***!!! Need class representing dirty regions *** !!!*** Need to implement with validitytracker
+	// make thread-safe copy of dirtyregions;
+	// since we are locked for write nobody had better
+	// be messing with dirtyregions
+	
 	adminlock.unlock();
 
 	for (auto & callback: dirtynotifycopy) {
-	  //callback(); Need to repeat callback for each dirty region
+	  for (auto & region: _dirtyregions) {
+	    callback(region.second->regionstart,region.second->regionend-region.second->regionstart);// repeat callback for each dirty region
+	  }
 	}
 	
 	adminlock.lock();
@@ -280,7 +312,7 @@ namespace snde {
       writelockcount--;
       
       if (!writelockcount) {
-	writer_regions_firstelem_numelems.clear();	
+	_dirtyregions.clear_all();
       }
 
       if (!writelockcount && !threadqueue.empty()) {

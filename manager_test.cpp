@@ -18,7 +18,6 @@
 #include "geometry_types.h"
 #include "snde_error.hpp"
 #include "memallocator.hpp"
-#include "validitytracker.hpp"
 #include "allocator.hpp"
 #include "lockmanager.hpp"
 #include "arraymanager.hpp"

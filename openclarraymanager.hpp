@@ -6,7 +6,7 @@
 #include <CL/opencl.h>
 
 #include "arraymanager.hpp"
-#include "validitytracker.hpp"
+#include "rangetracker.hpp"
 #include "snde_error_opencl.hpp"
 
 
@@ -41,6 +41,33 @@ namespace snde {
 	clReleaseEvent(fill_event);
 	fill_event=NULL;
       }
+    }
+    
+    bool attempt_merge(openclregion &later)
+    {
+      assert(later.regionstart==regionend);
+
+      if (!fill_event && !later.fill_event) {      
+	regionend=later.regionend;
+	return true;
+      }
+      return false;
+    }
+
+    std::shared_ptr<openclregion> breakup(snde_index breakpoint)
+    /* breakup method ends this region at breakpoint and returns
+       a new region starting at from breakpoint to the prior end */
+    {
+      std::shared_ptr<openclregion> newregion(new openclregion(breakpoint,regionend));
+      regionend=breakpoint;
+
+      if (fill_event) {
+	newregion->fill_event=fill_event;
+	clRetainEvent(newregion->fill_event);
+      }
+      
+
+      return newregion;
     }
 
   };
@@ -121,7 +148,7 @@ namespace snde {
   public:
     cl_mem buffer; /* cl reference count owned by this object */
     size_t elemsize;
-    validitytracker<openclregion> invalidity;
+    rangetracker<openclregion> invalidity;
     void **arrayptr;
     std::shared_ptr<std::function<void()>> realloc_callback;
     std::shared_ptr<allocator> alloc;
@@ -306,7 +333,7 @@ namespace snde {
       std::shared_ptr<allocator> alloc=allocators[arrayptr].alloc;
       std::shared_ptr<_openclbuffer> oclbuffer;
       std::vector<cl_event> ev;
-      validitytracker<openclregion>::iterator invalidregion;
+      rangetracker<openclregion>::iterator invalidregion;
 
       if (numelems==SNDE_INDEX_INVALID) {
 	numelems=alloc->total_nelem()-firstelem;
@@ -352,7 +379,7 @@ namespace snde {
       if (flags != CL_MEM_WRITE_ONLY) { /* No need to enqueue transfer if kernel is strictly write */
 
 
-	validitytracker<openclregion> invalid_regions=oclbuffer->invalidity.get_regions(firstelem,numelems);
+	rangetracker<openclregion> invalid_regions=oclbuffer->invalidity.get_regions(firstelem,numelems);
 
 	for (auto & invalidregion: invalid_regions) {
 	  
@@ -405,7 +432,7 @@ namespace snde {
       /* Does not reduce refcount of mem or waitevents */
 
       std::shared_ptr<_openclbuffer> oclbuffer;
-      validitytracker<openclregion>::iterator invalidregion;
+      rangetracker<openclregion>::iterator invalidregion;
       std::vector<cl_event> ev(waitevents);
 
       /* make copy of buffertoks to delegate to thread... create pointer so it is definitely safe to delegate */

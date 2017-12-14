@@ -1,5 +1,5 @@
-#ifndef SNDE_VALIDITYTRACKER_HPP
-#define SNDE_VALIDITYTRACKER_HPP
+#ifndef SNDE_RANGETRACKER_HPP
+#define SNDE_RANGETRACKER_HPP
 
 
 #include <map>
@@ -9,7 +9,7 @@ namespace snde {
 
   
   template <class T> // class T should have regionstart and regionend elements
-  class validitytracker {
+  class rangetracker {
   public:
     std::map<snde_index,std::shared_ptr<T>> trackedregions; // indexed by regionstart
 
@@ -41,19 +41,22 @@ namespace snde {
     {
 
       // break into two parts
-      std::pair<std::shared_ptr<T>,std::shared_ptr<T>> regionparts = breakupregion->second->breakup(firstelem,std::forward<Args>(args) ...);
+      // breakup method shrinks the existing region into the first of two
+      // and returns the second
+      std::shared_ptr<T> firstregion = breakupregion->second;
+      std::shared_ptr<T> secondregion = breakupregion->second->breakup(breakpoint,std::forward<Args>(args) ...);
 
       // erase from map
-      trackedregions.erase(breakupregion.first);
+      trackedregions.erase(breakupregion->first);
 
       /* emplace first part of broken up region */
-      trackedregions[regionparts[0]->regionstart]=std::get<0>(regionparts);
+      trackedregions[firstregion->regionstart]=firstregion;
 
       /* emplace second part of broken up region */
-      trackedregions[regionparts[1]->regionstart]=regionparts[1];
+      trackedregions[secondregion->regionstart]=secondregion;
 
       // Create and return iterators to each 
-      return std::make_pair(trackedregions.lower_bound(regionparts[0]),trackedregions.lower_bound(regionparts[1]));
+      return std::make_pair(trackedregions.lower_bound(firstregion->regionstart),trackedregions.lower_bound(secondregion->regionstart));
     }
     
 
@@ -94,7 +97,7 @@ namespace snde {
 	      if (priorregion != trackedregions.begin()) {
 		iterator firstpieceprior=priorregion;
 		firstpieceprior--;
-		if (firstpieceprior->second.attempt_merge(priorregion->second)) {
+		if (firstpieceprior->second->attempt_merge(*priorregion->second)) {
 		  assert(firstpieceprior->second->regionend==firstelem); /* successful attempt_merge should have merged with successor */
 		  trackedregions.erase(priorregion->first);
 		}
@@ -110,8 +113,8 @@ namespace snde {
     
 
     template <typename ... Args>
-    validitytracker<T> mark_region(snde_index firstelem, snde_index numelems,Args && ... args)
-    /* mark specified region; returns iterable validitytracker with blocks representing
+    rangetracker<T> mark_region(snde_index firstelem, snde_index numelems,Args && ... args)
+    /* mark specified region; returns iterable rangetracker with blocks representing
        the desired region */
     {
       iterator region;
@@ -139,7 +142,7 @@ namespace snde {
 
       /* now region refers to firstelem */
 
-      validitytracker retval;
+      rangetracker retval;
       snde_index coveredthrough=firstelem;
       
       while (coveredthrough < firstelem+numelems) {
@@ -178,7 +181,7 @@ namespace snde {
 	    iterator secondpiecenext=secondpieceiterator;
 	    secondpiecenext++;
 	    if (secondpiecenext != trackedregions.end()) {
-	      if (secondpieceiterator->second->attempt_merge(secondpiecenext->second)) {
+	      if (secondpieceiterator->second->attempt_merge(*secondpiecenext->second)) {
 		/* if merge succeeded, remove second piecenext */
 		trackedregions.erase(secondpiecenext->first);
 	      }
@@ -196,7 +199,7 @@ namespace snde {
 	assert (region->second->regionend <= firstelem+numelems);
 
 	/* add region to retval */
-	retval[region->second->regionstart]=region->second;
+	retval.trackedregions[region->second->regionstart]=region->second;
 
 	/* increment coveredthrough */
 	coveredthrough=region->second->regionend;
@@ -209,8 +212,8 @@ namespace snde {
     
 
     template <typename ... Args>
-    validitytracker<T> get_regions(snde_index firstelem, snde_index numelems,Args && ... args)
-    /* returns iterable validitytracker with blocks representing
+    rangetracker<T> get_regions(snde_index firstelem, snde_index numelems,Args && ... args)
+    /* returns iterable rangetracker with blocks representing
        all currently marked segments of the desired region.
        
        Currently marked segments that overlap the desired region
@@ -226,7 +229,7 @@ namespace snde {
        */
       
 
-      validitytracker retval;
+      rangetracker retval;
       
       while (region != trackedregions.end() && region->second->regionstart < firstelem+numelems) {
 
@@ -247,7 +250,7 @@ namespace snde {
 	    iterator secondpiecenext=secondpieceiterator;
 	    secondpiecenext++;
 	    if (secondpiecenext != trackedregions.end()) {
-	      if (secondpieceiterator->second->attempt_merge(secondpiecenext->second)) {
+	      if (secondpieceiterator->second->attempt_merge(*secondpiecenext->second)) {
 		/* if merge succeeded, remove second piecenext */
 		trackedregions.erase(secondpiecenext->first);
 	      }
@@ -264,7 +267,7 @@ namespace snde {
 	assert (region->second->regionend <= firstelem+numelems);
 
 	/* add region to retval */
-	retval[region->second->regionstart]=region->second;
+	retval.trackedregions[region->second->regionstart]=region->second;
 
 	/* increment region */
 	region++;
@@ -275,11 +278,11 @@ namespace snde {
     }
 
     template <typename ... Args>
-    validitytracker<T> clear_region(snde_index firstelem, snde_index numelems,Args && ... args)
-    /* returns iterable validitytracker with blocks representing
+    rangetracker<T> clear_region(snde_index firstelem, snde_index numelems,Args && ... args)
+    /* returns iterable rangetracker with blocks representing
        any removed marked segments of the desired region */
     {
-      validitytracker<T> marked_regions=get_regions(firstelem,numelems,std::forward<Args>(args) ...);
+      rangetracker<T> marked_regions=get_regions(firstelem,numelems,std::forward<Args>(args) ...);
 
       for (auto & region: marked_regions) {
 	trackedregions.erase(region.first);
@@ -294,4 +297,4 @@ namespace snde {
   
 }
 
-#endif /* SNDE_VALIDITYTRACKER_HPP */
+#endif /* SNDE_RANGETRACKER_HPP */

@@ -18,7 +18,7 @@
 #include "geometry_types.h"
 #include "snde_error.hpp"
 #include "memallocator.hpp"
-#include "validitytracker.hpp"
+#include "rangetracker.hpp"
 #include "allocator.hpp"
 #include "lockmanager.hpp"
 #include "openclarraymanager.hpp"
