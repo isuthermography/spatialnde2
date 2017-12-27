@@ -8,6 +8,15 @@ extern "C" {
 
   struct snde_geometrydata {
     double tol; // tolerance
+
+    struct snde_assemblyelement *assemblies;
+    //allocatorbase  *assemblies_alloc; // really allocator<struct snde_assemblyelement> *
+    
+    //struct snde_partinstance *instances; (no longer in database) 
+    //allocatorbase  *instances_alloc; // really allocator<struct snde_partinstance>*
+
+    /* meshed 3D geometry */
+    struct snde_meshedpart *meshedparts;
     
     // polygon (triangle) vertices...
     snde_coord3 *vertices;
@@ -35,16 +44,45 @@ extern "C" {
     
     snde_mat23 *inplanemat; // allocated by triangle_alloc
 
+
+    /* NURBS 3D geometry */
+    struct snde_nurbspart *nurbsparts;
+    //allocatorbase  *nurbsparts_alloc; // really allocator<struct snde_nurbspart>*
+
+    struct snde_nurbssurface *nurbssurfaces;
+    //allocatorbase *nurbssurfaces_alloc; // really allocator<struct snde_nurbssurface> *
+
+    // ***!!!*** Need to define edge topology for the object as a whole
+    // ***!!!*** Each edge is a curve in 3-space, and it should point to a
+    // ***!!!*** trimcurvesegment
+    // ***!!!*** for each face that shares that edge. 
+
+    snde_index *nurbsedgeindex; // separate allocator
+    struct snde_trimcurvesegment *nurbstrimcurves; // allocated with nurbsedgeindex
+
+    struct snde_nurbsedge *nurbsedge; // separate allocator
+
+
+    snde_coord3 *controlpoints; /* control points for nurbssurface and nurbsedge; separate allocator */
+    snde_coord3 *controlpointstrim; /* control points for snde_trimcurvesegment; separate allocator */
+    snde_coord *weights; // separate allocator
+    snde_coord *knots; // separate allocator
+
+
+
+    /* boxes */
     snde_box3 *boxes;  // allocated by boxes_alloc... NOTE: Boxes are in part coordinates, not world coordinates 
     //allocatorbase *boxes_alloc; // really allocator<snde_box3> * 
-
     snde_boxcoord3 *boxcoord; // allocated by boxes_alloc
-
-    snde_index *boxpolys;
+    snde_index *boxpolys; /* separate alocation */
     //allocatorbase *boxpolys_alloc; // really allocator<snde_index> *
     
 
     // Add polynum_by_vertex and/or adjacent_vertices? 
+
+    // Meshed parameterizations
+    snde_mesheduv *mesheduv; /* array of meshed uv parameterizations */
+    //allocatorbase *mesheduv_alloc; // really allocator<struct snde_mesheduv> *
 
     
     // surface parameterization (texture coordinate) vertices...
@@ -63,7 +101,27 @@ extern "C" {
     snde_triangleindices *uv_vertexidx;
     //allocatorbase *uv_triangle_alloc; // really allocator<snde_triangleindices>
 
+    snde_mat23 *inplane2uvcoords;  /* allocated with uv_vertexidx */
+    snde_mat23 *uvcoords2inplane; /* allocated with uv_vertexidx */
+    
+    
+    // Continuous (NURBS) parameterizations
+    struct snde_nurbsuv *nurbsuv;
+    //allocatorbase *nurbsuv_alloc; // really allocator<struct snde_nurbsuv>*
+    
+    struct snde_nurbssurfaceuv *nurbssurfaceuv;
+    //allocatorbase *nurbssurfaceuv_alloc; // really allocator<struct snde_nurbssurfaceuv>
 
+    struct snde_nurbssubsurfaceuv *nurbssubsurfaceuv;
+    //allocatorbase *nurbssubsurfaceuv_alloc; // really allocator<struct snde_nurbssubsurfaceuv> *
+
+    snde_coord3 *uvcontrolpoints; /* control points for snde_nurbssubsurfaceuv; separate allocator */
+    snde_coord *uvweights; // separate allocator
+    snde_coord *uvknots; // separate allocator
+
+
+    // 2D (uv-space) boxes 
+    
     snde_box2 *uv_boxes;  // allocated by uv_boxes_alloc... NOTE: Boxes are in part coordinates, not world coordinates 
     //allocatorbase *uv_boxes_alloc; // really allocator<snde_box2> *
 
@@ -71,9 +129,6 @@ extern "C" {
     //allocatorbase *uv_boxpolys_alloc; // really allocator<snde_index> *
     
     snde_boxcoord2 *uv_boxcoord; // allocated by uv_boxes_alloc
-
-    snde_mesheduv *mesheduv; /* array of meshed uv parameterizations */
-    //allocatorbase *mesheduv_alloc; // really allocator<struct snde_mesheduv> *
 
     
     snde_index *uv_patch_index; // uv_patch_index is indexed by triangle, like uv_vertexidx, and indicates which patch of uv space for this mesheduv the triangle vertices correspond to  
@@ -83,29 +138,7 @@ extern "C" {
     //allocatorbase *uv_patches_alloc; // really allocator<snde_image> *
 
     
-    snde_mat23 *uv2texcoords;
-    //allocatorbase *inplaneuvcoords_alloc; // really allocator<snde_mat23> *
-    snde_mat23 *uvcoords2inplane;
-
-
-
-    struct snde_nurbssurface *nurbssurfaces;
-    //allocatorbase *nurbssurfaces_alloc; // really allocator<struct snde_nurbssurface> *
-
-    struct snde_trimcurvesegment *nurbstrimcurves;
-    //allocatorbase *nurbstrimcurves_alloc; // really allocator<struct snde_trimcurvesegment>*
-
-    struct snde_nurbssubsurfaceuv *nurbssubsurfaceuv;
-    //allocatorbase *nurbssubsurfaceuv_alloc; // really allocator<struct snde_nurbssubsurfaceuv> *
-
-    struct snde_nurbssurfaceuv *nurbssurfaceuv;
-    //allocatorbase *nurbssurfaceuv_alloc; // really allocator<struct snde_nurbssurfaceuv>
-
-    struct snde_nurbsuv *nurbsuv;
-    //allocatorbase *nurbsuv_alloc; // really allocator<struct snde_nurbsuv>*
-
-    struct snde_nurbspart *nurbsparts;
-    //allocatorbase  *nurbsparts_alloc; // really allocator<struct snde_nurbspart>*
+    
     
     
     // We can also think about breaking 2dobj into contiguous pieces (?)
@@ -113,17 +146,12 @@ extern "C" {
     // concrete instance of the parameterization (bitmap)
     // or region thereof. 
 
-    struct snde_assemblyelement *assemblies;
-    //allocatorbase  *assemblies_alloc; // really allocator<struct snde_assemblyelement> *
-    
-    struct snde_partinstance *instances;
-    //allocatorbase  *instances_alloc; // really allocator<struct snde_partinstance>*
     
 
     snde_imagedata *imagebuf;
     //allocatorbase *imagebuf_alloc; // really allocator<snde_imagedata>*
 
-    snde_imagedata *zbuffer; /* allocated by imagebuf_alloc */
+    snde_coord *zbuffer; /* separately allocated */
 
     
     

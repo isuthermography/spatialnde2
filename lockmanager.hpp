@@ -29,7 +29,7 @@ allowed simultaneously, but only one writer is possible at a time.
 i.e. use get_locks_read_...() vs. get_locks_write_...()
  * Locks must be acquired in a specified order to avoid deadlock. See
 https://stackoverflow.com/questions/1951275/would-you-explain-lock-ordering
-The order is from the bottom of the struct snde_geometrydata  to the top. Once you own a lock for a particular array, you may not lock an array farther down.
+The order is from the top of the struct snde_geometrydata  to the bottom. Once you own a lock for a particular array, you may not lock an array farther up.
  * Within an array, locks are ordered from smallest to largest index. 
  * Allocating space in an array requires a write lock on the entire array, as it may cause the array to be reallocated if it must be expanded. 
  * Ownership of a lock is denoted by an rwlock_token, but 
@@ -45,6 +45,23 @@ The order is from the bottom of the struct snde_geometrydata  to the top. Once y
    operation, and then call lockmanager->clone_token_set() to 
    create an independent clone of the rwlock_token_set that can 
    then be safely used by another thread. 
+
+ * Currently locks are only implemented to array granularity.
+ * In the current implementation attempting to simulaneously read lock one part of an array 
+   and write lock another part of the same array may deadlock. 
+ * No useful API to do region-by-region locks of the arrays exists 
+   so far. Such an API would allow identifying all of the sub-regions
+   of all arrays that correspond to the parts (objects) of interest. 
+   Problem is, the parts need to be locked in order and this ordered
+   locking must proceed in parallel for all objects. This would be 
+   a mess. Suggested approach: Use "resumable functions" once they 
+   make it into the C++ standard. There are also various 
+   workarounds to implement closures/resumable functions, 
+   but they tend to be notationally messy, 
+   https://github.com/vmilea/CppAsync or require Boost++ (boost.fiber)
+ 
+ * If we wanted to implement region-granular locking we could probably use the 
+   rangetracker class to identify and track locked regions. 
 
 
  */
@@ -646,7 +663,7 @@ namespace snde {
           [ this ] (void **a, void **b) { return _arrayidx[a] < _arrayidx[b]; });
 
 
-      for (std::reverse_iterator<std::vector<void **>::iterator> array=sorted_arrays.rbegin(); array != sorted_arrays.rend(); array++) {
+      for (std::vector<void **>::iterator array=sorted_arrays.begin(); array != sorted_arrays.end(); array++) {
 	(*token_set)[&_locks[_arrayidx[*array]].full_array.reader]=_get_lock_read_array(priors,_arrayidx[*array]);
       }
       return token_set;
@@ -809,7 +826,7 @@ namespace snde {
           [ this ] (void **a, void **b) { return _arrayidx[a] < _arrayidx[b]; });
 
 
-      for (std::reverse_iterator<std::vector<void **>::iterator> array=sorted_arrays.rbegin(); array != sorted_arrays.rend(); array++) {
+      for (std::vector<void **>::iterator array=sorted_arrays.begin(); array != sorted_arrays.end(); array++) {
 	(*token_set)[&_locks[_arrayidx[*array]].full_array.writer]=_get_lock_write_array_region(priors,_arrayidx[*array],0,SNDE_INDEX_INVALID);
       }
       return token_set;
@@ -857,7 +874,7 @@ namespace snde {
           [ this ] (struct arrayregion a, struct arrayregion b) { return _arrayidx[a.array] < _arrayidx[b.array]; });
 
 
-      for (std::reverse_iterator<std::vector<struct arrayregion>::iterator> array=sorted_arrays.rbegin(); array != sorted_arrays.rend(); array++) {
+      for (std::vector<struct arrayregion>::iterator array=sorted_arrays.begin(); array != sorted_arrays.end(); array++) {
 	(*token_set)[&_locks[_arrayidx[array->array]].full_array.writer]=_get_lock_write_array_region(priors,_arrayidx[array->array],array->indexstart,array->numelems);
       }
       return token_set;

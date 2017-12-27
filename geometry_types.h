@@ -100,38 +100,20 @@ typedef struct {
 } snde_mat23;
 
 
-  /* **** Need (X,Y,Z) nurbs curved explicitly representing the joints, so instead of testing against UV trim, can
-     test against these curves, can guarantee no holes */ 
-
-struct snde_nurbssurface {
-  snde_index firstcontrolpoint,numcontrolpoints; /* NOTE: Control points are in part coordinates, and need to be transformed */
-  snde_index firstweight,numweights;
-  snde_index firstuknot,numuknots;
-  snde_index firstvknot,numvknots;
-  snde_index udimension,vdimension;
-  snde_index uorder,vorder;
-  snde_index firsttrimcurvesegment,numtrimcurvesegments; /* trim curve segments form a closed loop in (u,v) space */ 
-  snde_bool uclosed,vclosed;
-};
-
-struct snde_trimcurvesegment {
-  snde_index first2dcontrolpoint,num2dcontrolpoints;
-  snde_index firstweight,numweights;
-  snde_index firstknot,numknots;
-  snde_index order;
-};
 
 struct snde_nurbsubssurfaceuv {
-  snde_index first2dcontrolpoint,num2dcontrolpoints;
-  snde_index firstweight,numweights;
+  snde_index firstuvcontrolpoint,numuvcontrolpoints; /* control points locations giving reparameterized coordinates in terms of the (u,v) intrinsic parameterization */
+  snde_index firstuvweight,numuvweights;
   snde_index firstuknot,numuknots;
   snde_index firstvknot,numvknots;
   snde_index udimension,vdimension;
   snde_index uorder,vorder;
-  snde_index trimcurvesegment;
+  snde_index firsttrimcurvesegment,numtrimcurvesegments; // ***!!! separate storage for these should be defined... we should also probably define topological relations of the trim curves. subsurface is bounded by these segments (some of which may be pieces of the surface's bounding edges); these need to be in the surface's intrinsic (u,v) space so they are equivalent for multiple subsurfaces that cover the surface. 
   snde_index uv_patch_index; // which patch of uv space for this nurbsuv the control point coordinates correspond to
   
 };
+
+  
 
 struct snde_nurbssurfaceuv {
   snde_index nurbssurface; /* surface we are reparameterizing */
@@ -152,12 +134,40 @@ struct snde_nurbsuv {
 };
 
   
+
+struct snde_trimcurvesegment {
+  snde_index firstcontrolpointtrim,numcontrolpointstrim;
+  snde_index firstweight,numweights;
+  snde_index firstknot,numknots;
+  snde_index order;
+};
+
+struct snde_nurbsedge {
+  snde_index firstcontrolpoint,numcontrolpoints;
+  snde_index firstweight,numweights;
+  snde_index firstknot,numknots;
+  snde_index order;
+};
+
+struct snde_nurbssurface {
+  snde_index firstcontrolpoint,numcontrolpoints; /* NOTE: Control points are in part coordinates, and need to be transformed */
+  snde_index firstweight,numweights;
+  snde_index firstuknot,numuknots;
+  snde_index firstvknot,numvknots;
+  snde_index uorder,vorder;
+  snde_index firstnurbsedgeindex,numnurbsedgeindices; /* edges form a closed loop in (x,y,z) space. Note that multiple surfaces which share an edge need to refer to the same edge database entry */ 
+  snde_index firsttrimcurvesegment,numtrimcurvesegments; /* trim curve segments form a closed loop in (u,v) space and are the projection of the edge onto this surface. Should be ordered in parallel with firstnurbsedgeindex, etc .*/ 
+  snde_bool uclosed,vclosed;
+};
+
+
+  
 struct snde_nurbspart {
   snde_orientation3 orientation; /* orientation of this part relative to its environment */
   snde_index firstnurbssurface,numnurbssurfaces;
 
   snde_index firstbox,numboxes;
-  snde_index firstboxnurbssurface,numboxnurbssurfaces;
+  snde_index firstboxnurbssurface,numboxnurbssurfaces; /* nurbs equivalent of boxpolys */
   snde_index firstboxcoord,numboxcoords; /* NOTE: Boxes are in part coordinates, and need to be transformed */
   
   snde_bool solid;
@@ -171,7 +181,7 @@ struct snde_meshedpart { /* !!!*** Be careful about CPU <-> GPU structure layout
   /* indices into raw geometry */
   snde_orientation3 orientation; /* orientation of this part relative to its environment */
   snde_index firstvertex,numvertices; /* NOTE: Vertices must be transformed according to orientation prior to rendering */ /* These indices also apply to principal_curvatures and principal_tangent_axes, if present */
-  snde_index firsttri,numtris; /* apply to vertexidx, refpoints, maxradius, normal */
+  snde_index firsttri,numtris; /* apply to vertexidx, refpoints, maxradius, normal, inplanemat */
   
 
   /* indices into calculated fields */
@@ -195,7 +205,7 @@ struct snde_meshedpart { /* !!!*** Be careful about CPU <-> GPU structure layout
   
 struct snde_mesheduv {
   snde_orientation2 orientation; /* orientation multiplied on right by coordinates of vertices to get output coordinates in parameterization */
-  snde_index meshedpartnum;
+  snde_index meshedpartnum; /* Do we really need this? */
   snde_index firstuvvertex,numuvvertices;
   snde_index firstuvtri, numuvtris;
   
@@ -203,9 +213,6 @@ struct snde_mesheduv {
   snde_index firstuvboxpoly,numuvboxpoly;
   snde_index firstuvboxcoord,numuvboxcoords; 
   
-  snde_index firstinplane2uvcoords,numinplane2uvcoords;
-  snde_index firstuvcoords2inplane,numuvcoords2inplane;
-
   snde_index firstuvpatch, numuvpatches; /* "patches" are regions in uv space that the vertices are represented in. There can be multiple images pointed to by the different patches.  Indexes in uv_patch_index go from zero to numuvpatches. They will need to be added to the firstuvpatch of the snde_partinstance */ 
   
 };

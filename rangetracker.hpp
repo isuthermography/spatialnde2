@@ -11,6 +11,14 @@ namespace snde {
   template <class T> // class T should have regionstart and regionend elements
   class rangetracker {
   public:
+    // std::map is a tree-based ordered lookup map
+    // because it is ordered it has the lower_bound method,
+    // which returns an iterator to the first element not less
+    // than a given key.
+    //
+    // We use regionstart as the key, but we can look up the first region
+    // that starts at or after a given regionstart with the
+    // lower_bound() method
     std::map<snde_index,std::shared_ptr<T>> trackedregions; // indexed by regionstart
 
     /* iteration iterates over trackedregions */
