@@ -29,6 +29,11 @@ namespace snde {
     iterator begin() { return trackedregions.begin(); }
     iterator end() { return trackedregions.end(); }
 
+    size_t size() const
+    {
+      return trackedregions.size();
+    }
+
     template <typename ... Args>
     void mark_all(snde_index nelem, Args && ... args)
     {
@@ -136,7 +141,15 @@ namespace snde {
       if (region==trackedregions.end() || region->first != firstelem) {
 	/* in this case we didn't break up a region, but we need
 	   to add a region */
-	snde_index regionend=firstelem+numelems;
+
+	
+	snde_index regionend;
+
+	if (numelems==SNDE_INDEX_INVALID) {
+	  regionend=SNDE_INDEX_INVALID; /* rest of array */
+	} else {
+	  regionend=firstelem+numelems;
+	}
 
 	if (region != trackedregions.end() && regionend > region->first) {
 	  regionend=region->first;
@@ -150,22 +163,30 @@ namespace snde {
 
       /* now region refers to firstelem */
 
-      rangetracker retval;
+      rangetracker<T> retval;
       snde_index coveredthrough=firstelem;
+
+      snde_index regionend;
       
-      while (coveredthrough < firstelem+numelems) {
+      if (numelems==SNDE_INDEX_INVALID) {
+	regionend=SNDE_INDEX_INVALID; /* rest of array */
+      } else {
+	regionend=firstelem+numelems;
+      }
+      
+      while (coveredthrough < regionend) {
 
 	if (region == trackedregions.end() || coveredthrough < region->second->regionstart) {
 	  /* We have a gap. Don't use this region but
 	     instead emplace a prior region starting where we are
 	     covered through */
-	  snde_index regionend=firstelem+numelems;
-	  if (region != trackedregions.end() && regionend > region->second->regionstart) {
+	  snde_index newregionend=regionend;
+	  if (region != trackedregions.end() && newregionend > region->second->regionstart) {
 	    regionend=region->second->regionstart;
 	  }
 	  
 	  
-	  trackedregions[coveredthrough]=std::make_shared<T>(coveredthrough,regionend,std::forward<Args>(args) ...);
+	  trackedregions[coveredthrough]=std::make_shared<T>(coveredthrough,newregionend,std::forward<Args>(args) ...);
 
 	  region=trackedregions.lower_bound(coveredthrough);
 	  
@@ -174,14 +195,14 @@ namespace snde {
 	/* now we've got a region that starts at coveredthrough */
 	assert(region->second->regionstart==coveredthrough);
 	
-	if (region->second->regionend > firstelem+numelems) {
+	if (region->second->regionend > regionend) {
 	  /* this region goes beyond our ROI...  */
 	  /* break it up */
 	  iterator secondpieceiterator;
 	  
-	  std::tie(region,secondpieceiterator)=_breakupregion(region,firstelem+numelems,std::forward<Args>(args) ...);
+	  std::tie(region,secondpieceiterator)=_breakupregion(region,regionend,std::forward<Args>(args) ...);
 
-	  assert(region->second->regionend == firstelem+numelems);
+	  assert(region->second->regionend == regionend);
 
 	  /* attempt to merge second part of broken up region 
 	     with following */
@@ -204,7 +225,7 @@ namespace snde {
 	
 	/* now we've got a region that starts at coveredthrough and 
 	   ends at or before firstelem+numelems */
-	assert (region->second->regionend <= firstelem+numelems);
+	assert (region->second->regionend <= regionend);
 
 	/* add region to retval */
 	retval.trackedregions[region->second->regionstart]=region->second;
@@ -302,7 +323,36 @@ namespace snde {
 
   };
 
-  
+  template <class T,typename ... Args>
+  rangetracker<T> range_union(rangetracker <T> &a, rangetracker<T> &b,Args && ... args)
+  {
+    rangetracker<T> output;
+
+    for (auto & a_region: a) {
+      snde_index numelems;
+
+      if (a_region.second->regionend == SNDE_INDEX_INVALID) {
+	numelems=SNDE_INDEX_INVALID;
+      } else {
+	numelems=a_region.second->regionend-a_region.second->regionstart;
+      }
+      output.mark_region(a_region.second->regionstart,numelems,std::forward<Args>(args) ...);
+    }
+
+    for (auto & b_region: b) {
+      snde_index numelems;
+
+      if (b_region.second->regionend == SNDE_INDEX_INVALID) {
+	numelems=SNDE_INDEX_INVALID;
+      } else {
+	numelems=b_region.second->regionend-b_region.second->regionstart;
+      }
+      output.mark_region(b_region.second->regionstart,numelems,std::forward<Args>(args) ...);
+    }
+    
+
+    return output;
+  }
 }
 
 #endif /* SNDE_RANGETRACKER_HPP */

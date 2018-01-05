@@ -37,6 +37,9 @@ namespace snde {
       this->manager=manager;
       geom.tol=tol;
 
+      manager->add_allocated_array((void **)&geom.assemblies,sizeof(*geom.assemblies),0);
+      manager->add_allocated_array((void **)&geom.meshedparts,sizeof(*geom.meshedparts),0);
+
       
       manager->add_allocated_array((void **)&geom.vertices,sizeof(*geom.vertices),0);
       manager->add_follower_array((void **)&geom.vertices,(void **)&geom.principal_curvatures,sizeof(*geom.principal_curvatures));

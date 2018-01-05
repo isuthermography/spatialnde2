@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
   lowlevel_alloc=std::make_shared<cmemallocator>();
 
   //fprintf(stderr,"build manager...\n");
-  manager=std::make_shared<openclarraymanager>(lowlevel_alloc);
+  manager=std::make_shared<arraymanager>(lowlevel_alloc);
   //fprintf(stderr,"build geom...\n");
   geom=std::make_shared<geometry>(1e-6,manager);
 
@@ -46,21 +46,25 @@ int main(int argc, char *argv[])
   geom->manager->alloc((void **)&geom->geom.vertices,10000);
   
   // perform lock of all arrays
-  rwlock_token_set read_lock=geom->manager->locker->get_locks_read_all();
+  rwlock_token_set all_locks=empty_rwlock_token_set();
+  
+  rwlock_token_set read_lock=geom->manager->locker->get_locks_read_all(all_locks);
 
   // unlock those arrays
-  read_lock.reset();
+  read_lock->clear();
+  all_locks->clear();
 
   // lock single array
-  rwlock_token_set triangle_lock=geom->manager->locker->get_locks_read_array((void **)&geom->geom.vertexidx);
+  rwlock_token_set vertices_lock=geom->manager->locker->get_locks_read_array(all_locks,(void **)&geom->geom.vertices);
   
-  // lock preceding array, following locking order and acknowledging current lock ownership
-  rwlock_token_set vertices_lock=geom->manager->locker->get_locks_read_array(triangle_lock,(void **)&geom->geom.vertices);
+  // lock following array, following locking order and acknowledging current lock ownership
+  rwlock_token_set triangle_lock=geom->manager->locker->get_locks_read_array(all_locks,(void **)&geom->geom.vertexidx);
 
   // not legitimate to lock all arrays right now because this would violate locking order
   //fprintf(stderr,"release locks...\n");
 
-  vertices_lock.reset();  // order of unlocks doesn't matter
-  triangle_lock.reset();  // unlocks also happen automatically when the token_set leaves context. 
+  all_locks->clear();
+  vertices_lock->clear();  // order of unlocks doesn't matter
+  triangle_lock->clear();  // unlocks also happen automatically when the token_set leaves context. 
   return 0;
 }

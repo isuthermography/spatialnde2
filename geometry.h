@@ -16,7 +16,7 @@ extern "C" {
     //allocatorbase  *instances_alloc; // really allocator<struct snde_partinstance>*
 
     /* meshed 3D geometry */
-    struct snde_meshedpart *meshedparts;
+    struct snde_meshedpart *meshedparts; /* allocated separately */
     
     // polygon (triangle) vertices...
     snde_coord3 *vertices;
