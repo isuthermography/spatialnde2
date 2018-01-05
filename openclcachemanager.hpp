@@ -1,5 +1,5 @@
-#ifndef SNDE_OPENCLARRAYMANAGER_HPP
-#define SNDE_OPENCLARRAYMANAGER_HPP
+#ifndef SNDE_OPENCLCACHEMANAGER_HPP
+#define SNDE_OPENCLCACHEMANAGER_HPP
 
 
 #include <cstring>
@@ -76,7 +76,7 @@ namespace snde {
   
 
 
-  /* openclarraymanager manages access to OpenCL buffers
+  /* openclcachemanager manages access to OpenCL buffers
      of type CL_MEM_READ_WRITE, and helps manage
      the copying back-and-forth of such buffers
      to main memory */
@@ -86,7 +86,7 @@ namespace snde {
      context so that it doesn't disappear on us */
   class openclarrayinfo {
   public:
-    cl_context context; /* when on openclarraymanager's arrayinfomap, held in memory by clRetainContext() */
+    cl_context context; /* when on openclcachemanager's arrayinfomap, held in memory by clRetainContext() */
     /* could insert some flag to indicate use of zero-copy memory */
     void **arrayptr;
     
@@ -141,10 +141,10 @@ namespace std {
 namespace snde { 
   
   class _openclbuffer {
-    // openclbuffer is our lowlevel wrapper used by openclarraymanager
+    // openclbuffer is our lowlevel wrapper used by openclcachemanager
     // for its internal buffer table
     
-    // access serialization managed by our parent openclarraymanager's
+    // access serialization managed by our parent openclcachemanager's
     // admin mutex, which should be locked when these methods
     // (except realloc callback) are called.
   public:
@@ -900,4 +900,4 @@ namespace snde {
   };
   
 };
-#endif /* SNDE_OPENCLARRAYMANAGER_HPP */
+#endif /* SNDE_OPENCLCACHEMANAGER_HPP */

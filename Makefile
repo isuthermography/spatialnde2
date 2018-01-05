@@ -21,7 +21,7 @@ allocator_test: allocator_test.o lockmanager.o allocator.o
 manager_test: manager_test.o lockmanager.o 
 	$(CXX) $(CPPFLAGS) -o $@ $^ $(LDFLAGS)
 
-opencl_manager_test: opencl_manager_test.o lockmanager.o openclarraymanager.o
+opencl_manager_test: opencl_manager_test.o lockmanager.o openclcachemanager.o
 	$(CXX) $(CPPFLAGS) -o $@ $^ $(LDFLAGS) -lOpenCL
 
 .cpp.o:
@@ -33,4 +33,4 @@ lockmanager.o: lockmanager.cpp
 manager_test.o: manager_test.cpp
 opencl_manager_test.o: opencl_manager_test.cpp
 allocator.o: allocator.cpp
-openclarraymanager.o: openclarraymanager.cpp
+openclcachemanager.o: openclcachemanager.cpp

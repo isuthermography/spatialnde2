@@ -21,7 +21,7 @@
 #include "rangetracker.hpp"
 #include "allocator.hpp"
 #include "lockmanager.hpp"
-#include "openclarraymanager.hpp"
+#include "openclcachemanager.hpp"
 #include "geometry.h"
 
 using namespace snde;
