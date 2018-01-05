@@ -872,6 +872,12 @@ namespace snde {
       //all_locks.push_back(buffers[name][1]); 
     }
 
+    cl_int AddBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl_command_queue queue,cl_kernel kernel,cl_uint arg_index,void **allocatedptr, void **arrayptr)
+    {
+      AddBuffer(manager,queue,allocatedptr,arrayptr);
+      return SetBufferAsKernelArg(kernel,arg_index,arrayptr);
+    }
+    
     void RemBuffer(void **arrayptr,cl_event input_data_not_needed,std::vector<cl_event> output_data_complete,bool wait)
     /* Does not decrement refcount of waitevents */
     {

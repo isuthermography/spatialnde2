@@ -42,6 +42,8 @@ int main(int argc, char *argv[])
   //fprintf(stderr,"build geom...\n");
   geom=std::make_shared<geometry>(1e-6,manager);
 
+
+  /*
   // Allocate space for 10000 vertices 
   geom->manager->alloc((void **)&geom->geom.vertices,10000);
   
@@ -66,5 +68,31 @@ int main(int argc, char *argv[])
   all_locks->clear();
   vertices_lock->clear();  // order of unlocks doesn't matter
   triangle_lock->clear();  // unlocks also happen automatically when the token_set leaves context. 
+  */
+
+  rwlock_token_set all_locks;
+  std::shared_ptr<std::vector<rangetracker<markedregion>>> readregions;
+  std::shared_ptr<std::vector<rangetracker<markedregion>>> writeregions;
+  
+  lockprocess=lockingprocess(arraymanager->locker);
+
+  
+  std::tie(all_locks,readregions,writeregions) = lockprocess.finish();
+
+
+  OpenCLBuffers Buffers(context,all_locks,readregions,writeregions);
+
+  Buffers.AddBufferAsKernelArg(manager,queue,kernel,0,&geom->geom.meshedparts,&geom->geom.meshedparts);
+  Buffers.AddBufferAsKernelArg(manager,queue,kernel,1,&geom->geom.vertices,&geom->geom.vertices);
+  Buffers.AddBufferAsKernelArg(manager,queue,kernel,2,&geom->geom.vertices,&geom->geom.principal_curvatures);
+  Buffers.AddBufferAsKernelArg(manager,queue,kernel,3,&geom->geom.vertices,&geom->geom.curvature_tangent_axes);
+
+  Buffers.AddBufferAsKernelArg(manager,queue,kernel,4,&geom->geom.vertexidx,&geom->geom.vertexidx);
+  Buffers.AddBufferAsKernelArg(manager,queue,kernel,5,&geom->geom.boxes,&geom->geom.boxes);
+  Buffers.AddBufferAsKernelArg(manager,queue,kernel,6,&geom->geom.boxes,&geom->geom.boxcoord);
+  
+  Buffers.AddBufferAsKernelArg(manager,queue,kernel,7,&geom->geom.boxpolys,&geom->geom.boxpolys);
+  
+  
   return 0;
 }
