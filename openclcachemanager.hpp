@@ -730,7 +730,6 @@ namespace snde {
     rwlock_token_set writelocks;
     std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions;
     
-    std::vector<cl_event> fill_events; /* each counted by clRetainEvent() */
     OpenCLBuffer_info(std::shared_ptr<arraymanager> manager,
 		      cl_command_queue queue,  /* adds new reference */
 		      cl_mem mem, /* adds new reference */
@@ -738,8 +737,7 @@ namespace snde {
 		      void **arrayptr,
 		      rwlock_token_set readlocks,
 		      rwlock_token_set writelocks,
-		      std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions,
-		      std::vector<cl_event> fill_events) /* STEALS reference to fill_events */
+		      std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions) 
     {
       this->manager=manager;
       this->cachemanager=get_opencl_cache_manager(manager);
@@ -752,7 +750,6 @@ namespace snde {
       this->readlocks=readlocks;
       this->writelocks=writelocks;
       this->arraywriteregions=arraywriteregions;
-      this->fill_events=fill_events; /* steal reference */
     }
     OpenCLBuffer_info(const OpenCLBuffer_info &orig)
     {
@@ -767,11 +764,10 @@ namespace snde {
       this->readlocks=orig.readlocks;
       this->writelocks=orig.writelocks;
       this->arraywriteregions=orig.arraywriteregions;
-      this->fill_events=orig.fill_events;
       
-      for (auto & event: this->fill_events) {
-	clRetainEvent(event);
-      }
+      //for (auto & event: this->fill_events) {
+      //clRetainEvent(event);
+      //}
     }
     
     OpenCLBuffer_info& operator=(const OpenCLBuffer_info &)=delete; /* copy assignment disabled (for now) */
@@ -779,11 +775,6 @@ namespace snde {
     {
       clReleaseCommandQueue(queue);
       clReleaseMemObject(mem);
-
-      /* release each cl_event */
-      for (auto & ev: fill_events) {
-	clReleaseEvent(ev);
-      }
 
     }
 
@@ -801,6 +792,7 @@ namespace snde {
 
     std::unordered_map<void **,OpenCLBuffer_info> buffers; /* indexed by arrayidx */
 
+    std::vector<cl_event> fill_events; /* each counted by clRetainEvent() */
      
     OpenCLBuffers(cl_context context,rwlock_token_set all_locks,std::shared_ptr<std::vector<rangetracker<markedregion>>> arrayreadregions,std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions)
     {
@@ -817,6 +809,13 @@ namespace snde {
   
     ~OpenCLBuffers() {
       clReleaseContext(context);
+      
+      /* release each cl_event */
+      for (auto & ev: fill_events) {
+	clReleaseEvent(ev);
+      }
+
+
     }
     
     cl_mem Mem_untracked(void **arrayptr)
@@ -825,13 +824,20 @@ namespace snde {
       return buffers.at(arrayptr).mem;
     }
 
-    std::vector<cl_event> FillEvents_untracked(void ** arrayptr)
+
+    cl_event *FillEvents_untracked(void)
     /* Returns vector of unprotected pointers (ref count not increased */
     {
-      return buffers.at(arrayptr).fill_events;
+      return &fill_events[0];
     }
-  
 
+    cl_uint NumFillEvents(void)
+    {
+      return (cl_uint)fill_events.size();
+    }
+    
+
+    
     cl_int SetBufferAsKernelArg(cl_kernel kernel, cl_uint arg_index, void **arrayptr)
     {
       cl_mem mem;
@@ -852,11 +858,14 @@ namespace snde {
       rwlock_token_set readlocks,writelocks;
       cl_mem mem;
       snde_index offset;
-      std::vector<cl_event> fill_events;
+      std::vector<cl_event> new_fill_events;
       std::shared_ptr<openclcachemanager> cachemanager=get_opencl_cache_manager(manager);
       
-      std::tie(readlocks,writelocks,mem,offset,fill_events) = cachemanager->GetOpenCLBuffer(all_locks,context,queue,allocatedptr,arrayptr,arrayreadregions,arraywriteregions,write_only);
+      std::tie(readlocks,writelocks,mem,offset,new_fill_events) = cachemanager->GetOpenCLBuffer(all_locks,context,queue,allocatedptr,arrayptr,arrayreadregions,arraywriteregions,write_only);
 
+      /* move fill events into our master list */
+      fill_events.insert(fill_events.end(),new_fill_events.begin(),new_fill_events.end());
+      
             
       buffers.emplace(std::make_pair(arrayptr,OpenCLBuffer_info(manager,
 								queue, 
@@ -865,9 +874,9 @@ namespace snde {
 							        arrayptr,
 								readlocks,
 								writelocks,
-								arraywriteregions,
-								fill_events)));
+								arraywriteregions)));
       clReleaseMemObject(mem); /* remove extra reference */
+      
       
       // add this lock to our database of preexisting locks 
       //all_locks.push_back(buffers[name][1]); 
@@ -878,6 +887,7 @@ namespace snde {
       AddBuffer(manager,queue,allocatedptr,arrayptr);
       return SetBufferAsKernelArg(kernel,arg_index,arrayptr);
     }
+
     
     void RemBuffer(void **arrayptr,cl_event input_data_not_needed,std::vector<cl_event> output_data_complete,bool wait)
     /* Does not decrement refcount of waitevents */
@@ -897,6 +907,26 @@ namespace snde {
       
       /* remove from hash table */
       buffers.erase(arrayptr);
+    
+    }
+
+    void RemBuffers(cl_event input_data_not_needed,std::vector<cl_event> output_data_complete,bool wait)
+    {
+      for (std::unordered_map<void **,OpenCLBuffer_info>::iterator nextbuffer = buffers.begin();
+	   nextbuffer != buffers.end();) {
+	std::unordered_map<void **,OpenCLBuffer_info>::iterator thisbuffer=nextbuffer;
+	nextbuffer++;
+
+	RemBuffer(thisbuffer->second.arrayptr,input_data_not_needed,output_data_complete,wait);
+	
+	
+      }
+    }
+    
+    void RemBuffers(cl_event input_data_not_needed,cl_event output_data_complete,bool wait)
+    {
+      std::vector<cl_event> output_data_complete_vector{output_data_complete};
+      RemBuffers(input_data_not_needed,output_data_complete_vector,wait);
     }
   };
   

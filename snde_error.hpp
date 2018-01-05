@@ -7,6 +7,7 @@
 #include <map>
 
 namespace snde {
+
   
   static inline std::string ssprintf(const std::string fmt,...)
   {
@@ -65,6 +66,19 @@ namespace snde {
     return retval;
     
   }
-  
+
+  template <typename ... Args>
+  static inline char *cssprintf(const std::string fmt, Args && ... args)
+  {
+    std::string result;
+    char *cresult;
+
+    result=ssprintf(fmt,std::forward<Args>(args) ...);
+
+    cresult=strdup(result.c_str());
+
+    return cresult; /* should free() cresult */
+  }
+
 }
 #endif /* SNDE_ERROR_HPP */

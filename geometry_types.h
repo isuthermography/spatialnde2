@@ -38,7 +38,9 @@ typedef char snde_bool;
 
 typedef struct {
   snde_coord offset[3];
-  snde_coord quat[3]; // First 3 coordinates of normalized quaternion  
+  snde_coord pad1;
+  snde_coord quat[3]; // First 3 coordinates of normalized quaternion
+  snde_coord pad2;
 } snde_orientation3;
 
 typedef struct {
@@ -185,18 +187,10 @@ struct snde_meshedpart { /* !!!*** Be careful about CPU <-> GPU structure layout
   
 
   /* indices into calculated fields */
-  snde_index firstbox,numboxes;
-  snde_index firstboxpoly,numboxpoly;
-  snde_index firstboxcoord,numboxcoords; /* NOTE: Boxes are in part coordinates, not world coordinates */
-  snde_index firstrefpoint,numrefpoints; /* NOTE: Refpoints are in part coordinates, not world coordinates */
-  snde_index firstmaxradius,nummaxradius;
-  snde_index firstnormal,numnormals; /* NOTE: Normals must be transformed according to orientation prior to rendering */
-  // snde_index firstrefsize,numrefsizes;
-  snde_index firstinplanemat,numinplanemats; 
-  
-  
-  
-
+  snde_index firstbox,numboxes;  /* also applies to boxcoord */
+  snde_index firstboxpoly,numboxpoly; /* NOTE: Boxes are in part coordinates, not world coordinates */
+    
+ 
   snde_bool solid; // If nonzero, this part is considered solid (fully enclosed), so the back side does not need to be rendered. Otherwise, it may be a bounded surface 
   
 };
@@ -204,8 +198,8 @@ struct snde_meshedpart { /* !!!*** Be careful about CPU <-> GPU structure layout
 
   
 struct snde_mesheduv {
-  snde_orientation2 orientation; /* orientation multiplied on right by coordinates of vertices to get output coordinates in parameterization */
-  snde_index meshedpartnum; /* Do we really need this? */
+  /* snde_orientation2 orientation; */ /* orientation multiplied on right by coordinates of vertices to get output coordinates in parameterization */
+  /* snde_index meshedpartnum; */ /* Do we really need this? */
   snde_index firstuvvertex,numuvvertices;
   snde_index firstuvtri, numuvtris;
   
@@ -217,25 +211,25 @@ struct snde_mesheduv {
   
 };
 
-struct snde_assemblyelement {
+  //struct snde_assemblyelement {
   /***!!!*** NOTE: Because GPU code generally can't be 
       recursive, we will need to provide a utility routine
       that provides a flattened structure that can be 
       iterated over (should this even be in the database? ... 
       rather should probably dynamically generate flattened
       partinstance structure with CPU prior to bulk computation) !!!***/
-  snde_orientation3 orientation; /* orientation of this part/assembly relative to its parent */
-  /* if assemblynum is set, this element is a sub-assembly */
-  snde_index assemblynum;  
-  /*  if assemblynum is SNDE_INDEX_INVALID, 
-      then one or more of the following can be set...*/
+  //snde_orientation3 orientation; /* orientation of this part/assembly relative to its parent */
+  ///* if assemblynum is set, this element is a sub-assembly */
+  //snde_index assemblynum;  
+  ///*  if assemblynum is SNDE_INDEX_INVALID, 
+  //    then one or more of the following can be set...*/
   
-  snde_index nurbspartnum;
-  snde_index nurbspartnum_reduceddetail;
-  snde_index meshedpartnum;
-  snde_index meshedpartnum_reduceddetail;
+  //snde_index nurbspartnum;
+  //snde_index nurbspartnum_reduceddetail;
+  //snde_index meshedpartnum;
+  //snde_index meshedpartnum_reduceddetail;
   
-};
+  //};
 
 /* partinstance table created by walking the assembly structure and choosing level of detail */
 struct snde_partinstance {

@@ -124,6 +124,13 @@ int main(int argc, char *argv[])
   
   //Buffers.AddBufferAsKernelArg(manager,queue,kernel,7,&geom->geom.boxpolys,&geom->geom.boxpolys);
 
+  size_t global_work_size=100000;
+  cl_event kernel_complete=NULL;
+
+  clEnqueueNDRangeKernel(queue,kernel,1,NULL,&global_work_size,NULL,Buffers.NumFillEvents(),Buffers.FillEvents_untracked(),&kernel_complete);
+
+  Buffers.RemBuffers(kernel_complete,kernel_complete,true);
+  
   clReleaseCommandQueue(queue);
   clReleaseContext(context);
   clReleaseKernel(kernel);

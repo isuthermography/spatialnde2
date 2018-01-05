@@ -9,7 +9,7 @@ extern "C" {
   struct snde_geometrydata {
     double tol; // tolerance
 
-    struct snde_assemblyelement *assemblies;
+    //struct snde_assemblyelement *assemblies;
     //allocatorbase  *assemblies_alloc; // really allocator<struct snde_assemblyelement> *
     
     //struct snde_partinstance *instances; (no longer in database) 
