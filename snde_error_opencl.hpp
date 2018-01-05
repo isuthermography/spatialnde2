@@ -80,7 +80,10 @@ namespace snde {
     cl_int _clerrnum;
 
     template<typename ... Args>
-    openclerror(cl_int clerrnum,std::string fmt, Args && ... args) : std::runtime_error(ssprintf("OpenCL runtime error %d (%s): %s",clerrnum,openclerrorstring[clerrnum],ssprintf(fmt.c_str(),std::forward<Args>(args) ...))) {
+    openclerror(cl_int clerrnum,std::string fmt, Args && ... args) : std::runtime_error(ssprintf("OpenCL runtime error %d (%s): %s",clerrnum,openclerrorstring[clerrnum].c_str(),ssprintf(fmt,std::forward<Args>(args) ...).c_str())) { /* !!!*** May not be legitimate to call c_str() on a buffer (returned from ssprintf) about to be free'd */
+      std::string foo=openclerrorstring[clerrnum];
+      std::string bar=openclerrorstring.at(clerrnum);
+      std::string fubar=openclerrorstring.at(-37);
       _clerrnum=clerrnum;
       
     }

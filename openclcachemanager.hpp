@@ -3,6 +3,7 @@
 
 
 #include <cstring>
+#define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 #include <CL/opencl.h>
 
 #include "arraymanager.hpp"
@@ -92,8 +93,8 @@ namespace snde {
     
     openclarrayinfo(cl_context context, void **arrayptr)
     {
-      clRetainContext(this->context); /* increase refcnt */
       this->context=context;
+      clRetainContext(this->context); /* increase refcnt */
       this->arrayptr=arrayptr;
     }
     openclarrayinfo(const openclarrayinfo &orig) /* copy constructor */
@@ -171,10 +172,10 @@ namespace snde {
       
       nelem=alloc->total_nelem();
       
-      buffer=clCreateBuffer(context,CL_MEM_READ_WRITE,nelem*elemsize,*arrayptr,&errcode_ret);
+      buffer=clCreateBuffer(context,CL_MEM_READ_WRITE,nelem*elemsize, NULL /* *arrayptr */,&errcode_ret);
 
       if (errcode_ret != CL_SUCCESS) {
-	throw openclerror(errcode_ret,"Error creating buffer of size %d",(long)(nelem*elemsize));
+	throw openclerror(errcode_ret,(std::string)"Error creating buffer of size %d",(long)(nelem*elemsize));
       }
       
       invalidity.mark_all(nelem);
