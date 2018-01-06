@@ -1,15 +1,15 @@
 # -Wno-ignored-attributes eliminates (apparently) spurious warnings about ignored attributes
 
-CPPFLAGS=-g  -Wno-ignored-attributes -DSNDE_LOCKMANAGER_COROUTINES_THREADED
+CPPFLAGS=-g  -Wno-ignored-attributes -DSNDE_LOCKMANAGER_COROUTINES_THREADED -I/usr/include/eigen3 -I/usr/include/libxml2
 
 
 OBJS=allocator_test.o
 
 
-all: allocator_test manager_test opencl_manager_test
+all: allocator_test manager_test opencl_manager_test x3d_test
 
 clean:
-	rm -f *~ allocator_test manager_test *.o *.bak opencl_manager_test *_c.h *_h.h
+	rm -f *~ allocator_test manager_test *.o *.bak opencl_manager_test *_c.h *_h.h x3d_test
 
 commit: clean
 	hg addrem
@@ -23,6 +23,9 @@ manager_test: manager_test.o lockmanager.o
 
 opencl_manager_test: opencl_manager_test.o lockmanager.o openclcachemanager.o opencl_utils.o
 	$(CXX) $(CPPFLAGS) -o $@ $^ $(LDFLAGS) -lOpenCL -lpthread
+
+x3d_test: x3d_test.o 
+	$(CXX) $(CPPFLAGS) -o $@ $^ $(LDFLAGS) -lxml2 
 
 .cpp.o:
 	$(CXX) $(CPPFLAGS)  -c $<
@@ -43,3 +46,4 @@ openclcachemanager.o: openclcachemanager.cpp
 opencl_utils.o: opencl_utils.cpp
 testkernel_c.h: testkernel.c
 geometry_types_h.h: geometry_types.h
+x3d_test.o: x3d_test.cpp x3d.hpp
