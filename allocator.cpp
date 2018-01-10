@@ -1,14 +1,5 @@
-#include <assert.h>
-#include <string.h>
-#include <cstdint>
 
-#include <vector>
-#include <map>
-#include <condition_variable>
-#include <deque>
-#include <algorithm>
-#include <unordered_map>
-#include <functional>
+#include <cstdint>
 
 #include "geometry_types.h"
 #include "allocator.h"

@@ -16,11 +16,11 @@
 
 // plan: all class data structures need to derive from a common base
 // class. Each of these should have a dictionary member of shared_ptrs to
-// this baseclass to store members. 
+// this baseclass to store members.
 // Then can use dictionary member and dynamic upcasting to store
 // results.
 
-// Use libxml2 xmlreader interface to iterate over document. 
+// Use libxml2 xmlreader interface to iterate over document.
 
 namespace snde {
 
@@ -28,7 +28,8 @@ namespace snde {
   public:
     std::string nodetype;
     std::unordered_map<std::string,std::shared_ptr<x3d_node>> nodedata;
-    virtual ~x3d_node() {}; /* declare a virtual function to make this class polymorphic 
+
+    virtual ~x3d_node() {}; /* declare a virtual function to make this class polymorphic
 			       so we can use dynamic_cast<> */
     virtual bool hasattr(std::string name)
     {
@@ -38,8 +39,8 @@ namespace snde {
 
   class x3d_loader; /* forward declaration */
   class x3d_shape;
-  
-  
+
+
   class x3derror : public std::runtime_error {
   public:
     char *msg;
@@ -78,7 +79,7 @@ namespace snde {
 	throw x3derror(0,NULL,"Parse error interpreting string token %s as double",tok);
       }
     }
-
+    free(copy);
     return Eigen::VectorXd(Eigen::Map<Eigen::ArrayXd>(vec.data(),vec.size()));
   }
 
@@ -91,14 +92,14 @@ namespace snde {
       (*V)=VectorFromX3DString((char *)attrstring);
       xmlFree(attrstring);
     }
-    
+
   }
 
   void SetDoubleIfX3DAttribute(xmlTextReaderPtr reader,std::string attrname,double *d)
   {
     xmlChar *attrstring;
     char *endptr=NULL;
-    
+
     attrstring = xmlTextReaderGetAttribute(reader,(const xmlChar *)attrname.c_str());
     if (attrstring) {
       *d=strtod((const char *)attrstring,&endptr);
@@ -108,7 +109,7 @@ namespace snde {
       xmlFree(attrstring);
 
     }
-    
+
   }
 
 
@@ -116,7 +117,7 @@ namespace snde {
   {
     if (!NamespaceUri) return true; /* no namespace is acceptible */
     if (NamespaceUri[0]=0) return true; /* no namespace is acceptible */
-    
+
 
     /* non version-specific test */
     if (!strncmp(NamespaceUri,"http://www.web3d.org/specifications/x3d",strlen("http://www.web3d.org/specifications/x3d"))) return true;
@@ -132,7 +133,7 @@ namespace snde {
     std::string spatialnde_NamespaceUri;
     double metersperunit;
     xmlTextReaderPtr reader;
-    
+
     std::shared_ptr<x3d_node> parse_material(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField); /* implemented below to work around circular reference loop */
 
     x3d_loader()
@@ -142,14 +143,14 @@ namespace snde {
       transformstack.push_back(Eigen::Matrix<double,4,4>::Identity());
 
       reader=NULL;
-      
+
     }
 
     static std::vector<std::shared_ptr<x3d_shape>> shapes_from_file(const char *filename)
     {
       std::shared_ptr<x3d_loader> loader = std::make_shared<x3d_loader>();
       int ret;
-      
+
       loader->reader=xmlNewTextReaderFilename(filename);
       if (!loader->reader) {
 	throw x3derror(0,NULL,"Error opening input file %s",filename);
@@ -158,26 +159,25 @@ namespace snde {
 
       do {
 	ret=xmlTextReaderRead(loader->reader);
-	
-	if (ret==1 && xmlTextReaderNodeType(loader->reader)==XML_READER_TYPE_ELEMENT) {
+
+        if (ret == 1 && xmlTextReaderNodeType(loader->reader) == XML_READER_TYPE_ELEMENT) {
 	  loader->dispatch_x3d_childnode(std::shared_ptr<x3d_node>());
 	}
 
-	
+
       } while (ret == 1);
 
       xmlFreeTextReader(loader->reader);
-      
+
       return loader->shapes;
     }
-    
 
-    
+
     void dispatch_x3d_childnode(std::shared_ptr<x3d_node> parentnode)
     {
       /* WARNING: parentnode may be NULL */
       std::shared_ptr<x3d_node> result;
-      
+
       xmlChar *containerField=NULL;
       containerField=xmlTextReaderGetAttribute(reader,(const xmlChar *)"containerField");
 
@@ -195,13 +195,13 @@ namespace snde {
 	xmlFree(USE);
       } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"material")) {
 	result=parse_material(parentnode,containerField);
-      } // else if ... { } else if ... { } 
+      } // else if ... { } else if ... { }
       else {
 	/* unknown element */
 	dispatchcontent(NULL);
 
       }
-      
+
 
       xmlChar *DEF=NULL;
       DEF=xmlTextReaderGetAttribute(reader,(const xmlChar *)"DEF");
@@ -215,7 +215,7 @@ namespace snde {
       if (NamespaceUri) {
 	xmlFree(NamespaceUri);
       }
-      
+
       if (containerField) {
 	xmlFree(containerField);
       }
@@ -225,15 +225,15 @@ namespace snde {
     {
       bool nodefinished=xmlTextReaderIsEmptyElement(reader);
       int depth=xmlTextReaderDepth(reader);
-      
+
       while (!nodefinished) {
 	assert(xmlTextReaderRead(reader)==1);
-	
-	if (xmlTextReaderNodeType(reader)==XML_READER_TYPE_ELEMENT) {
+
+        if (xmlTextReaderNodeType(reader) == XML_READER_TYPE_ELEMENT) {
 	  dispatch_x3d_childnode(curnode);
 	}
-	
-	if (xmlTextReaderNodeType(reader)==XML_READER_TYPE_END_ELEMENT && xmlTextReaderDepth(reader)==depth) {
+
+        if (xmlTextReaderNodeType(reader) == XML_READER_TYPE_END_ELEMENT && xmlTextReaderDepth(reader) == depth) {
 	  nodefinished=true;
 	}
       }
@@ -241,7 +241,7 @@ namespace snde {
     }
   };
 
-  
+
   class x3d_material: public x3d_node {
   public:
     double ambientIntensity;
@@ -250,7 +250,7 @@ namespace snde {
     double  shininess;
     Eigen::Vector3d specularColor;
     double transparency;
-    
+
     x3d_material(void)
     {
       nodetype="material";
@@ -266,7 +266,7 @@ namespace snde {
     static std::shared_ptr<x3d_material> fromcurrentelement(x3d_loader *loader)
     {
       std::shared_ptr<x3d_material> mat=std::make_shared<x3d_material>();
-      
+
 
       SetDoubleIfX3DAttribute(loader->reader,"ambientIntensity",&mat->ambientIntensity);
       SetVectorIfX3DAttribute(loader->reader,"diffuseColor",&mat->diffuseColor);
@@ -274,7 +274,7 @@ namespace snde {
       SetDoubleIfX3DAttribute(loader->reader,"shininess",&mat->shininess);
       SetVectorIfX3DAttribute(loader->reader,"specularColor",&mat->specularColor);
       SetDoubleIfX3DAttribute(loader->reader,"transparency",&mat->transparency);
-      
+
       loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(mat));
     }
   };
@@ -283,16 +283,16 @@ namespace snde {
   std::shared_ptr<x3d_node> x3d_loader::parse_material(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField)
   {
     if (!containerField) containerField=(xmlChar *)"material";
-    
+
     std::shared_ptr<x3d_node> mat_data=x3d_material::fromcurrentelement(this);
-    
+
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
 	throw x3derror(0,NULL,"Invalid container field for material: ",(char *)containerField);
       }
       parentnode->nodedata[(char *)containerField]=mat_data;
     }
-    
+
     return mat_data;
   }
 
@@ -305,7 +305,7 @@ namespace snde {
     }
   };
 
-  /* NOTE:: parse_shape() will store in the master shape list rather 
+  /* NOTE:: parse_shape() will store in the master shape list rather
        than in the parentnode */
 
 };

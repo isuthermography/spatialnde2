@@ -1,13 +1,5 @@
-#include <assert.h>
-#include <string.h>
-#include <cstdint>
 
-#include <vector>
-#include <map>
-#include <condition_variable>
-#include <deque>
-#include <algorithm>
-#include <unordered_map>
+#include <cstdint>
 
 #include "geometry_types.h"
 #include "lockmanager.hpp"
