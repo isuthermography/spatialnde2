@@ -308,5 +308,8 @@ namespace snde {
   /* NOTE:: parse_shape() will store in the master shape list rather
        than in the parentnode */
 
+  /* NOTE: When pulling in data from text nodes, don't forget to combine multiple text 
+     nodes and ignore e.g. comment nodes */
+
 };
 #endif // SNDE_X3D_HPP

@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
   std::shared_ptr<std::vector<rangetracker<markedregion>>> writeregions;
   
   lockingprocess lockprocess(manager->locker);
-
+  
   
   std::tie(all_locks,readregions,writeregions) = lockprocess.finish();
 
