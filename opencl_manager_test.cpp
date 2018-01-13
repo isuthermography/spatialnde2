@@ -132,10 +132,12 @@ int main(int argc, char *argv[])
   
   std::tie(all_locks,readregions,writeregions) = lockprocess.finish();
 
-
+  
   OpenCLBuffers Buffers(context,all_locks,readregions,writeregions);
-
+  
   Buffers.AddBufferAsKernelArg(manager,queue,kernel,0,(void **)&geom->geom.meshedparts,(void **)&geom->geom.meshedparts);
+  //Buffers.AddBuffer(manager,queue,(void **)&geom->geom.meshedparts,(void **)&geom->geom.meshedparts);
+  
   Buffers.AddBufferAsKernelArg(manager,queue,kernel,1,(void **)&geom->geom.vertices,(void **)&geom->geom.vertices);
   // Buffers.AddBufferAsKernelArg(manager,queue,kernel,2,&geom->geom.vertices,&geom->geom.principal_curvatures);
   // Buffers.AddBufferAsKernelArg(manager,queue,kernel,3,&geom->geom.vertices,&geom->geom.curvature_tangent_axes);
@@ -150,8 +152,11 @@ int main(int argc, char *argv[])
   cl_event kernel_complete=NULL;
 
   clEnqueueNDRangeKernel(queue,kernel,1,NULL,&global_work_size,NULL,Buffers.NumFillEvents(),Buffers.FillEvents_untracked(),&kernel_complete);
-
+  
   Buffers.RemBuffers(kernel_complete,kernel_complete,true);
+  
+  all_locks->clear();
+  
   
   clReleaseCommandQueue(queue);
   clReleaseContext(context);

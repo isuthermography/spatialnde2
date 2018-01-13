@@ -43,6 +43,7 @@ namespace snde {
   struct arrayinfo {
     void **arrayptr;
     size_t elemsize;
+    bool destroyed; /* locked by allocatormutex */
   };
   
   class allocator /* : public allocatorbase*/ {
@@ -66,8 +67,9 @@ namespace snde {
 
     std::shared_ptr<memallocator> _memalloc;
     std::shared_ptr<lockmanager> _locker; // could be NULL if there is no locker
-    std::deque<std::shared_ptr<std::function<void()>>> realloccallbacks; // locked by allocatormutex
-    
+    std::deque<std::shared_ptr<std::function<void(snde_index)>>> realloccallbacks; // locked by allocatormutex
+
+    bool destroyed;
     /* 
        Should lock things on allocation...
      
@@ -95,14 +97,16 @@ namespace snde {
   
     allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,void **arrayptr,size_t elemsize,snde_index totalnelem) {
       // must hold writelock on array
-    
+
+      destroyed=false;
+      
       _memalloc=memalloc;
       _locker=locker; // could be NULL if there is no locker
       _firstfree=0;
       //_arrayptr=arrayptr;
       //_elemsize=elemsize;
 
-      arrays.push_back(arrayinfo{arrayptr,elemsize});
+      arrays.push_back(arrayinfo{arrayptr,elemsize,false});
       
       //_allocchunksize = 2*sizeof(snde_index)/_elemsize;
       // Round up when determining chunk size
@@ -139,18 +143,46 @@ namespace snde {
     size_t add_other_array(void **arrayptr, size_t elsize)
     /* returns index */
     {
+      assert(!destroyed);
       size_t retval=arrays.size();
-      arrays.push_back(arrayinfo {arrayptr,elsize});
+      arrays.push_back(arrayinfo {arrayptr,elsize,false});
 
       if (*arrays[0].arrayptr) {
 	/* if main array already allocated */
 	*arrayptr=_memalloc->calloc(_totalnchunks*_allocchunksize * elsize);
       } else {
-	      *arrayptr = nullptr;
+        *arrayptr = nullptr;
+      }
+    }
+
+    size_t num_arrays(void)
+    {
+      size_t size=0;
+      for (auto & ary: arrays) {
+	if (!ary.destroyed) size++;
+      }
+      return size;
+    }
+    
+    void remove_array(void **arrayptr)
+    {
+      std::unique_lock<std::mutex> lock(allocatormutex);
+      for (auto ary=arrays.begin();ary != arrays.end();ary++) {
+	if (ary->arrayptr == arrayptr) {
+	  if (ary==arrays.begin()) {
+	    /* removing our master array invalidates the entire allocator */
+	    destroyed=true; 
+	  }
+	  _memalloc->free(*ary->arrayptr);
+	  //arrays.erase(ary);
+	  ary->destroyed=true; 
+	  return;
+	}
       }
     }
     
     void _realloc(snde_index newnchunks) {
+      assert(!destroyed);
       // Must hold write lock on entire array
       // must hold allocatormutex
       // *** NOTE: *** Caller responsible for adding to
@@ -160,6 +192,7 @@ namespace snde {
 
       /* resize all arrays  */
       for (int cnt=0;cnt < arrays.size();cnt++) {
+	if (arrays[cnt].destroyed) continue;
 	*arrays[cnt].arrayptr= _memalloc->realloc(*arrays[cnt].arrayptr,_totalnchunks * _allocchunksize * arrays[cnt].elemsize);
       }
       
@@ -171,6 +204,7 @@ namespace snde {
 
     snde_index total_nelem() {
       std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
+      assert(!destroyed);
       return _totalnchunks*_allocchunksize;
     }
     
@@ -193,6 +227,7 @@ namespace snde {
       snde_index allocchunks = (nelem+_allocchunksize-1)/_allocchunksize;
 
       std::unique_lock<std::mutex> lock(allocatormutex);
+      assert(!destroyed);
 
       for (freeposptr=(char *)&_firstfree,freepos=_firstfree;
            freepos <= _totalnchunks;
@@ -274,11 +309,13 @@ namespace snde {
 
       if (reallocflag) {
 	// notify recipients that we reallocated
-	std::deque<std::shared_ptr<std::function<void()>>> realloccallbacks_copy(realloccallbacks); // copy can be iterated with allocatormutex unlocked
+	std::deque<std::shared_ptr<std::function<void(snde_index)>>> realloccallbacks_copy(realloccallbacks); // copy can be iterated with allocatormutex unlocked
 	
-	lock.unlock(); // release allocatormutex
-	for (std::deque<std::shared_ptr<std::function<void()>>>::iterator reallocnotify=realloccallbacks_copy.begin();reallocnotify != realloccallbacks_copy.end();reallocnotify++) {
-	  (**reallocnotify)();
+	for (std::deque<std::shared_ptr<std::function<void(snde_index)>>>::iterator reallocnotify=realloccallbacks_copy.begin();reallocnotify != realloccallbacks_copy.end();reallocnotify++) {
+	  snde_index new_total_nelem=total_nelem();
+	  lock.unlock(); // release allocatormutex
+	  (**reallocnotify)(new_total_nelem);
+	  lock.lock();
 	}
 	
       }
@@ -286,20 +323,23 @@ namespace snde {
       return retsize;
     }
 
-    void register_realloc_callback(std::shared_ptr<std::function<void()>> callback)
+    void register_realloc_callback(std::shared_ptr<std::function<void(snde_index)>> callback)
     {
       std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
       
       realloccallbacks.emplace_back(callback);
     }
 
-    void unregister_realloc_callback(std::shared_ptr<std::function<void()>> callback)
+    void unregister_realloc_callback(std::shared_ptr<std::function<void(snde_index)>> callback)
     {
       std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
 
-      for (std::deque<std::shared_ptr<std::function<void()>>>::iterator reallocnotify=realloccallbacks.begin();reallocnotify != realloccallbacks.end();reallocnotify++) {
-	if (*reallocnotify==callback) {
-	  realloccallbacks.erase(reallocnotify);
+      for (size_t pos=0;pos < realloccallbacks.size();) {
+	
+	if (realloccallbacks[pos]==callback) {
+	  realloccallbacks.erase(realloccallbacks.begin()+pos);
+	} else {
+	  pos++;
 	}
       }
     }
@@ -321,6 +361,7 @@ namespace snde {
     
       snde_index freechunks = (nelem+_allocchunksize-1)/_allocchunksize;
       std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
+      assert(!destroyed);
 
       assert(addr > 0); /* addr==0 is wasted element allocated by constructor */
       assert(addr % _allocchunksize == 0); /* all addresses returned by alloc() are multiples of _allocchunksize */
@@ -402,12 +443,15 @@ namespace snde {
     ~allocator() {
       // _memalloc was provided by our creator and is not freed
       // _locker was provided by our creator and is not freed
+      std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
 
       // free all arrays
       for (int cnt=0;cnt < arrays.size();cnt++) {
 	if (*arrays[cnt].arrayptr) {
-	  _memalloc->free(*arrays[cnt].arrayptr);
-	  *(arrays[cnt].arrayptr) = NULL;
+	  if (!arrays[cnt].destroyed) {
+	    _memalloc->free(*arrays[cnt].arrayptr);
+	    *(arrays[cnt].arrayptr) = NULL;
+	  }
 	}
       }
       arrays.clear();

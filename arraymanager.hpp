@@ -104,7 +104,39 @@ namespace snde {
       //std::lock_guard<std::mutex> adminlock(admin);
       allocators.clear();
     }
-  
+
+    virtual void cleararrays(void *structaddr, size_t structlen)
+    {
+      /* clear all arrays within the specified structure */
+      size_t pos;
+      char *thisaddr;
+      
+      /* for each address in the structure... */
+      for (pos=0; pos < structlen; pos++) {
+	thisaddr = ((char *)structaddr)+pos;
+
+	/* find any allocator pointed at this addr */
+	std::unordered_map<void **,allocationinfo>::iterator this_arrayptr_allocationinfo;
+	for (std::unordered_map<void **,allocationinfo>::iterator next_arrayptr_allocationinfo=allocators.begin();next_arrayptr_allocationinfo != allocators.end();) {
+	  this_arrayptr_allocationinfo=next_arrayptr_allocationinfo;
+	  next_arrayptr_allocationinfo++;
+	  
+	  if ((char *)this_arrayptr_allocationinfo->first == thisaddr) {
+	    /* match! */
+
+	    this_arrayptr_allocationinfo->second.alloc->remove_array((void **)thisaddr);
+	    
+	    if (this_arrayptr_allocationinfo->second.alloc->num_arrays()==0 && this_arrayptr_allocationinfo->second.alloc.use_count() > 1) {
+	      throw(std::runtime_error("Residual references to array allocation during structure deletion")); /* This error indicates that excess std::shared_ptr<allocator> references are alive during cleanup */
+	    }
+	    
+	    allocators.erase(this_arrayptr_allocationinfo);
+	  }
+	
+	}
+      }
+    }
+    
     virtual std::shared_ptr<cachemanager> get_cache(std::string name)
     {
       std::lock_guard<std::mutex> lock(admin);

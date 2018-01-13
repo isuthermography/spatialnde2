@@ -208,6 +208,9 @@ std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string q
     }
     
   }
+
+  free(buf);
+  buf=NULL;
   
   cl_device_id device;
   cl_platform_id platform;

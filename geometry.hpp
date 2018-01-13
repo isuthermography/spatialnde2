@@ -73,7 +73,7 @@ namespace snde {
     {
       // Destructor needs to wipe out manager's array pointers because they point into this geometry object, that
       // is being destroyed
-      manager->clear();
+      manager->cleararrays((void *)&geom,sizeof(geom));
       
     }
   };

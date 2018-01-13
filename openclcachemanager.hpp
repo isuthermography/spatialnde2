@@ -153,8 +153,8 @@ namespace snde {
     size_t elemsize;
     rangetracker<openclregion> invalidity;
     void **arrayptr;
-    std::shared_ptr<std::function<void()>> realloc_callback;
-    std::shared_ptr<allocator> alloc;
+    std::shared_ptr<std::function<void(snde_index)>> realloc_callback;
+    std::weak_ptr<allocator> alloc; /* weak pointer to the allocator because we don't want to inhibit freeing of this (all we need it for is our reallocation callback) */
     
     _openclbuffer(const _openclbuffer &)=delete; /* copy constructor disabled */
     
@@ -182,13 +182,13 @@ namespace snde {
 
       /* Need to register for notification of realloc
 	 so we can re-allocate the buffer! */
-      realloc_callback=std::make_shared<std::function<void()>>([this,context,arraymanageradminmutex]() {
+      realloc_callback=std::make_shared<std::function<void(snde_index)>>([this,context,arraymanageradminmutex](snde_index total_nelem) {
 	  /* Note: we're not managing context, but presumably the openclarrayinfo that is our key in buffer_map will prevent the context from being freed */
 	  
 	  std::lock_guard<std::mutex> lock(*arraymanageradminmutex);
 	  snde_index numelem;
 	  cl_int lambdaerrcode_ret=CL_SUCCESS;
-	  numelem=this->alloc->total_nelem(); /* determine new # of elements */
+	  numelem=total_nelem; /* determine new # of elements */
 	  clReleaseMemObject(buffer); /* free old buffer */
 
 	  /* allocate new buffer */
@@ -209,7 +209,10 @@ namespace snde {
 
     ~_openclbuffer()
     {
-      alloc->unregister_realloc_callback(realloc_callback);
+      std::shared_ptr<allocator> alloc_strong = alloc.lock();
+      if (alloc_strong) { /* if allocator already freed, it would take care of its reference to the callback */ 
+	alloc_strong->unregister_realloc_callback(realloc_callback);
+      }
       
       clReleaseMemObject(buffer);
       buffer=NULL;
@@ -234,7 +237,7 @@ namespace snde {
 
     std::unordered_map<openclarrayinfo,std::shared_ptr<_openclbuffer>> buffer_map;
 
-    std::shared_ptr<arraymanager> manager; /* Used for looking up allocators and accessing lock manager */ 
+    std::weak_ptr<arraymanager> manager; /* Used for looking up allocators and accessing lock manager (weak to avoid creating a circular reference) */ 
     
     
     openclcachemanager(std::shared_ptr<arraymanager> manager) {
@@ -341,18 +344,19 @@ namespace snde {
       
       openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr);
 
+      std::shared_ptr<arraymanager> manager_strong(manager); /* as manager references us, it should always exist while we do. This will throw an exception if it doesn't */
 
       std::unordered_map<openclarrayinfo,std::shared_ptr<_openclbuffer>>::iterator buffer;
-      std::shared_ptr<allocator> alloc=manager->allocators[arrayptr].alloc;
+      std::shared_ptr<allocator> alloc=manager_strong->allocators[arrayptr].alloc;
       std::shared_ptr<_openclbuffer> oclbuffer;
       std::vector<cl_event> ev;
       rangetracker<openclregion>::iterator invalidregion;
-      size_t arrayidx=manager->locker->get_array_idx(arrayptr);
+      size_t arrayidx=manager_strong->locker->get_array_idx(arrayptr);
 
       buffer=buffer_map.find(arrayinfo);
       if (buffer == buffer_map.end()) {
 	/* need to create buffer */
-	oclbuffer=std::make_shared<_openclbuffer>(context,alloc,alloc->arrays[manager->allocators[arrayptr].allocindex].elemsize,arrayptr,&admin);
+	oclbuffer=std::make_shared<_openclbuffer>(context,alloc,alloc->arrays[manager_strong->allocators[arrayptr].allocindex].elemsize,arrayptr,&admin);
 	buffer_map[arrayinfo]=oclbuffer;
 	
       } else {
@@ -396,7 +400,7 @@ namespace snde {
 	  numelems=markedregion.second->regionend-markedregion.second->regionstart;
 	}
 
-	rwlock_token_set regionlocks=manager->locker->get_preexisting_locks_read_array_region(alllocks,allocatedptr,markedregion.second->regionstart,numelems);
+	rwlock_token_set regionlocks=manager_strong->locker->get_preexisting_locks_read_array_region(alllocks,allocatedptr,markedregion.second->regionstart,numelems);
 
 	merge_into_rwlock_token_set(readlocks,regionlocks);
       }
@@ -413,7 +417,7 @@ namespace snde {
 	  numelems=markedregion.second->regionend-markedregion.second->regionstart;
 	}
 
-	rwlock_token_set regionlocks=manager->locker->get_preexisting_locks_write_array_region(alllocks,allocatedptr,markedregion.second->regionstart,numelems);
+	rwlock_token_set regionlocks=manager_strong->locker->get_preexisting_locks_write_array_region(alllocks,allocatedptr,markedregion.second->regionstart,numelems);
 
 	merge_into_rwlock_token_set(writelocks,regionlocks);
       }
@@ -433,7 +437,7 @@ namespace snde {
 	  snde_index numelems;
 	  
 	  if (markedregion.second->regionend==SNDE_INDEX_INVALID) {
-	    numelems=manager->allocators[arrayptr].alloc->total_nelem()-firstelem;
+	    numelems=manager_strong->allocators[arrayptr].alloc->total_nelem()-firstelem;
 	  } else {
 	    numelems=markedregion.second->regionend-markedregion.second->regionstart;
 	  }
@@ -516,9 +520,12 @@ namespace snde {
       
       /* capture our admin lock */
       std::unique_lock<std::mutex> adminlock(admin);
-      size_t arrayidx=manager->locker->get_array_idx(arrayptr);
 
-      //std::shared_ptr<allocator> alloc=manager->allocators[arrayptr].alloc;
+      std::shared_ptr<arraymanager> manager_strong(manager); /* as manager references us, it should always exist while we do. This will throw an exception if it doesn't */
+
+      size_t arrayidx=manager_strong->locker->get_array_idx(arrayptr);
+
+      //std::shared_ptr<allocator> alloc=manager_strong->allocators[arrayptr].alloc;
 
       /* create arrayinfo key */
       openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr);
@@ -566,7 +573,7 @@ namespace snde {
 	  snde_index numelems;
 	
 	  if (writeregion.second->regionend==SNDE_INDEX_INVALID) {
-	    numelems=manager->allocators[arrayptr].alloc->total_nelem()-writeregion.second->regionstart;
+	    numelems=manager_strong->allocators[arrayptr].alloc->total_nelem()-writeregion.second->regionstart;
 	  } else {
 	    numelems=writeregion.second->regionend-writeregion.second->regionstart;
 	  }
