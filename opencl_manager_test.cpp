@@ -83,7 +83,8 @@ int main(int argc, char *argv[])
   std::string clmsgs;
   cl_kernel kernel;
   cl_program program;
-
+  cl_int clerror=0;
+  
   std::tie(context,device,clmsgs) = get_opencl_context("::",false,NULL,NULL);
 
   fprintf(stderr,"%s",clmsgs.c_str());
@@ -96,9 +97,30 @@ int main(int argc, char *argv[])
 				    program_source.size(),
 				    &program_source[0],
 				    NULL,
-				    NULL);
+				    &clerror);
+  if (!program) {
+    throw openclerror(clerror,"Error creating OpenCL program");
+  }
+
+  clerror=clBuildProgram(program,1,&device,"",NULL,NULL);
+  if (clerror != CL_SUCCESS) {
+    size_t build_log_size=0;
+    char *build_log=NULL;
+    clGetProgramBuildInfo(program,device,CL_PROGRAM_BUILD_LOG,0,NULL,&build_log_size);
+
+    build_log=(char *)calloc(1,build_log_size+1);
+    clGetProgramBuildInfo(program,device,CL_PROGRAM_BUILD_LOG,build_log_size,(void *)build_log,NULL);
+    
+    std::string build_log_str(build_log);
+    free(build_log);
+      
+    throw openclerror(clerror,"Error building OpenCL program:\n"+build_log_str);
+  }
   
-  kernel=clCreateKernel(program,"main",NULL);
+  kernel=clCreateKernel(program,"testkern",&clerror);
+  if (!kernel) {
+    throw openclerror(clerror,"Error creating OpenCL kernel");
+  }
   
   
   rwlock_token_set all_locks;
