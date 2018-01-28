@@ -18,12 +18,7 @@ extern "C" {
     /* meshed 3D geometry */
     struct snde_meshedpart *meshedparts; /* allocated separately */
     
-    // polygon (triangle) vertices...
-    snde_coord3 *vertices;
-    //allocatorbase  *vertex_alloc; // really allocator<snde_coord3> *
 
-    snde_coord2 *principal_curvatures; // allocated by vertex_alloc
-    snde_axis32 *curvature_tangent_axes; // allocated by vertex_alloc
     
     
     // polygon vertexidx... representing vertices in a particular polygon. It is an integer array of vertex ids.... Each triangle specifies three vertices
@@ -44,6 +39,11 @@ extern "C" {
     
     snde_mat23 *inplanemat; // allocated by triangle_alloc
 
+    // polygon (triangle) vertices...
+    snde_coord3 *vertices;
+    //allocatorbase  *vertex_alloc; // really allocator<snde_coord3> *
+    snde_coord2 *principal_curvatures; // allocated by vertex_alloc
+    snde_axis32 *curvature_tangent_axes; // allocated by vertex_alloc
 
     /* NURBS 3D geometry */
     struct snde_nurbspart *nurbsparts;

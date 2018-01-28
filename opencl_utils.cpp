@@ -243,4 +243,41 @@ std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string q
   return std::make_tuple(context,device,summary);
 }
 
+
+std::tuple<cl_program, std::string> get_opencl_program(cl_context context, cl_device_id device, std::vector<const char *> program_source)
+  {
+    cl_program program;
+    cl_int clerror=0;
+    
+    program=clCreateProgramWithSource(context,
+				      program_source.size(),
+				      &program_source[0],
+				      NULL,
+				      &clerror);
+    if (!program) {
+      throw openclerror(clerror,"Error creating OpenCL program");
+    }
+    
+    clerror=clBuildProgram(program,1,&device,"",NULL,NULL);
+    
+    size_t build_log_size=0;
+    char *build_log=NULL;
+    clGetProgramBuildInfo(program,device,CL_PROGRAM_BUILD_LOG,0,NULL,&build_log_size);
+    
+    build_log=(char *)calloc(1,build_log_size+1);
+    clGetProgramBuildInfo(program,device,CL_PROGRAM_BUILD_LOG,build_log_size,(void *)build_log,NULL);
+    
+    std::string build_log_str(build_log);
+    free(build_log);
+    
+    if (clerror != CL_SUCCESS) {
+      /* build error */
+      throw openclerror(clerror,"Error building OpenCL program:\n"+build_log_str);
+    }
+    
+    return std::make_tuple(program,build_log);
+  }
+  
+
+  
 }

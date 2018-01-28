@@ -49,32 +49,6 @@ int main(int argc, char *argv[])
   geom=std::make_shared<geometry>(1e-6,manager);
 
 
-  /*
-  // Allocate space for 10000 vertices 
-  geom->manager->alloc((void **)&geom->geom.vertices,10000);
-  
-  // perform lock of all arrays
-  rwlock_token_set all_locks=empty_rwlock_token_set();
-  
-  rwlock_token_set read_lock=geom->manager->locker->get_locks_read_all(all_locks);
-
-  // unlock those arrays
-  read_lock->clear();
-  all_locks->clear();
-
-  // lock single array
-  rwlock_token_set vertices_lock=geom->manager->locker->get_locks_read_array(all_locks,(void **)&geom->geom.vertices);
-  
-  // lock following array, following locking order and acknowledging current lock ownership
-  rwlock_token_set triangle_lock=geom->manager->locker->get_locks_read_array(all_locks,(void **)&geom->geom.vertexidx);
-
-  // not legitimate to lock all arrays right now because this would violate locking order
-  //fprintf(stderr,"release locks...\n");
-
-  all_locks->clear();
-  vertices_lock->clear();  // order of unlocks doesn't matter
-  triangle_lock->clear();  // unlocks also happen automatically when the token_set leaves context. 
-  */
 
 
   cl_context context;
@@ -92,30 +66,10 @@ int main(int argc, char *argv[])
   queue=clCreateCommandQueue(context,device,CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE,NULL);
 
   std::vector<const char *> program_source = { geometry_types_h, testkernel_c };
+
+  std::string build_log;
   
-  program=clCreateProgramWithSource(context,
-				    program_source.size(),
-				    &program_source[0],
-				    NULL,
-				    &clerror);
-  if (!program) {
-    throw openclerror(clerror,"Error creating OpenCL program");
-  }
-
-  clerror=clBuildProgram(program,1,&device,"",NULL,NULL);
-  if (clerror != CL_SUCCESS) {
-    size_t build_log_size=0;
-    char *build_log=NULL;
-    clGetProgramBuildInfo(program,device,CL_PROGRAM_BUILD_LOG,0,NULL,&build_log_size);
-
-    build_log=(char *)calloc(1,build_log_size+1);
-    clGetProgramBuildInfo(program,device,CL_PROGRAM_BUILD_LOG,build_log_size,(void *)build_log,NULL);
-    
-    std::string build_log_str(build_log);
-    free(build_log);
-      
-    throw openclerror(clerror,"Error building OpenCL program:\n"+build_log_str);
-  }
+  std::tie(program,build_log) = get_opencl_program(context,device,program_source);
   
   kernel=clCreateKernel(program,"testkern",&clerror);
   if (!kernel) {
@@ -123,17 +77,17 @@ int main(int argc, char *argv[])
   }
   
   
-  rwlock_token_set all_locks;
+  rwlock_token_set locks;
   std::shared_ptr<std::vector<rangetracker<markedregion>>> readregions;
   std::shared_ptr<std::vector<rangetracker<markedregion>>> writeregions;
   
   lockingprocess lockprocess(manager->locker);
   
   
-  std::tie(all_locks,readregions,writeregions) = lockprocess.finish();
+  std::tie(locks,readregions,writeregions) = lockprocess.finish();
 
   
-  OpenCLBuffers Buffers(context,all_locks,readregions,writeregions);
+  OpenCLBuffers Buffers(context,locks,readregions,writeregions);
   
   Buffers.AddBufferAsKernelArg(manager,queue,kernel,0,(void **)&geom->geom.meshedparts,(void **)&geom->geom.meshedparts);
   //Buffers.AddBuffer(manager,queue,(void **)&geom->geom.meshedparts,(void **)&geom->geom.meshedparts);
@@ -155,7 +109,7 @@ int main(int argc, char *argv[])
   
   Buffers.RemBuffers(kernel_complete,kernel_complete,true);
   
-  all_locks->clear();
+  unlock_rwlock_token_set(locks);
   
   
   clReleaseCommandQueue(queue);

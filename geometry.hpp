@@ -41,10 +41,6 @@ namespace snde {
       manager->add_allocated_array((void **)&geom.meshedparts,sizeof(*geom.meshedparts),0);
 
       
-      manager->add_allocated_array((void **)&geom.vertices,sizeof(*geom.vertices),0);
-      manager->add_follower_array((void **)&geom.vertices,(void **)&geom.principal_curvatures,sizeof(*geom.principal_curvatures));
-      manager->add_follower_array((void **)&geom.vertices,(void **)&geom.curvature_tangent_axes,sizeof(*geom.curvature_tangent_axes));
-
 
 
       manager->add_allocated_array((void **)&geom.vertexidx,sizeof(*geom.vertexidx),0);
@@ -53,7 +49,12 @@ namespace snde {
       manager->add_follower_array((void **)&geom.vertexidx,(void **)&geom.normal,sizeof(*geom.normal));
       manager->add_follower_array((void **)&geom.vertexidx,(void **)&geom.inplanemat,sizeof(*geom.inplanemat));
       
-      
+
+      manager->add_allocated_array((void **)&geom.vertices,sizeof(*geom.vertices),0);
+      manager->add_follower_array((void **)&geom.vertices,(void **)&geom.principal_curvatures,sizeof(*geom.principal_curvatures));
+      manager->add_follower_array((void **)&geom.vertices,(void **)&geom.curvature_tangent_axes,sizeof(*geom.curvature_tangent_axes));
+
+
 
       manager->add_allocated_array((void **)&geom.boxes,sizeof(*geom.boxes),0);
       manager->add_follower_array((void **)&geom.boxes,(void **)&geom.boxcoord,sizeof(*geom.boxcoord));

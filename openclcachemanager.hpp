@@ -793,7 +793,7 @@ namespace snde {
     // opencl array manager
   public:
     cl_context context;  /* counted by clRetainContext() */
-    rwlock_token_set all_locks;
+    rwlock_token_set locks;
     std::shared_ptr<std::vector<rangetracker<markedregion>>> arrayreadregions;
     std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions;
 
@@ -801,11 +801,11 @@ namespace snde {
 
     std::vector<cl_event> fill_events; /* each counted by clRetainEvent() */
      
-    OpenCLBuffers(cl_context context,rwlock_token_set all_locks,std::shared_ptr<std::vector<rangetracker<markedregion>>> arrayreadregions,std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions)
+    OpenCLBuffers(cl_context context,rwlock_token_set locks,std::shared_ptr<std::vector<rangetracker<markedregion>>> arrayreadregions,std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions)
     {
       clRetainContext(context);
       this->context=context;
-      this->all_locks=all_locks;
+      this->locks=locks;
       this->arrayreadregions=arrayreadregions;
       this->arraywriteregions=arraywriteregions;
     }
@@ -858,8 +858,8 @@ namespace snde {
 
       //// accumulate preexisting locks + locks in all buffers together
       //for (auto & arrayptr_buf : buffers) {
-      //  merge_into_rwlock_token_set(all_locks,arrayptr_buf.second.readlocks);
-      //  merge_into_rwlock_token_set(all_locks,arrayptr_buf.second.writelocks);
+      //  merge_into_rwlock_token_set(locks,arrayptr_buf.second.readlocks);
+      //  merge_into_rwlock_token_set(locks,arrayptr_buf.second.writelocks);
       //}
 
       rwlock_token_set readlocks,writelocks;
@@ -868,7 +868,7 @@ namespace snde {
       std::vector<cl_event> new_fill_events;
       std::shared_ptr<openclcachemanager> cachemanager=get_opencl_cache_manager(manager);
       
-      std::tie(readlocks,writelocks,mem,offset,new_fill_events) = cachemanager->GetOpenCLBuffer(all_locks,context,queue,allocatedptr,arrayptr,arrayreadregions,arraywriteregions,write_only);
+      std::tie(readlocks,writelocks,mem,offset,new_fill_events) = cachemanager->GetOpenCLBuffer(locks,context,queue,allocatedptr,arrayptr,arrayreadregions,arraywriteregions,write_only);
 
       /* move fill events into our master list */
       fill_events.insert(fill_events.end(),new_fill_events.begin(),new_fill_events.end());
@@ -886,7 +886,7 @@ namespace snde {
       
       
       // add this lock to our database of preexisting locks 
-      //all_locks.push_back(buffers[name][1]); 
+      //locks.push_back(buffers[name][1]); 
     }
 
     cl_int AddBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl_command_queue queue,cl_kernel kernel,cl_uint arg_index,void **allocatedptr, void **arrayptr)

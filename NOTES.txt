@@ -17,3 +17,13 @@ array will actually be implemented, but this could be improved later.
 
 Hierarchical assemblies and parts will be defined by reference into
 these master arrays. 
+
+TODO: define a function that takes an rwlock_token_set and
+iterates over the map, explicitly unlocking all components.
+In general convention should be to explicitly unlock all locks
+when finished. This way if there is an attempt to unlock the same
+lock twice, it will fail because unlocking an unlocked std::unique_lock
+throws an exception (std::system_error).
+
+Process of defining and resetting all_locks as part of the locking
+process is somewhat confusing. 

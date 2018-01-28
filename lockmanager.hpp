@@ -42,7 +42,7 @@ The order is from the top of the struct snde_geometrydata  to the bottom. Once y
  * the rwlock_token and rwlock_token_set are NOT thread safe.
    If you want to pass locks acquired in one thread to another
    thread you can create an rwlock_token_set from your locking
-   operation, and then call lockmanager->clone_token_set() to
+   operation, and then call lockmanager->clone_rwlock_token_set() to
    create an independent clone of the rwlock_token_set that can
    then be safely used by another thread.
 
@@ -354,19 +354,48 @@ namespace snde {
   // Set of tokens
   typedef std::shared_ptr<std::unordered_map<rwlock_lockable *,rwlock_token>> rwlock_token_set;
 
+  /* rwlock_token_set semantics: 
+     The rwlock_token_set contains a reference-counted set of locks, specific 
+     to a particular thread. They can be passed around, copied, etc.
+     at will within a thread context. 
+     
+     A lock is unlocked when: 
+        (a) unlock_rwlock_token_set() is called on an rwlock_token_set containing 
+	    the lock, or 
+        (b) All references to all rwlock_token_sets containing the lock
+	    are released (by release_rwlock_token_set()) or go out of scope
+     Note that it is an error (std::system_error) to call unlock_rwlock_token_set()
+     on an rwlock_token_set that contains any locks that already have been
+     unlocked (i.e. by a prior call to unlock_rwlock_token_set()) 
 
+     It is possible to pass a token_set to another thread, but 
+     only by creating a completely independent cloned copy and 
+     completely delegating the cloned copy to the other thread.
 
-  class arraylock {
-  public:
-    //std::mutex admin; /* locks access to full_array and subregions members.. obsolete.... just use the lockmanager's admin lock */
+     The cloned copy is created with clone_rwlock_token_set(). 
+     The unlock()ing the cloned copy is completely separate from
+     unlocking the original.
+*/
 
-    rwlock full_array;
-    //std::vector<rwlock> subregions;
+  static inline void release_rwlock_token_set(rwlock_token_set &tokens)
+  /* release_token_set releases our references to a particular 
+     token set. Once all references are released, any locked tokens
+     become unlocked */
+  {
+    tokens.reset(); // release our reference 
+  }
 
-    arraylock() {
-
+  static inline void unlock_rwlock_token_set(rwlock_token_set tokens)
+  /* unlock_token_set() explicitly unlocks all underlying tokens. 
+     It is an error (std::system_error) to unlock more than once. 
+     All other references to these tokens also become unlocked */
+  {
+    for (auto & lockableptr_token : *tokens) {
+      lockableptr_token.second->unlock();
     }
-  };
+  }
+  
+
 
 
   static inline rwlock_token_set empty_rwlock_token_set(void)
@@ -374,17 +403,34 @@ namespace snde {
     return std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
   }
 
-  static inline void release_rwlock_token_set(rwlock_token_set tokens)
+  static inline bool check_rwlock_token_set(rwlock_token_set tokens)
+  /* checks to make sure that referenced tokens are actually locked.
+     returns true if all are locked, false if any are unlocked */
   {
-    /* additional references to tokens no longer mean anything
-       after this call */
-    tokens->clear();
+    bool all_locked=true;
+    
+    for (auto & lockableptr_token : *tokens) {
+      all_locked = all_locked && lockableptr_token.second->owns_lock();
+    }
+    return all_locked; 
   }
+  
+  
 
   static inline void merge_into_rwlock_token_set(rwlock_token_set accumulator, rwlock_token_set tomerge)
   {
+    std::unordered_map<rwlock_lockable *,rwlock_token>::iterator foundtoken;
+      
     for (std::unordered_map<rwlock_lockable *,rwlock_token>::iterator lockable_token=tomerge->begin();lockable_token != tomerge->end();lockable_token++) {
-      (*accumulator)[lockable_token->first]=lockable_token->second;
+
+      foundtoken=accumulator->find(lockable_token->first);
+      if (foundtoken != accumulator->end() && foundtoken->first->_writer) {
+	/* already have this key in accumulator , and what we already have is a write lock
+	   ... can't do better than this so do nothing */
+      } else {
+	/* pull into accumulator */
+	(*accumulator)[lockable_token->first]=lockable_token->second;
+      }
     }
   }
 
@@ -396,7 +442,7 @@ namespace snde {
        only occur from one thread unless the original token set
        is immediately released (by orig.reset() and on all copies) */
 
-    rwlock_token_set copy(new std::unordered_map<rwlock_lockable *,rwlock_token>(*orig));
+    rwlock_token_set copy(new std::unordered_map<rwlock_lockable *,rwlock_token>());
     rwlock_lockable *lockable;
 
     for (std::unordered_map<rwlock_lockable *,rwlock_token>::iterator lockable_token=orig->begin();lockable_token != orig->end();lockable_token++) {
@@ -415,6 +461,17 @@ namespace snde {
     return copy;
   }
 
+  class arraylock {
+  public:
+    //std::mutex admin; /* locks access to full_array and subregions members.. obsolete.... just use the lockmanager's admin lock */
+
+    rwlock full_array;
+    //std::vector<rwlock> subregions;
+
+    arraylock() {
+
+    }
+  };
 
   class lockmanager {
     /* Manage all of the locks/mutexes/etc. for a class
@@ -1036,11 +1093,11 @@ namespace snde {
 
         all_tokens=empty_rwlock_token_set();
         /* locking can occur in original thread, so
-     include us in _runnablethreads  */
+	   include us in _runnablethreads  */
         _runnablethreads.emplace_back((std::condition_variable *)NULL);
-
+	
         /* since we return as the running thread,
-     we return with the mutex locked via _executor_lock (from constructor, above). */
+	   we return with the mutex locked via _executor_lock (from constructor, above). */
 
       }
 
@@ -1048,7 +1105,7 @@ namespace snde {
       {
 
         /* Since we must be the running thread in order to take
-     this call, take the lock from _executor_lock */
+	   this call, take the lock from _executor_lock */
         std::unique_lock<std::mutex> lock;
         std::condition_variable ourcv;
 
@@ -1063,16 +1120,16 @@ namespace snde {
 
         /* notify first runnable or waiting thread that we have gone into waiting mode too */
         if (_runnablethreads.size() > 0) {
-    _runnablethreads[0]->notify_all();
+	  _runnablethreads[0]->notify_all();
         } else {
-    if (_waitingthreads.size() > 0) {
-      (*_waitingthreads.begin()).second->notify_all();
-    }
+	  if (_waitingthreads.size() > 0) {
+	    (*_waitingthreads.begin()).second->notify_all();
+	  }
         }
 
         /* now wait for us to be the lowest available waiter AND the runnablethreads to be empty */
         while ((*_waitingthreads.begin()).second != &ourcv && _runnablethreads.size() == 0) {
-    ourcv.wait(lock);
+	  ourcv.wait(lock);
         }
 
         /* because the wait terminated we must be first on the waiting list */
@@ -1096,7 +1153,7 @@ namespace snde {
         rwlock_token_set newset;
         _barrier(lockingposition(_lockmanager->_arrayidx[array],0,true));
         newset = _lockmanager->get_locks_write_array_region(all_tokens,array,0,SNDE_INDEX_INVALID);
-
+	
         (*arraywriteregions)[_lockmanager->_arrayidx[array]].mark_all(SNDE_INDEX_INVALID);
 
         return newset;
@@ -1106,9 +1163,9 @@ namespace snde {
       {
         rwlock_token_set newset;
         if (_lockmanager->is_region_granular()) {
-    _barrier(lockingposition(_lockmanager->_arrayidx[array],indexstart,true));
+	  _barrier(lockingposition(_lockmanager->_arrayidx[array],indexstart,true));
         } else {
-    _barrier(lockingposition(_lockmanager->_arrayidx[array],0,true));
+	  _barrier(lockingposition(_lockmanager->_arrayidx[array],0,true));
         }
         newset = _lockmanager->get_locks_write_array_region(all_tokens,array,indexstart,numelems);
 
@@ -1123,7 +1180,7 @@ namespace snde {
         rwlock_token_set newset;
         _barrier(lockingposition(_lockmanager->_arrayidx[array],0,false));
         newset = _lockmanager->get_locks_read_array_region(all_tokens,array,0,SNDE_INDEX_INVALID);
-
+	
         (*arrayreadregions)[_lockmanager->_arrayidx[array]].mark_all(SNDE_INDEX_INVALID);
 
 
@@ -1135,9 +1192,9 @@ namespace snde {
         rwlock_token_set newset;
 
         if (_lockmanager->is_region_granular()) {
-    _barrier(lockingposition(_lockmanager->_arrayidx[array],indexstart,false));
+	  _barrier(lockingposition(_lockmanager->_arrayidx[array],indexstart,false));
         } else {
-    _barrier(lockingposition(_lockmanager->_arrayidx[array],0,false));
+	  _barrier(lockingposition(_lockmanager->_arrayidx[array],0,false));
         }
 
         newset = _lockmanager->get_locks_read_array_region(all_tokens,array,indexstart,numelems);
@@ -1151,7 +1208,7 @@ namespace snde {
       virtual void spawn(std::function<void(void)> f)
       {
         /* Since we must be the running thread in order to take
-     this call, take the lock from _executor_lock */
+	   this call, take the lock from _executor_lock */
         std::unique_lock<std::mutex> lock;
         std::condition_variable ourcv;
 
@@ -1168,82 +1225,82 @@ namespace snde {
         _runnablethreads.push_front(NULL);
 
         std::thread *newthread=new std::thread([f,this]() {
-      std::unique_lock<std::mutex> subthreadlock(this->_mutex);
-
-      /* We start out as the running thread, so swap our lock
-         into executor_lock */
-      subthreadlock.swap(this->_executor_lock);
-      f();
-      /* spawn code done... swap lock back into us, where it will
-       be unlocked on return */
-      subthreadlock.swap(this->_executor_lock);
-
-      /* Since we were running, the NULL at the front of
-         _runnablethreads represents us. Remove this */
-      this->_runnablethreads.pop_front();
-
-      /* ... and notify whomever is first to take over execution */
-      if (this->_runnablethreads.size() > 0) {
-        _runnablethreads[0]->notify_all();
-      } else {
-        if (this->_waitingthreads.size() > 0) {
-          (*this->_waitingthreads.begin()).second->notify_all();
-        }
-      }
-    });
+	    std::unique_lock<std::mutex> subthreadlock(this->_mutex);
+	    
+	    /* We start out as the running thread, so swap our lock
+	       into executor_lock */
+	    subthreadlock.swap(this->_executor_lock);
+	    f();
+	    /* spawn code done... swap lock back into us, where it will
+	       be unlocked on return */
+	    subthreadlock.swap(this->_executor_lock);
+	    
+	    /* Since we were running, the NULL at the front of
+	       _runnablethreads represents us. Remove this */
+	    this->_runnablethreads.pop_front();
+	    
+	    /* ... and notify whomever is first to take over execution */
+	    if (this->_runnablethreads.size() > 0) {
+	      _runnablethreads[0]->notify_all();
+	    } else {
+	      if (this->_waitingthreads.size() > 0) {
+		(*this->_waitingthreads.begin()).second->notify_all();
+	      }
+	    }
+	  });
         _threadarray.emplace_back(newthread);
-
+	
         /* Wait for us to make it back to the front of the runnables */
         while (_runnablethreads[0] != &ourcv) {
-    ourcv.wait(lock);
+	  ourcv.wait(lock);
         }
         /* we are now at the front of the runnables. Switch to
-     running state by popping us off and pushing NULL */
-
+	   running state by popping us off and pushing NULL */
+	
         _runnablethreads.pop_front();
         _runnablethreads.push_front(NULL);
-
+	
         /* Now swap our lock back into the executor lock */
         lock.swap(_executor_lock);
 
         /* return and continue executing */
       }
-
+      
       virtual std::tuple<rwlock_token_set,std::shared_ptr<std::vector<rangetracker<markedregion>>>,std::shared_ptr<std::vector<rangetracker<markedregion>>>> finish()
       {
         /* Since we must be the running thread in order to take
-     this call, take the lock from _executor_lock */
+	   this call, take the lock from _executor_lock */
         /* returns tuple: token_set, arrayreadregions, arraywriteregions */
-
+	
         /* if finish() has already been called once, _executor_lock is
-     unlocked and swap() is a no-op */
+	   unlocked and swap() is a no-op */
         std::unique_lock<std::mutex> lock;
 
         lock.swap(_executor_lock);
 
         /* We no longer count as a runnable thread from here-on.
-     if finish() has already been called size(_runnablethreads)==0 */
+	   if finish() has already been called size(_runnablethreads)==0 */
         if (_runnablethreads.size() > 0) {
-    //assert(_runnablethreads[0]==std::this_thread::id);
-    _runnablethreads.pop_front();
+	  //assert(_runnablethreads[0]==std::this_thread::id);
+	  _runnablethreads.pop_front();
         }
-
+	
         /* join each of the threads */
         while (_threadarray.size() > 0) {
-    std::thread *tojoin = _threadarray[0];
-
-    lock.unlock();
-    tojoin->join();
-
-    lock.lock();
-    _threadarray.erase(_threadarray.begin());
-
-    delete tojoin;
+	  std::thread *tojoin = _threadarray[0];
+	  
+	  lock.unlock();
+	  tojoin->join();
+	  
+	  lock.lock();
+	  _threadarray.erase(_threadarray.begin());
+	  
+	  delete tojoin;
         }
-
+	
         rwlock_token_set retval=all_tokens;
 
-        all_tokens.reset(); /* drop our references to the tokens */
+        release_rwlock_token_set(all_tokens); /* drop references to the tokens from the structure */
 
         std::shared_ptr<std::vector<rangetracker<markedregion>>> readregions=arrayreadregions;
         arrayreadregions.reset();
