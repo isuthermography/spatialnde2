@@ -2,12 +2,11 @@
 #define SNDE_ALLOCATOR_HPP
 
 #include <cstdint>
+#include <cstring>
 
 #include "memallocator.hpp"
 
 #include "lockmanager.hpp"
-
-
 
 namespace snde {
   
