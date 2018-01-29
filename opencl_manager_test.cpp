@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
   std::shared_ptr<arraymanager> manager;
   std::shared_ptr<geometry> geom;
 
-  snde_index blockstart,blocksize;
+  //snde_index blockstart,blocksize;
 
   lowlevel_alloc=std::make_shared<cmemallocator>();
 

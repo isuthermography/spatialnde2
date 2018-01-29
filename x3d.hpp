@@ -118,19 +118,28 @@ namespace snde {
 
   }
 
-  void SetBoolIfX3DAttribute(xmlTextReaderPtr reader, std::string attrname, bool *b) {
+  void SetBoolIfX3DAttribute(xmlTextReaderPtr reader, std::string attrname, bool *b)
+  {
     xmlChar *attrstring;
 
     attrstring=xmlTextReaderGetAttribute(reader, (const xmlChar *) attrname.c_str());
     if (attrstring) {
-      *b=static_cast<bool>(attrstring);
+      // Per http://www.web3d.org/documents/specifications/19776-1/V3.3/Part01/EncodingOfFields.html#SFBool
+      // acceptible values are "true" and "false". Throw an exception if it gets something else.
+      if (!strcmp((char *)attrstring,"true")) {
+	*b=true;
+      } else if (!strcmp((char *)attrstring,"false")) {
+	*b=false;
+      } else {
+	throw x3derror(0,NULL,"Invalid boolean value %s for attribute %s",(char *)attrstring,attrname.c_str());
+      }
       xmlFree(attrstring);
     }
-  
+  }
   static bool IsX3DNamespaceUri(char *NamespaceUri)
   {
     if (!NamespaceUri) return true; /* no namespace is acceptible */
-    if (NamespaceUri[0]=0) return true; /* no namespace is acceptible */
+    if (NamespaceUri[0]==0) return true; /* no namespace is acceptible */
 
 
     /* non version-specific test */
@@ -291,6 +300,7 @@ namespace snde {
       SetDoubleIfX3DAttribute(loader->reader,"transparency",&mat->transparency);
 
       loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(mat));
+      return mat;
     }
   };
 
@@ -311,6 +321,7 @@ namespace snde {
     return mat_data;
   }
 
+
   class x3d_shape: public x3d_node {
   public:
     Eigen::Vector3d bboxCenter;
@@ -325,17 +336,19 @@ namespace snde {
     }
 
     static std::shared_ptr<x3d_shape> fromcurrentelement(x3d_loader *loader) {
-      std::shared_ptr<x3d_shape> mat=std::make_shared<x3d_shape>();
+      std::shared_ptr<x3d_shape> shape=std::make_shared<x3d_shape>();
 
 
-      SetVectorIfX3DAttribute(loader->reader, "bboxCenter", &mat->bboxCenter);
-      SetVectorIfX3DAttribute(loader->reader, "bboxSize", &mat->bboxSize);
+      SetVectorIfX3DAttribute(loader->reader, "bboxCenter", &shape->bboxCenter);
+      SetVectorIfX3DAttribute(loader->reader, "bboxSize", &shape->bboxSize);
 
-      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(mat));
+      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(shape));
+
+      return shape;
     }
   };
 
-  //TODO: Implement parse_shape();
+  // TODO: Implement parse_shape();
   /* NOTE:: parse_shape() will store in the master shape list rather
        than in the parentnode */
 
@@ -367,33 +380,35 @@ namespace snde {
     }
 
     static std::shared_ptr<x3d_transform> fromcurrentelement(x3d_loader *loader) {
-      std::shared_ptr<x3d_transform> mat=std::make_shared<x3d_transform>();
+      std::shared_ptr<x3d_transform> trans=std::make_shared<x3d_transform>();
 
-      SetVectorIfX3DAttribute(loader->reader, "center", &mat->center);
-      SetVectorIfX3DAttribute(loader->reader, "rotation", &mat->rotation);
-      SetVectorIfX3DAttribute(loader->reader, "scale", &mat->scale);
-      SetVectorIfX3DAttribute(loader->reader, "scaleOrientation", &mat->scaleOrientation);
-      SetVectorIfX3DAttribute(loader->reader, "translation", &mat->translation);
-      SetVectorIfX3DAttribute(loader->reader, "bboxCenter", &mat->bboxCenter);
-      SetVectorIfX3DAttribute(loader->reader, "bboxSize", &mat->bboxSize);
+      SetVectorIfX3DAttribute(loader->reader, "center", &trans->center);
+      SetVectorIfX3DAttribute(loader->reader, "rotation", &trans->rotation);
+      SetVectorIfX3DAttribute(loader->reader, "scale", &trans->scale);
+      SetVectorIfX3DAttribute(loader->reader, "scaleOrientation", &trans->scaleOrientation);
+      SetVectorIfX3DAttribute(loader->reader, "translation", &trans->translation);
+      SetVectorIfX3DAttribute(loader->reader, "bboxCenter", &trans->bboxCenter);
+      SetVectorIfX3DAttribute(loader->reader, "bboxSize", &trans->bboxSize);
 
-      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(mat));
+      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(trans));
+
+      return trans;
     }
   };
 
   std::shared_ptr<x3d_node> x3d_loader::parse_transform(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField) {
     if (!containerField) containerField=(xmlChar *) "material";
 
-    std::shared_ptr<x3d_node> mat_data=x3d_material::fromcurrentelement(this);
+    std::shared_ptr<x3d_node> trans_data=x3d_transform::fromcurrentelement(this);
 
     if (parentnode) {
       if (!parentnode->hasattr((char *) containerField)) {
-        throw x3derror(nullptr, nullptr, "Invalid container field for transform: ", (char *) containerField);
+        throw x3derror(0, nullptr, "Invalid container field for transform: ", (char *) containerField);
       }
-      parentnode->nodedata[(char *) containerField]=mat_data;
+      parentnode->nodedata[(char *) containerField]=trans_data;
     }
 
-    return mat_data;
+    return trans_data;
   }
 
   class x3d_indexedfaceset : public x3d_node {
@@ -414,20 +429,21 @@ namespace snde {
     }
 
     static std::shared_ptr<x3d_indexedfaceset> fromcurrentelement(x3d_loader *loader) {
-      std::shared_ptr<x3d_indexedfaceset> mat=std::make_shared<x3d_indexedfaceset>();
+      std::shared_ptr<x3d_indexedfaceset> ifs=std::make_shared<x3d_indexedfaceset>();
 
-      SetBoolIfX3DAttribute(loader->reader, "normalPerVertex", &mat->normalPerVertex);
-      SetBoolIfX3DAttribute(loader->reader, "ccw", &mat->ccw);
-      SetBoolIfX3DAttribute(loader->reader, "solid", &mat->solid);
-      SetBoolIfX3DAttribute(loader->reader, "convex", &mat->convex);
+      SetBoolIfX3DAttribute(loader->reader, "normalPerVertex", &ifs->normalPerVertex);
+      SetBoolIfX3DAttribute(loader->reader, "ccw", &ifs->ccw);
+      SetBoolIfX3DAttribute(loader->reader, "solid", &ifs->solid);
+      SetBoolIfX3DAttribute(loader->reader, "convex", &ifs->convex);
 
-      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(mat));
+      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(ifs));
+
+      return ifs;
     }
   };
 
   //TODO: Implement parse_indexedfaceset();
-}
-####### Ancestor
+  
 };
-======= end
+
 #endif // SNDE_X3D_HPP

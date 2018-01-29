@@ -1,6 +1,6 @@
 # -Wno-ignored-attributes eliminates (apparently) spurious warnings about ignored attributes
 
-CPPFLAGS=-g  -Wno-ignored-attributes -DSNDE_LOCKMANAGER_COROUTINES_THREADED -I/usr/include/eigen3 -I/usr/include/libxml2
+CPPFLAGS=-g -Wall -Wno-int-in-bool-context -Wno-ignored-attributes -DSNDE_LOCKMANAGER_COROUTINES_THREADED -I/usr/include/eigen3 -I/usr/include/libxml2
 
 
 OBJS=allocator_test.o

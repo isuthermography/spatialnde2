@@ -1085,8 +1085,8 @@ namespace snde {
       lockingprocess(std::shared_ptr<lockmanager> manager) :
         arrayreadregions(std::make_shared<std::vector<rangetracker<markedregion>>>(manager->_arrays.size())),
         arraywriteregions(std::make_shared<std::vector<rangetracker<markedregion>>>(manager->_arrays.size())),
-        _executor_lock(_mutex),
-        lastlockingposition(0,0,true)
+        lastlockingposition(0,0,true),
+        _executor_lock(_mutex)
       {
         this->_lockmanager=manager;
 

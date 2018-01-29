@@ -154,7 +154,7 @@ std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string q
 
 	if (!strcmp(Device,DevName.c_str())) {
 	  device_rating=2;
-	} else if (strlen(Device)==1 && (Device[0]-'0')==devicenum) {
+	} else if (strlen(Device)==1 && ((unsigned)(Device[0]-'0'))==devicenum) {
 	  device_rating=2;
 	} else if (!strncmp(Device,DevName.c_str(),strlen(Device))) {
 	  device_rating=1;

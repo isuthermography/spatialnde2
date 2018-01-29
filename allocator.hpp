@@ -151,6 +151,7 @@ namespace snde {
       } else {
         *arrayptr = nullptr;
       }
+      return retval;
     }
 
     size_t num_arrays(void)
@@ -189,7 +190,7 @@ namespace snde {
       //*arrays[0].arrayptr = _memalloc->realloc(*arrays[0].arrayptr,_totalnchunks * _allocchunksize * _elemsize);
 
       /* resize all arrays  */
-      for (int cnt=0;cnt < arrays.size();cnt++) {
+      for (size_t cnt=0;cnt < arrays.size();cnt++) {
 	if (arrays[cnt].destroyed) continue;
 	*arrays[cnt].arrayptr= _memalloc->realloc(*arrays[cnt].arrayptr,_totalnchunks * _allocchunksize * arrays[cnt].elemsize);
       }
@@ -444,7 +445,7 @@ namespace snde {
       std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
 
       // free all arrays
-      for (int cnt=0;cnt < arrays.size();cnt++) {
+      for (size_t cnt=0;cnt < arrays.size();cnt++) {
 	if (*arrays[cnt].arrayptr) {
 	  if (!arrays[cnt].destroyed) {
 	    _memalloc->free(*arrays[cnt].arrayptr);

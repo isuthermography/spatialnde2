@@ -850,7 +850,8 @@ namespace snde {
       cl_mem mem;
 
       mem=Mem_untracked(arrayptr);
-      clSetKernelArg(kernel,arg_index,sizeof(mem),&mem);
+      return clSetKernelArg(kernel,arg_index,sizeof(mem),&mem);
+      
     }
   
     void AddBuffer(std::shared_ptr<arraymanager> manager,cl_command_queue queue, void **allocatedptr, void **arrayptr,bool write_only=false)
