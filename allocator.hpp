@@ -8,8 +8,6 @@
 
 #include "lockmanager.hpp"
 
-
-
 namespace snde {
   
 

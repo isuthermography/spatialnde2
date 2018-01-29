@@ -22,6 +22,8 @@
 
 // Use libxml2 xmlreader interface to iterate over document.
 
+//TODO: Convert x3d.py to C++ code
+
 namespace snde {
 
   class x3d_node {
@@ -39,6 +41,10 @@ namespace snde {
 
   class x3d_loader; /* forward declaration */
   class x3d_shape;
+  class x3d_material;
+  class x3d_transform;
+  class x3d_indexedfaceset;
+  class x3d_appearance;
 
 
   class x3derror : public std::runtime_error {
@@ -112,7 +118,15 @@ namespace snde {
 
   }
 
+  void SetBoolIfX3DAttribute(xmlTextReaderPtr reader, std::string attrname, bool *b) {
+    xmlChar *attrstring;
 
+    attrstring=xmlTextReaderGetAttribute(reader, (const xmlChar *) attrname.c_str());
+    if (attrstring) {
+      *b=static_cast<bool>(attrstring);
+      xmlFree(attrstring);
+    }
+  
   static bool IsX3DNamespaceUri(char *NamespaceUri)
   {
     if (!NamespaceUri) return true; /* no namespace is acceptible */
@@ -135,6 +149,7 @@ namespace snde {
     xmlTextReaderPtr reader;
 
     std::shared_ptr<x3d_node> parse_material(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField); /* implemented below to work around circular reference loop */
+    std::shared_ptr<x3d_node> parse_transform(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField);
 
     x3d_loader()
     {
@@ -298,18 +313,121 @@ namespace snde {
 
   class x3d_shape: public x3d_node {
   public:
-    /* ... !!!*** not yet implemented */
-    x3d_shape(void)
-    {
+    Eigen::Vector3d bboxCenter;
+    Eigen::Vector3d bboxSize;
 
+    x3d_shape(void) {
+      nodetype="shape";
+      nodedata["metadata"]=std::shared_ptr<x3d_node>();
+
+      bboxCenter=Eigen::Vector3d{0.0, 0.0, 0.0};
+      bboxSize=Eigen::Vector3d{-1.0, -1.0, -1.0};
+    }
+
+    static std::shared_ptr<x3d_shape> fromcurrentelement(x3d_loader *loader) {
+      std::shared_ptr<x3d_shape> mat=std::make_shared<x3d_shape>();
+
+
+      SetVectorIfX3DAttribute(loader->reader, "bboxCenter", &mat->bboxCenter);
+      SetVectorIfX3DAttribute(loader->reader, "bboxSize", &mat->bboxSize);
+
+      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(mat));
     }
   };
 
+  //TODO: Implement parse_shape();
   /* NOTE:: parse_shape() will store in the master shape list rather
        than in the parentnode */
 
   /* NOTE: When pulling in data from text nodes, don't forget to combine multiple text 
      nodes and ignore e.g. comment nodes */
 
+
+  class x3d_transform : public x3d_node {
+  public:
+    Eigen::Vector3d center;
+    Eigen::Vector4d rotation;
+    Eigen::Vector3d scale;
+    Eigen::Vector4d scaleOrientation;
+    Eigen::Vector3d translation;
+    Eigen::Vector3d bboxCenter;
+    Eigen::Vector3d bboxSize;
+
+    x3d_transform(void) {
+      nodetype="transform";
+      nodedata["metadata"]=std::shared_ptr<x3d_node>();
+
+      center=Eigen::Vector3d{0.0, 0.0, 0.0};
+      rotation=Eigen::Vector4d{0.0, 0.0, 1.0, 0.0};
+      scale=Eigen::Vector3d{1.0, 1.0, 1.0};
+      scaleOrientation=Eigen::Vector4d{0.0, 0.0, 1.0, 0.0};
+      translation=Eigen::Vector3d{0.0, 0.0, 0.0};
+      bboxCenter=Eigen::Vector3d{0.0, 0.0, 0.0};
+      bboxSize=Eigen::Vector3d{-1.0, -1.0, -1.0};
+    }
+
+    static std::shared_ptr<x3d_transform> fromcurrentelement(x3d_loader *loader) {
+      std::shared_ptr<x3d_transform> mat=std::make_shared<x3d_transform>();
+
+      SetVectorIfX3DAttribute(loader->reader, "center", &mat->center);
+      SetVectorIfX3DAttribute(loader->reader, "rotation", &mat->rotation);
+      SetVectorIfX3DAttribute(loader->reader, "scale", &mat->scale);
+      SetVectorIfX3DAttribute(loader->reader, "scaleOrientation", &mat->scaleOrientation);
+      SetVectorIfX3DAttribute(loader->reader, "translation", &mat->translation);
+      SetVectorIfX3DAttribute(loader->reader, "bboxCenter", &mat->bboxCenter);
+      SetVectorIfX3DAttribute(loader->reader, "bboxSize", &mat->bboxSize);
+
+      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(mat));
+    }
+  };
+
+  std::shared_ptr<x3d_node> x3d_loader::parse_transform(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField) {
+    if (!containerField) containerField=(xmlChar *) "material";
+
+    std::shared_ptr<x3d_node> mat_data=x3d_material::fromcurrentelement(this);
+
+    if (parentnode) {
+      if (!parentnode->hasattr((char *) containerField)) {
+        throw x3derror(nullptr, nullptr, "Invalid container field for transform: ", (char *) containerField);
+      }
+      parentnode->nodedata[(char *) containerField]=mat_data;
+    }
+
+    return mat_data;
+  }
+
+  class x3d_indexedfaceset : public x3d_node {
+  public:
+    bool normalPerVertex;
+    bool ccw;
+    bool solid;
+    bool convex;
+
+    x3d_indexedfaceset(void) {
+      nodetype="transform";
+      nodedata["metadata"]=std::shared_ptr<x3d_node>();
+
+      normalPerVertex=true;
+      ccw=true;
+      solid=true;
+      convex=true;
+    }
+
+    static std::shared_ptr<x3d_indexedfaceset> fromcurrentelement(x3d_loader *loader) {
+      std::shared_ptr<x3d_indexedfaceset> mat=std::make_shared<x3d_indexedfaceset>();
+
+      SetBoolIfX3DAttribute(loader->reader, "normalPerVertex", &mat->normalPerVertex);
+      SetBoolIfX3DAttribute(loader->reader, "ccw", &mat->ccw);
+      SetBoolIfX3DAttribute(loader->reader, "solid", &mat->solid);
+      SetBoolIfX3DAttribute(loader->reader, "convex", &mat->convex);
+
+      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(mat));
+    }
+  };
+
+  //TODO: Implement parse_indexedfaceset();
+}
+####### Ancestor
 };
+======= end
 #endif // SNDE_X3D_HPP
