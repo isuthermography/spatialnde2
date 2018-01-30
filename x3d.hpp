@@ -219,6 +219,8 @@ namespace snde {
 	xmlFree(USE);
       } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"material")) {
 	result=parse_material(parentnode,containerField);
+      } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"transform")) {
+	result=parse_transform(parentnode,containerField);
       } // else if ... { } else if ... { }
       else {
 	/* unknown element */
@@ -379,6 +381,12 @@ namespace snde {
       bboxSize=Eigen::Vector3d{-1.0, -1.0, -1.0};
     }
 
+    Eigen::Matrix<double,4,4> eval()
+    {
+      /* TODO !!! Need to implement this based on Python version. 
+	 See also http://www.web3d.org/documents/specifications/19775-1/V3.2/Part01/components/group.html#Transform */
+    }
+    
     static std::shared_ptr<x3d_transform> fromcurrentelement(x3d_loader *loader) {
       std::shared_ptr<x3d_transform> trans=std::make_shared<x3d_transform>();
 
@@ -390,8 +398,18 @@ namespace snde {
       SetVectorIfX3DAttribute(loader->reader, "bboxCenter", &trans->bboxCenter);
       SetVectorIfX3DAttribute(loader->reader, "bboxSize", &trans->bboxSize);
 
+
+      /* transform currently applies its transform to 
+	 the underlying objects rather than 
+	 storing a transform in the scene graph ... */
+      /* so evaluate our transform and multiply it onto the transform stack */
+      loader->transformstack.push_back(loader->transformstack.back()*trans->eval());
+
+      /* Now do all the transformed stuff */
       loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(trans));
 
+      /* and pop it back off the transform stack */
+      loader->transformstack.pop_back();
       return trans;
     }
   };
@@ -401,13 +419,18 @@ namespace snde {
 
     std::shared_ptr<x3d_node> trans_data=x3d_transform::fromcurrentelement(this);
 
+    
+    /* because transform applies itself to the underlying objects, 
+       we don't add the transform as a field of our parent */
+
+    /*
     if (parentnode) {
       if (!parentnode->hasattr((char *) containerField)) {
         throw x3derror(0, nullptr, "Invalid container field for transform: ", (char *) containerField);
       }
       parentnode->nodedata[(char *) containerField]=trans_data;
-    }
-
+      } */
+    
     return trans_data;
   }
 
