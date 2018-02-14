@@ -50,6 +50,9 @@ namespace snde {
 
     virtual void add_allocated_array(void **arrayptr,size_t elemsize,snde_index totalnelem);
     virtual void add_follower_array(void **allocatedptr,void **arrayptr,size_t elemsize);
+    virtual snde_index get_elemsize(void **arrayptr);
+    virtual snde_index get_total_nelem(void **arrayptr);
+    
     virtual snde_index alloc(void **allocatedptr,snde_index nelem);
 
     virtual void free(void **allocatedptr,snde_index addr,snde_index nelem);

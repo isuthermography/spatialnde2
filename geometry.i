@@ -33,6 +33,9 @@ import ctypes
   snde_geometrydata_class = PyDict_GetItemString(PyModule_GetDict(module),"snde_geometrydata");
 
   POINTER=PyDict_GetItemString(PyModule_GetDict(ctypes),"POINTER");
+
+  //ManagerObj=SWIG_NewPointerObj( SWIG_as_voidptr(new std::shared_ptr<snde::arraymanager>(arg1->manager)), $descriptor(std::shared_ptr<arraymanager> *), SWIG_POINTER_NEW|SWIG_POINTER_OWN);
+  
   snde_geometrydata_class_p=PyObject_CallFunctionObjArgs(POINTER,snde_geometrydata_class,NULL);
   
   // define function  geometry_return_pointer()
@@ -55,10 +58,17 @@ import ctypes
   // call CMPFUNC_INSTANCE on (void *)$1 to get a ctypes pointer to snde_geometrydata
   
   $result = PyObject_CallFunctionObjArgs(CMPFUNC_INSTANCE,reswrapper,NULL);
+
+  //// Assign .manager attribute (doesn't work because .contents is generated dynamically
+  //contentsobj = PyObject_GetAttrString($result,"contents");
+  //PyObject_SetAttrString(contentsobj,"manager",ManagerObj);
+  
+  //Py_XDECREF(contentsobj);
   Py_XDECREF(reswrapper);
   Py_XDECREF(CMPFUNC_INSTANCE);
   Py_XDECREF(CMPFUNC);
   Py_XDECREF(snde_geometrydata_class_p);
+  //Py_XDECREF(ManagerObj);
   Py_XDECREF(ctypes);
   
   Py_XDECREF(module);

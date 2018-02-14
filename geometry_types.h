@@ -208,7 +208,7 @@ struct snde_meshedpart { /* !!!*** Be careful about CPU <-> GPU structure layout
     
  
   snde_bool solid; // If nonzero, this part is considered solid (fully enclosed), so the back side does not need to be rendered. Otherwise, it may be a bounded surface 
-  
+  snde_bool pad1[7];
 };
 
 

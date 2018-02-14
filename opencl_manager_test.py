@@ -27,9 +27,19 @@ program_source=spatialnde2.StringVector([ geometry_types_h, testkernel_c ])
 
 lockholder = spatialnde2.pylockholder()
 (all_locks,readregions,writeregions) = spatialnde2.pylockprocess(manager.locker,
-                                        lambda proc: lockholder.store("vertices",(yield proc.get_locks_read_array_region(geometry.geom.contents.field_address("vertices"),0,spatialnde2.SNDE_INDEX_INVALID))))
+                                        lambda proc: [  # Remember to follow locking order
+                                            # lockholder.store() automatically stores under the given field name
+                                            lockholder.store((yield proc.get_locks_read_array_region(geometry.geom.contents,"meshedparts",0,spatialnde2.SNDE_INDEX_INVALID))),
+                                            # lockholder.store_name() uses an alternate name
+                                            lockholder.store_name("triangles",(yield proc.get_locks_read_array_region(geometry.geom.contents,"triangles",0,spatialnde2.SNDE_INDEX_INVALID))),                                            
+                                            lockholder.store((yield proc.get_locks_read_array_region(geometry.geom.contents,"edges",0,spatialnde2.SNDE_INDEX_INVALID))),                                            
+                                            lockholder.store((yield proc.get_locks_read_array_region(geometry.geom.contents,"vertices",0,spatialnde2.SNDE_INDEX_INVALID)))
+                                            ])
 
 # can now access lockholder.vertices, etc.
+meshedparts=geometry.geom.contents.field_numpy(manager,lockholder,"meshedparts",spatialnde2.nt_snde_meshedpart)
+# meshedparts is a numpy object...
+# i.e. access meshedparts[0]["orientation"]["offset"], etc. 
 
 Buffers=spatialnde2.OpenCLBuffers(context,all_locks,readregions,writeregions)
 
@@ -57,7 +67,12 @@ else:
     Buffers.RemBuffers(kernel_complete,kernel_complete,True);
     pass
 
+del meshedparts # delete all references to our array prior to unlocking, lest the memory pointed to become invalid (not necessarily a problem if it's not accessed)
+
 spatialnde2.unlock_rwlock_token_set(lockholder.vertices)
+spatialnde2.unlock_rwlock_token_set(lockholder.edges)
+spatialnde2.unlock_rwlock_token_set(lockholder.triangles)
+spatialnde2.unlock_rwlock_token_set(lockholder.meshedparts)
 
 spatialnde2.release_rwlock_token_set(all_locks);
   

@@ -56,6 +56,19 @@ snde::ArrayPtr voidpp_posn_map_iterator_ptr(std::unordered_map<void **,size_t,st
 }
 %}
 
+// Workaround for memory leak: Never expose the iterator to Python
+%extend std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > > {
+  
+  size_t get_ptr_posn(snde::ArrayPtr ptr){
+    std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > >::iterator it=self->find(ptr);
+    assert(it != self->end()); /* should diagnose lack of entry prior to calling with has_key() */
+    	      
+    return it->second;
+  }
+
+}
+
+
 
 /*  ***** NOTE: next big section is obsolete and commented out
 // template iterator workaround per http://www.swig.org/Doc1.3/SWIGPlus.html#SWIGPlus_nested_classes
@@ -543,17 +556,23 @@ class lockingprocess_python(lockingprocess_pycpp):
 	# Use C++ style iteration because that way we iterate
 	# over pairs, not over keys
 	iterator=waiting_generators.begin()
-	(lockpos,lockcall_gen)=iterator.value()
-	(lockcall,gen)=lockcall_gen.value()
+	(lockpos,lockcall_gen_fieldname)=iterator.value()
+	(lockcall,gen,fieldname)=lockcall_gen_fieldname.value()
 	
 
         waiting_generators.erase(iterator)
-      
+
+	# diagnose locking order error
+	if lockpos < proc.lastlockingposition:
+          raise ValueError("Locking order violation")
+	
         # perform locking operation
         res=lockcall()
+	proc.lastlockingposition=lockpos
+	
 	newgen=None
 	try:
-	  newgen=gen.send(res)
+	  newgen=gen.send((fieldname,res))
 	except StopIteration:
 	  pass
         if newgen is not None:
@@ -571,21 +590,30 @@ class lockingprocess_python(lockingprocess_pycpp):
       pass
     else:
       assert(isinstance(newgen,tuple) and isinstance(newgen[0],lockingposition))
-      (posn,lockcall) = newgen	
+      (posn,lockcall,fieldname) = newgen	
 	
-      self.waiting_generators.emplace_pair(lockingposition_generator(posn,CountedPyObject((lockcall,thisgen))))
+      self.waiting_generators.emplace_pair(lockingposition_generator(posn,CountedPyObject((lockcall,thisgen,fieldname))))
       pass
     pass
 
-  def get_locks_read_array_region(self,ArrayPtr_Swig,indexstart,numelems):
+  def spawn(self,lock_generator):
+    # Untested, so far ... probably buggy
+    return lock_generator(self)    
+
+  def get_locks_read_array_region(self,
+				  geomstruct,
+				  fieldname,
+				  indexstart,numelems):
     #ArrayPtr_Swig = ArrayPtr_fromint(arrayptr)
+    ArrayPtr_Swig = geomstruct.field_address(fieldname)
+    
     if not self.manager._arrayidx.has_key(ArrayPtr_Swig):
       raise ValueError("Array not found")
     
-    iterator = self.manager._arrayidx.find(ArrayPtr_Swig)
-    arrayidx = voidpp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
-    #if iterator==self.manager._arrayidx.end():  # ***!!!! This diagnosis does not actually work
-    #  raise ValueError("Array not found")
+    #iterator = self.manager._arrayidx.find(ArrayPtr_Swig)
+    #arrayidx = voidpp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
+    arrayidx = self.manager._arrayidx.get_ptr_posn(ArrayPtr_Swig)
+
       
     if self.manager.is_region_granular():
       posn=lockingposition(arrayidx,indexstart,False)
@@ -598,7 +626,7 @@ class lockingprocess_python(lockingprocess_pycpp):
       newset = self.manager.get_locks_read_array_region(self.all_tokens,ArrayPtr_Swig,indexstart,numelems)
       self.arrayreadregions[arrayidx].mark_region_noargs(indexstart,numelems)
       return newset
-    return (posn,lockcall)
+    return (posn,lockcall,fieldname)
   pass
 
 def pylockprocess(*args,**kwargs):
@@ -606,8 +634,13 @@ def pylockprocess(*args,**kwargs):
   pass
 
 class pylockholder(object):
-  def store(self,lockname,value):
+  def store(self,name_value):
+    (lockname,value)=name_value
     setattr(self,lockname,value)
+    pass
+  def store_name(self,name,name_value):
+    (oldname,value)=name_value
+    setattr(self,name,value)
     pass
   pass
     

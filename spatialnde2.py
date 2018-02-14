@@ -6,6 +6,7 @@
 
 
 import ctypes
+import numpy as np
 
 
 import types as pytypes
@@ -175,6 +176,10 @@ SwigPyIterator_swigregister(SwigPyIterator)
 
 SHARED_PTR_DISOWN = _spatialnde2.SHARED_PTR_DISOWN
 
+def Pointer_To_Numpy_Array(ArrayType, DType, Base, n, ptraddress):
+    return _spatialnde2.Pointer_To_Numpy_Array(ArrayType, DType, Base, n, ptraddress)
+Pointer_To_Numpy_Array = _spatialnde2.Pointer_To_Numpy_Array
+
 SNDE_INDEX_INVALID=(long(1)<<64)-1
 
 ct_snde_coord = ctypes.c_double
@@ -183,6 +188,83 @@ ct_snde_index=ctypes.c_uint64
 ct_snde_shortindex=ctypes.c_uint32
 ct_snde_ioffset=ctypes.c_int64
 ct_snde_bool=ctypes.c_char
+
+nt_snde_coord = np.dtype(np.double)
+nt_snde_imagedata = np.dtype(np.float)
+nt_snde_index = np.dtype(np.uint64)
+nt_snde_shortindex = np.dtype(np.uint32)
+nt_snde_ioffset = np.dtype(np.int64)
+nt_snde_bool = np.dtype(np.int8)
+
+nt_snde_orientation3=np.dtype([("offset",nt_snde_coord,3),
+                               ("pad1",nt_snde_coord),
+			       ("quat",nt_snde_coord,3),
+			       ("pad2",nt_snde_coord),])
+
+nt_snde_coord3=np.dtype((nt_snde_coord,3))
+nt_snde_coord2=np.dtype((nt_snde_coord,2))
+
+nt_snde_edge=np.dtype([("vertex",nt_snde_index,2),
+	               ("face_a",nt_snde_index),
+		       ("face_b",nt_snde_index),
+		       ("face_a_prev_edge",nt_snde_index),
+		       ("face_a_next_edge",nt_snde_index),
+		       ("face_b_prev_edge",nt_snde_index),
+		       ("face_b_next_edge",nt_snde_index)])
+
+
+nt_snde_vertex_edgelist_index=np.dtype([("edgelist_index",nt_snde_index),
+	                                ("edgelist_numentries",nt_snde_index)])					
+
+nt_snde_triangle=np.dtype((nt_snde_index,3))
+nt_snde_axis32=np.dtype((nt_snde_coord,(2,3)))
+nt_snde_mat23=np.dtype((nt_snde_coord,(2,3)))
+
+
+nt_snde_meshedpart=np.dtype([('orientation', nt_snde_orientation3),
+		    ('firsttri', nt_snde_index),
+		    ('numtris', nt_snde_index),
+		    ('firstedge', nt_snde_index),
+		    ('numedges', nt_snde_index),
+		    ('firstvertex', nt_snde_index),
+		    ('numvertices', nt_snde_index),
+		    ('first_vertex_edgelist_entry', nt_snde_index),
+		    ('num_vertex_edgelist_entries', nt_snde_index),
+
+		    ('firstbox', nt_snde_index),
+		    ('numboxes', nt_snde_index),
+
+		    ('firstboxpoly', nt_snde_index),
+		    ('numboxpolys', nt_snde_index),
+		    ('solid', nt_snde_bool),
+		    ('pad1', nt_snde_bool,7)])
+
+
+class snde_geometrystruct(ctypes.Structure):
+
+  def __init__(self):
+    super(snde_geometrystruct,self).__init__()
+    pass
+
+  def field_address(self,fieldname):
+# unfortunately byref() doesnt work right because struct members when accesed become plain ints
+    offset=getattr(self.__class__,fieldname).offset
+    return ArrayPtr_fromint(ctypes.addressof(self)+offset)
+
+  def field_numpy(self,manager,lockholder,fieldname,dtype):
+      """Extract a numpy array representing the specified field. 
+         This numpy array 
+         will only be valid while the lockholder.fieldname locks are held"""
+
+      offset=getattr(self.__class__,fieldname).offset
+      Ptr = ArrayPtr_fromint(ctypes.addressof(self)+offset)
+      n = manager.get_total_nelem(Ptr)
+      assert(dtype.itemsize==manager.get_elemsize(Ptr))
+      return Pointer_To_Numpy_Array(np.ndarray,dtype,getattr(lockholder,fieldname),n,Ptr)    
+  pass
+
+
+
 
 
 class memallocator(_object):
@@ -320,6 +402,12 @@ class arraymanager(_object):
 
     def add_follower_array(self, allocatedptr, arrayptr, elemsize):
         return _spatialnde2.arraymanager_add_follower_array(self, allocatedptr, arrayptr, elemsize)
+
+    def get_elemsize(self, arrayptr):
+        return _spatialnde2.arraymanager_get_elemsize(self, arrayptr)
+
+    def get_total_nelem(self, arrayptr):
+        return _spatialnde2.arraymanager_get_total_nelem(self, arrayptr)
 
     def alloc(self, allocatedptr, nelem):
         return _spatialnde2.arraymanager_alloc(self, allocatedptr, nelem)
@@ -820,6 +908,9 @@ class voidpp_posn_map(_object):
 
     def has_key(self, key):
         return _spatialnde2.voidpp_posn_map_has_key(self, key)
+
+    def get_ptr_posn(self, ptr):
+        return _spatialnde2.voidpp_posn_map_get_ptr_posn(self, ptr)
     __swig_destroy__ = _spatialnde2.delete_voidpp_posn_map
     __del__ = lambda self: None
 voidpp_posn_map_swigregister = _spatialnde2.voidpp_posn_map_swigregister
@@ -1423,17 +1514,23 @@ class lockingprocess_python(lockingprocess_pycpp):
 # Use C++ style iteration because that way we iterate
 # over pairs, not over keys
 	iterator=waiting_generators.begin()
-	(lockpos,lockcall_gen)=iterator.value()
-	(lockcall,gen)=lockcall_gen.value()
+	(lockpos,lockcall_gen_fieldname)=iterator.value()
+	(lockcall,gen,fieldname)=lockcall_gen_fieldname.value()
 
 
         waiting_generators.erase(iterator)
 
+# diagnose locking order error
+	if lockpos < proc.lastlockingposition:
+          raise ValueError("Locking order violation")
+
 # perform locking operation
         res=lockcall()
+	proc.lastlockingposition=lockpos
+
 	newgen=None
 	try:
-	  newgen=gen.send(res)
+	  newgen=gen.send((fieldname,res))
 	except StopIteration:
 	  pass
         if newgen is not None:
@@ -1451,21 +1548,30 @@ class lockingprocess_python(lockingprocess_pycpp):
       pass
     else:
       assert(isinstance(newgen,tuple) and isinstance(newgen[0],lockingposition))
-      (posn,lockcall) = newgen	
+      (posn,lockcall,fieldname) = newgen	
 
-      self.waiting_generators.emplace_pair(lockingposition_generator(posn,CountedPyObject((lockcall,thisgen))))
+      self.waiting_generators.emplace_pair(lockingposition_generator(posn,CountedPyObject((lockcall,thisgen,fieldname))))
       pass
     pass
 
-  def get_locks_read_array_region(self,ArrayPtr_Swig,indexstart,numelems):
+  def spawn(self,lock_generator):
+# Untested, so far ... probably buggy
+    return lock_generator(self)    
+
+  def get_locks_read_array_region(self,
+				  geomstruct,
+				  fieldname,
+				  indexstart,numelems):
 #ArrayPtr_Swig = ArrayPtr_fromint(arrayptr)
+    ArrayPtr_Swig = geomstruct.field_address(fieldname)
+
     if not self.manager._arrayidx.has_key(ArrayPtr_Swig):
       raise ValueError("Array not found")
 
-    iterator = self.manager._arrayidx.find(ArrayPtr_Swig)
-    arrayidx = voidpp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
-#if iterator==self.manager._arrayidx.end():  # ***!!!! This diagnosis does not actually work
-#  raise ValueError("Array not found")
+#iterator = self.manager._arrayidx.find(ArrayPtr_Swig)
+#arrayidx = voidpp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
+    arrayidx = self.manager._arrayidx.get_ptr_posn(ArrayPtr_Swig)
+
 
     if self.manager.is_region_granular():
       posn=lockingposition(arrayidx,indexstart,False)
@@ -1478,7 +1584,7 @@ class lockingprocess_python(lockingprocess_pycpp):
       newset = self.manager.get_locks_read_array_region(self.all_tokens,ArrayPtr_Swig,indexstart,numelems)
       self.arrayreadregions[arrayidx].mark_region_noargs(indexstart,numelems)
       return newset
-    return (posn,lockcall)
+    return (posn,lockcall,fieldname)
   pass
 
 def pylockprocess(*args,**kwargs):
@@ -1486,8 +1592,13 @@ def pylockprocess(*args,**kwargs):
   pass
 
 class pylockholder(object):
-  def store(self,lockname,value):
+  def store(self,name_value):
+    (lockname,value)=name_value
     setattr(self,lockname,value)
+    pass
+  def store_name(self,name,name_value):
+    (oldname,value)=name_value
+    setattr(self,name,value)
     pass
   pass
 
@@ -1496,7 +1607,9 @@ class pylockholder(object):
 
   # IMPORTANT: definition in geometrydata.h must be changed in parallel with this.
 
-class snde_geometrydata(ctypes.Structure):
+
+
+class snde_geometrydata(snde_geometrystruct):
   _fields_=[("tol",ctypes.c_double),
 	   ("meshedparts",ctypes.c_void_p), # POINTER(snde_meshedpart),
 	   ("triangles",ctypes.c_void_p),
@@ -1513,10 +1626,6 @@ class snde_geometrydata(ctypes.Structure):
 # !!!*** Need to add NURBS entries!!!***
 	   ]
 
-  def field_address(self,fieldname):
-# unfortunately byref() doesnt work right because struct members when accesed become plain ints
-    offset=getattr(self.__class__,fieldname).offset
-    return ArrayPtr_fromint(ctypes.addressof(self)+offset)
   pass
 
 

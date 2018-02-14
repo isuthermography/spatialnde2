@@ -31,8 +31,10 @@ extern "C" {
 
 %pythoncode %{
   # IMPORTANT: definition in geometrydata.h must be changed in parallel with this.
-  
-class snde_geometrydata(ctypes.Structure):
+
+
+
+class snde_geometrydata(snde_geometrystruct):
   _fields_=[("tol",ctypes.c_double),
 	   ("meshedparts",ctypes.c_void_p), # POINTER(snde_meshedpart),
 	   ("triangles",ctypes.c_void_p),
@@ -49,10 +51,6 @@ class snde_geometrydata(ctypes.Structure):
 	   # !!!*** Need to add NURBS entries!!!***
 	   ]
 
-  def field_address(self,fieldname):
-    # unfortunately byref() doesnt work right because struct members when accesed become plain ints
-    offset=getattr(self.__class__,fieldname).offset
-    return ArrayPtr_fromint(ctypes.addressof(self)+offset)
   pass
 
 

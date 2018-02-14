@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
   // we need a new, empty all_locks 
   all_locks=empty_rwlock_token_set();
   
-  rwlock_token_set triangle_lock=geom->manager->locker->get_locks_read_array(all_locks,(void **)&geom->geom.vertexidx);
+  rwlock_token_set triangle_lock=geom->manager->locker->get_locks_read_array(all_locks,(void **)&geom->geom.triangles);
   
   // lock succeeding array, following locking order and acknowledging current lock ownership
   rwlock_token_set vertices_lock=geom->manager->locker->get_locks_read_array(all_locks,(void **)&geom->geom.vertices);

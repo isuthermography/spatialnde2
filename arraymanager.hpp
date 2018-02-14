@@ -87,6 +87,21 @@ namespace snde {
       allocators[arrayptr]=allocationinfo{alloc,alloc->add_other_array(arrayptr,elemsize)};
 
     }
+    
+    virtual snde_index get_elemsize(void **arrayptr)
+    {
+      struct allocationinfo & alloc = allocators[arrayptr];
+
+      return alloc.alloc->arrays[alloc.allocindex].elemsize;
+    }
+    virtual snde_index get_total_nelem(void **arrayptr)
+    {
+      struct allocationinfo & alloc = allocators[arrayptr];
+
+      //alloc.alloc->arrays[alloc.allocindex].elemsize
+      return alloc.alloc->_totalnchunks*alloc.alloc->_allocchunksize;
+    }
+
     virtual snde_index alloc(void **allocatedptr,snde_index nelem)
     {
       //std::lock_guard<std::mutex> adminlock(admin);
