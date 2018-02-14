@@ -97,11 +97,14 @@ int main(int argc, char *argv[])
   Buffers.AddBufferAsKernelArg(manager,queue,kernel,0,(void **)&geom->geom.meshedparts,(void **)&geom->geom.meshedparts);
   //Buffers.AddBuffer(manager,queue,(void **)&geom->geom.meshedparts,(void **)&geom->geom.meshedparts);
   
-  Buffers.AddBufferAsKernelArg(manager,queue,kernel,1,(void **)&geom->geom.vertices,(void **)&geom->geom.vertices);
+  Buffers.AddBufferAsKernelArg(manager,queue,kernel,1,(void **)&geom->geom.triangles,(void **)&geom->geom.triangles);
+
+  Buffers.AddBufferAsKernelArg(manager,queue,kernel,2,(void **)&geom->geom.edges,(void **)&geom->geom.edges);
+
+  Buffers.AddBufferAsKernelArg(manager,queue,kernel,3,(void **)&geom->geom.vertices,(void **)&geom->geom.vertices);
   // Buffers.AddBufferAsKernelArg(manager,queue,kernel,2,&geom->geom.vertices,&geom->geom.principal_curvatures);
   // Buffers.AddBufferAsKernelArg(manager,queue,kernel,3,&geom->geom.vertices,&geom->geom.curvature_tangent_axes);
 
-  Buffers.AddBufferAsKernelArg(manager,queue,kernel,2,(void **)&geom->geom.vertexidx,(void **)&geom->geom.vertexidx);
   //Buffers.AddBufferAsKernelArg(manager,queue,kernel,5,&geom->geom.boxes,&geom->geom.boxes);
   //Buffers.AddBufferAsKernelArg(manager,queue,kernel,6,&geom->geom.boxes,&geom->geom.boxcoord);
   

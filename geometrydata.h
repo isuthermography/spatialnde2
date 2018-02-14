@@ -5,7 +5,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-  /*** IMPORTANT: Ctypes definition in geometrydata.i must be changed in parallel with this. ***/
+  /*** IMPORTANT: Ctypes definition in geometrydata.i must be changed in parallel with this. Also the calls to add_allocated_array() and add_follower_array() in geometry.hpp... ***/
   struct snde_geometrydata {
     double tol; // tolerance
 
@@ -17,12 +17,28 @@ extern "C" {
 
     /* meshed 3D geometry */
     struct snde_meshedpart *meshedparts; /* allocated separately */
-    
 
+    /* winged edge mesh format */
+    snde_triangle *triangles; // allocated separately
+    snde_coord3 *refpoints; // allocated with triangles  NOTE: Refpoints are in part coordinates, not world coordinates
+    snde_coord *maxradius; // allocated with triangles
+    snde_coord3 *normal; // allocated with triangles NOTE: Normals are in part coordinates, not world coordinates
+    
+    snde_mat23 *inplanemat; // allocated with triangles
+
+    snde_edge *edges; // allocated separately
+
+    // polygon (triangle) vertices...
+    snde_coord3 *vertices; // allocated separately
+    snde_coord2 *principal_curvatures; // allocated with vertices
+    snde_axis32 *curvature_tangent_axes; // allocated with vertices
+
+    snde_vertex_edgelist_index *vertex_edgelist_indices; // allocated with vertices
+    snde_index *vertex_edgelist; // allocated separately
     
     
     // polygon vertexidx... representing vertices in a particular polygon. It is an integer array of vertex ids.... Each triangle specifies three vertices
-    snde_triangleindices *vertexidx;
+    //snde_triangleindices *vertexidx;
     //allocatorbase  *triangle_alloc; // really allocator<snde_triangleindices> *
     
     //// polygon numvertices... representing number of vertices in a particular polygon. It is an integer array of numbers of vertices
@@ -33,17 +49,7 @@ extern "C" {
     //snde_index *vertexidx_indices;
     // This needs to be able to hang off of polygon_alloc
 
-    snde_coord3 *refpoints; // allocated by triangle_alloc  NOTE: Refpoints are in part coordinates, not world coordinates
-    snde_coord *maxradius; // allocated by triangle_alloc
-    snde_coord3 *normal; // allocated by triangle_alloc NOTE: Normals are in part coordinates, not world coordinates
-    
-    snde_mat23 *inplanemat; // allocated by triangle_alloc
 
-    // polygon (triangle) vertices...
-    snde_coord3 *vertices;
-    //allocatorbase  *vertex_alloc; // really allocator<snde_coord3> *
-    snde_coord2 *principal_curvatures; // allocated by vertex_alloc
-    snde_axis32 *curvature_tangent_axes; // allocated by vertex_alloc
 
     /* NURBS 3D geometry */
     struct snde_nurbspart *nurbsparts;
@@ -98,7 +104,7 @@ extern "C" {
      * of the part */
 
     // uv vertexidx... representing vertices of a particular 2D triangle. It is an integer array of vertex ids.... 
-    snde_triangleindices *uv_vertexidx;
+    snde_triangle *uv_vertexidx; // !!!*** Needs to be changed to winged edge!!!***
     //allocatorbase *uv_triangle_alloc; // really allocator<snde_triangleindices>
 
     snde_mat23 *inplane2uvcoords;  /* allocated with uv_vertexidx */

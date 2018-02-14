@@ -37,6 +37,8 @@ import types as pytypes
 
 
 
+// NOTE: This iterator std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > >::iterator   is currently causing a memory leak message.... seems to be a swig bug...
+
 size_t voidpp_posn_map_iterator_posn(std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > >::iterator);
 
 %{
@@ -55,7 +57,7 @@ snde::ArrayPtr voidpp_posn_map_iterator_ptr(std::unordered_map<void **,size_t,st
 %}
 
 
-/*
+/*  ***** NOTE: next big section is obsolete and commented out
 // template iterator workaround per http://www.swig.org/Doc1.3/SWIGPlus.html#SWIGPlus_nested_classes
 %{
   

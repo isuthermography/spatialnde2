@@ -66,9 +66,22 @@ typedef struct {
 } snde_axis3;
 
 typedef struct {
-  snde_shortindex vertex[3];
-} snde_triangleindices;
+  snde_index vertex[2];
+  snde_index face_a,face_b;
+  snde_index face_a_prev_edge, face_a_next_edge;
+  snde_index face_b_prev_edge, face_b_next_edge;
+} snde_edge;
 
+
+typedef struct {
+  snde_index edgelist_index;
+  snde_index edgelist_numentries;
+} snde_vertex_edgelist_index;
+
+typedef struct {
+  snde_index edges[3];
+} snde_triangle;
+  
 typedef struct {
   snde_index subbox[8];
   snde_index boxpolysidx;
@@ -184,9 +197,10 @@ struct snde_nurbspart {
 struct snde_meshedpart { /* !!!*** Be careful about CPU <-> GPU structure layout differences ***!!! */
   /* indices into raw geometry */
   snde_orientation3 orientation; /* orientation of this part relative to its environment */
+  snde_index firsttri,numtris; /* apply to triangles, refpoints, maxradius, normal, inplanemat */
+  snde_index firstedge,numedges; /* apply to edges, r */
   snde_index firstvertex,numvertices; /* NOTE: Vertices must be transformed according to orientation prior to rendering */ /* These indices also apply to principal_curvatures and principal_tangent_axes, if present */
-  snde_index firsttri,numtris; /* apply to vertexidx, refpoints, maxradius, normal, inplanemat */
-  
+  snde_index first_vertex_edgelist_entry,num_vertex_edgelist_entries; 
 
   /* indices into calculated fields */
   snde_index firstbox,numboxes;  /* also applies to boxcoord */

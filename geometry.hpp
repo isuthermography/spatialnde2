@@ -43,18 +43,22 @@ namespace snde {
       
 
 
-      manager->add_allocated_array((void **)&geom.vertexidx,sizeof(*geom.vertexidx),0);
-      manager->add_follower_array((void **)&geom.vertexidx,(void **)&geom.refpoints,sizeof(*geom.refpoints));
-      manager->add_follower_array((void **)&geom.vertexidx,(void **)&geom.maxradius,sizeof(*geom.maxradius));
-      manager->add_follower_array((void **)&geom.vertexidx,(void **)&geom.normal,sizeof(*geom.normal));
-      manager->add_follower_array((void **)&geom.vertexidx,(void **)&geom.inplanemat,sizeof(*geom.inplanemat));
-      
+      manager->add_allocated_array((void **)&geom.triangles,sizeof(*geom.triangles),0);
+      manager->add_follower_array((void **)&geom.triangles,(void **)&geom.refpoints,sizeof(*geom.refpoints));
+      manager->add_follower_array((void **)&geom.triangles,(void **)&geom.maxradius,sizeof(*geom.maxradius));
+      manager->add_follower_array((void **)&geom.triangles,(void **)&geom.normal,sizeof(*geom.normal));
+      manager->add_follower_array((void **)&geom.triangles,(void **)&geom.inplanemat,sizeof(*geom.inplanemat));
+
+      manager->add_allocated_array((void **)&geom.edges,sizeof(*geom.edges),0);
+
 
       manager->add_allocated_array((void **)&geom.vertices,sizeof(*geom.vertices),0);
       manager->add_follower_array((void **)&geom.vertices,(void **)&geom.principal_curvatures,sizeof(*geom.principal_curvatures));
       manager->add_follower_array((void **)&geom.vertices,(void **)&geom.curvature_tangent_axes,sizeof(*geom.curvature_tangent_axes));
 
-
+      manager->add_follower_array((void **)&geom.vertices,(void **)&geom.vertex_edgelist_indices,sizeof(*geom.vertex_edgelist_indices));
+      manager->add_allocated_array((void **)&geom.vertex_edgelist,sizeof(*geom.vertex_edgelist),0);
+      
 
       manager->add_allocated_array((void **)&geom.boxes,sizeof(*geom.boxes),0);
       manager->add_follower_array((void **)&geom.boxes,(void **)&geom.boxcoord,sizeof(*geom.boxcoord));
@@ -106,17 +110,20 @@ namespace snde {
   };
   
 #define SNDE_COMPONENT_GEOMWRITE_MESHEDPARTS (1u<<0)
-#define SNDE_COMPONENT_GEOMWRITE_VERTICES (1u<<1)
-#define SNDE_COMPONENT_GEOMWRITE_PRINCIPAL_CURVATURES (1u<<2)
-#define SNDE_COMPONENT_GEOMWRITE_CURVATURE_TANGENT_AXES (1u<<3)
-#define SNDE_COMPONENT_GEOMWRITE_TRIS (1u<<4)
-#define SNDE_COMPONENT_GEOMWRITE_REFPOINTS (1u<<5)
-#define SNDE_COMPONENT_GEOMWRITE_MAXRADIUS (1u<<6)
-#define SNDE_COMPONENT_GEOMWRITE_NORMAL (1u<<7)
-#define SNDE_COMPONENT_GEOMWRITE_INPLANEMAT (1u<<8)
-#define SNDE_COMPONENT_GEOMWRITE_BOXES (1u<<9)
-#define SNDE_COMPONENT_GEOMWRITE_BOXCOORDS (1u<<10)
-#define SNDE_COMPONENT_GEOMWRITE_BOXPOLYS (1u<<11)
+#define SNDE_COMPONENT_GEOMWRITE_TRIS (1u<<1)
+#define SNDE_COMPONENT_GEOMWRITE_REFPOINTS (1u<<2)
+#define SNDE_COMPONENT_GEOMWRITE_MAXRADIUS (1u<<3)
+#define SNDE_COMPONENT_GEOMWRITE_NORMAL (1u<<4)
+#define SNDE_COMPONENT_GEOMWRITE_INPLANEMAT (1u<<5)
+#define SNDE_COMPONENT_GEOMWRITE_EDGES (1u<<6)
+#define SNDE_COMPONENT_GEOMWRITE_VERTICES (1u<<7)
+#define SNDE_COMPONENT_GEOMWRITE_PRINCIPAL_CURVATURES (1u<<8)
+#define SNDE_COMPONENT_GEOMWRITE_CURVATURE_TANGENT_AXES (1u<<9)
+#define SNDE_COMPONENT_GEOMWRITE_VERTEX_EDGELIST_INDICES (1u<<10)
+#define SNDE_COMPONENT_GEOMWRITE_VERTEX_EDGELIST (1u<<11)
+#define SNDE_COMPONENT_GEOMWRITE_BOXES (1u<<12)
+#define SNDE_COMPONENT_GEOMWRITE_BOXCOORDS (1u<<13)
+#define SNDE_COMPONENT_GEOMWRITE_BOXPOLYS (1u<<14)
   
   class component { /* abstract base class for geometric components (assemblies, nurbspart, meshedpart) */
   public:
@@ -275,36 +282,11 @@ namespace snde {
 	}
       }
 
-      if (geom->geom.meshedparts[meshedpartnum].firstvertex != SNDE_INDEX_INVALID) {
-	if (writemask & SNDE_COMPONENT_GEOMWRITE_VERTICES) {
-	  process->get_locks_write_array_region((void **)&geom->geom.vertices,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
-	} else {
-	  process->get_locks_read_array_region((void **)&geom->geom.vertices,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
-	}
-
-	if (geom->geom.principal_curvatures) {
-	  if (writemask & SNDE_COMPONENT_GEOMWRITE_PRINCIPAL_CURVATURES) {
-	    process->get_locks_write_array_region((void **)&geom->geom.principal_curvatures,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
-	  } else {
-	    process->get_locks_read_array_region((void **)&geom->geom.principal_curvatures,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
-	  }
-	}
-
-	if (geom->geom.curvature_tangent_axes) {
-	  if (writemask & SNDE_COMPONENT_GEOMWRITE_CURVATURE_TANGENT_AXES) {
-	    process->get_locks_write_array_region((void **)&geom->geom.curvature_tangent_axes,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
-	  } else {
-	    process->get_locks_read_array_region((void **)&geom->geom.curvature_tangent_axes,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
-	  }
-	}
-      }
-      
-
       if (geom->geom.meshedparts[meshedpartnum].firsttri != SNDE_INDEX_INVALID) {
 	if (writemask & SNDE_COMPONENT_GEOMWRITE_TRIS) {
-	  process->get_locks_write_array_region((void **)&geom->geom.vertexidx,geom->geom.meshedparts[meshedpartnum].firsttri,geom->geom.meshedparts[meshedpartnum].numtris);
+	  process->get_locks_write_array_region((void **)&geom->geom.triangles,geom->geom.meshedparts[meshedpartnum].firsttri,geom->geom.meshedparts[meshedpartnum].numtris);
 	} else {
-	  process->get_locks_read_array_region((void **)&geom->geom.vertexidx,geom->geom.meshedparts[meshedpartnum].firsttri,geom->geom.meshedparts[meshedpartnum].numtris);
+	  process->get_locks_read_array_region((void **)&geom->geom.triangles,geom->geom.meshedparts[meshedpartnum].firsttri,geom->geom.meshedparts[meshedpartnum].numtris);
 	}
 	
 	if (geom->geom.refpoints) {
@@ -339,6 +321,57 @@ namespace snde {
 	  }	
 	}
       }
+
+      if (geom->geom.meshedparts[meshedpartnum].firstedge != SNDE_INDEX_INVALID) {
+	if (writemask & SNDE_COMPONENT_GEOMWRITE_EDGES) {
+	  process->get_locks_write_array_region((void **)&geom->geom.edges,geom->geom.meshedparts[meshedpartnum].firstedge,geom->geom.meshedparts[meshedpartnum].numedges);
+	} else {
+	  process->get_locks_read_array_region((void **)&geom->geom.edges,geom->geom.meshedparts[meshedpartnum].firstedge,geom->geom.meshedparts[meshedpartnum].numedges);
+	}
+	
+      }      
+      if (geom->geom.meshedparts[meshedpartnum].firstvertex != SNDE_INDEX_INVALID) {
+	if (writemask & SNDE_COMPONENT_GEOMWRITE_VERTICES) {
+	  process->get_locks_write_array_region((void **)&geom->geom.vertices,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
+	} else {
+	  process->get_locks_read_array_region((void **)&geom->geom.vertices,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
+	}
+
+	if (geom->geom.principal_curvatures) {
+	  if (writemask & SNDE_COMPONENT_GEOMWRITE_PRINCIPAL_CURVATURES) {
+	    process->get_locks_write_array_region((void **)&geom->geom.principal_curvatures,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
+	  } else {
+	    process->get_locks_read_array_region((void **)&geom->geom.principal_curvatures,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
+	  }
+	}
+
+	if (geom->geom.curvature_tangent_axes) {
+	  if (writemask & SNDE_COMPONENT_GEOMWRITE_CURVATURE_TANGENT_AXES) {
+	    process->get_locks_write_array_region((void **)&geom->geom.curvature_tangent_axes,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
+	  } else {
+	    process->get_locks_read_array_region((void **)&geom->geom.curvature_tangent_axes,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
+	  }
+	}
+
+	if (geom->geom.vertex_edgelist_indices) {
+	  if (writemask & SNDE_COMPONENT_GEOMWRITE_VERTEX_EDGELIST_INDICES) {
+	    process->get_locks_write_array_region((void **)&geom->geom.vertex_edgelist_indices,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
+	  } else {
+	    process->get_locks_read_array_region((void **)&geom->geom.vertex_edgelist_indices,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
+	  }
+	}
+      }
+      
+
+      if (geom->geom.meshedparts[meshedpartnum].first_vertex_edgelist_entry != SNDE_INDEX_INVALID) {
+	if (writemask & SNDE_COMPONENT_GEOMWRITE_VERTEX_EDGELIST) {
+	  process->get_locks_write_array_region((void **)&geom->geom.vertex_edgelist,geom->geom.meshedparts[meshedpartnum].first_vertex_edgelist_entry,geom->geom.meshedparts[meshedpartnum].num_vertex_edgelist_entries);
+	} else {
+	  process->get_locks_read_array_region((void **)&geom->geom.vertex_edgelist,geom->geom.meshedparts[meshedpartnum].first_vertex_edgelist_entry,geom->geom.meshedparts[meshedpartnum].num_vertex_edgelist_entries);
+	}
+	
+      }      
+
 	
       if (geom->geom.meshedparts[meshedpartnum].firstbox != SNDE_INDEX_INVALID) {
 	if (geom->geom.boxes) {
@@ -388,15 +421,28 @@ namespace snde {
 	  geom->geom.meshedparts[meshedpartnum].firstbox = SNDE_INDEX_INVALID;
 	}
 	
-	if (geom->geom.meshedparts[meshedpartnum].firsttri != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.vertexidx,geom->geom.meshedparts[meshedpartnum].firsttri,geom->geom.meshedparts[meshedpartnum].numtris);
-	  geom->geom.meshedparts[meshedpartnum].firsttri = SNDE_INDEX_INVALID;
+	if (geom->geom.meshedparts[meshedpartnum].first_vertex_edgelist_entry != SNDE_INDEX_INVALID) {
+	  geom->manager->free((void **)&geom->geom.vertex_edgelist,geom->geom.meshedparts[meshedpartnum].first_vertex_edgelist_entry,geom->geom.meshedparts[meshedpartnum].num_vertex_edgelist_entries);
+	  geom->geom.meshedparts[meshedpartnum].first_vertex_edgelist_entry = SNDE_INDEX_INVALID;
 	}
 
+	
 	if (geom->geom.meshedparts[meshedpartnum].firstvertex != SNDE_INDEX_INVALID) {
 	  geom->manager->free((void **)&geom->geom.vertices,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
 	  geom->geom.meshedparts[meshedpartnum].firstvertex = SNDE_INDEX_INVALID;
 	}
+
+	if (geom->geom.meshedparts[meshedpartnum].firstedge != SNDE_INDEX_INVALID) {
+	  geom->manager->free((void **)&geom->geom.edges,geom->geom.meshedparts[meshedpartnum].firstedge,geom->geom.meshedparts[meshedpartnum].numedges);
+	  geom->geom.meshedparts[meshedpartnum].firstedge = SNDE_INDEX_INVALID;
+	}
+
+	
+	if (geom->geom.meshedparts[meshedpartnum].firsttri != SNDE_INDEX_INVALID) {
+	  geom->manager->free((void **)&geom->geom.triangles,geom->geom.meshedparts[meshedpartnum].firsttri,geom->geom.meshedparts[meshedpartnum].numtris);
+	  geom->geom.meshedparts[meshedpartnum].firsttri = SNDE_INDEX_INVALID;
+	}
+	
 
 	geom->manager->free((void **)&geom->geom.meshedparts,meshedpartnum,1);
 	meshedpartnum=SNDE_INDEX_INVALID;

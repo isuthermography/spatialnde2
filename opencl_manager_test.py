@@ -33,12 +33,15 @@ lockholder = spatialnde2.pylockholder()
 
 Buffers=spatialnde2.OpenCLBuffers(context,all_locks,readregions,writeregions)
 
-Buffers.AddBufferAsKernelArg(manager,commandqueue,kernel,0,geometry.geom.contents.field_address("vertices"),geometry.geom.contents.field_address("vertices"))
+Buffers.AddBufferAsKernelArg(manager,commandqueue,kernel,0,geometry.geom.contents.field_address("meshedparts"),geometry.geom.contents.field_address("meshedparts"))
+Buffers.AddBufferAsKernelArg(manager,commandqueue,kernel,1,geometry.geom.contents.field_address("triangles"),geometry.geom.contents.field_address("triangles"))
+Buffers.AddBufferAsKernelArg(manager,commandqueue,kernel,2,geometry.geom.contents.field_address("edges"),geometry.geom.contents.field_address("edges"))
+Buffers.AddBufferAsKernelArg(manager,commandqueue,kernel,3,geometry.geom.contents.field_address("vertices"),geometry.geom.contents.field_address("vertices"))
 
 
 global_work_offset=np.array((0,),dtype=np.uint64)
 global_work_size=np.array((1000,),dtype=np.uint64)
-local_work_size=np.array((1,),dtype=np.uint64)
+local_work_size=np.zeros((0,),dtype=np.uint64)
 
 
 (out,kernel_complete)=spatialnde2.clEnqueueNDRangeKernelArrays(commandqueue,kernel,global_work_offset,global_work_size,local_work_size,Buffers.FillEvents_untracked(),Buffers.NumFillEvents());

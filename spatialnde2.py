@@ -1498,9 +1498,20 @@ class pylockholder(object):
 
 class snde_geometrydata(ctypes.Structure):
   _fields_=[("tol",ctypes.c_double),
-	   ("meshparts",ctypes.c_void_p), # POINTER(snde_meshedpart)),
-# ... !!!*** Need to fill this in!!!***
-	   ("vertices",ctypes.c_void_p)]
+	   ("meshedparts",ctypes.c_void_p), # POINTER(snde_meshedpart),
+	   ("triangles",ctypes.c_void_p),
+	   ("refpoints",ctypes.c_void_p),
+	   ("maxradius",ctypes.c_void_p),
+	   ("normal",ctypes.c_void_p),
+	   ("inplanemat",ctypes.c_void_p),
+	   ("edges",ctypes.c_void_p),
+	   ("vertices",ctypes.c_void_p),
+   	   ("principal_curvatures",ctypes.c_void_p),
+	   ("curvature_tangent_axes",ctypes.c_void_p),
+	   ("vertex_edgelist_indices",ctypes.c_void_p),
+	   ("vertex_edgelist",ctypes.c_void_p),
+# !!!*** Need to add NURBS entries!!!***
+	   ]
 
   def field_address(self,fieldname):
 # unfortunately byref() doesnt work right because struct members when accesed become plain ints
