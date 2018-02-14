@@ -936,7 +936,13 @@ namespace snde {
       std::vector<cl_event> output_data_complete_vector{output_data_complete};
       RemBuffers(input_data_not_needed,output_data_complete_vector,wait);
     }
-  };
+
+    void RemBuffers(cl_event input_data_not_needed,bool wait)
+    {
+      std::vector<cl_event> output_data_complete_vector{};
+      RemBuffers(input_data_not_needed,output_data_complete_vector,wait);
+    }
+};
   
 };
 #endif /* SNDE_OPENCLCACHEMANAGER_HPP */

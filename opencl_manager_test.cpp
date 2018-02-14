@@ -22,7 +22,7 @@
 #include "allocator.hpp"
 #include "lockmanager.hpp"
 #include "openclcachemanager.hpp"
-#include "geometry.h"
+#include "geometrydata.h"
 #include "opencl_utils.hpp"
 
 #include "geometry_types_h.h"
@@ -63,7 +63,11 @@ int main(int argc, char *argv[])
 
   fprintf(stderr,"%s",clmsgs.c_str());
 
-  queue=clCreateCommandQueue(context,device,CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE,NULL);
+  queue=clCreateCommandQueue(context,device,CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE,&clerror);
+  if (clerror==CL_INVALID_QUEUE_PROPERTIES) {
+    queue=clCreateCommandQueue(context,device,0,&clerror);
+
+  }
 
   std::vector<const char *> program_source = { geometry_types_h, testkernel_c };
 
@@ -77,17 +81,18 @@ int main(int argc, char *argv[])
   }
   
   
-  rwlock_token_set locks;
+  rwlock_token_set all_locks;
   std::shared_ptr<std::vector<rangetracker<markedregion>>> readregions;
   std::shared_ptr<std::vector<rangetracker<markedregion>>> writeregions;
   
-  lockingprocess lockprocess(manager->locker);
+  lockingprocess_threaded lockprocess(manager->locker);
+
+  rwlock_token_set vertices_lock = lockprocess.get_locks_read_array_region((void **)&geom->geom.vertices,0,SNDE_INDEX_INVALID);
   
-  
-  std::tie(locks,readregions,writeregions) = lockprocess.finish();
+  std::tie(all_locks,readregions,writeregions) = lockprocess.finish();
 
   
-  OpenCLBuffers Buffers(context,locks,readregions,writeregions);
+  OpenCLBuffers Buffers(context,all_locks,readregions,writeregions);
   
   Buffers.AddBufferAsKernelArg(manager,queue,kernel,0,(void **)&geom->geom.meshedparts,(void **)&geom->geom.meshedparts);
   //Buffers.AddBuffer(manager,queue,(void **)&geom->geom.meshedparts,(void **)&geom->geom.meshedparts);
@@ -108,8 +113,10 @@ int main(int argc, char *argv[])
   clEnqueueNDRangeKernel(queue,kernel,1,NULL,&global_work_size,NULL,Buffers.NumFillEvents(),Buffers.FillEvents_untracked(),&kernel_complete);
   
   Buffers.RemBuffers(kernel_complete,kernel_complete,true);
+
+  unlock_rwlock_token_set(vertices_lock);
   
-  unlock_rwlock_token_set(locks);
+  release_rwlock_token_set(all_locks);
   
   
   clReleaseCommandQueue(queue);

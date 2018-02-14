@@ -21,7 +21,7 @@
 #include "allocator.hpp"
 #include "lockmanager.hpp"
 #include "arraymanager.hpp"
-#include "geometry.h"
+#include "geometrydata.h"
 
 using namespace snde;
 

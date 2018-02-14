@@ -1,11 +1,11 @@
-#ifndef SNDE_GEOMETRY_H
-#define SNDE_GEOMETRY_H
+#ifndef SNDE_GEOMETRYDATA_H
+#define SNDE_GEOMETRYDATA_H
 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+  /*** IMPORTANT: Ctypes definition in geometrydata.i must be changed in parallel with this. ***/
   struct snde_geometrydata {
     double tol; // tolerance
 
@@ -182,4 +182,4 @@ extern "C" {
 }
 #endif
 
-#endif /* SNDE_GEOMETRY_H */
+#endif /* SNDE_GEOMETRYDATA_H */

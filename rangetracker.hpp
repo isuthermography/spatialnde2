@@ -238,7 +238,10 @@ namespace snde {
     }
 
 
-    
+    rangetracker<T> mark_region_noargs(snde_index firstelem, snde_index numelems)
+    {
+      return mark_region(firstelem,numelems);
+    }
 
     template <typename ... Args>
     rangetracker<T> get_regions(snde_index firstelem, snde_index numelems,Args && ... args)

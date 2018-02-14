@@ -4,7 +4,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-  
+
+  /* *** Changes to these type mappings must also go into 
+     python definitions at bottom of geometry_types.i */
 #ifdef __OPENCL_VERSION__
 /* if this is an opencl kernel */
 typedef double snde_coord;

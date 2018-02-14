@@ -128,11 +128,13 @@ namespace snde {
 
     TYPE type;
 
-    virtual snde_orientation3 orientation();
+    //   component();// {}
+    
+    virtual snde_orientation3 orientation()=0;
 
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, unsigned writemask=0); /* writemask contains OR'd SNDE_COMPONENT_GEOMWRITE_xxx bits */
+    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, unsigned writemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOMWRITE_xxx bits */
 
-    virtual ~component();
+    virtual ~component() {};
   };
   
 

@@ -277,7 +277,18 @@ std::tuple<cl_program, std::string> get_opencl_program(cl_context context, cl_de
     
     return std::make_tuple(program,build_log);
   }
-  
 
+std::tuple<cl_program, std::string> get_opencl_program(cl_context context, cl_device_id device, std::vector<std::string> program_source)
+{
+  std::vector<const char *> source_cstr(program_source.size());
+
+  size_t cnt;
+  for (cnt=0;cnt < program_source.size();cnt++) {
+    source_cstr[cnt]=program_source[cnt].c_str();
+  }
+
+  return get_opencl_program(context,device,source_cstr);
+}
   
 }
+

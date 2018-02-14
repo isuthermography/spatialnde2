@@ -10,6 +10,8 @@
 
 
 namespace snde {
+  typedef void **ArrayPtr;
+  static inline ArrayPtr ArrayPtr_fromint(unsigned long long intval) {return (void **)intval; } 
 
   class cachemanager { /* abstract base class for cache managers */
   public:
