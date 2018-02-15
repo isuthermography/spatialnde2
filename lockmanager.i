@@ -22,6 +22,7 @@ import types as pytypes
 
 %template(Region) snde::rangetracker<snde::markedregion>;
 
+%template(PtrVectorOfRegions) std::shared_ptr<std::vector<snde::rangetracker<snde::markedregion>>>;
 %template(VectorOfRegions) std::vector<snde::rangetracker<snde::markedregion>>;
 %template(lockingposition_generator) std::pair<snde::lockingposition,snde::CountedPyObject>; 
 
@@ -491,6 +492,124 @@ namespace snde {
 
 
 
+#ifdef SNDE_LOCKMANAGER_COROUTINES_THREADED
+
+  /* ***!!! Should create alternate implementation based on boost stackful coroutines ***!!! */
+  /* ***!!! Should create alternate implementation based on C++ resumable functions proposal  */
+
+
+%typemap(out) std::tuple<rwlock_token_set, std::shared_ptr<std::vector<rangetracker<markedregion>>>, std::shared_ptr<std::vector<rangetracker<markedregion>>>> {
+    $result = PyTuple_New(3);
+    // Substituted code for converting cl_context here came
+    // from a typemap substitution "$typemap(out,cl_context)"
+    snde::rwlock_token_set result0 = std::get<0>(*&$1);
+    snde::rwlock_token_set *smartresult0 = result0 ? new snde::rwlock_token_set(result0) : 0;
+    
+    PyTuple_SetItem($result,0,SWIG_NewPointerObj(SWIG_as_voidptr(smartresult0),$descriptor(rwlock_token_set *),SWIG_POINTER_OWN));
+
+    std::shared_ptr<std::vector<snde::rangetracker<snde::markedregion>>> result1 = std::get<1>(*&$1);
+    std::shared_ptr<std::vector<snde::rangetracker<snde::markedregion>>>  *smartresult1 = result1 ? new std::shared_ptr<std::vector<snde::rangetracker<snde::markedregion>>>(result1) : 0;
+    PyTuple_SetItem($result,1,SWIG_NewPointerObj(SWIG_as_voidptr(smartresult1),$descriptor(std::shared_ptr<std::vector<snde::rangetracker<snde::markedregion>>> *),SWIG_POINTER_OWN));
+
+    std::shared_ptr<std::vector<snde::rangetracker<snde::markedregion>>> result2 = std::get<2>(*&$1);
+    std::shared_ptr<std::vector<snde::rangetracker<snde::markedregion>>>  *smartresult2 = result2 ? new std::shared_ptr<std::vector<snde::rangetracker<snde::markedregion>>>(result2) : 0;
+    PyTuple_SetItem($result,2,SWIG_NewPointerObj(SWIG_as_voidptr(smartresult2),$descriptor(std::shared_ptr<std::vector<snde::rangetracker<snde::markedregion>>> *),SWIG_POINTER_OWN));
+
+
+  }
+
+%typemap(in) std::function<void(void)> spawn_func (PyObject *FuncObj,PyObject *SelfObj) {
+  FuncObj=$input;
+  SelfObj=$self;
+  Py_INCREF(FuncObj);
+  Py_INCREF(SelfObj);
+  arg2 = [ FuncObj, SelfObj ]() { PyObject *res=PyObject_CallFunctionObjArgs(FuncObj,SelfObj,NULL);Py_DECREF(FuncObj);Py_DECREF(SelfObj);Py_XDECREF(res); };
+
+}
+
+namespace snde {
+
+  class lockingprocess_threaded: public lockingprocess {
+    /* lockingprocess is a tool for performing multiple locking
+       for multiple objects while satisfying the required
+       locking order */
+      //public: 
+      //lockingprocess_threaded(std::shared_ptr<lockmanager> manager);
+       // This is defined by the details are hidden from python, so
+       // they can't be used... Use the lockingprocess_threaded_python instead
+       
+    };
+
+class lockingprocess_threaded_python: public lockingprocess_threaded {
+  public:
+    lockingprocess_threaded_python(std::shared_ptr<lockmanager> manager);
+    
+    virtual rwlock_token_set get_locks_write_array(void **array);
+
+    virtual rwlock_token_set get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems);
+
+
+    virtual rwlock_token_set get_locks_read_array(void **array);
+
+    virtual rwlock_token_set get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems);
+
+
+    virtual void spawn(std::function<void(void)> spawn_func);
+      
+    virtual std::tuple<rwlock_token_set,std::shared_ptr<std::vector<rangetracker<markedregion>>>,std::shared_ptr<std::vector<rangetracker<markedregion>>>> finish();
+    virtual ~lockingprocess_threaded_python();
+
+};
+};
+
+%{
+namespace snde {
+  class lockingprocess_threaded_python: public lockingprocess_threaded {
+    public:
+    lockingprocess_threaded_python(std::shared_ptr<lockmanager> manager) : lockingprocess_threaded(manager)
+    {
+      
+    }
+
+    void *pre_callback()
+    {
+      PyGILState_STATE *State;
+      State=(PyGILState_STATE *)calloc(sizeof(*State),1);
+      *State=PyGILState_Ensure();
+      return State;
+    }
+
+    void post_callback(void *state)
+    {
+      PyGILState_STATE *State=(PyGILState_STATE *)state;
+      PyGILState_Release(*State);
+      free(State);
+    }
+
+    void *prelock()
+    {
+      PyThreadState *_save;
+      _save=PyEval_SaveThread(); 
+      
+      return (void *)_save;
+    }
+
+    void postunlock(void *prelockstate)
+    {
+      PyThreadState *_save=(PyThreadState *)prelockstate;
+      PyEval_RestoreThread(_save); 
+    }
+
+
+
+  };
+};
+%}
+ 
+
+
+#endif
+
 
 %pythoncode %{
 
@@ -544,11 +663,17 @@ class lockingprocess_python(lockingprocess_pycpp):
     while len(waiting_generators) > 0 or len(proc.runnable_generators) > 0:
       while len(proc.runnable_generators) > 0:
         thisgen=proc.runnable_generators[0]
-        newgen=next(proc.runnable_generators[0])
+	newgen=None
+	try:
+	  newgen=next(proc.runnable_generators[0])
+	except StopIteration:
+	  pass
         proc.runnable_generators.pop(0) # this generator is no longer runnable
 
-        proc.process_generated(thisgen,newgen)
-      
+        if newgen is not None: 
+          proc.process_generated(thisgen,newgen)
+          pass
+	  
         pass
       # ok... no more runnable generators... do we have a waiting generator?
       if len(waiting_generators) > 0:
@@ -635,11 +760,22 @@ def pylockprocess(*args,**kwargs):
 
 class pylockholder(object):
   def store(self,name_value):
+
     (lockname,value)=name_value
+      
     setattr(self,lockname,value)
     pass
-  def store_name(self,name,name_value):
-    (oldname,value)=name_value
+  def store_name(self,name,*args):
+  
+    if isinstance(args[0],tuple):
+      # pylockprocess mode... get (name, value)
+      name_value=args[0]
+      (lockname,value)=name_value
+      pass
+    else:
+      # lockingprocess_threaded_python mode... get just value
+      value=args[0]
+      pass
     setattr(self,name,value)
     pass
   pass

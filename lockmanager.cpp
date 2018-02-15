@@ -67,7 +67,8 @@ void snde::lockingprocess_threaded::_barrier(lockingposition lockpos) //(size_t 
      this call, take the lock from _executor_lock */
   std::unique_lock<std::mutex> lock;
   std::condition_variable ourcv;
-  
+
+  void *prelockstate=prelock();
   lock.swap(_executor_lock);
   
   /* at the barrier, we are no longer runnable... */
@@ -83,7 +84,7 @@ void snde::lockingprocess_threaded::_barrier(lockingposition lockpos) //(size_t 
   } else {
     if (_waitingthreads.size() > 0) {
       (*_waitingthreads.begin()).second->notify_all();
-	  }
+    }
   }
   
   /* now wait for us to be the lowest available waiter AND the runnablethreads to be empty */
@@ -98,18 +99,46 @@ void snde::lockingprocess_threaded::_barrier(lockingposition lockpos) //(size_t 
   /* since we will be running, we are listed as NULL */
   _runnablethreads.emplace_front((std::condition_variable *)NULL);
   
-  /* give our lock back to _executor_lock since we are running */
-  lock.swap(_executor_lock);
   
   assert(!(lockpos < lastlockingposition)); /* This assert diagnoses a locking order violation */
 
   /* mark this position as our new last locking position */
   lastlockingposition=lockpos;
+
+  /* give our lock back to _executor_lock since we are running */
+  lock.swap(_executor_lock);
+  postunlock(prelockstate);
+
 }
+
+void *snde::lockingprocess_threaded::pre_callback()
+{
+  return NULL;
+}
+
+void snde::lockingprocess_threaded::post_callback(void *state)
+{
+
+}
+
+
+void *snde::lockingprocess_threaded::prelock()
+{
+  return NULL;
+}
+
+void snde::lockingprocess_threaded::postunlock(void *prelockstate)
+{
+
+}
+
+
 
 rwlock_token_set snde::lockingprocess_threaded::get_locks_write_array(void **array)
 {
   rwlock_token_set newset;
+  assert(_lockmanager->_arrayidx.find(array) != _lockmanager->_arrayidx.end());
+  
   _barrier(lockingposition(_lockmanager->_arrayidx[array],0,true));
   newset = _lockmanager->get_locks_write_array_region(all_tokens,array,0,SNDE_INDEX_INVALID);
   
@@ -121,6 +150,9 @@ rwlock_token_set snde::lockingprocess_threaded::get_locks_write_array(void **arr
 rwlock_token_set snde::lockingprocess_threaded::get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems)
 {
   rwlock_token_set newset;
+  assert(_lockmanager->_arrayidx.find(array) != _lockmanager->_arrayidx.end());
+
+  
   if (_lockmanager->is_region_granular()) {
     _barrier(lockingposition(_lockmanager->_arrayidx[array],indexstart,true));
   } else {
@@ -136,6 +168,9 @@ rwlock_token_set snde::lockingprocess_threaded::get_locks_write_array_region(voi
 rwlock_token_set snde::lockingprocess_threaded::get_locks_read_array(void **array)
 {
   rwlock_token_set newset;
+  assert(_lockmanager->_arrayidx.find(array) != _lockmanager->_arrayidx.end());
+
+  
   _barrier(lockingposition(_lockmanager->_arrayidx[array],0,false));
   newset = _lockmanager->get_locks_read_array_region(all_tokens,array,0,SNDE_INDEX_INVALID);
 	
@@ -149,6 +184,7 @@ rwlock_token_set snde::lockingprocess_threaded::get_locks_read_array(void **arra
 rwlock_token_set snde::lockingprocess_threaded::get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems)
       {
         rwlock_token_set newset;
+	assert(_lockmanager->_arrayidx.find(array) != _lockmanager->_arrayidx.end());
 
         if (_lockmanager->is_region_granular()) {
 	  _barrier(lockingposition(_lockmanager->_arrayidx[array],indexstart,false));
@@ -170,6 +206,7 @@ void snde::lockingprocess_threaded::spawn(std::function<void(void)> f)
   std::unique_lock<std::mutex> lock;
   std::condition_variable ourcv;
   
+  void *prelockstate=prelock();
   lock.swap(_executor_lock);
   
   
@@ -185,10 +222,14 @@ void snde::lockingprocess_threaded::spawn(std::function<void(void)> f)
   std::thread *newthread=new std::thread([f,this]() {
       std::unique_lock<std::mutex> subthreadlock(this->_mutex);
       
+      /* in this context, pre_callback() and post_callback() handle the 
+         Python GIL, if applicable */
       /* We start out as the running thread, so swap our lock
 	 into executor_lock */
       subthreadlock.swap(this->_executor_lock);
+      void *state=this->pre_callback();
       f();
+      this->post_callback(state);
       /* spawn code done... swap lock back into us, where it will
 	       be unlocked on return */
       subthreadlock.swap(this->_executor_lock);
@@ -204,7 +245,7 @@ void snde::lockingprocess_threaded::spawn(std::function<void(void)> f)
 	if (this->_waitingthreads.size() > 0) {
 	  (*this->_waitingthreads.begin()).second->notify_all();
 	}
-	    }
+      }
     });
   _threadarray.emplace_back(newthread);
   
@@ -220,7 +261,7 @@ void snde::lockingprocess_threaded::spawn(std::function<void(void)> f)
   
   /* Now swap our lock back into the executor lock */
   lock.swap(_executor_lock);
-  
+  postunlock(prelockstate);
   /* return and continue executing */
 }
 

@@ -1,6 +1,9 @@
 # -Wno-ignored-attributes eliminates (apparently) spurious warnings about ignored attributes
 
-CPPFLAGS=-g -Wall -fPIC -Wno-int-in-bool-context -Wno-ignored-attributes -DSNDE_LOCKMANAGER_COROUTINES_THREADED -I/usr/include/eigen3 -I/usr/include/libxml2
+DEBUGCFLAGS= #-fsanitize=address
+DEBUGLDFLAGS= # -lasan -lubsan
+
+CPPFLAGS=-g -Wall -fPIC -Wno-int-in-bool-context -Wno-ignored-attributes -DSNDE_LOCKMANAGER_COROUTINES_THREADED -I/usr/include/eigen3 -I/usr/include/libxml2 $(DEBUGCFLAGS)
 
 
 OBJS=allocator_test.o
@@ -10,12 +13,12 @@ LDFLAGS=-lpthread
 all: allocator_test manager_test opencl_manager_test x3d_test
 
 swig: geometry_types_h.h lockmanager.o openclcachemanager.o opencl_utils.o
-	swig -c++ -python spatialnde2.i
+	swig -c++ -python -DSNDE_LOCKMANAGER_COROUTINES_THREADED spatialnde2.i
 	g++ -I/usr/include/python2.7 $(CPPFLAGS) -c spatialnde2_wrap.cxx
-	g++ -shared spatialnde2_wrap.o lockmanager.o openclcachemanager.o opencl_utils.o -o _spatialnde2.so -lOpenCL -lpthread
+	g++ -shared spatialnde2_wrap.o lockmanager.o openclcachemanager.o opencl_utils.o -o _spatialnde2.so -lOpenCL -lpthread $(DEBUGLDFLAGS)
 
 clean:
-	rm -f *~ allocator_test manager_test *.o *.bak opencl_manager_test *_c.h *_h.h x3d_test _spatialnde2.so _spatialnde2.dll spatialnde2_wrap.cxx *.pyc
+	rm -f *~ allocator_test manager_test *.o *.bak opencl_manager_test *_c.h *_h.h x3d_test _spatialnde2.so spatialnde2.py _spatialnde2.dll spatialnde2_wrap.cxx *.pyc
 
 commit: clean
 	hg addrem

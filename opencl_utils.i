@@ -239,8 +239,8 @@ namespace snde {
     $result = PyTuple_New(3);
     // Substituted code for converting cl_context here came
     // from a typemap substitution "$typemap(out,cl_context)" 
-    PyTuple_SetItem($result,0,SWIG_NewPointerObj((new cl_context(static_cast< const cl_context& >(std::get<0>(*&$1)))), SWIGTYPE_p_cl_context, SWIG_POINTER_OWN |  0 ));
-    PyTuple_SetItem($result,1,SWIG_NewPointerObj((new cl_device_id(static_cast< const cl_device_id & >(std::get<1>(*&$1)))), SWIGTYPE_p_cl_device_id, SWIG_POINTER_OWN |  0 ));
+    PyTuple_SetItem($result,0,SWIG_NewPointerObj((new cl_context(static_cast< const cl_context& >(std::get<0>(*&$1)))), $descriptor(cl_context *), SWIG_POINTER_OWN |  0 ));
+    PyTuple_SetItem($result,1,SWIG_NewPointerObj((new cl_device_id(static_cast< const cl_device_id & >(std::get<1>(*&$1)))), $descriptor(cl_device_id *), SWIG_POINTER_OWN |  0 ));
 PyTuple_SetItem($result,2,SWIG_From_std_string(static_cast< std::string >(std::get<2>(*&$1))));
 
   }
@@ -252,7 +252,7 @@ PyTuple_SetItem($result,2,SWIG_From_std_string(static_cast< std::string >(std::g
     $result = PyTuple_New(2);
     // Substituted code for converting cl_context here came
     // from a typemap substitution "$typemap(out,cl_context)" 
-    PyTuple_SetItem($result,0,SWIG_NewPointerObj((new cl_program(static_cast< const cl_program& >(std::get<0>(*&$1)))), SWIGTYPE_p_cl_program, SWIG_POINTER_OWN |  0 ));
+    PyTuple_SetItem($result,0,SWIG_NewPointerObj((new cl_program(static_cast< const cl_program& >(std::get<0>(*&$1)))), $descriptor(cl_program *), SWIG_POINTER_OWN |  0 ));
     PyTuple_SetItem($result,1,SWIG_From_std_string(static_cast< std::string >(std::get<1>(*&$1))));
 
   }

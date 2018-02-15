@@ -165,9 +165,9 @@ namespace snde {
 
     void _wait_for_top_of_queue(std::condition_variable *cond,std::unique_lock<std::mutex> *adminlock) {
 
-      while(threadqueue.front() != cond) {
+      do {
 	cond->wait(*adminlock);
-      }
+      } while(threadqueue.front() != cond);
       threadqueue.pop_front();
     }
 
@@ -658,6 +658,7 @@ namespace snde {
 
     size_t get_array_idx(void **array)
     {
+      assert(_arrayidx.find(array) != _arrayidx.end());
       return _arrayidx[array];
     }
 
@@ -714,7 +715,7 @@ namespace snde {
       }
       if ((*all_locks).count(writelockobj)) {
 	/* There is a write lock for this token */
-	writelocktoken=(*all_locks)[lockobj];
+	writelocktoken=(*all_locks)[writelockobj];
       }
       //}
 
@@ -763,6 +764,7 @@ namespace snde {
     {
       rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
 
+      assert(_arrayidx.find(array) != _arrayidx.end());
       (*token_set)[&_locks[_arrayidx[array]].full_array.reader]=_get_lock_read_array(all_locks,_arrayidx[array]);
 
       return token_set;
@@ -774,6 +776,7 @@ namespace snde {
 
       rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
 
+      assert(_arrayidx.find(array) != _arrayidx.end());
       preexisting_lock=_get_preexisting_lock_read_array(all_locks,_arrayidx[array]);
 
       if (preexisting_lock==nullptr) {
@@ -926,6 +929,7 @@ namespace snde {
       // but we do store the bounds for notification purposes
       rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();;
 
+      assert(_arrayidx.find(array) != _arrayidx.end());
       preexisting_lock=_get_preexisting_lock_write_array_region(all_locks,_arrayidx[array],indexstart,numelems);
 
       if (preexisting_lock==nullptr) {
@@ -942,6 +946,7 @@ namespace snde {
       // We do not currently implement region-granular locking
       // but we do store the bounds for notification purposes
       rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();;
+      assert(_arrayidx.find(array) != _arrayidx.end());
 
       (*token_set)[&_locks[_arrayidx[array]].full_array.writer]=_get_lock_write_array_region(all_locks,_arrayidx[array],indexstart,numelems);
 
@@ -1125,6 +1130,14 @@ namespace snde {
     lockingprocess_threaded(std::shared_ptr<lockmanager> manager);
 	
     virtual void _barrier(lockingposition lockpos); //(size_t arrayidx,snde_index pos,bool write);
+
+    virtual void *pre_callback();
+    
+    virtual void post_callback(void *state);
+
+    virtual void *prelock();
+    
+    virtual void postunlock(void *prelockstate);
 
     virtual rwlock_token_set get_locks_write_array(void **array);
 
