@@ -10,7 +10,7 @@ OBJS=allocator_test.o
 
 LDFLAGS=-lpthread
 
-all: allocator_test manager_test opencl_manager_test x3d_test
+all: allocator_test manager_test opencl_example x3d_test
 
 swig: geometry_types_h.h lockmanager.o openclcachemanager.o opencl_utils.o
 	swig -c++ -python -DSNDE_LOCKMANAGER_COROUTINES_THREADED spatialnde2.i
@@ -18,7 +18,7 @@ swig: geometry_types_h.h lockmanager.o openclcachemanager.o opencl_utils.o
 	g++ -shared spatialnde2_wrap.o lockmanager.o openclcachemanager.o opencl_utils.o -o _spatialnde2.so -lOpenCL -lpthread $(DEBUGLDFLAGS)
 
 clean:
-	rm -f *~ allocator_test manager_test *.o *.bak opencl_manager_test *_c.h *_h.h x3d_test _spatialnde2.so spatialnde2.py _spatialnde2.dll spatialnde2_wrap.cxx *.pyc
+	rm -f *~ allocator_test manager_test *.o *.bak opencl_example *_c.h *_h.h x3d_test _spatialnde2.so spatialnde2.py _spatialnde2.dll spatialnde2_wrap.cxx *.pyc
 
 commit: clean
 	hg addrem
@@ -30,7 +30,7 @@ allocator_test: allocator_test.o lockmanager.o allocator.o
 manager_test: manager_test.o lockmanager.o 
 	$(CXX) $(CPPFLAGS) -o $@ $^ $(LDFLAGS) 
 
-opencl_manager_test: opencl_manager_test.o lockmanager.o openclcachemanager.o opencl_utils.o
+opencl_example: opencl_example.o lockmanager.o openclcachemanager.o opencl_utils.o
 	$(CXX) $(CPPFLAGS) -o $@ $^ $(LDFLAGS) -lOpenCL -lpthread
 
 x3d_test: x3d_test.o 
@@ -49,7 +49,7 @@ x3d_test: x3d_test.o
 allocator_test.o: allocator_test.cpp
 lockmanager.o: lockmanager.cpp
 manager_test.o: manager_test.cpp
-opencl_manager_test.o: opencl_manager_test.cpp testkernel_c.h geometry_types_h.h
+opencl_example.o: opencl_example.cpp testkernel_c.h geometry_types_h.h
 allocator.o: allocator.cpp
 openclcachemanager.o: openclcachemanager.cpp
 opencl_utils.o: opencl_utils.cpp
