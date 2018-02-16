@@ -2,6 +2,9 @@
 import types as pytypes
 %}
 
+%shared_ptr(LockingPositionMap);
+%shared_ptr(VectorOfRegions);
+
 %shared_ptr(snde::lockmanager);
 %shared_ptr(snde::rwlock_token_content);
 %shared_ptr(snde::rwlock_token_set_content);
@@ -103,8 +106,6 @@ voidpp_posn_map_iterator voidpp_posn_map_iterator_fromiterator(std::unordered_ma
 */
 
 
-%shared_ptr(LockingPositionMap);
-%shared_ptr(VectorOfRegions);
 
 %{
   namespace swig {
@@ -442,8 +443,6 @@ namespace snde {
 
 
     //  virtual std::tuple<rwlock_token_set,std::shared_ptr<std::vector<rangetracker<markedregion>>>,std::shared_ptr<std::vector<rangetracker<markedregion>>>> finish();
-    // ***!!! Need to implement callbacks back to Python side !!!***
-    // (use ctypes?) 
     virtual void spawn(std::function<void(void)> f)
     {
 
@@ -481,8 +480,6 @@ namespace snde {
 
 
     //  virtual std::tuple<rwlock_token_set,std::shared_ptr<std::vector<rangetracker<markedregion>>>,std::shared_ptr<std::vector<rangetracker<markedregion>>>> finish();
-    // ***!!! Need to implement callbacks back to Python side !!!***
-    // (use ctypes?) 
     virtual void spawn(std::function<void(void)> f);
 
     virtual ~lockingprocess_pycpp();
@@ -613,7 +610,7 @@ namespace snde {
 
 %pythoncode %{
 
-# !!!*** lockingprocess here should be an abstract base class
+# lockingprocess here has an abstract base class
 # defined on the c++ side with
 # a specialization that calls Python
 class lockingprocess_python(lockingprocess_pycpp):
@@ -686,6 +683,7 @@ class lockingprocess_python(lockingprocess_pycpp):
 	
 
         waiting_generators.erase(iterator)
+	del iterator
 
 	# diagnose locking order error
 	if lockpos < proc.lastlockingposition:
@@ -705,6 +703,7 @@ class lockingprocess_python(lockingprocess_pycpp):
 	  pass
         pass
       pass
+      
     return (proc.all_tokens,proc.arrayreadregions,proc.arraywriteregions)
     
   def process_generated(self,thisgen,newgen):
@@ -712,7 +711,7 @@ class lockingprocess_python(lockingprocess_pycpp):
       # Got another generator
       self.runnable_generators.append(thisgen)
       self.runnable_generators.append(newgen)
-      pass
+      pass    
     else:
       assert(isinstance(newgen,tuple) and isinstance(newgen[0],lockingposition))
       (posn,lockcall,fieldname) = newgen	
@@ -722,8 +721,10 @@ class lockingprocess_python(lockingprocess_pycpp):
     pass
 
   def spawn(self,lock_generator):
-    # Untested, so far ... probably buggy
-    return lock_generator(self)    
+    newgen=lock_generator(self)
+    #newfunc = lambda proc: (yield None)
+    #newgen=newfunc(self)
+    return newgen
 
   def get_locks_read_array_region(self,
 				  geomstruct,

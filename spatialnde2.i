@@ -80,8 +80,8 @@
 %include "lockmanager.i"
 %include "geometrydata.i"
 %include "geometry.i"
-%include "openclcachemanager.i"
 %include "opencl_utils.i"
+%include "openclcachemanager.i"
 
 %{
 //#include "memallocator.hpp"

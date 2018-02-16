@@ -3,6 +3,9 @@
 #include <vector>
 #include <string>
 
+#include <CL/opencl.h>
+
+
 #include "snde_error_opencl.hpp"
 
 namespace snde {

@@ -825,6 +825,14 @@ namespace snde {
 
     }
     
+    cl_mem Mem(void **arrayptr)
+    /* Returns protected pointer (ref count increased */
+    {
+      cl_mem mem=buffers.at(arrayptr).mem;
+      clRetainMemObject(mem);
+      return mem;
+    }
+
     cl_mem Mem_untracked(void **arrayptr)
     /* Returns unprotected pointer (ref count not increased */
     {
@@ -854,7 +862,7 @@ namespace snde {
       
     }
   
-    void AddBuffer(std::shared_ptr<arraymanager> manager,cl_command_queue queue, void **allocatedptr, void **arrayptr,bool write_only=false)
+    void AddBuffer(std::shared_ptr<arraymanager> manager,cl_command_queue queue, void **arrayptr,bool write_only=false)
     {
 
       //// accumulate preexisting locks + locks in all buffers together
@@ -868,7 +876,10 @@ namespace snde {
       snde_index offset;
       std::vector<cl_event> new_fill_events;
       std::shared_ptr<openclcachemanager> cachemanager=get_opencl_cache_manager(manager);
-      
+      void **allocatedptr;
+
+      allocatedptr=manager->allocation_arrays.at(arrayptr);
+
       std::tie(readlocks,writelocks,mem,offset,new_fill_events) = cachemanager->GetOpenCLBuffer(locks,context,queue,allocatedptr,arrayptr,arrayreadregions,arraywriteregions,write_only);
 
       /* move fill events into our master list */
@@ -890,9 +901,9 @@ namespace snde {
       //locks.push_back(buffers[name][1]); 
     }
 
-    cl_int AddBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl_command_queue queue,cl_kernel kernel,cl_uint arg_index,void **allocatedptr, void **arrayptr)
+    cl_int AddBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl_command_queue queue,cl_kernel kernel,cl_uint arg_index,void **arrayptr)
     {
-      AddBuffer(manager,queue,allocatedptr,arrayptr);
+      AddBuffer(manager,queue,arrayptr);
       return SetBufferAsKernelArg(kernel,arg_index,arrayptr);
     }
 

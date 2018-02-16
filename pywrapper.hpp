@@ -22,6 +22,9 @@ namespace snde {
 
     inline CountedPyObject & operator=(const CountedPyObject &orig)
     {
+      if (_obj) {
+	Py_DECREF(_obj);
+      }
       _obj=orig._obj;
       if (_obj) {
 	Py_INCREF(_obj);
@@ -30,6 +33,7 @@ namespace snde {
     }
 
     inline PyObject *value() {
+      Py_INCREF(_obj); /* return a new reference */
       return _obj;
     }
     

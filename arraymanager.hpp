@@ -49,6 +49,7 @@ namespace snde {
     std::unordered_map<void **,allocationinfo> allocators;
     std::shared_ptr<memallocator> _memalloc;
     std::shared_ptr<lockmanager> locker;
+    std::unordered_map<void **,void **> allocation_arrays; // look up the arrays used for allocation 
 
     std::mutex admin; /* serializes access to caches */
     std::unordered_map<std::string,std::shared_ptr<cachemanager>> _caches;
@@ -73,6 +74,7 @@ namespace snde {
       allocators[arrayptr]=allocationinfo{std::make_shared<allocator>(_memalloc,locker,arrayptr,elemsize,totalnelem),0};
       locker->addarray(arrayptr);
     
+      allocation_arrays[arrayptr]=arrayptr;
     
     }
   
@@ -86,6 +88,7 @@ namespace snde {
       //alloc->add_other_array(arrayptr,elemsize);
       allocators[arrayptr]=allocationinfo{alloc,alloc->add_other_array(arrayptr,elemsize)};
 
+      allocation_arrays[arrayptr]=allocatedptr;
     }
     
     virtual snde_index get_elemsize(void **arrayptr)

@@ -37,7 +37,7 @@ lockholder = spatialnde2.pylockholder()
                                         lambda proc: [
                                             # remember to follow locking order!
                                             lockholder.store((yield proc.get_locks_read_array_region(geometry,"vertexidx",0,spatialnde2.SNDE_INDEX_INVALID))),
-                                            (yield proc.spawn(lambda proc: [ lockholder.store((yield proc.get_locks_read_array_region(geometry,"vertices",0,spatialnde2.SNDE_INDEX_INVALID))) ]))
+                                            lockholder.store((yield proc.get_locks_read_array_region(geometry,"vertices",0,spatialnde2.SNDE_INDEX_INVALID)))
                                         ])
 
 # can now access lockholder.vertices, etc.
@@ -55,17 +55,3 @@ spatialnde2.release_rwlock_token_set(all_locks);
 
 
 
-
-# An alternate locking process: Using the C++ interface
-lockholder = spatialnde2.pylockholder()
-lockprocess = spatialnde2.lockingprocess_threaded_python(manager.locker)
-
-# lockprocess supports spawning to python lambdas/functions 
-lockprocess.spawn(lambda proc: [lockholder.store_name("vertices_write",lockprocess.get_locks_write_array_region(geometry.field_address("vertices"),0,spatialnde2.SNDE_INDEX_INVALID)) ]) # NOTE: must use lockholder.store_name() not lockholder.store() 
-lockholder.vertices_read = lockprocess.get_locks_read_array_region(geometry.field_address("vertices"),0,spatialnde2.SNDE_INDEX_INVALID);
-
-(all_locks,readregions,writeregions) = lockprocess.finish()
-spatialnde2.unlock_rwlock_token_set(all_locks);
-
-
-# Another alternate locking process: 

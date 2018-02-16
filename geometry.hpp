@@ -288,7 +288,7 @@ namespace snde {
 	} else {
 	  process->get_locks_read_array_region((void **)&geom->geom.triangles,geom->geom.meshedparts[meshedpartnum].firsttri,geom->geom.meshedparts[meshedpartnum].numtris);
 	}
-	
+	/*
 	if (geom->geom.refpoints) {
 	  if (writemask & SNDE_COMPONENT_GEOMWRITE_REFPOINTS) {
 	    process->get_locks_write_array_region((void **)&geom->geom.refpoints,geom->geom.meshedparts[meshedpartnum].firsttri,geom->geom.meshedparts[meshedpartnum].numtris);
@@ -320,6 +320,7 @@ namespace snde {
 	    process->get_locks_read_array_region((void **)&geom->geom.inplanemat,geom->geom.meshedparts[meshedpartnum].firsttri,geom->geom.meshedparts[meshedpartnum].numtris);
 	  }	
 	}
+	*/
       }
 
       if (geom->geom.meshedparts[meshedpartnum].firstedge != SNDE_INDEX_INVALID) {
@@ -336,7 +337,7 @@ namespace snde {
 	} else {
 	  process->get_locks_read_array_region((void **)&geom->geom.vertices,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
 	}
-
+	/*
 	if (geom->geom.principal_curvatures) {
 	  if (writemask & SNDE_COMPONENT_GEOMWRITE_PRINCIPAL_CURVATURES) {
 	    process->get_locks_write_array_region((void **)&geom->geom.principal_curvatures,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
@@ -360,6 +361,7 @@ namespace snde {
 	    process->get_locks_read_array_region((void **)&geom->geom.vertex_edgelist_indices,geom->geom.meshedparts[meshedpartnum].firstvertex,geom->geom.meshedparts[meshedpartnum].numvertices);
 	  }
 	}
+*/
       }
       
 
@@ -381,14 +383,14 @@ namespace snde {
 	    process->get_locks_read_array_region((void **)&geom->geom.boxes,geom->geom.meshedparts[meshedpartnum].firstbox,geom->geom.meshedparts[meshedpartnum].numboxes);
 	  }	
 	}
-
+	/*
 	if (geom->geom.boxcoord) {
 	  if (writemask & SNDE_COMPONENT_GEOMWRITE_BOXCOORDS) {
 	    process->get_locks_write_array_region((void **)&geom->geom.boxcoord,geom->geom.meshedparts[meshedpartnum].firstbox,geom->geom.meshedparts[meshedpartnum].numboxes);
 	  } else {
 	    process->get_locks_read_array_region((void **)&geom->geom.boxcoord,geom->geom.meshedparts[meshedpartnum].firstbox,geom->geom.meshedparts[meshedpartnum].numboxes);
 	  }	
-	}
+	}*/
       }
 
 

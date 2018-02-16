@@ -10,6 +10,52 @@
 #include "openclcachemanager.hpp"
 %}
 
+
+%typemap(out) std::tuple<rwlock_token_set,rwlock_token_set,cl_mem,snde_index,std::vector<cl_event>> (PyObject *pyopencl=NULL,PyObject *clEvent=NULL,PyObject *clEvent_from_int_ptr=NULL,PyObject *clMem=NULL,PyObject *clMem_from_int_ptr=NULL,PyObject *EventTuple,std::vector<cl_event> &eventvec) {
+  pyopencl = PyImport_ImportModule("pyopencl");
+  if (!pyopencl) SWIG_fail; /* raise exception up */
+  
+  clEvent=PyObject_GetAttrString(pyopencl,"Event");
+  clEvent_from_int_ptr=PyObject_GetAttrString(clEvent,"from_int_ptr");
+  clMem=PyObject_GetAttrString(pyopencl,"MemoryObject");
+  clMem_from_int_ptr=PyObject_GetAttrString(clMem,"from_int_ptr");
+
+  
+  $result = PyTuple_New(5);
+  // Substituted code for converting cl_context here came
+  // from a typemap substitution "$typemap(out,cl_context)"
+  std::shared_ptr<snde::rwlock_token_set_content> result0 = std::get<0>(*&$1);
+  std::shared_ptr<snde::rwlock_token_set_content> *smartresult0 = bool(result0) ? new std::shared_ptr<snde::rwlock_token_set_content>(result0 SWIG_NO_NULL_DELETER_SWIG_POINTER_NEW) :0;
+  
+  
+  PyTuple_SetItem($result,0,SWIG_NewPointerObj(%as_voidptr(smartresult0), $descriptor(std::shared_ptr< snde::rwlock_token_set_content > *), SWIG_POINTER_OWN));
+
+  std::shared_ptr<snde::rwlock_token_set_content> result1 = std::get<1>(*&$1);
+  std::shared_ptr<snde::rwlock_token_set_content> *smartresult1 = bool(result1) ? new std::shared_ptr<snde::rwlock_token_set_content>(result1 SWIG_NO_NULL_DELETER_SWIG_POINTER_NEW) :0;
+  
+  
+  PyTuple_SetItem($result,1,SWIG_NewPointerObj(%as_voidptr(smartresult1), $descriptor(std::shared_ptr< snde::rwlock_token_set_content > *), SWIG_POINTER_OWN));
+  PyTuple_SetItem($result,2,PyObject_CallFunction(clMem_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)std::get<2>(*&$1)),Py_False));
+  
+  PyTuple_SetItem($result,3,SWIG_From_unsigned_long_SS_long_SS_long(static_cast<unsigned long long>std::get<3>(*&$1)));
+  
+  eventvec=std::get<4>(*&$1);
+  EventTuple=PyTuple_New(eventvec.size());
+  for (cnt=0;cnt < eventvec.size();cnt++) {
+    PyTuple_SetItem(EventTuple,cnt,PyObject_CallFunction(clEvent_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)eventvec[cnt]),Py_False));
+  }
+
+  PyTuple_SetItem($result,4,EventTuple);
+  
+
+  Py_XDECREF(clMem_from_int_ptr);
+  Py_XDECREF(clMem);
+  Py_XDECREF(clEvent_from_int_ptr);
+  Py_XDECREF(clEvent);
+  Py_XDECREF(pyopencl);
+}
+
+
 extern "C" void snde_opencl_callback(cl_event event, cl_int event_command_exec_status, void *user_data);
 
 namespace snde {
@@ -183,19 +229,19 @@ namespace snde {
   
     ~OpenCLBuffers();
     
-    cl_mem Mem_untracked(void **arrayptr);
+    //cl_mem Mem_untracked(void **arrayptr); // disallow unprotected pointer into Python
+    cl_mem Mem(void **arrayptr);
 
-
-    cl_event *FillEvents_untracked(void);
+    //cl_event *FillEvents_untracked(void); (access fill_events attribute instead)
 
     cl_uint NumFillEvents(void);
 
     
     cl_int SetBufferAsKernelArg(cl_kernel kernel, cl_uint arg_index, void **arrayptr);
   
-    void AddBuffer(std::shared_ptr<arraymanager> manager,cl_command_queue queue, void **allocatedptr, void **arrayptr,bool write_only=false);
+    void AddBuffer(std::shared_ptr<arraymanager> manager,cl_command_queue queue, void **arrayptr,bool write_only=false);
 
-    cl_int AddBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl_command_queue queue,cl_kernel kernel,cl_uint arg_index,void **allocatedptr, void **arrayptr);
+    cl_int AddBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl_command_queue queue,cl_kernel kernel,cl_uint arg_index,void **arrayptr);
     
     void RemBuffer(void **arrayptr,cl_event input_data_not_needed,std::vector<cl_event> output_data_complete,bool wait);
 
