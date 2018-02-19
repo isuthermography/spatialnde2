@@ -156,29 +156,19 @@ namespace snde {
     snde_index regionstart;
     snde_index regionend;
 
-    markedregion(snde_index regionstart,snde_index regionend)
-    {
-      this->regionstart=regionstart;
-      this->regionend=regionend;
-    }
+    markedregion(snde_index regionstart,snde_index regionend);
 
-    bool attempt_merge(markedregion &later)
-    {
-      assert(later.regionstart==regionend);
-      regionend=later.regionend;
-      return true;
-    }
-    std::shared_ptr<markedregion> breakup(snde_index breakpoint)
-    /* breakup method ends this region at breakpoint and returns
-       a new region starting at from breakpoint to the prior end */
-    {
-      std::shared_ptr<markedregion> newregion=std::make_shared<markedregion>(breakpoint,regionend);
-      regionend=breakpoint;
-
-      return newregion;
-    }
+    bool attempt_merge(markedregion &later);
+    std::shared_ptr<markedregion> breakup(snde_index breakpoint);
   };
 
+  class dirtyregion: public markedregion  {
+  public:
+    cachemanager *cache_with_valid_data;
+    dirtyregion(cachemanager *cache_with_valid_data,snde_index regionstart, snde_index regionend);
+    
+  }
+  
   class rwlock {
   public:
     // loosely motivated by https://stackoverflow.com/questions/11032450/how-are-read-write-locks-implemented-in-pthread
@@ -199,7 +189,7 @@ namespace snde {
     rwlock_lockable writer;
 
 
-    rangetracker<markedregion> _dirtyregions; /* track dirty ranges during a write (all regions that are locked for write) */
+    rangetracker<dirtyregion> _dirtyregions; /* track dirty ranges during a write (all regions that are locked for write) */
 
     std::deque<std::function<void(snde_index firstelem,snde_index numelems)>> _dirtynotify; /* locked by admin, but functions should be called with admin lock unlocked (i.e. copy the deque before calling). This write lock will be locked. NOTE: numelems of SNDE_INDEX_INVALID means to the end of the array  */
 

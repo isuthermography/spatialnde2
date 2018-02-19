@@ -23,6 +23,10 @@ namespace snde {
   public:
     std::shared_ptr<allocator> alloc;
     size_t allocindex; // index into alloc->arrays
+    /* !!!***need something here to indicate which cache (or none) most recently updated the 
+       data... perhaps the whole array or perhaps per specific piece 
+       Need also to consider the locking semantics of the something. 
+    */ 
   };
 
   
@@ -54,6 +58,7 @@ namespace snde {
     std::mutex admin; /* serializes access to caches */
     std::unordered_map<std::string,std::shared_ptr<cachemanager>> _caches;
 
+    
 
     arraymanager(std::shared_ptr<memallocator> memalloc) {
       _memalloc=memalloc;
@@ -176,6 +181,7 @@ namespace snde {
       std::lock_guard<std::mutex> lock(admin);
       _caches[name]=cache;
     }
+
 
     virtual ~arraymanager() {
       // allocators.clear(); (this is implicit)

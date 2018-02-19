@@ -372,8 +372,30 @@ namespace snde {
 	 while it is being used in another place.
 	 
 	 NOTE THAT THIS PRACTICALLY PREVENTS region-granular
-	 locking unless we switch to using non-overlapping OpenCL sub-buffers */
+	 locking unless we switch to using non-overlapping OpenCL sub-buffers 
 
+	 ... We would have to ensure that all lockable regions (presumably 
+	 based on allocation) are aligned per CL_DEVICE_MEM_BASE_ADDR_ALIGN for all
+         relevant devices)
+
+	 ... so this means that the region-granular locking could only
+	 be at the level of individual allocations (not unreasonable)...
+
+	 ... since allocations cannot be overlapping and may not be adjacent, 
+	 this means that one lock per allocation is the worst case, and we 
+	 don't have to worry about overlapping lockable regions.
+
+	 ... So in that case we should create a separate rwlock for each allocation
+         (in addition to a giant one for the whole thing?  ... or do we just iterate
+         them to lock the whole thing?... probably the latter. ) 
+
+	 if locking the whole thing we would use the main cl_mem buffer 
+	 if a single allocation it would be a sub_buffer. 
+
+      */
+
+      
+      
       /* make sure we will wait for any currently pending transfers */
       for (invalidregion=oclbuffer->invalidity.begin();invalidregion != oclbuffer->invalidity.end();invalidregion++) {
 	if (invalidregion->second->fill_event) {
@@ -604,6 +626,33 @@ namespace snde {
 
 	      }
 
+	      /* Should call verify_rwlock_token_set() or similar here, 
+		 so that if somehow the set was unlocked prior, we can diagnose the error */
+
+	      /* ***!!!! need to notify all other cache managers that this page is dirty !!!*** 
+	       (should be able to do this through the lockmanager's dirtynotify functionality,
+               triggered by the unlocking, but how do we prevent this cache manager from seeing 
+	       that notification too and doing an excess copy? 
+
+	       I think this already happens in the unlock call, but *** WE ARE NOT CURRENTLY REGISTERED
+	       WITH DIRTYNOTIFY ***!!! 
+
+	       but there will be an excess copy anyway...
+
+	       Maybe dirtynotify should track most_recent_update somehow... 
+
+	       ... _dirtyregions now has a cache field... 
+
+	       Should the Release() call just mark as dirty, and then let the 
+	       dirtynotify callback trigger the transfer? No because that would 
+	       violate the coherence model that the main CPU copy should always 
+	       be valid when the lock is released. 
+
+	       Rather here we should mark as dirty, indicating ourselves as the source.
+	       Then on release our callback will realize that we are the source
+	       of the "dirt" and avoid the extra copy
+
+	      */ 
 	      release_rwlock_token_set(*writelocks_copy); /* release write lock */
 
 	      delete writelocks_copy;
@@ -640,6 +689,8 @@ namespace snde {
 		
 	      }
 	      
+	      /* Should call verify_rwlock_token_set() or similar here, 
+		 so that if somehow the set was unlocked prior, we can diagnose the error */
 	      release_rwlock_token_set(*readlocks_copy); /* release read lock */
 
 	      delete readlocks_copy;

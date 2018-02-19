@@ -143,6 +143,9 @@ int main(int argc, char *argv[])
   
   lockingprocess_threaded lockprocess(manager->locker);
 
+  // ***!!! Should do allocation within the locking process, that gets us a write lock
+  // ***!!! to the allocated region
+  
   // Lock the specified region (in this case, the whole thing)
   // of the "vertices" array
   rwlock_token_set vertices_lock = lockprocess.get_locks_read_array_region((void **)&geom->geom.vertices,0,SNDE_INDEX_INVALID);

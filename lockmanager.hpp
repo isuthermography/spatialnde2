@@ -91,13 +91,14 @@ namespace snde {
     void **array;
     snde_index indexstart;
     snde_index numelems;
+    
   };
 
   class markedregion  {
   public:
     snde_index regionstart;
     snde_index regionend;
-
+    
     markedregion(snde_index regionstart,snde_index regionend)
     {
       this->regionstart=regionstart;
@@ -121,6 +122,15 @@ namespace snde {
     }
   };
 
+  class dirtyregion: public markedregion  {
+  public:
+    cachemanager *cache_with_valid_data; /* Do not dereference this pointer... NULL means the main CPU store is the one with the valid data */
+    dirtyregion(cachemanager *cache_with_valid_data,snde_index regionstart, snde_index regionend) : markedregion(regionstart,regionend)
+    {
+      this->cache_with_valid_data=cache_with_valid_data;
+    }
+  };
+    
   class rwlock {
   public:
     // loosely motivated by https://stackoverflow.com/questions/11032450/how-are-read-write-locks-implemented-in-pthread
@@ -141,7 +151,7 @@ namespace snde {
     rwlock_lockable writer;
 
 
-    rangetracker<markedregion> _dirtyregions; /* track dirty ranges during a write (all regions that are locked for write */
+    rangetracker<dirtyregion> _dirtyregions; /* track dirty ranges during a write (all regions that are locked for write */
 
     std::deque<std::function<void(snde_index firstelem,snde_index numelems)>> _dirtynotify; /* locked by admin, but functions should be called with admin lock unlocked (i.e. copy the deque before calling). This write lock will be locked. NOTE: numelems of SNDE_INDEX_INVALID means to the end of the array  */
 
@@ -222,22 +232,51 @@ namespace snde {
       }
     }
 
-    void writer_append_region(snde_index firstelem, snde_index numelems) {
+    void writer_mark_as_dirty(cachemanager *cache_with_valid_data,snde_index firstelem, snde_index numelems) {
+      // was writer_append_region()
       if (writelockcount < 1) {
 	throw std::invalid_argument("Can only append to region of something locked for write");
       }
       std::unique_lock<std::mutex> adminlock(admin);
       /* Should probably merge with preexisting entries here... */
 
-      _dirtyregions.mark_region(firstelem,numelems);
+      _dirtyregions.mark_region(firstelem,numelems,cache_with_valid_data);
 
     }
 
-    void lock_writer(snde_index firstelem,snde_index numelems) {
-      // lock for write
-      // WARNING no actual element granularity; firstelem and
-      // numelems are stored so as to enable correct dirty
-      // notifications
+    //void lock_writer(snde_index firstelem,snde_index numelems) {
+    // // lock for write
+    // // WARNING no actual element granularity; firstelem and
+    //  // numelems are stored so as to enable correct dirty
+    //  // notifications
+    //  std::unique_lock<std::mutex> adminlock(admin);
+
+
+    //  std::condition_variable cond;
+
+    //  if (writelockcount > 0 || readlockcount > 0) {
+    //	/* add us to end of queue if locked for reading or writing */
+    //	threadqueue.push_back(&cond);
+    //	_wait_for_top_of_queue(&cond,&adminlock);
+    //  }
+
+    //  /* been through queue once... now keep us on front of queue
+    //     until no-longer locked for writing */
+    //  while(writelockcount > 0 || readlockcount > 0) {
+    //
+    //  threadqueue.push_front(&cond);
+    //  _wait_for_top_of_queue(&cond,&adminlock);
+    //  }
+
+    //  _dirtyregions.mark_region(firstelem,numelems);
+
+    //  writelockcount++;
+    //}
+
+    void lock_writer()
+    {
+     // lock for write
+     // WARNING: Caller is responsible for doing any dirty-marking!!!
       std::unique_lock<std::mutex> adminlock(admin);
 
 
@@ -257,14 +296,7 @@ namespace snde {
 	_wait_for_top_of_queue(&cond,&adminlock);
       }
 
-      _dirtyregions.mark_region(firstelem,numelems);
-
       writelockcount++;
-    }
-
-    void lock_writer()
-    {
-      lock_writer(0,SNDE_INDEX_INVALID);
     }
 
 
@@ -360,6 +392,9 @@ namespace snde {
   typedef std::shared_ptr<rwlock_token_set_content> rwlock_token_set;
 
 
+
+
+  
   /* rwlock_token_set semantics: 
      The rwlock_token_set contains a reference-counted set of locks, specific 
      to a particular thread. They can be passed around, copied, etc.
@@ -401,7 +436,15 @@ namespace snde {
     }
   }
   
+  static inline rwlock_token_set_mark_as_dirty(rwlock_token_set tokens,cachemanager *cache_with_valid_data,snde_index firstelem, snde_index numelems)
+  {
+    for (auto & lockableptr_token : *tokens) {
+      assert(lockableptr_token.second->owns_lock()); /* lock should be locked in order to mark it as dirty */
+      /* so long as it is locked, it had better exist, so the pointer is valid */
+      lockable_ptr_token.first->_rwlock_obj->writer_mark_as_dirty(cache_with_valid_data,firstelem,numelems);
+    }
 
+  }
 
 
   static inline rwlock_token_set empty_rwlock_token_set(void)
@@ -849,7 +892,7 @@ namespace snde {
     rwlock_token  _get_preexisting_lock_write_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index indexstart,snde_index numelems)
     {
       // We do not currently implement region-granular locking
-      // but we do store the bounds for notification purposes
+      // but we do store the bounds for notification purposes (NOT ANYMORE; dirty marking is now explicit)
 
       // prior is like a rwlock_token_set **
       rwlock_token token;
@@ -873,7 +916,7 @@ namespace snde {
     rwlock_token  _get_lock_write_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index indexstart,snde_index numelems)
     {
       // We do not currently implement region-granular locking
-      // but we do store the bounds for notification purposes
+      // but we do store the bounds for notification purposes (NOT ANYMORE; dirty marking is now explicit)
 
       // prior is like a rwlock_token_set **
       rwlock_token token;
@@ -887,11 +930,12 @@ namespace snde {
 	token = std::make_shared<std::unique_lock<rwlock_lockable>>(*lockobj);
 	(*all_locks)[lockobj]=token;
 
-        lockobj->_rwlock_obj->writer_append_region(indexstart,numelems);
+	// Dirty marking now must be done explicitly
+        //lockobj->_rwlock_obj->writer_append_region(indexstart,numelems);
 	return token;
 
       } else {
-	lockobj->_rwlock_obj->writer_append_region(indexstart,numelems);
+	//lockobj->_rwlock_obj->writer_append_region(indexstart,numelems);
         return token;
       }
 
