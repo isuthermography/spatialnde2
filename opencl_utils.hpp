@@ -1,5 +1,12 @@
 #ifndef SNDE_OPENCL_UTILS_HPP
 #define SNDE_OPENCL_UTILS_HPP
+
+#ifdef _MSC_VER
+#define strncasecmp _strnicmp
+#define strcasecmp _stricmp
+#define strtok_r strtok_s
+#endif
+
 #include <vector>
 #include <string>
 

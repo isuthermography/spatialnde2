@@ -273,7 +273,7 @@ namespace snde {
 
       
     /* old comments below... */
-    /* Must have a read lock on allocatedptr to get CL_MEM_READ_ONLY. Must have a write lock to get 
+    /* Must have a read lock on allocatedptr to get CL_MEM_READ_ONLY. Must have a write lock to get
        CL_MEM_READ_WRITE or CL_MEM_WRITE_ONLY 
 
        ... but having a write lock typically implies that the CPU will do the writing... normally 
@@ -333,7 +333,7 @@ namespace snde {
        first? 
        A: Yes, at least the range of data being written, because it might not write everything. But it might in fact write everything
        
-       * What about giving the kernel read access to the whole array, 
+       * What about giving the kernel read access to the whole array,
          but only write a portion (?)
          * Locking API won't support this in forseeable future. Lock the whole
            array for write. In future it might be possible to downgrade part
@@ -595,7 +595,10 @@ namespace snde {
 	
 	adminlock.unlock(); /* release adminlock in case our callback happens immediately */
 	
-	clSetEventCallback(prerequisite_events[0],CL_COMPLETE,snde_opencl_callback,(void *)new std::function<void(cl_event,cl_int)>([ writelocks_copy ](cl_event event, cl_int event_command_exec_status) {
+	clSetEventCallback(prerequisite_events[0],CL_COMPLETE, snde_opencl_callback,
+	                   (void *)new std::function<void(cl_event, cl_int)>(
+		                   [ writelocks_copy ](cl_event event, cl_int event_command_exec_status)
+		                   {
 	      /* NOTE: This callback may occur in a separate thread */
 	      /* it indicates that the data transfer is complete */
 
@@ -631,7 +634,10 @@ namespace snde {
 	/* in this case readlocks_copy delegated on to callback */
 	adminlock.unlock(); /* release adminlock in case our callback happens immediately */
 	
-	clSetEventCallback(input_data_not_needed,CL_COMPLETE,snde_opencl_callback,(void *)new std::function<void(cl_event,cl_int)>([ readlocks_copy ](cl_event event, cl_int event_command_exec_status) {
+	clSetEventCallback(input_data_not_needed,CL_COMPLETE, snde_opencl_callback,
+	                   (void *)new std::function<void(cl_event, cl_int)>(
+		                   [ readlocks_copy ](cl_event event, cl_int event_command_exec_status)
+		                   {
 	      /* NOTE: This callback may occur in a separate thread */
 	      /* it indicates that the input data is no longer needed */
 	      

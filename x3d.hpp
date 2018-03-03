@@ -1,18 +1,24 @@
 #ifndef SNDE_X3D_HPP
 #define SNDE_X3D_HPP
 
+#ifdef _MSC_VER
+#define strncasecmp _strnicmp
+#define strcasecmp _stricmp
+#define strtok_r strtok_s
+#endif
+
 #include <unordered_map>
+#include <cstdio>
 #include <string>
 #include <cstring>
 #include <cstdlib>
 #include <memory>
 #include <vector>
 #include <deque>
-#include <math.h>
+#include <cmath>
 
-
-#include <Eigen/Dense>
 #include <libxml/xmlreader.h>
+#include <Eigen/Dense>
 
 #include "snde_error.hpp"
 
@@ -76,7 +82,6 @@ namespace snde {
     char *copy=strdup(s.c_str());
     char *saveptr=NULL;
     char *endptr;
-
     std::vector<double> vec;
     for (char *tok=strtok_r(copy,"\r\n, ",&saveptr);tok;tok=strtok_r(NULL,"\r\n, ",&saveptr)) {
       endptr=tok;
@@ -144,9 +149,7 @@ namespace snde {
 
 
     /* non version-specific test */
-    if (!strncmp(NamespaceUri,"http://www.web3d.org/specifications/x3d",strlen("http://www.web3d.org/specifications/x3d"))) return true;
-
-    return false;
+    return !strncmp(NamespaceUri,"http://www.web3d.org/specifications/x3d",strlen("http://www.web3d.org/specifications/x3d"));
   }
 
   class x3d_loader {
@@ -160,6 +163,9 @@ namespace snde {
 
     std::shared_ptr<x3d_node> parse_material(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField); /* implemented below to work around circular reference loop */
     std::shared_ptr<x3d_node> parse_transform(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField);
+    std::shared_ptr<x3d_node> parse_indexedfaceset(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
+    std::shared_ptr<x3d_node> parse_imagetexture(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
+    std::shared_ptr<x3d_node> parse_shape(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
 
     x3d_loader()
     {
@@ -222,13 +228,15 @@ namespace snde {
 	result=parse_material(parentnode,containerField);
       } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"transform")) {
 	result=parse_transform(parentnode,containerField);
-      }
-        //TODO: else if
-        // else if ... { } else if ... { }
-      else {
+      } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"geometry")) {
+        result=parse_indexedfaceset(parentnode,containerField);
+      } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"imagetexture")) {
+        result=parse_imagetexture(parentnode,containerField);
+      } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"shape")) {
+        result=parse_shape(parentnode,containerField);
+      } else {
 	/* unknown element */
 	dispatchcontent(NULL);
-
       }
 
 
@@ -343,7 +351,6 @@ namespace snde {
     static std::shared_ptr<x3d_shape> fromcurrentelement(x3d_loader *loader) {
       std::shared_ptr<x3d_shape> shape=std::make_shared<x3d_shape>();
 
-
       SetVectorIfX3DAttribute(loader->reader, "bboxCenter", &shape->bboxCenter);
       SetVectorIfX3DAttribute(loader->reader, "bboxSize", &shape->bboxSize);
 
@@ -353,30 +360,18 @@ namespace snde {
     }
   };
 
-  // TODO: Implement parse_shape();
-
   /* NOTE:: parse_shape() will store in the master shape list rather
        than in the parentnode */
 
   /* NOTE: When pulling in data from text nodes, don't forget to combine multiple text 
      nodes and ignore e.g. comment nodes */
 
-  //  std::shared_ptr<x3d_node> x3d_loader::parse_material(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField)
-//  {
-//    if (!containerField) containerField=(xmlChar *)"material";
-//
-//    std::shared_ptr<x3d_node> mat_data=x3d_material::fromcurrentelement(this);
-//
-//    if (parentnode) {
-//      if (!parentnode->hasattr((char *)containerField)) {
-//        throw x3derror(0,NULL,"Invalid container field for material: ",(char *)containerField);
-//      }
-//      parentnode->nodedata[(char *)containerField]=mat_data;
-//    }
-//
-//    return mat_data;
-//  }
-
+  std::shared_ptr<x3d_node> x3d_loader::parse_shape(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
+  {
+    if (!containerField) containerField=(xmlChar *)"shape";
+    std::shared_ptr<x3d_shape> shape=x3d_shape::fromcurrentelement(this);
+	return shape;
+  }
 
   class x3d_transform : public x3d_node {
   public:
@@ -403,142 +398,71 @@ namespace snde {
 
     Eigen::Matrix<double,4,4> eval()
     {
-      /* TODO !!! Need to implement this based on Python version. 
-	 See also http://www.web3d.org/documents/specifications/19775-1/V3.2/Part01/components/group.html#Transform */
-      Eigen::Matrix<double, 4, 4> T;
-      // T[Range(),3]=
-      // T=eye(4);
-      // T.col(3) = {}
-      T(0, 0)=1.0;
-      T(0, 1)=0.0;
-      T(0, 2)=0.0;
-      T(0, 3)=this->translation[0];
-      T(1, 0)=0.0;
-      T(1, 1)=1.0;
-      T(1, 2)=0.0;
-      T(1, 3)=this->translation[1];
-      T(2, 0)=0.0;
-      T(2, 1)=0.0;
-      T(2, 2)=1.0;
-      T(2, 3)=this->translation[2];
-      T(3, 0)=0.0;
-      T(3, 1)=0.0;
-      T(3, 2)=0.0;
-      T(3, 3)=1.0;
+      /* See also http://www.web3d.org/documents/specifications/19775-1/V3.2/Part01/components/group.html#Transform */
+      Eigen::Matrix4d T;
+      T<<1.0,0.0,0.0,translation[0],0.0,1.0,0.0,translation[1],0.0,0.0,1.0,translation[2],0.0,0.0,0.0,1.0;
 
-      Eigen::Matrix<double, 4, 4> C;
-      C(0, 0)=1.0;
-      C(0, 1)=0.0;
-      C(0, 2)=0.0;
-      C(0, 3)=this->center[0];
-      C(1, 0)=0.0;
-      C(1, 1)=1.0;
-      C(1, 2)=0.0;
-      C(1, 3)=this->center[1];
-      C(2, 0)=0.0;
-      C(2, 1)=0.0;
-      C(2, 2)=1.0;
-      C(2, 3)=this->center[2];
-      C(3, 0)=0.0;
-      C(3, 1)=0.0;
-      C(3, 2)=0.0;
-      C(3, 3)=1.0;
+      Eigen::Matrix4d C;
+      C<<1.0,0.0,0.0,center[0],0.0,1.0,0.0,center[1],0.0,0.0,1.0,center[2],0.0,0.0,0.0,1.0;
 
-      Eigen::Vector3d k={this->rotation[0], this->rotation[1], this->rotation[2]};
-      double ang=this->rotation[3];
-      double kmag=k.norm();
+      Eigen::Vector3d k = {rotation[0], rotation[1], rotation[2]};
+      double ang = rotation[3];
+      double kmag = k.norm();
 
-      if (kmag<1e-9) { // Can't directly compare doubles.
-        kmag=1.0;
-        k=Eigen::Vector3d{0.0, 0.0, 1.0};
-        ang=0.0;
+      if (kmag < 1e-9) { // Can't directly compare doubles.
+        kmag = 1.0; // null rotation
+        k = Eigen::Vector3d{0.0, 0.0, 1.0};
+        ang = 0.0;
       }
 
-      k=k.array()/kmag;
+      k /= kmag;
 
-      Eigen::Matrix<double, 3, 3> RK;
-      RK(0, 0)=0.0;
-      RK(0, 1)=-k[2];
-      RK(0, 2)=k[1];
-      RK(1, 0)=k[2];
-      RK(1, 1)=0.0;
-      RK(1, 2)=-k[0];
-      RK(2, 0)=-k[1];
-      RK(2, 1)=k[0];
-      RK(2, 2)=0.0;
+      Eigen::Matrix3d RK; // Cross product matrix
+      RK<<0.0,-k[2],k[1],k[2],0.0,-k[0],-k[1],k[0],0.0;
 
-      Eigen::Matrix<double, 3, 3> RKsquared=RK*RK;
+      Eigen::Matrix3d eye;
+      eye << 1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0;
+      Eigen::Matrix<double,3,1> Right = {0.0,0.0,0.0};
+      Eigen::Matrix<double,1,4> Bottom = {0.0,0.0,0.0,1.0};
 
-      Eigen::Matrix<double, 4, 4> R;
-      R(0, 0)=1.0+(1.0-cos(ang))*RKsquared(0, 0);
-      R(0, 1)=sin(ang)*RK(0, 1)+(1.0-cos(ang))*RKsquared(0, 1);
-      R(0, 2)=sin(ang)*RK(0, 2)+(1.0-cos(ang))*RKsquared(0, 2);
-      R(0, 3)=0.0;
-      R(1, 0)=sin(ang)*RK(1, 0)+(1.0-cos(ang))*RKsquared(1, 0);
-      R(1, 1)=1.0+(1.0-cos(ang))*RKsquared(1, 1);
-      R(1, 2)=sin(ang)*RK(1, 2)+(1.0-cos(ang))*RKsquared(1, 2);
-      R(1, 3)=0.0;
-      R(2, 0)=sin(ang)*RK(2, 0)+(1.0-cos(ang))*RKsquared(2, 0);
-      R(2, 1)=sin(ang)*RK(2, 1)+(1.0-cos(ang))*RKsquared(2, 1);
-      R(2, 2)=1.0+(1.0-cos(ang))*RKsquared(2, 2);
-      R(2, 3)=0.0;
-      R(3, 0)=0.0;
-      R(3, 1)=0.0;
-      R(3, 2)=0.0;
-      R(3, 3)=1.0;
+      // RTopLeft is the top left 3x3 double matrix inside of R
+      Eigen::Matrix3d RTopLeft = eye.array() + (sin(ang) * RK).array() + ((1.0 - cos(ang)) * (RK * RK)).array();
 
-      Eigen::Vector3d SOk=Eigen::Vector3d(this->scaleOrientation[0], this->scaleOrientation[1], this->scaleOrientation[2]);
-      double SOang=this->scaleOrientation[3];
-      double SOkmag=SOk.norm();
+      Eigen::Matrix4d R(RTopLeft.rows()+Bottom.rows(),RTopLeft.cols()+Right.cols());
+      R << RTopLeft, Right, Bottom;
 
-      if (SOkmag<1e-9) { // Can't directly compare doubles.
-        SOkmag=1.0;
-        SOk=Eigen::Vector3d{0.0, 0.0, 1.0};
-        SOang=0.0;
+      // Apply Rodrigues rotation formula to determine scale orientation
+      Eigen::Vector3d SOk;
+      SOk << scaleOrientation[0], scaleOrientation[1], scaleOrientation[2];
+      double SOang = scaleOrientation[3];
+      double SOkmag = SOk.norm();
+
+      if (SOkmag < 1e-9) { // Can't directly compare doubles.
+        SOkmag = 1.0; // null rotation
+        SOk = Eigen::Vector3d{0.0, 0.0, 1.0};
+        SOang = 0.0;
       }
 
-      SOk=SOk.array()/SOkmag;
+      SOk/=SOkmag;
 
-      Eigen::Matrix<double, 3, 3> SOK;
-      SOK(0, 0)=0.0;
-      SOK(0, 1)=-k[2];
-      SOK(0, 2)=k[1];
-      SOK(1, 0)=k[2];
-      SOK(1, 1)=0.0;
-      SOK(1, 2)=-k[0];
-      SOK(2, 0)=-k[1];
-      SOK(2, 1)=k[0];
-      SOK(2, 2)=0.0;
+      Eigen::Matrix3d SOK; // Cross product matrix
+      SOK<<0.0,-SOk[2],SOk[1],SOk[2],0.0,-SOk[0],-SOk[1],SOk[0],0.0;
 
-      Eigen::Matrix<double, 3, 3> SOKsquared=SOK*SOK;
+      // SRTopLeft is the top left 3x3 double matrix inside of SR
+      Eigen::Matrix3d SRTopLeft = eye.array() + (sin(SOang) * SOK).array() + ((1.0 - cos(SOang)) * (SOK * SOK)).array();
 
-      Eigen::Matrix<double, 4, 4> SR;
-      SR(0, 0)=1.0+(1.0-cos(SOang))*SOKsquared(0, 0);
-      SR(0, 1)=sin(SOang)*SOK(0, 1)+(1.0-cos(SOang))*SOKsquared(0, 1);
-      SR(0, 2)=sin(SOang)*SOK(0, 2)+(1.0-cos(SOang))*SOKsquared(0, 2);
-      SR(0, 3)=0.0;
-      SR(1, 0)=sin(SOang)*SOK(1, 0)+(1.0-cos(SOang))*SOKsquared(1, 0);
-      SR(1, 1)=1.0+(1.0-cos(SOang))*SOKsquared(1, 1);
-      SR(1, 2)=sin(SOang)*SOK(1, 2)+(1.0-cos(SOang))*SOKsquared(1, 2);
-      SR(1, 3)=0.0;
-      SR(2, 0)=sin(SOang)*SOK(2, 0)+(1.0-cos(SOang))*SOKsquared(2, 0);
-      SR(2, 1)=sin(SOang)*SOK(2, 1)+(1.0-cos(SOang))*SOKsquared(2, 1);
-      SR(2, 2)=1.0+(1.0-cos(SOang))*SOKsquared(2, 2);
-      SR(2, 3)=0.0;
-      SR(3, 0)=0.0;
-      SR(3, 1)=0.0;
-      SR(3, 2)=0.0;
-      SR(3, 3)=1.0;
+      Eigen::Matrix4d SR(SRTopLeft.rows()+Bottom.rows(),SRTopLeft.cols()+Right.cols());
+      SR << SRTopLeft, Right, Bottom;
 
-      Eigen::Matrix<double, 4, 4> S;
-      S<<this->scale[0], 0.0, 0.0, 0.0, 0.0, this->scale[1], 0.0, 0.0, 0.0, 0.0, this->scale[2], 0.0, 0.0, 0.0, 0.0, 1.0;
+      Eigen::Matrix4d S;
+      S << scale[0], 0.0, 0.0, 0.0, 0.0, scale[1], 0.0, 0.0, 0.0, 0.0, scale[2], 0.0, 0.0, 0.0, 0.0, 1.0;
 
-      Eigen::Matrix<double, 4, 4> matrix;
-      matrix=T*C*R*SR*S*(-SR)*(-C);
+      Eigen::Matrix4d matrix;
+      matrix = T * C * R * SR * S * (-SR) * (-C);
 
       return matrix;
     }
-    
+
     static std::shared_ptr<x3d_transform> fromcurrentelement(x3d_loader *loader) {
       std::shared_ptr<x3d_transform> trans=std::make_shared<x3d_transform>();
 
@@ -567,14 +491,14 @@ namespace snde {
   };
 
   std::shared_ptr<x3d_node> x3d_loader::parse_transform(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField) {
-    if (!containerField) containerField=(xmlChar *) "material";
+    if (!containerField) containerField=(xmlChar *)"transform";
 
     std::shared_ptr<x3d_node> trans_data=x3d_transform::fromcurrentelement(this);
 
 
     /* because transform applies itself to the underlying objects,
        we don't add the transform as a field of our parent */
-    
+
     return trans_data;
   }
 
@@ -609,23 +533,21 @@ namespace snde {
     }
   };
 
-  //TODO: Implement parse_indexedfaceset();
+  std::shared_ptr<x3d_node> x3d_loader::parse_indexedfaceset(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
+  {
+    if (!containerField) containerField=(xmlChar *)"geometry";
 
-  //  std::shared_ptr<x3d_node> x3d_loader::parse_material(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField)
-//  {
-//    if (!containerField) containerField=(xmlChar *)"material";
-//
-//    std::shared_ptr<x3d_node> mat_data=x3d_material::fromcurrentelement(this);
-//
-//    if (parentnode) {
-//      if (!parentnode->hasattr((char *)containerField)) {
-//        throw x3derror(0,NULL,"Invalid container field for material: ",(char *)containerField);
-//      }
-//      parentnode->nodedata[(char *)containerField]=mat_data;
-//    }
-//
-//    return mat_data;
-//  }
+    std::shared_ptr<x3d_node> mat_data=x3d_indexedfaceset::fromcurrentelement(this);
+
+    if (parentnode) {
+      if (!parentnode->hasattr((char *)containerField)) {
+        throw x3derror(0,NULL,"Invalid container field for geometry (indexedfaceset): ",(char *)containerField);
+      }
+      parentnode->nodedata[(char *)containerField]=mat_data;
+    }
+
+    return mat_data;
+  }
 
   class x3d_imagetexture : public x3d_node {
   public:
@@ -652,23 +574,21 @@ namespace snde {
     }
   };
 
-  //TODO: Implement parse_imagetexture();
+  std::shared_ptr<x3d_node> x3d_loader::parse_imagetexture(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
+  {
+    if (!containerField) containerField=(xmlChar *)"texture";
 
-  //  std::shared_ptr<x3d_node> x3d_loader::parse_material(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField)
-//  {
-//    if (!containerField) containerField=(xmlChar *)"material";
-//
-//    std::shared_ptr<x3d_node> mat_data=x3d_material::fromcurrentelement(this);
-//
-//    if (parentnode) {
-//      if (!parentnode->hasattr((char *)containerField)) {
-//        throw x3derror(0,NULL,"Invalid container field for material: ",(char *)containerField);
-//      }
-//      parentnode->nodedata[(char *)containerField]=mat_data;
-//    }
-//
-//    return mat_data;
-//  }
+    std::shared_ptr<x3d_node> mat_data=x3d_imagetexture::fromcurrentelement(this);
+
+    if (parentnode) {
+      if (!parentnode->hasattr((char *)containerField)) {
+        throw x3derror(0,NULL,"Invalid container field for imagetexture: ",(char *)containerField);
+      }
+      parentnode->nodedata[(char *)containerField]=mat_data;
+    }
+
+    return mat_data;
+  }
 
   class x3d_appearance : public x3d_node {
   public:

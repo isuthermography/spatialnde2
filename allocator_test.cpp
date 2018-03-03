@@ -20,8 +20,6 @@ using namespace snde;
 int main(int argc, char *argv[])
 {
 
-  ;
-  
   float *test_array;
 
   snde_index blockstart,blocksize;
