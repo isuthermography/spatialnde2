@@ -1,6 +1,6 @@
 
-#include <assert.h>
-#include <string.h>
+#include <cassert>
+#include <cstring>
 #include <cstdint>
 #include <cstdarg>
 

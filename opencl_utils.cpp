@@ -7,7 +7,6 @@
 
 #include <CL/opencl.h>
 
-
 #include "opencl_utils.hpp"
 
 #define MAX_DEVICES 1000

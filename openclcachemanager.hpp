@@ -515,7 +515,7 @@ namespace snde {
 
       
     /* old comments below... */
-    /* Must have a read lock on allocatedptr to get CL_MEM_READ_ONLY. Must have a write lock to get 
+    /* Must have a read lock on allocatedptr to get CL_MEM_READ_ONLY. Must have a write lock to get
        CL_MEM_READ_WRITE or CL_MEM_WRITE_ONLY 
 
        ... but having a write lock typically implies that the CPU will do the writing... normally 
@@ -575,7 +575,7 @@ namespace snde {
        first? 
        A: Yes, at least the range of data being written, because it might not write everything. But it might in fact write everything
        
-       * What about giving the kernel read access to the whole array, 
+       * What about giving the kernel read access to the whole array,
          but only write a portion (?)
          * Locking API won't support this in forseeable future. Lock the whole
            array for write. In future it might be possible to downgrade part
