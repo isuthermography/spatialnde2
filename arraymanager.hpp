@@ -13,12 +13,20 @@ namespace snde {
   typedef void **ArrayPtr;
   static inline ArrayPtr ArrayPtr_fromint(unsigned long long intval) {return (void **)intval; } 
 
-  class cachemanager { /* abstract base class for cache managers */
+  class cachemanager: public std::enable_shared_from_this<cachemanager> { /* abstract base class for cache managers */
   public:
+    virtual void mark_as_dirty(void **arrayptr,snde_index pos,snde_index numelem) {};
     virtual ~cachemanager() {};
     
   };
 
+  static inline std::string AddrStr(void **ArrayPtr)
+  {
+    char buf[1000];
+    snprintf(buf,999,"0x%lx",(unsigned long)ArrayPtr);
+    return std::string(buf);
+  }
+  
   class allocationinfo { 
   public:
     std::shared_ptr<allocator> alloc;
@@ -53,15 +61,19 @@ namespace snde {
     std::unordered_map<void **,allocationinfo> allocators;
     std::shared_ptr<memallocator> _memalloc;
     std::shared_ptr<lockmanager> locker;
-    std::unordered_map<void **,void **> allocation_arrays; // look up the arrays used for allocation 
+    std::shared_ptr<allocator_alignment> alignment_requirements;
+    std::unordered_map<void **,void **> allocation_arrays; // look up the arrays used for allocation
+    std::multimap<void **,void **> arrays_managed_by_allocator; // look up the managed arrays by the allocator array... ordering is as the arrays are created, which follows the locking order
 
     std::mutex admin; /* serializes access to caches */
     std::unordered_map<std::string,std::shared_ptr<cachemanager>> _caches;
 
     
 
-    arraymanager(std::shared_ptr<memallocator> memalloc) {
+    arraymanager(std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements)
+    {
       _memalloc=memalloc;
+      this->alignment_requirements=alignment_requirements;
       locker = std::make_shared<lockmanager>();
     }
 
@@ -76,10 +88,12 @@ namespace snde {
       assert(allocators.find(arrayptr)==allocators.end());
 
       //allocators[arrayptr]=std::make_shared<allocator>(_memalloc,locker,arrayptr,elemsize,totalnelem);
-      allocators[arrayptr]=allocationinfo{std::make_shared<allocator>(_memalloc,locker,arrayptr,elemsize,totalnelem),0};
+      allocators[arrayptr]=allocationinfo{std::make_shared<allocator>(_memalloc,locker,alignment_requirements,arrayptr,elemsize,totalnelem),0};
       locker->addarray(arrayptr);
     
       allocation_arrays[arrayptr]=arrayptr;
+      arrays_managed_by_allocator.emplace(std::make_pair(arrayptr,arrayptr));
+      
     
     }
   
@@ -94,6 +108,46 @@ namespace snde {
       allocators[arrayptr]=allocationinfo{alloc,alloc->add_other_array(arrayptr,elemsize)};
 
       allocation_arrays[arrayptr]=allocatedptr;
+
+      arrays_managed_by_allocator.emplace(std::make_pair(allocatedptr,arrayptr));
+      locker->addarray(arrayptr);
+
+    }
+
+    virtual void add_unmanaged_array(void **allocatedptr,void **arrayptr)
+    {
+      allocators[arrayptr]=allocationinfo{nullptr,0};
+      allocation_arrays[arrayptr]=nullptr;
+      locker->addarray(arrayptr);
+    }
+    
+    virtual void mark_as_dirty(cachemanager *owning_cache_or_null,void **arrayptr,snde_index pos,snde_index len)
+    {
+      std::unique_lock<std::mutex> lock(admin);
+      size_t cnt=0;
+
+      /* mark as region as dirty under all caches except for the owning cache (if specified) */
+
+      /* copy first to avoid deadlock */
+      std::vector<std::shared_ptr<cachemanager>> caches(_caches.size());
+      for (auto & cache: _caches) {
+	caches[cnt]=cache.second;
+	cnt++;
+      }
+      lock.unlock();
+
+      for (auto & cache: caches) {
+	if (cache.get() != owning_cache_or_null) {
+	  cache->mark_as_dirty(arrayptr,pos,len);
+	}
+      }
+
+      
+    }
+    virtual void dirty_alloc(std::shared_ptr<lockholder> holder,void **arrayptr,std::string allocid, snde_index numelem)
+    {
+      snde_index startidx=holder->get_alloc(arrayptr,allocid);
+      mark_as_dirty(NULL,arrayptr,startidx,numelem);
     }
     
     virtual snde_index get_elemsize(void **arrayptr)
@@ -110,12 +164,22 @@ namespace snde {
       return alloc.alloc->_totalnchunks*alloc.alloc->_allocchunksize;
     }
 
-    virtual snde_index alloc(void **allocatedptr,snde_index nelem)
+    // This next one gives SWIG trouble because of confusion over whether snde_index is an unsigned long or an unsigned long long
+    virtual std::pair<snde_index,std::vector<std::pair<std::shared_ptr<alloc_voidpp>,rwlock_token_set>>> alloc_arraylocked(rwlock_token_set all_locks,void **allocatedptr,snde_index nelem)
     {
       //std::lock_guard<std::mutex> adminlock(admin);
       std::shared_ptr<allocator> alloc=allocators[allocatedptr].alloc;
-      return alloc->alloc(nelem);    
+      return alloc->alloc_arraylocked(all_locks,nelem);    
     }
+    
+    virtual std::vector<std::pair<std::shared_ptr<alloc_voidpp>,rwlock_token_set>> alloc_arraylocked_swigworkaround(snde::rwlock_token_set all_locks,void **allocatedptr,snde_index nelem,snde_index *OUTPUT)
+    {
+      std::vector<std::pair<std::shared_ptr<alloc_voidpp>,rwlock_token_set>> retvec;
+      
+      std::tie(*OUTPUT,retvec)=alloc_arraylocked(all_locks,allocatedptr,nelem);
+      return retvec;
+    }
+
 
     virtual void free(void **allocatedptr,snde_index addr,snde_index nelem)
     {

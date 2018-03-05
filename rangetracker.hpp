@@ -47,6 +47,10 @@ namespace snde {
       trackedregions.clear();
     }
 
+    void erase(iterator e) {
+      trackedregions.erase(e);
+    }
+    
     template <typename ... Args>
     std::pair<iterator,iterator> _breakupregion(iterator breakupregion, snde_index breakpoint,Args && ... args)
       // Breakup the region specified by the iterator and breakpoint...
@@ -57,7 +61,7 @@ namespace snde {
       // breakup method shrinks the existing region into the first of two
       // and returns the second
       std::shared_ptr<T> firstregion = breakupregion->second;
-      std::shared_ptr<T> secondregion = breakupregion->second->breakup(breakpoint,std::forward<Args>(args) ...);
+      std::shared_ptr<T> secondregion = breakupregion->second->sp_breakup(breakpoint,std::forward<Args>(args) ...);
 
       // erase from map
       trackedregions.erase(breakupregion->first);
@@ -88,7 +92,7 @@ namespace snde {
       /* identify first region where startpoint >= specified firstelem */
       region=trackedregions.lower_bound(firstelem);
       
-      if (region != trackedregions.end() && region->first != firstelem) {
+      if ((region != trackedregions.end() && region->first != firstelem) || (region==trackedregions.end())) {
 	
 	if (region != trackedregions.begin()) {
 	  // region we want may start partway through an invalidregion 
@@ -124,6 +128,36 @@ namespace snde {
       return region;
     }
     
+    void merge_adjacent_regions()
+    {
+      iterator iter=begin();
+      iterator next=iter;
+
+      if (iter==end()) return;
+      next++;
+      if (next==end()) return;
+      assert(next->first==next->second->regionstart);
+
+      for (;;) {
+	if (next->first==iter->second->regionend) {
+	  if (iter->second->attempt_merge(*next->second)) {
+	    trackedregions.erase(next);
+	    next=iter;
+	    next++;
+	    if (next==end()) return;
+	  } else {
+	    iter++;
+	    next++;
+	    if (next==end()) return;
+	  }
+	} else {
+	  iter++;
+	  next++;
+	  if (next==end()) return;
+	  
+	}
+      }
+    }
 
     template <typename ... Args>
     rangetracker<T> mark_region(snde_index firstelem, snde_index numelems,Args && ... args)
@@ -244,9 +278,13 @@ namespace snde {
     }
 
     template <typename ... Args>
-    rangetracker<T> get_regions(snde_index firstelem, snde_index numelems,Args && ... args)
+    rangetracker<T> iterate_over_marked_portions(snde_index firstelem, snde_index numelems,Args && ... args)
+    // formerly get_regions()
     /* returns iterable rangetracker with blocks representing
        all currently marked segments of the desired region.
+
+       Note that this DOES change the rangetracker, adding region boundaries 
+       at firstelem and firstelem+numelems if not already present and within marked zones
        
        Currently marked segments that overlap the desired region
        will be split at the region boundary and only the 
@@ -314,7 +352,7 @@ namespace snde {
     /* returns iterable rangetracker with blocks representing
        any removed marked segments of the desired region */
     {
-      rangetracker<T> marked_regions=get_regions(firstelem,numelems,std::forward<Args>(args) ...);
+      rangetracker<T> marked_regions=iterate_over_marked_portions(firstelem,numelems,std::forward<Args>(args) ...);
 
       for (auto & region: marked_regions) {
 	trackedregions.erase(region.first);
@@ -323,9 +361,86 @@ namespace snde {
       return marked_regions;
     }
 
+    template <typename ... Args>
+    std::shared_ptr<T> find_unmarked_region(snde_index start, snde_index endplusone,snde_index size,Args && ... args)
+    /* returns first unmarked region of specified size between start and endplusone */
+    {
+      snde_index marked_size,unmarked_size;
+      snde_index next_marked_size,next_unmarked_size;
+      snde_index pos,nextpos;
+
+      iterator region;
+
+      region=trackedregions.lower_bound(start);
+      if (region != trackedregions.end() && region->first >= start)  {
+	pos=start;
+	unmarked_size=region->first-start;
+	marked_size=region->second->regionend-region->second->regionstart;
+	if (marked_size+unmarked_size+pos > endplusone) {
+	  if (endplusone > pos+unmarked_size) {
+	    marked_size=endplusone-unmarked_size-pos;
+	  } else {
+	    marked_size=0;
+	    unmarked_size=endplusone-pos;
+	  }
+	}
+      } else if (region==trackedregions.end()) {
+	pos=start;
+	unmarked_size=endplusone-start;
+	marked_size=0;
+      } else {
+	assert(0); /* should never happen */
+      }
+      
+      for (;pos < endplusone;pos=nextpos,unmarked_size=next_unmarked_size,marked_size=next_marked_size) {
+	/* in general we iterate over blocks that consist of an 
+	   unmarked region, followed by a marked region */
+	if (unmarked_size >= size) {
+	  return std::make_shared<T>(pos,size,std::forward<Args>(args) ...); 
+	}
+
+	nextpos=pos+unmarked_size+marked_size;
+
+	if (region!=trackedregions.end()) {
+	  region++;
+	}
+	if (region!=trackedregions.end()) {
+	  next_unmarked_size=region->first-nextpos;
+	  
+	  assert(region->first==region->second->regionstart);
+	  next_marked_size=region->second->regionend-region->second->regionstart;
+
+	  if (next_marked_size+next_unmarked_size+nextpos > endplusone) {
+	    if (endplusone > nextpos+next_unmarked_size) {
+	      next_marked_size=endplusone-next_unmarked_size-nextpos;
+	    } else {
+	      next_marked_size=0;
+	      next_unmarked_size=endplusone-nextpos;
+	    }
+	  }
+	  	  
+	} else {
+	  /* region==trackedregions.end */
+	  next_unmarked_size=endplusone-nextpos;
+	  next_marked_size=0;
+	}
+	
+      }
+      return nullptr;
+    }
 
   };
 
+  template <class T>
+  bool region_overlaps(T & cmpregion,snde_index regionstart,snde_index regionend) {
+    // to not overlap, one has to end before the other starts
+    // (equality OK because end marker is one past physical end)
+    
+    if (cmpregion.regionend <= regionstart) return false;
+    if (regionend <= cmpregion.regionstart) return false;
+    return true;
+  }
+  
   template <class T,typename ... Args>
   rangetracker<T> range_union(rangetracker <T> &a, rangetracker<T> &b,Args && ... args)
   {

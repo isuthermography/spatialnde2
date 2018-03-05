@@ -8,6 +8,7 @@
 extern "C" {
 
   // BUG... these implementations should probably catch exceptions.... 
+  /*
   snde_index snde_allocator_alloc(snde::allocator *alloc,snde_index nelem)
   {
     return alloc->alloc(nelem);
@@ -17,5 +18,5 @@ extern "C" {
   {
     alloc->free(addr,nelem);
   }
-  
+  */  
 };

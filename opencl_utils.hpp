@@ -5,7 +5,7 @@
 
 #include <CL/opencl.h>
 
-
+#include "allocator.hpp"
 #include "snde_error_opencl.hpp"
 
 namespace snde {
@@ -15,6 +15,8 @@ namespace snde {
   std::tuple<cl_program, std::string> get_opencl_program(cl_context context, cl_device_id device, std::vector<const char *> program_source);
   std::tuple<cl_program, std::string> get_opencl_program(cl_context context, cl_device_id device, std::vector<std::string> program_source);
 
+  void add_opencl_alignment_requirement(std::shared_ptr<allocator_alignment> alignment,cl_device_id device);
+  
 }
 
 #endif // SNDE_OPENCL_UTILS_HPP

@@ -15,9 +15,10 @@ typedef struct allocator allocator;
 extern "C" {
 #endif
 
+  /*
   snde_index snde_allocator_alloc(snde::allocator *alloc,snde_index nelem);
   void snde_allocator_free(snde::allocator *alloc,snde_index addr,snde_index nelem);
-
+  */
   
 #ifdef __cplusplus
 }

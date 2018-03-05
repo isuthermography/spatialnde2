@@ -32,17 +32,76 @@ typedef char snde_bool;
 
 //#define SNDE_INDEX_INVALID (~((snde_index)0))
 
+// typecheck typemap for snde_index... This is needed because sometimes
+// we get np.uint64's that fail the default swig typecheck
+
+%typemap(typecheck,precedence=SWIG_TYPECHECK_INTEGER) snde_index  {
+  $1 = PyInt_Check($input);
+#if PY_VERSION_HEX < 0x03000000
+  if (!$1) {
+    $1=PyLong_Check($input);  
+  }  
+#endif
+  if (!$1) {
+    PyObject *numbers=NULL;
+    PyObject *numbersIntegral;
+    numbers = PyImport_ImportModule("numbers");
+    numbersIntegral=PyObject_GetAttrString(numbers,"Integral");
+    if (PyObject_IsInstance($input,numbersIntegral)==1) {
+      $1 = true;
+    }
+    Py_XDECREF(numbers);
+  }
+} 
+
+%typemap(in) snde_index (PyObject *builtins_mod=NULL,PyObject *LongTypeObj,PyObject *LongObj=NULL)  {
+  if (PyInt_Check($input)) {
+    $1=PyInt_AsUnsignedLongLongMask($input);
+  }
+#if PY_VERSION_HEX < 0x03000000
+  else if (PyLong_Check($input)) {
+    $1=PyLong_AsUnsignedLongLong($input);
+  }
+#endif
+  else {
+#if PY_VERSION_HEX < 0x03000000
+    builtins_mod= PyImport_ImportModule("__builtin__");
+    LongTypeObj=PyObject_GetAttrString(builtins_mod,"long");
+#else
+    builtins_mod= PyImport_ImportModule("builtins");
+    LongTypeObj=PyObject_GetAttrString(builtins_mod,"int");
+#endif
+    LongObj=PyObject_CallFunctionObjArgs(LongTypeObj,$input,NULL);
+    if (LongObj) {
+      if (PyInt_Check(LongObj)) {
+        $1=PyInt_AsUnsignedLongLongMask(LongObj);
+      }
+      else if (PyLong_Check(LongObj)) {
+        $1=PyLong_AsUnsignedLongLong(LongObj);
+      } else {
+        Py_XDECREF(LongObj);
+        SWIG_fail;
+      }
+      Py_XDECREF(LongObj);
+    } else {
+      SWIG_fail;
+    }
+    Py_XDECREF(builtins_mod);
+  }
+} 
+
+
 // ArrayType should be np.ndarray,
-PyObject *Pointer_To_Numpy_Array(PyObject *ArrayType, PyObject *DType,PyObject *Base,size_t n,void **ptraddress);
+PyObject *Pointer_To_Numpy_Array(PyObject *ArrayType, PyObject *DType,PyObject *Base,bool write,size_t n,void **ptraddress,size_t elemsize,size_t startidx);
 %{
-PyObject *Pointer_To_Numpy_Array(PyObject *ArrayType, PyObject *DType,PyObject *Base,size_t n,void **ptraddress)
+PyObject *Pointer_To_Numpy_Array(PyObject *ArrayType, PyObject *DType,PyObject *Base,bool write,size_t n,void **ptraddress,size_t elemsize,size_t startidx)
 {
   // ArrayType should usually be numpy.ndarray
   npy_intp dims;
   dims=n;
   Py_INCREF(DType); // because NewFromDescr() steals a reference to Descr
-  PyObject *NewArray=PyArray_NewFromDescr((PyTypeObject *)ArrayType,(PyArray_Descr *)DType,1,&dims,NULL,*ptraddress,0,NULL);
-
+  PyObject *NewArray=PyArray_NewFromDescr((PyTypeObject *)ArrayType,(PyArray_Descr *)DType,1,&dims,NULL,((char *)*ptraddress)+elemsize*startidx,write ? NPY_ARRAY_WRITEABLE:0,NULL);
+  
   Py_INCREF(Base); // because SetBaseObject() steals a reference 
   PyArray_SetBaseObject((PyArrayObject *)NewArray,Base);
   
@@ -69,8 +128,7 @@ nt_snde_bool = np.dtype(np.int8)
 
 nt_snde_orientation3=np.dtype([("offset",nt_snde_coord,3),
                                ("pad1",nt_snde_coord),
-			       ("quat",nt_snde_coord,3),
-			       ("pad2",nt_snde_coord),])
+			       ("quat",nt_snde_coord,4)])
 
 nt_snde_coord3=np.dtype((nt_snde_coord,3))
 nt_snde_coord2=np.dtype((nt_snde_coord,2))
@@ -92,15 +150,15 @@ nt_snde_axis32=np.dtype((nt_snde_coord,(2,3)))
 nt_snde_mat23=np.dtype((nt_snde_coord,(2,3)))
 
 
-nt_snde_meshedpart=np.dtype([('orientation', nt_snde_orientation3),
+nt_snde_meshedpart=np.dtype([  # ('orientation', nt_snde_orientation3),
 		    ('firsttri', nt_snde_index),
 		    ('numtris', nt_snde_index),
 		    ('firstedge', nt_snde_index),
 		    ('numedges', nt_snde_index),
 		    ('firstvertex', nt_snde_index),
 		    ('numvertices', nt_snde_index),
-		    ('first_vertex_edgelist_entry', nt_snde_index),
-		    ('num_vertex_edgelist_entries', nt_snde_index),
+		    ('first_vertex_edgelist_index', nt_snde_index),
+		    ('num_vertex_edgelist_indices', nt_snde_index),
   
 		    ('firstbox', nt_snde_index),
 		    ('numboxes', nt_snde_index),
@@ -110,30 +168,62 @@ nt_snde_meshedpart=np.dtype([('orientation', nt_snde_orientation3),
 		    ('solid', nt_snde_bool),
 		    ('pad1', nt_snde_bool,7)])
 		    
+def build_geometrystruct_class(arraymgr):
+  class snde_geometrystruct(ctypes.Structure):
+    manager=arraymgr;
 
-class snde_geometrystruct(ctypes.Structure):
-  
-  def __init__(self):
-    super(snde_geometrystruct,self).__init__()
-    pass
-    
-  def field_address(self,fieldname):
-    # unfortunately byref() doesnt work right because struct members when accesed become plain ints
-    offset=getattr(self.__class__,fieldname).offset
-    return ArrayPtr_fromint(ctypes.addressof(self)+offset)
+    def __init__(self):
+      super(snde_geometrystruct,self).__init__()
+      pass
 
-  def field_numpy(self,manager,lockholder,fieldname,dtype):
+    def __repr__(self):
+      descr="%s instance at 0x%x\n" % (self.__class__.__name__,ctypes.addressof(self))
+      descr+="------------------------------------------------\n"
+      for (fieldname,fieldtype) in self._fields_:
+        descr+="array %25s @ 0x%x\n" % (fieldname,ctypes.addressof(self)+getattr(self.__class__,fieldname).offset)
+        pass
+      return descr
+
+    def has_field(self,fieldname):
+      return hasattr(self.__class__,fieldname)
+
+    def addr(self,fieldname):
+      # unfortunately byref() doesnt work right because struct members when accesed become plain ints
+      offset=getattr(self.__class__,fieldname).offset
+      return ArrayPtr_fromint(ctypes.addressof(self)+offset)  # return swig-wrapped void **
+
+    def field_valid(self,fieldname):
+      val=getattr(self,fieldname)
+      return val is None or val==0
+
+    def allocfield(self,lockholder,fieldname,dtype,allocid,numelem):
+      startidx=lockholder.get_alloc(self.addr(fieldname),allocid)
+      return self.field(lockholder,fieldname,True,dtype,startidx,numelem)
+
+      
+    def field(self,lockholder,fieldname,write,dtype,startidx,numelem=SNDE_INDEX_INVALID):
       """Extract a numpy array representing the specified field. 
          This numpy array 
          will only be valid while the lockholder.fieldname locks are held"""
-      
+
+      write=bool(write)
       offset=getattr(self.__class__,fieldname).offset
       Ptr = ArrayPtr_fromint(ctypes.addressof(self)+offset)
-      n = manager.get_total_nelem(Ptr)
-      assert(dtype.itemsize==manager.get_elemsize(Ptr))
-      return Pointer_To_Numpy_Array(np.ndarray,dtype,getattr(lockholder,fieldname),n,Ptr)    
-  pass
-
+      max_n = self.manager.get_total_nelem(Ptr)-startidx
+      numpy_numelem = numelem
+      if numpy_numelem == SNDE_INDEX_INVALID:
+        numpy_numelem=max_n
+	pass
+      assert(numpy_numelem <= max_n)
+      
+      elemsize=self.manager.get_elemsize(Ptr)
+      assert(dtype.itemsize==elemsize)
+      ### Could set the writable flag of the numpy array according to whether
+      ### we have at least one write lock
+      return Pointer_To_Numpy_Array(np.ndarray,dtype,lockholder.get(self.addr(fieldname),write,startidx,numelem),write,numpy_numelem,Ptr,elemsize,startidx)    
+    pass
+    
+  return snde_geometrystruct
 
 
   

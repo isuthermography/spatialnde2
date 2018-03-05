@@ -3,6 +3,7 @@
 #include <string>
 #include <tuple>
 #include <unordered_map>
+#include <memory>
 
 #include <CL/opencl.h>
 
@@ -275,7 +276,7 @@ std::tuple<cl_program, std::string> get_opencl_program(cl_context context, cl_de
       throw openclerror(clerror,"Error building OpenCL program:\n"+build_log_str);
     }
     
-    return std::make_tuple(program,build_log);
+    return std::make_tuple(program,build_log_str);
   }
 
 std::tuple<cl_program, std::string> get_opencl_program(cl_context context, cl_device_id device, std::vector<std::string> program_source)
@@ -288,6 +289,21 @@ std::tuple<cl_program, std::string> get_opencl_program(cl_context context, cl_de
   }
 
   return get_opencl_program(context,device,source_cstr);
+}
+
+void add_opencl_alignment_requirement(std::shared_ptr<allocator_alignment> alignment,cl_device_id device)
+{
+  cl_uint align_value=0;
+  cl_int err;
+  err=clGetDeviceInfo(device,CL_DEVICE_MEM_BASE_ADDR_ALIGN,sizeof(align_value),&align_value,NULL);
+  if (err != CL_SUCCESS || !align_value) {
+    throw openclerror(err,"Error obtaining OpenCL device alignment requirements");
+  }
+  if (align_value % 8) {
+    throw openclerror(err,"OpenCL device memory alignment is not a multiple of 8 bits");
+    
+  }
+  alignment->add_requirement(align_value/8);
 }
   
 }

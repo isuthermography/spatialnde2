@@ -35,18 +35,48 @@ using namespace snde;
 int main(int argc, char *argv[])
 {
 
+
+
+  cl_context context;
+  cl_device_id device;
+  cl_command_queue queue;
+  std::string clmsgs;
+  cl_kernel kernel;
+  cl_program program;
+  cl_int clerror=0;
+
+  std::shared_ptr<meshedpart> part;
+  
+  // get_opencl_context() is a convenience routine for obtaining an
+  // OpenCL context and device. You pass it a query string of the
+  // form <Platform or Vendor>:<CPU or GPU or ACCELERATOR>:<Device name or number>
+  // and it will try to find the best match.
+  
+  std::tie(context,device,clmsgs) = get_opencl_context("::",true,NULL,NULL);
+
+  fprintf(stderr,"%s",clmsgs.c_str());
+
+
   std::shared_ptr<memallocator> lowlevel_alloc;
+  std::shared_ptr<allocator_alignment> alignment_requirements;
   std::shared_ptr<arraymanager> manager;
   std::shared_ptr<geometry> geom;
-
+  
   // lowlevel_alloc performs the actual host-side memory allocations
   lowlevel_alloc=std::make_shared<cmemallocator>();
 
+
+  // alignment requirements specify constraints on allocation
+  // block sizes
+  alignment_requirements=std::make_shared<allocator_alignment>();
+  // Each OpenCL device can impose an alignment requirement...
+  add_opencl_alignment_requirement(alignment_requirements,device);
+  
   // the arraymanager handles multiple arrays, including
   //   * Allocating space, reallocating when needed
   //   * Locking (implemented by manager.locker)
   //   * On-demand caching of array data to GPUs 
-  manager=std::make_shared<arraymanager>(lowlevel_alloc);
+  manager=std::make_shared<arraymanager>(lowlevel_alloc,alignment_requirements);
 
   // geom is a C++ wrapper around a C data structure that
   // contains multiple arrays to be managed by the
@@ -65,22 +95,6 @@ int main(int argc, char *argv[])
 
 
 
-  cl_context context;
-  cl_device_id device;
-  cl_command_queue queue;
-  std::string clmsgs;
-  cl_kernel kernel;
-  cl_program program;
-  cl_int clerror=0;
-
-  // get_opencl_context() is a convenience routine for obtaining an
-  // OpenCL context and device. You pass it a query string of the
-  // form <Platform or Vendor>:<CPU or GPU or ACCELERATOR>:<Device name or number>
-  // and it will try to find the best match.
-  
-  std::tie(context,device,clmsgs) = get_opencl_context("::",false,NULL,NULL);
-
-  fprintf(stderr,"%s",clmsgs.c_str());
 
 
   // Create a command queue for the specified context and device. This logic
@@ -101,103 +115,274 @@ int main(int argc, char *argv[])
   std::tie(program,build_log) = get_opencl_program(context,device,program_source);
 
   // Create the OpenCL kernel object
-  kernel=clCreateKernel(program,"testkern",&clerror);
+  kernel=clCreateKernel(program,"testkern_onepart",&clerror);
   if (!kernel) {
     throw openclerror(clerror,"Error creating OpenCL kernel");
   }
   
   
-  rwlock_token_set all_locks;
-  std::shared_ptr<std::vector<rangetracker<markedregion>>> readregions;
-  std::shared_ptr<std::vector<rangetracker<markedregion>>> writeregions;
 
+  /* new scope representing set of operations */
+  {
+    rwlock_token_set all_locks;
 
-  // Begin a locking process. A locking process is a
-  // (parallel) set of locking instructions, possibly
-  // from multiple sources and in multiple sequences,
-  // that is executed so as to follow a specified
-  // locking order (thus preventing deadlocks).
-  //
-  // The general rule is that locking must follow
-  // the specified order within a sequence, but if
-  // needed additional sequences can be spawned that
-  // will execute in parallel under the control
-  // of the lock manager. 
+    
+    // Begin a locking process. A locking process is a
+    // (parallel) set of locking instructions, possibly
+    // from multiple sources and in multiple sequences,
+    // that is executed so as to follow a specified
+    // locking order (thus preventing deadlocks).
+    //
+    // The general rule is that locking must follow
+    // the specified order within a sequence, but if
+    // needed additional sequences can be spawned that
+    // will execute in parallel under the control
+    // of the lock manager. 
   
-  // The locking order
-  // is the order of array creation in the arraymanager.
-  // Within each array you must lock earlier regions
-  // first. If you are going to lock the array for
-  // both read and write, you must lock for write first.
-  //
-  // Note that the actual locking granularity implemented
-  // currently is based on the whole array, but the
-  // region specification is used to control flushing
-  // changes after write locks.
-  //
-  // Also note that locking some regions for read and
-  // some for write in a single array is currently
-  // unsupported and may
-  // to deadlocks. In this case, lock the entire
-  // array for both read and write. 
+    // The locking order
+    // is the order of array creation in the arraymanager.
+    // Within each array you must lock earlier regions
+    // first. If you are going to lock the array for
+    // both read and write, you must lock for write first.
+    //
+    
+    // A lockholder is used to store the locks acquired
+    // during the locking process
+    std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();  
+    std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(manager); // new locking process
+    
+    
+    // Allocate a single entry in the "meshedparts" array
+    holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.meshedparts,1,""));
+    // Note: Because the triangles allocator also allocates several other fields (per
+    // comments in geometrydata.h and add_follower_array() call in geometry.hpp,
+    // the allocation of "triangles" allocates and locks both it and the other arrays.  
+    holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.triangles,1,""));
+    holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.edges,3,""));
+    holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.vertices,3,""));
+    holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.vertex_edgelist,6,""));
+    
+    // When the lock process is finished, you
+    // get a reference to the full set of locks 
+    all_locks=lockprocess->finish();
+    
+    
+    // Can list the locks in holder with "holder->as_string()"
+    // Can access the allocation index with
+    //   holder->get_alloc(&geom->geom.<field_name>,<allocid>)
+    // Can access the allocation lock with
+    //   holder->get_alloc_lock(&geom->geom.<field_name>),<numelem>,<allocid>)
+    // Can access any lock with
+    //   holder->get(&geom.geom.<field_name>,<write>,<startidx>,<numelem>)
+    
+    
+    // Build a meshed part with exactly one triangle (three edges, and three vertices) 
+    
+    // Define an array pointer representing the "meshedparts allocation
+    struct snde_meshedpart *meshedparts=geom->geom.meshedparts+holder->get_alloc((void**)&geom->geom.meshedparts,"");
+    //meshedparts[0].orientation.offset[0]=0;
+    //meshedparts[0].orientation.offset[1]=0;
+    //meshedparts[0].orientation.offset[2]=0;
+    
+    //meshedparts[0].orientation.quat[0]=0;
+    //meshedparts[0].orientation.quat[1]=0;
+    //meshedparts[0].orientation.quat[2]=0;
+    //meshedparts[0].orientation.quat[3]=1;
+    
+    meshedparts[0].firsttri =  holder->get_alloc((void **)&geom->geom.triangles,"");
+    meshedparts[0].numtris = 1;
+    
+    meshedparts[0].firstedge =  holder->get_alloc((void **)&geom->geom.edges,"");
+    meshedparts[0].numedges = 3;
+    
+    meshedparts[0].firstvertex =  holder->get_alloc((void **)&geom->geom.vertices,"");
+    meshedparts[0].numvertices = 3;
+
+    meshedparts[0].first_vertex_edgelist_index = holder->get_alloc((void **)&geom->geom.vertex_edgelist_indices,"");
+    meshedparts[0].num_vertex_edgelist_indices = 9;
+    meshedparts[0].firstbox = SNDE_INDEX_INVALID;
+    meshedparts[0].numboxes = SNDE_INDEX_INVALID;
+    meshedparts[0].firstboxpoly = SNDE_INDEX_INVALID;
+    meshedparts[0].numboxpolys = SNDE_INDEX_INVALID;
+    meshedparts[0].solid = false;
+    
+    snde_triangle *triangles=geom->geom.triangles+holder->get_alloc((void**)&geom->geom.triangles,"");
+    triangles[0].edges[0]=0;
+    triangles[0].edges[1]=1;
+    triangles[0].edges[2]=2;
+    
+    
+    snde_edge *edges=geom->geom.edges+holder->get_alloc((void**)&geom->geom.edges,"");
+    edges[0].vertex[0]=0;
+    edges[0].vertex[1]=1;
+    edges[0].face_a=0;
+    edges[0].face_b=SNDE_INDEX_INVALID;
+    edges[0].face_a_next_edge=1;
+    edges[0].face_a_prev_edge=2;
+    edges[1].vertex[0]=1;
+    edges[1].vertex[1]=2;
+    edges[1].face_a=0;
+    edges[1].face_b=SNDE_INDEX_INVALID;
+    edges[1].face_a_next_edge=2;
+    edges[1].face_a_prev_edge=0;
+    edges[2].vertex[0]=2;
+    edges[2].vertex[1]=0;
+    edges[2].face_a=0;
+    edges[2].face_b=SNDE_INDEX_INVALID;
+    edges[2].face_a_next_edge=0;
+    edges[2].face_a_prev_edge=1;
+    
+    
+    snde_coord3 *vertices=geom->geom.vertices+holder->get_alloc((void **)&geom->geom.vertices,"");
+    
+    vertices[0].coord[0]=1;
+    vertices[0].coord[1]=0;
+    vertices[0].coord[2]=0;
+    
+    vertices[1].coord[0]=0;
+    vertices[1].coord[1]=1;
+    vertices[1].coord[2]=0;
+    
+    vertices[2].coord[0]=0;
+    vertices[2].coord[1]=0;
+    vertices[2].coord[2]=0;
+    
+    snde_vertex_edgelist_index *vertex_edgelist_indices=geom->geom.vertex_edgelist_indices+holder->get_alloc((void**)&geom->geom.vertex_edgelist_indices,"");
   
-  lockingprocess_threaded lockprocess(manager->locker);
+    vertex_edgelist_indices[0].edgelist_index=0;
+    vertex_edgelist_indices[0].edgelist_numentries=2;
+    vertex_edgelist_indices[1].edgelist_index=2;
+    vertex_edgelist_indices[1].edgelist_numentries=2;
+    vertex_edgelist_indices[2].edgelist_index=4;
+    vertex_edgelist_indices[2].edgelist_numentries=2;
+    
+    snde_index *vertex_edgelist=geom->geom.vertex_edgelist+holder->get_alloc((void**)&geom->geom.vertex_edgelist,"");
+    vertex_edgelist[0]=0;
+    vertex_edgelist[1]=2;
+    vertex_edgelist[2]=0;
+    vertex_edgelist[3]=1;
+    vertex_edgelist[4]=1;
+    vertex_edgelist[5]=2;
+    
+    // Mark that we have made changes with the CPU
+    manager->dirty_alloc(holder,(void **)&geom->geom.meshedparts,"",1);
+    manager->dirty_alloc(holder,(void **)&geom->geom.triangles,"",1);
+    manager->dirty_alloc(holder,(void **)&geom->geom.edges,"",3);
+    manager->dirty_alloc(holder,(void **)&geom->geom.vertices,"",3);
+    manager->dirty_alloc(holder,(void **)&geom->geom.vertex_edgelist_indices,"",3);
+    manager->dirty_alloc(holder,(void **)&geom->geom.vertex_edgelist,"",6);
+    
+    // Store which part address for later use
+    // Represent the above triangle as a "meshedpart"
+    part=std::make_shared<meshedpart>(geom,holder->get_alloc((void **)&geom->geom.meshedparts,""));
+    
+    // Unlock now that we have written
+    // (if we wanted we could use from the GPU under this same lock
+    // now that we have marked the modified regions as dirty)
+    unlock_rwlock_token_set(all_locks);
+  } // Ending the block makes the various lock and reference variables go out of scope
 
-  // ***!!! Should do allocation within the locking process, that gets us a write lock
-  // ***!!! to the allocated region
   
-  // Lock the specified region (in this case, the whole thing)
-  // of the "vertices" array
-  rwlock_token_set vertices_lock = lockprocess.get_locks_read_array_region((void **)&geom->geom.vertices,0,SNDE_INDEX_INVALID);
+  // Now (perhaps later) we want to use the GPU to calculate the surface area of this part...
 
-  // When the lock process is finished, you
-  // get a reference to the full set of locks, and to the read locked and
-  // write locked regions
-  std::tie(all_locks,readregions,writeregions) = lockprocess.finish();
-
-
-  // Buffers are OpenCL-accessible memory. You don't need to keep the buffers
-  // open and active; the arraymanager maintains a cache, so if you
-  // request a buffer a second time it will be there already. 
-  OpenCLBuffers Buffers(context,all_locks,readregions,writeregions);
-
-  // specify the arguments to the kernel, by argument number.
-  // The third parameter is the array element to be passed
-  // (actually comes from the OpenCL cache)
-  Buffers.AddBufferAsKernelArg(manager,queue,kernel,0,(void **)&geom->geom.meshedparts);
-  Buffers.AddBufferAsKernelArg(manager,queue,kernel,1,(void **)&geom->geom.triangles);
-  Buffers.AddBufferAsKernelArg(manager,queue,kernel,2,(void **)&geom->geom.edges);
-  Buffers.AddBufferAsKernelArg(manager,queue,kernel,3,(void **)&geom->geom.vertices);
-
-  size_t global_work_size=100000;
-  cl_event kernel_complete=NULL;
-
-  // Enqueue the kernel 
-  clEnqueueNDRangeKernel(queue,kernel,1,NULL,&global_work_size,NULL,Buffers.NumFillEvents(),Buffers.FillEvents_untracked(),&kernel_complete);
-  // a clFlush() here would start the kernel executing, but
-  // the kernel will alternatively start implicitly when we wait below. 
-
-  // Queue up post-processing (i.e. cache maintenance) for the kernel
-  // In this case we also ask it to wait for completion ("true")
-  // Otherwise it could return immediately with those steps merely queued
-  // (and we could do other stuff as it finishes in the background) 
-  Buffers.RemBuffers(kernel_complete,kernel_complete,true);
   
-  clReleaseEvent(kernel_complete); /* very important to release OpenCL resources, 
-				      otherwise they may keep buffers in memory unnecessarily */
+  /* new scope representing set of operations */
+  {
+    rwlock_token_set all_locks;
+    // Begin a new locking process
+    std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();  
+    
+    std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(manager); // new locking process
+    
+    part->obtain_lock(lockprocess,0); // 0 indicates flags for which arrays we want write locks (none in this case)
+    all_locks=lockprocess->finish();
+    
+    // now we can access (read only) the data from the cpu
+    struct snde_meshedpart *meshedparts=geom->geom.meshedparts+part->idx;
+    
+    
+    
+    //lockprocess.spawn([ &lockprocess, &holder, &geom ]() {
+    //    //std::tie(vertices_lock,vertices_index)=lockprocess.alloc_array_region((void **)&geom->geom.vertices,3);
+    //    holder->store_alloc(lockprocess.alloc_array_region((void **)&geom->geom.vertices,3,""));
+    //  });
+    
+    //rwlock_token_set vertices_lock = lockprocess.get_locks_read_array_region((void **)&geom->geom.vertices,0,SNDE_INDEX_INVALID);
+    
+    
+    
+    // Buffers are OpenCL-accessible memory. You don't need to keep the buffers
+    // open and active; the arraymanager maintains a cache, so if you
+    // request a buffer a second time it will be there already. 
+    OpenCLBuffers Buffers(context,all_locks);
+    
+    // specify the arguments to the kernel, by argument number.
+    // The third parameter is the array element to be passed
+    // (actually comes from the OpenCL cache)
+    Buffers.AddSubBufferAsKernelArg(manager,queue,kernel,0,(void **)&geom->geom.meshedparts,part->idx,1,false);
+    Buffers.AddSubBufferAsKernelArg(manager,queue,kernel,1,(void **)&geom->geom.triangles,meshedparts[0].firsttri,meshedparts[0].numtris,false);
+    Buffers.AddSubBufferAsKernelArg(manager,queue,kernel,2,(void **)&geom->geom.edges,meshedparts[0].firstedge,meshedparts[0].numedges,false);
+    Buffers.AddSubBufferAsKernelArg(manager,queue,kernel,3,(void **)&geom->geom.vertices,meshedparts[0].firstvertex,meshedparts[0].numvertices,false);
+    
+    size_t worksize=meshedparts[0].numtris;
+    
+    snde_coord *result_host=(snde_coord*)calloc(1,worksize*sizeof(*result_host));
+    cl_int err=CL_SUCCESS;
+    cl_mem result_gpu=clCreateBuffer(context,CL_MEM_COPY_HOST_PTR,worksize*sizeof(*result_host),result_host,&err);
+    if (err != CL_SUCCESS) {
+      throw openclerror(err,"Error creating OpenCL buffer");
+    }
+    cl_event kernel_complete=NULL;
+    
+    err=clSetKernelArg(kernel,4,sizeof(cl_mem),&result_gpu);
+    if (err != CL_SUCCESS) {
+      throw openclerror(err,"Error setting kernel argument");
+    }
+    
+    // Enqueue the kernel 
+    err=clEnqueueNDRangeKernel(queue,kernel,1,NULL,&worksize,NULL,Buffers.NumFillEvents(),Buffers.FillEvents_untracked(),&kernel_complete);
+    if (err != CL_SUCCESS) {
+      throw openclerror(err,"Error enqueueing kernel");
+    }
+    
+    cl_event xfer_complete=NULL;
+    err=clEnqueueReadBuffer(queue,result_gpu,CL_FALSE,0,worksize*sizeof(*result_host),result_host,1,&kernel_complete,&xfer_complete);
+    
+    if (err != CL_SUCCESS) {
+      throw openclerror(err,"Error enqueueing OpenCL read");
+    }
 
-  // This explicitly unlocks the vertices_lock, so that
-  // data should not be accessed afterward
-  // Each locked set (or the whole set) can be
-  // explicitly unlocked up to once (twice is an error).
-  unlock_rwlock_token_set(vertices_lock);
+    
+    // a clFlush() here would start the kernel executing, but
+    // the kernel will alternatively start implicitly when we wait below. 
+    
+    // Queue up post-processing (i.e. cache maintenance) for the kernel
+    // In this case we also ask it to wait for completion ("true")
+    // Otherwise it could return immediately with those steps merely queued
+    // (and we could do other stuff as it finishes in the background) 
+    Buffers.RemBuffers(kernel_complete,kernel_complete,true);
 
-  // In addition any locked sets not explicitly unlocked
-  // will be implicitly locked once all references have
-  // either been released or have gone out of scope. 
-  release_rwlock_token_set(all_locks);
-  
-  
+    clWaitForEvents(1,&xfer_complete); // wait for result transfer to be complete
+
+    printf("Triangle area=%f\n",(float)result_host[0]);
+
+    
+    clReleaseEvent(kernel_complete); /* very important to release OpenCL resources, 
+					otherwise they may keep buffers in memory unnecessarily */
+    
+    
+    // In addition any locked sets not explicitly unlocked
+    // will be implicitly locked once all references have
+    // either been released or have gone out of scope. 
+    unlock_rwlock_token_set(all_locks);
+
+
+    clReleaseMemObject(result_gpu);
+    free(result_host);
+    part->free(); // explicitly delete the part
+
+    // Ending the block makes the various lock and reference variables go out of scope
+  }
   clReleaseCommandQueue(queue);
   clReleaseContext(context);
   clReleaseKernel(kernel);

@@ -6,13 +6,106 @@ import types as pytypes
 %shared_ptr(VectorOfRegions);
 
 %shared_ptr(snde::lockmanager);
-%shared_ptr(snde::rwlock_token_content);
-%shared_ptr(snde::rwlock_token_set_content);
+%shared_ptr(snde::lockholder);
 %shared_ptr(std::vector<snde::rangetracker<snde::markedregion>>);
-
+%shared_ptr(voidpp_voidpp_multimap_pyiterator)
 
 
 %template(LockingPositionMap) std::multimap<snde::lockingposition,snde::CountedPyObject>;
+
+%template(voidpp_voidpp_multimap) std::multimap<void **,void**>;
+
+//%extend std::multimap<void **,void **> {
+//  std::multimap<void **,void**>::iterator lower_bound(const void **& key) {
+//
+//}
+
+%{ // per https://stackoverflow.com/questions/38404806/error-c2039-type-name-is-not-a-member-of-of-swigtraitsbar
+  namespace swig {
+    template <> struct traits<snde::rwlock_token_set>
+    {
+      typedef pointer_category category;
+      static const char *type_name()
+      {
+        return "rwlock_token_set";
+      }
+
+    };
+
+    template <> struct traits<std::shared_ptr<snde::alloc_voidpp>>
+    {
+      typedef pointer_category category;
+      static const char *type_name()
+      {
+        return "std::shared_ptr<snde::alloc_voidpp>";
+      }
+
+    };
+    
+  }  
+%}
+
+
+%{
+class Stop_Iteration: public std::exception {
+};
+%}
+class Stop_Iteration: public std::exception {
+};
+
+%typemap(throws) Stop_Iteration %{
+  PyErr_SetNone(PyExc_StopIteration);
+  SWIG_fail;
+%}
+
+%{
+
+class voidpp_voidpp_multimap_pyiterator {
+public:
+  std::multimap<void **,void**> *map;
+  void **key;
+  std::multimap<void **,void**>::iterator it;
+  voidpp_voidpp_multimap_pyiterator(std::multimap<void **,void**> *mp,void **ky,std::multimap<void **,void**>::iterator iter) : map(mp),key(ky),it(iter) {}
+
+  
+  void **next() /* throw (Stop_Iteration)*/ {
+    std::multimap<void **,void**>::iterator ret;
+    //fprintf(stderr,"Iterate next()\n");
+    if (it==map->end() || it->first != key) {    
+      //fprintf(stderr,"StopIter\n");
+      throw Stop_Iteration();
+    }
+    ret=it;
+    it++;
+    return ret->second;
+  }
+
+  static std::shared_ptr<voidpp_voidpp_multimap_pyiterator> iterate_particular_key(std::multimap<void **,void **> *map,void **key) {
+    return std::make_shared<voidpp_voidpp_multimap_pyiterator>(map,key,map->lower_bound(key));
+  }
+
+  
+};
+
+%}
+
+class voidpp_voidpp_multimap_pyiterator {
+public:
+  //std::multimap<void **,void**>::iterator it;
+  voidpp_voidpp_multimap_pyiterator(std::multimap<void **,void**> *mp,void **ky,std::multimap<void **,void**>::iterator iter);
+  void **next() throw (Stop_Iteration) ;
+  
+  static std::shared_ptr<voidpp_voidpp_multimap_pyiterator> iterate_particular_key(std::multimap<void **,void **> *map,void **key);   
+};
+
+%extend voidpp_voidpp_multimap_pyiterator {
+  voidpp_voidpp_multimap_pyiterator *__iter__()
+  {
+    return $self;
+  }
+
+}
+
 
 %extend std::multimap<snde::lockingposition,snde::CountedPyObject> {
   void emplace_pair(std::pair<snde::lockingposition,snde::CountedPyObject> p)
@@ -73,6 +166,7 @@ snde::ArrayPtr voidpp_posn_map_iterator_ptr(std::unordered_map<void **,size_t,st
 }
 
 
+  
 
 /*  ***** NOTE: next big section is obsolete and commented out
 // template iterator workaround per http://www.swig.org/Doc1.3/SWIGPlus.html#SWIGPlus_nested_classes
@@ -128,24 +222,9 @@ voidpp_posn_map_iterator voidpp_posn_map_iterator_fromiterator(std::unordered_ma
 #include "lockmanager.hpp"
 %}
 
+namespace snde{
 
-namespace snde {
-
-  class rwlock;  // forward declaration
-
-  class rwlock_lockable {
-    // private to rwlock
-  public:
-    int _writer;
-    rwlock *_rwlock_obj;
-    
-    rwlock_lockable(rwlock *lock,int writer);
-
-    void lock();  // implemented in lockmanager.cpp
-    void unlock(); // implemented in lockmanager.cpp
-  };
-
-  struct arrayregion {
+struct arrayregion {
     void **array;
     snde_index indexstart;
     snde_index numelems;
@@ -159,145 +238,24 @@ namespace snde {
     markedregion(snde_index regionstart,snde_index regionend);
 
     bool attempt_merge(markedregion &later);
-    std::shared_ptr<markedregion> breakup(snde_index breakpoint);
+    std::shared_ptr<markedregion> sp_breakup(snde_index breakpoint);
   };
 
-  class dirtyregion: public markedregion  {
-  public:
-    cachemanager *cache_with_valid_data;
-    dirtyregion(cachemanager *cache_with_valid_data,snde_index regionstart, snde_index regionend);
-    
-  }
-  
-  class rwlock {
-  public:
-    // loosely motivated by https://stackoverflow.com/questions/11032450/how-are-read-write-locks-implemented-in-pthread
-    // * Instantiate snde::rwlock()
-    // * To read lock, define a std::unique_lock<snde::rwlock> readlock(rwlock_object)
-    // * To write lock, define a std::unique_lock<snde::rwlock_writer> readlock(rwlock_object.writer)
-    // Can alternatively use lock_guard if you don't need to be able to unlock within the context
-
-    std::deque<std::condition_variable *> threadqueue;
-    int writelockpending;
-    int writelockcount;
-    int readlockcount;
-    //size_t regionstart; // if in subregions only
-    //size_t regionend; // if in subregions only
-
-    //std::mutex admin;  (swig-incompatible)
-    rwlock_lockable reader;
-    rwlock_lockable writer;
-
-
-    rangetracker<dirtyregion> _dirtyregions; /* track dirty ranges during a write (all regions that are locked for write) */
-
-    std::deque<std::function<void(snde_index firstelem,snde_index numelems)>> _dirtynotify; /* locked by admin, but functions should be called with admin lock unlocked (i.e. copy the deque before calling). This write lock will be locked. NOTE: numelems of SNDE_INDEX_INVALID means to the end of the array  */
-
-    // For weak readers to support on-GPU caching of data, we would maintain a list of some sort
-    // of these weak readers. Before we give write access, we would have to ask each weak reader
-    // to relinquish. Then when write access ends by unlock or downgrade, we offer each weak
-    // reader the ability to recache.
-
-    // in addition/alternatively the allocator concept could allocate memory directly on board the GPU...
-    // but this alone would be problematic for e.g. triangle lists that need to be accessed both by
-    // a GPU renderer and GPGPU computation.
-
-
-    rwlock();
-    
-    void _wait_for_top_of_queue(std::condition_variable *cond,std::unique_lock<std::mutex> *adminlock);
-    
-    void lock_reader();
-
-    void clone_reader();
-    void unlock_reader();
-
-    void writer_append_region(snde_index firstelem, snde_index numelems);
-    void lock_writer(snde_index firstelem,snde_index numelems);
-
-    void lock_writer();
-
-    void downgrade();
-
-    void sidegrade();
-
-    void clone_writer();
-    void unlock_writer();
-
-  };
-
-
-  typedef std::unique_lock<rwlock_lockable> rwlock_token_content;
-  typedef std::shared_ptr<rwlock_token_content> rwlock_token;
-
-  typedef std::unordered_map<rwlock_lockable *,rwlock_token> rwlock_token_set_content;
-  //typedef std::shared_ptr<rwlock_token_set_content> rwlock_token_set;
-  // Persistent token of lock ownership
-  //typedef std::shared_ptr<std::unique_lock<rwlock_lockable>> rwlock_token;
-  // Set of tokens
-  typedef std::shared_ptr<rwlock_token_set_content> rwlock_token_set;
-};
-
-%template(rwlock_token) std::shared_ptr<snde::rwlock_token_content>;  
-%template(rwlock_token_set) std::shared_ptr<snde::rwlock_token_set_content>;  
-
-/*
-%typemap(out) snde::rwlock_token_set {
-  std::shared_ptr<snde::rwlock_token_set_content> *smartresult = bool(result) ? new std::shared_ptr<snde::rwlock_token_set_content>(result SWIG_NO_NULL_DELETER_SWIG_POINTER_NEW) :0;
-  %set_output(SWIG_NewPointerObj(%as_voidptr(smartresult), $descriptor(std::shared_ptr< snde::rwlock_token_set_content > *), SWIG_POINTER_NEW|SWIG_POINTER_OWN));
-
-}*/
-
-namespace snde{
-
-
-  /* rwlock_token_set semantics: 
-     The rwlock_token_set contains a reference-counted set of locks, specific 
-     to a particular thread. They can be passed around, copied, etc.
-     at will within a thread context. 
-     
-     A lock is unlocked when: 
-        (a) unlock_rwlock_token_set() is called on an rwlock_token_set containing 
-	    the lock, or 
-        (b) All references to all rwlock_token_sets containing the lock
-	    are released (by release_rwlock_token_set()) or go out of scope
-     Note that it is an error (std::system_error) to call unlock_rwlock_token_set()
-     on an rwlock_token_set that contains any locks that already have been
-     unlocked (i.e. by a prior call to unlock_rwlock_token_set()) 
-
-     It is possible to pass a token_set to another thread, but 
-     only by creating a completely independent cloned copy and 
-     completely delegating the cloned copy to the other thread.
-
-     The cloned copy is created with clone_rwlock_token_set(). 
-     The unlock()ing the cloned copy is completely separate from
-     unlocking the original.
-*/
-
-  static inline void release_rwlock_token_set(rwlock_token_set &tokens);
-
-  static inline void unlock_rwlock_token_set(rwlock_token_set tokens);
-  
-
-
-
-  static inline snde::rwlock_token_set empty_rwlock_token_set(void);
-
-  static inline bool check_rwlock_token_set(rwlock_token_set tokens);
-  
-
-  static inline void merge_into_rwlock_token_set(rwlock_token_set accumulator, rwlock_token_set tomerge);
-
-  static inline rwlock_token_set clone_rwlock_token_set(rwlock_token_set orig);
   
   class arraylock {
   public:
-    //std::mutex admin; /* locks access to full_array and subregions members.. obsolete.... just use the lockmanager's admin lock */
+    //std::mutex admin; (swig incompatible) /* locks access to subregions, lock after everything; see also whole_array_write */
 
-%immutable; //avoid swig compilation errors
-    rwlock full_array;
-%mutable;
+    //%immutable; //avoid swig compilation errors
+    //rwlock full_array;
+    //%mutable;
     //std::vector<rwlock> subregions;
+    %immutable;
+    std::shared_ptr<rwlock> wholearray; /* This is in the locking order with the arrays. In
+				 order to modify subregions you must hold this AND all subregions AND admin (above) 
+				 for write... Note: Not used for dirty tracking (put dirty stuff in subregions!) */
+    std::map<markedregion,std::shared_ptr<rwlock>> subregions;
+    %mutable;
 
     arraylock() {
 
@@ -327,50 +285,29 @@ namespace snde{
     bool is_region_granular(void); /* Return whether locking is really granular on a region-by-region basis (true) or just on an array-by-array basis (false) */
 
     void set_array_size(void **Arrayptr,size_t elemsize,snde_index nelem);
+    rwlock_token newallocation(rwlock_token_set all_locks,void **arrayptr,snde_index pos,snde_index size,snde_index elemsize);
+    void freeallocation(void **arrayptr,snde_index pos, snde_index size,snde_index elemsize);
+ 
 
-    rwlock_token  _get_preexisting_lock_read_array(rwlock_token_set all_locks, size_t arrayidx);
-
-
-    rwlock_token  _get_lock_read_array(rwlock_token_set all_locks, size_t arrayidx);
-
+    rwlock_token  _get_preexisting_lock_read_array_lockobj(rwlock_token_set all_locks, size_t arrayidx,std::shared_ptr<rwlock> rwlockobj);
+    std::pair<rwlock_lockable *,rwlock_token>  _get_preexisting_lock_read_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index pos,snde_index size);
+    std::pair<rwlock_lockable *,rwlock_token>  _get_lock_read_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index pos,snde_index size);
     rwlock_token_set get_locks_read_array(rwlock_token_set all_locks, void **array);
-
     rwlock_token_set get_preexisting_locks_read_array(rwlock_token_set all_locks, void **array);
-
-
-    rwlock_token_set get_locks_read_arrays(rwlock_token_set all_locks, std::vector<void **> arrays);
-
-
     rwlock_token_set get_preexisting_locks_read_array_region(rwlock_token_set all_locks, void **array,snde_index indexstart,snde_index numelems);
-
+    
     rwlock_token_set get_locks_read_array_region(rwlock_token_set all_locks, void **array,snde_index indexstart,snde_index numelems);
-
-    rwlock_token_set get_locks_read_arrays_region(rwlock_token_set all_locks, std::vector<struct arrayregion> arrays);
-
-
-
-
     rwlock_token_set get_locks_read_all(rwlock_token_set all_locks);
+    
+    rwlock_token  _get_preexisting_lock_write_array_lockobj(rwlock_token_set all_locks, size_t arrayidx,std::shared_ptr<rwlock> rwlockobj);
+    
+    std::pair<rwlock_lockable *,rwlock_token>  _get_preexisting_lock_write_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index indexstart,snde_index numelems);
 
-
-
-    rwlock_token  _get_preexisting_lock_write_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index indexstart,snde_index numelems);
-
-    rwlock_token  _get_lock_write_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index indexstart,snde_index numelems);
-
+    std::pair<rwlock_lockable *,rwlock_token>  _get_lock_write_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index pos,snde_index size);
     rwlock_token_set get_locks_write_array(rwlock_token_set all_locks, void **array);
     rwlock_token_set get_preexisting_locks_write_array(rwlock_token_set all_locks, void **array);
-
-    rwlock_token_set get_locks_write_arrays(rwlock_token_set all_locks, std::vector<void **> arrays);
-
     rwlock_token_set get_preexisting_locks_write_array_region(rwlock_token_set all_locks, void **array,snde_index indexstart,snde_index numelems);
-
     rwlock_token_set get_locks_write_array_region(rwlock_token_set all_locks, void **array,snde_index indexstart,snde_index numelems);
-
-    rwlock_token_set get_locks_write_arrays_region(rwlock_token_set all_locks, std::vector<struct arrayregion> arrays);
-
-
-
     rwlock_token_set get_locks_write_all(rwlock_token_set all_locks);
 
     void downgrade_to_read(rwlock_token_set locks);
@@ -401,10 +338,12 @@ namespace snde{
     lockingprocess(const lockingprocess &)=delete; /* copy constructor disabled */
     lockingprocess& operator=(const lockingprocess &)=delete; /* copy assignment disabled */
 
-    virtual rwlock_token_set get_locks_write_array(void **array);
-    virtual rwlock_token_set get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems);
-    virtual rwlock_token_set get_locks_read_array(void **array);
-    virtual rwlock_token_set get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_array(void **array);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array(void **array);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array_region(void **array,bool write,snde_index indexstart,snde_index numelems);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array(void **array,bool write);
     virtual void spawn(std::function<void(void)> f);
 
     virtual ~lockingprocess();
@@ -521,7 +460,7 @@ namespace snde {
        for multiple objects while satisfying the required
        locking order */
       //public: 
-      //lockingprocess_threaded(std::shared_ptr<lockmanager> manager);
+      //lockingprocess_threaded(std::shared_ptr<arraymanager> manager);
        // This is defined by the details are hidden from python, so
        // they can't be used... Use the lockingprocess_threaded_python instead
        
@@ -529,21 +468,21 @@ namespace snde {
 
 class lockingprocess_threaded_python: public lockingprocess_threaded {
   public:
-    lockingprocess_threaded_python(std::shared_ptr<lockmanager> manager);
+    lockingprocess_threaded_python(std::shared_ptr<arraymanager> manager);
     
-    virtual rwlock_token_set get_locks_write_array(void **array);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_array(void **array);
 
-    virtual rwlock_token_set get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems);
 
 
-    virtual rwlock_token_set get_locks_read_array(void **array);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array(void **array);
 
-    virtual rwlock_token_set get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems);
 
 
     virtual void spawn(std::function<void(void)> spawn_func);
       
-    virtual std::tuple<rwlock_token_set,std::shared_ptr<std::vector<rangetracker<markedregion>>>,std::shared_ptr<std::vector<rangetracker<markedregion>>>> finish();
+    virtual rwlock_token_set finish();
     virtual ~lockingprocess_threaded_python();
 
 };
@@ -553,7 +492,7 @@ class lockingprocess_threaded_python: public lockingprocess_threaded {
 namespace snde {
   class lockingprocess_threaded_python: public lockingprocess_threaded {
     public:
-    lockingprocess_threaded_python(std::shared_ptr<lockmanager> manager) : lockingprocess_threaded(manager)
+    lockingprocess_threaded_python(std::shared_ptr<arraymanager> manager) : lockingprocess_threaded(manager)
     {
       
     }
@@ -597,6 +536,199 @@ namespace snde {
 
 #endif
 
+namespace snde {
+
+
+  class lockholder_index {
+  public:
+    void **array;
+    bool write;
+    snde_index startidx;
+    snde_index numelem;
+
+    lockholder_index(void **_array,bool _write, snde_index _startidx,snde_index _numelem);
+
+    // equality operator for std::unordered_map
+    bool operator==(const lockholder_index b) const;
+  };
+
+
+%typemap(in) std::pair<snde::lockholder_index,rwlock_token_set tokens>  (PyObject *Obj,PyObject *li_obj,void *li_ptr=NULL,snde::lockholder_index *li,void *ToksPtr=NULL,rwlock_token_set Toks) {
+  int newmem=0;
+  Obj=$input;
+  assert(PyTuple_Check(Obj));
+  assert(PyTuple_Size(Obj)==2);
+  //Str=PyString_AsString(PyTuple_GetItem(Obj,0));
+  li_obj=PyTuple_GetItem(Obj,0);
+  int res0 = SWIG_ConvertPtr(li_obj, &li_ptr,$descriptor(lockholder_index*),0);
+  if (!SWIG_IsOK(res0)) {
+    SWIG_exception_fail(SWIG_ArgError(res0), "Converting lockholderindex parameter to std::tuple<lockholder_index,rwlock_token_set,std::string> ");
+  }
+  li=reinterpret_cast<snde::lockholder_index *>(li_ptr);
+
+
+  int res = SWIG_ConvertPtrAndOwn(PyTuple_GetItem(Obj,1),&ToksPtr,$descriptor(rwlock_token_set &),0,&newmem);
+  if (!SWIG_IsOK(res)) {
+    SWIG_exception_fail(SWIG_ArgError(res), "Converting parameter to std::pair<void **,rwlock_token_set>"); 
+  }
+  if (ToksPtr) Toks=*(reinterpret_cast< snde::rwlock_token_set * >(ToksPtr));
+  if (newmem & SWIG_CAST_NEW_MEMORY) delete reinterpret_cast< snde::rwlock_token_set * >(ToksPtr);
+
+  $1 = std::pair<snde::lockholder_index,snde::rwlock_token_set>(*li,Toks);
+
+}
+
+
+%typemap(in) std::tuple<snde::lockholder_index,rwlock_token_set tokens,std::string>  (PyObject *Obj,PyObject *li_obj,void *li_ptr=NULL,snde::lockholder_index *li,void *ToksPtr=NULL,rwlock_token_set Toks,std::string allocid) {
+  int newmem=0;
+  Obj=$input;
+  assert(PyTuple_Check(Obj));
+  assert(PyTuple_Size(Obj)==3);
+  li_obj=PyTuple_GetItem(Obj,0);
+  int res0 = SWIG_ConvertPtr(li_obj, &li_ptr,$descriptor(lockholder_index *),0);
+  if (!SWIG_IsOK(res0)) {
+    SWIG_exception_fail(SWIG_ArgError(res0), "Converting lockholderindex parameter to std::tuple<lockholder_index,rwlock_token_set,std::string> ");
+  }
+  li=reinterpret_cast<snde::lockholder_index *>(li_ptr);
+
+  int res = SWIG_ConvertPtrAndOwn(PyTuple_GetItem(Obj,1),&ToksPtr,$descriptor(rwlock_token_set &),0,&newmem);
+  if (!SWIG_IsOK(res)) {
+    SWIG_exception_fail(SWIG_ArgError(res), "Converting parameter to std::tuple<lockholder_index,rwlock_token_set,std::string>"); 
+  }
+  if (ToksPtr) Toks=*(reinterpret_cast< snde::rwlock_token_set * >(ToksPtr));
+  if (newmem & SWIG_CAST_NEW_MEMORY) delete reinterpret_cast< snde::rwlock_token_set * >(ToksPtr);
+
+  allocid=PyString_AsString(PyTuple_GetItem(Obj,2));
+
+  $1 = std::tuple<snde::lockholder_index,snde::rwlock_token_set,std::string>(*li,Toks,allocid);
+
+}
+
+%typemap(in) std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>>  (PyObject *Obj,PyObject *li_obj,void *li_ptr=NULL,snde::lockholder_index *li,void *ToksPtr=NULL,rwlock_token_set Toks,std::string allocid,size_t numentries,size_t cnt,std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> buf,PyObject *Tup) {
+  int newmem=0;
+  Obj=$input;
+  assert(PyList_Check(Obj));
+
+  numentries=PyList_Size(Obj);
+  for (cnt=0;cnt < numentries;cnt++) {
+    Tup=PyList_GetItem(Obj,cnt);
+    assert(PyTuple_Size(Tup)==3);
+    li_obj=PyTuple_GetItem(Tup,0);
+    int res0 = SWIG_ConvertPtr(li_obj, &li_ptr,$descriptor(lockholder_index *),0);
+    if (!SWIG_IsOK(res0)) {
+      SWIG_exception_fail(SWIG_ArgError(res0), "Converting lockholderindex parameter to std::tuple<lockholder_index,rwlock_token_set,std::string> ");
+    }
+    li=reinterpret_cast<snde::lockholder_index *>(li_ptr);
+
+    int res = SWIG_ConvertPtrAndOwn(PyTuple_GetItem(Tup,1),&ToksPtr,$descriptor(rwlock_token_set &),0,&newmem);
+    if (!SWIG_IsOK(res)) {
+      SWIG_exception_fail(SWIG_ArgError(res), "Converting parameter to std::tuple<lockholder_index,rwlock_token_set,std::string>"); 
+    }
+    if (ToksPtr) Toks=*(reinterpret_cast< snde::rwlock_token_set * >(ToksPtr));
+    if (newmem & SWIG_CAST_NEW_MEMORY) delete reinterpret_cast< snde::rwlock_token_set * >(ToksPtr);
+
+    allocid=PyString_AsString(PyTuple_GetItem(Tup,2));
+    buf.push_back(std::make_tuple(*li,Toks,allocid));
+  }
+
+  $1 = buf;
+}
+
+
+//%typemap(typecheck,precedence=SWIG_TYPECHECK_POINTER) lockholder_index   {
+//  //$1 = PyTuple_Check($input) && PyString_Check(PyTuple_GetItem($input,0));
+//  $1 = PyTuple_Check($input) && PyTuple_Size($input)==5;
+//
+//}
+
+%typemap(typecheck,precedence=SWIG_TYPECHECK_POINTER) std::tuple<lockholder_index,rwlock_token_set tokens,std::string>  {
+  //$1 = PyTuple_Check($input) && PyString_Check(PyTuple_GetItem($input,0));
+  $1 = PyTuple_Check($input) && PyTuple_Size($input)==3;
+}
+
+%typemap(typecheck,precedence=SWIG_TYPECHECK_POINTER) std::pair<lockholder_index,rwlock_token_set tokens>  {
+  //$1 = PyTuple_Check($input) && PyString_Check(PyTuple_GetItem($input,0));
+  $1 = PyTuple_Check($input) && PyTuple_Size($input)==2;
+}
+
+%typemap(typecheck,precedence=SWIG_TYPECHECK_POINTER) std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> {
+  $1 = PyList_Check($input);
+}
+%extend lockholder {
+  std::string __repr__()
+  {
+    return self->as_string();
+  }
+}
+
+//%nodefaultctor lockholder;   // Inhibit SWIG's default constructor so we can replace it with our Python __init__ (below)
+  class lockholder {
+  public:
+    std::unordered_map<lockholder_index,rwlock_token_set> values;
+    std::unordered_map<std::pair<void **,std::string>,snde_index> allocvalues;
+    
+    
+    std::string as_string();
+    bool has_lock(void **array,bool write,snde_index indexstart,snde_index numelem);
+    
+    bool has_alloc(void **array,std::string allocid);
+    
+    void store(void **array,bool write,snde_index indexstart,snde_index numelem,rwlock_token_set locktoken);
+    void store(lockholder_index array_write_startidx_numelem_tokens,rwlock_token_set locktoken);
+    void store(std::pair<lockholder_index,rwlock_token_set> idx_locktoken);
+    void store_alloc(void **array,bool write,snde_index startidx,snde_index numelem,rwlock_token_set tokens,std::string allocid);
+    void store_alloc(lockholder_index idx,rwlock_token_set,std::string allocid);
+    void store_alloc(std::tuple<lockholder_index,rwlock_token_set,std::string> idx_tokens_allocid);
+    void store_alloc(std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> vector_idx_tokens_allocid);
+
+
+    rwlock_token_set get(void **array,bool write,snde_index indexstart,snde_index numelem);
+    rwlock_token_set get_alloc_lock(void **array,snde_index numelem,std::string allocid);
+    snde_index get_alloc(void **array,std::string allocid);
+  };
+  
+// Rewrite the SWIG __getattr__  so that .name and .name_addr act like get() and getaddr()
+// but by name
+//%extend lockholder {
+//  %pythoncode %{
+//    def __getattr__(self,name):
+//      if name.endswith("_addr") and self.geometry.has_field(name[:-5]) and self.has_addr(self.geometry.addr(name[:-5])):
+//        return self.get_addr(self.geometry.addr(name[:-5]))
+//      if self.geometry.has_field(name) and self.has_lock(self.geometry.addr(name)):
+//        return self.get(self.geometry.addr(name))
+//	
+//      return _swig_getattr(self,lockholder,name)
+//   %}
+//}
+
+// replace SWIG's __init__ method, so that Python
+// lockholder takes a geometry argument so we can look up
+// attributes. 
+//%extend lockholder {
+//  %pythoncode %{
+//    def __init__(self,geometry):
+//        this = _spatialnde2.new_lockholder()
+//        self.geometry=geometry
+//        try:
+//            self.this.append(this)
+//        except __builtin__.Exception:
+//            self.this = this        
+//    %}
+//}
+}; // close namespace
+
+//// Also wrap a c++ constructor to compensate for the one we had
+//// to remove with %nodefaultctor (in order that we could write out Python
+//// constructor manually
+//// see: https://stackoverflow.com/questions/33564645/how-to-add-an-alternative-constructor-to-the-target-language-specifically-pytho
+//%inline %{
+//  snde::lockholder *new_lockholder(void) {
+//    snde::lockholder *lh = new snde::lockholder();
+//    return lh;
+//  }
+//%}
+
+
 
 %pythoncode %{
 
@@ -604,15 +736,23 @@ namespace snde {
 # defined on the c++ side with
 # a specialization that calls Python
 class lockingprocess_python(lockingprocess_pycpp):
-  manager=None # lockmanager
+  manager=None
+  lockmanager=None # lockmanager
   waiting_generators=None   # LockingPositionMap
-  runnable_generators=None  # list of generators
+  runnable_generators=None  # list of (generator,generator_parent,sendvalue)s
   
-  arrayreadregions=None  # VectorOfRegions
-  arraywriteregions=None # VectorOfRegions
+  #arrayreadregions=None  # VectorOfRegions
+  #arraywriteregions=None # VectorOfRegions
   lastlockingposition=None # lockingposition
 
+  # The distinction between all_tokens and used_tokens is that
+  # we can temporarily lock things during the locking process,
+  # but when it is complete, any of those that haven't been
+  # returned can be released. So we actually return
+  # only the used_tokens
+  
   all_tokens=None # rwlock_token_set
+  used_tokens=None # rwlock_token_set
 
   def __init__(self,**kwargs):
     for key in kwargs:
@@ -623,13 +763,14 @@ class lockingprocess_python(lockingprocess_pycpp):
       
   @classmethod
   def execprocess(cls,manager,*lock_generators):
-    arrayreadregions=VectorOfRegions(manager._arrays.size())
-    arraywriteregions=VectorOfRegions(manager._arrays.size())
+    #arrayreadregions=VectorOfRegions(manager.locker._arrays.size())
+    #arraywriteregions=VectorOfRegions(manager.locker._arrays.size())
     lastlockingposition=lockingposition(0,0,True)
 
     all_tokens=empty_rwlock_token_set()
+    used_tokens=empty_rwlock_token_set()
 
-    # locking generators take (all_tokens,arrayreadregions,arraywriteregions)
+    # locking generators take all_tokens  #,arrayreadregions,arraywriteregions)
     # as parameters. They yield either more generators
     # or a lockingposition. If they yield a locking position, the next()
     # call on them will cause them to perform the lock and yield None,
@@ -637,28 +778,43 @@ class lockingprocess_python(lockingprocess_pycpp):
 
     waiting_generators = LockingPositionMap()
 
-    proc=cls(manager=manager,
+    proc=cls(manager=manager,lockmanager=manager.locker,
              waiting_generators=waiting_generators,
              #runnable_generators=runnable_generators,
-             arrayreadregions=arrayreadregions,
-	     arraywriteregions=arraywriteregions,
+             #arrayreadregions=arrayreadregions,
+	     #arraywriteregions=arraywriteregions,
              lastlockingposition=lastlockingposition,
-             all_tokens=all_tokens)
-    proc.runnable_generators=[ lock_generator(proc) for lock_generator in lock_generators ]
+             all_tokens=all_tokens,
+             used_tokens=used_tokens)
+    proc.runnable_generators=[ (lock_generator(proc),None,None) for lock_generator in lock_generators ]
 
   
     while len(waiting_generators) > 0 or len(proc.runnable_generators) > 0:
       while len(proc.runnable_generators) > 0:
-        thisgen=proc.runnable_generators[0]
-	newgen=None
-	try:
-	  newgen=next(proc.runnable_generators[0])
-	except StopIteration:
-	  pass
+        (thisgen,thisgen_parent,sendvalue)=proc.runnable_generators[0]
+
+        # Pull from generator thisgen, delegating back to parent if there is nothing left 
+        gen_out=None	
+        while gen_out is None:
+          try:
+            gen_out=thisgen.send(sendvalue)
+          except StopIteration:
+            pass
+          if gen_out is None and thisgen_parent is not None:
+            thisgen=thisgen_parent
+            thisgen_parent=None
+            if isinstance(thisgen,tuple):
+              thisgen_parent=thisgen[1]
+              thisgen=thisgen[0]
+              pass
+            pass
+          elif gen_out is None:
+            break
+          pass
         proc.runnable_generators.pop(0) # this generator is no longer runnable
 
-        if newgen is not None: 
-          proc.process_generated(thisgen,newgen)
+        if gen_out is not None: 
+          proc.process_generated(thisgen,thisgen_parent,gen_out)
           pass
 	  
         pass
@@ -668,45 +824,70 @@ class lockingprocess_python(lockingprocess_pycpp):
 	# Use C++ style iteration because that way we iterate
 	# over pairs, not over keys
 	iterator=waiting_generators.begin()
-	(lockpos,lockcall_gen_fieldname)=iterator.value()
-	(lockcall,gen,fieldname)=lockcall_gen_fieldname.value()
+
+	(lockpos,lockcall_gen_genparent)=iterator.value()
+
+	#sys.stderr.write("Got first waiting generator, idx=%d" % (lockpos.arrayidx))
+	#if len(waiting_generators) > 1:
+        #  second_iterator=waiting_generators.begin();
+	#  second_iterator+=1
+	#  sys.stderr.write("; 2nd, idx=%d" % (second_iterator.value()[0].arrayidx))
+	#  pass
+	#sys.stderr.write("\n")
+	(lockcall,gen,genparent)=lockcall_gen_genparent.value()
 	
 
         waiting_generators.erase(iterator)
 	del iterator
-
+	
 	# diagnose locking order error
-	if lockpos < proc.lastlockingposition:
-          raise ValueError("Locking order violation")
-	
+	if lockpos < proc.lastlockingposition :
+          preexisting_only=True
+          #raise ValueError("Locking order violation")
+          pass
+	else:
+          preexisting_only=False	
+          pass
+        
         # perform locking operation
-        res=lockcall()
-	proc.lastlockingposition=lockpos
+        res=lockcall(preexisting_only)
+	if not preexisting_only: 
+          proc.lastlockingposition=lockpos
+          pass
 	
-	newgen=None
-	try:
-	  newgen=gen.send((fieldname,res))
-	except StopIteration:
-	  pass
-        if newgen is not None:
-          proc.process_generated(gen,newgen)
-	  pass
+	# .... This is now runnable... add to runnablegenerators list
+	proc.runnable_generators.append((gen,genparent,res))
         pass
       pass
       
-    return (proc.all_tokens,proc.arrayreadregions,proc.arraywriteregions)
+    return proc.used_tokens # ,proc.arrayreadregions,proc.arraywriteregions)
     
-  def process_generated(self,thisgen,newgen):
-    if isinstance(newgen,pytypes.GeneratorType):
+  def process_generated(self,thisgen,thisgen_parent,gen_out):
+    assert(isinstance(gen_out,tuple))
+    if gen_out[0]=="spawn":
+      assert(isinstance(gen_out[1],pytypes.GeneratorType))
       # Got another generator
-      self.runnable_generators.append(thisgen)
-      self.runnable_generators.append(newgen)
-      pass    
+      self.runnable_generators.append((thisgen,thisgen_parent,None))
+      self.runnable_generators.append((gen_out[1],None,None))
+      pass
+    elif gen_out[0]=="alloc":
+      # Store with parent, so that final return of child is equivalent to return of parent
+      if thisgen_parent is not None:
+        self.runnable_generators.append((gen_out[1],(thisgen,thisgen_parent),None)) # append tuple of (gen_out[1], parentgen,sendvalue) to the runnable_generators list
+        pass
+      else:
+        self.runnable_generators.append((gen_out[1],thisgen,None)) # append tuple of (gen_out[1], parentgen,sendvalue) to the runnable_generators list
+        pass
+      pass
+    elif gen_out[0]=="allocret":
+      self.runnable_generators.append((thisgen_parent,None,gen_out[1]));
     else:
-      assert(isinstance(newgen,tuple) and isinstance(newgen[0],lockingposition))
-      (posn,lockcall,fieldname) = newgen	
-	
-      self.waiting_generators.emplace_pair(lockingposition_generator(posn,CountedPyObject((lockcall,thisgen,fieldname))))
+      assert(gen_out[0]=="lock")
+      assert(isinstance(gen_out[1],lockingposition))
+      (name,posn,lockcall) = gen_out	
+
+      #sys.stderr.write("Adding waiting generator,posn.arrayidx=%d\n" % (posn.arrayidx))
+      self.waiting_generators.emplace_pair(lockingposition_generator(posn,CountedPyObject((lockcall,thisgen,thisgen_parent))))
       pass
     pass
 
@@ -714,48 +895,180 @@ class lockingprocess_python(lockingprocess_pycpp):
     newgen=lock_generator(self)
     #newfunc = lambda proc: (yield None)
     #newgen=newfunc(self)
-    return newgen
+    return ("spawn",newgen)
 
   def get_locks_read_array_region(self,
-				  geomstruct,
-				  fieldname,
+				  fieldaddr,
 				  indexstart,numelems):
-    #ArrayPtr_Swig = ArrayPtr_fromint(arrayptr)
-    ArrayPtr_Swig = geomstruct.field_address(fieldname)
+    indexstart=long(indexstart)
+    numelems=long(numelems)
     
-    if not self.manager._arrayidx.has_key(ArrayPtr_Swig):
+    
+    if not self.lockmanager._arrayidx.has_key(fieldaddr):
       raise ValueError("Array not found")
     
-    #iterator = self.manager._arrayidx.find(ArrayPtr_Swig)
+    #iterator = self.lockmanager._arrayidx.find(fieldaddr)
     #arrayidx = voidpp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
-    arrayidx = self.manager._arrayidx.get_ptr_posn(ArrayPtr_Swig)
+    arrayidx = self.lockmanager._arrayidx.get_ptr_posn(fieldaddr)
 
       
-    if self.manager.is_region_granular():
+    if self.lockmanager.is_region_granular():
       posn=lockingposition(arrayidx,indexstart,False)
       pass
     else:
       posn=lockingposition(arrayidx,0,False)
       pass
     
-    def lockcall():
-      newset = self.manager.get_locks_read_array_region(self.all_tokens,ArrayPtr_Swig,indexstart,numelems)
-      self.arrayreadregions[arrayidx].mark_region_noargs(indexstart,numelems)
-      return newset
-    return (posn,lockcall,fieldname)
+    def lockcall(preexisting_only):
+      if (preexisting_only):
+        newset = self.lockmanager.get_preexisting_locks_read_array_region(self.all_tokens,fieldaddr,indexstart,numelems)
+        pass
+      else:
+        newset = self.lockmanager.get_locks_read_array_region(self.all_tokens,fieldaddr,indexstart,numelems)
+        pass      
+      merge_into_rwlock_token_set(self.used_tokens,newset);
+      
+      #self.arrayreadregions[arrayidx].mark_region_noargs(indexstart,numelems)
+      return (lockholder_index(fieldaddr,False,indexstart,numelems),newset)
+    return ("lock",posn,lockcall)
+
+  def get_locks_write_array_region(self,
+				   fieldaddr,
+				   indexstart,numelems,_dont_add_locks_to_used=False): #,_nomarkwriteregions=False):
+    indexstart=long(indexstart)
+    numelems=long(numelems)
+
+    
+    
+    if not self.lockmanager._arrayidx.has_key(fieldaddr):
+      raise ValueError("Array not found")
+    
+    #iterator = self.lockmanager._arrayidx.find(fieldaddr)
+    #arrayidx = voidpp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
+    arrayidx = self.lockmanager._arrayidx.get_ptr_posn(fieldaddr)
+
+      
+    if self.lockmanager.is_region_granular():
+      posn=lockingposition(arrayidx,indexstart,True)
+      pass
+    else:
+      posn=lockingposition(arrayidx,0,True)
+      pass
+    
+    def lockcall(preexisting_only):
+      #addrstr=AddrStr(fieldaddr)
+      #sys.stderr.write("get_locks_write(preex=%s,addr=%s,st=%d,num=%d)\n" % (str(preexisting_only),addrstr,indexstart,numelems))
+
+      if preexisting_only: 
+        newset = self.lockmanager.get_preexisting_locks_write_array_region(self.all_tokens,fieldaddr,indexstart,numelems)
+        pass
+      else:
+        newset = self.lockmanager.get_locks_write_array_region(self.all_tokens,fieldaddr,indexstart,numelems)
+        pass
+     
+
+      if not _dont_add_locks_to_used:
+        merge_into_rwlock_token_set(self.used_tokens,newset);
+        pass
+      
+      #if not(_nomarkwriteregions):
+      #  self.arraywriteregions[arrayidx].mark_region_noargs(indexstart,numelems)
+      #  pass
+      return (lockholder_index(fieldaddr,True,indexstart,numelems),newset)
+    return ("lock",posn,lockcall)
+
+  def get_locks_array_region(self,
+			     fieldname,
+			     write,
+			     indexstart,numelems):
+    if write:
+      return self.get_locks_write_array_region(fieldname,indexstart,numelems)
+    else:
+      return self.get_locks_read_array_region(fieldname,indexstart,numelems)
+    pass
+  
+  
+  def get_locks_array(self,
+		      fieldname,
+		      write):
+    if write:
+      return self.get_locks_write_array_region(fieldname,0,SNDE_INDEX_INVALID)
+    else:
+      return self.get_locks_read_array_region(fieldname,0,SNDE_INDEX_INVALID)
+    pass
+
+
+  # !!!*** Should also implement a realloc() function that takes a lambda
+  # that can be called while the entire array is locked to determine the new size
+  def alloc_array_region(self,fieldaddr,numelems,allocid):
+        
+    def alloc_func():
+      numarrays_locked=0;
+
+      #fieldaddr=geomstruct.field_address(fieldname)
+
+      # must store iterator in a variable, lest it be a temporary that goes out of context
+      # causing segmentation faults
+      iter = voidpp_voidpp_multimap_pyiterator.iterate_particular_key(self.manager.arrays_managed_by_allocator,fieldaddr)
+      for managed_array in iter:
+        # lock entire array
+	# but don't record it in used_tokens or mark the write regions
+        
+        #managed_array_str=AddrStr(managed_array)
+        #field_array_str=AddrStr(fieldaddr)
+        #sys.stderr.write("Getting locks of managed_array %s of array %s (idx %d)\n" % (managed_array_str,field_array_str,  self.lockmanager._arrayidx.get_ptr_posn(managed_array)))
+        yield self.get_locks_write_array_region(managed_array,0,SNDE_INDEX_INVALID,_dont_add_locks_to_used=True) #,_nomarkwriteregions=True)
+	numarrays_locked+=1
+        pass
+      assert(numarrays_locked > 0); # if this fails, you probably called with a follower array pointer, not an allocator array pointer
+
+
+      (ret_fields_tokens,ret_addr) = self.manager.alloc_arraylocked_swigworkaround(self.all_tokens,fieldaddr,numelems)
+
+      # re-iterate over managed arrays, marking our write credentials
+      #iter = voidpp_voidpp_multimap_pyiterator.iterate_particular_key(self.manager.arrays_managed_by_allocator,fieldaddr)
+      #for managed_array in iter:
+      #  arrayidx = self.lockmanager._arrayidx.get_ptr_posn(managed_array)
+      #  self.arraywriteregions[arrayidx].mark_region_noargs(ret_addr,numelems)        
+      #  pass
+
+      # Iterate over returned pointers and tokens
+      result=[]
+      for (ret_field,token) in ret_fields_tokens:
+        # keep the tokens from the allocation..., add them into self.used_tokens
+        merge_into_rwlock_token_set(self.used_tokens,token)
+	result.append((lockholder_index(ret_field.value(),True,ret_addr,numelems),token,allocid))
+        pass
+      #sys.stderr.write("allocation result: %s\n" % (str(result)))
+      # Other tokens will fall out of scope
+      yield ("allocret",result)
+      pass
+    
+
+    return ("alloc",alloc_func())
   pass
 
 def pylockprocess(*args,**kwargs):
   return lockingprocess_python.execprocess(*args,**kwargs)
   pass
 
-class pylockholder(object):
+class pylockholder_obsolete(object):
   def store(self,name_value):
 
     (lockname,value)=name_value
       
     setattr(self,lockname,value)
     pass
+
+  def get(self,name):
+    return getattr(self,name)
+
+  def store_addr(self,name_tokens_addr):
+    (name,tokens,addr)=name_tokens_addr
+    setattr(self,name,tokens)
+    setattr(self,name+"_addr",addr)
+    pass
+    
   def store_name(self,name,*args):
   
     if isinstance(args[0],tuple):
@@ -773,3 +1086,5 @@ class pylockholder(object):
     
   
 %}
+
+

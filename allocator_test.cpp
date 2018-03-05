@@ -26,21 +26,21 @@ int main(int argc, char *argv[])
 
   snde_index blockstart,blocksize;
 
-  std::shared_ptr<memallocator> lowlevel_alloc(new cmemallocator());
-  
-  std::shared_ptr<allocator> test_allocator(new allocator(lowlevel_alloc,NULL,(void **)&test_array,sizeof(*test_array),100000));
+  std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<cmemallocator>();
+  std::shared_ptr<allocator_alignment> alignment=std::make_shared<allocator_alignment>();
+  std::shared_ptr<allocator> test_allocator=std::make_shared<allocator>(lowlevel_alloc,nullptr,alignment,(void **)&test_array,sizeof(*test_array),100000);
 
   // allocate 7739 element array
 
   blocksize=7739;
-  blockstart=test_allocator->alloc(blocksize);
+  blockstart=test_allocator->_alloc(blocksize);
   if (blockstart==SNDE_INDEX_INVALID) {
     fprintf(stderr,"Allocation failed\n");
     exit(1);
   }
   
   
-  test_allocator->free(blockstart,blocksize);
+  test_allocator->_free(blockstart,blocksize);
 
   test_allocator.reset(); // discard allocator
 

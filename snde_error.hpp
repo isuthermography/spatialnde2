@@ -2,6 +2,7 @@
 #define SNDE_ERROR_HPP
 
 #include <string>
+#include <cstring>
 #include <cstdarg>
 
 #include <map>

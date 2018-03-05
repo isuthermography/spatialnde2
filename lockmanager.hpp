@@ -1,5 +1,5 @@
-#ifndef SNDE_LOCKMANAGER
-#define SNDE_LOCKMANAGER
+#ifndef SNDE_LOCKMANAGER_HPP
+#define SNDE_LOCKMANAGER_HPP
 
 #include <cstdint>
 #include <cassert>
@@ -14,7 +14,9 @@
 #include <map>
 #include <thread> // Remember to add -pthread to the flags
 
+#include "snde_error.hpp"
 #include "geometry_types.h"
+#include "lock_types.hpp"
 #include "rangetracker.hpp"
 
 /* general locking api information:
@@ -67,27 +69,15 @@ The order is from the top of the struct snde_geometrydata  to the bottom. Once y
  */
 
 namespace snde {
+  class lockholder_index; // forward declaration 
+  
   typedef  std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > > voidpp_size_map;
   typedef voidpp_size_map::iterator voidpp_size_map_iterator;
   
-  class rwlock;  // forward declaration
+  class arraymanager; // forward declaration
 
-  class rwlock_lockable {
-    // private to rwlock
-  public:
-    int _writer;
-    rwlock *_rwlock_obj;
 
-    rwlock_lockable(rwlock *lock,int writer) {
-      _writer=writer;
-      _rwlock_obj=lock;
-    }
-
-    void lock();  // implemented in lockmanager.cpp
-    void unlock(); // implemented in lockmanager.cpp
-  };
-
-  struct arrayregion {
+    struct arrayregion {
     void **array;
     snde_index indexstart;
     snde_index numelems;
@@ -111,7 +101,7 @@ namespace snde {
       regionend=later.regionend;
       return true;
     }
-    std::shared_ptr<markedregion> breakup(snde_index breakpoint)
+    std::shared_ptr<markedregion> sp_breakup(snde_index breakpoint)
     /* breakup method ends this region at breakpoint and returns
        a new region starting at from breakpoint to the prior end */
     {
@@ -120,405 +110,49 @@ namespace snde {
 
       return newregion;
     }
-  };
-
-  class dirtyregion: public markedregion  {
-  public:
-    cachemanager *cache_with_valid_data; /* Do not dereference this pointer... NULL means the main CPU store is the one with the valid data */
-    dirtyregion(cachemanager *cache_with_valid_data,snde_index regionstart, snde_index regionend) : markedregion(regionstart,regionend)
+    markedregion breakup(snde_index breakpoint)
+    /* breakup method ends this region at breakpoint and returns
+       a new region starting at from breakpoint to the prior end */
     {
-      this->cache_with_valid_data=cache_with_valid_data;
-    }
-  };
-    
-  class rwlock {
-  public:
-    // loosely motivated by https://stackoverflow.com/questions/11032450/how-are-read-write-locks-implemented-in-pthread
-    // * Instantiate snde::rwlock()
-    // * To read lock, define a std::unique_lock<snde::rwlock> readlock(rwlock_object)
-    // * To write lock, define a std::unique_lock<snde::rwlock_writer> readlock(rwlock_object.writer)
-    // Can alternatively use lock_guard if you don't need to be able to unlock within the context
+      markedregion newregion(breakpoint,regionend);
+      regionend=breakpoint;
 
-    std::deque<std::condition_variable *> threadqueue;
-    int writelockpending;
-    int writelockcount;
-    int readlockcount;
-    //size_t regionstart; // if in subregions only
-    //size_t regionend; // if in subregions only
-
-    std::mutex admin;
-    rwlock_lockable reader;
-    rwlock_lockable writer;
-
-
-    rangetracker<dirtyregion> _dirtyregions; /* track dirty ranges during a write (all regions that are locked for write */
-
-    std::deque<std::function<void(snde_index firstelem,snde_index numelems)>> _dirtynotify; /* locked by admin, but functions should be called with admin lock unlocked (i.e. copy the deque before calling). This write lock will be locked. NOTE: numelems of SNDE_INDEX_INVALID means to the end of the array  */
-
-    // For weak readers to support on-GPU caching of data, we would maintain a list of some sort
-    // of these weak readers. Before we give write access, we would have to ask each weak reader
-    // to relinquish. Then when write access ends by unlock or downgrade, we offer each weak
-    // reader the ability to recache.
-
-    // in addition/alternatively the allocator concept could allocate memory directly on board the GPU...
-    // but this alone would be problematic for e.g. triangle lists that need to be accessed both by
-    // a GPU renderer and GPGPU computation.
-
-
-    rwlock() :
-      reader(this,0),
-      writer(this,1)
-    {
-      writelockcount=0;
-      readlockcount=0;
+      return newregion;
     }
 
-    void _wait_for_top_of_queue(std::condition_variable *cond,std::unique_lock<std::mutex> *adminlock) {
-
-      do {
-	cond->wait(*adminlock);
-      } while(threadqueue.front() != cond);
-      threadqueue.pop_front();
-    }
-
-    void lock_reader() { // lock for read
-      std::unique_lock<std::mutex> adminlock(admin);
-
-
-      std::condition_variable cond;
-
-      if (writelockcount > 0) {
-	/* add us to end of queue if locked for writing */
-	threadqueue.push_back(&cond);
-	_wait_for_top_of_queue(&cond,&adminlock);
-      }
-
-      /* been through queue once... now keep us on front of queue
-         until no-longer locked for writing */
-      while(writelockcount > 0) {
-
-	threadqueue.push_front(&cond);
-	_wait_for_top_of_queue(&cond,&adminlock);
-      }
-
-      readlockcount++;
-
-      /* Notify front of queue in case it is a reader and can
-	 read in parallel with us */
-      if (!threadqueue.empty()) {
-        threadqueue.front()->notify_all();
-      }
-    }
-
-    void clone_reader()
-    {
-      std::unique_lock<std::mutex> adminlock(admin);
-
-      if (readlockcount < 1) {
-	throw std::invalid_argument("Can only clone readlock that has positive readlockcount");
-      }
-
-      readlockcount++;
+    bool operator<(const markedregion & other) const {
+      if (regionstart < other.regionstart) return true;
+      return false;
 
     }
-
-    void unlock_reader() {
-      // unlock for read
-      std::unique_lock<std::mutex> adminlock(admin);
-      readlockcount--;
-
-      if (!threadqueue.empty()) {
-        threadqueue.front()->notify_all();
-      }
-    }
-
-    void writer_mark_as_dirty(cachemanager *cache_with_valid_data,snde_index firstelem, snde_index numelems) {
-      // was writer_append_region()
-      if (writelockcount < 1) {
-	throw std::invalid_argument("Can only append to region of something locked for write");
-      }
-      std::unique_lock<std::mutex> adminlock(admin);
-      /* Should probably merge with preexisting entries here... */
-
-      _dirtyregions.mark_region(firstelem,numelems,cache_with_valid_data);
-
-    }
-
-    //void lock_writer(snde_index firstelem,snde_index numelems) {
-    // // lock for write
-    // // WARNING no actual element granularity; firstelem and
-    //  // numelems are stored so as to enable correct dirty
-    //  // notifications
-    //  std::unique_lock<std::mutex> adminlock(admin);
-
-
-    //  std::condition_variable cond;
-
-    //  if (writelockcount > 0 || readlockcount > 0) {
-    //	/* add us to end of queue if locked for reading or writing */
-    //	threadqueue.push_back(&cond);
-    //	_wait_for_top_of_queue(&cond,&adminlock);
-    //  }
-
-    //  /* been through queue once... now keep us on front of queue
-    //     until no-longer locked for writing */
-    //  while(writelockcount > 0 || readlockcount > 0) {
-    //
-    //  threadqueue.push_front(&cond);
-    //  _wait_for_top_of_queue(&cond,&adminlock);
-    //  }
-
-    //  _dirtyregions.mark_region(firstelem,numelems);
-
-    //  writelockcount++;
-    //}
-
-    void lock_writer()
-    {
-     // lock for write
-     // WARNING: Caller is responsible for doing any dirty-marking!!!
-      std::unique_lock<std::mutex> adminlock(admin);
-
-
-      std::condition_variable cond;
-
-      if (writelockcount > 0 || readlockcount > 0) {
-	/* add us to end of queue if locked for reading or writing */
-	threadqueue.push_back(&cond);
-	_wait_for_top_of_queue(&cond,&adminlock);
-      }
-
-      /* been through queue once... now keep us on front of queue
-         until no-longer locked for writing */
-      while(writelockcount > 0 || readlockcount > 0) {
-
-	threadqueue.push_front(&cond);
-	_wait_for_top_of_queue(&cond,&adminlock);
-      }
-
-      writelockcount++;
-    }
-
-
-    void downgrade() {
-      std::unique_lock<std::mutex> adminlock(admin);
-      if (writelockcount < 1) {
-	throw std::invalid_argument("Can only downgrade lock that has positive writelockcount");
-      }
-      writelockcount--;
-      readlockcount++;
-
-      /* notify waiters that they might be able to read now */
-      if (!threadqueue.empty()) {
-        threadqueue.front()->notify_all();
-      }
-    }
-
-    void sidegrade() {
-      // Get read access while we already have write access
-      std::unique_lock<std::mutex> adminlock(admin);
-      if (writelockcount < 1) {
-	throw std::invalid_argument("Can only sidegrade lock that has positive writelockcount");
-      }
-      readlockcount++;
-
-    }
-
-    void clone_writer()
-    {
-      std::unique_lock<std::mutex> adminlock(admin);
-
-      if (writelockcount < 1) {
-	throw std::invalid_argument("Can only clone lock that has positive writelockcount");
-      }
-
-      writelockcount++;
-
-    }
-
-    void unlock_writer() {
-      // unlock for write
-      std::unique_lock<std::mutex> adminlock(admin);
-
-      if (writelockcount < 1) {
-	throw std::invalid_argument("Can only unlock lock that has positive writelockcount");
-      }
-
-      if (_dirtynotify.size() > 0 && writelockcount==1) {
-	std::deque<std::function<void(snde_index firstelem,snde_index numelems)>> dirtynotifycopy(_dirtynotify);
-
-	// make thread-safe copy of dirtyregions;
-	// since we are locked for write nobody had better
-	// be messing with dirtyregions
-
-	adminlock.unlock();
-
-	for (auto & callback: dirtynotifycopy) {
-	  for (auto & region: _dirtyregions) {
-	    if (region.second->regionend==SNDE_INDEX_INVALID) { // to infinity
-	      callback(region.second->regionstart,SNDE_INDEX_INVALID);// repeat callback for each dirty region
-
-	    } else {
-	      callback(region.second->regionstart,region.second->regionend-region.second->regionstart);// repeat callback for each dirty region
-	    }
-	  }
-	}
-
-	adminlock.lock();
-      }
-
-      writelockcount--;
-
-      if (!writelockcount) {
-	_dirtyregions.clear_all();
-      }
-
-      if (!writelockcount && !threadqueue.empty()) {
-        threadqueue.front()->notify_all();
-      }
-    }
-
-
   };
 
 
-  // Persistent token of lock ownership
-  typedef std::unique_lock<rwlock_lockable> rwlock_token_content;
-  typedef std::shared_ptr<rwlock_token_content> rwlock_token;
-
-  
-  // Set of tokens
-  typedef std::unordered_map<rwlock_lockable *,rwlock_token> rwlock_token_set_content;
-  typedef std::shared_ptr<rwlock_token_set_content> rwlock_token_set;
-
-
-
-
-  
-  /* rwlock_token_set semantics: 
-     The rwlock_token_set contains a reference-counted set of locks, specific 
-     to a particular thread. They can be passed around, copied, etc.
-     at will within a thread context. 
-     
-     A lock is unlocked when: 
-        (a) unlock_rwlock_token_set() is called on an rwlock_token_set containing 
-	    the lock, or 
-        (b) All references to all rwlock_token_sets containing the lock
-	    are released (by release_rwlock_token_set()) or go out of scope
-     Note that it is an error (std::system_error) to call unlock_rwlock_token_set()
-     on an rwlock_token_set that contains any locks that already have been
-     unlocked (i.e. by a prior call to unlock_rwlock_token_set()) 
-
-     It is possible to pass a token_set to another thread, but 
-     only by creating a completely independent cloned copy and 
-     completely delegating the cloned copy to the other thread.
-
-     The cloned copy is created with clone_rwlock_token_set(). 
-     The unlock()ing the cloned copy is completely separate from
-     unlocking the original.
-*/
-
-  static inline void release_rwlock_token_set(rwlock_token_set &tokens)
-  /* release_token_set releases our references to a particular 
-     token set. Once all references are released, any locked tokens
-     become unlocked */
-  {
-    tokens.reset(); // release our reference 
-  }
-
-  static inline void unlock_rwlock_token_set(rwlock_token_set tokens)
-  /* unlock_token_set() explicitly unlocks all underlying tokens. 
-     It is an error (std::system_error) to unlock more than once. 
-     All other references to these tokens also become unlocked */
-  {
-    for (auto & lockableptr_token : *tokens) {
-      lockableptr_token.second->unlock();
-    }
-  }
-  
-  static inline rwlock_token_set_mark_as_dirty(rwlock_token_set tokens,cachemanager *cache_with_valid_data,snde_index firstelem, snde_index numelems)
-  {
-    for (auto & lockableptr_token : *tokens) {
-      assert(lockableptr_token.second->owns_lock()); /* lock should be locked in order to mark it as dirty */
-      /* so long as it is locked, it had better exist, so the pointer is valid */
-      lockable_ptr_token.first->_rwlock_obj->writer_mark_as_dirty(cache_with_valid_data,firstelem,numelems);
-    }
-
-  }
-
-
-  static inline rwlock_token_set empty_rwlock_token_set(void)
-  {
-    return std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
-  }
-
-  static inline bool check_rwlock_token_set(rwlock_token_set tokens)
-  /* checks to make sure that referenced tokens are actually locked.
-     returns true if all are locked, false if any are unlocked */
-  {
-    bool all_locked=true;
-    
-    for (auto & lockableptr_token : *tokens) {
-      all_locked = all_locked && lockableptr_token.second->owns_lock();
-    }
-    return all_locked; 
-  }
-  
-  
-
-  static inline void merge_into_rwlock_token_set(rwlock_token_set accumulator, rwlock_token_set tomerge)
-  {
-    std::unordered_map<rwlock_lockable *,rwlock_token>::iterator foundtoken;
-      
-    for (std::unordered_map<rwlock_lockable *,rwlock_token>::iterator lockable_token=tomerge->begin();lockable_token != tomerge->end();lockable_token++) {
-
-      foundtoken=accumulator->find(lockable_token->first);
-      if (foundtoken != accumulator->end() && foundtoken->first->_writer) {
-	/* already have this key in accumulator , and what we already have is a write lock
-	   ... can't do better than this so do nothing */
-      } else {
-	/* pull into accumulator */
-	(*accumulator)[lockable_token->first]=lockable_token->second;
-      }
-    }
-  }
-
-  static inline rwlock_token_set clone_rwlock_token_set(rwlock_token_set orig)
-  {
-    /* Clone a rwlock_token_set so that the copy can be delegated
-       to a thread. Note that once a write lock is delegated to another
-       thread, the locking is no longer useful for ensuring that writes
-       only occur from one thread unless the original token set
-       is immediately released (by orig.reset() and on all copies) */
-
-    rwlock_token_set copy(new std::unordered_map<rwlock_lockable *,rwlock_token>());
-    rwlock_lockable *lockable;
-
-    for (std::unordered_map<rwlock_lockable *,rwlock_token>::iterator lockable_token=orig->begin();lockable_token != orig->end();lockable_token++) {
-      lockable=lockable_token->first;
-      /* clone the lockable */
-      if (lockable->_writer) {
-	lockable->_rwlock_obj->clone_writer();
-      } else {
-	lockable->_rwlock_obj->clone_reader();
-      }
-      /* now make a rwlock_token representing the clone
-	 and put it in the copy */
-      (*copy)[lockable]=std::make_shared<std::unique_lock<rwlock_lockable>>(*lockable,std::adopt_lock);
-    }
-
-    return copy;
-  }
+  //  class dirtyregion: public markedregion  {
+  //  public:
+  //    cachemanager *cache_with_valid_data; /* Do not dereference this pointer... NULL means the main CPU store is the one with the valid data */
+  //    cl_event FlushDoneEvent;
+  //    bool FlushDoneEventComplete;
+  //    dirtyregion(cachemanager *cache_with_valid_data,snde_index regionstart, snde_index regionend) : markedregion(regionstart,regionend)
+  //    {
+  //      this->cache_with_valid_data=cache_with_valid_data;
+  //    }
+  //  };
 
   class arraylock {
   public:
-    //std::mutex admin; /* locks access to full_array and subregions members.. obsolete.... just use the lockmanager's admin lock */
+    std::mutex admin; /* locks access to subregions, lock after everything; see also whole_array_write */
 
-    rwlock full_array;
+    //rwlock full_array;
     //std::vector<rwlock> subregions;
 
+    std::shared_ptr<rwlock> wholearray; /* This is in the locking order with the arrays. In
+				 order to modify subregions you must hold this AND all subregions AND admin (above) 
+				 for write... Note: Not used for dirty tracking (put dirty stuff in subregions!) */
+    std::map<markedregion,std::shared_ptr<rwlock>> subregions;
+    
     arraylock() {
-
+      wholearray=std::make_shared<rwlock>();
     }
   };
 
@@ -685,16 +319,15 @@ namespace snde {
     std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>> _arrayidx; /* get array index from pointer */
 
     std::deque<arraylock> _locks; /* get lock from index */
-    std::unordered_map<rwlock *,size_t> _idx_from_lockptr; /* get array index from lock pointer */
+    //std::unordered_map<rwlock *,size_t> _idx_from_lockptr; /* get array index from lock pointer */
 
-
-    //std::mutex admin; /* synchronizes access to lockmanager
-    //			 data structures (arrays, arrayidx,locks).
-    //			 this is locked BEFORE the adminlocks within the
-    //			 locks array. -- not necessary because we specify
-    //                   that all such initialization must be done from
-    //                   one thread on startup */
-
+    // basic lockmanager data structures (arrays, arrayidx,locks).
+    //			 do not require locking because they are 
+    //                   immutable after single-threaded initialization.
+    
+    // ... But _locks[...].subregions is mutable
+    // and is locked with locks[...].mutex  mutex:
+    
     lockmanager() {
 
     }
@@ -725,47 +358,123 @@ namespace snde {
 
       _locks.emplace_back();  /* Create arraylock object */
 
-      _idx_from_lockptr[&_locks.back().full_array]=idx;
+      //_idx_from_lockptr[&_locks.back().full_array]=idx;
 
     }
 
     bool is_region_granular(void) /* Return whether locking is really granular on a region-by-region basis (true) or just on an array-by-array basis (false) */
     {
-      return false;
+      return true;
     }
 
     void set_array_size(void **Arrayptr,size_t elemsize,snde_index nelem) {
       // We don't currently care about the array size
     }
 
-    rwlock_token  _get_preexisting_lock_read_array(rwlock_token_set all_locks, size_t arrayidx)
+    //void writer_mark_as_dirty(cachemanager *cache,void **arrayptr,snde_index pos,snde_index size)
+    //{
+    //  size_t arrayidx=_arrayidx.at(array);
+    //
+    //
+    //  std::unique_lock<std::mutex> arrayadminlock(_locks[arrayidx].admin);
+    //
+    //  std::map<markedregion,rwlock>::iterator iter=manager->locker->_locks[arrayidx].subregions.lower_bound(pos);
+
+    // if (pos < iter.first.regionstart) { /* probably won't happen due to array layout process, but just in case */
+    //assert(iter != _locks[arrayidx].subregions.begin());
+    //	iter--;
+    //  }
+    //
+    //// iterate over the subregions of this arraylock
+    //  for (;iter != manager->locker->_locks[arrayidx].subregions.end() && iter->first.regionstart < writeregion.second->regionend;iter++) {
+    //snde_index regionstart=dirtyregion->regionstart;
+    //snde_index regionend=dirtyregion->regionend;
+    //
+    //
+    //if (iter->first.regionstart > regionstart) {
+    //regionstart=iter->first.regionstart;
+    //}
+    //if (regionend > iter->first.regionend) {
+    //regionend=iter->first.regionend;
+    //}
+    //
+    //iter->second.writer_mark_as_dirty(this,regionstart,regionend-regionstart);
+    //
+    //}
+    
+    //}
+    
+    rwlock_token newallocation(rwlock_token_set all_locks,void **arrayptr,snde_index pos,snde_index size,snde_index elemsize)
+    {
+      /* callback from allocator */
+      /* returns locked token */
+      /* Entire array should be write locked in order to call this */
+      size_t arrayidx=_arrayidx.at(arrayptr);
+      std::unique_lock<std::mutex> lock(_locks.at(arrayidx).admin); // lock the subregions field
+
+      
+      
+      
+      // Notification from allocator
+      markedregion region(pos,pos+size);
+      
+      size_t idx=_arrayidx.at(arrayptr);
+      assert(_locks.at(idx).subregions.count(region)==0);
+
+      // add new rwlock to subregion
+      _locks.at(idx).subregions.emplace(std::piecewise_construct,
+					std::forward_as_tuple(pos,pos+size),
+					std::forward_as_tuple());
+
+      _locks.at(arrayidx).subregions.at(region)=std::make_shared<rwlock>();
+      std::shared_ptr<rwlock> rwlockobj=_locks.at(arrayidx).subregions.at(region);
+
+      rwlock_token retval(new std::unique_lock<rwlock_lockable>(rwlockobj->writer));
+      (*all_locks)[&rwlockobj->writer]=retval;
+
+      return retval;
+    }
+
+    void freeallocation(void **arrayptr,snde_index pos, snde_index size,snde_index elemsize)
+    {
+      /* callback from allocator */
+      /* Entire array should be write locked in order to call tihs */
+      size_t idx=_arrayidx.at(arrayptr);
+      std::lock_guard<std::mutex> lock(_locks.at(idx).admin);
+
+      // notification from allocator
+      _locks.at(idx).subregions.erase(markedregion(pos,pos+size));
+      
+    }
+
+
+    rwlock_token  _get_preexisting_lock_read_array_lockobj(rwlock_token_set all_locks, size_t arrayidx,std::shared_ptr<rwlock> rwlockobj)
     /* returns NULL if there is no such preexisting read lock or
        there is no preexisting write lock that is convertable to a read lock */
-    {
+    {      // must hold write lock on entire array... returns write lock on new allocation
+      // and position
+
       // prior is like a rwlock_token_set **
-      rwlock_lockable *lockobj=&_locks[arrayidx].full_array.reader;
-      rwlock_lockable *writelockobj=&_locks[arrayidx].full_array.writer;
+      
+      rwlock_lockable *lockobj=&rwlockobj->reader;
+      rwlock_lockable *writelockobj=&rwlockobj->writer;
       rwlock_token writelocktoken;
 
-      //for (std::vector<rwlock_token_set>::iterator prior=priors->begin(); prior != priors->end(); prior++) {
-	//
-
-	//if ((**prior).count(lockobj)) {
+	
       if ((*all_locks).count(lockobj)) {
-	  /* If we have this token */
-	  /* return a reference */
+	/* If we have this token */
+	/* return a reference */
 	return (*all_locks)[lockobj];
       }
       if ((*all_locks).count(writelockobj)) {
 	/* There is a write lock for this token */
 	writelocktoken=(*all_locks)[writelockobj];
       }
-      //}
-
+      
       /* if we got here, we do not have a token, need to make one */
       if (writelocktoken) {
 	/* There is a write token, but not a read token */
-	_locks[arrayidx].full_array.sidegrade(); /* add read capability to write lock */
+	rwlockobj->sidegrade(); /* add read capability to write lock */
         /* this capability is important to avoid deadlocking
            if a single owner locks one subregion for read and
            another subregion for write, then so long as the write
@@ -777,103 +486,152 @@ namespace snde {
 	   we just added */
 	rwlock_token retval=std::make_shared<std::unique_lock<rwlock_lockable>>(*lockobj,std::adopt_lock);
 	(*all_locks)[lockobj]=retval;
-
+	
 	return retval;
       }
-
+      
       return std::shared_ptr<std::unique_lock<rwlock_lockable>>();
 
     }
 
-
-
-    rwlock_token  _get_lock_read_array(rwlock_token_set all_locks, size_t arrayidx)
+    
+    std::pair<rwlock_lockable *,rwlock_token>  _get_preexisting_lock_read_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index pos,snde_index size)
+    /* returns NULL if there is no such preexisting read lock or
+       there is no preexisting write lock that is convertable to a read lock */
     {
       // prior is like a rwlock_token_set **
-      rwlock_lockable *lockobj=&_locks[arrayidx].full_array.reader;
+      std::unique_lock<std::mutex> lock(_locks.at(arrayidx).admin); // lock the subregions field
+      
+      std::shared_ptr<rwlock> rwlockobj = _locks.at(arrayidx).subregions.at(markedregion(pos,pos+size));
+      lock.unlock();
+      return std::make_pair(&rwlockobj->reader,_get_preexisting_lock_read_array_lockobj(all_locks, arrayidx,rwlockobj));
+    }
+
+
+
+    std::pair<rwlock_lockable *,rwlock_token>  _get_lock_read_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index pos,snde_index size)
+    {
+
       rwlock_token retval;
-
-      retval=_get_preexisting_lock_read_array(all_locks,arrayidx);
-
+      rwlock_lockable *lockobj;
+      std::tie(lockobj,retval)=_get_preexisting_lock_read_array_region(all_locks,arrayidx,pos,size);
+      
       if (retval == nullptr) {
+	
 	retval = rwlock_token(new std::unique_lock<rwlock_lockable>(*lockobj));
 	(*all_locks)[lockobj]=retval;
       }
-      return retval;
+      return std::make_pair(lockobj,retval);
     }
-
+    
 
     rwlock_token_set get_locks_read_array(rwlock_token_set all_locks, void **array)
     {
       rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+      
+      size_t arrayidx=_arrayidx.at(array);
+      arraylock & alock=_locks.at(arrayidx);
 
-      assert(_arrayidx.find(array) != _arrayidx.end());
-      (*token_set)[&_locks[_arrayidx[array]].full_array.reader]=_get_lock_read_array(all_locks,_arrayidx[array]);
-
+      // First, get wholearray lock
+      
+      rwlock_token wholearray_token = _get_preexisting_lock_read_array_lockobj(all_locks,arrayidx,alock.wholearray);
+      if (wholearray_token==nullptr) {
+	wholearray_token = rwlock_token(new std::unique_lock<rwlock_lockable>(alock.wholearray->reader));
+	(*all_locks)[&alock.wholearray->reader]=wholearray_token;
+      }
+      (*token_set)[&alock.wholearray->reader]=wholearray_token;
+            
+      /* now that we have wholearray_lock, nobody else can do allocations, etc. that may modify subregions, 
+	 so we can safely iterate over it without holding the admin lock */
+      
+      for (auto & markedregion_rwlock : alock.subregions) {
+	rwlock_lockable *lockableptr;
+	rwlock_token token;
+	std::tie(lockableptr,token)=_get_lock_read_array_region(all_locks,arrayidx,markedregion_rwlock.first.regionstart,markedregion_rwlock.first.regionend-markedregion_rwlock.first.regionstart);
+	(*token_set)[lockableptr]=token;
+      }
       return token_set;
     }
 
     rwlock_token_set get_preexisting_locks_read_array(rwlock_token_set all_locks, void **array)
     {
-      rwlock_token preexisting_lock;
-
       rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
 
-      assert(_arrayidx.find(array) != _arrayidx.end());
-      preexisting_lock=_get_preexisting_lock_read_array(all_locks,_arrayidx[array]);
+      //assert(_arrayidx.find(array) != _arrayidx.end());
+      size_t arrayidx=_arrayidx.at(array);
+      arraylock & alock=_locks.at(arrayidx);
 
-      if (preexisting_lock==nullptr) {
-	throw std::invalid_argument("Must have valid preexisting lock");
+      // First, get wholearray lock      
+      rwlock_token wholearray_token = _get_preexisting_lock_read_array_lockobj(all_locks,arrayidx,alock.wholearray);
+      if (wholearray_token==nullptr) {
+	throw std::invalid_argument("Must have valid preexisting wholearray lock (this may be a locking order violation)");
       }
 
-      (*token_set)[&_locks[_arrayidx[array]].full_array.reader]=preexisting_lock;
+      (*token_set)[&alock.wholearray->reader]=wholearray_token;
+      
+      /* now that we have wholearray_lock, nobody else can do allocations, etc. that may modify subregions, 
+	 so we can safely iterate over it without holding the admin lock */
+      
+      for (auto & markedregion_rwlock : alock.subregions) {	
+      
+	rwlock_lockable *lockableptr;
+	rwlock_token preexisting_lock;
+	std::tie(lockableptr,preexisting_lock)=_get_preexisting_lock_read_array_region(all_locks,arrayidx,markedregion_rwlock.first.regionstart,markedregion_rwlock.first.regionend-markedregion_rwlock.first.regionstart);
+	
+	if (preexisting_lock==nullptr) {
+	  throw std::invalid_argument("Must have valid preexisting lock (this may be a locking order violation)");
+	}
+	//(*token_set)[&markedregion_rwlock.second.reader]=preexisting_lock;
+	(*token_set)[lockableptr]=preexisting_lock;
 
+      }
       return token_set;
     }
 
 
-    rwlock_token_set get_locks_read_arrays(rwlock_token_set all_locks, std::vector<void **> arrays)
-    {
-      rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
-
-      std::vector<void **> sorted_arrays(arrays);
-
-      std::sort(sorted_arrays.begin(), sorted_arrays.end(),
-          [ this ] (void **a, void **b) { return _arrayidx[a] < _arrayidx[b]; });
-
-
-      for (std::vector<void **>::iterator array=sorted_arrays.begin(); array != sorted_arrays.end(); array++) {
-	(*token_set)[&_locks[_arrayidx[*array]].full_array.reader]=_get_lock_read_array(all_locks,_arrayidx[*array]);
-      }
-      return token_set;
-    }
-
-
+    
     rwlock_token_set get_preexisting_locks_read_array_region(rwlock_token_set all_locks, void **array,snde_index indexstart,snde_index numelems)
     {
-      // We do not currently implement region-granular locking
-      return get_preexisting_locks_read_array(all_locks,array);
+      rwlock_lockable *lockobj;
+      rwlock_token retval;
+
+      rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+
+      if (indexstart==0 && numelems==SNDE_INDEX_INVALID) {
+	return get_preexisting_locks_read_array(all_locks,array);
+      }
+
+      size_t arrayidx=_arrayidx.at(array);
+
+      std::tie(lockobj,retval) =  _get_preexisting_lock_read_array_region(all_locks, arrayidx,indexstart,numelems);
+
+      if (retval==nullptr) {
+	throw std::invalid_argument("Must have valid preexisting lock (this may be a locking order violation)");
+      }
+      (*token_set)[lockobj]=retval;
+	
+      return token_set;
     }
 
     rwlock_token_set get_locks_read_array_region(rwlock_token_set all_locks, void **array,snde_index indexstart,snde_index numelems)
     {
-      // We do not currently implement region-granular locking
-      return get_locks_read_array(all_locks,array);
-    }
+      rwlock_lockable *lockobj;
 
-    rwlock_token_set get_locks_read_arrays_region(rwlock_token_set all_locks, std::vector<struct arrayregion> arrays)
-    {
-      // We do not currently implement region-granular locking
-      std::vector<void **> arrayptrs(arrays.size());
+      rwlock_token retval;
 
-      int cnt=0;
-      for (std::vector<struct arrayregion>::iterator array=arrays.begin();array != arrays.end();array++,cnt++) {
-	arrayptrs[cnt]=array->array;
+      if (indexstart==0 && numelems==SNDE_INDEX_INVALID) {
+	return get_locks_read_array(all_locks,array);
       }
 
-      return get_locks_read_arrays(all_locks,arrayptrs);
-    }
+      
+      rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+      size_t arrayidx=_arrayidx.at(array);
 
+      std::tie(lockobj,retval) =  _get_lock_read_array_region(all_locks, arrayidx,indexstart,numelems);
+
+      (*token_set)[lockobj]=retval;
+      return token_set;
+    }
 
 
 
@@ -882,143 +640,174 @@ namespace snde {
       rwlock_token_set tokens=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
 
       for (size_t cnt=0;cnt < _arrays.size();cnt++) {
-	(*tokens)[&_locks[cnt].full_array.reader]=_get_lock_read_array(all_locks,cnt);
+	rwlock_token_set thisset = get_locks_read_array(all_locks,_arrays[cnt]);
+	merge_into_rwlock_token_set(tokens,thisset);
       }
       return tokens;
     }
-
-
-
-    rwlock_token  _get_preexisting_lock_write_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index indexstart,snde_index numelems)
+    
+    rwlock_token  _get_preexisting_lock_write_array_lockobj(rwlock_token_set all_locks, size_t arrayidx,std::shared_ptr<rwlock> rwlockobj)
     {
-      // We do not currently implement region-granular locking
       // but we do store the bounds for notification purposes (NOT ANYMORE; dirty marking is now explicit)
 
       // prior is like a rwlock_token_set **
       rwlock_token token;
+      
+      rwlock_lockable *lockobj=&rwlockobj->writer;
 
-      rwlock_lockable *lockobj=&_locks[arrayidx].full_array.writer;
-
-      //for (std::vector<rwlock_token_set>::iterator prior=priors->begin(); prior != priors->end(); prior++) {
-	//
-
-	//if ((**prior).count(lockobj)) {
       if ((*all_locks).count(lockobj)) {	  /* If we have this token */
       	  /* return a reference */
 	  //(**prior)[lockobj]
 
 	return (*all_locks)[lockobj];
       }
-
+      
       return std::shared_ptr<std::unique_lock<rwlock_lockable>>(); /* return nullptr if there is no preexisting lock */
     }
+    
 
-    rwlock_token  _get_lock_write_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index indexstart,snde_index numelems)
+    std::pair<rwlock_lockable *,rwlock_token>  _get_preexisting_lock_write_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index indexstart,snde_index numelems)
     {
-      // We do not currently implement region-granular locking
+      // We currently implement region-granular locking
       // but we do store the bounds for notification purposes (NOT ANYMORE; dirty marking is now explicit)
 
       // prior is like a rwlock_token_set **
-      rwlock_token token;
+      std::unique_lock<std::mutex> lock(_locks.at(arrayidx).admin); // lock the subregions field
+      std::shared_ptr<rwlock> rwlockobj = _locks.at(arrayidx).subregions.at(markedregion(indexstart,indexstart+numelems));
+      lock.unlock();
+      return std::make_pair(&rwlockobj->writer,_get_preexisting_lock_write_array_lockobj(all_locks, arrayidx,rwlockobj));
+      
+    }
+    
+    std::pair<rwlock_lockable *,rwlock_token>  _get_lock_write_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index pos,snde_index size)
+    {
+      // but we do store the bounds for notification purposes (NOT ANYMORE; dirty marking is now explicit)
 
-      rwlock_lockable *lockobj=&_locks[arrayidx].full_array.writer;
+      rwlock_token retval;
+      rwlock_lockable *lockobj;
 
 
-      token=_get_preexisting_lock_write_array_region(all_locks, arrayidx,indexstart,numelems);
-      if (token == nullptr) {
+      std::tie(lockobj,retval)=_get_preexisting_lock_write_array_region(all_locks,arrayidx,pos,size);
+      if (retval == nullptr) {
+	
 	/* if we got here, we do not have a token, need to make one */
-	token = std::make_shared<std::unique_lock<rwlock_lockable>>(*lockobj);
-	(*all_locks)[lockobj]=token;
+	retval = std::make_shared<std::unique_lock<rwlock_lockable>>(*lockobj);
+	(*all_locks)[lockobj]=retval;
+	
 
-	// Dirty marking now must be done explicitly
-        //lockobj->_rwlock_obj->writer_append_region(indexstart,numelems);
-	return token;
-
-      } else {
-	//lockobj->_rwlock_obj->writer_append_region(indexstart,numelems);
-        return token;
       }
-
+      // Dirty marking now must be done explicitly
+      //lockobj->_rwlock_obj->writer_append_region(indexstart,numelems);
+      return std::make_pair(lockobj,retval);
+      
     }
 
+    
     rwlock_token_set get_locks_write_array(rwlock_token_set all_locks, void **array) {
-      return get_locks_write_array_region(all_locks,array,0,SNDE_INDEX_INVALID);
+      rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+      
+      size_t arrayidx=_arrayidx.at(array);
+      arraylock & alock=_locks.at(arrayidx);
+      
+      // First, get wholearray lock
+      
+      rwlock_token wholearray_token = _get_preexisting_lock_write_array_lockobj(all_locks,arrayidx,alock.wholearray);
+      if (wholearray_token==nullptr) {
+	wholearray_token = rwlock_token(new std::unique_lock<rwlock_lockable>(alock.wholearray->writer));
+	(*all_locks)[&alock.wholearray->writer]=wholearray_token;
+      }
+      (*token_set)[&alock.wholearray->writer]=wholearray_token;
+      
+      /* now that we have wholearray_lock, nobody else can do allocations, etc. that may modify subregions, 
+	 so we can safely iterate over it without holding the admin lock */
+      
+      for (auto & markedregion_rwlock : alock.subregions) {
+	
+	//(*token_set)[&markedregion_rwlock.second.writer]
+	rwlock_lockable *lockableptr;
+	rwlock_token token;
+	std::tie(lockableptr,token)=_get_lock_write_array_region(all_locks,arrayidx,markedregion_rwlock.first.regionstart,markedregion_rwlock.first.regionend-markedregion_rwlock.first.regionstart);
+	(*token_set)[lockableptr]=token;
+      }
+      return token_set;
     }
 
     rwlock_token_set get_preexisting_locks_write_array(rwlock_token_set all_locks, void **array) {
-      return get_preexisting_locks_write_array_region(all_locks,array,0,SNDE_INDEX_INVALID);
-    }
-
-    rwlock_token_set get_locks_write_arrays(rwlock_token_set all_locks, std::vector<void **> arrays)
-    {
       rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
 
-      std::vector<void **> sorted_arrays(arrays);
+      //assert(_arrayidx.find(array) != _arrayidx.end());
+      size_t arrayidx=_arrayidx.at(array);
+      arraylock & alock=_locks.at(arrayidx);
 
-      std::sort(sorted_arrays.begin(), sorted_arrays.end(),
-          [ this ] (void **a, void **b) { return _arrayidx[a] < _arrayidx[b]; });
+      // First, get wholearray lock      
+      rwlock_token wholearray_token = _get_preexisting_lock_write_array_lockobj(all_locks,arrayidx,alock.wholearray);
+      if (wholearray_token==nullptr) {
+	throw std::invalid_argument("Must have valid preexisting wholearray lock (this may be a locking order violation)");
+      }
 
-
-      for (std::vector<void **>::iterator array=sorted_arrays.begin(); array != sorted_arrays.end(); array++) {
-	(*token_set)[&_locks[_arrayidx[*array]].full_array.writer]=_get_lock_write_array_region(all_locks,_arrayidx[*array],0,SNDE_INDEX_INVALID);
+      (*token_set)[&alock.wholearray->writer]=wholearray_token;
+      
+      /* now that we have wholearray_lock, nobody else can do allocations, etc. that may modify subregions, 
+	 so we can safely iterate over it without holding the admin lock */
+      
+      for (auto & markedregion_rwlock : alock.subregions) {	
+	rwlock_lockable *lockableptr;
+	rwlock_token preexisting_lock;
+      
+	std::tie(lockableptr,preexisting_lock)=_get_preexisting_lock_write_array_region(all_locks,arrayidx,markedregion_rwlock.first.regionstart,markedregion_rwlock.first.regionend-markedregion_rwlock.first.regionstart);
+	
+	if (preexisting_lock==nullptr) {
+	  throw std::invalid_argument("Must have valid preexisting lock (this may be a locking order violation)");
+	}
+	(*token_set)[&markedregion_rwlock.second->writer]=preexisting_lock;
       }
       return token_set;
     }
 
     rwlock_token_set get_preexisting_locks_write_array_region(rwlock_token_set all_locks, void **array,snde_index indexstart,snde_index numelems)
     {
-      rwlock_token preexisting_lock;
+      rwlock_lockable *lockobj;
+      rwlock_token retval;
 
-      // We do not currently implement region-granular locking
-      // but we do store the bounds for notification purposes
-      rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();;
-
-      assert(_arrayidx.find(array) != _arrayidx.end());
-      preexisting_lock=_get_preexisting_lock_write_array_region(all_locks,_arrayidx[array],indexstart,numelems);
-
-      if (preexisting_lock==nullptr) {
-	throw std::invalid_argument("Must have valid preexisting lock");
+      if (indexstart==0 && numelems==SNDE_INDEX_INVALID) {
+	return get_preexisting_locks_write_array(all_locks,array);
       }
 
-      (*token_set)[&_locks[_arrayidx[array]].full_array.writer]=preexisting_lock;
+      rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+      size_t arrayidx=_arrayidx.at(array);
+
+      std::tie(lockobj,retval) =  _get_preexisting_lock_write_array_region(all_locks, arrayidx,indexstart,numelems);
+
+      if (retval==nullptr) {
+	throw std::invalid_argument("Must have valid preexisting lock (this may be a locking order violation)");
+      }
+      (*token_set)[lockobj]=retval;
+	
       return token_set;
 
     }
 
     rwlock_token_set get_locks_write_array_region(rwlock_token_set all_locks, void **array,snde_index indexstart,snde_index numelems)
     {
-      // We do not currently implement region-granular locking
-      // but we do store the bounds for notification purposes
-      rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();;
-      assert(_arrayidx.find(array) != _arrayidx.end());
+      rwlock_lockable *lockobj;
 
-      (*token_set)[&_locks[_arrayidx[array]].full_array.writer]=_get_lock_write_array_region(all_locks,_arrayidx[array],indexstart,numelems);
+      rwlock_token retval;
 
-      return token_set;
-
-    }
-
-
-    rwlock_token_set get_locks_write_arrays_region(rwlock_token_set all_locks, std::vector<struct arrayregion> arrays)
-    {
-      // We do not currently implement region-granular locking
-
-
-      rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
-
-      std::vector<struct arrayregion> sorted_arrays(arrays);
-
-      std::sort(sorted_arrays.begin(), sorted_arrays.end(),
-          [ this ] (struct arrayregion a, struct arrayregion b) { return _arrayidx[a.array] < _arrayidx[b.array]; });
-
-
-      for (std::vector<struct arrayregion>::iterator array=sorted_arrays.begin(); array != sorted_arrays.end(); array++) {
-	(*token_set)[&_locks[_arrayidx[array->array]].full_array.writer]=_get_lock_write_array_region(all_locks,_arrayidx[array->array],array->indexstart,array->numelems);
+      if (indexstart==0 && numelems==SNDE_INDEX_INVALID) {
+	return get_locks_write_array(all_locks,array);
       }
+      
+      rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+      size_t arrayidx=_arrayidx.at(array);
+
+      std::tie(lockobj,retval) =  _get_lock_write_array_region(all_locks, arrayidx,indexstart,numelems);
+
+      (*token_set)[lockobj]=retval;
       return token_set;
 
 
     }
+
 
 
 
@@ -1027,7 +816,8 @@ namespace snde {
       rwlock_token_set tokens=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
 
       for (size_t cnt=0;cnt < _arrays.size();cnt++) {
-	(*tokens)[&_locks[cnt].full_array.writer]=_get_lock_write_array_region(all_locks,cnt,0,SNDE_INDEX_INVALID);
+	rwlock_token_set thisset = get_locks_write_array(all_locks,_arrays[cnt]);
+	merge_into_rwlock_token_set(tokens,thisset);
       }
       return tokens;
     }
@@ -1050,7 +840,7 @@ namespace snde {
     }
 
   };
-
+  
 
   class lockingprocess {
       /* lockingprocess is a tool for performing multiple locking
@@ -1064,10 +854,13 @@ namespace snde {
     //lockingprocess(const lockingprocess &)=delete; /* copy constructor disabled */
     //lockingprocess& operator=(const lockingprocess &)=delete; /* copy assignment disabled */
 
-    virtual rwlock_token_set get_locks_write_array(void **array)=0;
-    virtual rwlock_token_set get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems)=0;
-    virtual rwlock_token_set get_locks_read_array(void **array)=0;
-    virtual rwlock_token_set get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems)=0;
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_array(void **array)=0;
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems)=0;
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array(void **array)=0;
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems)=0;
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array_region(void **array,bool write,snde_index indexstart,snde_index numelems)=0;
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array(void **array,bool write)=0;
+    virtual std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> alloc_array_region(void **allocatedptr,snde_index nelem,std::string allocid)=0;
     virtual void spawn(std::function<void(void)> f)=0;
 
     virtual ~lockingprocess()=0;
@@ -1131,6 +924,7 @@ namespace snde {
     lockingprocess_threaded& operator=(const lockingprocess_threaded &)=delete; /* copy assignment disabled */
     
   public:
+    std::shared_ptr<arraymanager> _manager;
     std::shared_ptr<lockmanager> _lockmanager;
     std::mutex _mutex;
     //std::condition_variable _cv;
@@ -1139,7 +933,10 @@ namespace snde {
     
     std::deque<std::thread *> _threadarray; // locked by _mutex
 
-    rwlock_token_set all_tokens; /* these are all the token sets we have */
+    /* ****!!!!!! Need to separate all_tokens into all_tokens and used_tokens, as in 
+       the Python implementation in lockmanager.i. Also allow re-locking of stuff in all_tokens */
+    rwlock_token_set all_tokens; /* these are all the tokens we have acquired along the way */
+    rwlock_token_set used_tokens; /* these are all the tokens we are actually returning */
     
     std::shared_ptr<std::vector<rangetracker<markedregion>>> arrayreadregions; /* indexed by arrayidx */
     std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions; /* indexed by arrayidx */
@@ -1171,9 +968,9 @@ namespace snde {
 
 
 
-    lockingprocess_threaded(std::shared_ptr<lockmanager> manager);
+    lockingprocess_threaded(std::shared_ptr<arraymanager> manager);
 	
-    virtual void _barrier(lockingposition lockpos); //(size_t arrayidx,snde_index pos,bool write);
+    virtual bool _barrier(lockingposition lockpos); //(size_t arrayidx,snde_index pos,bool write);
 
     virtual void *pre_callback();
     
@@ -1183,19 +980,25 @@ namespace snde {
     
     virtual void postunlock(void *prelockstate);
 
-    virtual rwlock_token_set get_locks_write_array(void **array);
+    virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_array(void **array);
 
-    virtual rwlock_token_set get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems);
+    virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems);
 
 
-    virtual rwlock_token_set get_locks_read_array(void **array);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array(void **array);
 
-    virtual rwlock_token_set get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems);
 
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array_region(void **array,bool write,snde_index indexstart,snde_index numelems);
+
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array(void **array,bool write);
+
+    virtual std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> alloc_array_region(void **allocatedptr,snde_index nelem,std::string allocid);
 
     virtual void spawn(std::function<void(void)> f);
       
-    virtual std::tuple<rwlock_token_set,std::shared_ptr<std::vector<rangetracker<markedregion>>>,std::shared_ptr<std::vector<rangetracker<markedregion>>>> finish();
+
+    virtual rwlock_token_set finish();
     virtual ~lockingprocess_threaded();
 
     };
@@ -1203,8 +1006,199 @@ namespace snde {
 
 #endif
 
+}
+
+
+
+
+namespace snde {
+
+  class lockholder_index {
+  public:
+    void **array;
+    bool write;
+    snde_index startidx;
+    snde_index numelem;
+
+    lockholder_index() :
+      array(NULL), write(false), startidx(SNDE_INDEX_INVALID), numelem(SNDE_INDEX_INVALID)
+    {
+
+    }
+    
+    lockholder_index(void **_array,bool _write, snde_index _startidx,snde_index _numelem) :
+      array(_array), write(_write), startidx(_startidx), numelem(_numelem)
+    {
+
+    }
+
+    // equality operator for std::unordered_map
+    bool operator==(const lockholder_index b) const
+    {
+      return b.array==array && b.write==write && b.startidx==startidx && b.numelem==numelem;
+    }
+  };
+
+  
+}
+
+/* provide hash implementation for indices used for lockholder */
+namespace std {
+  template <> struct hash<snde::lockholder_index>
+  {
+    size_t operator()(const snde::lockholder_index & x) const
+    {
+
+      return std::hash<void *>{}((void *)x.array) + std::hash<bool>{}(x.write) + std::hash<snde_index>{}(x.startidx) + std::hash<snde_index>{}(x.numelem);
+    }
+  };
+}
+
+
+namespace std {
+  template <> struct hash<std::pair<void **,std::string>>
+  {
+    size_t operator()(const std::pair<void **,std::string> & x) const
+    {
+      void **param;
+      std::string allocid;
+      
+      std::tie(param,allocid)=x;
+
+      return std::hash<void *>{}((void *)param) + std::hash<std::string>{}(allocid);
+    }
+  };
+}
+
+
+namespace snde{ 
+  class lockholder {
+  public:
+    std::unordered_map<lockholder_index,rwlock_token_set> values;
+    std::unordered_map<std::pair<void **,std::string>,snde_index> allocvalues;
+
+    std::string as_string() {
+      std::string ret="";
+
+      ret+=ssprintf("snde::lockholder at 0x%lx with  %d allocations and %d locks\n",(unsigned long)this,(int)allocvalues.size(),(int)values.size());
+      ret+=ssprintf("---------------------------------------------------------------------------\n");
+      for (auto & array_startidx : allocvalues) {
+	ret+=ssprintf("allocation for array 0x%lx allocid=\"%s\" startidx=%lu\n",(unsigned long)array_startidx.first.first,array_startidx.first.second.c_str(),(unsigned long)array_startidx.second);
+      }
+      for (auto & idx_tokens : values) {
+	ret+=ssprintf("locks for array 0x%lx write=%s startidx=%lu numelem=%lu\n",(unsigned long)idx_tokens.first.array,idx_tokens.first.write ? "true": "false",(unsigned long)idx_tokens.first.startidx,(unsigned long)idx_tokens.first.numelem);
+      }
+      return ret;
+    }
+    
+    bool has_lock(void **array,bool write,snde_index indexstart,snde_index numelem)
+    {
+      return !(values.find(lockholder_index(array,write,indexstart,numelem))==values.end());
+    }
+    
+    bool has_alloc(void **array,std::string allocid)
+    {
+      return !(allocvalues.find(std::make_pair(array,allocid))==allocvalues.end());
+    }
+    
+    void store(void **array,bool write,snde_index indexstart,snde_index numelem,rwlock_token_set locktoken)
+    {
+      values[lockholder_index(array,write,indexstart,numelem)]=locktoken;
+    }
+    void store(lockholder_index array_write_startidx_numelem_tokens,rwlock_token_set locktoken)
+    {
+      
+      values[array_write_startidx_numelem_tokens]=locktoken;
+    }
+
+    void store(std::pair<lockholder_index,rwlock_token_set> idx_locktoken)
+    {
+      lockholder_index array_write_startidx_numelem_tokens;
+      rwlock_token_set locktoken;
+
+      std::tie(array_write_startidx_numelem_tokens,locktoken)=idx_locktoken;
+      store(array_write_startidx_numelem_tokens,locktoken);
+    }
+
+    //void store_name(std::string nameoverride,std::pair<std::string,rwlock_token_set> namevalue)
+    //{
+    //  values[nameoverride]=namevalue.second;
+    //
+    //}
+
+    void store_alloc(void **array,bool write,snde_index startidx,snde_index numelem,rwlock_token_set tokens,std::string allocid)
+    {
+      
+      values[lockholder_index(array,write,startidx,numelem)]=tokens;
+      allocvalues[std::make_pair(array,allocid)]=startidx;
+    }
+    void store_alloc(lockholder_index idx,rwlock_token_set tokens,std::string allocid)
+    {
+      store_alloc(idx.array,
+		  idx.write,
+		  idx.startidx,
+		  idx.numelem,
+		  tokens,
+		  allocid);
+    }
+    void store_alloc(std::tuple<lockholder_index,rwlock_token_set,std::string> idx_tokens_allocid)
+    {
+      lockholder_index idx;
+      rwlock_token_set tokens;
+      std::string allocid;
+      std::tie(idx,tokens,allocid)=idx_tokens_allocid;
+      store_alloc(idx,tokens,allocid);
+    }
+    
+    void store_alloc(std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> vector_idx_tokens_allocid)
+    {
+      size_t cnt;
+      for (cnt=0; cnt < vector_idx_tokens_allocid.size();cnt++) {
+	store_alloc(vector_idx_tokens_allocid[cnt]);
+      }
+    }
+    
+    //void store_addr(void **array,std::pair<rwlock_token_set,snde_index> tokens_addr)
+    //{
+    //  store_addr(array,std::get<0>(tokens_addr),std::get<1>(tokens_addr));
+    //}
+
+    rwlock_token_set get(void **array,bool write,snde_index indexstart,snde_index numelem)
+    {
+      std::unordered_map<lockholder_index,rwlock_token_set>::iterator value=values.find(lockholder_index(array,write,indexstart,numelem));
+
+      if (value==values.end()) {
+	throw std::runtime_error("Specified array and region with given writable status not found in lockholder. Was it locked with the same parameters?");
+      }
+      return value->second;
+    }
+    rwlock_token_set get_alloc_lock(void **array,snde_index numelem,std::string allocid)
+    {
+      std::unordered_map<std::pair<void **,std::string>,snde_index>::iterator allocvalue=allocvalues.find(std::make_pair(array,allocid));
+      if (allocvalue==allocvalues.end()) {
+	
+	throw std::runtime_error("Specified array allocation and ID not found in lockholder. Are the array pointer and ID correct?");
+      }
+      return get(array,true,allocvalue->second,numelem);
+    }
+
+    snde_index get_alloc(void **array,std::string allocid)
+    {
+      std::unordered_map<std::pair<void **,std::string>,snde_index>::iterator allocvalue=allocvalues.find(std::make_pair(array,allocid));
+      if (allocvalue==allocvalues.end()) {
+	throw std::runtime_error("Specified array allocation and ID not found in lockholder. Are the array pointer and ID correct?");
+      }
+      return allocvalue->second;
+    }
+    //rwlock_token_set operator[](void ** array)
+    //{
+    //  return values.at(array);      
+    //}
+
+  };
+  
 
 }
 
 
-#endif /* SNDE_LOCKMANAGER */
+#endif /* SNDE_LOCKMANAGER_HPP */

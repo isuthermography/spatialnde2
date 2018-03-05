@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <cmath>
 
 #include "memallocator.hpp"
 
@@ -28,21 +29,158 @@ namespace snde {
    
   */
 
-  /*
-  class allocatorbase {
+  class allocator_alignment {
   public:
-    virtual void add_other_array(void **arrayptr, size_t elsize)=0;
-    virtual snde_index alloc(snde_index nelem)=0;
-    virtual void free(snde_index addr,snde_index nelem)=0;
-    virtual ~allocatorbase()=0;
-  };
-  */
+    std::vector<unsigned> address_alignment; /* required address alignments, in bytes */
 
+    allocator_alignment()
+    {
+      address_alignment.push_back(8); /* always require at least 8-byte (64-bit) alignment */      
+    }
+    void add_requirement(unsigned alignment)
+    {
+      address_alignment.push_back(alignment);
+    }
+
+    unsigned get_alignment()
+    {
+      // alignment is least common multiple of the various elements of address_alignment
+      std::vector<std::vector<unsigned>> factors;
+      std::vector<std::vector<std::pair<unsigned,unsigned>>> factors_powers; 
+
+      std::unordered_map<unsigned,unsigned> factors_maxpowers;
+      
+      // evaluate prime factorization
+      for (unsigned reqnum=0;reqnum < address_alignment.size();reqnum++) {
+
+	unsigned alignment = address_alignment[reqnum];
+
+	unsigned divisor=2;
+	unsigned power=0;
+	unsigned maxpower=0;
+
+	factors.emplace_back();
+	factors_powers.emplace_back();
+	
+	while (alignment >= 2) {
+	  /* evaluate possible factors up to sqrt(value), 
+	     dividing them out as we find them */
+	  if ((alignment % divisor)==0 ) {
+	    factors[reqnum].push_back(divisor);
+	    power++;
+	    alignment = alignment / divisor;
+	  } else {
+	    if (power > 0) {
+	      factors_powers[reqnum].push_back(std::make_pair(divisor,power));
+	      maxpower=0;
+	      if (factors_maxpowers.find(divisor) != factors_maxpowers.end()) {
+		maxpower=factors_maxpowers.at(divisor);		
+	      }
+	      if (power > maxpower) {
+		factors_maxpowers[divisor]=power;
+	      }
+	    }
+	    power=0;
+	    divisor++;
+	    unsigned limit=(unsigned)(1.0+sqrt(alignment));
+	    if (divisor > limit) {
+	      divisor = alignment; // remaining value must be last prime factor
+	    }
+	    
+	  }
+	  
+	}
+	if (power > 0) {
+	  factors_powers[reqnum].push_back(std::make_pair(divisor,power));
+	  
+	  maxpower=0;
+	  if (factors_maxpowers.find(divisor) != factors_maxpowers.end()) {
+	    maxpower=factors_maxpowers.at(divisor);		
+	  }
+	  if (power > maxpower) {
+	    factors_maxpowers[divisor]=power;
+	  }
+	  
+	}
+	
+	
+      }
+      /* Ok. Should have sorted prime factorization of all 
+	 alignment requirements now */
+
+      /* least common multiple comes from the product 
+	 of the highest powers of each prime factor */
+
+      unsigned result=1;
+      for (auto & factor_maxpower : factors_maxpowers) {
+	for (unsigned power=0;power < factor_maxpower.second;power++) {
+	  result=result*factor_maxpower.first;
+	}
+      }
+      return result;
+    }
+  };
+
+  
   struct arrayinfo {
     void **arrayptr;
     size_t elemsize;
     bool destroyed; /* locked by allocatormutex */
   };
+  
+  class alloc_voidpp {
+    /* Used to work around SWIG troubles with iterating over a pair with a void ** */
+    public:
+    void **ptr;
+    alloc_voidpp(void **_ptr) : ptr(_ptr) {}
+    alloc_voidpp() : ptr(NULL) {}
+    void **value() {return ptr;}
+  };
+  
+  class allocation {
+    /* protected by allocator's allocatormutex */
+  public:
+    snde_index regionstart;
+    snde_index regionend;
+    
+    allocation(const allocation &)=delete; /* copy constructor disabled */
+    allocation& operator=(const allocation &)=delete; /* copy assignment disabled */
+    
+    allocation(snde_index regionstart,snde_index regionend)
+    {
+      this->regionstart=regionstart;
+      this->regionend=regionend;
+    }
+
+    bool attempt_merge(allocation &later)
+    {
+      /* !!!*** NOTE: Would be more efficient if we allowed allocations to merge and breakup 
+	 thereby skipping over groups of allocations during the free space search */
+
+      assert(later.regionstart==regionend);
+      regionend=later.regionend;
+      return true;
+
+    }
+    
+    std::shared_ptr<allocation> sp_breakup(snde_index breakpoint)
+    /* breakup method ends this region at breakpoint and returns
+       a new region starting at from breakpoint to the prior end */
+    {
+      std::shared_ptr<allocation> newregion=std::make_shared<allocation>(breakpoint,regionend);
+      regionend=breakpoint;
+
+      return newregion;
+    }
+      ~allocation()
+    {
+    }
+    
+    
+  };
+  
+  
+
   
   class allocator /* : public allocatorbase*/ {
     /* !!!*** NOTE: will want allocator to be able to 
@@ -60,7 +198,6 @@ namespace snde {
     std::mutex allocatormutex; // Always final mutex in locking order; protects the free list 
     
   public: 
-    snde_index _firstfree;
     snde_index _totalnchunks;
 
     std::shared_ptr<memallocator> _memalloc;
@@ -86,23 +223,20 @@ namespace snde {
     std::deque<struct arrayinfo> arrays;
     
     
-    /* Freelist structure ... But read via memcpy to avoid 
-       aliasing problems... 
-       snde_index freeblocksize  (in chunks)
-       snde_index nextfreeblockstart ... nextfreeblockstart of last block should be _totalnchunks
+    /* Freelist structure ... 
     */
+    rangetracker<allocation> allocations;
+    
     snde_index _allocchunksize; // size of chunks we allocate, in numbers of elements
   
-    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,void **arrayptr,size_t elemsize,snde_index totalnelem) {
+    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem)
+    {
       // must hold writelock on array
 
       destroyed=false;
       
       _memalloc=memalloc;
       _locker=locker; // could be NULL if there is no locker
-      _firstfree=0;
-      //_arrayptr=arrayptr;
-      //_elemsize=elemsize;
 
       arrays.push_back(arrayinfo{arrayptr,elemsize,false});
       
@@ -110,6 +244,11 @@ namespace snde {
       // Round up when determining chunk size
       _allocchunksize = (2*sizeof(snde_index) + elemsize-1)/elemsize;
 
+      // satisfy alignment requirement on _allocchunksize
+      allocator_alignment our_alignment=*alignment;
+      our_alignment.add_requirement(_allocchunksize*elemsize);
+      _allocchunksize = our_alignment.get_alignment()/elemsize;
+      
       // _totalnchunks = totalnelem / _allocchunksize  but round up. 
       _totalnchunks = (totalnelem + _allocchunksize-1)/_allocchunksize;
 
@@ -118,20 +257,15 @@ namespace snde {
       }
       // Perform memory allocation 
       *arrays[0].arrayptr = _memalloc->malloc(_totalnchunks * _allocchunksize * elemsize);
-      /* Single entry in free list, 
-	 set freeblocksize, marking _totalnchunk chunks free */
-      memcpy(*arrays[0].arrayptr,&_totalnchunks,sizeof(snde_index));
-      /* set nextfreeblockstart, */
-      memcpy((char *)(*arrays[0].arrayptr) + sizeof(snde_index),&_totalnchunks,sizeof(snde_index));
 
       if (_locker) {
-	_locker->set_array_size(arrays[0].arrayptr,elemsize,_totalnchunks*_allocchunksize);
+	_locker->set_array_size(arrays[0].arrayptr,arrays[0].elemsize,_totalnchunks*_allocchunksize);
       }
 
       // Permanently allocate (and waste) first chunk
       // so that an snde_index==0 is otherwise invalid
 
-      alloc(_allocchunksize);
+      _alloc(_allocchunksize);
     
     }
 
@@ -184,8 +318,6 @@ namespace snde {
       assert(!destroyed);
       // Must hold write lock on entire array
       // must hold allocatormutex
-      // *** NOTE: *** Caller responsible for adding to
-      // last free block or adding new free block !!!
       _totalnchunks = newnchunks;
       //*arrays[0].arrayptr = _memalloc->realloc(*arrays[0].arrayptr,_totalnchunks * _allocchunksize * _elemsize);
 
@@ -193,10 +325,14 @@ namespace snde {
       for (size_t cnt=0;cnt < arrays.size();cnt++) {
 	if (arrays[cnt].destroyed) continue;
 	*arrays[cnt].arrayptr= _memalloc->realloc(*arrays[cnt].arrayptr,_totalnchunks * _allocchunksize * arrays[cnt].elemsize);
-      }
       
-      if (_locker) {
-	_locker->set_array_size(arrays[0].arrayptr,arrays[0].elemsize,_totalnchunks*_allocchunksize);
+	if (_locker) {
+	  size_t arraycnt;
+	  for (arraycnt=0;arraycnt < arrays.size();arraycnt++) {
+	    _locker->set_array_size(arrays[arraycnt].arrayptr,arrays[arraycnt].elemsize,_totalnchunks*_allocchunksize);
+	  }
+	}
+	
       }
       
     }
@@ -207,105 +343,43 @@ namespace snde {
       return _totalnchunks*_allocchunksize;
     }
     
-  
-    snde_index alloc(snde_index nelem) {
-      // must hold write lock on entire array
-      // Step through free list, looking for a chunk big enough
-      snde_index freepos,freeblocksize,nextfreeblockstart;
 
-      snde_index newfreeblockstart;
-      snde_index newfreeblocknchunks;
-      snde_index retsize;
+    snde_index _alloc(snde_index nelem)
+    {
+      // Step through gaps in the range, looking for a chunk big enough
+      snde_index retpos;
       
       bool reallocflag=false;
 
-      char *freeposptr;
-      char *nextfreeblockstartptr;
 
       // Number of chunks we need... nelem/_allocchunksize rounding up
       snde_index allocchunks = (nelem+_allocchunksize-1)/_allocchunksize;
-
       std::unique_lock<std::mutex> lock(allocatormutex);
+
       assert(!destroyed);
 
-      for (freeposptr=(char *)&_firstfree,freepos=_firstfree;
-           freepos <= _totalnchunks;
-	   freeposptr=nextfreeblockstartptr,freepos=nextfreeblockstart) {
+      std::shared_ptr<allocation> alloc=allocations.find_unmarked_region(0, _totalnchunks, allocchunks);
 
-	      assert(freepos <= _totalnchunks); /* Last entry should line up with _totalnchunks */
-	if (freepos == _totalnchunks) {
-	  /* Overrun of allocated area... need to realloc */
+      if (alloc==nullptr) {
+	snde_index newnchunks=(snde_index)((_totalnchunks+allocchunks)*1.7); /* Reserve extra space, not just bare minimum */
 	
-	  size_t freeposptroffset=0;
-	  snde_index newnchunks=(snde_index)((_totalnchunks+allocchunks)*1.7); /* Reserve extra space, not just bare minimum */
 	
-	  if (freeposptr != (char *)&_firstfree) {
-	    freeposptroffset=freeposptr-((char *)*arrays[0].arrayptr);
-	  }
-
-	  this->_realloc(newnchunks);
-	  reallocflag=true;
-	  
-	  if (freeposptr != (char *)&_firstfree) {
-	    freeposptr=((char *)*arrays[0].arrayptr)+freeposptroffset;
-	  }
-
-	  /*** NOTE: We could be a bit more sophisticated here and 
-	       add this free block onto the previous, if the previous
-	       ends the entire array ****/
-
-	  /* Define size of newly available free block */	
-	  newfreeblockstart = freepos; 
-	  newfreeblocknchunks = newnchunks - freepos;
+	this->_realloc(newnchunks);
+	reallocflag=true;
 	
-	  /* freeposptr should already be pointing here */
-	  memcpy((char *)*arrays[0].arrayptr + newfreeblockstart*_allocchunksize*arrays[0].elemsize,&newfreeblocknchunks,sizeof(snde_index));
-	  /* next block index */
-	  memcpy((char *)*arrays[0].arrayptr + newfreeblockstart*_allocchunksize*arrays[0].elemsize+sizeof(snde_index),&newnchunks,sizeof(snde_index));
-	
-	  /* reallocation complete... This should be the final loop iteration */
-	}
-      
-	/* normal start of loop begins here */
-      
-	memcpy(&freeblocksize,(char *)*arrays[0].arrayptr + freepos*_allocchunksize*arrays[0].elemsize,sizeof(snde_index));
-	nextfreeblockstartptr=(char *)*arrays[0].arrayptr + freepos*_allocchunksize*arrays[0].elemsize + sizeof(snde_index);
-	memcpy(&nextfreeblockstart,nextfreeblockstartptr,sizeof(snde_index));
-
-	if (freeblocksize >= allocchunks) {
-	  /* found block big enough */
-	  if (freeblocksize == allocchunks) {
-	    /* exactly right size */
-	    /* Just have free list skip over this */
-	    /* repoint *freeposptr to nextfreeblockstart */
-	    memcpy(freeposptr,&nextfreeblockstart,sizeof(snde_index));
-	  } else {
-	    /* Add new free block after allocated size */
-
-	    newfreeblockstart = freepos + allocchunks;
-	    newfreeblocknchunks = freeblocksize-allocchunks;
-
-	    /* repoint *freeposptr to the new block */
-	    memcpy(freeposptr,&newfreeblockstart,sizeof(snde_index));
-
-	    /* Write the new free block */
-	    /* block size */
-	    memcpy((char *)*arrays[0].arrayptr + newfreeblockstart*_allocchunksize*arrays[0].elemsize,&newfreeblocknchunks,sizeof(snde_index));
-	    /* next block index */
-	    memcpy((char *)*arrays[0].arrayptr + newfreeblockstart*_allocchunksize*arrays[0].elemsize+sizeof(snde_index),&nextfreeblockstart,sizeof(snde_index));
-	  
-	  
-	  }
-
-	  retsize=freepos*_allocchunksize;
-	  goto finished;
-	}
-      
+	alloc=allocations.find_unmarked_region(0, _totalnchunks, allocchunks);
       }
 
-      retsize=SNDE_INDEX_INVALID;
-    finished:
+      retpos=SNDE_INDEX_INVALID;
+      if (alloc) {
+	retpos=alloc->regionstart*_allocchunksize;
+	allocations.mark_region(alloc->regionstart,alloc->regionend-alloc->regionstart);
+      }
 
+      // !!!*** Need to implement merge to get O(1) performance
+      allocations.merge_adjacent_regions();
+      
+            
       if (reallocflag) {
 	// notify recipients that we reallocated
 	std::deque<std::shared_ptr<std::function<void(snde_index)>>> realloccallbacks_copy(realloccallbacks); // copy can be iterated with allocatormutex unlocked
@@ -318,9 +392,46 @@ namespace snde {
 	}
 	
       }
-      
-      return retsize;
+      return retpos;
     }
+    
+    std::pair<snde_index,std::vector<std::pair<std::shared_ptr<alloc_voidpp>,rwlock_token_set>>> alloc_arraylocked(rwlock_token_set all_locks,snde_index nelem)
+    {
+      // must hold write lock on entire array... returns write lock on new allocation
+      // and position... Note that the new allocation is not included in the
+      // original lock on the entire array, so you can freely release the
+      // original if you don't otherwise need it
+
+      snde_index retpos = _alloc(nelem);
+      std::vector<std::pair<std::shared_ptr<alloc_voidpp>,rwlock_token_set>> retlocks;
+
+      // NOTE: our admin lock is NOT locked for this
+      
+      // notify locker of new allocation
+      if (_locker && retpos != SNDE_INDEX_INVALID) {
+	size_t arraycnt;
+	
+	for (arraycnt=0;arraycnt < arrays.size();arraycnt++) {
+	  rwlock_token token;
+	  rwlock_token_set token_set;
+
+	  token_set=empty_rwlock_token_set();
+	  token=_locker->newallocation(all_locks,arrays[arraycnt].arrayptr,retpos,nelem,arrays[arraycnt].elemsize);
+	  (*token_set)[token->mutex()]=token;
+
+	  retlocks.push_back(std::make_pair(std::make_shared<alloc_voidpp>(arrays[arraycnt].arrayptr),token_set));
+	}
+      }
+      
+      return std::make_pair(retpos,retlocks);
+    }
+
+    //std::pair<rwlock_token_set,snde_index> alloc(snde_index nelem) {
+    //  // must be in a locking process or otherwise where we can lock the entire array...
+    //  // this locks the entire array, allocates the new element, and
+    //  // releases the rest of the array
+    //
+    //}
 
     void register_realloc_callback(std::shared_ptr<std::function<void(snde_index)>> callback)
     {
@@ -343,101 +454,52 @@ namespace snde {
       }
     }
 
-    
-    void free(snde_index addr,snde_index nelem) {
-      // Number of chunks we need... nelem/_allocchunksize rounding up
-      snde_index chunkaddr;
-      snde_index freepos,nextfreeblockstart;
-      snde_index newfreeblockstart;
-      snde_index newfreeblocknchunks;
-      snde_index newfreeblocknextstart;
-      snde_index priorblockpos=0;
-
-      snde_index freeblocksize;
+    void _free(snde_index addr,snde_index nelem)
+    {
       
-      char *freeposptr,*nextfreeblockstartptr;
-      char *priorblocksizeptr,*blocksizeptr;
+      // Number of chunks we need... nelem/_allocchunksize rounding up
+
+
     
+      snde_index chunkaddr;
       snde_index freechunks = (nelem+_allocchunksize-1)/_allocchunksize;
       std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
+
       assert(!destroyed);
 
+      assert(addr != SNDE_INDEX_INVALID);
+      assert(nelem != SNDE_INDEX_INVALID);
       assert(addr > 0); /* addr==0 is wasted element allocated by constructor */
       assert(addr % _allocchunksize == 0); /* all addresses returned by alloc() are multiples of _allocchunksize */
 
+
       chunkaddr=addr/_allocchunksize;
     
-      /* Step through free list until we step over this allocation */
+
+      allocations.clear_region(chunkaddr,freechunks);
+	
+    }
     
-      for (freeposptr=(char *)&_firstfree,freepos=_firstfree,priorblocksizeptr=NULL;
-	   freepos < _totalnchunks;
-	   freeposptr=nextfreeblockstartptr,freepos=nextfreeblockstart,priorblocksizeptr=blocksizeptr) {
-      
-	/* get info on this free block */
-	blocksizeptr=(char *)*arrays[0].arrayptr + freepos*_allocchunksize*arrays[0].elemsize;
-	memcpy(&freeblocksize,blocksizeptr,sizeof(snde_index));
-	nextfreeblockstartptr=(char *)*arrays[0].arrayptr + freepos*_allocchunksize*arrays[0].elemsize + sizeof(snde_index);
-	memcpy(&nextfreeblockstart,nextfreeblockstartptr,sizeof(snde_index));
+    void free(snde_index addr,snde_index nelem)
+    {
+      // must hold write lock on entire array... (or is it sufficient to hold the
+      // write lock on just this element...? not currently because
+      // we will be modifying freelist pieces outside this element... on
+      // the other hand we will hold allocatormutex during the free operation
+      // and caches don't do much with free pieces... we'd be OK so long as
+      // nobody else has a write lock on the entire array and is modifying the
+      // cached copy)
 
-      
-	if (chunkaddr < freepos) {
-	  /* chunk was inside previous allocated block */
-	  assert(chunkaddr + freechunks <= freepos); /* chunks being freed should not overlap free zone */
-	  if (chunkaddr + freechunks == freepos) {
-	    /* extend this free region earlier to contain
-	       newly-freed region */
 
-	    newfreeblockstart=chunkaddr;
-	    newfreeblocknchunks=freechunks + freeblocksize;
-	    newfreeblocknextstart=nextfreeblockstart;
-	  } else {
-	    /* Insert new free region */
-	    newfreeblockstart=chunkaddr;
-	    newfreeblocknchunks=freechunks;
-	    newfreeblocknextstart=freepos;
-	    
-	  }
-	
-	  /* Write to previous free block where this one starts */
-	  memcpy(freeposptr,&newfreeblockstart,sizeof(snde_index));
 
-	  /* Write freeblocksize */
-	  memcpy((char *)*arrays[0].arrayptr + newfreeblockstart*_allocchunksize*arrays[0].elemsize,&newfreeblocknchunks,sizeof(snde_index));
-	
-	  /* Write nextfreeblockstart */
-	  memcpy((char *)*arrays[0].arrayptr + newfreeblockstart*_allocchunksize*arrays[0].elemsize+sizeof(snde_index),&newfreeblocknextstart,sizeof(snde_index));
-	  
-
-	  /* Now go back and try to join with the prior free region, 
-	     if possible */
-	  if (priorblocksizeptr) {
-	    snde_index priorblocksize;
-	    memcpy(&priorblocksize,priorblocksizeptr,sizeof(snde_index));
-
-	    if (priorblockpos + priorblocksize == newfreeblockstart) {
-	      /* Merge free blocks */
-	      snde_index newnewfreeblockstart;
-	      snde_index newnewfreeblocknchunks;
-	      snde_index newnewfreeblocknextstart;
-
-	      newnewfreeblockstart = priorblockpos;
-	      newnewfreeblocknchunks = priorblocksize+newfreeblocknchunks;
-	      newnewfreeblocknextstart = newfreeblocknextstart;
-	    
-	      /* Write freeblocksize */
-	      memcpy((char *)*arrays[0].arrayptr + newnewfreeblockstart*_allocchunksize*arrays[0].elemsize,&newnewfreeblocknchunks,sizeof(snde_index));
-	      /* Write nextfreeblockstart */
-	      memcpy((char *)*arrays[0].arrayptr + newnewfreeblockstart*_allocchunksize*arrays[0].elemsize+sizeof(snde_index),&newnewfreeblocknextstart,sizeof(snde_index));
-	    }
-	  
-	  }
-	
-	  return;
+      // notify locker of free operation
+      if (_locker) {
+	size_t arraycnt;
+	for (arraycnt=0;arraycnt < arrays.size();arraycnt++) {
+	  _locker->freeallocation(arrays[arraycnt].arrayptr,addr,nelem,arrays[arraycnt].elemsize);
 	}
-
-	priorblockpos=freepos;
       }
-      assert(0); /* If this fails, it means the chunk being freed was not inside the array (!) */
+      _free(addr,nelem);
     }
     ~allocator() {
       // _memalloc was provided by our creator and is not freed

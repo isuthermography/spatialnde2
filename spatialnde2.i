@@ -3,6 +3,11 @@
 
 %module spatialnde2
 
+%pythonbegin %{
+import sys
+%}
+
+
 /* warning suppression */
 //#pragma SWIG nowarn=509,454,341
 
@@ -57,6 +62,17 @@
 // exception handling
 %include "exception.i"
 
+ 
+ /*%exception{
+	try {
+		$action
+	}
+	catch (const std::exception& e) {
+		SWIG_exception(SWIG_RuntimeError, e.what());
+	}
+	}*/
+
+
 %{
 #include <vector>
 #include <map>
@@ -73,9 +89,10 @@
 
 %include "geometry_types.i"
 %include "memallocator.i"
-%include "arraymanager.i"
-%include "allocator.i"
+%include "lock_types.i"
 %include "rangetracker.i"
+%include "allocator.i"
+%include "arraymanager.i"
 %include "pywrapper.i"
 %include "lockmanager.i"
 %include "geometrydata.i"
@@ -92,15 +109,6 @@
 %}
 
 
-
-%exception{
-	try {
-		$action
-	}
-	catch (const std::exception& e) {
-		SWIG_exception(SWIG_RuntimeError, e.what());
-	}
-}
 
 // Instantiate templates for shared ptrs
 //%shared_ptr(snde::openclcachemanager);

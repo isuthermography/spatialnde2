@@ -2,6 +2,8 @@
 %shared_ptr(snde::_openclbuffer);
 %shared_ptr(snde::OpenCLBuffer_info);
 %shared_ptr(snde::OpenCLBuffers);
+%shared_ptr(snde::opencldirtyregion);
+%shared_ptr(snde::openclregion);
 
 //%shared_ptr(snde::cmemallocator);
 
@@ -59,6 +61,28 @@
 extern "C" void snde_opencl_callback(cl_event event, cl_int event_command_exec_status, void *user_data);
 
 namespace snde {
+  class opencldirtyregion {
+  public:
+    /* contents locked by cachemanager's admin mutex */
+    snde_index regionstart;
+    snde_index regionend;
+    cl_event FlushDoneEvent;
+    bool FlushDoneEventComplete;
+    //std::condition_variable complete_condition; (swig-incompatible) // associated with the cachemanager's admin mutex
+    
+    opencldirtyregion(const opencldirtyregion &)=delete; /* copy constructor disabled */
+    opencldirtyregion& operator=(const opencldirtyregion &)=delete; /* copy assignment disabled */
+    
+    opencldirtyregion(snde_index regionstart,snde_index regionend);
+
+    bool attempt_merge(opencldirtyregion &later);
+    
+    std::shared_ptr<opencldirtyregion> sp_breakup(snde_index breakpoint);
+
+    ~opencldirtyregion();
+    
+
+  };
 
 
   class openclregion {
@@ -80,7 +104,7 @@ namespace snde {
     
     bool attempt_merge(openclregion &later);
 
-    std::shared_ptr<openclregion> breakup(snde_index breakpoint);
+    std::shared_ptr<openclregion> sp_breakup(snde_index breakpoint);
 
   };
   
@@ -127,10 +151,12 @@ namespace snde {
     void **arrayptr;
     std::shared_ptr<std::function<void(snde_index)>> realloc_callback;
     std::weak_ptr<allocator> alloc; /* weak pointer to the allocator because we don't want to inhibit freeing of this (all we need it for is our reallocation callback) */
+    rangetracker<opencldirtyregion> _dirtyregions; /* track dirty ranges during a write (all regions that are locked for write... Note that persistent iterators (now pointers) may be present if the FlushDoneEvent exists but the FlushDoneEventComplete is false  */
     
     _openclbuffer(const _openclbuffer &)=delete; /* copy constructor disabled */
     
     _openclbuffer(cl_context context,std::shared_ptr<snde::allocator> alloc,size_t elemsize,void **arrayptr, std::mutex *arraymanageradminmutex);
+    void mark_as_gpu_modified(snde_index pos,snde_index nelem);
 
     ~_openclbuffer();
   };
@@ -161,6 +187,8 @@ namespace snde {
     openclcachemanager(const openclcachemanager &)=delete; /* copy constructor disabled */
     openclcachemanager& operator=(const openclcachemanager &)=delete; /* assignment disabled */
 
+    void mark_as_dirty_except_buffer(std::shared_ptr<_openclbuffer> exceptbuffer,void **arrayptr,snde_index pos,snde_index numelem);
+    virtual void mark_as_dirty(void **arrayptr,snde_index pos,snde_index numelem);
 
     /** Will need a function ReleaseOpenCLBuffer that takes an event
         list indicating dependencies. This function queues any necessary
@@ -171,9 +199,17 @@ namespace snde {
     pointer to the openclbuffer. It will need to queue the transfer
     of any writes, and also clReleaseEvent the fill_event fields 
     of the invalidregions, and remove the markings as invalid */
+    void _TransferInvalidRegions(cl_command_queue queue,std::shared_ptr<_openclbuffer> oclbuffer,void **arrayptr,snde_index firstelem,snde_index numelems,std::vector<cl_event> &ev);
 
-    std::tuple<rwlock_token_set,rwlock_token_set,cl_mem,snde_index,std::vector<cl_event>> GetOpenCLBuffer(rwlock_token_set alllocks,cl_context context, cl_command_queue queue, void **allocatedptr, void **arrayptr,std::shared_ptr<std::vector<rangetracker<markedregion>>> arrayreadregions, std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions,bool write_only=false);    
-    std::vector<cl_event> ReleaseOpenCLBuffer(rwlock_token_set readlocks,rwlock_token_set writelocks,cl_context context, cl_command_queue queue, cl_mem mem, void **allocatedptr, void **arrayptr, std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions, cl_event input_data_not_needed,std::vector<cl_event> output_data_complete);
+
+    std::shared_ptr<_openclbuffer> _GetBufferObject(cl_context context, void **arrayptr);
+
+    std::tuple<rwlock_token_set,cl_mem,std::vector<cl_event>> GetOpenCLSubBuffer(rwlock_token_set alllocks,cl_context context, cl_command_queue queue, void **arrayptr,snde_index startelem,snde_index numelem,bool write,bool write_only=false);
+    std::tuple<rwlock_token_set,cl_mem,std::vector<cl_event>> GetOpenCLBuffer(rwlock_token_set alllocks,cl_context context, cl_command_queue queue, void **arrayptr,bool write,bool write_only=false);
+
+    std::pair<std::vector<cl_event>,std::vector<cl_event>> FlushWrittenOpenCLBuffer(cl_context context,cl_command_queue queue,void **arrayptr,std::vector<cl_event> explicit_prerequisites);
+    
+    std::pair<std::vector<cl_event>,std::shared_ptr<std::thread>> ReleaseOpenCLBuffer(rwlock_token_set locks,cl_context context, cl_command_queue queue, cl_mem mem, void **arrayptr, cl_event input_data_not_needed,std::vector<cl_event> output_data_complete);
 
     virtual ~openclcachemanager();
   };
@@ -187,20 +223,14 @@ namespace snde {
     std::shared_ptr<openclcachemanager> cachemanager;
     cl_command_queue queue;  /* counted by clRetainCommandQueue */
     cl_mem mem; /* counted by clRetainMemObject */
-    void **allocatedptr;
     void **arrayptr;
-    rwlock_token_set readlocks;
-    rwlock_token_set writelocks;
-    std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions;
+    rwlock_token_set locks;
     
     OpenCLBuffer_info(std::shared_ptr<arraymanager> manager,
 		      cl_command_queue queue,  /* adds new reference */
 		      cl_mem mem, /* adds new reference */
-		      void **allocatedptr,
 		      void **arrayptr,
-		      rwlock_token_set readlocks,
-		      rwlock_token_set writelocks,
-		      std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions);
+		      rwlock_token_set locks);
     OpenCLBuffer_info(const OpenCLBuffer_info &orig);
     
     OpenCLBuffer_info& operator=(const OpenCLBuffer_info &)=delete; /* copy assignment disabled (for now) */
@@ -213,16 +243,14 @@ namespace snde {
     // opencl array manager
   public:
     cl_context context;  /* counted by clRetainContext() */
-    rwlock_token_set locks;
-    std::shared_ptr<std::vector<rangetracker<markedregion>>> arrayreadregions;
-    std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions;
+    rwlock_token_set all_locks;
 
     //std::unordered_map<void **,OpenCLBuffer_info> buffers; /* indexed by arrayidx */
 
     std::vector<cl_event> fill_events; /* each counted by clRetainEvent() */
      
-    OpenCLBuffers(cl_context context,rwlock_token_set locks,std::shared_ptr<std::vector<rangetracker<markedregion>>> arrayreadregions,std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions);
-
+    OpenCLBuffers(cl_context context,rwlock_token_set all_locks);
+    
     /* no copying */
     OpenCLBuffers(const OpenCLBuffers &) = delete;
     OpenCLBuffers & operator=(const OpenCLBuffers &) = delete;
@@ -230,19 +258,32 @@ namespace snde {
     ~OpenCLBuffers();
     
     //cl_mem Mem_untracked(void **arrayptr); // disallow unprotected pointer into Python
-    cl_mem Mem(void **arrayptr);
+    cl_mem Mem(void **arrayptr,snde_index firstelem,snde_index numelems);
 
     //cl_event *FillEvents_untracked(void); (access fill_events attribute instead)
 
     cl_uint NumFillEvents(void);
 
     
-    cl_int SetBufferAsKernelArg(cl_kernel kernel, cl_uint arg_index, void **arrayptr);
+    cl_int SetBufferAsKernelArg(cl_kernel kernel, cl_uint arg_index, void **arrayptr,snde_index firstelem,snde_index numelem);
   
-    void AddBuffer(std::shared_ptr<arraymanager> manager,cl_command_queue queue, void **arrayptr,bool write_only=false);
+    void AddSubBuffer(std::shared_ptr<arraymanager> manager,cl_command_queue queue, void **arrayptr,snde_index indexstart,snde_index numelem,bool write,bool write_only=false);
+    void AddBuffer(std::shared_ptr<arraymanager> manager,cl_command_queue queue, void **arrayptr,bool write,bool write_only=false);
 
-    cl_int AddBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl_command_queue queue,cl_kernel kernel,cl_uint arg_index,void **arrayptr);
+    cl_int AddSubBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl_command_queue queue,cl_kernel kernel,cl_uint arg_index,void **arrayptr,snde_index indexstart,snde_index numelem,bool write,bool write_only=false);
+    cl_int AddBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl_command_queue queue,cl_kernel kernel,cl_uint arg_index,void **arrayptr,bool write,bool write_only=false);
+    void BufferDirty(void **arrayptr);    /* This indicates that the array has been written to by an OpenCL kernel, 
+       and that therefore it needs to be copied back into CPU memory */
+
+    void BufferDirty(void **arrayptr,snde_index pos,snde_index len);    /* This indicates that the array region has been written to by an OpenCL kernel, 
+       and that therefore it needs to be copied back into CPU memory */
+
+    void SubBufferDirty(void **arrayptr,snde_index sb_pos,snde_index sb_len);
+    void SubBufferDirty(void **arrayptr,snde_index sb_pos,snde_index sb_len,snde_index dirtypos,snde_index dirtylen);
+
+    std::pair<std::vector<cl_event>,std::vector<cl_event>> FlushBuffer(void **arrayptr,snde_index sb_pos,snde_index sb_len,std::vector<cl_event> explicit_prerequisites);
     
+    void RemSubBuffer(void **arrayptr,snde_index startidx,snde_index numelem,cl_event input_data_not_needed,std::vector<cl_event> output_data_complete,bool wait);
     void RemBuffer(void **arrayptr,cl_event input_data_not_needed,std::vector<cl_event> output_data_complete,bool wait);
 
     void RemBuffers(cl_event input_data_not_needed,std::vector<cl_event> output_data_complete,bool wait);

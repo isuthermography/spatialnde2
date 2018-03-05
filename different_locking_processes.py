@@ -5,7 +5,8 @@ import spatialnde2
 
 
 lowlevel_alloc=spatialnde2.cmemallocator();
-manager=spatialnde2.arraymanager(lowlevel_alloc)
+alignment_requirements=spatialnde2.allocator_alignment()
+manager=spatialnde2.arraymanager(lowlevel_alloc,alignment_requirements)
 
 geometry=spatialnde2.geometry(1e-6,manager)
 
@@ -14,12 +15,12 @@ geometry=spatialnde2.geometry(1e-6,manager)
 # This method uses Python generators under the hood
 
 # All locking steps must be done within a lambda or function passed as a parameter
-lockholder = spatialnde2.pylockholder()
-(all_locks,readregions,writeregions) = spatialnde2.pylockprocess(manager.locker,
+lockholder = spatialnde2.lockholder(geometry)
+(all_locks,readregions,writeregions) = spatialnde2.pylockprocess(manager,
                                         lambda proc: [
                                             # remember to follow locking order!
-                                            lockholder.store((yield proc.get_locks_read_array_region(geometry.geom.contents,"edges",0,spatialnde2.SNDE_INDEX_INVALID))),
-                                            lockholder.store((yield proc.get_locks_read_array_region(geometry.geom.contents,"vertices",0,spatialnde2.SNDE_INDEX_INVALID)))
+                                            lockholder.store((yield proc.get_locks_read_array_region(geometry.addr("edges"),0,spatialnde2.SNDE_INDEX_INVALID))),
+                                            lockholder.store((yield proc.get_locks_read_array_region(geometry.addr("vertices"),0,spatialnde2.SNDE_INDEX_INVALID)))
                                         ])
 
 # Note: Each lock acquired can be "unlocked" exactly once
@@ -27,7 +28,7 @@ lockholder = spatialnde2.pylockholder()
 # automatically be unlocked when all referencing variables
 # either go out of scope or are "released"
 
-spatialnde2.unlock_rwlock_token_set(lockholder.vertices)
+spatialnde2.unlock_rwlock_token_set(lockholder.other_vertices)
 spatialnde2.unlock_rwlock_token_set(lockholder.edges)
 spatialnde2.release_rwlock_token_set(all_locks);
 
@@ -40,10 +41,10 @@ spatialnde2.release_rwlock_token_set(all_locks);
 # (it's actually not really a subprocess, but the parallelism is
 # obtained through multiple Python generators (see yield statement)
 lockholder = spatialnde2.pylockholder()
-(all_locks,readregions,writeregions) = spatialnde2.pylockprocess(manager.locker,
+(all_locks,readregions,writeregions) = spatialnde2.pylockprocess(manager,
                                         lambda proc: [
-                                            (yield proc.spawn(lambda proc: [ lockholder.store((yield proc.get_locks_read_array_region(geometry.geom.contents,"vertices",0,spatialnde2.SNDE_INDEX_INVALID))) ])),
-                                            lockholder.store((yield proc.get_locks_read_array_region(geometry.geom.contents,"edges",0,spatialnde2.SNDE_INDEX_INVALID))),
+                                            (yield proc.spawn(lambda proc: [ lockholder.store((yield proc.get_locks_read_array_region(geometry.addr("vertices"),0,spatialnde2.SNDE_INDEX_INVALID))) ])),
+                                            lockholder.store((yield proc.get_locks_read_array_region(geometry.addr("edges"),0,spatialnde2.SNDE_INDEX_INVALID))),
                                         ])
 
 spatialnde2.unlock_rwlock_token_set(lockholder.vertices)
@@ -61,13 +62,16 @@ spatialnde2.release_rwlock_token_set(all_locks);
 # With this method you don't have to put everything into a separate function. 
 
 lockholder = spatialnde2.pylockholder()
-lockprocess = spatialnde2.lockingprocess_threaded_python(manager.locker)
+lockprocess = spatialnde2.lockingprocess_threaded_python(manager)
 
 # API is very similar to C++
 # Here we are getting first a write lock, then getting a read lock on the
 # same region (locking order is defined as write first, then read)
-lockholder.vertices_write = lockprocess.get_locks_write_array_region(geometry.geom.contents.field_address("vertices"),0,spatialnde2.SNDE_INDEX_INVALID);
-lockholder.vertices_read = lockprocess.get_locks_read_array_region(geometry.geom.contents.field_address("vertices"),0,spatialnde2.SNDE_INDEX_INVALID);
+
+# ***!!!! NOTE: This is technically a locking order violation because get_locks_write_array_region
+# has multiple steps, but it is OK because all we are doing is downgrading
+lockholder.vertices_write = lockprocess.get_locks_write_array_region(geometry.geom.contents.addr("vertices"),0,spatialnde2.SNDE_INDEX_INVALID);
+lockholder.vertices_read = lockprocess.get_locks_read_array_region(geometry.geom.contents.addr("vertices"),0,spatialnde2.SNDE_INDEX_INVALID);
 
 (all_locks,readregions,writeregions) = lockprocess.finish()
 
@@ -79,7 +83,7 @@ spatialnde2.unlock_rwlock_token_set(all_locks);
 
 # Locking process method #2, example with  spawn()
 lockholder = spatialnde2.pylockholder()
-lockprocess = spatialnde2.lockingprocess_threaded_python(manager.locker)
+lockprocess = spatialnde2.lockingprocess_threaded_python(manager)
 
 # lockprocess supports spawning to python lambdas/functions 
 # Because the lambda doesn't support assignment, we use lockholder.store_name
@@ -88,10 +92,10 @@ lockprocess = spatialnde2.lockingprocess_threaded_python(manager.locker)
 # NOTE: must use lockholder.store_name() not lockholder.store() because C++ api doesn't pass the name back
 
 lockprocess.spawn(lambda proc: [
-    lockholder.store_name("vertices_write",lockprocess.get_locks_write_array_region(geometry.geom.contents.field_address("vertices"),0,spatialnde2.SNDE_INDEX_INVALID)),
+    lockholder.store_name("vertices_write",lockprocess.get_locks_write_array_region(geometry.addr("vertices"),0,spatialnde2.SNDE_INDEX_INVALID)),
 ]) 
 
-lockholder.vertices_read = lockprocess.get_locks_read_array_region(geometry.geom.contents.field_address("vertices"),0,spatialnde2.SNDE_INDEX_INVALID);
+lockholder.vertices_read = lockprocess.get_locks_read_array_region(geometry.addr("vertices"),0,spatialnde2.SNDE_INDEX_INVALID);
 
 (all_locks,readregions,writeregions) = lockprocess.finish()
 

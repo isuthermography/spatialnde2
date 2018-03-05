@@ -48,9 +48,11 @@ namespace snde {
     rangetracker<T> mark_region_noargs(snde_index firstelem, snde_index numelems);
 
     template <typename ... Args>
-      rangetracker<T> get_regions(snde_index firstelem, snde_index numelems,Args && ... args);
+      rangetracker<T> iterate_over_marked_portions(snde_index firstelem, snde_index numelems,Args && ... args);
     template <typename ... Args>
       rangetracker<T> clear_region(snde_index firstelem, snde_index numelems,Args && ... args);
+    template <typename ... Args>
+      std::shared_ptr<T> find_unmarked_region(snde_index start, snde_index endplusone,snde_index size,Args && ... args);
 
 
   };

@@ -39,10 +39,21 @@ typedef char snde_bool;
 #define SNDE_INDEX_INVALID (~((snde_index)0))
 
 typedef struct {
-  snde_coord offset[3];
+  snde_coord coord[4];
+} snde_coord4;
+
+typedef struct {
+  snde_coord coord[3];
+} snde_coord3;
+
+typedef struct {
+  snde_coord coord[2];
+} snde_coord2;
+
+typedef struct {
+  snde_coord3 offset;
   snde_coord pad1;
-  snde_coord quat[3]; // First 3 coordinates of normalized quaternion
-  snde_coord pad2;
+  snde_coord4 quat; // normalized quaternion 
 } snde_orientation3;
 
 typedef struct {
@@ -53,13 +64,6 @@ typedef struct {
 } snde_orientation2;
 
 
-typedef struct {
-  snde_coord coord[3];
-} snde_coord3;
-
-typedef struct {
-  snde_coord coord[2];
-} snde_coord2;
 
 typedef struct {
   snde_coord coord[3];
@@ -196,15 +200,15 @@ struct snde_nurbspart {
   
 struct snde_meshedpart { /* !!!*** Be careful about CPU <-> GPU structure layout differences ***!!! */
   /* indices into raw geometry */
-  snde_orientation3 orientation; /* orientation of this part relative to its environment */
+  /* snde_orientation3 orientation; (orientation now */ /* orientation of this part relative to its environment */
   snde_index firsttri,numtris; /* apply to triangles, refpoints, maxradius, normal, inplanemat */
   snde_index firstedge,numedges; /* apply to edges, r */
   snde_index firstvertex,numvertices; /* NOTE: Vertices must be transformed according to orientation prior to rendering */ /* These indices also apply to principal_curvatures and principal_tangent_axes, if present */
-  snde_index first_vertex_edgelist_entry,num_vertex_edgelist_entries; 
+  snde_index first_vertex_edgelist_index,num_vertex_edgelist_indices; 
 
   /* indices into calculated fields */
   snde_index firstbox,numboxes;  /* also applies to boxcoord */
-  snde_index firstboxpoly,numboxpoly; /* NOTE: Boxes are in part coordinates, not world coordinates */
+  snde_index firstboxpoly,numboxpolys; /* NOTE: Boxes are in part coordinates, not world coordinates */
     
  
   snde_bool solid; // If nonzero, this part is considered solid (fully enclosed), so the back side does not need to be rendered. Otherwise, it may be a bounded surface 
@@ -249,15 +253,14 @@ struct snde_mesheduv {
 
 /* partinstance table created by walking the assembly structure and choosing level of detail */
 struct snde_partinstance {
-  /* ***!!! (should this even be in the database? probably generated dynamically; see above) !!!***/
+  /* (this isn't really in the database? Actually generated dynamically from the assembly structures) */
    snde_orientation3 orientation;
   snde_index nurbspartnum; /* if nurbspartnum is SNDE_INDEX_INVALID, then there is a meshed representation only */
   snde_index meshedpartnum;
-  snde_index discrete_parameterizationnum; /* index of the discrete parameterization */
+  //std::string discrete_parameterization_name; -- really maps to mesheduvnmum /* index of the discrete parameterization */
   snde_index firstuvpatch; /* starting uv_patch # (snde_image) for this instance... # of patches is an attribute of mesheduv, or nurbsuv */ 
   snde_index mesheduvnum; /* numvertices arrays must match between partinstance and mesheduv */
 
-  /* ***!!! Also need to indicate "texture" image to reference uv parameterization ***/
 };
   
 
