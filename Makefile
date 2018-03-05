@@ -17,6 +17,11 @@ swig: geometry_types_h.h lockmanager.o openclcachemanager.o opencl_utils.o
 	g++ -I/usr/include/python2.7 $(CPPFLAGS) -c spatialnde2_wrap.cxx
 	g++ -shared spatialnde2_wrap.o lockmanager.o openclcachemanager.o opencl_utils.o -o _spatialnde2.so -lOpenCL -lpthread $(DEBUGLDFLAGS)
 
+swig_py3: geometry_types_h.h lockmanager.o openclcachemanager.o opencl_utils.o
+	swig -c++ -python -py3 -DPY_VERSION_HEX=0x03060000 -DSNDE_LOCKMANAGER_COROUTINES_THREADED spatialnde2.i
+	g++ -I/usr/include/python3.6m $(CPPFLAGS) -c spatialnde2_wrap.cxx
+	g++ -shared spatialnde2_wrap.o lockmanager.o openclcachemanager.o opencl_utils.o -o _spatialnde2.so -lOpenCL -lpthread $(DEBUGLDFLAGS)
+
 clean:
 	rm -f *~ allocator_test manager_test *.o *.bak opencl_example *_c.h *_h.h x3d_test _spatialnde2.so spatialnde2.py _spatialnde2.dll spatialnde2_wrap.cxx *.pyc
 	rm -rf build/

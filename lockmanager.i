@@ -103,6 +103,10 @@ public:
   {
     return $self;
   }
+  void **__next__() throw (Stop_Iteration)
+  {
+    return $self->next();
+  }
 
 }
 
@@ -598,8 +602,12 @@ namespace snde {
   if (ToksPtr) Toks=*(reinterpret_cast< snde::rwlock_token_set * >(ToksPtr));
   if (newmem & SWIG_CAST_NEW_MEMORY) delete reinterpret_cast< snde::rwlock_token_set * >(ToksPtr);
 
-  allocid=PyString_AsString(PyTuple_GetItem(Obj,2));
-
+  if (PyString_Check(PyTuple_GetItem(Obj,2))) {
+    allocid=PyString_AsString(PyTuple_GetItem(Obj,2));
+  } else if (PyUnicode_Check(PyTuple_GetItem(Obj,2))) {
+    allocid=PyUnicode_AsUTF8(PyTuple_GetItem(Obj,2));
+  }
+    
   $1 = std::tuple<snde::lockholder_index,snde::rwlock_token_set,std::string>(*li,Toks,allocid);
 
 }
@@ -627,7 +635,11 @@ namespace snde {
     if (ToksPtr) Toks=*(reinterpret_cast< snde::rwlock_token_set * >(ToksPtr));
     if (newmem & SWIG_CAST_NEW_MEMORY) delete reinterpret_cast< snde::rwlock_token_set * >(ToksPtr);
 
-    allocid=PyString_AsString(PyTuple_GetItem(Tup,2));
+    if (PyString_Check(PyTuple_GetItem(Tup,2))) {
+      allocid=PyString_AsString(PyTuple_GetItem(Tup,2));
+    } else if (PyUnicode_Check(PyTuple_GetItem(Tup,2))) {
+      allocid=PyUnicode_AsUTF8(PyTuple_GetItem(Tup,2));
+    }
     buf.push_back(std::make_tuple(*li,Toks,allocid));
   }
 
@@ -812,7 +824,7 @@ class lockingprocess_python(lockingprocess_pycpp):
             break
           pass
         proc.runnable_generators.pop(0) # this generator is no longer runnable
-
+        
         if gen_out is not None: 
           proc.process_generated(thisgen,thisgen_parent,gen_out)
           pass
@@ -821,42 +833,42 @@ class lockingprocess_python(lockingprocess_pycpp):
       # ok... no more runnable generators... do we have a waiting generator?
       if len(waiting_generators) > 0:
         # grab the first waiting generator
-	# Use C++ style iteration because that way we iterate
-	# over pairs, not over keys
-	iterator=waiting_generators.begin()
+        # Use C++ style iteration because that way we iterate
+        # over pairs, not over keys
+        iterator=waiting_generators.begin()
 
-	(lockpos,lockcall_gen_genparent)=iterator.value()
+        (lockpos,lockcall_gen_genparent)=iterator.value()
 
-	#sys.stderr.write("Got first waiting generator, idx=%d" % (lockpos.arrayidx))
-	#if len(waiting_generators) > 1:
+        #sys.stderr.write("Got first waiting generator, idx=%d" % (lockpos.arrayidx))
+        #if len(waiting_generators) > 1:
         #  second_iterator=waiting_generators.begin();
-	#  second_iterator+=1
-	#  sys.stderr.write("; 2nd, idx=%d" % (second_iterator.value()[0].arrayidx))
-	#  pass
-	#sys.stderr.write("\n")
-	(lockcall,gen,genparent)=lockcall_gen_genparent.value()
-	
+        #  second_iterator+=1
+        #  sys.stderr.write("; 2nd, idx=%d" % (second_iterator.value()[0].arrayidx))
+        #  pass
+        #sys.stderr.write("\n")
+        (lockcall,gen,genparent)=lockcall_gen_genparent.value()
+
 
         waiting_generators.erase(iterator)
-	del iterator
+        del iterator
 	
-	# diagnose locking order error
-	if lockpos < proc.lastlockingposition :
+        # diagnose locking order error
+        if lockpos < proc.lastlockingposition :
           preexisting_only=True
           #raise ValueError("Locking order violation")
           pass
-	else:
+        else:
           preexisting_only=False	
           pass
         
         # perform locking operation
         res=lockcall(preexisting_only)
-	if not preexisting_only: 
+        if not preexisting_only: 
           proc.lastlockingposition=lockpos
           pass
 	
-	# .... This is now runnable... add to runnablegenerators list
-	proc.runnable_generators.append((gen,genparent,res))
+        # .... This is now runnable... add to runnablegenerators list
+        proc.runnable_generators.append((gen,genparent,res))
         pass
       pass
       
@@ -900,9 +912,15 @@ class lockingprocess_python(lockingprocess_pycpp):
   def get_locks_read_array_region(self,
 				  fieldaddr,
 				  indexstart,numelems):
-    indexstart=long(indexstart)
-    numelems=long(numelems)
-    
+    try: 
+      indexstart=long(indexstart)
+      numelems=long(numelems)
+      pass
+    except NameError:
+      # python 3
+      indexstart=int(indexstart)
+      numelems=int(numelems)
+      pass      
     
     if not self.lockmanager._arrayidx.has_key(fieldaddr):
       raise ValueError("Array not found")
@@ -935,8 +953,16 @@ class lockingprocess_python(lockingprocess_pycpp):
   def get_locks_write_array_region(self,
 				   fieldaddr,
 				   indexstart,numelems,_dont_add_locks_to_used=False): #,_nomarkwriteregions=False):
-    indexstart=long(indexstart)
-    numelems=long(numelems)
+
+    try: 
+      indexstart=long(indexstart)
+      numelems=long(numelems)
+      pass
+    except NameError:
+      # python 3
+      indexstart=int(indexstart)
+      numelems=int(numelems)
+      pass      
 
     
     
@@ -1018,7 +1044,7 @@ class lockingprocess_python(lockingprocess_pycpp):
         #field_array_str=AddrStr(fieldaddr)
         #sys.stderr.write("Getting locks of managed_array %s of array %s (idx %d)\n" % (managed_array_str,field_array_str,  self.lockmanager._arrayidx.get_ptr_posn(managed_array)))
         yield self.get_locks_write_array_region(managed_array,0,SNDE_INDEX_INVALID,_dont_add_locks_to_used=True) #,_nomarkwriteregions=True)
-	numarrays_locked+=1
+        numarrays_locked+=1
         pass
       assert(numarrays_locked > 0); # if this fails, you probably called with a follower array pointer, not an allocator array pointer
 
@@ -1037,7 +1063,7 @@ class lockingprocess_python(lockingprocess_pycpp):
       for (ret_field,token) in ret_fields_tokens:
         # keep the tokens from the allocation..., add them into self.used_tokens
         merge_into_rwlock_token_set(self.used_tokens,token)
-	result.append((lockholder_index(ret_field.value(),True,ret_addr,numelems),token,allocid))
+        result.append((lockholder_index(ret_field.value(),True,ret_addr,numelems),token,allocid))
         pass
       #sys.stderr.write("allocation result: %s\n" % (str(result)))
       # Other tokens will fall out of scope

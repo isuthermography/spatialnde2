@@ -58,8 +58,8 @@ if device.get_info(cl.device_info.QUEUE_PROPERTIES) & cl.command_queue_propertie
 
 queue=cl.CommandQueue(context,device,queueprops)
 
-geometry_types_h=file("geometry_types.h").read()
-testkernel_c = file("testkernel.c").read()
+geometry_types_h=open("geometry_types.h").read()
+testkernel_c = open("testkernel.c").read()
 
 program_source=[ geometry_types_h, testkernel_c ]
 

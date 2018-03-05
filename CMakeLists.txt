@@ -61,9 +61,6 @@ add_custom_command(
         COMMENT "Generated Hex Header"
 )
 
-include_directories(C:/code/libraries/eigen3
-        /usr/include/eigen3)
-
 find_package(LibXml2)
 #find_package(iconv)
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)

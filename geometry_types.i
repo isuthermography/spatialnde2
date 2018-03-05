@@ -55,12 +55,12 @@ typedef char snde_bool;
 } 
 
 %typemap(in) snde_index (PyObject *builtins_mod=NULL,PyObject *LongTypeObj,PyObject *LongObj=NULL)  {
-  if (PyInt_Check($input)) {
-    $1=PyInt_AsUnsignedLongLongMask($input);
+  if (PyLong_Check($input)) {
+    $1=PyLong_AsUnsignedLongLong($input);
   }
 #if PY_VERSION_HEX < 0x03000000
-  else if (PyLong_Check($input)) {
-    $1=PyLong_AsUnsignedLongLong($input);
+  else if (PyInt_Check($input)) {
+    $1=PyInt_AsUnsignedLongLongMask($input);
   }
 #endif
   else {
@@ -73,12 +73,15 @@ typedef char snde_bool;
 #endif
     LongObj=PyObject_CallFunctionObjArgs(LongTypeObj,$input,NULL);
     if (LongObj) {
-      if (PyInt_Check(LongObj)) {
+      if (PyLong_Check(LongObj)) {
+        $1=PyLong_AsUnsignedLongLong(LongObj);
+      }
+#if PY_VERSION_HEX < 0x03000000
+      else if (PyInt_Check(LongObj)) {
         $1=PyInt_AsUnsignedLongLongMask(LongObj);
       }
-      else if (PyLong_Check(LongObj)) {
-        $1=PyLong_AsUnsignedLongLong(LongObj);
-      } else {
+#endif
+      else {
         Py_XDECREF(LongObj);
         SWIG_fail;
       }
@@ -110,8 +113,13 @@ PyObject *Pointer_To_Numpy_Array(PyObject *ArrayType, PyObject *DType,PyObject *
 %}
 
 %pythoncode %{
-SNDE_INDEX_INVALID=(long(1)<<64)-1
-
+try: 
+  SNDE_INDEX_INVALID=(long(1)<<64)-1
+  pass
+except NameError:
+  # python3
+  SNDE_INDEX_INVALID=(int(1)<<64)-1
+  pass
 ct_snde_coord = ctypes.c_double
 ct_snde_imagedata=ctypes.c_float
 ct_snde_index=ctypes.c_uint64
@@ -171,7 +179,7 @@ nt_snde_meshedpart=np.dtype([  # ('orientation', nt_snde_orientation3),
 def build_geometrystruct_class(arraymgr):
   class snde_geometrystruct(ctypes.Structure):
     manager=arraymgr;
-
+    
     def __init__(self):
       super(snde_geometrystruct,self).__init__()
       pass
@@ -191,15 +199,15 @@ def build_geometrystruct_class(arraymgr):
       # unfortunately byref() doesnt work right because struct members when accesed become plain ints
       offset=getattr(self.__class__,fieldname).offset
       return ArrayPtr_fromint(ctypes.addressof(self)+offset)  # return swig-wrapped void **
-
+    
     def field_valid(self,fieldname):
       val=getattr(self,fieldname)
       return val is None or val==0
-
+    
     def allocfield(self,lockholder,fieldname,dtype,allocid,numelem):
       startidx=lockholder.get_alloc(self.addr(fieldname),allocid)
       return self.field(lockholder,fieldname,True,dtype,startidx,numelem)
-
+    
       
     def field(self,lockholder,fieldname,write,dtype,startidx,numelem=SNDE_INDEX_INVALID):
       """Extract a numpy array representing the specified field. 
@@ -213,7 +221,7 @@ def build_geometrystruct_class(arraymgr):
       numpy_numelem = numelem
       if numpy_numelem == SNDE_INDEX_INVALID:
         numpy_numelem=max_n
-	pass
+        pass
       assert(numpy_numelem <= max_n)
       
       elemsize=self.manager.get_elemsize(Ptr)

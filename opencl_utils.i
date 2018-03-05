@@ -36,8 +36,11 @@ typedef struct _cl_mem *          cl_mem;
   
   clMem_int_ptr=PyObject_GetAttrString($input,"int_ptr");
   
+#if PY_VERSION_HEX < 0x03000000
   $1=(cl_mem)((uintptr_t)PyInt_AsUnsignedLongLongMask(clMem_int_ptr));
-
+#else
+  $1=(cl_mem)((uintptr_t)PyLong_AsUnsignedLongLongMask(clMem_int_ptr));
+#endif
 
   Py_XDECREF(clMem_int_ptr);
 }
@@ -60,8 +63,11 @@ typedef struct _cl_mem *          cl_mem;
   
   clKernel_int_ptr=PyObject_GetAttrString($input,"int_ptr");
   
+#if PY_VERSION_HEX < 0x03000000
   $1=(cl_kernel)((uintptr_t)PyInt_AsUnsignedLongLongMask(clKernel_int_ptr));
-
+#else
+  $1=(cl_kernel)((uintptr_t)PyLong_AsUnsignedLongLongMask(clKernel_int_ptr));
+#endif
 
   Py_XDECREF(clKernel_int_ptr);
 }
@@ -84,8 +90,12 @@ typedef struct _cl_mem *          cl_mem;
   
   clCommandQueue_int_ptr=PyObject_GetAttrString($input,"int_ptr");
   
+#if PY_VERSION_HEX < 0x03000000
   $1=(cl_command_queue)((uintptr_t)PyInt_AsUnsignedLongLongMask(clCommandQueue_int_ptr));
-
+#else
+  $1=(cl_command_queue)((uintptr_t)PyLong_AsUnsignedLongLongMask(clCommandQueue_int_ptr));
+#endif
+  
 
   Py_XDECREF(clCommandQueue_int_ptr);
 }
@@ -95,8 +105,12 @@ typedef struct _cl_mem *          cl_mem;
   
   clEvent_int_ptr=PyObject_GetAttrString($input,"int_ptr");
   
+#if PY_VERSION_HEX < 0x03000000
   $1=(cl_event)((uintptr_t)PyInt_AsUnsignedLongLongMask(clEvent_int_ptr));
+#else
+  $1=(cl_event)((uintptr_t)PyLong_AsUnsignedLongLongMask(clEvent_int_ptr));
 
+#endif
 
   Py_XDECREF(clEvent_int_ptr);
 }
@@ -122,8 +136,11 @@ typedef struct _cl_mem *          cl_mem;
   
   clContext_int_ptr=PyObject_GetAttrString($input,"int_ptr");
   
+#if PY_VERSION_HEX < 0x03000000
   $1=(cl_context)((uintptr_t)PyInt_AsUnsignedLongLongMask(clContext_int_ptr));
-
+#else
+  $1=(cl_context)((uintptr_t)PyLong_AsUnsignedLongLongMask(clContext_int_ptr));
+#endif
 
   Py_XDECREF(clContext_int_ptr);
 }
@@ -132,8 +149,11 @@ typedef struct _cl_mem *          cl_mem;
   
   clDevice_int_ptr=PyObject_GetAttrString($input,"int_ptr");
   
+#if PY_VERSION_HEX < 0x03000000
   $1=(cl_device_id)((uintptr_t)PyInt_AsUnsignedLongLongMask(clDevice_int_ptr));
-
+#else
+  $1=(cl_device_id)((uintptr_t)PyLong_AsUnsignedLongLongMask(clDevice_int_ptr));
+#endif  
 
   Py_XDECREF(clDevice_int_ptr);
 }
