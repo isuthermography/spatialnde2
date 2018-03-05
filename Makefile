@@ -19,6 +19,7 @@ swig: geometry_types_h.h lockmanager.o openclcachemanager.o opencl_utils.o
 
 clean:
 	rm -f *~ allocator_test manager_test *.o *.bak opencl_example *_c.h *_h.h x3d_test _spatialnde2.so spatialnde2.py _spatialnde2.dll spatialnde2_wrap.cxx *.pyc
+	rm -rf build/
 
 commit: clean
 	hg addrem

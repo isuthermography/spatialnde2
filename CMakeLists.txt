@@ -19,8 +19,8 @@ add_executable(thread_test
         thread_test.cpp
         $<TARGET_OBJECTS:lockmanager>)
 
-add_executable(opencl_manager_test
-        opencl_manager_test.cpp
+add_executable(opencl_example
+        opencl_example.cpp
         $<TARGET_OBJECTS:opencl>
         $<TARGET_OBJECTS:lockmanager>
         geometry_types_h.h
@@ -44,19 +44,19 @@ add_library(opencl OBJECT
 
 add_custom_command(
         OUTPUT geometry_types_h.h
-        COMMAND python file2header_win.py
+        COMMAND python file2header.py
         geometry_types.h
         geometry_types_h.h
-        DEPENDS file2header_win.py
+        DEPENDS file2header.py
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         COMMENT "Generated Hex Header"
 )
 add_custom_command(
         OUTPUT testkernel_c.h
-        COMMAND python file2header_win.py
+        COMMAND python file2header.py
         testkernel.c
         testkernel_c.h
-        DEPENDS file2header_win.py
+        DEPENDS file2header.py
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         COMMENT "Generated Hex Header"
 )
@@ -64,14 +64,22 @@ add_custom_command(
 include_directories(C:/code/libraries/eigen3
         /usr/include/eigen3)
 
-find_package(libxml2)
-find_package(iconv)
-find_package(zlib)
-find_package(opencl)
+find_package(LibXml2)
+#find_package(iconv)
+find_package (Eigen3 3.3 REQUIRED NO_MODULE)
+
+find_package(ZLIB)
+find_package(OpenCL)
+
+find_package(Threads)
+
+target_link_libraries(manager_test ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(thread_test ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(opencl_example ${CMAKE_THREAD_LIBS_INIT})
 
 if (LIBXML2_FOUND)
     include_directories(${LIBXML2_INCLUDE_DIR})
-    target_link_libraries(x3d_test ${LIBXML2_LIBRARIES})
+    target_link_libraries(x3d_test ${LIBXML2_LIBRARIES} )
 else()
     message(STATUS "libxml2 not found: ${LIBXML2_INCLUDE_DIR}, ${LIBXML2_LIBRARIES}")
 endif (LIBXML2_FOUND)
@@ -92,7 +100,7 @@ endif (ZLIB_FOUND)
 
 if (OpenCL_FOUND)
     include_directories(${OpenCL_INCLUDE_DIR})
-    target_link_libraries(opencl_manager_test ${OpenCL_LIBRARIES})
+    target_link_libraries(opencl_example ${OpenCL_LIBRARIES})
 else()
     message(STATUS "OpenCL not found: ${OpenCL_INCLUDE_DIR}, ${OpenCL_LIBRARIES}")
 endif (OpenCL_FOUND)

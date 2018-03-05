@@ -16,7 +16,7 @@
 #include "memallocator.hpp"
 #include "allocator.hpp"
 #include "arraymanager.hpp"
-#include "geometry.h"
+#include "geometrydata.h"
 #include <iostream>
 
 //TODO: edit lockmanager.hpp to make sure the read locks can't starve out the write locks (add pendingwritelockcount)
@@ -31,15 +31,17 @@ int main() {
   std::shared_ptr<snde::memallocator> lowlevel_alloc;
   std::shared_ptr<snde::arraymanager> manager;
   std::shared_ptr<snde::geometry> geom;
+  std::shared_ptr<snde::allocator_alignment> alignment_requirements;
 
   snde_index blockstart,blocksize;
   double tol=1e-6;
 
   lowlevel_alloc=std::make_shared<snde::cmemallocator>();
-  manager=std::make_shared<snde::arraymanager>(lowlevel_alloc);
+  alignment_requirements=std::make_shared<snde::allocator_alignment>();
+  manager=std::make_shared<snde::arraymanager>(lowlevel_alloc,alignment_requirements);
   geom=std::make_shared<snde::geometry>(tol,manager);
 
-  blockstart=geom->manager->alloc((void **)&geom->geom.vertices,10000);
+  blockstart=geom->manager->allocators[(void **)&geom->geom.vertices].alloc->_alloc(10000);
   blocksize=10;
 
 //  write(geom,blockstart,blocksize,0);
