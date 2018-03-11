@@ -1,4 +1,4 @@
-#include "x3d.hpp"
+#include "../src/x3d.hpp"
 
 int main(int argc,char **argv)
 {

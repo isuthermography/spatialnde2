@@ -15,13 +15,13 @@
 #include <tuple>
 
 
-#include "geometry_types.h"
-#include "snde_error.hpp"
-#include "memallocator.hpp"
-#include "allocator.hpp"
-#include "lockmanager.hpp"
-#include "arraymanager.hpp"
-#include "geometrydata.h"
+#include "../src/geometry_types.h"
+#include "../src/snde_error.hpp"
+#include "../src/memallocator.hpp"
+#include "../src/allocator.hpp"
+#include "../src/lockmanager.hpp"
+#include "../src/arraymanager.hpp"
+#include "../src/geometrydata.h"
 
 using namespace snde;
 

@@ -15,18 +15,18 @@
 #include <tuple>
 
 
-#include "geometry_types.h"
-#include "snde_error.hpp"
-#include "memallocator.hpp"
-#include "rangetracker.hpp"
-#include "allocator.hpp"
-#include "lockmanager.hpp"
-#include "openclcachemanager.hpp"
-#include "geometrydata.h"
-#include "opencl_utils.hpp"
+#include "../src/geometry_types.h"
+#include "../src/snde_error.hpp"
+#include "../src/memallocator.hpp"
+#include "../src/rangetracker.hpp"
+#include "../src/allocator.hpp"
+#include "../src/lockmanager.hpp"
+#include "../src/openclcachemanager.hpp"
+#include "../src/geometrydata.h"
+#include "../src/opencl_utils.hpp"
 
-#include "geometry_types_h.h"
-#include "testkernel_c.h"
+#include "../geometry_types_h.h"
+#include "../testkernel_c.h"
 
 using namespace snde;
 
