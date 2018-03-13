@@ -27,3 +27,26 @@ throws an exception (std::system_error).
 
 Process of defining and resetting all_locks as part of the locking
 process is somewhat confusing. 
+
+***!!! Remove last two entries from snde_error_opencl.hpp because incompatible
+with NVIDIA
+
+*** lock_types.hpp should #include<memory>
+
+arraymanager.hpp
+and snde_error.hpp
+need     #if defined(_MSC_VER) && _MSC_VER < 1900
+    #define snprintf _snprintf
+    #else
+    #include <stdio.h> //sprintf
+    #endif
+    for MSVC
+
+likewise remove noexcept() for
+MSVC2013 https://msdn.microsoft.com/en-us/library/dn956976.aspx
+
+rangetracker.hpp
+needs memory.h
+
+OpenCLcachemanger line 386 need to check for size of ev, and provide NULL
+otherwise
