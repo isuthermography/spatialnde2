@@ -1,8 +1,6 @@
 #ifndef SNDE_GEOMETRY_HPP
 #define SNDE_GEOMETRY_HPP
 
-#include <cstring>
-
 /* Thoughts/updates: 
  * For OpenGL compatibility, drop everything down to triangle meshes
  * OpenGL does not support separate UV index. Per malexander in https://www.opengl.org/discussion_boards/showthread.php/183513-How-to-use-UV-Indices-in-OpenGL-4-4  
@@ -19,7 +17,10 @@
 
 //#include "geometry_types.h"
 
-namespace snde {  
+#include <stdexcept>
+#include <cstring>
+
+namespace snde {
   
   /* *** Where to store landmarks ***/
   /* Where to store frames? ***/

@@ -16,13 +16,14 @@ int main() {
   Eigen::Matrix4d C;
   C<<1.0,0.0,0.0,center[0],0.0,1.0,0.0,center[1],0.0,0.0,1.0,center[2],0.0,0.0,0.0,1.0;
 
-  Eigen::Vector3d k = {rotation[0], rotation[1], rotation[2]};
+  Eigen::Vector3d k;
+  k << rotation[0], rotation[1], rotation[2];
   double ang = rotation[3];
   double kmag = k.norm();
 
   if (kmag < 1e-9) { // Can't directly compare doubles.
     kmag = 1.0; // null rotation
-    k = Eigen::Vector3d{0.0, 0.0, 1.0};
+    k << 0.0, 0.0, 1.0;
     ang = 0.0;
   }
 
@@ -33,14 +34,16 @@ int main() {
 
   Eigen::Matrix3d eye;
   eye << 1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0;
-  Eigen::Matrix<double,3,1> Right = {0.0,0.0,0.0};
-  Eigen::Matrix<double,1,4> Bottom = {0.0,0.0,0.0,1.0};
+  Eigen::Matrix<double,3,1> Right;
+  Right << 0.0,0.0,0.0;
+  Eigen::Matrix<double,1,4> Bottom;
+  Bottom << 0.0,0.0,0.0,1.0;
 
-  // RBase is the top left 3x3 double matrix inside of R
-  Eigen::Matrix3d RBase = eye.array() + (sin(ang) * RK).array() + ((1.0 - cos(ang)) * (RK * RK)).array();
+  // RTopLeft is the top left 3x3 double matrix inside of R
+  Eigen::Matrix3d RTopLeft = eye.array() + (sin(ang) * RK).array() + ((1.0 - cos(ang)) * (RK * RK)).array();
 
-  Eigen::Matrix4d R(RBase.rows()+Bottom.rows(),RBase.cols()+Right.cols());
-  R << RBase, Right, Bottom;
+  Eigen::Matrix4d R(RTopLeft.rows()+Bottom.rows(),RTopLeft.cols()+Right.cols());
+  R << RTopLeft, Right, Bottom;
 
   // Apply Rodrigues rotation formula to determine scale orientation
   Eigen::Vector3d SOk;
@@ -50,7 +53,7 @@ int main() {
 
   if (SOkmag < 1e-9) { // Can't directly compare doubles.
     SOkmag = 1.0; // null rotation
-    SOk = Eigen::Vector3d{0.0, 0.0, 1.0};
+    SOk << 0.0, 0.0, 1.0;
     SOang = 0.0;
   }
 
@@ -59,11 +62,11 @@ int main() {
   Eigen::Matrix3d SOK; // Cross product matrix
   SOK<<0.0,-SOk[2],SOk[1],SOk[2],0.0,-SOk[0],-SOk[1],SOk[0],0.0;
 
-  // RBase is the top left 3x3 double matrix inside of R
-  Eigen::Matrix3d SRBase = eye.array() + (sin(SOang) * SOK).array() + ((1.0 - cos(SOang)) * (SOK * SOK)).array();
+  // SRTopLeft is the top left 3x3 double matrix inside of SR
+  Eigen::Matrix3d SRTopLeft = eye.array() + (sin(SOang) * SOK).array() + ((1.0 - cos(SOang)) * (SOK * SOK)).array();
 
-  Eigen::Matrix4d SR(SRBase.rows()+Bottom.rows(),SRBase.cols()+Right.cols());
-  SR << SRBase, Right, Bottom;
+  Eigen::Matrix4d SR(SRTopLeft.rows()+Bottom.rows(),SRTopLeft.cols()+Right.cols());
+  SR << SRTopLeft, Right, Bottom;
 
   Eigen::Matrix4d S;
   S << scale[0], 0.0, 0.0, 0.0, 0.0, scale[1], 0.0, 0.0, 0.0, 0.0, scale[2], 0.0, 0.0, 0.0, 0.0, 1.0;

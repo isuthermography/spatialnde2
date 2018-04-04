@@ -25,12 +25,10 @@
 #include "../src/geometrydata.h"
 #include "../src/opencl_utils.hpp"
 
-#include "../geometry_types_h.h"
-#include "../testkernel_c.h"
+#include "../src/geometry_types_h.h"
+#include "../src/testkernel_c.h"
 
 using namespace snde;
-
-
 
 int main(int argc, char *argv[])
 {

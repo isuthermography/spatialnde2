@@ -41,7 +41,7 @@ namespace snde {
 			       so we can use dynamic_cast<> */
     virtual bool hasattr(std::string name)
     {
-      return nodedata.count(name);
+      return nodedata.count(name) > 0;
     }
   };
 
@@ -144,8 +144,8 @@ namespace snde {
   }
   static bool IsX3DNamespaceUri(char *NamespaceUri)
   {
-    if (!NamespaceUri) return true; /* no namespace is acceptible */
-    if (NamespaceUri[0]==0) return true; /* no namespace is acceptible */
+    if (!NamespaceUri) return true; /* no namespace is acceptable */
+    if (NamespaceUri[0]==0) return true; /* no namespace is acceptable */
 
 
     /* non version-specific test */
@@ -166,6 +166,7 @@ namespace snde {
     std::shared_ptr<x3d_node> parse_indexedfaceset(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
     std::shared_ptr<x3d_node> parse_imagetexture(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
     std::shared_ptr<x3d_node> parse_shape(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
+    std::shared_ptr<x3d_node> parse_appearance(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
 
     x3d_loader()
     {
@@ -234,8 +235,10 @@ namespace snde {
         result=parse_imagetexture(parentnode,containerField);
       } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"shape")) {
         result=parse_shape(parentnode,containerField);
-      } else {
-	/* unknown element */
+      } /*else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"appearance")) {
+        result=parse_appearance(parentnode,containerField);
+      }*/ else {
+          /* unknown element */
 	dispatchcontent(NULL);
       }
 
@@ -293,10 +296,10 @@ namespace snde {
       nodetype="material";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
       ambientIntensity=0.2;
-      diffuseColor=Eigen::Vector3d{0.8,0.8,0.8};
-      emissiveColor=Eigen::Vector3d{0.0,0.0,0.0};
+      diffuseColor << 0.8,0.8,0.8;
+      emissiveColor << 0.0,0.0,0.0;
       shininess=0.2;
-      specularColor=Eigen::Vector3d{0.0,0.0,0.0};
+      specularColor << 0.0,0.0,0.0;
       transparency=0.0;
     }
 
@@ -344,8 +347,8 @@ namespace snde {
       nodetype="shape";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
 
-      bboxCenter=Eigen::Vector3d{0.0, 0.0, 0.0};
-      bboxSize=Eigen::Vector3d{-1.0, -1.0, -1.0};
+      bboxCenter << 0.0, 0.0, 0.0;
+      bboxSize << -1.0, -1.0, -1.0;
     }
 
     static std::shared_ptr<x3d_shape> fromcurrentelement(x3d_loader *loader) {
@@ -387,13 +390,13 @@ namespace snde {
       nodetype="transform";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
 
-      center=Eigen::Vector3d{0.0, 0.0, 0.0};
-      rotation=Eigen::Vector4d{0.0, 0.0, 1.0, 0.0};
-      scale=Eigen::Vector3d{1.0, 1.0, 1.0};
-      scaleOrientation=Eigen::Vector4d{0.0, 0.0, 1.0, 0.0};
-      translation=Eigen::Vector3d{0.0, 0.0, 0.0};
-      bboxCenter=Eigen::Vector3d{0.0, 0.0, 0.0};
-      bboxSize=Eigen::Vector3d{-1.0, -1.0, -1.0};
+      center << 0.0, 0.0, 0.0;
+      rotation << 0.0, 0.0, 1.0, 0.0;
+      scale << 1.0, 1.0, 1.0;
+      scaleOrientation << 0.0, 0.0, 1.0, 0.0;
+      translation << 0.0, 0.0, 0.0;
+      bboxCenter << 0.0, 0.0, 0.0;
+      bboxSize << -1.0, -1.0, -1.0;
     }
 
     Eigen::Matrix<double,4,4> eval()
@@ -405,13 +408,14 @@ namespace snde {
       Eigen::Matrix4d C;
       C<<1.0,0.0,0.0,center[0],0.0,1.0,0.0,center[1],0.0,0.0,1.0,center[2],0.0,0.0,0.0,1.0;
 
-      Eigen::Vector3d k = {rotation[0], rotation[1], rotation[2]};
+      Eigen::Vector3d k;
+      k << rotation[0], rotation[1], rotation[2];
       double ang = rotation[3];
       double kmag = k.norm();
 
       if (kmag < 1e-9) { // Can't directly compare doubles.
         kmag = 1.0; // null rotation
-        k = Eigen::Vector3d{0.0, 0.0, 1.0};
+        k << 0.0, 0.0, 1.0;
         ang = 0.0;
       }
 
@@ -422,8 +426,10 @@ namespace snde {
 
       Eigen::Matrix3d eye;
       eye << 1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0;
-      Eigen::Matrix<double,3,1> Right = {0.0,0.0,0.0};
-      Eigen::Matrix<double,1,4> Bottom = {0.0,0.0,0.0,1.0};
+      Eigen::Matrix<double,3,1> Right;
+      Right << 0.0,0.0,0.0;
+      Eigen::Matrix<double,1,4> Bottom;
+      Bottom << 0.0,0.0,0.0,1.0;
 
       // RTopLeft is the top left 3x3 double matrix inside of R
       Eigen::Matrix3d RTopLeft = eye.array() + (sin(ang) * RK).array() + ((1.0 - cos(ang)) * (RK * RK)).array();
@@ -439,7 +445,7 @@ namespace snde {
 
       if (SOkmag < 1e-9) { // Can't directly compare doubles.
         SOkmag = 1.0; // null rotation
-        SOk = Eigen::Vector3d{0.0, 0.0, 1.0};
+        SOk << 0.0, 0.0, 1.0;
         SOang = 0.0;
       }
 
@@ -599,6 +605,23 @@ namespace snde {
     }
   };
 
+  /*
+  std::shared_ptr<x3d_node> x3d_loader::parse_appearance(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
+  {
+    if (!containerField) containerField=(xmlChar *)"appearance";
+
+    std::shared_ptr<x3d_node> mat_data=x3d_imagetexture::fromcurrentelement(this);
+
+    if (parentnode) {
+      if (!parentnode->hasattr((char *)containerField)) {
+	throw x3derror(0,NULL,"Invalid container field for imagetexture: ",(char *)containerField);
+      }
+      parentnode->nodedata[(char *)containerField]=mat_data;
+    }
+
+    return mat_data;
+  }
+*/
 };
 
 #endif // SNDE_X3D_HPP
