@@ -23,7 +23,7 @@ swig_py3: geometry_types_h.h lockmanager.o openclcachemanager.o opencl_utils.o
 	g++ -shared spatialnde2_wrap.o lockmanager.o openclcachemanager.o opencl_utils.o -o _spatialnde2.so -lOpenCL -lpthread $(DEBUGLDFLAGS)
 
 clean:
-	rm -f *~ allocator_test manager_test *.o *.bak opencl_example *_c.h *_h.h x3d_test _spatialnde2.so spatialnde2.py _spatialnde2.dll spatialnde2_wrap.cxx *.pyc
+	rm -f *~ allocator_test manager_test *.o *.bak opencl_example src/*_c.h src/*_h.h x3d_test _spatialnde2.so spatialnde2.py _spatialnde2.dll spatialnde2_wrap.cxx *.pyc
 	rm -rf build/ __pycache__/
 
 commit: clean

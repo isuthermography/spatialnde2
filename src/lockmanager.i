@@ -605,7 +605,11 @@ namespace snde {
   if (PyString_Check(PyTuple_GetItem(Obj,2))) {
     allocid=PyString_AsString(PyTuple_GetItem(Obj,2));
   } else if (PyUnicode_Check(PyTuple_GetItem(Obj,2))) {
+#if PY_VERSION_HEX < 0x03000000
+    allocid=PyString_AsString(PyTuple_GetItem(Obj,2));
+#else
     allocid=PyUnicode_AsUTF8(PyTuple_GetItem(Obj,2));
+#endif
   }
     
   $1 = std::tuple<snde::lockholder_index,snde::rwlock_token_set,std::string>(*li,Toks,allocid);
@@ -638,7 +642,11 @@ namespace snde {
     if (PyString_Check(PyTuple_GetItem(Tup,2))) {
       allocid=PyString_AsString(PyTuple_GetItem(Tup,2));
     } else if (PyUnicode_Check(PyTuple_GetItem(Tup,2))) {
+#if PY_VERSION_HEX < 0x03000000
+      allocid=PyString_AsString(PyTuple_GetItem(Tup,2));
+#else
       allocid=PyUnicode_AsUTF8(PyTuple_GetItem(Tup,2));
+#endif
     }
     buf.push_back(std::make_tuple(*li,Toks,allocid));
   }

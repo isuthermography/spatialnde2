@@ -12,7 +12,7 @@ find_package(Eigen3 3.3)
 find_package(OpenCL)
 find_package(Threads)
 find_package(PythonInterp)
-find_package(Swig)
+find_package(SWIG)
 find_package(PythonLibs)
 
 IF (PythonInterp_FOUND)
@@ -92,12 +92,33 @@ ENDIF(PythonLibs_FOUND)
 
 IF(SWIG_FOUND AND PythonLibs_FOUND)
     # Include numpy directory on windows. Temp, needs to be replaces.
+
+    # BUG: Need to use proper process to find numpy include directory
+    # e.g. call numpy.get_include() from Python
+    
     include_directories(C:/Users/TreyB/AppData/Local/Programs/Python/Python36-32/Lib/site-packages/numpy/core/include)
 
     message(STATUS ${PYTHON_LIBRARIES})
     include(${SWIG_USE_FILE})
+    include_directories(src/)
+    # BUG: If python version >= 3 need -py3 -DPY_VERSION_HEX=0x03060000 additional flags to SWIG command
     set(CMAKE_SWIG_FLAGS "")
     SET_SOURCE_FILES_PROPERTIES(src/spatialnde2.i PROPERTIES CPLUSPLUS 1)
-    SWIG_ADD_LIBRARY(spatialnde2 LANGUAGE python SOURCES src/spatialnde2.i)
-    SWIG_LINK_LIBRARIES(spatialnde2 ${PYTHON_LIBRARIES})
+    # BUG: Should opencl components be conditional on finding OpenCL
+    SWIG_ADD_LIBRARY(spatialnde2 LANGUAGE python SOURCES src/spatialnde2.i src/lockmanager.cpp src/openclcachemanager.cpp src/opencl_utils.cpp)
+    SWIG_LINK_LIBRARIES(spatialnde2 ${PYTHON_LIBRARIES} ${OpenCL_LIBRARIES})
 ENDIF(SWIG_FOUND AND PythonLibs_FOUND)
+
+# BUG: A warning message should be printed
+# indicating the reduced functionality if OpenCL,
+# Python, SWIG, Numpy, Eigen, and/or libxml2 are not available? 
+
+# Possible BUG: Should CMAKE_BUILD_TYPE default to RelWithDebInfo?
+
+# BUG: Information about Python, OpenCL, and LibXML2 is only
+# shown in cmake under 'advanced mode', yet e.g. the python
+# version selected is critical.
+
+# BUG: There should be installation capability
+# "make install" that will install binaries to a suitable place
+# and the generated python bindings into the Python version's site-packages
