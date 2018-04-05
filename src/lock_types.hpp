@@ -1,6 +1,8 @@
 #ifndef SNDE_LOCK_TYPES_HPP
 #define SNDE_LOCK_TYPES_HPP
 
+#include <memory>
+
 namespace snde {
 
   class rwlock;  // forward declaration

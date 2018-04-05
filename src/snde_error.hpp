@@ -6,6 +6,11 @@
 #include <cstdarg>
 
 #include <map>
+#include <cstdio>
+
+#if defined(_MSC_VER) && _MSC_VER < 1900
+#define snprintf _snprintf
+#endif
 
 namespace snde {
 

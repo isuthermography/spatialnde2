@@ -381,8 +381,13 @@ namespace snde {
 	if (!invalidregion.second->fill_event) {
 	  snde_index offset=invalidregion.second->regionstart*oclbuffer->elemsize;
 	  cl_event newevent=NULL;
+
+	  cl_event *evptr=NULL;
+	  if (ev.size() > 0) {
+	    evptr=&ev[0];
+	  }
 	  
-	  clEnqueueWriteBuffer(queue,oclbuffer->buffer,CL_FALSE,offset,(invalidregion.second->regionend-invalidregion.second->regionstart)*oclbuffer->elemsize,(char *)*arrayptr + offset,ev.size(),&ev[0],&newevent);
+	  clEnqueueWriteBuffer(queue,oclbuffer->buffer,CL_FALSE,offset,(invalidregion.second->regionend-invalidregion.second->regionstart)*oclbuffer->elemsize,(char *)*arrayptr + offset,ev.size(),evptr,&newevent);
 	  
 	  /* now that it is enqueued we can replace our event list 
 	     with this newevent */

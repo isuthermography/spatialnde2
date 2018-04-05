@@ -37,12 +37,12 @@ geometry=customgeometry(manager)
 # Pure-python locking process
 
 lockholder = spatialnde2.lockholder()
-(all_locks,readregions,writeregions) = spatialnde2.pylockprocess(manager,
-                                        lambda proc: [
-                                            # remember to follow locking order!
-                                            lockholder.store_alloc((yield proc.alloc_array_region(geometry.addr("vertexidx"),10,""))),
-                                            lockholder.store_alloc((yield proc.alloc_array_region(geometry.addr("vertices"),15,"")))
-                                        ])
+all_locks = spatialnde2.pylockprocess(manager,
+                                      lambda proc: [
+                                          # remember to follow locking order!
+                                          lockholder.store_alloc((yield proc.alloc_array_region(geometry.addr("vertexidx"),10,""))),
+                                          lockholder.store_alloc((yield proc.alloc_array_region(geometry.addr("vertices"),15,"")))
+                                      ])
 
 # can now access lockholder.vertices, etc.
 vertexidx=geometry.allocfield(lockholder,"vertexidx",spatialnde2.nt_snde_index,"",10)
@@ -59,12 +59,12 @@ spatialnde2.release_rwlock_token_set(all_locks);
 
 
 lockholder = spatialnde2.lockholder()
-(all_locks,readregions,writeregions) = spatialnde2.pylockprocess(manager,
-                                        lambda proc: [
-                                            # remember to follow locking order!
-                                            lockholder.store((yield proc.get_locks_read_array_region(geometry.addr("vertexidx"),0,spatialnde2.SNDE_INDEX_INVALID))),
-                                            lockholder.store((yield proc.get_locks_read_array_region(geometry.addr("vertices"),0,spatialnde2.SNDE_INDEX_INVALID)))
-                                        ])
+all_locks = spatialnde2.pylockprocess(manager,
+                                      lambda proc: [
+                                          # remember to follow locking order!
+                                          lockholder.store((yield proc.get_locks_read_array_region(geometry.addr("vertexidx"),0,spatialnde2.SNDE_INDEX_INVALID))),
+                                          lockholder.store((yield proc.get_locks_read_array_region(geometry.addr("vertices"),0,spatialnde2.SNDE_INDEX_INVALID)))
+                                      ])
 
 # can now access lockholder.vertices, etc.
 vertexidx=geometry.field(lockholder,"vertexidx",False,spatialnde2.nt_snde_index,0)

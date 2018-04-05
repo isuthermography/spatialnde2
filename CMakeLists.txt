@@ -102,7 +102,7 @@ IF(SWIG_FOUND AND PythonLibs_FOUND)
     include(${SWIG_USE_FILE})
     include_directories(src/)
     # BUG: If python version >= 3 need -py3 -DPY_VERSION_HEX=0x03060000 additional flags to SWIG command
-    set(CMAKE_SWIG_FLAGS "")
+    set(CMAKE_SWIG_FLAGS "-DSNDE_LOCKMANAGER_COROUTINES_THREADED")
     SET_SOURCE_FILES_PROPERTIES(src/spatialnde2.i PROPERTIES CPLUSPLUS 1)
     # BUG: Should opencl components be conditional on finding OpenCL
     SWIG_ADD_LIBRARY(spatialnde2 LANGUAGE python SOURCES src/spatialnde2.i src/lockmanager.cpp src/openclcachemanager.cpp src/opencl_utils.cpp)

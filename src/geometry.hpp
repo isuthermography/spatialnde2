@@ -302,7 +302,11 @@ namespace snde {
 
     virtual void obtain_lock(std::shared_ptr<lockingprocess> process, unsigned writemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOMWRITE_xxx bits */
 
-    virtual ~component() noexcept(false) {};
+    virtual ~component()
+#if !defined(_MSC_VER) || _MSC_VER > 1800 // except for MSVC2013 and earlier
+    noexcept(false)
+#endif
+    {};
   };
   
 
@@ -606,7 +610,10 @@ namespace snde {
       destroyed=true;
     }
     
-    ~meshedpart() noexcept(false)
+    ~meshedpart()
+#if !defined(_MSC_VER) || _MSC_VER > 1800 // except for MSVC2013 and earlier
+    noexcept(false)
+#endif
     {
       if (!destroyed) {
 	throw std::runtime_error("Should call free() method of meshedpart object before it goes out of scope and the destructor is called");

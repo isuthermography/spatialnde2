@@ -3,6 +3,7 @@
 
 
 #include <map>
+#include <memory>
 
 namespace snde {
   
