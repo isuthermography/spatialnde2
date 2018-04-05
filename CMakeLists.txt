@@ -122,3 +122,7 @@ ENDIF(SWIG_FOUND AND PythonLibs_FOUND)
 # BUG: There should be installation capability
 # "make install" that will install binaries to a suitable place
 # and the generated python bindings into the Python version's site-packages
+
+# BUG: The "make install" should also install geometry_types.h
+# and testkernel.c in with the Python bindings so that the demo code
+# can find them (demo will need to be modified with search location)
