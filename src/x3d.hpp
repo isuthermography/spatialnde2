@@ -597,6 +597,7 @@ namespace snde {
   }
 
   class x3d_appearance : public x3d_node {
+
   public:
 
     x3d_appearance(void) {
@@ -605,23 +606,15 @@ namespace snde {
     }
   };
 
-  /*
-  std::shared_ptr<x3d_node> x3d_loader::parse_appearance(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
-  {
-    if (!containerField) containerField=(xmlChar *)"appearance";
+//  class x3d_coordinate : public x3d_node {
+//  public:
+//
+//    x3d_coordinate(void) {
+//      nodetype="coord";
+//      nodedata["metadata"]=std::shared_ptr<x3d_node>();
+//    }
+//  };
 
-    std::shared_ptr<x3d_node> mat_data=x3d_imagetexture::fromcurrentelement(this);
-
-    if (parentnode) {
-      if (!parentnode->hasattr((char *)containerField)) {
-	throw x3derror(0,NULL,"Invalid container field for imagetexture: ",(char *)containerField);
-      }
-      parentnode->nodedata[(char *)containerField]=mat_data;
-    }
-
-    return mat_data;
-  }
-*/
 };
 
 #endif // SNDE_X3D_HPP
