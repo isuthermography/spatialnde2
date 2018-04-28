@@ -31,12 +31,12 @@ import sys
 %include "std_deque.i"
 %include "std_except.i"
 %include "std_pair.i"
-%include "std_unordered_map.i"
+%include "python/std_unordered_map.i"
 %include "std_multimap.i"
 %include "std_shared_ptr.i"
+ 
 
-
- //numpy
+//numpy
 %include "numpy.i"
 
 // define numpy arrays of size_t
@@ -97,8 +97,15 @@ import sys
 %include "lockmanager.i"
 %include "geometrydata.i"
 %include "geometry.i"
+
+#ifdef SNDE_OPENCL
 %include "opencl_utils.i"
 %include "openclcachemanager.i"
+#endif
+
+#ifdef SNDE_X3D
+%include "x3d.i"
+#endif
 
 %{
 //#include "memallocator.hpp"

@@ -20,6 +20,7 @@
 #include <libxml/xmlreader.h>
 #include <Eigen/Dense>
 
+#include "geometry_types.h"
 #include "snde_error.hpp"
 
 // plan: all class data structures need to derive from a common base
@@ -50,6 +51,9 @@ namespace snde {
   class x3d_material;
   class x3d_transform;
   class x3d_indexedfaceset;
+  class x3d_coordinate;
+  class x3d_normal;
+  class x3d_texturecoordinate;
   class x3d_imagetexture;
   class x3d_appearance;
 
@@ -77,12 +81,148 @@ namespace snde {
     throw x3derror(severity,locator,"%s",msg);
   }
 
+  void Coord3sFromX3DString(std::string s,std::string attrname,std::vector<snde_coord3> *vecout)
+  {
+    char *copy=strdup(s.c_str());
+    char *saveptr=NULL;
+    char *endptr;
+
+    snde_coord3 val;
+
+    vecout->reserve(s.size()/(8*3)); // Pre-initialize to rough expected length
+    for (char *tok=strtok_r(copy,"\r\n, ",&saveptr);tok;tok=strtok_r(NULL,"\r\n, ",&saveptr)) {
+      endptr=tok;
+      val.coord[0]=strtod(tok,&endptr);
+
+      if (*endptr != 0) {
+	throw x3derror(0,NULL,"Parse error interpreting string token %s as double",tok);
+      }
+
+      tok=strtok_r(NULL,"\r\n, ",&saveptr);
+      if (!tok) {
+	throw x3derror(0,NULL,"Number of tokens in field \"%s\" is not divisible by 3 ",attrname.c_str());
+      }
+	
+      endptr=tok;
+      val.coord[1]=strtod(tok,&endptr);
+
+      if (*endptr != 0) {
+	throw x3derror(0,NULL,"Parse error interpreting string token %s as double",tok);
+      }
+
+      
+      tok=strtok_r(NULL,"\r\n, ",&saveptr);
+      if (!tok) {
+	throw x3derror(0,NULL,"Number of tokens in field \"%s\" is not divisible by 3 ",attrname.c_str());
+      }
+      endptr=tok;
+      val.coord[2]=strtod(tok,&endptr);
+
+      if (*endptr != 0) {
+	throw x3derror(0,NULL,"Parse error interpreting string token %s as double",tok);
+      }
+      vecout->push_back(val);
+
+    }
+    free(copy);
+    
+  }
+
+  void SetCoord3sIfX3DAttribute(xmlTextReaderPtr reader,std::string attrname,std::vector<snde_coord3>  *V)
+  {
+    xmlChar *attrstring;
+    attrstring = xmlTextReaderGetAttribute(reader,(xmlChar *)attrname.c_str());
+    if (attrstring) {
+      Coord3sFromX3DString((char *)attrstring,attrname,V);
+      xmlFree(attrstring);
+    }
+
+  }
+
+  void Coord2sFromX3DString(std::string s,std::string attrname,std::vector<snde_coord2> *vecout)
+  {
+    char *copy=strdup(s.c_str());
+    char *saveptr=NULL;
+    char *endptr;
+
+    snde_coord2 val;
+
+    vecout->reserve(s.size()/(8*2)); // Pre-initialize to rough expected length
+    for (char *tok=strtok_r(copy,"\r\n, ",&saveptr);tok;tok=strtok_r(NULL,"\r\n, ",&saveptr)) {
+      endptr=tok;
+      val.coord[0]=strtod(tok,&endptr);
+
+      if (*endptr != 0) {
+	throw x3derror(0,NULL,"Parse error interpreting string token %s as double",tok);
+      }
+
+      tok=strtok_r(NULL,"\r\n, ",&saveptr);
+      if (!tok) {
+	throw x3derror(0,NULL,"Number of tokens in field \"%s\" is not divisible by 2",attrname.c_str());
+      }
+      
+      endptr=tok;
+      val.coord[1]=strtod(tok,&endptr);
+
+      if (*endptr != 0) {
+	throw x3derror(0,NULL,"Parse error interpreting string token %s as double",tok);
+      }
+
+      
+      vecout->push_back(val);
+
+    }
+    free(copy);
+    
+  }
+
+  void SetCoord2sIfX3DAttribute(xmlTextReaderPtr reader,std::string attrname,std::vector<snde_coord2>  *V)
+  {
+    xmlChar *attrstring;
+    attrstring = xmlTextReaderGetAttribute(reader,(xmlChar *)attrname.c_str());
+    if (attrstring) {
+      Coord2sFromX3DString((char *)attrstring,attrname,V);
+      xmlFree(attrstring);
+    }
+
+  }
+
+  void IndicesFromX3DString(std::string s,std::vector<snde_index> *vecout)
+  {
+    char *copy=strdup(s.c_str());
+    char *saveptr=NULL;
+    char *endptr;
+    vecout->reserve(s.size()/8); // Pre-initialize to rough expected length
+    for (char *tok=strtok_r(copy,"\r\n, ",&saveptr);tok;tok=strtok_r(NULL,"\r\n, ",&saveptr)) {
+      endptr=tok;
+      vecout->push_back(strtoull(tok,&endptr,10));
+
+      if (*endptr != 0) {
+	throw x3derror(0,NULL,"Parse error interpreting string token %s as unsigned integer",tok);
+      }
+    }
+    free(copy);
+  }
+
+
+  void SetIndicesIfX3DAttribute(xmlTextReaderPtr reader,std::string attrname,std::vector<snde_index> *V)
+  {
+    xmlChar *attrstring;
+    attrstring = xmlTextReaderGetAttribute(reader,(xmlChar *)attrname.c_str());
+    if (attrstring) {
+      IndicesFromX3DString((char *)attrstring,V);
+      xmlFree(attrstring);
+    }
+
+  }
+
+  
   Eigen::VectorXd VectorFromX3DString(std::string s)
   {
     char *copy=strdup(s.c_str());
     char *saveptr=NULL;
     char *endptr;
-    std::vector<double> vec;
+    std::vector<double> vec; 
     for (char *tok=strtok_r(copy,"\r\n, ",&saveptr);tok;tok=strtok_r(NULL,"\r\n, ",&saveptr)) {
       endptr=tok;
       vec.push_back(strtod(tok,&endptr));
@@ -116,7 +256,7 @@ namespace snde {
     if (attrstring) {
       *d=strtod((const char *)attrstring,&endptr);
       if (*endptr != 0) {
-	throw x3derror(0,NULL,"Parse error interpreting attribute %s as double",attrstring);
+	throw x3derror(0,NULL,"Parse error interpreting attribute %s as double",(char *)attrstring);
       }
       xmlFree(attrstring);
 
@@ -142,6 +282,19 @@ namespace snde {
       xmlFree(attrstring);
     }
   }
+
+  void SetStringIfX3DAttribute(xmlTextReaderPtr reader, std::string attrname, std::string *b)
+  {
+    xmlChar *attrstring;
+
+    attrstring=xmlTextReaderGetAttribute(reader, (const xmlChar *) attrname.c_str());
+    if (attrstring) {
+      *b=(char *)attrstring;
+      xmlFree(attrstring);
+    }
+  }
+
+
   static bool IsX3DNamespaceUri(char *NamespaceUri)
   {
     if (!NamespaceUri) return true; /* no namespace is acceptable */
@@ -167,6 +320,9 @@ namespace snde {
     std::shared_ptr<x3d_node> parse_imagetexture(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
     std::shared_ptr<x3d_node> parse_shape(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
     std::shared_ptr<x3d_node> parse_appearance(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
+    std::shared_ptr<x3d_node> parse_coordinate(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
+    std::shared_ptr<x3d_node> parse_normal(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
+    std::shared_ptr<x3d_node> parse_texturecoordinate(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
 
     x3d_loader()
     {
@@ -229,15 +385,22 @@ namespace snde {
 	result=parse_material(parentnode,containerField);
       } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"transform")) {
 	result=parse_transform(parentnode,containerField);
-      } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"geometry")) {
+      } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"indexedfaceset")) {
         result=parse_indexedfaceset(parentnode,containerField);
       } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"imagetexture")) {
         result=parse_imagetexture(parentnode,containerField);
       } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"shape")) {
         result=parse_shape(parentnode,containerField);
-      } /*else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"appearance")) {
+      } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"coordinate")) {
+        result=parse_coordinate(parentnode,containerField);
+      } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"normal")) {
+        result=parse_normal(parentnode,containerField);
+      } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"texturecoordinate")) {
+        result=parse_texturecoordinate(parentnode,containerField);
+      } 
+      else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"appearance")) {
         result=parse_appearance(parentnode,containerField);
-      }*/ else {
+      } else {
           /* unknown element */
 	dispatchcontent(NULL);
       }
@@ -265,9 +428,11 @@ namespace snde {
     {
       bool nodefinished=xmlTextReaderIsEmptyElement(reader);
       int depth=xmlTextReaderDepth(reader);
-
+      int ret;
+      
       while (!nodefinished) {
-	assert(xmlTextReaderRead(reader)==1);
+	ret=xmlTextReaderRead(reader);
+	assert(ret==1);
 
         if (xmlTextReaderNodeType(reader) == XML_READER_TYPE_ELEMENT) {
 	  dispatch_x3d_childnode(curnode);
@@ -346,7 +511,9 @@ namespace snde {
     x3d_shape(void) {
       nodetype="shape";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
-
+      nodedata["geometry"]=std::shared_ptr<x3d_node>();
+      nodedata["appearance"]=std::shared_ptr<x3d_node>();
+      
       bboxCenter << 0.0, 0.0, 0.0;
       bboxSize << -1.0, -1.0, -1.0;
     }
@@ -373,7 +540,10 @@ namespace snde {
   {
     if (!containerField) containerField=(xmlChar *)"shape";
     std::shared_ptr<x3d_shape> shape=x3d_shape::fromcurrentelement(this);
-	return shape;
+
+    shapes.push_back(shape);
+    
+    return shape;
   }
 
   class x3d_transform : public x3d_node {
@@ -514,15 +684,25 @@ namespace snde {
     bool ccw;
     bool solid;
     bool convex;
+    std::vector<snde_index> coordIndex;
+    std::vector<snde_index> normalIndex;
+    std::vector<snde_index> texCoordIndex;
 
     x3d_indexedfaceset(void) {
       nodetype="indexedfaceset";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
-
+      nodedata["color"]=std::shared_ptr<x3d_node>();
+      nodedata["coord"]=std::shared_ptr<x3d_node>();
+      nodedata["fogCoord"]=std::shared_ptr<x3d_node>();
+      nodedata["normal"]=std::shared_ptr<x3d_node>();
+      nodedata["texCoord"]=std::shared_ptr<x3d_node>();
+      
       normalPerVertex=true;
       ccw=true;
       solid=true;
       convex=true;
+
+      // ignoring attrib (MFNode), and colorIndex, colorPerVectex, creaseAngle
     }
 
     static std::shared_ptr<x3d_indexedfaceset> fromcurrentelement(x3d_loader *loader) {
@@ -533,6 +713,11 @@ namespace snde {
       SetBoolIfX3DAttribute(loader->reader, "solid", &ifs->solid);
       SetBoolIfX3DAttribute(loader->reader, "convex", &ifs->convex);
 
+      SetIndicesIfX3DAttribute(loader->reader,"coordIndex",&ifs->coordIndex);
+      SetIndicesIfX3DAttribute(loader->reader,"normalIndex",&ifs->normalIndex);
+      SetIndicesIfX3DAttribute(loader->reader,"texCoordIndex",&ifs->texCoordIndex);
+
+      
       loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(ifs));
 
       return ifs;
@@ -557,26 +742,32 @@ namespace snde {
 
   class x3d_imagetexture : public x3d_node {
   public:
+    std::string url;
     bool repeatS;
     bool repeatT;
 
     x3d_imagetexture(void) {
       nodetype="imagetexture";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
-
+      // ignoring textureProperties
+      
       repeatS=true;
       repeatT=true;
     }
 
     static std::shared_ptr<x3d_imagetexture> fromcurrentelement(x3d_loader *loader) {
-      std::shared_ptr<x3d_imagetexture> ifs=std::make_shared<x3d_imagetexture>();
+      std::shared_ptr<x3d_imagetexture> tex=std::make_shared<x3d_imagetexture>();
 
-      SetBoolIfX3DAttribute(loader->reader, "repeatS", &ifs->repeatS);
-      SetBoolIfX3DAttribute(loader->reader, "repeatT", &ifs->repeatT);
 
-      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(ifs));
+      
+      SetBoolIfX3DAttribute(loader->reader, "repeatS", &tex->repeatS);
+      SetBoolIfX3DAttribute(loader->reader, "repeatT", &tex->repeatT);
 
-      return ifs;
+      SetStringIfX3DAttribute(loader->reader, "url", &tex->url);
+
+      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(tex));
+
+      return tex;
     }
   };
 
@@ -602,26 +793,158 @@ namespace snde {
     x3d_appearance(void) {
       nodetype="appearance";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
+      nodedata["material"]=std::shared_ptr<x3d_node>();
+      nodedata["texture"]=std::shared_ptr<x3d_node>();
+      // ignoring fillProperties, lineProperties, shaders, textureTransform
+      
     }
+    static std::shared_ptr<x3d_appearance> fromcurrentelement(x3d_loader *loader) {
+      std::shared_ptr<x3d_appearance> app=std::make_shared<x3d_appearance>();
+      
+
+
+      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(app));
+
+      return app;
+    }
+
   };
 
-  /*
+  
   std::shared_ptr<x3d_node> x3d_loader::parse_appearance(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
   {
     if (!containerField) containerField=(xmlChar *)"appearance";
 
-    std::shared_ptr<x3d_node> mat_data=x3d_imagetexture::fromcurrentelement(this);
+    std::shared_ptr<x3d_node> app_data=x3d_appearance::fromcurrentelement(this);
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
-	throw x3derror(0,NULL,"Invalid container field for imagetexture: ",(char *)containerField);
+	throw x3derror(0,NULL,"Invalid container field for appearance: %s",(char *)containerField);
       }
-      parentnode->nodedata[(char *)containerField]=mat_data;
+      parentnode->nodedata[(char *)containerField]=app_data;
     }
 
-    return mat_data;
+    return app_data;
   }
-*/
+
+
+
+  class x3d_coordinate : public x3d_node {
+  public:
+    std::vector<snde_coord3> point;
+
+    x3d_coordinate(void) {
+      nodetype="coordinate";
+      nodedata["metadata"]=std::shared_ptr<x3d_node>();
+
+    }
+
+    static std::shared_ptr<x3d_coordinate> fromcurrentelement(x3d_loader *loader) {
+      std::shared_ptr<x3d_coordinate> coord=std::make_shared<x3d_coordinate>();
+
+      SetCoord3sIfX3DAttribute(loader->reader,"point",&coord->point);
+      
+      
+      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(coord));
+
+      return coord;
+    }
+  };
+
+  std::shared_ptr<x3d_node> x3d_loader::parse_coordinate(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
+  {
+    if (!containerField) containerField=(xmlChar *)"coord";
+
+    std::shared_ptr<x3d_node> coord_data=x3d_coordinate::fromcurrentelement(this);
+
+    if (parentnode) {
+      if (!parentnode->hasattr((char *)containerField)) {
+        throw x3derror(0,NULL,"Invalid container field for coordinate: %s",(char *)containerField);
+      }
+      parentnode->nodedata[(char *)containerField]=coord_data;
+    }
+
+    return coord_data;
+  }
+
+  class x3d_normal : public x3d_node {
+  public:
+    std::vector<snde_coord3> vector;
+
+    x3d_normal(void) {
+      nodetype="normal";
+      nodedata["metadata"]=std::shared_ptr<x3d_node>();
+
+    }
+
+    static std::shared_ptr<x3d_normal> fromcurrentelement(x3d_loader *loader) {
+      std::shared_ptr<x3d_normal> normal=std::make_shared<x3d_normal>();
+
+      SetCoord3sIfX3DAttribute(loader->reader,"vector",&normal->vector);
+      
+      
+      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(normal));
+
+      return normal;
+    }
+  };
+
+  std::shared_ptr<x3d_node> x3d_loader::parse_normal(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
+  {
+    if (!containerField) containerField=(xmlChar *)"normal";
+
+    std::shared_ptr<x3d_node> normal_data=x3d_normal::fromcurrentelement(this);
+
+    if (parentnode) {
+      if (!parentnode->hasattr((char *)containerField)) {
+        throw x3derror(0,NULL,"Invalid container field for normal: %s",(char *)containerField);
+      }
+      parentnode->nodedata[(char *)containerField]=normal_data;
+    }
+
+    return normal_data;
+  }
+
+
+  class x3d_texturecoordinate : public x3d_node {
+  public:
+    std::vector<snde_coord2> point;
+
+    x3d_texturecoordinate(void) {
+      nodetype="texturecoordinate";
+      nodedata["metadata"]=std::shared_ptr<x3d_node>();
+
+    }
+
+    static std::shared_ptr<x3d_texturecoordinate> fromcurrentelement(x3d_loader *loader) {
+      std::shared_ptr<x3d_texturecoordinate> texcoord=std::make_shared<x3d_texturecoordinate>();
+
+      SetCoord2sIfX3DAttribute(loader->reader,"point",&texcoord->point);
+      
+      
+      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(texcoord));
+
+      return texcoord;
+    }
+  };
+
+  std::shared_ptr<x3d_node> x3d_loader::parse_texturecoordinate(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
+  {
+    if (!containerField) containerField=(xmlChar *)"texCoord";
+
+    std::shared_ptr<x3d_node> texcoord_data=x3d_texturecoordinate::fromcurrentelement(this);
+
+    if (parentnode) {
+      if (!parentnode->hasattr((char *)containerField)) {
+        throw x3derror(0,NULL,"Invalid container field for texturecoordinate: %s",(char *)containerField);
+      }
+      parentnode->nodedata[(char *)containerField]=texcoord_data;
+    }
+
+    return texcoord_data;
+  }
+
+  
 };
 
 #endif // SNDE_X3D_HPP

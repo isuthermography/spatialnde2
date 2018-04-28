@@ -1,5 +1,5 @@
 // std_unordered_map.i from swig git 2/12/18
-// may be subject to GPl license
+// may be subject to GPl license but generated output certainly not.
 
 //
 // std::unordered_map

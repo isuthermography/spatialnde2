@@ -18,6 +18,20 @@ array will actually be implemented, but this could be improved later.
 Hierarchical assemblies and parts will be defined by reference into
 these master arrays. 
 
+Future: Implement ordered global revision tracker with different
+locking semantics.
+
+Any attempt to begin a lockprocess for write defines a new global revision.
+Any read- or write locks secured by this process are actually copies and
+don't take effect until the locking process is complete and they are
+ready to be used. (read locks for the prior version do have to be secured) 
+
+Only one thread at a time can perform such a lockprocess for write, therefore
+locking order is irrelevant. When ready to write to an array, need to wait
+for existing locks on the prior version to be released. This cannot cause a
+deadlock, though. 
+
+
 TODO: define a function that takes an rwlock_token_set and
 iterates over the map, explicitly unlocking all components.
 In general convention should be to explicitly unlock all locks
