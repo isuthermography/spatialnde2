@@ -9,6 +9,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 
+set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/INSTALL)
+
 # Application is C++11
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -Wno-ignored-attributes)
@@ -34,12 +36,16 @@ endif()
 set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/geometry.cpp)
 
 add_definitions(-DSNDE_LOCKMANAGER_COROUTINES_THREADED)
+IF(WIN32)
+  #add_definitions(-fpermissive) # Allow casting on windows (unsigned long) in lockmanager and arraymanager  !!! Should fix the casts, probably 
+  add_definitions(-D_hypot=hypot) # Added for swig on windows. !!! Which compiler specificallly
+ENDIF(WIN32)
 
 # Find dependencies
 find_package(LibXml2)
 find_package(Eigen3 3.3)
 find_package(OpenCL)
-find_package(Threads)
+find_package(Threads REQUIRED)
 find_package(PythonInterp)
 find_package(SWIG)
 find_package(PythonLibs)
@@ -98,11 +104,11 @@ IF (Eigen3_FOUND)
             test/transform_eval_test.cpp)
 ENDIF (Eigen3_FOUND)
 
-IF (LibXml2_FOUND AND Eigen3_FOUND)
+IF (LibXml2_FOUND AND EIGEN3_FOUND)
         add_executable(x3d_test
                 test/x3d_test.cpp)
         target_link_libraries(x3d_test ${SPATIALNDE2_LIBS} ${LIBXML2_LIBRARIES})
-ENDIF (LibXml2_FOUND AND Eigen3_FOUND)
+ENDIF (LibXml2_FOUND AND EIGEN3_FOUND)
 
 
 IF (PythonInterp_FOUND)
@@ -113,7 +119,6 @@ IF (PythonInterp_FOUND)
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/src
             DEPENDS src/file2header.py)
     add_custom_target(OpenCL_Headers DEPENDS ${PythonGenHeaders})
-    message(STATUS ${PYTHON_EXECUTABLE})
 ENDIF (PythonInterp_FOUND)
 
 IF (OpenCL_FOUND AND PythonInterp_FOUND)
@@ -129,58 +134,117 @@ ENDIF()
 
 
 # Build SWIG wrapper
-IF(SWIG_FOUND AND PythonLibs_FOUND)
-    # Include numpy directory on windows. Temp, needs to be replaces.
+IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
+    execute_process(
+            COMMAND ${PYTHON_EXECUTABLE} -c "import numpy; print(numpy.get_include())"
+            ERROR_VARIABLE NumPy_ERROR
+            RESULT_VARIABLE NumPy_RESULT # Returns 0 if numpy includes are found
+            OUTPUT_VARIABLE NumPy_INCLUDE_DIR
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    IF (NOT NumPy_RESULT)
+        include_directories(${NumPy_INCLUDE_DIR})
 
-    # BUG: Need to use proper process to find numpy include directory
-    # e.g. call numpy.get_include() from Python
+	message(STATUS ${PYTHON_LIBRARIES})
+	include(${SWIG_USE_FILE})
+	include_directories(src/)
+	# BUG: If python version >= 3 need -py3 -DPY_VERSION_HEX=0x03060000 additional flags to SWIG command
+	set(CMAKE_SWIG_FLAGS "-DSNDE_LOCKMANAGER_COROUTINES_THREADED")
+	IF (LibXml2_FOUND AND Eigen3_FOUND)
+	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_X3D)
+	ENDIF()
+
+	IF (PYTHON_VERSION_STRING GREATER 3)
+	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-py3" "-DPY_VERSION_HEX=0x03060000")
+	ENDIF (PYTHON_VERSION_STRING GREATER 3)
+	
     
-    include_directories(C:/Users/TreyB/AppData/Local/Programs/Python/Python36-32/Lib/site-packages/numpy/core/include)
+	IF (OpenCL_FOUND)
+	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_OPENCL)
+	ENDIF()
+	
+	SET_SOURCE_FILES_PROPERTIES(src/spatialnde2.i PROPERTIES CPLUSPLUS 1)
 
-    message(STATUS ${PYTHON_LIBRARIES})
-    include(${SWIG_USE_FILE})
-    include_directories(src/)
-    # BUG: If python version >= 3 need -py3 -DPY_VERSION_HEX=0x03060000 additional flags to SWIG command
-    set(CMAKE_SWIG_FLAGS "-DSNDE_LOCKMANAGER_COROUTINES_THREADED")
-    IF (LibXml2_FOUND AND Eigen3_FOUND)
-      set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_X3D)
-    ENDIF()
+	set(SPATIALNDE2_SWIG_SOURCES src/spatialnde2.i)
+	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${PYTHON_LIBRARIES})
 
-    IF (OpenCL_FOUND)
-      set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_OPENCL)
-    ENDIF()
+	IF (OpenCL_FOUND)
+	  set(SPATIALNDE2_SWIG_SOURCES ${SPATIALNDE2_SWIG_SOURCES} src/lockmanager.cpp src/openclcachemanager.cpp src/opencl_utils.cpp)
+	  set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${OpenCL_LIBRARIES})
+	ENDIF()
+	IF (LibXml2_FOUND AND Eigen3_FOUND)
+	  set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${LIBXML2_LIBRARIES})
+	ENDIF()
     
-    SET_SOURCE_FILES_PROPERTIES(src/spatialnde2.i PROPERTIES CPLUSPLUS 1)
-    
-    # BUG: Should opencl components be conditional on finding OpenCL
-    SWIG_ADD_LIBRARY(spatialnde2 LANGUAGE python SOURCES src/spatialnde2.i src/lockmanager.cpp src/openclcachemanager.cpp src/opencl_utils.cpp)
-    set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${PYTHON_LIBRARIES})
-
-    IF (OpenCL_FOUND)
-      set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${OpenCL_LIBRARIES})
-    ENDIF()
-
-    IF (LibXml2_FOUND AND Eigen3_FOUND)
-      set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${LIBXML2_LIBRARIES})
-    ENDIF()
-
-    SWIG_LINK_LIBRARIES(spatialnde2 ${SWIG_SPATIALNDE2_LINK_LIBRARIES})
+	SWIG_ADD_LIBRARY(spatialnde2 LANGUAGE python SOURCES ${SPATIALNDE2_SWIG_SOURCES} )
+	SWIG_LINK_LIBRARIES(spatialnde2 ${SWIG_SPATIALNDE2_LINK_LIBRARIES})
+	
+    ELSE ()
+        message(WARNING "NumPy not found. Cannot build SWIG Python Wrapper.")
+    ENDIF (NOT NumPy_RESULT)
 ENDIF(SWIG_FOUND AND PythonLibs_FOUND)
 
-# BUG: A warning message should be printed
+
+# TEST
+install(TARGETS
+        transform_eval_test
+        manager_test
+        thread_test
+        x3d_test
+        DESTINATION test)
+install(FILES
+        test/transform_eval_test.py
+        DESTINATION test)
+
+# EXAMPLE
+install(TARGETS
+        opencl_example
+        DESTINATION example)
+install(FILES
+        example/custom_geometrystruct_demo.py
+        example/different_locking_processes.py
+        example/opencl_example.py
+        example/opencl_example2.py
+        DESTINATION example)
+
+# INCLUDE
+install(FILES
+        src/geometry_types.h
+        src/geometry_types_h.h
+        src/testkernel_c.h
+        DESTINATION include)
+
+# SWIG
+install(TARGETS
+        _spatialnde2
+        DESTINATION swig)
+
+# BIN
+install(TARGETS
+        allocator
+        opencl
+        lockmanager
+        DESTINATION bin)
+
+# Warning Messages
+# To Update: warning messages should be printed
 # indicating the reduced functionality if OpenCL,
-# Python, SWIG, Numpy, Eigen, and/or libxml2 are not available? 
-
-# Possible BUG: Should CMAKE_BUILD_TYPE default to RelWithDebInfo?
-
-# BUG: Information about Python, OpenCL, and LibXML2 is only
-# shown in cmake under 'advanced mode', yet e.g. the python
-# version selected is critical.
-
-# BUG: There should be installation capability
-# "make install" that will install binaries to a suitable place
-# and the generated python bindings into the Python version's site-packages
-
-# BUG: The "make install" should also install geometry_types.h
-# and testkernel.c in with the Python bindings so that the demo code
-# can find them (demo will need to be modified with search location)
+# Python, SWIG, Numpy, Eigen, and/or libxml2 are not available
+IF (NOT PythonLibs_FOUND)
+    message(WARNING "Python Libs Not Found; SWIG Python wrapper will not be built")
+ENDIF (NOT PythonLibs_FOUND)
+IF (NOT PythonInterp_FOUND)
+    message(WARNING "Python Executable Not Found. Cannot build SWIG Python wrapper or opencl_example")
+ENDIF (NOT PythonInterp_FOUND)
+IF (NOT EIGEN3_FOUND)
+    message(WARNING "Eigen3 Not Found. Cannot build X3D reader.")
+ENDIF (NOT EIGEN3_FOUND)
+IF (NOT LibXml2_FOUND)
+    message(WARNING "LibXml2 Not Found. Cannot build X3D reader.")
+ENDIF (NOT LibXml2_FOUND)
+IF (NOT SWIG_FOUND)
+    message(WARNING "SWIG Not Found. Cannot build SWIG Python wrapper.")
+ENDIF (NOT SWIG_FOUND)
+IF (NOT OpenCL_FOUND)
+    message(WARNING "OpenCL Not Found. Not including OpenCL support or examples.")
+ENDIF (NOT OpenCL_FOUND)

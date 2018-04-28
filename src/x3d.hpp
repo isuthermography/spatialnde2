@@ -788,6 +788,7 @@ namespace snde {
   }
 
   class x3d_appearance : public x3d_node {
+
   public:
 
     x3d_appearance(void) {
