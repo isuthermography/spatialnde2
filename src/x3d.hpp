@@ -687,6 +687,7 @@ namespace snde {
     std::vector<snde_index> coordIndex;
     std::vector<snde_index> normalIndex;
     std::vector<snde_index> texCoordIndex;
+    Eigen::Matrix<double,4,4> transform; /* Apply this transform to all coordinates when interpreting contents */
 
     x3d_indexedfaceset(void) {
       nodetype="indexedfaceset";
@@ -708,6 +709,7 @@ namespace snde {
     static std::shared_ptr<x3d_indexedfaceset> fromcurrentelement(x3d_loader *loader) {
       std::shared_ptr<x3d_indexedfaceset> ifs=std::make_shared<x3d_indexedfaceset>();
 
+      ifs->transform=loader->transformstack.back();
       SetBoolIfX3DAttribute(loader->reader, "normalPerVertex", &ifs->normalPerVertex);
       SetBoolIfX3DAttribute(loader->reader, "ccw", &ifs->ccw);
       SetBoolIfX3DAttribute(loader->reader, "solid", &ifs->solid);

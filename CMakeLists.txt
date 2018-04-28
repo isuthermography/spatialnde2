@@ -9,7 +9,29 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 
-set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/INSTALL)
+# Set installation location rules
+
+IF(APPLE)    # Apple
+  SET(CMAKE_INSTALL_PREFIX "~/install" CACHE PATH "Prefix prepended to install directories.  Must be writable by your user!")
+ELSEIF(UNIX) # Linux (not Apple due to use of if/else-if construct)
+  SET(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "Prefix prepended to install directories.  Must be writable by your user!")  
+ENDIF()
+
+IF(WIN32)
+  SET(APP_INSTALL_DIR ${PROJECT_BINARY_DIR}/install CACHE PATH "Installation directory.  Must be writable by your user!")
+ELSE()
+  SET(APP_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/spatialnde2) # CACHE PATH "Installation directory.  Must be writable by your user!"  
+ENDIF()
+
+# Create a variable to enable/disable installing into site-packages
+set(INSTALL_INTO_PYTHON_SITE_PACKAGES ON CACHE BOOL "Install into the Python site-packages so that scripts run without setting PYTHONPATH")
+
+if((NOT WIN32) AND (NOT APPLE))
+  set(INSTALL_BINARIES_INTO_INSTALL_PREFIX ON CACHE BOOL "Install binaries into the bin/ and lib/ or lib64/ directories under your selected prefix")
+  include(GNUInstallDirs)
+endif()
+
+
 
 # Application is C++11
 set(CMAKE_CXX_STANDARD 11)
@@ -84,6 +106,22 @@ ENDIF(PythonLibs_FOUND)
 # SpatialNDE2 library
 add_library(spatialnde2 SHARED ${SPATIALNDE2_SOURCES})
 
+# SpatialNDE2 headers
+FILE(GLOB SPATIALNDE2_CPP_HEADERS "src/*.hpp")
+FILE(GLOB SPATIALNDE2_C_HEADERS "src/*.h")
+
+# Set RPATH
+# !!! *** Should more carefully define appropriate RPATH's
+# the RPATH to be used when installing, but only if it's not a system directory
+LIST(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_FULL_LIBDIR}" isSystemDir)
+IF("${isSystemDir}" STREQUAL "-1")
+  set(CMAKE_INSTALL_RPATH "${APP_INSTALL_DIR}/lib;${CMAKE_INSTALL_FULL_LIBDIR}")
+ELSE()
+  set(CMAKE_INSTALL_RPATH "${APP_INSTALL_DIR}/lib")
+  
+ENDIF()
+
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 	
 
 # Tests
@@ -112,22 +150,22 @@ ENDIF (LibXml2_FOUND AND EIGEN3_FOUND)
 
 
 IF (PythonInterp_FOUND)
-    set(PythonGenHeaders src/geometry_types_h.h src/testkernel_c.h)
-    add_custom_command(OUTPUT ${PythonGenHeaders}
-            COMMAND ${PYTHON_EXECUTABLE} file2header.py testkernel.c testkernel_c.h
-            COMMAND ${PYTHON_EXECUTABLE} file2header.py geometry_types.h geometry_types_h.h
+    set(PYTHONGENHEADERS ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h)
+    add_custom_command(OUTPUT ${PYTHONGENHEADERS}
+            COMMAND ${PYTHON_EXECUTABLE} file2header.py testkernel.c ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
+            COMMAND ${PYTHON_EXECUTABLE} file2header.py geometry_types.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/src
-            DEPENDS src/file2header.py)
-    add_custom_target(OpenCL_Headers DEPENDS ${PythonGenHeaders})
+            DEPENDS src/file2header.py src/testkernel.c src/geometry_types.h)
+    add_custom_target(OpenCL_Headers DEPENDS ${PYTHONGENHEADERS})
 ENDIF (PythonInterp_FOUND)
 
 IF (OpenCL_FOUND AND PythonInterp_FOUND)
     # build opencl_example... requires Python to preprocess the testkernel
     add_executable(opencl_example
             example/opencl_example.cpp
-            src/testkernel_c.h
+            ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
             )
-    add_dependencies(opencl_example OpenCL_Headers)
+    #add_dependencies(opencl_example OpenCL_Headers)
     target_link_libraries(opencl_example spatialnde2 ${OpenCL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 ENDIF()
 
@@ -182,7 +220,15 @@ IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
     ELSE ()
         message(WARNING "NumPy not found. Cannot build SWIG Python Wrapper.")
     ENDIF (NOT NumPy_RESULT)
-ENDIF(SWIG_FOUND AND PythonLibs_FOUND)
+  
+ENDIF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
+
+# Find out where the Python site-packages directory is
+IF(PythonLibs_FOUND AND PythonInterp_FOUND)
+      execute_process ( COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print get_python_lib()" OUTPUT_VARIABLE _AUTOGEN_PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
+      set(PYTHON_SITE_PACKAGES ${_AUTOGEN_PYTHON_SITE_PACKAGES} CACHE PATH "Directory containing site-packages")
+ENDIF()
+
 
 
 # TEST
@@ -191,40 +237,65 @@ install(TARGETS
         manager_test
         thread_test
         x3d_test
-        DESTINATION test)
+        DESTINATION ${APP_INSTALL_DIR}/test)
 install(FILES
         test/transform_eval_test.py
-        DESTINATION test)
+        test/x3d_test.py
+        DESTINATION ${APP_INSTALL_DIR}/test)
 
 # EXAMPLE
 install(TARGETS
         opencl_example
-        DESTINATION example)
+        DESTINATION ${APP_INSTALL_DIR}/example)
 install(FILES
         example/custom_geometrystruct_demo.py
         example/different_locking_processes.py
         example/opencl_example.py
         example/opencl_example2.py
-        DESTINATION example)
+        DESTINATION ${APP_INSTALL_DIR}/example)
 
 # INCLUDE
 install(FILES
-        src/geometry_types.h
-        src/geometry_types_h.h
-        src/testkernel_c.h
-        DESTINATION include)
+        ${SPATIALNDE2_CPP_HEADERS}
+        ${SPATIALNDE2_C_HEADERS}
+        ${PYTHONGENHEADERS}
+        DESTINATION ${APP_INSTALL_DIR}/include)
 
 # SWIG
 install(TARGETS
-        _spatialnde2
-        DESTINATION swig)
+        ${SWIG_MODULE_spatialnde2_REAL_NAME}
+        DESTINATION ${APP_INSTALL_DIR}/python)
+install(
+	FILES "${PROJECT_BINARY_DIR}/spatialnde2.py"
+	DESTINATION ${APP_INSTALL_DIR}/python)
 
+
+if(INSTALL_INTO_PYTHON_SITE_PACKAGES)
+  install(TARGETS
+    ${SWIG_MODULE_spatialnde2_REAL_NAME}
+    DESTINATION ${PYTHON_SITE_PACKAGES})
+  install(
+    FILES "${PROJECT_BINARY_DIR}/spatialnde2.py"
+    DESTINATION ${PYTHON_SITE_PACKAGES})
+endif()
+
+      
 # BIN
 install(TARGETS
-        allocator
-        opencl
-        lockmanager
-        DESTINATION bin)
+        spatialnde2
+        DESTINATION ${APP_INSTALL_DIR}/lib)
+
+if((NOT WIN32) AND (NOT APPLE) AND INSTALL_BINARIES_INTO_INSTALL_PREFIX)
+install(TARGETS
+        spatialnde2
+        DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(FILES
+        ${SPATIALNDE2_CPP_HEADERS}
+        ${SPATIALNDE2_C_HEADERS}
+        ${PYTHONGENHEADERS}
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+endif()
+
 
 # Warning Messages
 # To Update: warning messages should be printed
