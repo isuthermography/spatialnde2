@@ -42,14 +42,14 @@ int main() {
   geom=std::make_shared<snde::geometry>(tol,manager);
 
   blockstart=geom->manager->allocators[(void **)&geom->geom.vertices].alloc->_alloc(10000);
-  blocksize=10;
+  blocksize=50;
 
 //  write(geom,blockstart,blocksize,0);
 
   std::thread thread(geom_chord_thread_write, geom, blockstart, blocksize, 0);
   thread.join();
 
-  std::thread thread2(geom_chord_multipleThread_read,geom,blockstart,blocksize,6);
+  std::thread thread2(geom_chord_multipleThread_read,geom,blockstart,blocksize,100);
   std::this_thread::sleep_for(std::chrono::milliseconds(1));
   std::thread thread3(geom_chord_thread_write,geom,blockstart,blocksize,1);
 
@@ -83,7 +83,6 @@ void geom_chord_thread_read(std::shared_ptr<snde::geometry> geom, snde_index sta
 //        for (auto j : geom->geom.vertices[i].coord) {
 //            std::cout << j << " " << std::flush;
 //        }
-    std::cout<<std::endl;
   }
   std::cout<<std::endl;
   read_lock.reset();
@@ -95,6 +94,7 @@ void geom_chord_multipleThread_read(std::shared_ptr<snde::geometry> geom, snde_i
   auto *th=new std::thread[thread_num];
   for (int i=0; i<thread_num; i++) {
     th[i]= std::thread(geom_chord_thread_read, geom, start, size);
+    if(i==3) std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
   for (int i=0; i<thread_num; i++) {
     th[i].join();

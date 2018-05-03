@@ -1,0 +1,30 @@
+Add pendingWriteLock to lockmanager so that the read locks cannot starve out the write locks.
+    Write locks must wait for all the read locks to finish but if the user keeps adding read locks that never happens
+
+CMakeLists.txt install(...)
+    syntax error: install TARGETS given target "transform_eval_test" which does not exist in this directory
+    Maybe because if libraries are not found, these targets are not ever defined.
+
+Windows Errors (MinGW compiler)
+    CMakeLists.txt add_definitions(-fpermissive)
+        Should fix the casting to (unsigned long)
+
+    opencl_utils.cpp (Used in spatialnde2 library)
+        CMakeFiles\spatialnde2.dir/objects.a(opencl_utils.cpp.obj): In function `GetCLPlatformString':
+        C:/Users/TreyB/CLionProjects/spatialnde/src/opencl_utils.cpp:25: undefined reference to `clGetPlatformInfo'
+        C:/Users/TreyB/CLionProjects/spatialnde/src/opencl_utils.cpp:28: undefined reference to `clGetPlatformInfo'
+        CMakeFiles\spatialnde2.dir/objects.a(opencl_utils.cpp.obj): In function `GetCLDeviceString':
+        C:/Users/TreyB/CLionProjects/spatialnde/src/opencl_utils.cpp:41: undefined reference to `clGetDeviceInfo'
+        C:/Users/TreyB/CLionProjects/spatialnde/src/opencl_utils.cpp:44: undefined reference to `clGetDeviceInfo'
+        CMakeFiles\spatialnde2.dir/objects.a(opencl_utils.cpp.obj): In function `snde::get_opencl_context(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, bool, void (*)(char const*, void const*, unsigned long long, void*), void*)':
+        C:/Users/TreyB/CLionProjects/spatialnde/src/opencl_utils.cpp:95: undefined reference to `clGetPlatformIDs'
+        C:/Users/TreyB/CLionProjects/spatialnde/src/opencl_utils.cpp:100: undefined reference to `clGetDeviceIDs'
+        C:/Users/TreyB/CLionProjects/spatialnde/src/opencl_utils.cpp:127: undefined reference to `clGetDeviceInfo'
+        C:/Users/TreyB/CLionProjects/spatialnde/src/opencl_utils.cpp:231: undefined reference to `clCreateContext'
+        CMakeFiles\spatialnde2.dir/objects.a(opencl_utils.cpp.obj): In function `snde::get_opencl_program[abi:cxx11](_cl_context*, _cl_device_id*, std::vector<char const*, std::allocator<char const*> >)':
+        C:/Users/TreyB/CLionProjects/spatialnde/src/opencl_utils.cpp:252: undefined reference to `clCreateProgramWithSource'
+        C:/Users/TreyB/CLionProjects/spatialnde/src/opencl_utils.cpp:261: undefined reference to `clBuildProgram'
+        C:/Users/TreyB/CLionProjects/spatialnde/src/opencl_utils.cpp:265: undefined reference to `clGetProgramBuildInfo'
+        C:/Users/TreyB/CLionProjects/spatialnde/src/opencl_utils.cpp:268: undefined reference to `clGetProgramBuildInfo'
+        CMakeFiles\spatialnde2.dir/objects.a(opencl_utils.cpp.obj): In function `snde::add_opencl_alignment_requirement(std::shared_ptr<snde::allocator_alignment>, _cl_device_id*)':
+        C:/Users/TreyB/CLionProjects/spatialnde/src/opencl_utils.cpp:297: undefined reference to `clGetDeviceInfo'
