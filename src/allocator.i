@@ -72,7 +72,7 @@ namespace snde {
 
     std::shared_ptr<memallocator> _memalloc;
     std::shared_ptr<lockmanager> _locker; // could be NULL if there is no locker
-    std::deque<std::shared_ptr<std::function<void(snde_index)>>> realloccallbacks; // locked by allocatormutex
+    std::deque<std::shared_ptr<std::function<void(snde_index)>>> pool_realloc_callbacks; // locked by allocatormutex
 
     bool destroyed;
     /* 
@@ -109,7 +109,7 @@ namespace snde {
     
     void remove_array(void **arrayptr);
     
-    void _realloc(snde_index newnchunks);
+    void _pool_realloc(snde_index newnchunks);
 
     snde_index total_nelem();
     
@@ -117,9 +117,9 @@ namespace snde {
     // This next one gives SWIG trouble because of confusion over whether snde_index is an unsigned long or an unsigned long long
     //std::pair<snde_index,std::vector<std::pair<alloc_voidpp,rwlock_token_set>>> alloc_arraylocked(rwlock_token_set all_locks,snde_index nelem);
     
-    //void register_realloc_callback(std::shared_ptr<std::function<void(snde_index)>> callback);
+    //void register_pool_realloc_callback(std::shared_ptr<std::function<void(snde_index)>> callback);
 
-    //void unregister_realloc_callback(std::shared_ptr<std::function<void(snde_index)>> callback);
+    //void unregister_pool_realloc_callback(std::shared_ptr<std::function<void(snde_index)>> callback);
 
     
     void free(snde_index addr,snde_index nelem);

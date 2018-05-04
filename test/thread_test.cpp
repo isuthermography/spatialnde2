@@ -11,12 +11,12 @@
 #include <deque>
 #include <cstring>
 #include <cstdarg>
-#include "../src/geometry_types.h"
-#include "../src/snde_error.hpp"
-#include "../src/memallocator.hpp"
-#include "../src/allocator.hpp"
-#include "../src/arraymanager.hpp"
-#include "../src/geometrydata.h"
+#include "geometry_types.h"
+#include "snde_error.hpp"
+#include "memallocator.hpp"
+#include "allocator.hpp"
+#include "arraymanager.hpp"
+#include "geometrydata.h"
 #include <iostream>
 
 //TODO: edit lockmanager.hpp to make sure the read locks can't starve out the write locks (add pendingwritelockcount)

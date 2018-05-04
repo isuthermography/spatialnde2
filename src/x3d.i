@@ -2,13 +2,16 @@
 %shared_ptr(snde::x3d_shape);
 %shared_ptr(snde::x3d_material);
 %shared_ptr(snde::x3d_transform);
+%shared_ptr(snde::x3d_indexedset);
 %shared_ptr(snde::x3d_indexedfaceset);
+%shared_ptr(snde::x3d_indexedtriangleset);
 %shared_ptr(snde::x3d_coordinate);
 %shared_ptr(snde::x3d_normal);
 %shared_ptr(snde::x3d_texturecoordinate);
 %shared_ptr(snde::x3d_imagetexture);
 %shared_ptr(snde::x3d_appearance);
 %shared_ptr(snde::x3d_loader);
+
 %shared_ptr(x3d_shapelist)
  //%shared_ptr(std::vector<std::shared_ptr<snde::x3d_shape>,std::allocator<std::shared_ptr<snde::x3d_shape> > >)
 
@@ -165,19 +168,45 @@ namespace snde {
 
   };
 
-
-  class x3d_indexedfaceset : public x3d_node {
+  class x3d_indexedset : public x3d_node {
+    /* This class should never be instantiated... just 
+       subclasses x3d_indexedfaceset and x3d_indexedtriangleset */
   public:
     bool normalPerVertex;
     bool ccw;
     bool solid;
+    //Eigen::Matrix<double,4,4> transform; /* Apply this transform to all coordinates when interpreting contents */
+  };
+  
+  class x3d_indexedfaceset : public x3d_indexedset {
+  public:
     bool convex;
     std::vector<snde_index> coordIndex;
     std::vector<snde_index> normalIndex;
     std::vector<snde_index> texCoordIndex;
 
-    x3d_indexedfaceset(void); 
+    x3d_indexedfaceset(void);
+
+    static std::shared_ptr<x3d_indexedfaceset> fromcurrentelement(x3d_loader *loader);
   };
+
+
+  class x3d_indexedtriangleset : public x3d_indexedset {
+  public:
+    //bool normalPerVertex; (now inherited from x3d_indexedset) 
+    //bool ccw;  (now inherited from x3d_indexedset) 
+    //bool solid;  (now inherited from x3d_indexedset) 
+    bool convex;
+    //std::vector<snde_index> coordIndex;
+    //std::vector<snde_index> normalIndex;
+    std::vector<snde_index> index;
+    //Eigen::Matrix<double,4,4> transform;  (now inherited from x3d_indexedset)  /* Apply this transform to all coordinates when interpreting contents */
+
+    x3d_indexedtriangleset(void);
+    static std::shared_ptr<x3d_indexedtriangleset> fromcurrentelement(x3d_loader *loader);
+  };
+
+
 
   class x3d_imagetexture : public x3d_node {
   public:
@@ -217,5 +246,6 @@ namespace snde {
     x3d_texturecoordinate(void);
   };
 
+  std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> x3d_load_geometry(std::shared_ptr<geometry> geom,const char *filename,bool reindex_vertices);
   
 };

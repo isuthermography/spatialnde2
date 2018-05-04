@@ -39,20 +39,41 @@ set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -Wno-ignored-attributes)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
 
 # Remove optimizations when using gcc and debugging
-IF(CMAKE_COMPILER_IS_GNUCC)
+IF(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU|AppleClang")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
-ENDIF(CMAKE_COMPILER_IS_GNUCC)
+ENDIF()
 
-# Always perform asserts in RelWithDebInfo mode
+IF(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU|AppleClang")
+  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
+ENDIF()
+
+# Always perform asserts in RelWithDebInfo mode and completely disable optimization
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU|AppleClang")
   string( REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+  string( REGEX REPLACE "-O." "-O0" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
 endif()
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
   string( REPLACE "/DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
 endif()
+
+# Workaround to specify 64 bit integers not terms of int64_t/uint64_t to accommodate
+# https://github.com/swig/swig/issues/568
+# (used in geometry_types.h/geometry_types.i)
+include(CheckTypeSize)
+CHECK_TYPE_SIZE(long SIZEOF_LONG LANGUAGE CXX)
+if (SIZEOF_LONG MATCHES "8")
+  add_definitions(-DSIZEOF_LONG_IS_8)
+endif()
+
+
+# Workaround for swig to understand what size_t aliases
+CHECK_TYPE_SIZE(size_t SIZEOF_SIZE_T LANGUAGE CXX)
+if (SIZEOF_SIZE_T MATCHES "8")
+  add_definitions(-DSIZEOF_SIZE_T_IS_8)
+endif()
+
 
 
 set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/geometry.cpp)
@@ -82,7 +103,7 @@ set(SPATIALNDE2_LIBS spatialnde2 ${CMAKE_THREAD_LIBS_INIT})
 IF (OpenCL_FOUND)
     include_directories(${OpenCL_INCLUDE_DIR})
 
-
+    add_definitions(-DSNDE_OPENCL)
     # Build OpenCL support into library
     set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/opencl_utils.cpp src/openclcachemanager.cpp)
     set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} ${OpenCL_LIBRARIES})
@@ -163,13 +184,14 @@ IF (OpenCL_FOUND AND PythonInterp_FOUND)
     # build opencl_example... requires Python to preprocess the testkernel
     add_executable(opencl_example
             example/opencl_example.cpp
-            ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
             )
-    #add_dependencies(opencl_example OpenCL_Headers)
+    add_dependencies(opencl_example OpenCL_Headers)
     target_link_libraries(opencl_example spatialnde2 ${OpenCL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 ENDIF()
 
 
+include_directories(src/)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 # Build SWIG wrapper
 IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
@@ -185,7 +207,6 @@ IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
 
 	message(STATUS ${PYTHON_LIBRARIES})
 	include(${SWIG_USE_FILE})
-	include_directories(src/)
 	# BUG: If python version >= 3 need -py3 -DPY_VERSION_HEX=0x03060000 additional flags to SWIG command
 	set(CMAKE_SWIG_FLAGS "-DSNDE_LOCKMANAGER_COROUTINES_THREADED")
 	IF (LibXml2_FOUND AND Eigen3_FOUND)
@@ -196,6 +217,13 @@ IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
 	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-py3" "-DPY_VERSION_HEX=0x03060000")
 	ENDIF (PYTHON_VERSION_STRING GREATER 3)
 	
+	if (SIZEOF_LONG MATCHES "8")
+	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-DSIZEOF_LONG_IS_8")
+	endif()
+	
+	if (SIZEOF_SIZE_T MATCHES "8")
+	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-DSIZEOF_SIZE_T_IS_8")
+	endif()
     
 	IF (OpenCL_FOUND)
 	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_OPENCL)
@@ -319,3 +347,11 @@ ENDIF (NOT SWIG_FOUND)
 IF (NOT OpenCL_FOUND)
     message(WARNING "OpenCL Not Found. Not including OpenCL support or examples.")
 ENDIF (NOT OpenCL_FOUND)
+
+## Uncomment these lines to 
+## show all variable values
+get_cmake_property(_variableNames VARIABLES)
+list (SORT _variableNames)
+foreach (_variableName ${_variableNames})
+    message(STATUS "${_variableName}=${${_variableName}}")
+endforeach()

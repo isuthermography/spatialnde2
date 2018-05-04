@@ -291,7 +291,8 @@ struct arrayregion {
     void set_array_size(void **Arrayptr,size_t elemsize,snde_index nelem);
     rwlock_token newallocation(rwlock_token_set all_locks,void **arrayptr,snde_index pos,snde_index size,snde_index elemsize);
     void freeallocation(void **arrayptr,snde_index pos, snde_index size,snde_index elemsize);
- 
+    void realloc_down_allocation(void **arrayptr, snde_index addr,snde_index orignelem, snde_index newnelem);
+
 
     rwlock_token  _get_preexisting_lock_read_array_lockobj(rwlock_token_set all_locks, size_t arrayidx,std::shared_ptr<rwlock> rwlockobj);
     std::pair<rwlock_lockable *,rwlock_token>  _get_preexisting_lock_read_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index pos,snde_index size);

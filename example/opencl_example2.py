@@ -100,8 +100,8 @@ meshedparts[0]["numedges"] = 3
 meshedparts[0]["firstvertex"] = holder.get_alloc(geom.addr("vertices"),"")
 meshedparts[0]["numvertices"] = 3
 
-meshedparts[0]["first_vertex_edgelist_index"] = holder.get_alloc(geom.addr("vertex_edgelist_indices"),"")
-meshedparts[0]["num_vertex_edgelist_indices"] = 9
+meshedparts[0]["first_vertex_edgelist"] = holder.get_alloc(geom.addr("vertex_edgelist_indices"),"")
+meshedparts[0]["num_vertex_edgelist"] = 9
 meshedparts[0]["firstbox"] = spatialnde2.SNDE_INDEX_INVALID
 meshedparts[0]["numboxes"] = spatialnde2.SNDE_INDEX_INVALID
 meshedparts[0]["firstboxpoly"] = spatialnde2.SNDE_INDEX_INVALID
@@ -224,6 +224,7 @@ spatialnde2.unlock_rwlock_token_set(all_locks);
 # way to be sure everything is done is to perform a
 # new conflicting (i.e. write) lock on the relevant
 # arrays
+del holder
   
 
 part.free()

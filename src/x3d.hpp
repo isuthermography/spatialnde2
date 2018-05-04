@@ -18,9 +18,13 @@
 #include <cmath>
 
 #include <libxml/xmlreader.h>
+
 #include <Eigen/Dense>
 
+#include "arraymanager.hpp"
 #include "geometry_types.h"
+#include "geometrydata.h"
+#include "geometry.hpp"
 #include "snde_error.hpp"
 
 // plan: all class data structures need to derive from a common base
@@ -34,6 +38,7 @@
 namespace snde {
 
   class x3d_node {
+
   public:
     std::string nodetype;
     std::unordered_map<std::string,std::shared_ptr<x3d_node>> nodedata;
@@ -51,6 +56,7 @@ namespace snde {
   class x3d_material;
   class x3d_transform;
   class x3d_indexedfaceset;
+  class x3d_indexedtriangleset;
   class x3d_coordinate;
   class x3d_normal;
   class x3d_texturecoordinate;
@@ -195,8 +201,14 @@ namespace snde {
     vecout->reserve(s.size()/8); // Pre-initialize to rough expected length
     for (char *tok=strtok_r(copy,"\r\n, ",&saveptr);tok;tok=strtok_r(NULL,"\r\n, ",&saveptr)) {
       endptr=tok;
-      vecout->push_back(strtoull(tok,&endptr,10));
 
+      if (!strcmp(tok,"-1")) {
+	vecout->push_back(SNDE_INDEX_INVALID);
+	endptr=tok+2;
+      } else {
+	vecout->push_back(strtoull(tok,&endptr,10));
+      }
+      
       if (*endptr != 0) {
 	throw x3derror(0,NULL,"Parse error interpreting string token %s as unsigned integer",tok);
       }
@@ -317,6 +329,7 @@ namespace snde {
     std::shared_ptr<x3d_node> parse_material(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField); /* implemented below to work around circular reference loop */
     std::shared_ptr<x3d_node> parse_transform(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField);
     std::shared_ptr<x3d_node> parse_indexedfaceset(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
+    std::shared_ptr<x3d_node> parse_indexedtriangleset(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
     std::shared_ptr<x3d_node> parse_imagetexture(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
     std::shared_ptr<x3d_node> parse_shape(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
     std::shared_ptr<x3d_node> parse_appearance(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField);
@@ -380,6 +393,7 @@ namespace snde {
       USE=xmlTextReaderGetAttribute(reader,(const xmlChar *)"USE");
       if (USE) {
 	result=defindex[(const char *)USE];
+	ignorecontent();
 	xmlFree(USE);
       } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"material")) {
 	result=parse_material(parentnode,containerField);
@@ -387,6 +401,8 @@ namespace snde {
 	result=parse_transform(parentnode,containerField);
       } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"indexedfaceset")) {
         result=parse_indexedfaceset(parentnode,containerField);
+      } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"indexedtriangleset")) {
+        result=parse_indexedtriangleset(parentnode,containerField);
       } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"imagetexture")) {
         result=parse_imagetexture(parentnode,containerField);
       } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"shape")) {
@@ -436,6 +452,27 @@ namespace snde {
 
         if (xmlTextReaderNodeType(reader) == XML_READER_TYPE_ELEMENT) {
 	  dispatch_x3d_childnode(curnode);
+	}
+
+        if (xmlTextReaderNodeType(reader) == XML_READER_TYPE_END_ELEMENT && xmlTextReaderDepth(reader) == depth) {
+	  nodefinished=true;
+	}
+      }
+    }
+
+    
+    void ignorecontent()
+    {
+      bool nodefinished=xmlTextReaderIsEmptyElement(reader);
+      int depth=xmlTextReaderDepth(reader);
+      int ret;
+      
+      while (!nodefinished) {
+	ret=xmlTextReaderRead(reader);
+	assert(ret==1);
+
+        if (xmlTextReaderNodeType(reader) == XML_READER_TYPE_ELEMENT) {
+	  //dispatch_ignore_childnode();
 	}
 
         if (xmlTextReaderNodeType(reader) == XML_READER_TYPE_END_ELEMENT && xmlTextReaderDepth(reader) == depth) {
@@ -678,16 +715,22 @@ namespace snde {
     return trans_data;
   }
 
-  class x3d_indexedfaceset : public x3d_node {
+  class x3d_indexedset : public x3d_node {
+    /* This class should never be instantiated... just 
+       subclasses x3d_indexedfaceset and x3d_indexedtriangleset */
   public:
     bool normalPerVertex;
     bool ccw;
     bool solid;
+    Eigen::Matrix<double,4,4> transform; /* Apply this transform to all coordinates when interpreting contents */
+  };
+  
+  class x3d_indexedfaceset : public x3d_indexedset {
+  public:
     bool convex;
     std::vector<snde_index> coordIndex;
     std::vector<snde_index> normalIndex;
     std::vector<snde_index> texCoordIndex;
-    Eigen::Matrix<double,4,4> transform; /* Apply this transform to all coordinates when interpreting contents */
 
     x3d_indexedfaceset(void) {
       nodetype="indexedfaceset";
@@ -730,18 +773,81 @@ namespace snde {
   {
     if (!containerField) containerField=(xmlChar *)"geometry";
 
-    std::shared_ptr<x3d_node> mat_data=x3d_indexedfaceset::fromcurrentelement(this);
+    std::shared_ptr<x3d_node> ifs_data=x3d_indexedfaceset::fromcurrentelement(this);
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
         throw x3derror(0,NULL,"Invalid container field for geometry (indexedfaceset): ",(char *)containerField);
       }
-      parentnode->nodedata[(char *)containerField]=mat_data;
+      parentnode->nodedata[(char *)containerField]=ifs_data;
     }
 
-    return mat_data;
+    return ifs_data;
   }
 
+  class x3d_indexedtriangleset : public x3d_indexedset {
+  public:
+    //bool normalPerVertex; (now inherited from x3d_indexedset) 
+    //bool ccw;  (now inherited from x3d_indexedset) 
+    //bool solid;  (now inherited from x3d_indexedset) 
+    bool convex;
+    //std::vector<snde_index> coordIndex;
+    //std::vector<snde_index> normalIndex;
+    std::vector<snde_index> index;
+    //Eigen::Matrix<double,4,4> transform;  (now inherited from x3d_indexedset)  /* Apply this transform to all coordinates when interpreting contents */
+
+    x3d_indexedtriangleset(void) {
+      nodetype="indexedtriangleset";
+      nodedata["metadata"]=std::shared_ptr<x3d_node>();
+      nodedata["color"]=std::shared_ptr<x3d_node>();
+      nodedata["coord"]=std::shared_ptr<x3d_node>();
+      nodedata["fogCoord"]=std::shared_ptr<x3d_node>();
+      nodedata["normal"]=std::shared_ptr<x3d_node>();
+      nodedata["texCoord"]=std::shared_ptr<x3d_node>();
+      
+      normalPerVertex=true;
+      ccw=true;
+      solid=true;
+      //convex=true;
+
+      // ignoring attrib (MFNode), and colorIndex, colorPerVectex, creaseAngle
+    }
+
+    static std::shared_ptr<x3d_indexedtriangleset> fromcurrentelement(x3d_loader *loader) {
+      std::shared_ptr<x3d_indexedtriangleset> its=std::make_shared<x3d_indexedtriangleset>();
+
+      its->transform=loader->transformstack.back();
+      SetBoolIfX3DAttribute(loader->reader, "normalPerVertex", &its->normalPerVertex);
+      SetBoolIfX3DAttribute(loader->reader, "ccw", &its->ccw);
+      SetBoolIfX3DAttribute(loader->reader, "solid", &its->solid);
+      //SetBoolIfX3DAttribute(loader->reader, "convex", &ifs->convex);
+
+      SetIndicesIfX3DAttribute(loader->reader,"index",&its->index);
+
+      
+      loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(its));
+
+      return its;
+    }
+  };
+  
+  std::shared_ptr<x3d_node> x3d_loader::parse_indexedtriangleset(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
+  {
+    if (!containerField) containerField=(xmlChar *)"geometry";
+    
+    std::shared_ptr<x3d_node> its_data=x3d_indexedtriangleset::fromcurrentelement(this);
+
+    if (parentnode) {
+      if (!parentnode->hasattr((char *)containerField)) {
+        throw x3derror(0,NULL,"Invalid container field for geometry (indexedtriangleset): ",(char *)containerField);
+      }
+      parentnode->nodedata[(char *)containerField]=its_data;
+    }
+
+    return its_data;
+  }
+
+  
   class x3d_imagetexture : public x3d_node {
   public:
     std::string url;
@@ -948,6 +1054,429 @@ namespace snde {
   }
 
   
+
+  // Need to provide hash and equality implementation for snde_coord3 so
+  // it can be used as a std::unordered_map key
+  template <class T> struct x3d_hash;
+  
+  template <> struct x3d_hash<snde_coord3>
+  {
+    size_t operator()(const snde_coord3 & x) const
+    {
+      return
+	std::hash<double>{}((double)x.coord[0]) +
+			     std::hash<double>{}((double)x.coord[1]) +
+						  std::hash<double>{}((double)x.coord[2]);
+    }
+  };
+  
+  template <class T> struct x3d_equal_to;
+  
+  template <> struct x3d_equal_to<snde_coord3>
+  {
+    bool operator()(const snde_coord3 & x, const snde_coord3 & y) const
+    {
+      return x.coord[0]==y.coord[0] && x.coord[1]==y.coord[1] && x.coord[2]==y.coord[2];
+    }
+  };
+  
+  
+  // Need to provide hash for pairs of  snde_index so
+  // they can be used as a std::unordered_map key
+  template <> struct x3d_hash<std::pair<snde_index,snde_index>>
+  {
+    size_t operator()(const std::pair<snde_index,snde_index> & x) const
+    {
+      return
+	std::hash<snde_index>{}((snde_index)x.first) +
+				 std::hash<snde_index>{}((snde_index)x.second);
+      
+    }
+  };
+  
+  
+  std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> x3d_load_geometry(std::shared_ptr<geometry> geom,const char *filename,bool reindex_vertices)
+  /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
+     is presumed to be a separate object. Must consist of strictly triangles.
+     
+     If reindex_vertices is set, then re-identify matching vertices. 
+     Otherwise vertex_tolerance is the tolerance in meters. */
+    
+  /* *** Might make sense to put X3D transform into scene definition rather than 
+     transforming coordinates */
+    
+  /*** Still need to implement loading texture coordinates ***/
+    
+  {
+    
+    std::vector<std::shared_ptr<x3d_shape>> shapes=x3d_loader::shapes_from_file(filename);
+    
+    std::vector<snde_index> meshedpart_indices;
+    
+    
+    for (auto & shape: shapes) {
+      
+      /* build vertex list */
+      std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
+      rwlock_token_set all_locks;
+      
+      
+      std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager); // new locking process
+      
+      if (!shape->nodedata["geometry"]) {
+	throw x3derror(0,NULL,"Shape tag missing geometry field (i.e. indexedfaceset or indexedtriangleset)");
+      }
+      std::shared_ptr<x3d_indexedset> indexedset=std::dynamic_pointer_cast<snde::x3d_indexedset>(shape->nodedata["geometry"]);
+      
+      if (!indexedset->nodedata["coord"]) {
+	throw x3derror(0,NULL,"%s element missing coord field (i.e. <coordinate> subelement)",indexedset->nodetype.c_str());
+      }
+      std::shared_ptr<x3d_coordinate> coords = std::dynamic_pointer_cast<x3d_coordinate>(indexedset->nodedata["coord"]);
+      
+      
+      bool isfaceset = indexedset->nodetype=="indexedfaceset";
+      if (!isfaceset) assert(indexedset->nodetype=="indexedtriangleset");
+
+      std::vector<snde_index> dummyvec; /* strictly an initializer for coordIndex so it can have the scope we want */
+      
+      std::vector<snde_index> & coordIndex=dummyvec;
+      unsigned coordindex_step;
+      
+      
+      if (isfaceset) {
+	coordIndex=std::dynamic_pointer_cast<x3d_indexedfaceset>(indexedset)->coordIndex;
+	coordindex_step=4;
+	
+      } else {
+	coordIndex=std::dynamic_pointer_cast<x3d_indexedtriangleset>(indexedset)->index;
+	coordindex_step=3;
+      }
+      
+      
+      // Allocate enough storage for vertices, edges, and triangles
+      holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.meshedparts,1,""));
+      
+      holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.triangles,coordIndex.size(),""));
+      holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.edges,3*coords->point.size(),""));
+      holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.vertices,coords->point.size(),""));
+      // Edgelist may need to be big enough to store # of edges*2 +  # of vertices
+      snde_index vertex_edgelist_maxsize=coords->point.size()*7;
+      holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.vertex_edgelist,vertex_edgelist_maxsize,""));
+      all_locks=lockprocess->finish();
+      
+      snde_index firstpart = holder->get_alloc((void **)&geom->geom.meshedparts,"");
+      memset(&geom->geom.meshedparts[firstpart],0,sizeof(*geom->geom.meshedparts));
+      
+      meshedpart_indices.push_back(firstpart);
+      
+      
+      snde_index firsttri = holder->get_alloc((void **)&geom->geom.triangles,"");
+      snde_index firstedge = holder->get_alloc((void **)&geom->geom.edges,"");
+      snde_index firstvertex = holder->get_alloc((void **)&geom->geom.vertices,"");
+      snde_index first_vertex_edgelist = holder->get_alloc((void **)&geom->geom.vertex_edgelist,"");
+      snde_index first_vertex_edgelist_index = holder->get_alloc((void **)&geom->geom.vertex_edgelist_indices,""); // should be identical to firstvertex because vertices manages this array
+      assert(first_vertex_edgelist_index==firstvertex);
+      
+      snde_index num_vertices,num_edges;
+      
+      
+      // map for looking up new index based on coordinates
+      std::unordered_map<snde_coord3,snde_index,x3d_hash<snde_coord3>,x3d_equal_to<snde_coord3>> vertexnum_bycoord;
+      std::unordered_map<snde_index,snde_index> vertexnum_byorignum;
+      if (reindex_vertices) {
+	snde_index cnt;
+	snde_index next_vertexnum=0;
+	
+	for (cnt=0; cnt < coords->point.size(); cnt++) {
+	  auto vertex_iter=vertexnum_bycoord.find(coords->point[cnt]);
+	  if (vertex_iter == vertexnum_bycoord.end()) {
+	    assert(next_vertexnum < coords->point.size());
+	    
+	    vertexnum_bycoord.emplace(std::make_pair(coords->point[cnt],next_vertexnum));
+	    vertexnum_byorignum.emplace(std::make_pair(cnt,next_vertexnum));
+	    
+	    // Store in data array 
+	    //geom->geom.vertices[firstvertex+next_vertexnum]=coords->point[cnt];
+	    // but apply transform first
+	    Eigen::Matrix<snde_coord,4,1> RawPoint;
+	    RawPoint[0]=coords->point[cnt].coord[0];
+	    RawPoint[1]=coords->point[cnt].coord[1];
+	    RawPoint[2]=coords->point[cnt].coord[2];
+	    RawPoint[3]=1.0; // Represents a point, not a vector, so 4th element is 1.0
+	    Eigen::Matrix<snde_coord,4,1> TransformPoint = indexedset->transform * RawPoint;
+	    memcpy(&geom->geom.vertices[firstvertex+next_vertexnum],TransformPoint.data(),3*sizeof(*geom->geom.vertices));
+	    
+	    next_vertexnum++;
+	    
+	  } else {
+	    vertexnum_byorignum.emplace(std::make_pair(cnt,vertex_iter->second));	  
+	  }
+	}
+	
+	num_vertices=next_vertexnum;
+	
+	// realloc and shrink geom->geom.vertices allocation
+	// to size num_vertices
+	geom->manager->realloc_down((void **)&geom->geom.vertices,firstvertex,coords->point.size(),num_vertices);
+	
+      } else {
+	num_vertices=coords->point.size();
+	//memcpy(&geom->geom.vertices[firstvertex],coords->point.data(),sizeof(*geom->geom.vertices)*coords->point.size());
+	
+	// apply transform first
+	snde_index cnt;
+	for (cnt=0; cnt < coords->point.size(); cnt++) {
+	  Eigen::Matrix<snde_coord,4,1> RawPoint;
+	  RawPoint[0]=coords->point[cnt].coord[0];
+	  RawPoint[1]=coords->point[cnt].coord[1];
+	  RawPoint[2]=coords->point[cnt].coord[2];
+	  RawPoint[3]=1.0; // Represents a point, not a vector, so 4th element is 1.0
+	  Eigen::Matrix<snde_coord,4,1> TransformPoint = indexedset->transform * RawPoint;
+	  memcpy(&geom->geom.vertices[firstvertex+cnt],TransformPoint.data(),3*sizeof(*geom->geom.vertices));
+	  
+	}
+      }
+      
+      geom->geom.meshedparts[firstpart].firstvertex=firstvertex;
+      geom->geom.meshedparts[firstpart].numvertices=num_vertices;
+      
+      // Now vertices are numbered as in coords->point (if not reindex_vertices)
+      // or can be looked up by vertexnum_bycoord and vertexnum_byorignum (if reindex_vertices)
+      
+      // Iterate over the various triangles
+      
+      snde_index trinum;
+      snde_index vertex[3];
+      snde_index origvertex[3];
+      unsigned vertcnt;
+      
+      std::unordered_map<std::pair<snde_index,snde_index>,snde_index,x3d_hash<std::pair<snde_index,snde_index>>> edgenum_byvertices;
+      snde_index next_edgenum=0;
+
+
+      snde_index numtris = coordIndex.size()/coordindex_step;
+      // go through all of the triangles
+      for (trinum=0;trinum < numtris;trinum++) {
+	
+	// determine vertices
+	for (vertcnt=0;vertcnt < 3;vertcnt++) {
+	  origvertex[vertcnt]=coordIndex[trinum*coordindex_step + vertcnt];
+	  if (reindex_vertices) {
+	    vertex[vertcnt]=vertexnum_byorignum.at(origvertex[vertcnt]);
+	  } else {
+	    vertex[vertcnt]=origvertex[vertcnt];
+	  }
+	}
+	
+	if (!indexedset->ccw) {
+	  /* non-ccw vertex ordering... fix it with a swap */
+	  snde_index temp,temp2;
+	  temp=vertex[2];
+	  temp2=origvertex[2];
+	  vertex[2]=vertex[1];
+	  origvertex[2]=origvertex[1];
+	  vertex[1]=temp;
+	  origvertex[1]=temp2;
+	}
+	
+	// find edges
+	snde_index prev_edgenum=SNDE_INDEX_INVALID;
+	bool prev_edge_face_a=false;
+	snde_index first_edgenum=SNDE_INDEX_INVALID; /* note distinction between first_edgenum -- first edge in this triangle -- and firstedge: the first edge of our allocation */
+	bool first_edge_face_a=false;
+	snde_index edgecnt;
+	bool new_edge;
+	
+	for (edgecnt=0;edgecnt < 3;edgecnt++) {
+	  // Need to search for vertices in both orders
+	  new_edge=false;
+	  auto edge_iter = edgenum_byvertices.find(std::make_pair(vertex[edgecnt],vertex[(edgecnt + 1) % 3]));
+	  if (edge_iter==edgenum_byvertices.end()) {
+	    edge_iter = edgenum_byvertices.find(std::make_pair(vertex[(edgecnt + 1) % 3],vertex[edgecnt]));
+	    if (edge_iter==edgenum_byvertices.end()) {
+	      // New edge
+	      new_edge=true;
+	      assert(next_edgenum < 3*coords->point.size());
+	      edgenum_byvertices.emplace(std::make_pair(std::make_pair(vertex[edgecnt],vertex[(edgecnt + 1) % 3]),next_edgenum));
+	      
+	      // Store in data array
+	      geom->geom.edges[firstedge+next_edgenum].vertex[0]=vertex[edgecnt];
+	      geom->geom.edges[firstedge+next_edgenum].vertex[1]=vertex[(edgecnt+1) % 3];
+	      geom->geom.edges[firstedge+next_edgenum].face_a=trinum;
+	      geom->geom.edges[firstedge+next_edgenum].face_b=SNDE_INDEX_INVALID;
+	      
+	      geom->geom.edges[firstedge+next_edgenum].face_a_prev_edge=prev_edgenum;
+	      if (prev_edgenum==SNDE_INDEX_INVALID) {
+		// don't have a previous because this is our first time through
+		first_edgenum=next_edgenum;
+		first_edge_face_a=true;
+	      } else {
+		if (prev_edge_face_a) {
+		  geom->geom.edges[firstedge+prev_edgenum].face_a_next_edge=next_edgenum;
+		} else {
+		  geom->geom.edges[firstedge+prev_edgenum].face_b_next_edge=next_edgenum;
+		}
+	      }
+	      
+	      
+	      prev_edgenum=next_edgenum;
+	      prev_edge_face_a=true;
+	      
+	      /* Store the face */
+	      geom->geom.triangles[firsttri+trinum].edges[edgecnt]=next_edgenum;
+	      
+	      
+	      next_edgenum++;
+	      
+	    }
+	  }
+	  
+	  if (!new_edge) {
+	    /* edge_iter identifies our edge */
+	    snde_index this_edgenum = edge_iter->second;
+	    
+	    // Store in data array
+	    if (geom->geom.edges[firstedge+this_edgenum].face_b != SNDE_INDEX_INVALID) {
+	      throw x3derror(0,NULL,"Edge involving original vertices #%lu and %lu is shared by more than two triangles",(unsigned long)origvertex[edgecnt],(unsigned long)origvertex[(edgecnt+1)%3]);
+	    }
+	    geom->geom.edges[firstedge+this_edgenum].face_b=trinum;
+	    
+	    geom->geom.edges[firstedge+this_edgenum].face_b_prev_edge=prev_edgenum;
+	    if (prev_edgenum==SNDE_INDEX_INVALID) {
+	      // don't have a previous because this is our first time through
+	      first_edgenum=this_edgenum;
+	      first_edge_face_a=false;
+	    } else {
+	      if (prev_edge_face_a) {
+		geom->geom.edges[firstedge+prev_edgenum].face_a_next_edge=this_edgenum;
+	      } else {
+		geom->geom.edges[firstedge+prev_edgenum].face_b_next_edge=this_edgenum;
+	      }
+	    }
+	    
+	    
+	    prev_edgenum=this_edgenum;
+	    prev_edge_face_a=false;
+	    
+	    /* Store the face */
+	    geom->geom.triangles[firsttri+trinum].edges[edgecnt]=this_edgenum;
+	    
+	  }
+	  
+	}
+	
+	// done iterating through edges. Need to fixup prev_edge of first edge
+	// and next_edge of last edge
+	if (prev_edge_face_a) { // prev_edge is the last edge
+	  geom->geom.edges[firstedge+prev_edgenum].face_a_next_edge=first_edgenum;
+	} else {
+	  geom->geom.edges[firstedge+prev_edgenum].face_b_next_edge=first_edgenum;
+	}
+	
+	if (first_edge_face_a) {
+	  geom->geom.edges[firstedge+first_edgenum].face_a_prev_edge=prev_edgenum; // prev_edgenum lis the last edge
+	} else {
+	  geom->geom.edges[firstedge+first_edgenum].face_b_prev_edge=prev_edgenum; // prev_edgenum lis the last edge
+	  
+	}
+      
+	
+	
+	/* continue working on this triangle */
+	if (coordindex_step==4) {
+	  /* indexedfaceset. This must really be a triangle hence it should have a -1 index next */
+	  if (coordIndex[trinum*coordindex_step + 3] != SNDE_INDEX_INVALID) {
+	    throw x3derror(0,NULL,"Polygon #%lu is not a triangle",(unsigned long)trinum);
+	  }
+	}
+	
+	
+      }
+      num_edges = next_edgenum;
+      // realloc and shrink geom->geom.edges allocation to num_edges
+      geom->manager->realloc_down((void **)&geom->geom.edges,firstedge,3*coords->point.size(),num_edges);
+      
+      geom->geom.meshedparts[firstpart].firstedge=firstedge;
+      geom->geom.meshedparts[firstpart].numedges=num_edges;
+      
+      geom->geom.meshedparts[firstpart].firsttri=firsttri;
+      geom->geom.meshedparts[firstpart].numtris=numtris;
+      
+      
+
+      
+      // Iterate over edges to assemble edges by vertex
+      std::unordered_map<snde_index,std::vector<snde_index>> edges_by_vertex;
+      snde_index edgecnt;
+      
+      for (edgecnt=0;edgecnt < num_edges;edgecnt++) {
+	auto vertex_iter = edges_by_vertex.find(geom->geom.edges[firstedge+edgecnt].vertex[0]);
+	if (vertex_iter == edges_by_vertex.end()) {
+	  edges_by_vertex.emplace(std::make_pair(geom->geom.edges[firstedge+edgecnt].vertex[0],std::vector<snde_index>(1,edgecnt)));
+	} else {
+	  vertex_iter->second.emplace_back(edgecnt);
+	}
+	
+	vertex_iter = edges_by_vertex.find(geom->geom.edges[firstedge+edgecnt].vertex[1]);
+	if (vertex_iter == edges_by_vertex.end()) {
+	  edges_by_vertex.emplace(std::make_pair(geom->geom.edges[firstedge+edgecnt].vertex[1],std::vector<snde_index>(1,edgecnt)));
+	} else {
+	  vertex_iter->second.emplace_back(edgecnt);
+	}
+	
+	
+      }
+      
+      
+      
+      // Iterate over vertices again to build vertex_edgelist
+      snde_index vertexcnt;
+      snde_index next_vertex_edgelist_pos=0;
+      for (vertexcnt=0; vertexcnt < num_vertices; vertexcnt++) {
+	std::vector<snde_index> & edges = edges_by_vertex.at(vertexcnt);
+	
+	/* Copy edgelist */
+	memcpy(geom->geom.vertex_edgelist + first_vertex_edgelist + next_vertex_edgelist_pos,edges.data(),edges.size() * sizeof(snde_index));
+	
+	/* Store list terminator */
+	geom->geom.vertex_edgelist[first_vertex_edgelist + next_vertex_edgelist_pos+edges.size()] = SNDE_INDEX_INVALID;
+	
+	/* Write to vertex_edgelist_indices */
+	geom->geom.vertex_edgelist_indices[first_vertex_edgelist_index + vertexcnt].edgelist_index=next_vertex_edgelist_pos;
+	geom->geom.vertex_edgelist_indices[first_vertex_edgelist_index + vertexcnt].edgelist_numentries=edges.size();
+	
+	next_vertex_edgelist_pos += edges.size();
+	
+      }
+      geom->geom.meshedparts[firstpart].first_vertex_edgelist=first_vertex_edgelist;
+      geom->geom.meshedparts[firstpart].num_vertex_edgelist=next_vertex_edgelist_pos;
+      
+      
+      
+      geom->geom.meshedparts[firstpart].firstbox=SNDE_INDEX_INVALID;
+      geom->geom.meshedparts[firstpart].numboxes=SNDE_INDEX_INVALID;
+      geom->geom.meshedparts[firstpart].firstboxpoly=SNDE_INDEX_INVALID;
+      geom->geom.meshedparts[firstpart].numboxpolys=SNDE_INDEX_INVALID;
+      
+      geom->geom.meshedparts[firstpart].solid=indexedset->solid;
+      geom->geom.meshedparts[firstpart].has_triangledata=false;
+      geom->geom.meshedparts[firstpart].has_curvatures=false;
+      
+    }
+    
+    // Return array indices into meshedparts array
+
+    unsigned partcnt;
+    std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> meshedpart_objs=std::make_shared<std::vector<std::shared_ptr<meshedpart>>>();
+    
+    for (partcnt=0; partcnt < meshedpart_indices.size(); partcnt++) {
+      meshedpart_objs->push_back(std::make_shared<meshedpart>(geom,meshedpart_indices[partcnt]));
+    }
+    
+    //return std::make_shared<std::vector<snde_index>>(meshedpart_indices);
+    return meshedpart_objs;
+  }
+
 };
 
 #endif // SNDE_X3D_HPP

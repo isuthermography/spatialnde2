@@ -22,7 +22,7 @@ extern "C" {
     snde_triangle *triangles; // allocated separately
     snde_coord3 *refpoints; // allocated with triangles  NOTE: Refpoints are in part coordinates, not world coordinates
     snde_coord *maxradius; // allocated with triangles
-    snde_coord3 *normal; // allocated with triangles NOTE: Normals are in part coordinates, not world coordinates
+    snde_coord3 *normal; // allocated with triangles NOTE: Normals are in part coordinates, not world coordinates. Our calculation, not from file.
     
     snde_mat23 *inplanemat; // allocated with triangles
 

@@ -6,29 +6,32 @@
 #include "geometry_types.h"
 %}
 
+%shared_ptr(std::vector<snde_index>);
+
 %pythonbegin %{
 import ctypes
 import numpy as np
 %}
 
 
-#ifdef USE_OPENCL
-
-typedef cl_double snde_coord;
-typedef cl_float snde_imagedata;
-typedef cl_ulong snde_index;
-typedef cl_uint snde_shortindex;
-typedef cl_long snde_ioffset;
-typedef cl_char snde_bool;
-
-#else
 typedef double snde_coord;
 typedef float snde_imagedata;
-typedef uint64_t snde_index;
 typedef uint32_t snde_shortindex;
-typedef int64_t snde_ioffset;
 typedef char snde_bool;
-#endif /* USE_OPENCL*/
+
+  // Don't specify 64 bit integers in terms of int64_t/uint64_t to work around
+  // https://github.com/swig/swig/issues/568
+  //typedef uint64_t snde_index;
+  //typedef int64_t snde_ioffset;
+#ifdef SIZEOF_LONG_IS_8
+  typedef unsigned long snde_index;
+  typedef long snde_ioffset;
+#else
+  typedef unsigned long long snde_index;
+  typedef long long snde_ioffset;
+#endif
+
+%template(snde_index_vector) std::vector<snde_index>;
 
 //#define SNDE_INDEX_INVALID (~((snde_index)0))
 
@@ -165,8 +168,8 @@ nt_snde_meshedpart=np.dtype([  # ('orientation', nt_snde_orientation3),
 		    ('numedges', nt_snde_index),
 		    ('firstvertex', nt_snde_index),
 		    ('numvertices', nt_snde_index),
-		    ('first_vertex_edgelist_index', nt_snde_index),
-		    ('num_vertex_edgelist_indices', nt_snde_index),
+		    ('first_vertex_edgelist', nt_snde_index),
+		    ('num_vertex_edgelist', nt_snde_index),
   
 		    ('firstbox', nt_snde_index),
 		    ('numboxes', nt_snde_index),

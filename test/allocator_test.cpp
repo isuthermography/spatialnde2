@@ -11,9 +11,9 @@
 #include <unordered_map>
 #include <functional>
 
-#include "../src/geometry_types.h"
-#include "../src/memallocator.hpp"
-#include "../src/allocator.hpp"
+#include "geometry_types.h"
+#include "memallocator.hpp"
+#include "allocator.hpp"
 
 using namespace snde;
 

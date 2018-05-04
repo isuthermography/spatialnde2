@@ -149,7 +149,7 @@ namespace snde {
     size_t elemsize;
     rangetracker<openclregion> invalidity;
     void **arrayptr;
-    std::shared_ptr<std::function<void(snde_index)>> realloc_callback;
+    std::shared_ptr<std::function<void(snde_index)>> pool_realloc_callback;
     std::weak_ptr<allocator> alloc; /* weak pointer to the allocator because we don't want to inhibit freeing of this (all we need it for is our reallocation callback) */
     rangetracker<opencldirtyregion> _dirtyregions; /* track dirty ranges during a write (all regions that are locked for write... Note that persistent iterators (now pointers) may be present if the FlushDoneEvent exists but the FlushDoneEventComplete is false  */
     

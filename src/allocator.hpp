@@ -202,14 +202,14 @@ namespace snde {
 
     std::shared_ptr<memallocator> _memalloc;
     std::shared_ptr<lockmanager> _locker; // could be NULL if there is no locker
-    std::deque<std::shared_ptr<std::function<void(snde_index)>>> realloccallbacks; // locked by allocatormutex
+    std::deque<std::shared_ptr<std::function<void(snde_index)>>> pool_realloc_callbacks; // locked by allocatormutex
 
     bool destroyed;
     /* 
        Should lock things on allocation...
      
        Will probably need separate lock for main *_arrayptr so we can 
-       wait on everything relinquishing that in order to do a realloc. 
+       wait on everything relinquishing that in order to do a pool realloc. 
      
     */
   
@@ -313,8 +313,11 @@ namespace snde {
 	}
       }
     }
+
     
-    void _realloc(snde_index newnchunks) {
+    void _pool_realloc(snde_index newnchunks) {
+      /* This routine reallocates the entire array memory pool, in case we run out of space in it */
+      
       assert(!destroyed);
       // Must hold write lock on entire array
       // must hold allocatormutex
@@ -349,7 +352,7 @@ namespace snde {
       // Step through gaps in the range, looking for a chunk big enough
       snde_index retpos;
       
-      bool reallocflag=false;
+      bool pool_reallocflag=false;
 
 
       // Number of chunks we need... nelem/_allocchunksize rounding up
@@ -364,8 +367,8 @@ namespace snde {
 	snde_index newnchunks=(snde_index)((_totalnchunks+allocchunks)*1.7); /* Reserve extra space, not just bare minimum */
 	
 	
-	this->_realloc(newnchunks);
-	reallocflag=true;
+	this->_pool_realloc(newnchunks);
+	pool_reallocflag=true;
 	
 	alloc=allocations.find_unmarked_region(0, _totalnchunks, allocchunks);
       }
@@ -380,9 +383,9 @@ namespace snde {
       allocations.merge_adjacent_regions();
       
             
-      if (reallocflag) {
+      if (pool_reallocflag) {
 	// notify recipients that we reallocated
-	std::deque<std::shared_ptr<std::function<void(snde_index)>>> realloccallbacks_copy(realloccallbacks); // copy can be iterated with allocatormutex unlocked
+	std::deque<std::shared_ptr<std::function<void(snde_index)>>> realloccallbacks_copy(pool_realloc_callbacks); // copy can be iterated with allocatormutex unlocked
 	
 	for (std::deque<std::shared_ptr<std::function<void(snde_index)>>>::iterator reallocnotify=realloccallbacks_copy.begin();reallocnotify != realloccallbacks_copy.end();reallocnotify++) {
 	  snde_index new_total_nelem=total_nelem();
@@ -433,21 +436,30 @@ namespace snde {
     //
     //}
 
-    void register_realloc_callback(std::shared_ptr<std::function<void(snde_index)>> callback)
+
+    /* Realloc callbacks are used to notify when the array's memory pool changes address
+       (i.e. because the entire pool has been reallocated because more space is needed)  
+
+       Note that this happens immediately upon the reallocation. Somebody generally has
+       a write lock on the entire array during such allocation. The callback is called
+       without allocatormutex being held
+    */
+    
+    void register_pool_realloc_callback(std::shared_ptr<std::function<void(snde_index)>> callback)
     {
       std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
       
-      realloccallbacks.emplace_back(callback);
+      pool_realloc_callbacks.emplace_back(callback);
     }
 
-    void unregister_realloc_callback(std::shared_ptr<std::function<void(snde_index)>> callback)
+    void unregister_pool_realloc_callback(std::shared_ptr<std::function<void(snde_index)>> callback)
     {
       std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
 
-      for (size_t pos=0;pos < realloccallbacks.size();) {
+      for (size_t pos=0;pos < pool_realloc_callbacks.size();) {
 	
-	if (realloccallbacks[pos]==callback) {
-	  realloccallbacks.erase(realloccallbacks.begin()+pos);
+	if (pool_realloc_callbacks[pos]==callback) {
+	  pool_realloc_callbacks.erase(pool_realloc_callbacks.begin()+pos);
 	} else {
 	  pos++;
 	}
@@ -479,17 +491,12 @@ namespace snde {
       allocations.clear_region(chunkaddr,freechunks);
 	
     }
+
     
     void free(snde_index addr,snde_index nelem)
     {
-      // must hold write lock on entire array... (or is it sufficient to hold the
-      // write lock on just this element...? not currently because
-      // we will be modifying freelist pieces outside this element... on
-      // the other hand we will hold allocatormutex during the free operation
-      // and caches don't do much with free pieces... we'd be OK so long as
-      // nobody else has a write lock on the entire array and is modifying the
-      // cached copy)
-
+      // must hold write lock on this allocation
+      
 
 
       // notify locker of free operation
@@ -501,6 +508,52 @@ namespace snde {
       }
       _free(addr,nelem);
     }
+
+    void _realloc_down(snde_index addr, snde_index orignelem, snde_index newnelem)
+    /* Shrink an allocation to the newly specified size. You must 
+       have a write lock on the allocation, but not the entire array */
+    {
+      snde_index chunkaddr;
+
+      assert(orignelem != SNDE_INDEX_INVALID);
+      assert(newnelem != SNDE_INDEX_INVALID);
+
+      assert(orignelem >= newnelem);
+      
+      snde_index origchunks = (orignelem+_allocchunksize-1)/_allocchunksize;
+      snde_index newchunks = (newnelem+_allocchunksize-1)/_allocchunksize;
+      if (newchunks==origchunks) return;
+
+
+      assert(addr != SNDE_INDEX_INVALID);
+      assert(addr > 0); /* addr==0 is wasted element allocated by constructor */
+      assert(addr % _allocchunksize == 0); /* all addresses returned by alloc() are multiples of _allocchunksize */
+
+      
+      std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
+
+      chunkaddr=addr/_allocchunksize;
+
+      
+      allocations.clear_region(chunkaddr+newchunks,origchunks-newchunks);
+    }
+
+    void realloc_down(snde_index addr,snde_index orignelem,snde_index newnelem)
+    {
+      // must hold write lock on this allocation
+      
+
+
+      // notify locker of free operation
+      if (_locker) {
+	size_t arraycnt;
+	for (arraycnt=0;arraycnt < arrays.size();arraycnt++) {
+	  _locker->realloc_down_allocation(arrays[arraycnt].arrayptr,addr,orignelem,newnelem);
+	}
+      }
+      _realloc_down(addr,orignelem,newnelem);
+    }
+    
     ~allocator() {
       // _memalloc was provided by our creator and is not freed
       // _locker was provided by our creator and is not freed

@@ -8,6 +8,23 @@ import sys
 %}
 
 
+// Workaround for swig to understand what size_t aliases
+#ifdef SIZEOF_SIZE_T_IS_8
+#ifdef SIZEOF_LONG_IS_8
+typedef unsigned long size_t;
+#else
+typedef unsigned long long size_t;
+#endif
+#else
+/* assume sizeof(size_t)==4) */
+#ifdef SIZEOF_LONG_IS_8
+typedef unsigned size_t;
+#else
+typedef unsigned long size_t;
+#endif
+#endif
+
+
 /* warning suppression */
 //#pragma SWIG nowarn=509,454,341
 

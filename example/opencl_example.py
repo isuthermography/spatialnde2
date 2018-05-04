@@ -138,8 +138,8 @@ meshedparts[0]["numedges"] = 3
 meshedparts[0]["firstvertex"] = holder.get_alloc(geometry.addr("vertices"),"")
 meshedparts[0]["numvertices"] = 3
 
-meshedparts[0]["first_vertex_edgelist_index"] = holder.get_alloc(geometry.addr("vertex_edgelist_indices"),"")
-meshedparts[0]["num_vertex_edgelist_indices"] = 9
+meshedparts[0]["first_vertex_edgelist"] = holder.get_alloc(geometry.addr("vertex_edgelist_indices"),"")
+meshedparts[0]["num_vertex_edgelist"] = 9
 meshedparts[0]["firstbox"] = spatialnde2.SNDE_INDEX_INVALID
 meshedparts[0]["numboxes"] = spatialnde2.SNDE_INDEX_INVALID
 meshedparts[0]["firstboxpoly"] = spatialnde2.SNDE_INDEX_INVALID
@@ -211,6 +211,7 @@ part=spatialnde2.meshedpart(geometry,holder.get_alloc(geometry.addr("meshedparts
 # now that we have marked the modified regions as dirty)
 spatialnde2.unlock_rwlock_token_set(all_locks)
 
+del holder 
 
 
 # Now (perhaps later) we want to use the GPU to calculate the surface area of this part...
@@ -294,7 +295,8 @@ spatialnde2.unlock_rwlock_token_set(all_locks);
 # way to be sure everything is done is to perform a
 # new conflicting (i.e. write) lock on the relevant
 # arrays
-  
+del holder
+
 
 part.free()
 

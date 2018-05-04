@@ -4,6 +4,7 @@
 %shared_ptr(snde::assembly);
 %shared_ptr(snde::nurbspart);
 %shared_ptr(snde::meshedpart);
+%shared_ptr(std::vector<std::shared_ptr<snde::meshedpart>>);
 
 %{
 
@@ -276,8 +277,8 @@ namespace snde {
               pass		  
             pass
           	    
-          if meshedparts[0]["first_vertex_edgelist_index"] != SNDE_INDEX_INVALID:
-            holder.store((yield process.get_locks_array_region(self.geom.addr("vertex_edgelist"),writemask & SNDE_COMPONENT_GEOMWRITE_VERTEX_EDGELIST,meshedparts[0]["first_vertex_edgelist_index"],meshedparts[0]["num_vertex_edgelist_indices"])))
+          if meshedparts[0]["first_vertex_edgelist"] != SNDE_INDEX_INVALID:
+            holder.store((yield process.get_locks_array_region(self.geom.addr("vertex_edgelist"),writemask & SNDE_COMPONENT_GEOMWRITE_VERTEX_EDGELIST,meshedparts[0]["first_vertex_edgelist"],meshedparts[0]["num_vertex_edgelist"])))
             pass
           	    
           if meshedparts[0]["firstbox"] != SNDE_INDEX_INVALID:
@@ -323,3 +324,4 @@ namespace snde {
 
 }
 
+%template(meshedpart_vector) std::vector<std::shared_ptr<snde::meshedpart>>;  // used for return of x3d_load_geometry 

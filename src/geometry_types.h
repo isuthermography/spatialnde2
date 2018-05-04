@@ -17,23 +17,35 @@ typedef long snde_ioffset;
 typedef char snde_bool;
   
 #else
-#ifdef USE_OPENCL
+  //#if 0 && defined(SNDE_OPENCL)
 
-typedef cl_double snde_coord;
-typedef cl_float snde_imagedata;
-typedef cl_ulong snde_index;
-typedef cl_uint snde_shortindex;
-typedef cl_long snde_ioffset;
-typedef cl_char snde_bool;
+//typedef cl_double snde_coord;
+//typedef cl_float snde_imagedata;
+//typedef cl_ulong snde_index;
+//typedef cl_uint snde_shortindex;
+//typedef cl_long snde_ioffset;
+//typedef cl_char snde_bool;
 
-#else
+//#else
 typedef double snde_coord;
 typedef float snde_imagedata;
-typedef uint64_t snde_index;
 typedef uint32_t snde_shortindex;
-typedef int64_t snde_ioffset;
 typedef char snde_bool;
-#endif /* USE_OPENCL*/
+
+  // Don't specify 64 bit integers in terms of int64_t/uint64_t to work around
+  // https://github.com/swig/swig/issues/568
+  //typedef uint64_t snde_index;
+  //typedef int64_t snde_ioffset;
+#ifdef SIZEOF_LONG_IS_8
+  typedef unsigned long snde_index;
+  typedef long snde_ioffset;
+#else
+  typedef unsigned long long snde_index;
+  typedef long long snde_ioffset;
+#endif
+
+  
+  //#endif /* 0 && SNDE_OPENCL*/
 #endif /* __OPENCL_VERSION__ */
 
 #define SNDE_INDEX_INVALID (~((snde_index)0))
@@ -72,8 +84,8 @@ typedef struct {
 typedef struct {
   snde_index vertex[2];
   snde_index face_a,face_b;
-  snde_index face_a_prev_edge, face_a_next_edge;
-  snde_index face_b_prev_edge, face_b_next_edge;
+  snde_index face_a_prev_edge, face_a_next_edge; /* Clockwise ordering */
+  snde_index face_b_prev_edge, face_b_next_edge; /* clockwise ordering */
 } snde_edge;
 
 
@@ -204,15 +216,17 @@ struct snde_meshedpart { /* !!!*** Be careful about CPU <-> GPU structure layout
   snde_index firsttri,numtris; /* apply to triangles, refpoints, maxradius, normal, inplanemat */
   snde_index firstedge,numedges; /* apply to edges, r */
   snde_index firstvertex,numvertices; /* NOTE: Vertices must be transformed according to orientation prior to rendering */ /* These indices also apply to principal_curvatures and principal_tangent_axes, if present */
-  snde_index first_vertex_edgelist_index,num_vertex_edgelist_indices; 
+  snde_index first_vertex_edgelist,num_vertex_edgelist; 
 
   /* indices into calculated fields */
   snde_index firstbox,numboxes;  /* also applies to boxcoord */
   snde_index firstboxpoly,numboxpolys; /* NOTE: Boxes are in part coordinates, not world coordinates */
     
  
-  snde_bool solid; // If nonzero, this part is considered solid (fully enclosed), so the back side does not need to be rendered. Otherwise, it may be a bounded surface 
-  snde_bool pad1[7];
+  snde_bool solid; // If nonzero, this part is considered solid (fully enclosed), so the back side does not need to be rendered. Otherwise, it may be a bounded surface
+  snde_bool has_triangledata; // Have we stored/updated refpoints, maxradius, normal, inplanemat
+  snde_bool has_curvatures; // Have we stored principal_curvatures/curvature_tangent_axes? 
+  snde_bool pad1[5];
 };
 
 

@@ -17,8 +17,14 @@
 
 //#include "geometry_types.h"
 
+#include "arraymanager.hpp"
+
+
 #include <stdexcept>
 #include <cstring>
+
+
+
 
 namespace snde {
   
@@ -537,8 +543,8 @@ namespace snde {
       }
       
       
-      if (geom->geom.meshedparts[idx].first_vertex_edgelist_index != SNDE_INDEX_INVALID) {
-	process->get_locks_array_region((void **)&geom->geom.vertex_edgelist,writemask & SNDE_COMPONENT_GEOMWRITE_VERTEX_EDGELIST,geom->geom.meshedparts[idx].first_vertex_edgelist_index,geom->geom.meshedparts[idx].num_vertex_edgelist_indices);
+      if (geom->geom.meshedparts[idx].first_vertex_edgelist != SNDE_INDEX_INVALID) {
+	process->get_locks_array_region((void **)&geom->geom.vertex_edgelist,writemask & SNDE_COMPONENT_GEOMWRITE_VERTEX_EDGELIST,geom->geom.meshedparts[idx].first_vertex_edgelist,geom->geom.meshedparts[idx].num_vertex_edgelist);
 	
       }      
 
@@ -581,9 +587,9 @@ namespace snde {
 	  geom->geom.meshedparts[idx].firstbox = SNDE_INDEX_INVALID;
 	}
 	
-	if (geom->geom.meshedparts[idx].first_vertex_edgelist_index != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.vertex_edgelist,geom->geom.meshedparts[idx].first_vertex_edgelist_index,geom->geom.meshedparts[idx].num_vertex_edgelist_indices);
-	  geom->geom.meshedparts[idx].first_vertex_edgelist_index = SNDE_INDEX_INVALID;
+	if (geom->geom.meshedparts[idx].first_vertex_edgelist != SNDE_INDEX_INVALID) {
+	  geom->manager->free((void **)&geom->geom.vertex_edgelist,geom->geom.meshedparts[idx].first_vertex_edgelist,geom->geom.meshedparts[idx].num_vertex_edgelist);
+	  geom->geom.meshedparts[idx].first_vertex_edgelist = SNDE_INDEX_INVALID;
 	}
 
 	

@@ -15,18 +15,18 @@
 #include <tuple>
 
 
-#include "../src/geometry_types.h"
-#include "../src/snde_error.hpp"
-#include "../src/memallocator.hpp"
-#include "../src/rangetracker.hpp"
-#include "../src/allocator.hpp"
-#include "../src/lockmanager.hpp"
-#include "../src/openclcachemanager.hpp"
-#include "../src/geometrydata.h"
-#include "../src/opencl_utils.hpp"
+#include "geometry_types.h"
+#include "snde_error.hpp"
+#include "memallocator.hpp"
+#include "rangetracker.hpp"
+#include "allocator.hpp"
+#include "lockmanager.hpp"
+#include "openclcachemanager.hpp"
+#include "geometrydata.h"
+#include "opencl_utils.hpp"
 
-#include "../src/geometry_types_h.h"
-#include "../src/testkernel_c.h"
+#include "geometry_types_h.h"
+#include "testkernel_c.h"
 
 using namespace snde;
 
@@ -196,8 +196,8 @@ int main(int argc, char *argv[])
     meshedparts[0].firstvertex =  holder->get_alloc((void **)&geom->geom.vertices,"");
     meshedparts[0].numvertices = 3;
 
-    meshedparts[0].first_vertex_edgelist_index = holder->get_alloc((void **)&geom->geom.vertex_edgelist_indices,"");
-    meshedparts[0].num_vertex_edgelist_indices = 9;
+    meshedparts[0].first_vertex_edgelist = holder->get_alloc((void **)&geom->geom.vertex_edgelist_indices,"");
+    meshedparts[0].num_vertex_edgelist = 6;
     meshedparts[0].firstbox = SNDE_INDEX_INVALID;
     meshedparts[0].numboxes = SNDE_INDEX_INVALID;
     meshedparts[0].firstboxpoly = SNDE_INDEX_INVALID;

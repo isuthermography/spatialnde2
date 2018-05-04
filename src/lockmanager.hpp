@@ -435,10 +435,29 @@ namespace snde {
       return retval;
     }
 
+    void realloc_down_allocation(void **arrayptr, snde_index addr,snde_index orignelem, snde_index newnelem)
+    {
+      /* callback from allocator */
+      /* callback from allocator */
+      size_t idx=_arrayidx.at(arrayptr);
+      std::lock_guard<std::mutex> lock(_locks.at(idx).admin);
+
+      // notification from allocator that an allocation has shrunk
+
+      // Find pointer for lock for this region
+      std::shared_ptr<rwlock> lock_ptr = _locks.at(idx).subregions.at(markedregion(addr,addr+orignelem));
+      
+      // Remove this pointer from the subregions map
+      _locks.at(idx).subregions.erase(markedregion(addr,addr+orignelem));
+
+      // Reinsert it with the new size
+      _locks.at(idx).subregions.emplace(std::make_pair(markedregion(addr,addr+newnelem),lock_ptr));
+      
+    }
+    
     void freeallocation(void **arrayptr,snde_index pos, snde_index size,snde_index elemsize)
     {
       /* callback from allocator */
-      /* Entire array should be write locked in order to call tihs */
       size_t idx=_arrayidx.at(arrayptr);
       std::lock_guard<std::mutex> lock(_locks.at(idx).admin);
 

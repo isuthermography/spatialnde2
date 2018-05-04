@@ -218,7 +218,7 @@ namespace snde {
     size_t elemsize;
     rangetracker<openclregion> invalidity;
     void **arrayptr;
-    std::shared_ptr<std::function<void(snde_index)>> realloc_callback;
+    std::shared_ptr<std::function<void(snde_index)>> pool_realloc_callback;
     std::weak_ptr<allocator> alloc; /* weak pointer to the allocator because we don't want to inhibit freeing of this (all we need it for is our reallocation callback) */
     rangetracker<opencldirtyregion> _dirtyregions; /* track dirty ranges during a write (all regions that are locked for write... Note that persistent iterators (now pointers) may be present if the FlushDoneEvent exists but the FlushDoneEventComplete is false  */
 
@@ -249,7 +249,7 @@ namespace snde {
 
       /* Need to register for notification of realloc
 	 so we can re-allocate the buffer! */
-      realloc_callback=std::make_shared<std::function<void(snde_index)>>([this,context,arraymanageradminmutex](snde_index total_nelem) {
+      pool_realloc_callback=std::make_shared<std::function<void(snde_index)>>([this,context,arraymanageradminmutex](snde_index total_nelem) {
 	  /* Note: we're not managing context, but presumably the openclarrayinfo that is our key in buffer_map will prevent the context from being freed */
 	  
 	  std::lock_guard<std::mutex> lock(*arraymanageradminmutex);
@@ -270,7 +270,7 @@ namespace snde {
 	  
 	});
       
-      alloc->register_realloc_callback(realloc_callback);
+      alloc->register_pool_realloc_callback(pool_realloc_callback);
       
     }
 
@@ -285,7 +285,7 @@ namespace snde {
     {
       std::shared_ptr<allocator> alloc_strong = alloc.lock();
       if (alloc_strong) { /* if allocator already freed, it would take care of its reference to the callback */ 
-	alloc_strong->unregister_realloc_callback(realloc_callback);
+	alloc_strong->unregister_pool_realloc_callback(pool_realloc_callback);
       }
       
       clReleaseMemObject(buffer);

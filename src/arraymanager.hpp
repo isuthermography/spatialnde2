@@ -169,6 +169,13 @@ namespace snde {
       return alloc.alloc->_totalnchunks*alloc.alloc->_allocchunksize;
     }
 
+    virtual void realloc_down(void **allocatedptr,snde_index addr,snde_index orignelem, snde_index newnelem)
+    {
+      /* Shrink an allocation. Can ONLY be called if you have a write lock to this allocation */
+      std::shared_ptr<allocator> alloc=allocators[allocatedptr].alloc;
+      alloc->realloc_down(addr,orignelem,newnelem);
+    }
+
     // This next one gives SWIG trouble because of confusion over whether snde_index is an unsigned long or an unsigned long long
     virtual std::pair<snde_index,std::vector<std::pair<std::shared_ptr<alloc_voidpp>,rwlock_token_set>>> alloc_arraylocked(rwlock_token_set all_locks,void **allocatedptr,snde_index nelem)
     {
