@@ -2,10 +2,10 @@ cmake_minimum_required(VERSION 3.5)
 project(spatialnde)
 
 # Set a build type if none specified
-if(NOT CMAKE_BUILD_TYPE) 
+if(NOT CMAKE_BUILD_TYPE)
   message(STATUS "Setting build type to 'RelWithDebInfo' since none specified")
   set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose build type" FORCE)
-  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Release" "MinSizeRel" "RelWithDebInfo")
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Release" "MinSizeRel" "RelWithDebInfo" "Debug")
 endif()
 
 
@@ -14,13 +14,13 @@ endif()
 IF(APPLE)    # Apple
   SET(CMAKE_INSTALL_PREFIX "~/install" CACHE PATH "Prefix prepended to install directories.  Must be writable by your user!")
 ELSEIF(UNIX) # Linux (not Apple due to use of if/else-if construct)
-  SET(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "Prefix prepended to install directories.  Must be writable by your user!")  
+  SET(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "Prefix prepended to install directories.  Must be writable by your user!")
 ENDIF()
 
 IF(WIN32)
   SET(APP_INSTALL_DIR ${PROJECT_BINARY_DIR}/install CACHE PATH "Installation directory.  Must be writable by your user!")
 ELSE()
-  SET(APP_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/spatialnde2) # CACHE PATH "Installation directory.  Must be writable by your user!"  
+  SET(APP_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/spatialnde2) # CACHE PATH "Installation directory.  Must be writable by your user!"
 ENDIF()
 
 # Create a variable to enable/disable installing into site-packages
@@ -80,7 +80,7 @@ set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/geometry.cpp)
 
 add_definitions(-DSNDE_LOCKMANAGER_COROUTINES_THREADED)
 IF(WIN32)
-  #add_definitions(-fpermissive) # Allow casting on windows (unsigned long) in lockmanager and arraymanager  !!! Should fix the casts, probably 
+  #add_definitions(-fpermissive) # Allow casting on windows (unsigned long) in lockmanager and arraymanager  !!! Should fix the casts, probably
   add_definitions(-D_hypot=hypot) # Added for swig on windows. !!! Which compiler specificallly
 ENDIF(WIN32)
 
@@ -253,7 +253,8 @@ ENDIF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
 
 # Find out where the Python site-packages directory is
 IF(PythonLibs_FOUND AND PythonInterp_FOUND)
-      execute_process ( COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print get_python_lib()" OUTPUT_VARIABLE _AUTOGEN_PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
+    execute_process ( COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
+    OUTPUT_VARIABLE _AUTOGEN_PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
       set(PYTHON_SITE_PACKAGES ${_AUTOGEN_PYTHON_SITE_PACKAGES} CACHE PATH "Directory containing site-packages")
 ENDIF()
 
@@ -297,7 +298,7 @@ install(
 	FILES "${PROJECT_BINARY_DIR}/spatialnde2.py"
 	DESTINATION ${APP_INSTALL_DIR}/python)
 
-
+set(PYTHON_SITE_PACKAGES "${PROJECT_SOURCE_DIR}/INSTALL/python")
 if(INSTALL_INTO_PYTHON_SITE_PACKAGES)
   install(TARGETS
     ${SWIG_MODULE_spatialnde2_REAL_NAME}
@@ -307,7 +308,7 @@ if(INSTALL_INTO_PYTHON_SITE_PACKAGES)
     DESTINATION ${PYTHON_SITE_PACKAGES})
 endif()
 
-      
+
 # BIN
 install(TARGETS
         spatialnde2
@@ -326,9 +327,6 @@ endif()
 
 
 # Warning Messages
-# To Update: warning messages should be printed
-# indicating the reduced functionality if OpenCL,
-# Python, SWIG, Numpy, Eigen, and/or libxml2 are not available
 IF (NOT PythonLibs_FOUND)
     message(WARNING "Python Libs Not Found; SWIG Python wrapper will not be built")
 ENDIF (NOT PythonLibs_FOUND)
@@ -350,8 +348,8 @@ ENDIF (NOT OpenCL_FOUND)
 
 ## Uncomment these lines to 
 ## show all variable values
-get_cmake_property(_variableNames VARIABLES)
-list (SORT _variableNames)
-foreach (_variableName ${_variableNames})
-    message(STATUS "${_variableName}=${${_variableName}}")
-endforeach()
+#get_cmake_property(_variableNames VARIABLES)
+#list (SORT _variableNames)
+#foreach (_variableName ${_variableNames})
+#    message(STATUS "${_variableName}=${${_variableName}}")
+#endforeach()
