@@ -234,14 +234,16 @@ struct snde_meshedpart { /* !!!*** Be careful about CPU <-> GPU structure layout
 struct snde_mesheduv {
   /* snde_orientation2 orientation; */ /* orientation multiplied on right by coordinates of vertices to get output coordinates in parameterization */
   /* snde_index meshedpartnum; */ /* Do we really need this? */
+  snde_index firstuvtri, numuvtris; /* triangles in mesheduv MUST line up with triangles in object. */
+  snde_index firstuvedge, numuvedges; /* triangles in mesheduv MUST line up with triangles in object. */
   snde_index firstuvvertex,numuvvertices;
-  snde_index firstuvtri, numuvtris;
-  
-  snde_index firstuvbox, numuvboxes;
+  snde_index first_uv_vertex_edgelist,num_uv_vertex_edgelist; 
+
+  snde_index firstuvbox, numuvboxes; /* the first numuvpatches boxes correspond to the outer boxes for each patch */
   snde_index firstuvboxpoly,numuvboxpoly;
   snde_index firstuvboxcoord,numuvboxcoords; 
   
-  snde_index firstuvpatch, numuvpatches; /* "patches" are regions in uv space that the vertices are represented in. There can be multiple images pointed to by the different patches.  Indexes in uv_patch_index go from zero to numuvpatches. They will need to be added to the firstuvpatch of the snde_partinstance */ 
+  snde_index /*firstuvpatch,*/ numuvpatches; /* "patches" are regions in uv space that the vertices are represented in. There can be multiple images pointed to by the different patches.  Indexes in uv_patch_index go from zero to numuvpatches. They will need to be added to the firstuvpatch of the snde_partinstance */ 
   
 };
 

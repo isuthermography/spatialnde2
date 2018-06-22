@@ -163,7 +163,29 @@ namespace snde {
       manager->add_allocated_array((void **)&geom.boxpolys,sizeof(*geom.boxpolys),0);
 
 
+      
+      /* parameterization */
+      manager->add_allocated_array((void **)&geom.uv_triangles,sizeof(*geom.uv_triangles),0);
+      manager->add_follower_array((void **)&geom.uv_triangles,(void **)&geom.inplane2uvcoords,sizeof(*geom.inplane2uvcoords));
+      manager->add_follower_array((void **)&geom.uv_triangles,(void **)&geom.uvcoords2inplane,sizeof(*geom.uvcoords2inplane));
 
+      manager->add_allocated_array((void **)&geom.uv_edges,sizeof(*geom.uv_edges),0);
+
+
+      manager->add_allocated_array((void **)&geom.uv_vertices,sizeof(*geom.uv_vertices),0);
+      manager->add_follower_array((void **)&geom.uv_vertices,(void **)&geom.uv_vertex_edgelist_indices,sizeof(*geom.uv_vertex_edgelist_indices));
+
+      manager->add_allocated_array((void **)&geom.uv_vertex_edgelist,sizeof(*geom.uv_vertex_edgelist),0);
+      
+      
+      manager->add_allocated_array((void **)&geom.boxes,sizeof(*geom.boxes),0);
+      manager->add_follower_array((void **)&geom.boxes,(void **)&geom.boxcoord,sizeof(*geom.boxcoord));
+      
+      manager->add_allocated_array((void **)&geom.boxpolys,sizeof(*geom.boxpolys),0);
+
+
+
+      
       // ... need to initialize rest of struct...
       // Probably want an array manager class to handle all of this
       // initialization,
@@ -183,11 +205,56 @@ namespace snde {
   };
 
 
+  class uv_patches {
+    /* a collection of uv patches represents the uv-data for a meshedpart or nurbspart, as references to images. 
+       each patch has a corresponding image and set of meaningful coordinates. The collection is named, so that 
+       we can map a different collection onto our part by changing the name. */
+    std::string name; /* is name the proper way to index this? probably not. Will need to change once we understand better */
+    std::shared_ptr<geometry> geom;
+    snde_index firstuvpatch,numuvpatches; /* numuvpatches must match the number from the mesheduv */
+
+    uv_patches(const uv_patches &)=delete; /* copy constructor disabled */
+    uv_patches& operator=(const uv_patches &)=delete; /* copy assignment disabled */
+
+    uv_patches(std::shared_ptr<geometry> geom, std::string name, snde_index firstuvpatch, snde_index numuvpatches)
+    {
+      this->geom=geom;
+      this->name=name;
+      this->firstuvpatch=firstuvpatch;
+      this->numuvpatches=numuvpatches;
+    }
+
+    void free()
+    {
+      if (firstuvpatch != SNDE_INDEX_INVALID) {
+	geom->manager->free((void **)&geom->geom.uvpatches,firstuvpatch,numuvpatches);
+	firstuvpatch=SNDE_INDEX_INVALID;	
+      }
+      
+    }
+    
+    ~uv_patches()
+#if !defined(_MSC_VER) || _MSC_VER > 1800 // except for MSVC2013 and earlier
+    noexcept(false)
+#endif
+    {
+      if (!destroyed) {
+	throw std::runtime_error("Should call free() method of uv_patches object before it goes out of scope and the destructor is called");
+      }
+    }
+
+    
+  };
+  
+
   class mesheduv {
   public:
     std::string name;
     std::shared_ptr<geometry> geom;
     snde_index idx; /* index of the mesheduv in the geometry database */
+    std::map<std::string,std::shared_ptr<uv_patches>> patches;
+
+    /* Should the mesheduv manage the snde_image data for the various uv patches? probably... */
 
     mesheduv(std::shared_ptr<geometry> geom, std::string name,snde_index idx)
     /* WARNING: This constructor takes ownership of the part and 
@@ -199,10 +266,82 @@ namespace snde {
       this->idx=idx;
     }
 
-    ~mesheduv()
+    std::shared_ptr<uv_patches> find_patches(std::string name)
+    {
+      return patches.at(name);
+    }
+
+    void addpatches(std::shared_ptr<uv_patches> to_add)
+    {
+      patches.emplace(std::make_pair<std::string,std::shared_ptr<uv_patches>>(to_add->name,to_add));
+    }
+
+    
+    void free()
     {
       /* Free our entries in the geometry database */
-      assert(0); /* not yet implemented */
+
+      if (idx != SNDE_INDEX_INVALID) {
+	if (geom->geom.mesheduv->firstuvtri != SNDE_INDEX_INVALID) {
+	  geom->manager->free((void **)&geom->geom.uv_vertices,geom->geom.mesheduv->firstuvtri,geom->geom.mesheduv->numuvtris);
+	  geom->geom.mesheduv->firstuvtri = SNDE_INDEX_INVALID;	    
+	}
+
+	if (geom->geom.mesheduv->firstuvedge != SNDE_INDEX_INVALID) {
+	  geom->manager->free((void **)&geom->geom.uv_vertices,geom->geom.mesheduv->firstuvedge,geom->geom.mesheduv->numuvedges);
+	  geom->geom.mesheduv->firstuvedge = SNDE_INDEX_INVALID;	    
+	}
+
+	if (geom->geom.mesheduv->firstuvvertex != SNDE_INDEX_INVALID) {
+	  geom->manager->free((void **)&geom->geom.uv_vertices,geom->geom.mesheduv->firstuvvertex,geom->geom.mesheduv->numuvvertices);
+	  
+	  geom->geom.mesheduv->firstuvvertex = SNDE_INDEX_INVALID;
+	  
+	}
+
+	if (geom->geom.mesheduv->first_uv_vertex_edgelist != SNDE_INDEX_INVALID) {
+	  geom->manager->free((void **)&geom->geom.uv_vertices,geom->geom.mesheduv->first_uv_vertex_edgelist,geom->geom.mesheduv->num_uv_vertex_edgelist);
+	  geom->geom.mesheduv->first_uv_vertex_edgelist = SNDE_INDEX_INVALID;
+	  
+	}
+
+	if (geom->geom.mesheduv->firstuvbox != SNDE_INDEX_INVALID) {
+	  geom->manager->free((void **)&geom->geom.uv_boxes,geom->geom.mesheduv->firstuvbox,geom->geom.mesheduv->numuvboxes);
+	  geom->geom.mesheduv->firstuvbox = SNDE_INDEX_INVALID; 
+	}
+
+	if (geom->geom.mesheduv->firstuvboxpoly != SNDE_INDEX_INVALID) {
+	  geom->manager->free((void **)&geom->geom.uv_boxpolys,geom->geom.mesheduv->firstuvboxpoly,geom->geom.mesheduv->numuvboxpolys);
+	  geom->geom.mesheduv->firstuvboxpoly = SNDE_INDEX_INVALID;	    
+	}
+
+
+	if (geom->geom.mesheduv->firstuvboxcoord != SNDE_INDEX_INVALID) {
+	  geom->manager->free((void **)&geom->geom.uv_boxcoord,geom->geom.mesheduv->firstuvboxcoord,geom->geom.mesheduv->numuvboxcoords);
+	  geom->geom.mesheduv->firstuvboxcoord = SNDE_INDEX_INVALID;	    
+	}
+
+	geom->manager->free((void **)&geom->geom.mesheduv,idx,1);
+	idx=SNDE_INDEX_INVALID;
+
+	
+      }
+
+      for (auto & name_patches : patches) {
+	name_patches.second.free();
+      }
+      destroyed=true;
+
+    }
+
+    ~mesheduv()
+#if !defined(_MSC_VER) || _MSC_VER > 1800 // except for MSVC2013 and earlier
+    noexcept(false)
+#endif
+    {
+      if (!destroyed) {
+	throw std::runtime_error("Should call free() method of mesheduv object before it goes out of scope and the destructor is called");
+      }
     }
     
   };
@@ -324,6 +463,10 @@ namespace snde {
     std::deque<std::shared_ptr<component>> pieces;
     snde_orientation3 _orientation; /* orientation of this part/assembly relative to its parent */
 
+    /* NOTE: May want to add cache of 
+       openscenegraph group nodes representing 
+       this assembly  */ 
+
     assembly(snde_orientation3 orientation)
     {
       this->type=subassembly;
@@ -426,8 +569,12 @@ namespace snde {
   public:
     std::shared_ptr<geometry> geom;
     snde_index idx; // index in the meshedparts array
-    std::map<std::string,std::shared_ptr<mesheduv>> parameterizations;
+    std::map<std::string,std::shared_ptr<mesheduv>> parameterizations; /* NOTE: is a string (URI?) really the proper way to index parameterizations? ... may want to change this */
     bool destroyed;
+
+    /* NOTE: May want to add cache of 
+       openscenegraph geodes or drawables representing 
+       this part */ 
     
     meshedpart(std::shared_ptr<geometry> geom,snde_index idx)
     /* WARNING: This constructor takes ownership of the part (if given) and 
@@ -454,13 +601,7 @@ namespace snde {
       ret.meshedpartnum=idx;
 
       
-      ret.firstuvpatch=0;
-      {
-	auto pname_entry=paramdict.find(name+"."+"firstuvpatch");
-	if (pname_entry != paramdict.end()) {
-	  ret.firstuvpatch=pname_entry->second.idx();
-	}
-      }
+      ret.firstuvpatch=SNDE_INDEX_INVALID;
 
       {
 	std::string parameterization_name="";
@@ -479,6 +620,21 @@ namespace snde {
 	  ret.mesheduvnum=SNDE_INDEX_INVALID;
 	} else {
 	  ret.mesheduvnum=pname_mesheduv->second->idx;
+
+
+	  auto pname_entry=paramdict.find(name+"."+"patches");
+	  if (pname_entry != paramdict.end()) {
+	    patchesname = pname_entry->second.str();
+	    
+	    std::shared_ptr<uv_patches> patches = pname_mesheduv->second->find_patches(patchesname);
+
+	    if (!patches) {
+	      throw std::runtime_error("meshedpart::get_instances():  Unknown UV patch name: "+patchesname);
+	    }
+	    ret.firstuvpatch=patches->firstuvpatch;
+	      
+	  }
+	  
 	}
       }
       return std::vector<struct snde_partinstance>(1,ret);

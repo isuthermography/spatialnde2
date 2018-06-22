@@ -93,6 +93,13 @@ find_package(PythonInterp)
 find_package(SWIG)
 find_package(PythonLibs)
 
+
+# OpenSceneGraph (osg) dependencies
+find_package(OpenThreads)
+find_package(osg)
+
+
+
 IF (PythonInterp_FOUND)
     message(STATUS ${PYTHON_VERSION_STRING})
 ENDIF (PythonInterp_FOUND)
@@ -123,6 +130,19 @@ ENDIF()
 IF (PythonLibs_FOUND)
     include_directories(${PYTHON_INCLUDE_DIR})
 ENDIF(PythonLibs_FOUND)
+
+IF (OpenThreads_FOUND)
+  include_directories(${OPENTHREADS_INCLUDE_DIR})
+  link_directories(${OSG_LIB_DIR})
+ENDIF()
+
+IF (osg_FOUND)
+  include_directories(${OSG_INCLUDE_DIR})
+  link_directories(${OSG_LIB_DIR})
+ENDIF()
+
+
+
 
 # SpatialNDE2 library
 add_library(spatialnde2 SHARED ${SPATIALNDE2_SOURCES})
@@ -187,6 +207,11 @@ IF (OpenCL_FOUND AND PythonInterp_FOUND)
             )
     add_dependencies(opencl_example OpenCL_Headers)
     target_link_libraries(opencl_example spatialnde2 ${OpenCL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+ENDIF()
+
+IF (OpenThreads_FOUND AND osg_FOUND)
+  # Enable OSG support
+  add_definitions(-DSNDE_OPENSCENEGRAPH)
 ENDIF()
 
 

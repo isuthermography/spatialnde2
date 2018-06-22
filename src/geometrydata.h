@@ -90,9 +90,18 @@ extern "C" {
     snde_mesheduv *mesheduv; /* array of meshed uv parameterizations */
     //allocatorbase *mesheduv_alloc; // really allocator<struct snde_mesheduv> *
 
+    snde_triangle *uv_triangles;
+    snde_edge *uv_edges;
     
     // surface parameterization (texture coordinate) vertices...
-    snde_coord2 *uv_vertices; 
+    snde_coord2 *uv_vertices;
+    snde_vertex_edgelist_index *uv_vertex_edgelist_indices; // allocated with vertices
+
+    snde_index *uv_vertex_edgelist; // allocated separately
+
+    snde_index *uv_patch_index; // uv_patch_index is indexed by and allocated with uv_triangle, like uv_vertexidx, and indicates which patch of uv space for this mesheduv the triangle vertices correspond to  
+
+    
     //allocatorbase *uv_vertices_alloc; // really allocator<snde_coord2>
 
     //// uv polygon numvertices... representing number of vertices in a particular polygon. It is an integer array of numbers of vertices
@@ -104,11 +113,11 @@ extern "C" {
      * of the part */
 
     // uv vertexidx... representing vertices of a particular 2D triangle. It is an integer array of vertex ids.... 
-    snde_triangle *uv_vertexidx; // !!!*** Needs to be changed to winged edge!!!***
+    //snde_triangle *uv_vertexidx; // !!!*** Needs to be changed to winged edge!!!***
     //allocatorbase *uv_triangle_alloc; // really allocator<snde_triangleindices>
 
-    snde_mat23 *inplane2uvcoords;  /* allocated with uv_vertexidx */
-    snde_mat23 *uvcoords2inplane; /* allocated with uv_vertexidx */
+    snde_mat23 *inplane2uvcoords;  /* allocated with uv_triangles */
+    snde_mat23 *uvcoords2inplane; /* allocated with uv_triangles */
     
     
     // Continuous (NURBS) parameterizations
@@ -128,7 +137,7 @@ extern "C" {
 
     // 2D (uv-space) boxes 
     
-    snde_box2 *uv_boxes;  // allocated by uv_boxes_alloc... NOTE: Boxes are in part coordinates, not world coordinates 
+    snde_box2 *uv_boxes;  // allocated by uv_boxes_alloc... NOTE: Boxes are in patch coordinates, not world coordinates 
     //allocatorbase *uv_boxes_alloc; // really allocator<snde_box2> *
 
     snde_index *uv_boxpolys;
@@ -137,10 +146,8 @@ extern "C" {
     snde_boxcoord2 *uv_boxcoord; // allocated by uv_boxes_alloc
 
     
-    snde_index *uv_patch_index; // uv_patch_index is indexed by triangle, like uv_vertexidx, and indicates which patch of uv space for this mesheduv the triangle vertices correspond to  
 
-
-    snde_image *uv_patches;
+    snde_image *uv_patches; /* allocated separately */
     //allocatorbase *uv_patches_alloc; // really allocator<snde_image> *
 
     
