@@ -1123,7 +1123,7 @@ namespace snde {
       
       std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager); // new locking process
       
-      if (!shape->nodedata["geometry"]) {
+      if (!shape->nodedata.count("geometry")) {
 	throw x3derror(0,NULL,"Shape tag missing geometry field (i.e. indexedfaceset or indexedtriangleset)");
       }
       std::shared_ptr<x3d_indexedset> indexedset=std::dynamic_pointer_cast<snde::x3d_indexedset>(shape->nodedata["geometry"]);
@@ -1131,22 +1131,22 @@ namespace snde {
       std::shared_ptr<x3d_appearance> appearance;
       std::shared_ptr<x3d_imagetexture> texture;
       
-      if (shape->nodedata["appearance")) {
+      if (shape->nodedata.count("appearance")) {
 	appearance=std::dynamic_pointer_cast<snde::x3d_appearance>(shape->nodedata["appearance"]);
-	if (appearance->nodedata["texture"] && appearance->nodedata["texture"]->nodetype=="imagetexture") {
+	if (appearance->nodedata.count("texture") && appearance->nodedata["texture"]->nodetype=="imagetexture") {
 	  texture==std::dynamic_pointer_cast<snde::x3d_appearance>(appearance->nodedata["texture"]);
 	}
       }
       
-      if (!indexedset->nodedata["coord"]) {
+      if (!indexedset->nodedata.count("coord")) {
 	throw x3derror(0,NULL,"%s element missing coord field (i.e. <coordinate> subelement)",indexedset->nodetype.c_str());
       }
       std::shared_ptr<x3d_coordinate> coords = std::dynamic_pointer_cast<x3d_coordinate>(indexedset->nodedata["coord"]);
 
       std::shared_ptr<x3d_texturecoordinate> texCoords;
       
-      if (indexedset->nodedata("texCoord")) {
-	texCoords = std::dynamic_pointer_cast<x3d_texturecoordinate>(indexedset->nodedata["texCoord"]);
+      if (indexedset->nodedata.count("texCoord")) {
+	texCoords = std::dynamic_pointer_cast<x3d_texturecoordinate>(indexedset->nodedata"texCoord"]);
       }
       
       bool isfaceset = indexedset->nodetype=="indexedfaceset";

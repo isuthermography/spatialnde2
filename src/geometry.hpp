@@ -206,12 +206,14 @@ namespace snde {
 
 
   class uv_patches {
+  public:
     /* a collection of uv patches represents the uv-data for a meshedpart or nurbspart, as references to images. 
        each patch has a corresponding image and set of meaningful coordinates. The collection is named, so that 
        we can map a different collection onto our part by changing the name. */
     std::string name; /* is name the proper way to index this? probably not. Will need to change once we understand better */
     std::shared_ptr<geometry> geom;
     snde_index firstuvpatch,numuvpatches; /* numuvpatches must match the number from the mesheduv */
+    bool destroyed;
 
     uv_patches(const uv_patches &)=delete; /* copy constructor disabled */
     uv_patches& operator=(const uv_patches &)=delete; /* copy assignment disabled */
@@ -222,15 +224,16 @@ namespace snde {
       this->name=name;
       this->firstuvpatch=firstuvpatch;
       this->numuvpatches=numuvpatches;
+      destroyed=false;
     }
 
     void free()
     {
       if (firstuvpatch != SNDE_INDEX_INVALID) {
-	geom->manager->free((void **)&geom->geom.uvpatches,firstuvpatch,numuvpatches);
+	geom->manager->free((void **)&geom->geom.uv_patches,firstuvpatch,numuvpatches);
 	firstuvpatch=SNDE_INDEX_INVALID;	
       }
-      
+      destroyed=true;
     }
     
     ~uv_patches()
@@ -253,7 +256,8 @@ namespace snde {
     std::shared_ptr<geometry> geom;
     snde_index idx; /* index of the mesheduv in the geometry database */
     std::map<std::string,std::shared_ptr<uv_patches>> patches;
-
+    bool destroyed;
+    
     /* Should the mesheduv manage the snde_image data for the various uv patches? probably... */
 
     mesheduv(std::shared_ptr<geometry> geom, std::string name,snde_index idx)
@@ -264,6 +268,7 @@ namespace snde {
       this->geom=geom;
       this->name=name;
       this->idx=idx;
+      destroyed=false;
     }
 
     std::shared_ptr<uv_patches> find_patches(std::string name)
@@ -273,7 +278,8 @@ namespace snde {
 
     void addpatches(std::shared_ptr<uv_patches> to_add)
     {
-      patches.emplace(std::make_pair<std::string,std::shared_ptr<uv_patches>>(to_add->name,to_add));
+      //patches.emplace(std::make_pair<std::string,std::shared_ptr<uv_patches>>(to_add->name,to_add));
+      patches.emplace(std::pair<std::string,std::shared_ptr<uv_patches>>(to_add->name,to_add));
     }
 
     
@@ -311,7 +317,7 @@ namespace snde {
 	}
 
 	if (geom->geom.mesheduv->firstuvboxpoly != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.uv_boxpolys,geom->geom.mesheduv->firstuvboxpoly,geom->geom.mesheduv->numuvboxpolys);
+	  geom->manager->free((void **)&geom->geom.uv_boxpolys,geom->geom.mesheduv->firstuvboxpoly,geom->geom.mesheduv->numuvboxpoly);
 	  geom->geom.mesheduv->firstuvboxpoly = SNDE_INDEX_INVALID;	    
 	}
 
@@ -328,7 +334,7 @@ namespace snde {
       }
 
       for (auto & name_patches : patches) {
-	name_patches.second.free();
+	name_patches.second->free();
       }
       destroyed=true;
 
@@ -624,7 +630,7 @@ namespace snde {
 
 	  auto pname_entry=paramdict.find(name+"."+"patches");
 	  if (pname_entry != paramdict.end()) {
-	    patchesname = pname_entry->second.str();
+	    std::string patchesname = pname_entry->second.str();
 	    
 	    std::shared_ptr<uv_patches> patches = pname_mesheduv->second->find_patches(patchesname);
 
