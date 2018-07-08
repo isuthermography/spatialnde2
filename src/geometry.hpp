@@ -449,7 +449,7 @@ namespace snde {
 
     //   component();// {}
     
-    virtual std::vector<snde_partinstance> get_instances(snde_orientation3 orientation,std::unordered_map<std::string,paramdictentry> paramdict)=0;
+    virtual std::vector<snde_partinstance> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict)=0;
 
     virtual void obtain_lock(std::shared_ptr<lockingprocess> process, unsigned writemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOMWRITE_xxx bits */
 
@@ -473,9 +473,12 @@ namespace snde {
        openscenegraph group nodes representing 
        this assembly  */ 
 
-    assembly(snde_orientation3 orientation)
+    assembly(std::string name,snde_orientation3 orientation)
     {
+      this->name=name;
       this->type=subassembly;
+      this->_orientation=orientation;
+      
     }
 
     virtual snde_orientation3 orientation(void)
@@ -484,19 +487,19 @@ namespace snde {
     }
 
 
-    virtual std::vector<snde_partinstance> get_instances(snde_orientation3 orientation,std::unordered_map<std::string,paramdictentry> paramdict)
+    virtual std::vector<snde_partinstance> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict)
     {
       std::vector<snde_partinstance> instances;
-      std::unordered_map<std::string,paramdictentry> reducedparamdict;
+      std::shared_ptr<std::unordered_map<std::string,paramdictentry>> reducedparamdict=std::make_shared<std::unordered_map<std::string,paramdictentry>>();
 
       std::string name_with_dot=name+".";
       
-      for (auto & pdename_pde : paramdict) {
+      for (auto & pdename_pde : *paramdict) {
 	if (!strncmp(pdename_pde.first.c_str(),name_with_dot.c_str(),name_with_dot.size())) {
 	  /* this paramdict entry name stats with this assembly name  + '.' */
 
 	  /* give same entry to reducedparamdict, but with assembly name and dot stripped */
-	  reducedparamdict[std::string(pdename_pde.first.c_str()+name_with_dot.size())]=pdename_pde.second;
+	  (*reducedparamdict)[std::string(pdename_pde.first.c_str()+name_with_dot.size())]=pdename_pde.second;
 	}
       }
 
@@ -529,9 +532,22 @@ namespace snde {
     {
       
     }
-  };
 
-  
+      
+    static std::shared_ptr<assembly> from_partlist(std::string name,std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> parts)
+    {
+      
+      std::shared_ptr<assembly> assem=std::make_shared<assembly>(snde_null_orientation3());
+
+      for (size_t cnt=0; cnt < parts->size();cnt++) {
+	assem->pieces.push_back((*parts)[cnt]);
+      }
+      
+      
+      return assem;
+    }
+    
+  };
 
 
   /* NOTE: Could have additional abstraction layer to accommodate 
@@ -543,13 +559,14 @@ namespace snde {
     snde_index nurbspartnum;
     std::shared_ptr<geometry> geom;
 
-    nurbspart(std::shared_ptr<geometry> geom,snde_index nurbspartnum)
+    nurbspart(std::shared_ptr<geometry> geom,std::string name,snde_index nurbspartnum)
     /* WARNING: This constructor takes ownership of the part and 
        subcomponents from the geometry database and (should) free them when 
        it is destroyed */
     {
       this->type=nurbs;
       this->geom=geom;
+      this->name=name;
       //this->orientation=geom->geom.nurbsparts[nurbspartnum].orientation;
       this->nurbspartnum=nurbspartnum;
     }
@@ -582,13 +599,14 @@ namespace snde {
        openscenegraph geodes or drawables representing 
        this part */ 
     
-    meshedpart(std::shared_ptr<geometry> geom,snde_index idx)
+    meshedpart(std::shared_ptr<geometry> geom,std::string name,snde_index idx)
     /* WARNING: This constructor takes ownership of the part (if given) and 
        subcomponents from the geometry database and (should) free them when 
        free() is called */
     {
       this->type=meshed;
       this->geom=geom;
+      this->name=name;
       this->idx=idx;
       this->destroyed=false;
     }
@@ -598,7 +616,7 @@ namespace snde {
       parameterizations[parameterization->name]=parameterization;
     }
     
-    virtual std::vector<struct snde_partinstance> get_instances(snde_orientation3 orientation,std::unordered_map<std::string,paramdictentry> paramdict)
+    virtual std::vector<struct snde_partinstance> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict)
     {
       struct snde_partinstance ret;
 
@@ -616,8 +634,8 @@ namespace snde {
 	  parameterization_name=parameterizations.begin()->first;
 	}
       
-	auto pname_entry=paramdict.find(name+"."+"parameterization_name");
-	if (pname_entry != paramdict.end()) {
+	auto pname_entry=paramdict->find(name+"."+"parameterization_name");
+	if (pname_entry != paramdict->end()) {
 	  parameterization_name=pname_entry->second.str();
 	}
 	
@@ -628,8 +646,8 @@ namespace snde {
 	  ret.mesheduvnum=pname_mesheduv->second->idx;
 
 
-	  auto pname_entry=paramdict.find(name+"."+"patches");
-	  if (pname_entry != paramdict.end()) {
+	  auto pname_entry=paramdict->find(name+"."+"patches");
+	  if (pname_entry != paramdict->end()) {
 	    std::string patchesname = pname_entry->second.str();
 	    
 	    std::shared_ptr<uv_patches> patches = pname_mesheduv->second->find_patches(patchesname);

@@ -326,6 +326,7 @@ namespace snde {
 
     void mark_as_dirty_except_buffer(std::shared_ptr<_openclbuffer> exceptbuffer,void **arrayptr,snde_index pos,snde_index numelem)
     /* marks an array region (with exception of particular buffer) as needing to be updated from CPU copy */
+    /* This is typically used after our CPU copy has been updated from exceptbuffer, to push updates out to all of the other buffers */
     {
       std::unique_lock<std::mutex> adminlock(admin);
 
@@ -352,6 +353,7 @@ namespace snde {
     virtual void mark_as_dirty(void **arrayptr,snde_index pos,snde_index numelem)
     {
       /* marks an array region as needing to be updated from CPU copy */
+      /* This is typically used if the CPU copy is updated directly */
       mark_as_dirty_except_buffer(nullptr,arrayptr,pos,numelem);
     }
 

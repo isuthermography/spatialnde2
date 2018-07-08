@@ -170,7 +170,10 @@ extern "C" {
     
     // Suggest uv_patches_override and second buffer array
     // to kernel so that select patches can be overridden
-    // on-demand for a particular operation. 
+    // on-demand for a particular operation.
+
+
+    snde_coord *vertex_arrays; /* transformed vertex array for OpenSceneGraph / OpenGL */
     
   };
 #ifdef __cplusplus

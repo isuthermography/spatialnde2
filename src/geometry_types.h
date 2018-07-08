@@ -65,9 +65,15 @@ typedef struct {
 typedef struct {
   snde_coord3 offset;
   snde_coord pad1;
-  snde_coord4 quat; // normalized quaternion 
+  snde_coord4 quat; // normalized quaternion ... represented as , i (x) component, j (y) component, k (z) component, real (w) component
 } snde_orientation3;
 
+static inline snde_orientation3 snde_null_orientation3()
+{
+  snde_orientation3 null_orientation = { { 0.0, 0.0, 0.0 }, 0.0, {0.0, 0.0, 0.0, 1.0} }; /* unit (null) quaternion */
+  return null_orientation;
+}
+  
 typedef struct {
   // i.e. rotate point coordinates (rhs) by angle,
   // then add offset
