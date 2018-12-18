@@ -1,22 +1,43 @@
+#include <unistd.h>
 
 #include <GL/glut.h>
+#include <GL/freeglut.h>
+
+#include <osg/Array>
+#include <osg/Geode>
+#include <osg/Geometry>
 #include <osgViewer/Viewer>
 #include <osgGA/TrackballManipulator>
+#include <osgDB/ReadFile>
+#include <osgDB/WriteFile>
 
+#include "openscenegraph_geom.hpp"
+#include "revision_manager.hpp"
+#include "arraymanager.hpp"
+#include "normal_calculation.hpp"
 #include "x3d.hpp"
+
+using namespace snde;
 
 osg::ref_ptr<osgViewer::Viewer> viewer;
 
 osg::observer_ptr<osgViewer::GraphicsWindow> window;
 
 bool mousepressed=false;
-
+std::shared_ptr<assembly> assem; 
+std::shared_ptr<geometry> geom;
+std::shared_ptr<osg_instancecache> geomcache;
+std::shared_ptr<trm> revision_manager; /* transactional revision manager */
 
 void x3d_viewer_display()
 {
   /* perform rendering into back buffer */
-  if (viewer.valid()) viewer->frame();
+  /* Update viewer data here !!!! */
+  
+  //osg::ref_ptr<OSGComponent> group = new OSGComponent(geom,cache,comp);
 
+  if (viewer.valid()) viewer->frame();
+  
   // swap front and back buffers
   glutSwapBuffers();
 
@@ -27,7 +48,7 @@ void x3d_viewer_reshape(int width, int height)
 {
   if (window.valid()) {
     window->resized(window->getTraits()->x,window->getTraits()->y,width,height);
-    window->getEventQueue()->windowResize(window->GetTraits()->x,window->getTraits()->y,width,height);
+    window->getEventQueue()->windowResize(window->getTraits()->x,window->getTraits()->y,width,height);
 
   }
 }
@@ -36,10 +57,10 @@ void x3d_viewer_mouse(int button, int state, int x, int y)
 {
   if (window.valid()) {
     if (state==0) {
-      window->getEventQueue()->mouseButtonPress(x,y,botton+1);
+      window->getEventQueue()->mouseButtonPress(x,y,button+1);
       mousepressed=true;
     } else {
-      window->getEventQueue()->mouseButtonRelease(x,y,botton+1);
+      window->getEventQueue()->mouseButtonRelease(x,y,button+1);
       mousepressed=false;
     }
   }
@@ -68,10 +89,16 @@ void x3d_viewer_kbd(unsigned char key, int x, int y)
 
   default:
     if (window.valid()) {
-      window->getEventQueue()->keyPress((osgGA::GuiEventAdapter::KeySymbol)key);
-      window->getEventQueue()->keyRelease((osgGA::GuiEventAdapter::KeySymbol)key);
+      window->getEventQueue()->keyPress((osgGA::GUIEventAdapter::KeySymbol)key);
+      window->getEventQueue()->keyRelease((osgGA::GUIEventAdapter::KeySymbol)key);
     } 
   }
+}
+
+void x3d_viewer_close()
+{
+  if (viewer.valid()) viewer=0;
+  //glutDestroyWindow(glutGetWindow()); // (redundant because FreeGLUT performs the close)
 }
 
 
@@ -80,7 +107,8 @@ int main(int argc, char **argv)
   cl_context context;
   cl_device_id device;
   std::string clmsgs;
-
+  osg::ref_ptr<snde::OSGComponent> OSGComp;
+  
   glutInit(&argc, argv);
 
 
@@ -99,7 +127,6 @@ int main(int argc, char **argv)
   std::shared_ptr<memallocator> lowlevel_alloc;
   std::shared_ptr<allocator_alignment> alignment_requirements;
   std::shared_ptr<arraymanager> manager;
-  std::shared_ptr<geometry> geom;
   
   // lowlevel_alloc performs the actual host-side memory allocations
   lowlevel_alloc=std::make_shared<cmemallocator>();
@@ -130,17 +157,65 @@ int main(int argc, char **argv)
   // freely done from multiple threads (with appropriate
   // locking of resources) 
   geom=std::make_shared<geometry>(1e-6,manager);
+
   
+  revision_manager=std::make_shared<trm>(); /* transactional revision manager */
 
-
-  std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> parts = x3d_load_geometry(geom,argv[1],false,false); // !!!*** Try enable vertex reindexing !!!***
-
-
-  std::shared_ptr<assembly> assem = assembly::from_partlist("part_assembly",parts);
-  std::unordered_map<std::string,paramdictentry> emptyparamdict;
+  // Create a command queue for the specified context and device. This logic
+  // tries to obtain one that permits out-of-order execution, if available.
+  cl_int clerror=0;
   
-  std::vector<snde_partinstance> instances = get_instances(snde_null_orientation3(),emptyparamdict)
+  cl_command_queue queue=clCreateCommandQueue(context,device,CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE,&clerror);
+  if (clerror==CL_INVALID_QUEUE_PROPERTIES) {
+    queue=clCreateCommandQueue(context,device,0,&clerror);
+    
+  }
+  
+  geomcache=std::make_shared<osg_instancecache>(geom,context,device,queue);
 
+  std::vector<std::shared_ptr<trm_dependency>> normal_calcs;
+
+  std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> parts;
+  
+  {
+    revision_manager->Start_Transaction();
+    
+    std::shared_ptr<std::vector<trm_arrayregion>> modified = std::make_shared<std::vector<trm_arrayregion>>();
+    
+    parts = x3d_load_geometry(geom,argv[1],modified,false,false); // !!!*** Try enable vertex reindexing !!!***
+
+    revision_manager->End_Transaction(modified);
+  }
+
+  {
+    std::lock_guard<std::mutex> object_trees_lock(geom->object_trees_lock);
+    
+    //for (size_t partcnt=0;partcnt < parts.size();partcnt++) {
+    //  std::string partname;
+    //  partname="LoadedX3D"+partcnt;
+    //  geom->object_trees.insert(std::make_pair(partname,parts[partcnt]));    
+    //}
+    std::shared_ptr<assembly> assem=assembly::from_partlist("LoadedX3D",parts);
+    
+    geom->object_trees.insert(std::make_pair("LoadedX3D",assem));
+    revision_manager->Start_Transaction();
+
+    for (auto & part : *parts) {
+      // add normal calculation for each part from the .x3d file
+      normal_calcs.push_back(normal_calculation(geom,revision_manager,part,context,device,queue));
+    }
+    
+    
+    OSGComp=new snde::OSGComponent(geom,geomcache,assem,revision_manager); // OSGComp must be created during a transaction...
+
+    /* ***!!!! Modifications here are coming from the function call inside OSGComponent()... Do we need to propagate those into the "modified" data structure? 
+       Maybe we should just extract stuff from the cache dirtying info ***!!! */
+    std::shared_ptr<std::vector<trm_arrayregion>> modified=std::make_shared<std::vector<trm_arrayregion>>();
+    
+    revision_manager->End_Transaction(modified);
+  }
+  
+  
   glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGBA|GLUT_DEPTH);
   glutInitWindowSize(1024,768);
   glutCreateWindow(argv[0]);
@@ -151,11 +226,25 @@ int main(int argc, char **argv)
   glutMouseFunc(&x3d_viewer_mouse);
   glutMotionFunc(&x3d_viewer_motion);
 
+  glutCloseFunc(&x3d_viewer_close);
+
   glutKeyboardFunc(&x3d_viewer_kbd);
 
+  // load the scene. (testing only)
+  osg::ref_ptr<osg::Node> loadedModel = osgDB::readRefNodeFile(argv[2]);
+  if (!loadedModel)
+    {
+      //std::cout << argv[0] <<": No data loaded." << std::endl;
+      return 1;
+    }
+  
   viewer = new osgViewer::Viewer;
-  window = viewer->setUpViewerAsEmbeddedInWindow();
-  viewer->setSceneData(!!!);
+  window = viewer->setUpViewerAsEmbeddedInWindow(100,100,800,600);
+  //viewer->setSceneData(loadedModel.get());
+  sleep(1);
+  viewer->setSceneData(OSGComp);
+  osgDB::writeNodeFile(*OSGComp, "/tmp/modeltest.osgt"); 
+
   viewer->setCameraManipulator(new osgGA::TrackballManipulator);
 
   viewer->realize();

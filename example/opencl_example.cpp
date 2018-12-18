@@ -40,7 +40,6 @@ int main(int argc, char *argv[])
   cl_command_queue queue;
   std::string clmsgs;
   cl_kernel kernel;
-  cl_program program;
   cl_int clerror=0;
 
   std::shared_ptr<meshedpart> part;
@@ -104,19 +103,13 @@ int main(int argc, char *argv[])
   }
 
   // Extract sourcecode for an OpenCL kernel by combining geometry_types.h and testkernel.c
-  // which have been preprocessed into strings in header files. 
-  std::vector<const char *> program_source = { geometry_types_h, testkernel_c };
-
-  std::string build_log;
-
-  // Create the OpenCL program object from the source code (convenience routine). 
-  std::tie(program,build_log) = get_opencl_program(context,device,program_source);
+  // which have been preprocessed into strings in header files.
+  opencl_program area_program("testkern_onepart", { geometry_types_h, testkernel_c });
+  
 
   // Create the OpenCL kernel object
-  kernel=clCreateKernel(program,"testkern_onepart",&clerror);
-  if (!kernel) {
-    throw openclerror(clerror,"Error creating OpenCL kernel");
-  }
+  // NOTE: Kernel may be only used by one thread at a time (OpenCL limitation)
+  kernel=area_program.get_kernel(context,device);
   
   
 
@@ -272,7 +265,7 @@ int main(int argc, char *argv[])
     
     // Store which part address for later use
     // Represent the above triangle as a "meshedpart"
-    part=std::make_shared<meshedpart>(geom,holder->get_alloc((void **)&geom->geom.meshedparts,""));
+    part=std::make_shared<meshedpart>(geom,"tri",holder->get_alloc((void **)&geom->geom.meshedparts,""));
     
     // Unlock now that we have written
     // (if we wanted we could use from the GPU under this same lock
@@ -384,7 +377,6 @@ int main(int argc, char *argv[])
   clReleaseCommandQueue(queue);
   clReleaseContext(context);
   clReleaseKernel(kernel);
-  clReleaseProgram(program);
   
   return 0;
 }

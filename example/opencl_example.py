@@ -71,6 +71,7 @@ program_source=[ geometry_types_h, testkernel_c ]
 program = cl.Program(context," ".join(program_source)).build()
 
 # Create the OpenCL kernel object
+# NOTE: Kernel may be only used by one thread at a time (OpenCL limitation)
 kernel=program.testkern_onepart # NOTE: must only extract kernel attribute once (see pyopencl documentation)
 
 

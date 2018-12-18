@@ -1,11 +1,4 @@
-#ifndef SNDE_X3D_HPP
-#define SNDE_X3D_HPP
 
-#ifdef _MSC_VER
-#define strncasecmp _strnicmp
-#define strcasecmp _stricmp
-#define strtok_r strtok_s
-#endif
 
 #include <unordered_map>
 #include <cstdio>
@@ -26,6 +19,18 @@
 #include "geometrydata.h"
 #include "geometry.hpp"
 #include "snde_error.hpp"
+
+#include "revision_manager.hpp"
+
+#ifndef SNDE_X3D_HPP
+#define SNDE_X3D_HPP
+
+
+#ifdef _MSC_VER
+#define strncasecmp _strnicmp
+#define strcasecmp _stricmp
+#define strtok_r strtok_s
+#endif
 
 // plan: all class data structures need to derive from a common base
 // class. Each of these should have a dictionary member of shared_ptrs to
@@ -101,31 +106,31 @@ namespace snde {
       val.coord[0]=strtod(tok,&endptr);
 
       if (*endptr != 0) {
-	throw x3derror(0,NULL,"Parse error interpreting string token %s as double",tok);
+	throw x3derror("Parse error interpreting string token %s as double",tok);
       }
 
       tok=strtok_r(NULL,"\r\n, ",&saveptr);
       if (!tok) {
-	throw x3derror(0,NULL,"Number of tokens in field \"%s\" is not divisible by 3 ",attrname.c_str());
+	throw x3derror("Number of tokens in field \"%s\" is not divisible by 3 ",attrname.c_str());
       }
 	
       endptr=tok;
       val.coord[1]=strtod(tok,&endptr);
 
       if (*endptr != 0) {
-	throw x3derror(0,NULL,"Parse error interpreting string token %s as double",tok);
+	throw x3derror("Parse error interpreting string token %s as double",tok);
       }
 
       
       tok=strtok_r(NULL,"\r\n, ",&saveptr);
       if (!tok) {
-	throw x3derror(0,NULL,"Number of tokens in field \"%s\" is not divisible by 3 ",attrname.c_str());
+	throw x3derror("Number of tokens in field \"%s\" is not divisible by 3 ",attrname.c_str());
       }
       endptr=tok;
       val.coord[2]=strtod(tok,&endptr);
 
       if (*endptr != 0) {
-	throw x3derror(0,NULL,"Parse error interpreting string token %s as double",tok);
+	throw x3derror("Parse error interpreting string token %s as double",tok);
       }
       vecout->push_back(val);
 
@@ -159,19 +164,19 @@ namespace snde {
       val.coord[0]=strtod(tok,&endptr);
 
       if (*endptr != 0) {
-	throw x3derror(0,NULL,"Parse error interpreting string token %s as double",tok);
+	throw x3derror("Parse error interpreting string token %s as double",tok);
       }
 
       tok=strtok_r(NULL,"\r\n, ",&saveptr);
       if (!tok) {
-	throw x3derror(0,NULL,"Number of tokens in field \"%s\" is not divisible by 2",attrname.c_str());
+	throw x3derror("Number of tokens in field \"%s\" is not divisible by 2",attrname.c_str());
       }
       
       endptr=tok;
       val.coord[1]=strtod(tok,&endptr);
 
       if (*endptr != 0) {
-	throw x3derror(0,NULL,"Parse error interpreting string token %s as double",tok);
+	throw x3derror("Parse error interpreting string token %s as double",tok);
       }
 
       
@@ -210,7 +215,7 @@ namespace snde {
       }
       
       if (*endptr != 0) {
-	throw x3derror(0,NULL,"Parse error interpreting string token %s as unsigned integer",tok);
+	throw x3derror("Parse error interpreting string token %s as unsigned integer",tok);
       }
     }
     free(copy);
@@ -240,7 +245,7 @@ namespace snde {
       vec.push_back(strtod(tok,&endptr));
 
       if (*endptr != 0) {
-	throw x3derror(0,NULL,"Parse error interpreting string token %s as double",tok);
+	throw x3derror("Parse error interpreting string token %s as double",tok);
       }
     }
     free(copy);
@@ -268,7 +273,7 @@ namespace snde {
     if (attrstring) {
       *d=strtod((const char *)attrstring,&endptr);
       if (*endptr != 0) {
-	throw x3derror(0,NULL,"Parse error interpreting attribute %s as double",(char *)attrstring);
+	throw x3derror("Parse error interpreting attribute %s as double",(char *)attrstring);
       }
       xmlFree(attrstring);
 
@@ -289,7 +294,7 @@ namespace snde {
       } else if (!strcmp((char *)attrstring,"false")) {
 	*b=false;
       } else {
-	throw x3derror(0,NULL,"Invalid boolean value %s for attribute %s",(char *)attrstring,attrname.c_str());
+	throw x3derror("Invalid boolean value %s for attribute %s",(char *)attrstring,attrname.c_str());
       }
       xmlFree(attrstring);
     }
@@ -354,7 +359,7 @@ namespace snde {
 
       loader->reader=xmlNewTextReaderFilename(filename);
       if (!loader->reader) {
-	throw x3derror(0,NULL,"Error opening input file %s",filename);
+	throw x3derror("Error opening input file %s",filename);
       }
       xmlTextReaderSetErrorHandler(loader->reader,&snde_x3d_error_func,NULL);
 
@@ -531,7 +536,7 @@ namespace snde {
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
-	throw x3derror(0,NULL,"Invalid container field for material: ",(char *)containerField);
+	throw x3derror("Invalid container field for material: %s",(char *)containerField);
       }
       parentnode->nodedata[(char *)containerField]=mat_data;
     }
@@ -777,7 +782,7 @@ namespace snde {
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
-        throw x3derror(0,NULL,"Invalid container field for geometry (indexedfaceset): ",(char *)containerField);
+        throw x3derror("Invalid container field for geometry (indexedfaceset): %s",(char *)containerField);
       }
       parentnode->nodedata[(char *)containerField]=ifs_data;
     }
@@ -791,8 +796,6 @@ namespace snde {
     //bool ccw;  (now inherited from x3d_indexedset) 
     //bool solid;  (now inherited from x3d_indexedset) 
     bool convex;
-    //std::vector<snde_index> coordIndex;
-    //std::vector<snde_index> normalIndex;
     std::vector<snde_index> index;
     //Eigen::Matrix<double,4,4> transform;  (now inherited from x3d_indexedset)  /* Apply this transform to all coordinates when interpreting contents */
 
@@ -839,7 +842,7 @@ namespace snde {
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
-        throw x3derror(0,NULL,"Invalid container field for geometry (indexedtriangleset): ",(char *)containerField);
+        throw x3derror("Invalid container field for geometry (indexedtriangleset): %s",(char *)containerField);
       }
       parentnode->nodedata[(char *)containerField]=its_data;
     }
@@ -887,7 +890,7 @@ namespace snde {
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
-        throw x3derror(0,NULL,"Invalid container field for imagetexture: ",(char *)containerField);
+        throw x3derror("Invalid container field for imagetexture: %s",(char *)containerField);
       }
       parentnode->nodedata[(char *)containerField]=mat_data;
     }
@@ -928,7 +931,7 @@ namespace snde {
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
-	throw x3derror(0,NULL,"Invalid container field for appearance: %s",(char *)containerField);
+	throw x3derror("Invalid container field for appearance: %s",(char *)containerField);
       }
       parentnode->nodedata[(char *)containerField]=app_data;
     }
@@ -968,7 +971,7 @@ namespace snde {
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
-        throw x3derror(0,NULL,"Invalid container field for coordinate: %s",(char *)containerField);
+        throw x3derror("Invalid container field for coordinate: %s",(char *)containerField);
       }
       parentnode->nodedata[(char *)containerField]=coord_data;
     }
@@ -1006,7 +1009,7 @@ namespace snde {
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
-        throw x3derror(0,NULL,"Invalid container field for normal: %s",(char *)containerField);
+        throw x3derror("Invalid container field for normal: %s",(char *)containerField);
       }
       parentnode->nodedata[(char *)containerField]=normal_data;
     }
@@ -1045,7 +1048,7 @@ namespace snde {
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
-        throw x3derror(0,NULL,"Invalid container field for texturecoordinate: %s",(char *)containerField);
+        throw x3derror("Invalid container field for texturecoordinate: %s",(char *)containerField);
       }
       parentnode->nodedata[(char *)containerField]=texcoord_data;
     }
@@ -1069,7 +1072,17 @@ namespace snde {
 						  std::hash<double>{}((double)x.coord[2]);
     }
   };
-  
+
+  template <> struct x3d_hash<snde_coord2>
+  {
+    size_t operator()(const snde_coord2 & x) const
+    {
+      return
+	std::hash<double>{}((double)x.coord[0]) +
+			     std::hash<double>{}((double)x.coord[1]);
+    }
+  };
+
   template <class T> struct x3d_equal_to;
   
   template <> struct x3d_equal_to<snde_coord3>
@@ -1080,6 +1093,14 @@ namespace snde {
     }
   };
   
+  template <> struct x3d_equal_to<snde_coord2>
+  {
+    bool operator()(const snde_coord2 & x, const snde_coord2 & y) const
+    {
+      return x.coord[0]==y.coord[0] && x.coord[1]==y.coord[1];
+    }
+  };
+
   
   // Need to provide hash for pairs of  snde_index so
   // they can be used as a std::unordered_map key
@@ -1093,14 +1114,19 @@ namespace snde {
       
     }
   };
+
   
   
-  std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> x3d_load_geometry(std::shared_ptr<geometry> geom,const char *filename,bool reindex_vertices,bool reindex_tex_vertices)
+  std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> x3d_load_geometry(std::shared_ptr<geometry> geom,const char *filename,std::shared_ptr<std::vector<trm_arrayregion>> modified_region_accum,bool reindex_vertices,bool reindex_tex_vertices)
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
+     modified_region_accum will accumulate all of the array regions that are written to during the loading
+
      If reindex_vertices is set, then re-identify matching vertices. 
      Otherwise vertex_tolerance is the tolerance in meters. */
+
+  /* returns a shared ptr to a vector of meshedparts. */
     
   /* *** Might make sense to put X3D transform into scene definition rather than 
      transforming coordinates */
@@ -1123,54 +1149,54 @@ namespace snde {
       
       std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager); // new locking process
       
-      if (!shape->nodedata.count("geometry")) {
-	throw x3derror(0,NULL,"Shape tag missing geometry field (i.e. indexedfaceset or indexedtriangleset)");
+      if (!shape->nodedata.count("geometry") || !shape->nodedata["geometry"]) {
+	throw x3derror("Shape tag missing geometry field (i.e. indexedfaceset or indexedtriangleset)");
       }
       std::shared_ptr<x3d_indexedset> indexedset=std::dynamic_pointer_cast<snde::x3d_indexedset>(shape->nodedata["geometry"]);
       
       std::shared_ptr<x3d_appearance> appearance;
       std::shared_ptr<x3d_imagetexture> texture;
       
-      if (shape->nodedata.count("appearance")) {
+      if (shape->nodedata.count("appearance") && shape->nodedata["appearance"]) {
 	appearance=std::dynamic_pointer_cast<snde::x3d_appearance>(shape->nodedata["appearance"]);
-	if (appearance->nodedata.count("texture") && appearance->nodedata["texture"]->nodetype=="imagetexture") {
-	  texture==std::dynamic_pointer_cast<snde::x3d_appearance>(appearance->nodedata["texture"]);
+	if (appearance->nodedata.count("texture") && appearance->nodedata["texture"] && appearance->nodedata["texture"]->nodetype=="imagetexture") {
+	  texture=std::dynamic_pointer_cast<snde::x3d_imagetexture>(appearance->nodedata["texture"]);
 	}
       }
       
-      if (!indexedset->nodedata.count("coord")) {
-	throw x3derror(0,NULL,"%s element missing coord field (i.e. <coordinate> subelement)",indexedset->nodetype.c_str());
+      if (!indexedset->nodedata.count("coord") || !indexedset->nodedata["coord"]) {
+	throw x3derror("%s element missing coord field (i.e. <coordinate> subelement)",indexedset->nodetype.c_str());
       }
       std::shared_ptr<x3d_coordinate> coords = std::dynamic_pointer_cast<x3d_coordinate>(indexedset->nodedata["coord"]);
+      std::shared_ptr<x3d_normal> normal = std::dynamic_pointer_cast<x3d_normal>(indexedset->nodedata["normal"]);
 
       std::shared_ptr<x3d_texturecoordinate> texCoords;
       
-      if (indexedset->nodedata.count("texCoord")) {
-	texCoords = std::dynamic_pointer_cast<x3d_texturecoordinate>(indexedset->nodedata"texCoord"]);
+      if (indexedset->nodedata.count("texCoord") && indexedset->nodedata["texCoord"]) {
+	texCoords = std::dynamic_pointer_cast<x3d_texturecoordinate>(indexedset->nodedata["texCoord"]);
       }
       
+      unsigned coordindex_step=4;
       bool isfaceset = indexedset->nodetype=="indexedfaceset";
-      if (!isfaceset) assert(indexedset->nodetype=="indexedtriangleset");
-
-      std::vector<snde_index> dummyvec; /* strictly an initializer for coordIndex so it can have the scope we want */
-      
-      std::vector<snde_index> & coordIndex=dummyvec;
-      unsigned coordindex_step;
-
-      std::vector<snde_index> & texCoordIndex=dummyvec;
-
-      
-      
-      if (isfaceset) {
-	coordIndex=std::dynamic_pointer_cast<x3d_indexedfaceset>(indexedset)->coordIndex;
-	texCoordIndex=std::dynamic_pointer_cast<x3d_indexedfaceset>(indexedset)->texCoordIndex;
-	coordindex_step=4;
-	
-      } else {
-	coordIndex=std::dynamic_pointer_cast<x3d_indexedtriangleset>(indexedset)->index;
-	texCoordIndex=std::dynamic_pointer_cast<x3d_indexedtriangleset>(indexedset)->index;
+      if (!isfaceset) {
+	assert(indexedset->nodetype=="indexedtriangleset");
 	coordindex_step=3;
       }
+
+      
+      std::vector<snde_index> & coordIndex = ((isfaceset) ?
+					      std::dynamic_pointer_cast<x3d_indexedfaceset>(indexedset)->coordIndex :
+					      std::dynamic_pointer_cast<x3d_indexedtriangleset>(indexedset)->index);
+
+      std::vector<snde_index> & texCoordIndex = ((isfaceset) ?
+						 std::dynamic_pointer_cast<x3d_indexedfaceset>(indexedset)->texCoordIndex :
+						 std::dynamic_pointer_cast<x3d_indexedtriangleset>(indexedset)->index);
+
+      std::vector<snde_index> & normalIndex = ((isfaceset) ?
+						 std::dynamic_pointer_cast<x3d_indexedfaceset>(indexedset)->normalIndex :
+					       std::dynamic_pointer_cast<x3d_indexedtriangleset>(indexedset)->index);
+      
+      
       
       
       // Allocate enough storage for vertices, edges, and triangles
@@ -1202,13 +1228,22 @@ namespace snde {
       snde_index firstpart = holder->get_alloc((void **)&geom->geom.meshedparts,"");
       memset(&geom->geom.meshedparts[firstpart],0,sizeof(*geom->geom.meshedparts));
 
-      
+          
       
       snde_index firsttri = holder->get_alloc((void **)&geom->geom.triangles,"");
+      
       snde_index firstedge = holder->get_alloc((void **)&geom->geom.edges,"");
+      /* edge modified region marked with realloc_down() call below */
+
       snde_index firstvertex = holder->get_alloc((void **)&geom->geom.vertices,"");
+      /* vertices modified region marked with realloc_down() call below */
+
+      
       snde_index first_vertex_edgelist = holder->get_alloc((void **)&geom->geom.vertex_edgelist,"");
+      /* vertex_edgelist modified region marked with realloc_down() call below */
+
       snde_index first_vertex_edgelist_index = holder->get_alloc((void **)&geom->geom.vertex_edgelist_indices,""); // should be identical to firstvertex because vertices manages this array
+      /* vertex_edgelist_indices marked with realloc_down() call under vertices below */
       assert(first_vertex_edgelist_index==firstvertex);
       
 
@@ -1228,17 +1263,24 @@ namespace snde {
       
       if (texCoords) {
 	firstmesheduv = holder->get_alloc((void **)&geom->geom.mesheduv,"");
+	memset(&geom->geom.mesheduv[firstmesheduv],0,sizeof(*geom->geom.mesheduv));
 	
 	
 	firstuvtri = holder->get_alloc((void **)&geom->geom.uv_triangles,"");
+	
 	firstuvedge = holder->get_alloc((void **)&geom->geom.uv_edges,"");
+	/* edge modified region marked with realloc_down() call below */
 	firstuvvertex = holder->get_alloc((void **)&geom->geom.uv_vertices,"");
+	/* vertices modified region marked with realloc_down() call below */
 	first_uv_vertex_edgelist = holder->get_alloc((void **)&geom->geom.uv_vertex_edgelist,"");
+	/* vertex_edgelist modified region marked with realloc_down() call below */
 	first_uv_vertex_edgelist_index = holder->get_alloc((void **)&geom->geom.uv_vertex_edgelist_indices,""); // should be identical to firstvertex because vertices manages this array
+	/* vertex_edgelist_indices marked with realloc_down() call under uv_vertices below */
 	assert(first_uv_vertex_edgelist_index==firstuvvertex);
       
 	if (texture) {
 	  firstuvpatch = holder->get_alloc((void **)&geom->geom.uv_patches,"");
+	  
 	}
       }
       
@@ -1299,7 +1341,9 @@ namespace snde {
 	  
 	}
       }
-      
+      modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.vertices,firstvertex,num_vertices);     
+      modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.vertex_edgelist_indices,first_vertex_edgelist_index,num_vertices);
+
       geom->geom.meshedparts[firstpart].firstvertex=firstvertex;
       geom->geom.meshedparts[firstpart].numvertices=num_vertices;
       
@@ -1315,6 +1359,7 @@ namespace snde {
       
       std::unordered_map<std::pair<snde_index,snde_index>,snde_index,x3d_hash<std::pair<snde_index,snde_index>>> edgenum_byvertices;
       snde_index next_edgenum=0;
+      snde_trinormals normals;
 
 
       snde_index numtris = coordIndex.size()/coordindex_step;
@@ -1331,15 +1376,52 @@ namespace snde {
 	  }
 	}
 	
+	// determine normals
+	if (normal) {
+	  if (indexedset->normalPerVertex) {
+	    for (vertcnt=0;vertcnt < 3;vertcnt++) {
+	      if (normalIndex.size() > 0) {
+		normals.vertnorms[vertcnt]=normal->vector[normalIndex[trinum*coordindex_step + vertcnt]];
+	      } else {
+		normals.vertnorms[vertcnt]=normal->vector[coordIndex[trinum*coordindex_step + vertcnt]];
+	      }
+	    }
+	    
+	  } else {
+	    if (normalIndex.size() > 0) {
+	      normals.vertnorms[0]=normals.vertnorms[1]=normals.vertnorms[2]=normal->vector[normalIndex[trinum]];
+	    } else {
+	      normals.vertnorms[0]= normals.vertnorms[1]= normals.vertnorms[2]=normal->vector[coordIndex[trinum]];
+	    }
+	  }
+	} //else {
+	  //assert(0);	  /* normal generation not implemented yet!!! */
+	  // Normal (re-)generation should be handled by the transactional revision manager (trm)
+	//}
 	if (!indexedset->ccw) {
 	  /* non-ccw vertex ordering... fix it with a swap */
 	  snde_index temp,temp2;
+	  snde_coord3 temp3;
+	  
 	  temp=vertex[2];
 	  temp2=origvertex[2];
+	  if (normal) {
+	    temp3=normals.vertnorms[2];
+	  }
+	  
 	  vertex[2]=vertex[1];
 	  origvertex[2]=origvertex[1];
+
+	  if (normal) {
+	    normals.vertnorms[2]=normals.vertnorms[1];
+	  }
+	  
 	  vertex[1]=temp;
 	  origvertex[1]=temp2;
+
+	  if (normal) {
+	    normals.vertnorms[1]=temp3;
+	  }
 	}
 	
 	// find edges
@@ -1359,7 +1441,7 @@ namespace snde {
 	    if (edge_iter==edgenum_byvertices.end()) {
 	      // New edge
 	      new_edge=true;
-	      assert(next_edgenum < 3*coordIndex->size());
+	      assert(next_edgenum < 3*coordIndex.size());
 	      edgenum_byvertices.emplace(std::make_pair(std::make_pair(vertex[edgecnt],vertex[(edgecnt + 1) % 3]),next_edgenum));
 	      
 	      // Store in data array
@@ -1388,7 +1470,6 @@ namespace snde {
 	      /* Store the face */
 	      geom->geom.triangles[firsttri+trinum].edges[edgecnt]=next_edgenum;
 	      
-	      
 	      next_edgenum++;
 	      
 	    }
@@ -1400,7 +1481,7 @@ namespace snde {
 	    
 	    // Store in data array
 	    if (geom->geom.edges[firstedge+this_edgenum].face_b != SNDE_INDEX_INVALID) {
-	      throw x3derror(0,NULL,"Edge involving original vertices #%lu and %lu is shared by more than two triangles",(unsigned long)origvertex[edgecnt],(unsigned long)origvertex[(edgecnt+1)%3]);
+	      throw x3derror("Edge involving original vertices #%lu and %lu is shared by more than two triangles",(unsigned long)origvertex[edgecnt],(unsigned long)origvertex[(edgecnt+1)%3]);
 	    }
 	    geom->geom.edges[firstedge+this_edgenum].face_b=trinum;
 	    
@@ -1446,10 +1527,15 @@ namespace snde {
 	
 	
 	/* continue working on this triangle */
+
+	// Assign normals
+	if (normal) {
+	  geom->geom.normals[firsttri+trinum]=normals;
+	}
 	if (coordindex_step==4) {
 	  /* indexedfaceset. This must really be a triangle hence it should have a -1 index next */
 	  if (coordIndex[trinum*coordindex_step + 3] != SNDE_INDEX_INVALID) {
-	    throw x3derror(0,NULL,"Polygon #%lu is not a triangle",(unsigned long)trinum);
+	    throw x3derror("Polygon #%lu is not a triangle",(unsigned long)trinum);
 	  }
 	}
 	
@@ -1457,8 +1543,9 @@ namespace snde {
       }
       num_edges = next_edgenum;
       // realloc and shrink geom->geom.edges allocation to num_edges
-      geom->manager->realloc_down((void **)&geom->geom.edges,firstedge,3*coordIndex->size(),num_edges);
-      
+      geom->manager->realloc_down((void **)&geom->geom.edges,firstedge,3*coordIndex.size(),num_edges);
+      modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.edges,firstedge,num_edges);     
+ 
       geom->geom.meshedparts[firstpart].firstedge=firstedge;
       geom->geom.meshedparts[firstpart].numedges=num_edges;
       
@@ -1513,26 +1600,36 @@ namespace snde {
       }
       geom->geom.meshedparts[firstpart].first_vertex_edgelist=first_vertex_edgelist;
       geom->geom.meshedparts[firstpart].num_vertex_edgelist=next_vertex_edgelist_pos;
-      
+      geom->manager->realloc_down((void **)&geom->geom.vertex_edgelist,first_vertex_edgelist,vertex_edgelist_maxsize,next_vertex_edgelist_pos);
+      modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.vertex_edgelist,first_vertex_edgelist,next_vertex_edgelist_pos);     
+
 
 
       /* create meshedpart object and add to the vector we will return, now that 
 	 data structures are complete*/
-      std::shared_ptr<meshedpart> curpart=std::make_shared<meshedpart>(geom,firstpart);
+      /* !!!*** Should have real algorithm for determining name, not just use "x3d" ***!!! */
+      std::shared_ptr<meshedpart> curpart=std::make_shared<meshedpart>(geom,"x3d",firstpart);
+      curpart->need_normals=!(bool)normal;
       meshedpart_objs->push_back(curpart);
 
+      // Mark that we have made changes
+      modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.meshedparts,firstpart,1);
+      modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.triangles,firsttri,numtris);
+
+    
+      
       /* Create parameterization (mesheduv) from texture coordinates */
       if (texCoords) {
-
+	snde_index num_uv_vertices=0;
 	/* define mesheduv */
 	memset(&geom->geom.mesheduv[firstmesheduv],0,sizeof(*geom->geom.mesheduv));
 
-
+	
 	
 	// map for looking up new index based on coordinates
 	std::unordered_map<snde_coord2,snde_index,x3d_hash<snde_coord2>,x3d_equal_to<snde_coord2>> uv_vertexnum_bycoord;
 	std::unordered_map<snde_index,snde_index> uv_vertexnum_byorignum;
-	if (reindex_uv_vertices) {
+	if (reindex_tex_vertices) {
 	  snde_index cnt;
 	  snde_index next_vertexnum=0;
 	
@@ -1586,6 +1683,9 @@ namespace snde {
 	  //}
 	}
 	
+	modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.uv_vertices,firstuvvertex,num_uv_vertices);
+	modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.uv_vertex_edgelist_indices,first_uv_vertex_edgelist_index,num_uv_vertices);
+	
 	geom->geom.mesheduv[firstmesheduv].firstuvvertex=firstuvvertex;
 	geom->geom.mesheduv[firstmesheduv].numuvvertices=num_uv_vertices;
 	
@@ -1598,12 +1698,16 @@ namespace snde {
 	snde_index vertex[3];
 	snde_index origvertex[3];
 	unsigned vertcnt;
+	snde_index num_uv_edges=0;
 	
-	std::unordered_map<std::pair<snde_index,snde_index>,snde_index,x3d_hash<std::pair<snde_index,snde_index>>> edgenum_byvertices;
+	std::unordered_map<std::pair<snde_index,snde_index>,snde_index,x3d_hash<std::pair<snde_index,snde_index>>> uv_edgenum_byvertices;
 	snde_index next_edgenum=0;
 
 
-	snde_index numtris = texCoordIndex.size()/coordindex_step;
+	snde_index numuvtris = texCoordIndex.size()/coordindex_step;
+
+	assert(numuvtris==numtris);
+	
 	// go through all of the triangles
 	for (trinum=0;trinum < numtris;trinum++) {
 	  
@@ -1646,7 +1750,7 @@ namespace snde {
 	      if (edge_iter==uv_edgenum_byvertices.end()) {
 		// New edge
 		new_edge=true;
-		assert(next_uv_edgenum < 3*texCoordIndex->size());
+		assert(next_uv_edgenum < 3*texCoordIndex.size());
 		uv_edgenum_byvertices.emplace(std::make_pair(std::make_pair(vertex[edgecnt],vertex[(edgecnt + 1) % 3]),next_uv_edgenum));
 		
 		// Store in data array
@@ -1687,7 +1791,7 @@ namespace snde {
 	      
 	      // Store in data array
 	      if (geom->geom.uv_edges[firstuvedge+this_edgenum].face_b != SNDE_INDEX_INVALID) {
-		throw x3derror(0,NULL,"Edge involving original uv vertices #%lu and %lu is shared by more than two triangles",(unsigned long)origvertex[edgecnt],(unsigned long)origvertex[(edgecnt+1)%3]);
+		throw x3derror("Edge involving original uv vertices #%lu and %lu is shared by more than two triangles",(unsigned long)origvertex[edgecnt],(unsigned long)origvertex[(edgecnt+1)%3]);
 	      }
 	      geom->geom.uv_edges[firstuvedge+this_edgenum].face_b=trinum;
 	      
@@ -1736,7 +1840,7 @@ namespace snde {
 	  if (coordindex_step==4) {
 	    /* indexedfaceset. This must really be a triangle hence it should have a -1 index next */
 	    if (texCoordIndex[trinum*coordindex_step + 3] != SNDE_INDEX_INVALID) {
-	      throw x3derror(0,NULL,"Texture Polygon #%lu is not a triangle",(unsigned long)trinum);
+	      throw x3derror("Texture Polygon #%lu is not a triangle",(unsigned long)trinum);
 	    }
 	  }
 	  
@@ -1744,8 +1848,9 @@ namespace snde {
 	}
 	num_uv_edges = next_edgenum;
 	// realloc and shrink geom->geom.uv_edges allocation to num_edges
-	geom->manager->realloc_down((void **)&geom->geom.uv_edges,firstuvedge,3*texCoordIndex->size(),num_uv_edges);
-	
+	geom->manager->realloc_down((void **)&geom->geom.uv_edges,firstuvedge,3*texCoordIndex.size(),num_uv_edges);
+	modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.uv_edges,firstuvedge,num_uv_edges);
+
 	
 	geom->geom.mesheduv[firstmesheduv].firstuvtri=firstuvtri;
 	geom->geom.mesheduv[firstmesheduv].numuvtris=numtris;
@@ -1789,31 +1894,34 @@ namespace snde {
       
 	// Iterate over vertices again to build vertex_edgelist
 	snde_index vertexcnt;
-	snde_index next_vertex_edgelist_pos=0;
+	snde_index next_uv_vertex_edgelist_pos=0;
 	for (vertexcnt=0; vertexcnt < num_vertices; vertexcnt++) {
 	  std::vector<snde_index> & edges = uv_edges_by_vertex.at(vertexcnt);
 	  
 	  /* Copy edgelist */
-	  memcpy(geom->geom.uv_vertex_edgelist + first_uv_vertex_edgelist + next_vertex_edgelist_pos,edges.data(),edges.size() * sizeof(snde_index));
+	  memcpy(geom->geom.uv_vertex_edgelist + first_uv_vertex_edgelist + next_uv_vertex_edgelist_pos,edges.data(),edges.size() * sizeof(snde_index));
 	  
 	  /* Store list terminator */
 	  geom->geom.uv_vertex_edgelist[first_uv_vertex_edgelist + next_vertex_edgelist_pos+edges.size()] = SNDE_INDEX_INVALID;
 	
 	  /* Write to vertex_edgelist_indices */
-	  geom->geom.uv_vertex_edgelist_indices[first_uv_vertex_edgelist_index + vertexcnt].edgelist_index=next_vertex_edgelist_pos;
+	  geom->geom.uv_vertex_edgelist_indices[first_uv_vertex_edgelist_index + vertexcnt].edgelist_index=next_uv_vertex_edgelist_pos;
 	  geom->geom.uv_vertex_edgelist_indices[first_uv_vertex_edgelist_index + vertexcnt].edgelist_numentries=edges.size();
 	  
-	  next_vertex_edgelist_pos += edges.size();
+	  next_uv_vertex_edgelist_pos += edges.size();
 	  
 	}
 	
 	geom->geom.mesheduv[firstmesheduv].first_uv_vertex_edgelist=first_uv_vertex_edgelist;
 	geom->geom.mesheduv[firstmesheduv].num_uv_vertex_edgelist=next_uv_vertex_edgelist_pos;
+	geom->manager->realloc_down((void **)&geom->geom.uv_vertex_edgelist,first_uv_vertex_edgelist,vertex_edgelist_maxsize,next_uv_vertex_edgelist_pos);
+	modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.uv_vertex_edgelist,first_uv_vertex_edgelist,next_uv_vertex_edgelist_pos);     
+
 	
 	geom->geom.mesheduv[firstmesheduv].firstuvbox=SNDE_INDEX_INVALID;
 	geom->geom.mesheduv[firstmesheduv].numuvboxes=SNDE_INDEX_INVALID;
 	geom->geom.mesheduv[firstmesheduv].firstuvboxpoly=SNDE_INDEX_INVALID;
-	geom->geom.mesheduv[firstmesheduv].numuvboxpolys=SNDE_INDEX_INVALID;
+	geom->geom.mesheduv[firstmesheduv].numuvboxpoly=SNDE_INDEX_INVALID;
 	geom->geom.mesheduv[firstmesheduv].firstuvboxcoord=SNDE_INDEX_INVALID;
 	geom->geom.mesheduv[firstmesheduv].numuvboxcoords=SNDE_INDEX_INVALID;
 	
@@ -1823,14 +1931,23 @@ namespace snde {
 	/* add this parameterization to our part */
 	curpart->addparameterization(parameterization);
 
+	modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.mesheduv,firstmesheduv,1);
+	modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.uv_triangles,firstuvtri,numtris);
+
+
 
 	if (texture) {
 	  /* set up blank snde_image structure to be filled in by caller with texture buffer data */
 	  geom->geom.uv_patches[firstuvpatch].imgbufoffset=SNDE_INDEX_INVALID;
 	  geom->geom.uv_patches[firstuvpatch].ncols=0;
 	  geom->geom.uv_patches[firstuvpatch].nrows=0;
-	  geom->geom.uv_patches[firstuvpatch].inival=0.0;
-	  geom->geom.uv_patches[firstuvpatch].step=1.0;
+	  geom->geom.uv_patches[firstuvpatch].inival.coord[0]=0.0;
+	  geom->geom.uv_patches[firstuvpatch].inival.coord[1]=0.0;
+	  geom->geom.uv_patches[firstuvpatch].step.coord[0]=1.0;
+	  geom->geom.uv_patches[firstuvpatch].step.coord[1]=1.0;
+
+	  modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.uv_patches,firstuvpatch,1);
+
 	  
 	  std::shared_ptr<uv_patches> texurlpatches = std::make_shared<uv_patches>(geom,texture->url,firstuvpatch,1);
 	  /* add these patches to the parameterization */
@@ -1844,8 +1961,8 @@ namespace snde {
       geom->geom.meshedparts[firstpart].numboxes=SNDE_INDEX_INVALID;
       geom->geom.meshedparts[firstpart].firstboxpoly=SNDE_INDEX_INVALID;
       geom->geom.meshedparts[firstpart].numboxpolys=SNDE_INDEX_INVALID;
-      geom->geom.meshedparts[firstpart].firstboxcoord=SNDE_INDEX_INVALID;
-      geom->geom.meshedparts[firstpart].numboxcoord=SNDE_INDEX_INVALID;
+      //geom->geom.meshedparts[firstpart].firstboxcoord=SNDE_INDEX_INVALID;
+      //geom->geom.meshedparts[firstpart].numboxcoord=SNDE_INDEX_INVALID;
       
       geom->geom.meshedparts[firstpart].solid=indexedset->solid;
       geom->geom.meshedparts[firstpart].has_triangledata=false;

@@ -120,6 +120,11 @@ namespace snde {
     return retval;
   }
 
+  class component; // Forward declaration
+  class assembly; // Forward declaration
+  class meshedpart; // Forward declaration
+  class nurbspart; // Forward declaration
+
   
   class geometry {
   public:
@@ -127,7 +132,16 @@ namespace snde {
 
     std::shared_ptr<arraymanager> manager;
     /* All arrays allocated by a particular allocator are locked together by manager->locker */
-    
+
+
+    // object_trees is a set of named scene graphs (actually scene trees)
+    // They can be accessed by unique names, with the default given a
+    // name of "", which (due to the string sort order) is also
+    // accessible as object_trees.begin()
+    std::map<std::string,std::shared_ptr<component>> object_trees;
+    std::mutex object_trees_lock; // Any access to object_trees or contents or rendering engines set up to handle object_trees. PRECEDES any locking of
+    // geometry data in the locking order, and PRECEDES any locking of the
+    // transactional revision manager (if in use for this geometry).
     
     geometry(double tol,std::shared_ptr<arraymanager> manager) {
       memset(&geom,0,sizeof(geom)); // reset everything to NULL
@@ -143,7 +157,7 @@ namespace snde {
       manager->add_allocated_array((void **)&geom.triangles,sizeof(*geom.triangles),0);
       manager->add_follower_array((void **)&geom.triangles,(void **)&geom.refpoints,sizeof(*geom.refpoints));
       manager->add_follower_array((void **)&geom.triangles,(void **)&geom.maxradius,sizeof(*geom.maxradius));
-      manager->add_follower_array((void **)&geom.triangles,(void **)&geom.normal,sizeof(*geom.normal));
+      manager->add_follower_array((void **)&geom.triangles,(void **)&geom.normals,sizeof(*geom.normals));
       manager->add_follower_array((void **)&geom.triangles,(void **)&geom.inplanemat,sizeof(*geom.inplanemat));
 
       manager->add_allocated_array((void **)&geom.edges,sizeof(*geom.edges),0);
@@ -178,12 +192,15 @@ namespace snde {
       manager->add_allocated_array((void **)&geom.uv_vertex_edgelist,sizeof(*geom.uv_vertex_edgelist),0);
       
       
-      manager->add_allocated_array((void **)&geom.boxes,sizeof(*geom.boxes),0);
-      manager->add_follower_array((void **)&geom.boxes,(void **)&geom.boxcoord,sizeof(*geom.boxcoord));
+      manager->add_allocated_array((void **)&geom.uv_boxes,sizeof(*geom.uv_boxes),0);
+      manager->add_follower_array((void **)&geom.uv_boxes,(void **)&geom.uv_boxcoord,sizeof(*geom.boxcoord));
       
-      manager->add_allocated_array((void **)&geom.boxpolys,sizeof(*geom.boxpolys),0);
+      manager->add_allocated_array((void **)&geom.uv_boxpolys,sizeof(*geom.uv_boxpolys),0);
 
 
+      manager->add_allocated_array((void **)&geom.vertex_arrays,sizeof(*geom.vertex_arrays),0);
+
+      manager->add_allocated_array((void **)&geom.texvertex_arrays,sizeof(*geom.texvertex_arrays),0);
 
       
       // ... need to initialize rest of struct...
@@ -230,7 +247,7 @@ namespace snde {
     void free()
     {
       if (firstuvpatch != SNDE_INDEX_INVALID) {
-	geom->manager->free((void **)&geom->geom.uv_patches,firstuvpatch,numuvpatches);
+	geom->manager->free((void **)&geom->geom.uv_patches,firstuvpatch); //,numuvpatches);
 	firstuvpatch=SNDE_INDEX_INVALID;	
       }
       destroyed=true;
@@ -289,45 +306,46 @@ namespace snde {
 
       if (idx != SNDE_INDEX_INVALID) {
 	if (geom->geom.mesheduv->firstuvtri != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.uv_vertices,geom->geom.mesheduv->firstuvtri,geom->geom.mesheduv->numuvtris);
+	  geom->manager->free((void **)&geom->geom.uv_vertices,geom->geom.mesheduv->firstuvtri); //,geom->geom.mesheduv->numuvtris);
 	  geom->geom.mesheduv->firstuvtri = SNDE_INDEX_INVALID;	    
 	}
 
 	if (geom->geom.mesheduv->firstuvedge != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.uv_vertices,geom->geom.mesheduv->firstuvedge,geom->geom.mesheduv->numuvedges);
+	  geom->manager->free((void **)&geom->geom.uv_vertices,geom->geom.mesheduv->firstuvedge);//,geom->geom.mesheduv->numuvedges);
 	  geom->geom.mesheduv->firstuvedge = SNDE_INDEX_INVALID;	    
 	}
 
 	if (geom->geom.mesheduv->firstuvvertex != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.uv_vertices,geom->geom.mesheduv->firstuvvertex,geom->geom.mesheduv->numuvvertices);
+	  geom->manager->free((void **)&geom->geom.uv_vertices,geom->geom.mesheduv->firstuvvertex); //,geom->geom.mesheduv->numuvvertices);
 	  
 	  geom->geom.mesheduv->firstuvvertex = SNDE_INDEX_INVALID;
 	  
 	}
 
 	if (geom->geom.mesheduv->first_uv_vertex_edgelist != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.uv_vertices,geom->geom.mesheduv->first_uv_vertex_edgelist,geom->geom.mesheduv->num_uv_vertex_edgelist);
+	  geom->manager->free((void **)&geom->geom.uv_vertices,geom->geom.mesheduv->first_uv_vertex_edgelist); //,geom->geom.mesheduv->num_uv_vertex_edgelist);
 	  geom->geom.mesheduv->first_uv_vertex_edgelist = SNDE_INDEX_INVALID;
 	  
 	}
 
 	if (geom->geom.mesheduv->firstuvbox != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.uv_boxes,geom->geom.mesheduv->firstuvbox,geom->geom.mesheduv->numuvboxes);
+	  geom->manager->free((void **)&geom->geom.uv_boxes,geom->geom.mesheduv->firstuvbox); //,geom->geom.mesheduv->numuvboxes);
 	  geom->geom.mesheduv->firstuvbox = SNDE_INDEX_INVALID; 
 	}
 
 	if (geom->geom.mesheduv->firstuvboxpoly != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.uv_boxpolys,geom->geom.mesheduv->firstuvboxpoly,geom->geom.mesheduv->numuvboxpoly);
+	  geom->manager->free((void **)&geom->geom.uv_boxpolys,geom->geom.mesheduv->firstuvboxpoly); //,geom->geom.mesheduv->numuvboxpoly);
 	  geom->geom.mesheduv->firstuvboxpoly = SNDE_INDEX_INVALID;	    
 	}
 
 
 	if (geom->geom.mesheduv->firstuvboxcoord != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.uv_boxcoord,geom->geom.mesheduv->firstuvboxcoord,geom->geom.mesheduv->numuvboxcoords);
+	  geom->manager->free((void **)&geom->geom.uv_boxcoord,geom->geom.mesheduv->firstuvboxcoord); //,geom->geom.mesheduv->numuvboxcoords);
 	  geom->geom.mesheduv->firstuvboxcoord = SNDE_INDEX_INVALID;	    
 	}
+	
 
-	geom->manager->free((void **)&geom->geom.mesheduv,idx,1);
+	geom->manager->free((void **)&geom->geom.mesheduv,idx);// ,1);
 	idx=SNDE_INDEX_INVALID;
 
 	
@@ -412,7 +430,7 @@ namespace snde {
 #define SNDE_COMPONENT_GEOMWRITE_TRIS (1u<<1)
 #define SNDE_COMPONENT_GEOMWRITE_REFPOINTS (1u<<2)
 #define SNDE_COMPONENT_GEOMWRITE_MAXRADIUS (1u<<3)
-#define SNDE_COMPONENT_GEOMWRITE_NORMAL (1u<<4)
+#define SNDE_COMPONENT_GEOMWRITE_NORMALS (1u<<4)
 #define SNDE_COMPONENT_GEOMWRITE_INPLANEMAT (1u<<5)
 #define SNDE_COMPONENT_GEOMWRITE_EDGES (1u<<6)
 #define SNDE_COMPONENT_GEOMWRITE_VERTICES (1u<<7)
@@ -428,7 +446,7 @@ namespace snde {
 
 
   
-  class component { /* abstract base class for geometric components (assemblies, nurbspart, meshedpart) */
+  class component : public std::enable_shared_from_this<component> { /* abstract base class for geometric components (assemblies, nurbspart, meshedpart) */
 
     // orientation model:
     // Each assembly has orientation
@@ -449,7 +467,7 @@ namespace snde {
 
     //   component();// {}
     
-    virtual std::vector<snde_partinstance> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict)=0;
+    virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict)=0;
 
     virtual void obtain_lock(std::shared_ptr<lockingprocess> process, unsigned writemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOMWRITE_xxx bits */
 
@@ -487,9 +505,9 @@ namespace snde {
     }
 
 
-    virtual std::vector<snde_partinstance> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict)
+    virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict)
     {
-      std::vector<snde_partinstance> instances;
+      std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> instances;
       std::shared_ptr<std::unordered_map<std::string,paramdictentry>> reducedparamdict=std::make_shared<std::unordered_map<std::string,paramdictentry>>();
 
       std::string name_with_dot=name+".";
@@ -506,7 +524,7 @@ namespace snde {
       
       snde_orientation3 neworientation=orientation_orientation_multiply(orientation,_orientation);
       for (auto & piece : pieces) {
-	std::vector<snde_partinstance> newpieces=piece->get_instances(neworientation,reducedparamdict);
+	std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> newpieces=piece->get_instances(neworientation,reducedparamdict);
 	instances.insert(instances.end(),newpieces.begin(),newpieces.end());
       }
       return instances;
@@ -533,14 +551,14 @@ namespace snde {
       
     }
 
-      
+
     static std::shared_ptr<assembly> from_partlist(std::string name,std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> parts)
     {
       
-      std::shared_ptr<assembly> assem=std::make_shared<assembly>(snde_null_orientation3());
+      std::shared_ptr<assembly> assem=std::make_shared<assembly>(name,snde_null_orientation3());
 
       for (size_t cnt=0; cnt < parts->size();cnt++) {
-	assem->pieces.push_back((*parts)[cnt]);
+	assem->pieces.push_back(std::static_pointer_cast<component>((*parts)[cnt]));
       }
       
       
@@ -591,8 +609,9 @@ namespace snde {
     
   public:
     std::shared_ptr<geometry> geom;
-    snde_index idx; // index in the meshedparts array
+    snde_index idx; // index in the meshedparts geometrydata array
     std::map<std::string,std::shared_ptr<mesheduv>> parameterizations; /* NOTE: is a string (URI?) really the proper way to index parameterizations? ... may want to change this */
+    bool need_normals; // set if this meshedpart was loaded/created without normals being assigned, and therefore still needs normals
     bool destroyed;
 
     /* NOTE: May want to add cache of 
@@ -616,9 +635,14 @@ namespace snde {
       parameterizations[parameterization->name]=parameterization;
     }
     
-    virtual std::vector<struct snde_partinstance> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict)
+    virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict)
     {
       struct snde_partinstance ret;
+      std::shared_ptr<component> ret_ptr;
+
+      ret_ptr = shared_from_this();
+
+      std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> ret_vec;
 
       ret.orientation=orientation;
       ret.nurbspartnum=SNDE_INDEX_INVALID;
@@ -661,7 +685,10 @@ namespace snde {
 	  
 	}
       }
-      return std::vector<struct snde_partinstance>(1,ret);
+      
+      //return std::vector<struct snde_partinstance>(1,ret);
+      ret_vec.push_back(std::make_pair(ret,ret_ptr));
+      return ret_vec;
     }
     
 
@@ -693,8 +720,8 @@ namespace snde {
 	    process->get_locks_array_region((void **)&geom->geom.maxradius,writemask & SNDE_COMPONENT_GEOMWRITE_MAXRADIUS,geom->geom.meshedparts[idx].firsttri,geom->geom.meshedparts[idx].numtris);
 	  }
 	  
-	  if (geom->geom.normal) {
-	    process->get_locks_array_region((void **)&geom->geom.normal,writemask & SNDE_COMPONENT_GEOMWRITE_NORMAL,geom->geom.meshedparts[idx].firsttri,geom->geom.meshedparts[idx].numtris);
+	  if (geom->geom.normals) {
+	    process->get_locks_array_region((void **)&geom->geom.normals,writemask & SNDE_COMPONENT_GEOMWRITE_NORMALS,geom->geom.meshedparts[idx].firsttri,geom->geom.meshedparts[idx].numtris);
 	  }
 	  
 	  if (geom->geom.inplanemat) {
@@ -757,40 +784,40 @@ namespace snde {
       /* Free our entries in the geometry database */
       if (idx != SNDE_INDEX_INVALID) {
 	if (geom->geom.meshedparts[idx].firstboxpoly != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.boxpolys,geom->geom.meshedparts[idx].firstboxpoly,geom->geom.meshedparts[idx].numboxpolys);
+	  geom->manager->free((void **)&geom->geom.boxpolys,geom->geom.meshedparts[idx].firstboxpoly); // ,geom->geom.meshedparts[idx].numboxpolys);
 	  geom->geom.meshedparts[idx].firstboxpoly = SNDE_INDEX_INVALID;
 	}
 
 	
 	if (geom->geom.meshedparts[idx].firstbox != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.boxes,geom->geom.meshedparts[idx].firstbox,geom->geom.meshedparts[idx].numboxes);
+	  geom->manager->free((void **)&geom->geom.boxes,geom->geom.meshedparts[idx].firstbox); //,geom->geom.meshedparts[idx].numboxes);
 	  geom->geom.meshedparts[idx].firstbox = SNDE_INDEX_INVALID;
 	}
 	
 	if (geom->geom.meshedparts[idx].first_vertex_edgelist != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.vertex_edgelist,geom->geom.meshedparts[idx].first_vertex_edgelist,geom->geom.meshedparts[idx].num_vertex_edgelist);
+	  geom->manager->free((void **)&geom->geom.vertex_edgelist,geom->geom.meshedparts[idx].first_vertex_edgelist); //,geom->geom.meshedparts[idx].num_vertex_edgelist);
 	  geom->geom.meshedparts[idx].first_vertex_edgelist = SNDE_INDEX_INVALID;
 	}
 
 	
 	if (geom->geom.meshedparts[idx].firstvertex != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.vertices,geom->geom.meshedparts[idx].firstvertex,geom->geom.meshedparts[idx].numvertices);
+	  geom->manager->free((void **)&geom->geom.vertices,geom->geom.meshedparts[idx].firstvertex); //,geom->geom.meshedparts[idx].numvertices);
 	  geom->geom.meshedparts[idx].firstvertex = SNDE_INDEX_INVALID;
 	}
 
 	if (geom->geom.meshedparts[idx].firstedge != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.edges,geom->geom.meshedparts[idx].firstedge,geom->geom.meshedparts[idx].numedges);
+	  geom->manager->free((void **)&geom->geom.edges,geom->geom.meshedparts[idx].firstedge); //,geom->geom.meshedparts[idx].numedges);
 	  geom->geom.meshedparts[idx].firstedge = SNDE_INDEX_INVALID;
 	}
 
 	
 	if (geom->geom.meshedparts[idx].firsttri != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.triangles,geom->geom.meshedparts[idx].firsttri,geom->geom.meshedparts[idx].numtris);
+	  geom->manager->free((void **)&geom->geom.triangles,geom->geom.meshedparts[idx].firsttri); //,geom->geom.meshedparts[idx].numtris);
 	  geom->geom.meshedparts[idx].firsttri = SNDE_INDEX_INVALID;
 	}
 	
 
-	geom->manager->free((void **)&geom->geom.meshedparts,idx,1);
+	geom->manager->free((void **)&geom->geom.meshedparts,idx); //,1);
 	idx=SNDE_INDEX_INVALID;
       }
       destroyed=true;

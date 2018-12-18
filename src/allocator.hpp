@@ -142,14 +142,16 @@ namespace snde {
   public:
     snde_index regionstart;
     snde_index regionend;
+    snde_index nelem; // valid only form allocations_unmerged... number of elements requested in original allocation NOTE THAT THIS IS IN ELEMENTS, NOT CHUNKS.... regionstart and regionend are in CHUNKS -- each one is _allocchunksize elements
     
     allocation(const allocation &)=delete; /* copy constructor disabled */
     allocation& operator=(const allocation &)=delete; /* copy assignment disabled */
     
-    allocation(snde_index regionstart,snde_index regionend)
+    allocation(snde_index regionstart,snde_index regionend,snde_index nelem)
     {
       this->regionstart=regionstart;
       this->regionend=regionend;
+      this->nelem=nelem;
     }
 
     bool attempt_merge(allocation &later)
@@ -159,17 +161,20 @@ namespace snde {
 
       assert(later.regionstart==regionend);
       regionend=later.regionend;
+      nelem=SNDE_INDEX_INVALID; /* don't know how many elements after merge */
       return true;
 
     }
     
-    std::shared_ptr<allocation> sp_breakup(snde_index breakpoint)
+    std::shared_ptr<allocation> sp_breakup(snde_index breakpoint,snde_index nelem)
     /* breakup method ends this region at breakpoint and returns
        a new region starting at from breakpoint to the prior end */
     {
-      std::shared_ptr<allocation> newregion=std::make_shared<allocation>(breakpoint,regionend);
-      regionend=breakpoint;
+      std::shared_ptr<allocation> newregion=std::make_shared<allocation>(breakpoint,regionend,SNDE_INDEX_INVALID);
 
+      nelem=SNDE_INDEX_INVALID; /* don't know how many elements after breakup */
+      regionend=breakpoint;
+      
       return newregion;
     }
       ~allocation()
@@ -226,6 +231,8 @@ namespace snde {
     /* Freelist structure ... 
     */
     rangetracker<allocation> allocations;
+    rangetracker<allocation> allocations_unmerged; /* Unmerged copy of allocations... we can use this to know the length of each allocation for 
+						      parameterless free() */
     
     snde_index _allocchunksize; // size of chunks we allocate, in numbers of elements
   
@@ -345,7 +352,7 @@ namespace snde {
       assert(!destroyed);
       return _totalnchunks*_allocchunksize;
     }
-    
+
 
     snde_index _alloc(snde_index nelem)
     {
@@ -361,7 +368,7 @@ namespace snde {
 
       assert(!destroyed);
 
-      std::shared_ptr<allocation> alloc=allocations.find_unmarked_region(0, _totalnchunks, allocchunks);
+      std::shared_ptr<allocation> alloc=allocations.find_unmarked_region(0, _totalnchunks, allocchunks,SNDE_INDEX_INVALID);
 
       if (alloc==nullptr) {
 	snde_index newnchunks=(snde_index)((_totalnchunks+allocchunks)*1.7); /* Reserve extra space, not just bare minimum */
@@ -370,13 +377,14 @@ namespace snde {
 	this->_pool_realloc(newnchunks);
 	pool_reallocflag=true;
 	
-	alloc=allocations.find_unmarked_region(0, _totalnchunks, allocchunks);
+	alloc=allocations.find_unmarked_region(0, _totalnchunks, allocchunks,SNDE_INDEX_INVALID);
       }
 
       retpos=SNDE_INDEX_INVALID;
       if (alloc) {
 	retpos=alloc->regionstart*_allocchunksize;
-	allocations.mark_region(alloc->regionstart,alloc->regionend-alloc->regionstart);
+	allocations.mark_region(alloc->regionstart,alloc->regionend-alloc->regionstart,nelem);
+	allocations_unmerged.mark_region(alloc->regionstart,alloc->regionend-alloc->regionstart,nelem);
       }
 
       // !!!*** Need to implement merge to get O(1) performance
@@ -488,17 +496,29 @@ namespace snde {
       chunkaddr=addr/_allocchunksize;
     
 
-      allocations.clear_region(chunkaddr,freechunks);
+      allocations.clear_region(chunkaddr,freechunks,SNDE_INDEX_INVALID);
+      allocations_unmerged.clear_region(chunkaddr,freechunks,SNDE_INDEX_INVALID);
 	
     }
 
-    
-    void free(snde_index addr,snde_index nelem)
+    snde_index get_length(snde_index addr)
     {
-      // must hold write lock on this allocation
+      std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex
       
+      std::shared_ptr<allocation> alloc = allocations_unmerged.get_region(addr/_allocchunksize);
 
+      snde_index nelem = alloc->nelem; /* a null pointer here would mean that addr is not a validly allocated region */
 
+      return nelem;
+    }
+    
+    void free(snde_index addr)
+    {
+      // must hold write lock on this allocation (I DON"T THINK THIS IS NECESSARY ANYMORE ... except possibly for
+      // the freeallocation() calls, below)
+
+      snde_index nelem=get_length(addr);
+      
       // notify locker of free operation
       if (_locker) {
 	size_t arraycnt;
@@ -535,13 +555,18 @@ namespace snde {
       chunkaddr=addr/_allocchunksize;
 
       
-      allocations.clear_region(chunkaddr+newchunks,origchunks-newchunks);
+      allocations.clear_region(chunkaddr+newchunks,origchunks-newchunks,SNDE_INDEX_INVALID);
+      allocations_unmerged.clear_region(chunkaddr+newchunks,origchunks-newchunks,SNDE_INDEX_INVALID);
+
+      // must hold write lock on this allocation (NOT ANYMORE?)
+
+      // mark reduced nelem in this allocation
+      std::shared_ptr<allocation> alloc = allocations_unmerged.get_region(chunkaddr);
+      alloc->nelem = newnelem;
     }
 
     void realloc_down(snde_index addr,snde_index orignelem,snde_index newnelem)
     {
-      // must hold write lock on this allocation
-      
 
 
       // notify locker of free operation

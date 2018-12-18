@@ -90,8 +90,8 @@ typedef struct {
 typedef struct {
   snde_index vertex[2];
   snde_index face_a,face_b;
-  snde_index face_a_prev_edge, face_a_next_edge; /* Clockwise ordering */
-  snde_index face_b_prev_edge, face_b_next_edge; /* clockwise ordering */
+  snde_index face_a_prev_edge, face_a_next_edge; /* counter-clockwise ordering */
+  snde_index face_b_prev_edge, face_b_next_edge; /* counter-clockwise ordering */
 } snde_edge;
 
 
@@ -104,6 +104,15 @@ typedef struct {
   snde_index edges[3];
 } snde_triangle;
   
+typedef struct {
+  snde_index start;
+  snde_index len;
+} snde_indexrange;
+  
+typedef struct {
+  snde_coord3 vertnorms[3]; // vertex follow the order of vertices, counterclockwise as seen from the outside. The first vertex is the vertex from edges[0] that is NOT shared by the next_edge 
+} snde_trinormals;
+
 typedef struct {
   snde_index subbox[8];
   snde_index boxpolysidx;

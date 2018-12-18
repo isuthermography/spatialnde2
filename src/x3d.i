@@ -246,6 +246,7 @@ namespace snde {
     x3d_texturecoordinate(void);
   };
 
-  std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> x3d_load_geometry(std::shared_ptr<geometry> geom,const char *filename,bool reindex_vertices);
+  // ***!!! Need to add this back in once the trm API is stabilized
+  //std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> x3d_load_geometry(std::shared_ptr<geometry> geom,const char *filename,std::shared_ptr<std::vector<trm_arrayregion>> modified_region_accum,bool reindex_vertices,bool reindex_tex_vertices);
   
 };

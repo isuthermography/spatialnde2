@@ -22,8 +22,7 @@ extern "C" {
     snde_triangle *triangles; // allocated separately
     snde_coord3 *refpoints; // allocated with triangles  NOTE: Refpoints are in part coordinates, not world coordinates
     snde_coord *maxradius; // allocated with triangles
-    snde_coord3 *normal; // allocated with triangles NOTE: Normals are in part coordinates, not world coordinates. Our calculation, not from file.
-    
+    snde_trinormals *normals; // allocated with triangles, but are per vertex so three normals/triangle NOTE: Normals are in part coordinates, not world coordinates.  
     snde_mat23 *inplanemat; // allocated with triangles
 
     snde_edge *edges; // allocated separately
@@ -174,6 +173,7 @@ extern "C" {
 
 
     snde_coord *vertex_arrays; /* transformed vertex array for OpenSceneGraph / OpenGL */
+    snde_coord *texvertex_arrays; /* transformed texture vertex array for OpenSceneGraph / OpenGL */
     
   };
 #ifdef __cplusplus

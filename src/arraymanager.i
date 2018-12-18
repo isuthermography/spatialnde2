@@ -85,7 +85,7 @@ namespace snde {
     //virtual std::pair<snde_index,std::vector<std::pair<void **,rwlock_token_set>>> alloc_arraylocked(snde::rwlock_token_set all_locks,void **allocatedptr,snde_index nelem);
     virtual std::vector<std::pair<std::shared_ptr<snde::alloc_voidpp>,rwlock_token_set>> alloc_arraylocked_swigworkaround(snde::rwlock_token_set all_locks,void **allocatedptr,snde_index nelem,snde_index *OUTPUT);
 
-    virtual void free(void **allocatedptr,snde_index addr,snde_index nelem);
+    virtual void free(void **allocatedptr,snde_index addr);
 
     virtual void clear();
 

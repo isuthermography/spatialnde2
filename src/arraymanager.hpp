@@ -192,12 +192,18 @@ namespace snde {
       return retvec;
     }
 
-
-    virtual void free(void **allocatedptr,snde_index addr,snde_index nelem)
+    virtual snde_index get_length(void **allocatedptr,snde_index addr)
     {
       //std::lock_guard<std::mutex> adminlock(admin);
       std::shared_ptr<allocator> alloc=allocators[allocatedptr].alloc;
-      alloc->free(addr,nelem);    
+      return alloc->get_length(addr);    
+    }
+
+    virtual void free(void **allocatedptr,snde_index addr)
+    {
+      //std::lock_guard<std::mutex> adminlock(admin);
+      std::shared_ptr<allocator> alloc=allocators[allocatedptr].alloc;
+      alloc->free(addr);    
     }
 
     virtual void clear() /* clear out all references to allocated and followed arrays */

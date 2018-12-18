@@ -39,6 +39,9 @@ namespace snde {
     template <typename ... Args>
       std::pair<iterator,iterator> _breakupregion(iterator breakupregion, snde_index breakpoint,Args && ... args);
     
+    std::shared_ptr<T> get_region(snde_index firstelem);
+
+    
     template <typename ... Args>
       iterator _get_starting_region(snde_index firstelem,Args && ... args);    
 

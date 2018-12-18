@@ -48,13 +48,13 @@ namespace snde {
     allocation(const allocation &)=delete; /* copy constructor disabled */
     allocation& operator=(const allocation &)=delete; /* copy assignment disabled */
     
-    allocation(snde_index regionstart,snde_index regionend);
+    allocation(snde_index regionstart,snde_index regionend,snde_index nelem);
 
     bool attempt_merge(allocation &later);
     
     /* breakup method ends this region at breakpoint and returns
        a new region starting at from breakpoint to the prior end */
-    std::shared_ptr<allocation> sp_breakup(snde_index breakpoint);
+    std::shared_ptr<allocation> sp_breakup(snde_index breakpoint,snde_index nelem);
     ~allocation();
     
     
@@ -96,6 +96,7 @@ namespace snde {
     /* Freelist structure ... 
     */
     rangetracker<allocation> allocations;
+    rangetracker<allocation> allocations_unmerged;
     snde_index _allocchunksize; // size of chunks we allocate, in numbers of elements
   
     allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem);
@@ -122,7 +123,7 @@ namespace snde {
     //void unregister_pool_realloc_callback(std::shared_ptr<std::function<void(snde_index)>> callback);
 
     
-    void free(snde_index addr,snde_index nelem);
+    void free(snde_index addr);
     ~allocator();
   };
 }

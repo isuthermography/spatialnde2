@@ -268,6 +268,15 @@ std::tuple<cl_program, std::string> get_opencl_program(cl_context context, cl_de
     clGetProgramBuildInfo(program,device,CL_PROGRAM_BUILD_LOG,build_log_size,(void *)build_log,NULL);
     
     std::string build_log_str(build_log);
+
+
+    if (build_log_str.size() > 0) { // include source if there were errors/warnings
+      build_log_str += "Source follows:\n";
+      for (size_t pscnt=0;pscnt < program_source.size();pscnt++) {
+	build_log_str += program_source[pscnt];
+      }
+    }
+      
     free(build_log);
     
     if (clerror != CL_SUCCESS) {

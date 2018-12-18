@@ -187,7 +187,7 @@ namespace snde {
 
     TYPE type;
 
-    virtual std::vector<snde_partinstance> get_instances(snde_orientation3 orientation,std::unordered_map<std::string,paramdictentry> paramdict)=0;
+    virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict)=0;
 
     virtual void obtain_lock(std::shared_ptr<lockingprocess> process, unsigned writemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOMWRITE_xxx bits */
 
@@ -203,11 +203,11 @@ namespace snde {
     std::deque<std::shared_ptr<component>> pieces;
     snde_orientation3 _orientation; /* orientation of this part/assembly relative to its parent */
 
-    assembly(snde_orientation3 orientation);
+    assembly(std::string name,snde_orientation3 orientation);
 
     virtual snde_orientation3 orientation(void);
 
-    virtual std::vector<snde_partinstance> get_instances(snde_orientation3 orientation,std::unordered_map<std::string,paramdictentry> paramdict);
+    virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict);
 
     virtual void obtain_lock(std::shared_ptr<lockingprocess> process, unsigned writemask=0);
     
@@ -226,7 +226,7 @@ namespace snde {
     snde_index nurbspartnum;
     std::shared_ptr<geometry> geom;
 
-    nurbspart(std::shared_ptr<geometry> geom,snde_index nurbspartnum);
+    nurbspart(std::shared_ptr<geometry> geom,std::string name,snde_index nurbspartnum);
     
     virtual void obtain_lock(std::shared_ptr<lockingprocess> process, unsigned writemask=0);
     virtual ~nurbspart();
@@ -308,11 +308,11 @@ namespace snde {
     bool destroyed;
  
     
-    meshedpart(std::shared_ptr<geometry> geom,snde_index idx);
+    meshedpart(std::shared_ptr<geometry> geom,std::string name,snde_index idx);
 
     void addparameterization(std::shared_ptr<mesheduv> parameterization);
     
-    virtual std::vector<struct snde_partinstance> get_instances(snde_orientation3 orientation,std::unordered_map<std::string,paramdictentry> paramdict);
+    virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict);
     
 
     virtual void obtain_lock(std::shared_ptr<lockingprocess> process, unsigned writemask=0);

@@ -33,8 +33,8 @@ endif()
 
 
 
-# Application is C++11
-set(CMAKE_CXX_STANDARD 11)
+## Application is C++11 (now 14)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -Wno-ignored-attributes)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
 
@@ -96,8 +96,8 @@ find_package(PythonLibs)
 
 # OpenSceneGraph (osg) dependencies
 find_package(OpenThreads)
-find_package(osg)
-
+find_package(OpenSceneGraph REQUIRED osg osgViewer osgGA osgDB)
+find_package(GLUT)
 
 
 IF (PythonInterp_FOUND)
@@ -113,6 +113,12 @@ IF (OpenCL_FOUND)
     add_definitions(-DSNDE_OPENCL)
     # Build OpenCL support into library
     set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/opencl_utils.cpp src/openclcachemanager.cpp)
+    IF (PythonInterp_FOUND) 
+      set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} src/normal_calculation.cpp)
+      IF (OpenSceneGraph_FOUND)
+	set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/openscenegraph_geom.cpp)
+      ENDIF (OpenSceneGraph_FOUND)
+    ENDIF (PythonInterp_FOUND)
     set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} ${OpenCL_LIBRARIES})
 
 ENDIF (OpenCL_FOUND)
@@ -133,12 +139,16 @@ ENDIF(PythonLibs_FOUND)
 
 IF (OpenThreads_FOUND)
   include_directories(${OPENTHREADS_INCLUDE_DIR})
-  link_directories(${OSG_LIB_DIR})
+  link_directories(${OPENTHREADS_LIB_DIR})
 ENDIF()
 
-IF (osg_FOUND)
-  include_directories(${OSG_INCLUDE_DIR})
-  link_directories(${OSG_LIB_DIR})
+IF (OpenSceneGraph_FOUND)
+  include_directories(${OPENSCENEGRAPH_INCLUDE_DIRS})
+  link_directories(${OPENSCENEGRAPH_LIB_DIR})
+ENDIF()
+
+IF (GLUT_FOUND)
+  include_directories(${GLUT_INCLUDE_DIR})
 ENDIF()
 
 
@@ -191,12 +201,15 @@ ENDIF (LibXml2_FOUND AND EIGEN3_FOUND)
 
 
 IF (PythonInterp_FOUND)
-    set(PYTHONGENHEADERS ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h)
+    set(PYTHONGENHEADERS ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h)
     add_custom_command(OUTPUT ${PYTHONGENHEADERS}
-            COMMAND ${PYTHON_EXECUTABLE} file2header.py testkernel.c ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
             COMMAND ${PYTHON_EXECUTABLE} file2header.py geometry_types.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h
+            COMMAND ${PYTHON_EXECUTABLE} file2header.py vecops.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h
+            COMMAND ${PYTHON_EXECUTABLE} file2header.py testkernel.c ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
+            COMMAND ${PYTHON_EXECUTABLE} file2header.py osg_vertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h
+            COMMAND ${PYTHON_EXECUTABLE} file2header.py normal_calc.c ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/src
-            DEPENDS src/file2header.py src/testkernel.c src/geometry_types.h)
+            DEPENDS src/file2header.py src/geometry_types.h src/vecops.h src/testkernel.c src/osg_vertexarray.c src/normal_calc.c )
     add_custom_target(OpenCL_Headers DEPENDS ${PYTHONGENHEADERS})
 ENDIF (PythonInterp_FOUND)
 
@@ -206,10 +219,18 @@ IF (OpenCL_FOUND AND PythonInterp_FOUND)
             example/opencl_example.cpp
             )
     add_dependencies(opencl_example OpenCL_Headers)
-    target_link_libraries(opencl_example spatialnde2 ${OpenCL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+    target_link_libraries(opencl_example ${SPATIALNDE2_LIBS} ${OpenCL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 ENDIF()
 
-IF (OpenThreads_FOUND AND osg_FOUND)
+IF (OpenCL_FOUND AND PythonInterp_FOUND AND OpenSceneGraph_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND GLUT_FOUND)
+  add_executable(x3d_viewer
+    example/x3d_viewer.cpp
+    )
+  add_dependencies(x3d_viewer OpenCL_Headers)
+  target_link_libraries(x3d_viewer ${SPATIALNDE2_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES} ${OpenCL_LIBRARIES}  ${LIBXML2_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
+ENDIF()
+
+IF (OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PythonInterp_FOUND)
   # Enable OSG support
   add_definitions(-DSNDE_OPENSCENEGRAPH)
 ENDIF()
@@ -270,6 +291,7 @@ IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
 	SWIG_ADD_LIBRARY(spatialnde2 LANGUAGE python SOURCES ${SPATIALNDE2_SWIG_SOURCES} )
 	SWIG_LINK_LIBRARIES(spatialnde2 ${SWIG_SPATIALNDE2_LINK_LIBRARIES})
 	
+	add_dependencies(spatialnde2 OpenCL_Headers)
     ELSE ()
         message(WARNING "NumPy not found. Cannot build SWIG Python Wrapper.")
     ENDIF (NOT NumPy_RESULT)
@@ -298,9 +320,19 @@ install(FILES
         DESTINATION ${APP_INSTALL_DIR}/test)
 
 # EXAMPLE
-install(TARGETS
-        opencl_example
-        DESTINATION ${APP_INSTALL_DIR}/example)
+IF (OpenCL_FOUND AND PythonInterp_FOUND)
+  install(TARGETS
+    opencl_example
+    DESTINATION ${APP_INSTALL_DIR}/example)
+ENDIF()
+
+IF (OpenCL_FOUND AND PythonInterp_FOUND AND OpenSceneGraph_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND GLUT_FOUND)
+  install(TARGETS
+    x3d_viewer
+    DESTINATION ${APP_INSTALL_DIR}/example)
+  
+ENDIF()
+
 install(FILES
         example/custom_geometrystruct_demo.py
         example/different_locking_processes.py

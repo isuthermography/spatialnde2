@@ -78,6 +78,16 @@ namespace snde {
     }
     
 
+    std::shared_ptr<T> get_region(snde_index firstelem)
+    {
+      iterator region=trackedregions.lower_bound(firstelem);
+      
+      if (region != trackedregions.end()) {
+	return region->second;
+      }
+      
+      return nullptr;
+    }
     
     template <typename ... Args>
     iterator _get_starting_region(snde_index firstelem,Args && ... args)
@@ -110,17 +120,17 @@ namespace snde {
 	    assert(region->first==firstelem);
 	    
 	    /* attempt to merge first part with anything prior */
-	    
-	    {
+ 	    
+	    /* {
 	      if (priorregion != trackedregions.begin()) {
 		iterator firstpieceprior=priorregion;
 		firstpieceprior--;
 		if (firstpieceprior->second->attempt_merge(*priorregion->second)) {
-		  assert(firstpieceprior->second->regionend==firstelem); /* successful attempt_merge should have merged with successor */
+		  assert(firstpieceprior->second->regionend==firstelem); // successful attempt_merge should have merged with successor 
 		  trackedregions.erase(priorregion->first);
 		}
 	      }
-	    }
+	      } */
 	    
 	  }
 	}
@@ -134,35 +144,83 @@ namespace snde {
       iterator iter=begin();
       iterator next=iter;
 
-      if (iter==end()) return;
-      next++;
-      if (next==end()) return;
-      assert(next->first==next->second->regionstart);
 
-      for (;;) {
-	if (next->first==iter->second->regionend) {
-	  if (iter->second->attempt_merge(*next->second)) {
-	    trackedregions.erase(next);
-	    next=iter;
-	    next++;
-	    if (next==end()) return;
+      while(1) {
+	if (iter==end()) return;
+	
+	next++;
+	
+	assert(iter->first==iter->second->regionstart);
+	if (iter->second->regionstart==iter->second->regionend) {
+	  // empty region ... remove it!
+	  trackedregions.erase(iter);
+	}
+      
+	if (next==end()) return;
+	assert(next->first==next->second->regionstart);
+	
+	for (;;) {
+	  if (next->first==iter->second->regionend) {
+	    if (iter->second->attempt_merge(*next->second)) {
+	      trackedregions.erase(next);
+	      next=iter;
+	      next++;
+	      if (next==end()) return;
+	    } else {
+	      iter++;
+	      next++;
+	      if (next==end()) return;
+	    }
 	  } else {
 	    iter++;
 	    next++;
 	    if (next==end()) return;
+	    
 	  }
-	} else {
-	  iter++;
-	  next++;
-	  if (next==end()) return;
-	  
 	}
       }
     }
 
+
+    template <typename ... Args>
+    std::shared_ptr<T> mark_unmarked_region(snde_index firstelem, snde_index numelems,Args && ... args)
+    /* mark specified region, which must be entirely unmarked. Returns pointer to single region object */
+    {
+      /* identify first region where startpoint >= specified firstelem, make sure it doesn't overlap */
+      iterator region=trackedregions.lower_bound(firstelem);
+      if (region != trackedregions.end()) {
+	assert(region->regionstart > firstelem); /* must not match specified firstelem, because this region must be unmarked */
+	assert(region->regionstart >= firstelem+numelems); /* found region must not overlap with region we are to mark */	
+      }
+
+
+      /* we need
+	 to add a region */
+
+      
+      snde_index regionend;
+      
+      if (numelems==SNDE_INDEX_INVALID) {
+	regionend=SNDE_INDEX_INVALID; /* rest of array */
+      } else {
+	regionend=firstelem+numelems;
+      }
+      
+      if (region != trackedregions.end() && regionend > region->first) {
+	regionend=region->first;
+      }
+      
+      trackedregions[firstelem]=std::make_shared<T>(firstelem,regionend,std::forward<Args>(args) ...);
+      
+      region=trackedregions.lower_bound(firstelem);
+
+      return *region; 
+
+    }
+
     template <typename ... Args>
     rangetracker<T> mark_region(snde_index firstelem, snde_index numelems,Args && ... args)
-    /* mark specified region; returns iterable rangetracker with blocks representing
+    /* mark specified region, some portion(s) of which may already be marked. returns iterable rangetracker with blocks representing
        the desired region */
     {
       iterator region;
@@ -267,6 +325,9 @@ namespace snde {
 
 	/* increment coveredthrough */
 	coveredthrough=region->second->regionend;
+
+	region++;  // move to next region 
+	
       }
 
       return retval;

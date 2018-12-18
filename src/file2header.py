@@ -10,7 +10,7 @@ infh = open(infilename, "r")
 buf = infh.read()
 infh.close()
 outfh = open(outfilename, "w")
-outfh.write("const char *%s_%s=" % (os.path.splitext(infilename)[0], os.path.splitext(infilename)[1][1:]))
+outfh.write("static const char *%s_%s=" % (os.path.splitext(infilename)[0], os.path.splitext(infilename)[1][1:]))
 
 pos = 0
 while pos < len(buf):
