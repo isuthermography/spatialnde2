@@ -10,6 +10,9 @@ import types as pytypes
 %shared_ptr(std::vector<snde::rangetracker<snde::markedregion>>);
 %shared_ptr(voidpp_voidpp_multimap_pyiterator)
 
+%shared_ptr(std::vector<void **>);
+%shared_ptr(std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>>);
+%shared_ptr(std::deque<std::shared_ptr<arraylock>>);
 
 %template(LockingPositionMap) std::multimap<snde::lockingposition,snde::CountedPyObject>;
 
@@ -270,15 +273,21 @@ struct arrayregion {
 
   class lockmanager {
   public:
-    std::vector<void **> _arrays; /* get array pointer from index */
-    %immutable; /* avoid swig trouble */
-    // NOTE: can work around swig troubles by explicitly specifying hash
-    std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>> _arrayidx; /* get array index from pointer */
-    std::deque<arraylock> _locks; /* get lock from index */
-    //std::unordered_map<rwlock *,size_t> _idx_from_lockptr; /* get array index from lock pointer */
-    %mutable;
+    //std::vector<void **> _arrays; /* get array pointer from index */
+    //%immutable; /* avoid swig trouble */
+    //// NOTE: can work around swig troubles by explicitly specifying hash
+    //std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>> _arrayidx; /* get array index from pointer */
+    //std::deque<arraylock> _locks; /* get lock from index */
+    ////std::unordered_map<rwlock *,size_t> _idx_from_lockptr; /* get array index from lock pointer */
+    //%mutable;
 
     lockmanager();
+
+    /* Accessors for atomic shared pointers */
+    std::shared_ptr<std::vector<void **>> _arrays();
+    std::shared_ptr<std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>>> _arrayidx();
+    std::shared_ptr<std::deque<std::shared_ptr<arraylock>>> _locks();
+
     size_t get_array_idx(void **array);
 
     void addarray(void **array);
@@ -349,6 +358,8 @@ struct arrayregion {
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems);
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array_region(void **array,bool write,snde_index indexstart,snde_index numelems);
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array(void **array,bool write);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array_mask(void **array,uint64_t maskentry,uint64_t resizemaskentry,uint64_t readmask,uint64_t writemask,uint64_t resizemask,snde_index indexstart,snde_index numelems);
+
     virtual void spawn(std::function<void(void)> f);
 
     virtual ~lockingprocess();
@@ -465,7 +476,7 @@ namespace snde {
        for multiple objects while satisfying the required
        locking order */
       //public: 
-      //lockingprocess_threaded(std::shared_ptr<arraymanager> manager);
+      //lockingprocess_threaded(std::shared_ptr<lockmanager> lockmanager);
        // This is defined by the details are hidden from python, so
        // they can't be used... Use the lockingprocess_threaded_python instead
        
@@ -473,7 +484,7 @@ namespace snde {
 
 class lockingprocess_threaded_python: public lockingprocess_threaded {
   public:
-    lockingprocess_threaded_python(std::shared_ptr<arraymanager> manager);
+    lockingprocess_threaded_python(std::shared_ptr<lockmanager> lockmanager);
     
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_array(void **array);
 
@@ -483,7 +494,9 @@ class lockingprocess_threaded_python: public lockingprocess_threaded {
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array(void **array);
 
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array_mask(void **array,uint64_t maskentry,uint64_t resizemaskentry,uint64_t readmask,uint64_t writemask,uint64_t resizemask,snde_index indexstart,snde_index numelems);
 
+    //virtual std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> alloc_array_region(std::shared_ptr<arraymanager> manager,void **allocatedptr,snde_index nelem,std::string allocid);
 
     virtual void spawn(std::function<void(void)> spawn_func);
       
@@ -497,7 +510,7 @@ class lockingprocess_threaded_python: public lockingprocess_threaded {
 namespace snde {
   class lockingprocess_threaded_python: public lockingprocess_threaded {
     public:
-    lockingprocess_threaded_python(std::shared_ptr<arraymanager> manager) : lockingprocess_threaded(manager)
+    lockingprocess_threaded_python(std::shared_ptr<lockmanager> lockmanager) : lockingprocess_threaded(lockmanager)
     {
       
     }
@@ -757,7 +770,7 @@ namespace snde {
 # defined on the c++ side with
 # a specialization that calls Python
 class lockingprocess_python(lockingprocess_pycpp):
-  manager=None
+  #manager=None
   lockmanager=None # lockmanager
   waiting_generators=None   # LockingPositionMap
   runnable_generators=None  # list of (generator,generator_parent,sendvalue)s
@@ -783,9 +796,9 @@ class lockingprocess_python(lockingprocess_pycpp):
       pass
       
   @classmethod
-  def execprocess(cls,manager,*lock_generators):
-    #arrayreadregions=VectorOfRegions(manager.locker._arrays.size())
-    #arraywriteregions=VectorOfRegions(manager.locker._arrays.size())
+  def execprocess(cls,lockmanager,*lock_generators):
+    #arrayreadregions=VectorOfRegions(manager.locker._arrays().size())
+    #arraywriteregions=VectorOfRegions(manager.locker._arrays().size())
     lastlockingposition=lockingposition(0,0,True)
 
     all_tokens=empty_rwlock_token_set()
@@ -799,7 +812,7 @@ class lockingprocess_python(lockingprocess_pycpp):
 
     waiting_generators = LockingPositionMap()
 
-    proc=cls(manager=manager,lockmanager=manager.locker,
+    proc=cls(lockmanager=lockmanager,
              waiting_generators=waiting_generators,
              #runnable_generators=runnable_generators,
              #arrayreadregions=arrayreadregions,
@@ -931,12 +944,12 @@ class lockingprocess_python(lockingprocess_pycpp):
       numelems=int(numelems)
       pass      
     
-    if not self.lockmanager._arrayidx.has_key(fieldaddr):
+    if not self.lockmanager._arrayidx().has_key(fieldaddr):
       raise ValueError("Array not found")
     
     #iterator = self.lockmanager._arrayidx.find(fieldaddr)
     #arrayidx = voidpp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
-    arrayidx = self.lockmanager._arrayidx.get_ptr_posn(fieldaddr)
+    arrayidx = self.lockmanager._arrayidx().get_ptr_posn(fieldaddr)
 
       
     if self.lockmanager.is_region_granular():
@@ -975,12 +988,12 @@ class lockingprocess_python(lockingprocess_pycpp):
 
     
     
-    if not self.lockmanager._arrayidx.has_key(fieldaddr):
+    if not self.lockmanager._arrayidx().has_key(fieldaddr):
       raise ValueError("Array not found")
     
     #iterator = self.lockmanager._arrayidx.find(fieldaddr)
     #arrayidx = voidpp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
-    arrayidx = self.lockmanager._arrayidx.get_ptr_posn(fieldaddr)
+    arrayidx = self.lockmanager._arrayidx().get_ptr_posn(fieldaddr)
 
       
     if self.lockmanager.is_region_granular():
@@ -1031,11 +1044,20 @@ class lockingprocess_python(lockingprocess_pycpp):
     else:
       return self.get_locks_read_array_region(fieldname,0,SNDE_INDEX_INVALID)
     pass
-
+	
+  def get_locks_array_mask(self,fieldname,maskentry,resizemaskentry,readmask,writemask,resizemask,indexstart,numelems):
+    if resizemask & resizemaskentry:
+      return self.get_locks_array(fieldname,True)
+    elif writemask & maskentry:
+      return self.get_locks_array_region(fieldname,True,indexstart,numelems)
+    elif readmask & maskentry:
+      return self.get_locks_array_region(fieldname,False,indexstart,numelems)
+    pass
+    
 
   # !!!*** Should also implement a realloc() function that takes a lambda
   # that can be called while the entire array is locked to determine the new size
-  def alloc_array_region(self,fieldaddr,numelems,allocid):
+  def alloc_array_region(self,arraymanager,fieldaddr,numelems,allocid):
         
     def alloc_func():
       numarrays_locked=0;
@@ -1044,26 +1066,26 @@ class lockingprocess_python(lockingprocess_pycpp):
 
       # must store iterator in a variable, lest it be a temporary that goes out of context
       # causing segmentation faults
-      iter = voidpp_voidpp_multimap_pyiterator.iterate_particular_key(self.manager.arrays_managed_by_allocator,fieldaddr)
+      iter = voidpp_voidpp_multimap_pyiterator.iterate_particular_key(arraymanager.arrays_managed_by_allocator(),fieldaddr)
       for managed_array in iter:
         # lock entire array
 	# but don't record it in used_tokens or mark the write regions
         
         #managed_array_str=AddrStr(managed_array)
         #field_array_str=AddrStr(fieldaddr)
-        #sys.stderr.write("Getting locks of managed_array %s of array %s (idx %d)\n" % (managed_array_str,field_array_str,  self.lockmanager._arrayidx.get_ptr_posn(managed_array)))
+        #sys.stderr.write("Getting locks of managed_array %s of array %s (idx %d)\n" % (managed_array_str,field_array_str,  self.lockmanager._arrayidx().get_ptr_posn(managed_array)))
         yield self.get_locks_write_array_region(managed_array,0,SNDE_INDEX_INVALID,_dont_add_locks_to_used=True) #,_nomarkwriteregions=True)
         numarrays_locked+=1
         pass
       assert(numarrays_locked > 0); # if this fails, you probably called with a follower array pointer, not an allocator array pointer
 
 
-      (ret_fields_tokens,ret_addr) = self.manager.alloc_arraylocked_swigworkaround(self.all_tokens,fieldaddr,numelems)
+      (ret_fields_tokens,ret_addr) = arraymanager.alloc_arraylocked_swigworkaround(self.all_tokens,fieldaddr,numelems)
 
       # re-iterate over managed arrays, marking our write credentials
-      #iter = voidpp_voidpp_multimap_pyiterator.iterate_particular_key(self.manager.arrays_managed_by_allocator,fieldaddr)
+      #iter = voidpp_voidpp_multimap_pyiterator.iterate_particular_key(arraymanager.arrays_managed_by_allocator(),fieldaddr)
       #for managed_array in iter:
-      #  arrayidx = self.lockmanager._arrayidx.get_ptr_posn(managed_array)
+      #  arrayidx = self.lockmanager._arrayidx().get_ptr_posn(managed_array)
       #  self.arraywriteregions[arrayidx].mark_region_noargs(ret_addr,numelems)        
       #  pass
 

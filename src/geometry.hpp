@@ -135,7 +135,7 @@ namespace snde {
 
 
     // object_trees is a set of named scene graphs (actually scene trees)
-    // They can be accessed by unique names, with the default given a
+    // They can be accessed by unique names, with any default given a
     // name of "", which (due to the string sort order) is also
     // accessible as object_trees.begin()
     std::map<std::string,std::shared_ptr<component>> object_trees;
@@ -179,9 +179,11 @@ namespace snde {
 
       
       /* parameterization */
+      manager->add_allocated_array((void **)&geom.mesheduv,sizeof(*geom.mesheduv),0);
       manager->add_allocated_array((void **)&geom.uv_triangles,sizeof(*geom.uv_triangles),0);
       manager->add_follower_array((void **)&geom.uv_triangles,(void **)&geom.inplane2uvcoords,sizeof(*geom.inplane2uvcoords));
       manager->add_follower_array((void **)&geom.uv_triangles,(void **)&geom.uvcoords2inplane,sizeof(*geom.uvcoords2inplane));
+      manager->add_follower_array((void **)&geom.uv_triangles,(void **)&geom.uv_patch_index,sizeof(*geom.uv_patch_index));
 
       manager->add_allocated_array((void **)&geom.uv_edges,sizeof(*geom.uv_edges),0);
 
@@ -190,7 +192,9 @@ namespace snde {
       manager->add_follower_array((void **)&geom.uv_vertices,(void **)&geom.uv_vertex_edgelist_indices,sizeof(*geom.uv_vertex_edgelist_indices));
 
       manager->add_allocated_array((void **)&geom.uv_vertex_edgelist,sizeof(*geom.uv_vertex_edgelist),0);
-      
+
+
+      // ***!!! insert NURBS here !!!***
       
       manager->add_allocated_array((void **)&geom.uv_boxes,sizeof(*geom.uv_boxes),0);
       manager->add_follower_array((void **)&geom.uv_boxes,(void **)&geom.uv_boxcoord,sizeof(*geom.boxcoord));
@@ -198,6 +202,8 @@ namespace snde {
       manager->add_allocated_array((void **)&geom.uv_boxpolys,sizeof(*geom.uv_boxpolys),0);
 
 
+      /***!!! Insert uv patches and images here ***!!! */
+      
       manager->add_allocated_array((void **)&geom.vertex_arrays,sizeof(*geom.vertex_arrays),0);
 
       manager->add_allocated_array((void **)&geom.texvertex_arrays,sizeof(*geom.texvertex_arrays),0);
@@ -229,7 +235,7 @@ namespace snde {
        we can map a different collection onto our part by changing the name. */
     std::string name; /* is name the proper way to index this? probably not. Will need to change once we understand better */
     std::shared_ptr<geometry> geom;
-    snde_index firstuvpatch,numuvpatches; /* numuvpatches must match the number from the mesheduv */
+    snde_index firstuvpatch,numuvpatches; /*must match the numbers to be put into the snde_partinstance */
     bool destroyed;
 
     uv_patches(const uv_patches &)=delete; /* copy constructor disabled */
@@ -278,7 +284,7 @@ namespace snde {
     /* Should the mesheduv manage the snde_image data for the various uv patches? probably... */
 
     mesheduv(std::shared_ptr<geometry> geom, std::string name,snde_index idx)
-    /* WARNING: This constructor takes ownership of the part and 
+    /* WARNING: This constructor takes ownership of the mesheduv and 
        subcomponents from the geometry database and frees them when 
        it is destroyed */
     {
@@ -426,24 +432,36 @@ namespace snde {
 
   
   /* ***!!! Must keep sync'd with geometry.i */
-#define SNDE_COMPONENT_GEOMWRITE_MESHEDPARTS (1u<<0)
-#define SNDE_COMPONENT_GEOMWRITE_TRIS (1u<<1)
-#define SNDE_COMPONENT_GEOMWRITE_REFPOINTS (1u<<2)
-#define SNDE_COMPONENT_GEOMWRITE_MAXRADIUS (1u<<3)
-#define SNDE_COMPONENT_GEOMWRITE_NORMALS (1u<<4)
-#define SNDE_COMPONENT_GEOMWRITE_INPLANEMAT (1u<<5)
-#define SNDE_COMPONENT_GEOMWRITE_EDGES (1u<<6)
-#define SNDE_COMPONENT_GEOMWRITE_VERTICES (1u<<7)
-#define SNDE_COMPONENT_GEOMWRITE_PRINCIPAL_CURVATURES (1u<<8)
-#define SNDE_COMPONENT_GEOMWRITE_CURVATURE_TANGENT_AXES (1u<<9)
-#define SNDE_COMPONENT_GEOMWRITE_VERTEX_EDGELIST_INDICES (1u<<10)
-#define SNDE_COMPONENT_GEOMWRITE_VERTEX_EDGELIST (1u<<11)
-#define SNDE_COMPONENT_GEOMWRITE_BOXES (1u<<12)
-#define SNDE_COMPONENT_GEOMWRITE_BOXCOORDS (1u<<13)
-#define SNDE_COMPONENT_GEOMWRITE_BOXPOLYS (1u<<14)
+#define SNDE_COMPONENT_GEOM_MESHEDPARTS (1ull<<0)
+#define SNDE_COMPONENT_GEOM_TRIS (1ull<<1)
+#define SNDE_COMPONENT_GEOM_REFPOINTS (1ull<<2)
+#define SNDE_COMPONENT_GEOM_MAXRADIUS (1ull<<3)
+#define SNDE_COMPONENT_GEOM_NORMALS (1ull<<4)
+#define SNDE_COMPONENT_GEOM_INPLANEMAT (1ull<<5)
+#define SNDE_COMPONENT_GEOM_EDGES (1ull<<6)
+#define SNDE_COMPONENT_GEOM_VERTICES (1ull<<7)
+#define SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES (1ull<<8)
+#define SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES (1ull<<9)
+#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES (1ull<<10)
+#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST (1ull<<11)
+#define SNDE_COMPONENT_GEOM_BOXES (1ull<<12)
+#define SNDE_COMPONENT_GEOM_BOXCOORD (1ull<<13)
+#define SNDE_COMPONENT_GEOM_BOXPOLYS (1ull<<14)
+
+#define SNDE_COMPONENT_GEOM_ALL ((1ull<<15)-1)
+
+// Resizing masks -- mark those arrays that resize together
+#define SNDE_COMPONENT_GEOM_MESHEDPARTS_RESIZE (SNDE_COMPONENT_GEOM_MESHEDPARTS)
+#define SNDE_COMPONENT_GEOM_TRIS_RESIZE (SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_REFPOINTS|SNDE_COMPONENT_GEOM_MAXRADIUS|SNDE_COMPONENT_GEOM_NORMALS|SNDE_COMPONENT_GEOM_INPLANEMAT)
+#define SNDE_COMPONENT_GEOM_EDGES_RESIZE (SNDE_COMPONENT_GEOM_EDGES)
+#define SNDE_COMPONENT_GEOM_VERTICES_RESIZE (SNDE_COMPONENT_GEOM_VERTICES|SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES|SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES|SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES)
+#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_RESIZE (SNDE_COMPONENT_GEOM_VERTEX_EDGELIST)
+#define SNDE_COMPONENT_GEOM_BOXES_RESIZE (SNDE_COMPONENT_GEOM_BOXES|SNDE_COMPONENT_GEOM_BOXCOORD)
+#define SNDE_COMPONENT_GEOM_BOXPOLYS_RESIZE (SNDE_COMPONENT_GEOM_BOXPOLYS)
 
 
-
+  
+typedef uint64_t snde_component_geom_mask_t;
 
   
   class component : public std::enable_shared_from_this<component> { /* abstract base class for geometric components (assemblies, nurbspart, meshedpart) */
@@ -469,7 +487,7 @@ namespace snde {
     
     virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict)=0;
 
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, unsigned writemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOMWRITE_xxx bits */
+    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_component_geom_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_component_geom_mask_t writemask=0,snde_component_geom_mask_t resizemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */
 
     virtual ~component()
 #if !defined(_MSC_VER) || _MSC_VER > 1800 // except for MSVC2013 and earlier
@@ -530,9 +548,9 @@ namespace snde {
       return instances;
     }
     
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, unsigned writemask=0)
+    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_component_geom_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_component_geom_mask_t writemask=0,snde_component_geom_mask_t resizemask=0)
     {
-      /* writemask contains OR'd SNDE_COMPONENT_GEOMWRITE_xxx bits */
+      /* readmask and writemask contain OR'd SNDE_COMPONENT_GEOM_xxx bits */
 
       /* 
 	 obtain locks from all our components... 
@@ -541,7 +559,7 @@ namespace snde {
       */
       for (auto piece=pieces.begin();piece != pieces.end(); piece++) {
 	std::shared_ptr<component> pieceptr=*piece;
-	process->spawn([ pieceptr,process,writemask ]() { pieceptr->obtain_lock(process,writemask); } );
+	process->spawn([ pieceptr,process,readmask,writemask,resizemask ]() { pieceptr->obtain_lock(process,readmask,writemask,resizemask); } );
 	
       }
       
@@ -589,9 +607,9 @@ namespace snde {
       this->nurbspartnum=nurbspartnum;
     }
     
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, unsigned writemask=0)
+    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_component_geom_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_component_geom_mask_t writemask=0,snde_component_geom_mask_t resizemask=0)
     {
-      /* writemask contains OR'd SNDE_COMPONENT_GEOMWRITE_xxx bits */
+      /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */
 
       assert(0); /* not yet implemented */
       
@@ -650,6 +668,9 @@ namespace snde {
 
       
       ret.firstuvpatch=SNDE_INDEX_INVALID;
+      ret.numuvpatches=SNDE_INDEX_INVALID;
+      ret.mesheduvnum=SNDE_INDEX_INVALID;
+      ret.imgbuf_extra_offset=0;
 
       {
 	std::string parameterization_name="";
@@ -680,6 +701,7 @@ namespace snde {
 	      throw std::runtime_error("meshedpart::get_instances():  Unknown UV patch name: "+patchesname);
 	    }
 	    ret.firstuvpatch=patches->firstuvpatch;
+	    ret.numuvpatches=patches->numuvpatches;
 	      
 	  }
 	  
@@ -692,9 +714,9 @@ namespace snde {
     }
     
 
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, unsigned writemask=0)
+    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_component_geom_mask_t readmask=SNDE_COMPONENT_GEOM_ALL, snde_component_geom_mask_t writemask=0, snde_component_geom_mask_t resizemask=0)
     {
-      /* writemask contains OR'd SNDE_COMPONENT_GEOMWRITE_xxx bits */
+      /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */
 
       /* 
 	 obtain locks from all our components... 
@@ -706,71 +728,74 @@ namespace snde {
       /* NOTE: Parallel Python implementation obtain_lock_pycpp 
 	 must be maintained in geometry.i */
 
+      assert(readmask & SNDE_COMPONENT_GEOM_MESHEDPARTS); // Cannot do remainder of locking without read access to meshedpart
+
       if (idx != SNDE_INDEX_INVALID) {
-	process->get_locks_array_region((void **)&geom->geom.meshedparts,writemask & SNDE_COMPONENT_GEOMWRITE_MESHEDPARTS,idx,1);
+	process->get_locks_array_mask((void **)&geom->geom.meshedparts,SNDE_COMPONENT_GEOM_MESHEDPARTS,SNDE_COMPONENT_GEOM_MESHEDPARTS_RESIZE,readmask,writemask,resizemask,idx,1);
       
 	
 	if (geom->geom.meshedparts[idx].firsttri != SNDE_INDEX_INVALID) {
-	  process->get_locks_array_region((void **)&geom->geom.triangles,writemask & SNDE_COMPONENT_GEOMWRITE_TRIS,geom->geom.meshedparts[idx].firsttri,geom->geom.meshedparts[idx].numtris);
+	  process->get_locks_array_mask((void **)&geom->geom.triangles,SNDE_COMPONENT_GEOM_TRIS,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,geom->geom.meshedparts[idx].firsttri,geom->geom.meshedparts[idx].numtris);
 	  if (geom->geom.refpoints) {
-	    process->get_locks_array_region((void **)&geom->geom.refpoints,writemask & SNDE_COMPONENT_GEOMWRITE_REFPOINTS,geom->geom.meshedparts[idx].firsttri,geom->geom.meshedparts[idx].numtris);
+	    process->get_locks_array_mask((void **)&geom->geom.refpoints,SNDE_COMPONENT_GEOM_REFPOINTS,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,geom->geom.meshedparts[idx].firsttri,geom->geom.meshedparts[idx].numtris);
 	  }
 	  
 	  if (geom->geom.maxradius) {
-	    process->get_locks_array_region((void **)&geom->geom.maxradius,writemask & SNDE_COMPONENT_GEOMWRITE_MAXRADIUS,geom->geom.meshedparts[idx].firsttri,geom->geom.meshedparts[idx].numtris);
+	    process->get_locks_array_mask((void **)&geom->geom.maxradius,SNDE_COMPONENT_GEOM_MAXRADIUS,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,geom->geom.meshedparts[idx].firsttri,geom->geom.meshedparts[idx].numtris);
 	  }
 	  
 	  if (geom->geom.normals) {
-	    process->get_locks_array_region((void **)&geom->geom.normals,writemask & SNDE_COMPONENT_GEOMWRITE_NORMALS,geom->geom.meshedparts[idx].firsttri,geom->geom.meshedparts[idx].numtris);
+	    process->get_locks_array_mask((void **)&geom->geom.normals,SNDE_COMPONENT_GEOM_NORMALS,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,geom->geom.meshedparts[idx].firsttri,geom->geom.meshedparts[idx].numtris);
 	  }
 	  
 	  if (geom->geom.inplanemat) {
-	    process->get_locks_array_region((void **)&geom->geom.inplanemat,writemask & SNDE_COMPONENT_GEOMWRITE_INPLANEMAT,geom->geom.meshedparts[idx].firsttri,geom->geom.meshedparts[idx].numtris);
+	    process->get_locks_array_mask((void **)&geom->geom.inplanemat,SNDE_COMPONENT_GEOM_INPLANEMAT,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,geom->geom.meshedparts[idx].firsttri,geom->geom.meshedparts[idx].numtris);
 	  }
 	}
-      }
-      if (geom->geom.meshedparts[idx].firstedge != SNDE_INDEX_INVALID) {
-	process->get_locks_array_region((void **)&geom->geom.edges,writemask & SNDE_COMPONENT_GEOMWRITE_EDGES,geom->geom.meshedparts[idx].firstedge,geom->geom.meshedparts[idx].numedges);
-	
-      }      
-      if (geom->geom.meshedparts[idx].firstvertex != SNDE_INDEX_INVALID) {
-	process->get_locks_array_region((void **)&geom->geom.vertices,writemask & SNDE_COMPONENT_GEOMWRITE_VERTICES,geom->geom.meshedparts[idx].firstvertex,geom->geom.meshedparts[idx].numvertices);
-
-	if (geom->geom.principal_curvatures) {
-	  process->get_locks_array_region((void **)&geom->geom.principal_curvatures,writemask & SNDE_COMPONENT_GEOMWRITE_PRINCIPAL_CURVATURES,geom->geom.meshedparts[idx].firstvertex,geom->geom.meshedparts[idx].numvertices);
+      
+	if (geom->geom.meshedparts[idx].firstedge != SNDE_INDEX_INVALID) {
+	  process->get_locks_array_mask((void **)&geom->geom.edges,SNDE_COMPONENT_GEOM_EDGES,SNDE_COMPONENT_GEOM_EDGES_RESIZE,readmask,writemask,resizemask,geom->geom.meshedparts[idx].firstedge,geom->geom.meshedparts[idx].numedges);
+	}      
+	if (geom->geom.meshedparts[idx].firstvertex != SNDE_INDEX_INVALID) {
+	  process->get_locks_array_mask((void **)&geom->geom.vertices,SNDE_COMPONENT_GEOM_VERTICES,SNDE_COMPONENT_GEOM_VERTICES_RESIZE,readmask,writemask,resizemask,geom->geom.meshedparts[idx].firstvertex,geom->geom.meshedparts[idx].numvertices);
 	}
 
+	if (geom->geom.principal_curvatures) {
+	  process->get_locks_array_mask((void **)&geom->geom.principal_curvatures,SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES,SNDE_COMPONENT_GEOM_VERTICES_RESIZE,readmask,writemask,resizemask,geom->geom.meshedparts[idx].firstvertex,geom->geom.meshedparts[idx].numvertices);
+	    
+	}
+	
 	if (geom->geom.curvature_tangent_axes) {
-	  process->get_locks_array_region((void **)&geom->geom.curvature_tangent_axes,writemask & SNDE_COMPONENT_GEOMWRITE_CURVATURE_TANGENT_AXES,geom->geom.meshedparts[idx].firstvertex,geom->geom.meshedparts[idx].numvertices);
+	  process->get_locks_array_mask((void **)&geom->geom.curvature_tangent_axes,SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES,SNDE_COMPONENT_GEOM_VERTICES_RESIZE,readmask,writemask,resizemask,geom->geom.meshedparts[idx].firstvertex,geom->geom.meshedparts[idx].numvertices);
+	  
 	}
 
 	if (geom->geom.vertex_edgelist_indices) {
-	  process->get_locks_array_region((void **)&geom->geom.vertex_edgelist_indices,writemask & SNDE_COMPONENT_GEOMWRITE_VERTEX_EDGELIST_INDICES,geom->geom.meshedparts[idx].firstvertex,geom->geom.meshedparts[idx].numvertices);
+	  process->get_locks_array_mask((void **)&geom->geom.vertex_edgelist_indices,SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES,SNDE_COMPONENT_GEOM_VERTICES_RESIZE,readmask,writemask,resizemask,geom->geom.meshedparts[idx].firstvertex,geom->geom.meshedparts[idx].numvertices);
 	}
+	
       }
       
       
       if (geom->geom.meshedparts[idx].first_vertex_edgelist != SNDE_INDEX_INVALID) {
-	process->get_locks_array_region((void **)&geom->geom.vertex_edgelist,writemask & SNDE_COMPONENT_GEOMWRITE_VERTEX_EDGELIST,geom->geom.meshedparts[idx].first_vertex_edgelist,geom->geom.meshedparts[idx].num_vertex_edgelist);
-	
+	process->get_locks_array_mask((void **)&geom->geom.vertex_edgelist,SNDE_COMPONENT_GEOM_VERTEX_EDGELIST,SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_RESIZE,readmask,writemask,resizemask,geom->geom.meshedparts[idx].first_vertex_edgelist,geom->geom.meshedparts[idx].num_vertex_edgelist);	
       }      
-
-	
+      
+      
       if (geom->geom.meshedparts[idx].firstbox != SNDE_INDEX_INVALID) {
 	if (geom->geom.boxes) {
-	    process->get_locks_array_region((void **)&geom->geom.boxes,writemask & SNDE_COMPONENT_GEOMWRITE_BOXES,geom->geom.meshedparts[idx].firstbox,geom->geom.meshedparts[idx].numboxes);
+	  process->get_locks_array_mask((void **)&geom->geom.boxes,SNDE_COMPONENT_GEOM_BOXES,SNDE_COMPONENT_GEOM_BOXES_RESIZE,readmask,writemask,resizemask,geom->geom.meshedparts[idx].firstbox,geom->geom.meshedparts[idx].numboxes);
+	  
 	}
 	if (geom->geom.boxcoord) {
-	  process->get_locks_array_region((void **)&geom->geom.boxcoord,writemask & SNDE_COMPONENT_GEOMWRITE_BOXCOORDS,geom->geom.meshedparts[idx].firstbox,geom->geom.meshedparts[idx].numboxes);
+	  process->get_locks_array_mask((void **)&geom->geom.boxcoord,SNDE_COMPONENT_GEOM_BOXCOORD,SNDE_COMPONENT_GEOM_BOXES_RESIZE,readmask,writemask,resizemask,geom->geom.meshedparts[idx].firstbox,geom->geom.meshedparts[idx].numboxes);
 	}
       }
-      
-      
+            
       if (geom->geom.boxpolys && geom->geom.meshedparts[idx].firstboxpoly != SNDE_INDEX_INVALID) {
-	  process->get_locks_array_region((void **)&geom->geom.boxpolys,writemask & SNDE_COMPONENT_GEOMWRITE_BOXPOLYS,geom->geom.meshedparts[idx].firstboxpoly,geom->geom.meshedparts[idx].numboxpolys);
-      }
-
-
+	  process->get_locks_array_mask((void **)&geom->geom.boxpolys,SNDE_COMPONENT_GEOM_BOXPOLYS,SNDE_COMPONENT_GEOM_BOXPOLYS_RESIZE,readmask,writemask,resizemask,geom->geom.meshedparts[idx].firstboxpoly,geom->geom.meshedparts[idx].numboxpolys);
+      } 
+      
       
       
     }

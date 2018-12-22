@@ -140,18 +140,18 @@ int main(int argc, char *argv[])
     // A lockholder is used to store the locks acquired
     // during the locking process
     std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();  
-    std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(manager); // new locking process
+    std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(manager->locker); // new locking process
     
     
     // Allocate a single entry in the "meshedparts" array
-    holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.meshedparts,1,""));
+    holder->store_alloc(lockprocess->alloc_array_region(manager,(void **)&geom->geom.meshedparts,1,""));
     // Note: Because the triangles allocator also allocates several other fields (per
     // comments in geometrydata.h and add_follower_array() call in geometry.hpp,
     // the allocation of "triangles" allocates and locks both it and the other arrays.  
-    holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.triangles,1,""));
-    holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.edges,3,""));
-    holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.vertices,3,""));
-    holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.vertex_edgelist,6,""));
+    holder->store_alloc(lockprocess->alloc_array_region(manager,(void **)&geom->geom.triangles,1,""));
+    holder->store_alloc(lockprocess->alloc_array_region(manager,(void **)&geom->geom.edges,3,""));
+    holder->store_alloc(lockprocess->alloc_array_region(manager,(void **)&geom->geom.vertices,3,""));
+    holder->store_alloc(lockprocess->alloc_array_region(manager,(void **)&geom->geom.vertex_edgelist,6,""));
     
     // When the lock process is finished, you
     // get a reference to the full set of locks 
@@ -283,9 +283,9 @@ int main(int argc, char *argv[])
     // Begin a new locking process
     std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();  
     
-    std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(manager); // new locking process
+    std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(manager->locker); // new locking process
     
-    part->obtain_lock(lockprocess,0); // 0 indicates flags for which arrays we want write locks (none in this case)
+    part->obtain_lock(lockprocess,SNDE_COMPONENT_GEOM_ALL,0); // 0 indicates flags for which arrays we want write locks (none in this case)
     all_locks=lockprocess->finish();
     
     // now we can access (read only) the data from the cpu
@@ -294,8 +294,8 @@ int main(int argc, char *argv[])
     
     
     //lockprocess.spawn([ &lockprocess, &holder, &geom ]() {
-    //    //std::tie(vertices_lock,vertices_index)=lockprocess.alloc_array_region((void **)&geom->geom.vertices,3);
-    //    holder->store_alloc(lockprocess.alloc_array_region((void **)&geom->geom.vertices,3,""));
+    //    //std::tie(vertices_lock,vertices_index)=lockprocess.alloc_array_region(manager,(void **)&geom->geom.vertices,3);
+    //    holder->store_alloc(lockprocess.alloc_array_region(manager,(void **)&geom->geom.vertices,3,""));
     //  });
     
     //rwlock_token_set vertices_lock = lockprocess.get_locks_read_array_region((void **)&geom->geom.vertices,0,SNDE_INDEX_INVALID);

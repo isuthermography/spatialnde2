@@ -188,16 +188,15 @@ namespace snde {
 
   
   class allocator /* : public allocatorbase*/ {
-    /* !!!*** NOTE: will want allocator to be able to 
+    /* NOTE: allocator can 
        handle parallel-indexed portions of arrays of different
        things, e.g. vertex array and curvature array 
-       should be allocated in parallel */
+       should be allocated in parallel. This is done 
+    through add_other_array() */
 
     /* 
-       all add_other_array() calls must be performed from a
-       single thread on initialization !!! 
        
-       otherwise alloc() and free() are thread safe, */
+       most methods, including alloc() and free() are thread safe, */
        
 
     std::mutex allocatormutex; // Always final mutex in locking order; protects the free list 
@@ -222,10 +221,14 @@ namespace snde {
     //void **_arrayptr;
     //size_t _elemsize;
 
-    // The arrays member is genuinely public for read access and
+    // The arrays member is genuinely public for read access through
+    // the arrays() accessor and
     // may be iterated over. Note that it may only be written
-    // from the single thread during the initialization phase
-    std::deque<struct arrayinfo> arrays;
+    // to when allocatormutex is locked.
+    // Elements may never be deleted, so as to maintain numbering.
+    // The shared_ptr around _arrays
+    // is atomic, so it may be freely read through the accessor
+    std::shared_ptr<std::deque<struct arrayinfo>> _arrays; // atomic shared_ptr 
     
     
     /* Freelist structure ... 
@@ -245,7 +248,10 @@ namespace snde {
       _memalloc=memalloc;
       _locker=locker; // could be NULL if there is no locker
 
-      arrays.push_back(arrayinfo{arrayptr,elemsize,false});
+      std::shared_ptr<std::deque<struct arrayinfo>> new_arrays=std::make_shared<std::deque<struct arrayinfo>>();
+      new_arrays->push_back(arrayinfo{arrayptr,elemsize,false});
+      std::atomic_store(&_arrays,new_arrays);      
+      
       
       //_allocchunksize = 2*sizeof(snde_index)/_elemsize;
       // Round up when determining chunk size
@@ -263,10 +269,10 @@ namespace snde {
 	_totalnchunks=2;
       }
       // Perform memory allocation 
-      *arrays[0].arrayptr = _memalloc->malloc(_totalnchunks * _allocchunksize * elemsize);
+      *(*arrays())[0].arrayptr = _memalloc->malloc(_totalnchunks * _allocchunksize * elemsize);
 
       if (_locker) {
-	_locker->set_array_size(arrays[0].arrayptr,arrays[0].elemsize,_totalnchunks*_allocchunksize);
+	_locker->set_array_size((*arrays())[0].arrayptr,(*arrays())[0].elemsize,_totalnchunks*_allocchunksize);
       }
 
       // Permanently allocate (and waste) first chunk
@@ -279,26 +285,61 @@ namespace snde {
     allocator(const allocator &)=delete; /* copy constructor disabled */
     allocator& operator=(const allocator &)=delete; /* assignment disabled */
 
+    // accessor for atomic _arrays member
+    std::shared_ptr<std::deque<struct arrayinfo>> arrays()
+    {
+      return std::atomic_load(&_arrays);
+    }
+
+    std::tuple<std::shared_ptr<std::deque<struct arrayinfo>>> _begin_atomic_update()
+    // allocatormutex must be locked when calling this function...
+    // it returns new copies of the atomically-guarded data
+    {
+
+      // Make copies of atomically-guarded data 
+      std::shared_ptr<std::deque<struct arrayinfo>> new_arrays=std::make_shared<std::deque<struct arrayinfo>>(*arrays());
+
+      return std::make_tuple(new_arrays);
+    }
+
+    void _end_atomic_update(std::shared_ptr<std::deque<struct arrayinfo>> new_arrays)
+    // allocatormutex must be locked when calling this function...
+    {
+      
+      // replace old with new
+
+      std::atomic_store(&_arrays,new_arrays);      
+    }
+
+
+
     size_t add_other_array(void **arrayptr, size_t elsize)
     /* returns index */
     {
-      assert(!destroyed);
-      size_t retval=arrays.size();
-      arrays.push_back(arrayinfo {arrayptr,elsize,false});
+      std::lock_guard<std::mutex> lock(allocatormutex);
 
-      if (*arrays[0].arrayptr) {
+      std::shared_ptr<std::deque<struct arrayinfo>> new_arrays;
+      std::tie(new_arrays) = _begin_atomic_update();
+      
+      assert(!destroyed);
+      size_t retval=new_arrays->size();
+      new_arrays->push_back(arrayinfo {arrayptr,elsize,false});
+
+      if (*(*new_arrays)[0].arrayptr) {
 	/* if main array already allocated */
 	*arrayptr=_memalloc->calloc(_totalnchunks*_allocchunksize * elsize);
       } else {
         *arrayptr = nullptr;
       }
+      _end_atomic_update(new_arrays);
       return retval;
     }
 
     size_t num_arrays(void)
     {
+      std::lock_guard<std::mutex> lock(allocatormutex);
       size_t size=0;
-      for (auto & ary: arrays) {
+      for (auto & ary: (*arrays())) {
 	if (!ary.destroyed) size++;
       }
       return size;
@@ -307,9 +348,11 @@ namespace snde {
     void remove_array(void **arrayptr)
     {
       std::unique_lock<std::mutex> lock(allocatormutex);
-      for (auto ary=arrays.begin();ary != arrays.end();ary++) {
+      // we hold allocatormutex, so  _arrays  should not be accessed directly, but won't change
+      
+      for (auto ary=arrays()->begin();ary != arrays()->end();ary++) {
 	if (ary->arrayptr == arrayptr) {
-	  if (ary==arrays.begin()) {
+	  if (ary==arrays()->begin()) {
 	    /* removing our master array invalidates the entire allocator */
 	    destroyed=true; 
 	  }
@@ -325,21 +368,22 @@ namespace snde {
     void _pool_realloc(snde_index newnchunks) {
       /* This routine reallocates the entire array memory pool, in case we run out of space in it */
       
+      
       assert(!destroyed);
       // Must hold write lock on entire array
-      // must hold allocatormutex
+      // must hold allocatormutex... therefore arrays() won't change although it's still unsafe to read _arrays directly
       _totalnchunks = newnchunks;
       //*arrays[0].arrayptr = _memalloc->realloc(*arrays[0].arrayptr,_totalnchunks * _allocchunksize * _elemsize);
 
       /* resize all arrays  */
-      for (size_t cnt=0;cnt < arrays.size();cnt++) {
-	if (arrays[cnt].destroyed) continue;
-	*arrays[cnt].arrayptr= _memalloc->realloc(*arrays[cnt].arrayptr,_totalnchunks * _allocchunksize * arrays[cnt].elemsize);
+      for (size_t cnt=0;cnt < arrays()->size();cnt++) {
+	if ((*arrays())[cnt].destroyed) continue;
+	*(*arrays())[cnt].arrayptr= _memalloc->realloc(*(*arrays())[cnt].arrayptr,_totalnchunks * _allocchunksize * (*arrays())[cnt].elemsize);
       
 	if (_locker) {
 	  size_t arraycnt;
-	  for (arraycnt=0;arraycnt < arrays.size();arraycnt++) {
-	    _locker->set_array_size(arrays[arraycnt].arrayptr,arrays[arraycnt].elemsize,_totalnchunks*_allocchunksize);
+	  for (arraycnt=0;arraycnt < arrays()->size();arraycnt++) {
+	    _locker->set_array_size((*arrays())[arraycnt].arrayptr,(*arrays())[arraycnt].elemsize,_totalnchunks*_allocchunksize);
 	  }
 	}
 	
@@ -422,15 +466,17 @@ namespace snde {
       if (_locker && retpos != SNDE_INDEX_INVALID) {
 	size_t arraycnt;
 	
-	for (arraycnt=0;arraycnt < arrays.size();arraycnt++) {
+	auto curarrays=arrays();
+	for (arraycnt=0;arraycnt < curarrays->size();arraycnt++) {
 	  rwlock_token token;
 	  rwlock_token_set token_set;
+	  auto &thisarray=(*curarrays)[arraycnt];
 
 	  token_set=empty_rwlock_token_set();
-	  token=_locker->newallocation(all_locks,arrays[arraycnt].arrayptr,retpos,nelem,arrays[arraycnt].elemsize);
+	  token=_locker->newallocation(all_locks,thisarray.arrayptr,retpos,nelem,thisarray.elemsize);
 	  (*token_set)[token->mutex()]=token;
 
-	  retlocks.push_back(std::make_pair(std::make_shared<alloc_voidpp>(arrays[arraycnt].arrayptr),token_set));
+	  retlocks.push_back(std::make_pair(std::make_shared<alloc_voidpp>(thisarray.arrayptr),token_set));
 	}
       }
       
@@ -521,9 +567,13 @@ namespace snde {
       
       // notify locker of free operation
       if (_locker) {
+	
 	size_t arraycnt;
-	for (arraycnt=0;arraycnt < arrays.size();arraycnt++) {
-	  _locker->freeallocation(arrays[arraycnt].arrayptr,addr,nelem,arrays[arraycnt].elemsize);
+	auto curarrays=arrays();
+	for (arraycnt=0;arraycnt < curarrays->size();arraycnt++) {
+	  auto &thisarray=(*curarrays)[arraycnt];
+	  
+	  _locker->freeallocation(thisarray.arrayptr,addr,nelem,thisarray.elemsize);
 	}
       }
       _free(addr,nelem);
@@ -561,8 +611,10 @@ namespace snde {
       // must hold write lock on this allocation (NOT ANYMORE?)
 
       // mark reduced nelem in this allocation
-      std::shared_ptr<allocation> alloc = allocations_unmerged.get_region(chunkaddr);
-      alloc->nelem = newnelem;
+      if (newnelem > 0) {
+	std::shared_ptr<allocation> alloc = allocations_unmerged.get_region(chunkaddr);
+	alloc->nelem = newnelem;
+      }
     }
 
     void realloc_down(snde_index addr,snde_index orignelem,snde_index newnelem)
@@ -572,8 +624,11 @@ namespace snde {
       // notify locker of free operation
       if (_locker) {
 	size_t arraycnt;
-	for (arraycnt=0;arraycnt < arrays.size();arraycnt++) {
-	  _locker->realloc_down_allocation(arrays[arraycnt].arrayptr,addr,orignelem,newnelem);
+	auto curarrays=arrays();
+	for (arraycnt=0;arraycnt < curarrays->size();arraycnt++) {
+	  auto &thisarray=(*curarrays)[arraycnt];
+	  
+	  _locker->realloc_down_allocation(thisarray.arrayptr,addr,orignelem,newnelem);
 	}
       }
       _realloc_down(addr,orignelem,newnelem);
@@ -585,15 +640,17 @@ namespace snde {
       std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
 
       // free all arrays
-      for (size_t cnt=0;cnt < arrays.size();cnt++) {
-	if (*arrays[cnt].arrayptr) {
-	  if (!arrays[cnt].destroyed) {
-	    _memalloc->free(*arrays[cnt].arrayptr);
-	    *(arrays[cnt].arrayptr) = NULL;
+      for (size_t cnt=0;cnt < arrays()->size();cnt++) {
+	if (*(*arrays())[cnt].arrayptr) {
+	  if (!(*arrays())[cnt].destroyed) {
+	    _memalloc->free(*(*arrays())[cnt].arrayptr);
+	    *((*arrays())[cnt].arrayptr) = NULL;
 	  }
 	}
       }
-      arrays.clear();
+      /* Should we explicitly go through and empty arrays? I
+	 don't think it will accomplish anything... */
+      arrays().reset();
       
     }
   };

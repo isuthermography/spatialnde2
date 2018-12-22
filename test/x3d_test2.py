@@ -15,7 +15,7 @@ manager=spatialnde2.arraymanager(lowlevel_alloc,alignment_requirements)
 
 geometry=spatialnde2.geometry(1e-6,manager)
 
-meshedparts = spatialnde2.x3d_load_geometry(geometry,sys.argv[1],False)
+meshedparts = spatialnde2.x3d_load_geometry(geometry,sys.argv[1],None,False)
 
 
 lockholder = spatialnde2.lockholder()
@@ -41,7 +41,7 @@ del lockholder
 # Now use the automatic locking to look at this meshedpart 
 holder = spatialnde2.lockholder()   # new holder
 all_locks = spatialnde2.pylockprocess(manager,
-                                      lambda proc: meshedparts[0].obtain_lock_pycpp(proc,holder,0))  # 0 indicates flags for which arrays we want write locks (none in this case)
+                                      lambda proc: meshedparts[0].obtain_lock_pycpp(proc,holder,spatialnde2.SNDE_COMPONENT_GEOM_ALL,0))  # 0 indicates flags for which arrays we want write locks (none in this case)
 
 # now we can access (read only) the data from the cpu
 first_meshedpart_raw2=geometry.field(holder,"meshedparts",False,spatialnde2.nt_snde_meshedpart,meshedparts[0].idx,1)

@@ -74,16 +74,16 @@ kernel=program.testkern_onepart # NOTE: must only extract kernel attribute once 
 
 # Allocate arrays
 holder = spatialnde2.lockholder()
-all_locks = spatialnde2.pylockprocess(manager,
+all_locks = spatialnde2.pylockprocess(manager.locker,
                                       lambda proc: [  # Remember to follow locking order
-                                          holder.store_alloc((yield proc.alloc_array_region(geom.addr("meshedparts"),1,""))),
+                                          holder.store_alloc((yield proc.alloc_array_region(manager,geom.addr("meshedparts"),1,""))),
                                           # We have to spawn the request to lock "triangles", so that it can execute in
                                           # parallel because it now includes the request to lock "areas"
                                           # which is at the end of the locking order
-                                          (yield proc.spawn(lambda proc: holder.store_alloc((yield proc.alloc_array_region(geom.addr("triangles"),1,""))))),                                            
-                                          holder.store_alloc((yield proc.alloc_array_region(geom.addr("edges"),3,""))),                                            
-                                          holder.store_alloc((yield proc.alloc_array_region(geom.addr("vertices"),3,""))),
-                                          holder.store_alloc((yield proc.alloc_array_region(geom.addr("vertex_edgelist"),6,""))),
+                                          (yield proc.spawn(lambda proc: holder.store_alloc((yield proc.alloc_array_region(manager,geom.addr("triangles"),1,""))))),                                            
+                                          holder.store_alloc((yield proc.alloc_array_region(manager,geom.addr("edges"),3,""))),                                            
+                                          holder.store_alloc((yield proc.alloc_array_region(manager,geom.addr("vertices"),3,""))),
+                                          holder.store_alloc((yield proc.alloc_array_region(manager,geom.addr("vertex_edgelist"),6,""))),
                                       ])
 
 # can now access holder.vertices, etc.
@@ -158,7 +158,7 @@ manager.dirty_alloc(holder,geom.addr("vertices"),"",3)
 
 # Store which part address for later use
 # Represent the above triangle as a "meshedpart"
-part=spatialnde2.meshedpart(geom,holder.get_alloc(geom.addr("meshedparts"),""))
+part=spatialnde2.meshedpart(geom,"my_part",holder.get_alloc(geom.addr("meshedparts"),""))
 
 
 # This time we don't unlock. Since we've marked stuff as dirty when we try to access with

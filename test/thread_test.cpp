@@ -41,7 +41,7 @@ int main() {
   manager=std::make_shared<snde::arraymanager>(lowlevel_alloc,alignment_requirements);
   geom=std::make_shared<snde::geometry>(tol,manager);
 
-  blockstart=geom->manager->allocators[(void **)&geom->geom.vertices].alloc->_alloc(10000);
+  blockstart=(*geom->manager->allocators())[(void **)&geom->geom.vertices].alloc->_alloc(10000);
   blocksize=50;
 
 //  write(geom,blockstart,blocksize,0);

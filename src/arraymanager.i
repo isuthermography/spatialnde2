@@ -1,5 +1,8 @@
 %shared_ptr(snde::cachemanager);
 %shared_ptr(snde::arraymanager);
+%shared_ptr(std::unordered_map<void **,void **>);
+%shared_ptr(std::multimap<void **,void **>);
+
 %template(vector_arrayptr_tokenset) std::vector<std::pair<std::shared_ptr<snde::alloc_voidpp>,snde::rwlock_token_set>>;
 %template(arrayptr_tokenset) std::pair<std::shared_ptr<snde::alloc_voidpp>,snde::rwlock_token_set>;
 %shared_ptr(std::pair<std::shared_ptr<snde::alloc_voidpp>,snde::rwlock_token_set>);
@@ -62,15 +65,21 @@ namespace snde {
     std::shared_ptr<allocator_alignment> alignment_requirements;
 
     //std::mutex admin; /* serializes access to caches */
-    std::unordered_map<void **,void **> allocation_arrays; // look up the arrays used for allocation
-    std::multimap<void **,void **> arrays_managed_by_allocator; // look up the managed arrays by the allocator array... ordering is as the arrays are created, which follows the locking order
+    //std::unordered_map<void **,void **> allocation_arrays; // look up the arrays used for allocation
+    //std::multimap<void **,void **> arrays_managed_by_allocator; // look up the managed arrays by the allocator array... ordering is as the arrays are created, which follows the locking order
 
     
     //std::unordered_map<std::string,std::shared_ptr<snde::cachemanager>> _caches;
 
 
-    arraymanager(std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements);
+    arraymanager(std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> locker=null);
 
+    // accessor methods
+    // virtual std::shared_ptr<std::unordered_map<void **,allocationinfo>> allocators(); // don't wrap allocators because of swig bug
+    
+    virtual std::shared_ptr<std::unordered_map<void **,void **>> allocation_arrays();
+    
+    virtual std::shared_ptr<std::multimap<void **,void **>> arrays_managed_by_allocator();
 
 
     virtual void add_allocated_array(void **arrayptr,size_t elemsize,snde_index totalnelem);

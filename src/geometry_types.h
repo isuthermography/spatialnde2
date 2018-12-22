@@ -257,8 +257,11 @@ struct snde_mesheduv {
   snde_index firstuvbox, numuvboxes; /* the first numuvpatches boxes correspond to the outer boxes for each patch */
   snde_index firstuvboxpoly,numuvboxpoly;
   snde_index firstuvboxcoord,numuvboxcoords; 
+
+  snde_coord2 tex_startcorner; /* (x,y) coordinates of one corner of parameterization (texture) space */
+  snde_coord2 tex_endcorner; /* (x,y) coordinates of other corner of parameterization (texture) space */
   
-  snde_index /*firstuvpatch,*/ numuvpatches; /* "patches" are regions in uv space that the vertices are represented in. There can be multiple images pointed to by the different patches.  Indexes in uv_patch_index go from zero to numuvpatches. They will need to be added to the firstuvpatch of the snde_partinstance */ 
+  //snde_index /*firstuvpatch,*/ numuvpatches; /* "patches" are regions in uv space that the vertices are represented in. There can be multiple images pointed to by the different patches.  Indexes in uv_patch_index go from zero to numuvpatches. They will need to be added to the firstuvpatch of the snde_partinstance */ 
   
 };
 
@@ -289,17 +292,30 @@ struct snde_partinstance {
   snde_index nurbspartnum; /* if nurbspartnum is SNDE_INDEX_INVALID, then there is a meshed representation only */
   snde_index meshedpartnum;
   //std::string discrete_parameterization_name; -- really maps to mesheduvnmum /* index of the discrete parameterization */
-  snde_index firstuvpatch; /* starting uv_patch # (snde_image) for this instance... # of patches is an attribute of mesheduv, or nurbsuv */ 
+  snde_index firstuvpatch; /* starting uv_patch # (snde_image) for this instance...  */ 
+  snde_index numuvpatches; /* "patches" are regions in uv space that the vertices are represented in. There can be multiple images pointed to by the different patches.  Indexes in uv_patch_index go from zero to numuvpatches. They will need to be added to the firstuvpatch of the snde_partinstance */
   snde_index mesheduvnum; /* numvertices arrays must match between partinstance and mesheduv */
-
+  snde_index imgbuf_extra_offset; // Additional offset into imgbuf, e.g. to select a particular frame of multiframe image data 
 };
   
 
   
 struct snde_image  {
   snde_index imgbufoffset; /* index into image buffer array */
-  snde_index ncols,nrows; 
-  snde_coord2 inival; /* Coordinates of first data in image, in meaningful units */
+  snde_index rgba_imgbufoffset; /* index into rgba image buffer array (if imgbufoffset is SNDE_INDEX_INVALID */
+  
+  snde_index nx,ny; // X and Y size (ncols, nrows) ... note Fortran style indexing
+  snde_coord2 startcorner; /* Coordinates of the edge of the first texel in image, 
+			      in meaningful units (meters). first coordinate is the 
+			      x (column) position; second coordinate
+			      is the y (row position). The center of the first texel 
+			      is at (startcorner.coord[0]+step.coord[0]/2,
+			             startcorner.coord[1]+step.coord[1]/2) 
+
+			      The coordinates of the endcorner are:
+                                    (startcorner.coord[0]+step.coord[0]*nx,
+				    (startcorner.coord[1]+step.coord[1]*ny)
+                            */
   snde_coord2 step; /* step size per texel, in meaningful units */ 
 };
 

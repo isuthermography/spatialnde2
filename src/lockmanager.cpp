@@ -40,14 +40,13 @@ snde::lockingprocess::~lockingprocess()
 
 
 #ifdef SNDE_LOCKMANAGER_COROUTINES_THREADED
-snde::lockingprocess_threaded::lockingprocess_threaded(std::shared_ptr<arraymanager> manager) :
+snde::lockingprocess_threaded::lockingprocess_threaded(std::shared_ptr<lockmanager> lockmanager) :
   //arrayreadregions(std::make_shared<std::vector<rangetracker<markedregion>>>(manager->locker->_arrays.size())),
   //arraywriteregions(std::make_shared<std::vector<rangetracker<markedregion>>>(manager->locker->_arrays.size())),
   lastlockingposition(0,0,true),
   _executor_lock(_mutex)
 {
-  this->_manager=manager;
-  this->_lockmanager=manager->locker;
+  this->_lockmanager=lockmanager;
   
   
   all_tokens=empty_rwlock_token_set();
@@ -150,9 +149,10 @@ std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get
 {
   rwlock_token_set newset;
   bool preexisting_only;
-  assert(_lockmanager->_arrayidx.find(array) != _lockmanager->_arrayidx.end());
+  auto arrayidx = _lockmanager->_arrayidx();
+  assert(arrayidx->find(array) != arrayidx->end());
   
-  preexisting_only=_barrier(lockingposition(_lockmanager->_arrayidx[array],0,true));
+  preexisting_only=_barrier(lockingposition((*arrayidx)[array],0,true));
   if (preexisting_only) {
     newset = _lockmanager->get_preexisting_locks_write_array_region(all_tokens,array,0,SNDE_INDEX_INVALID);
   } else {
@@ -169,13 +169,14 @@ std::pair<lockholder_index,rwlock_token_set> snde::lockingprocess_threaded::get_
 {
   rwlock_token_set newset;
   bool preexisting_only;
-  assert(_lockmanager->_arrayidx.find(array) != _lockmanager->_arrayidx.end());
+  auto arrayidx = _lockmanager->_arrayidx();
+  assert(arrayidx->find(array) != arrayidx->end());
 
   
   if (_lockmanager->is_region_granular()) {
-    preexisting_only=_barrier(lockingposition(_lockmanager->_arrayidx[array],indexstart,true));
+    preexisting_only=_barrier(lockingposition((*arrayidx)[array],indexstart,true));
   } else {
-    preexisting_only=_barrier(lockingposition(_lockmanager->_arrayidx[array],0,true));
+    preexisting_only=_barrier(lockingposition((*arrayidx)[array],0,true));
   }
   if (preexisting_only) {
     newset = _lockmanager->get_preexisting_locks_write_array_region(all_tokens,array,indexstart,numelems);
@@ -194,10 +195,11 @@ std::pair<lockholder_index,rwlock_token_set> snde::lockingprocess_threaded::get_
   rwlock_token_set newset;
   bool preexisting_only;
   
-  assert(_lockmanager->_arrayidx.find(array) != _lockmanager->_arrayidx.end());
+  auto arrayidx = _lockmanager->_arrayidx();
+  assert(arrayidx->find(array) != arrayidx->end());
 
   
-  preexisting_only=_barrier(lockingposition(_lockmanager->_arrayidx[array],0,false));
+  preexisting_only=_barrier(lockingposition((*arrayidx)[array],0,false));
   if (preexisting_only) {
     newset = _lockmanager->get_preexisting_locks_read_array_region(all_tokens,array,0,SNDE_INDEX_INVALID);
   } else {
@@ -205,7 +207,7 @@ std::pair<lockholder_index,rwlock_token_set> snde::lockingprocess_threaded::get_
   }
   merge_into_rwlock_token_set(used_tokens,newset);
 	
-  //(*arrayreadregions)[_lockmanager->_arrayidx[array]].mark_all(SNDE_INDEX_INVALID);
+  //(*arrayreadregions)[(*arrayidx)[array]].mark_all(SNDE_INDEX_INVALID);
   
   
   return std::make_pair(lockholder_index(array,false,0,SNDE_INDEX_INVALID),newset);
@@ -216,12 +218,14 @@ std::pair<lockholder_index,rwlock_token_set> snde::lockingprocess_threaded::get_
 {
   bool preexisting_only;
   rwlock_token_set newset;
-  assert(_lockmanager->_arrayidx.find(array) != _lockmanager->_arrayidx.end());
+
+  auto arrayidx = _lockmanager->_arrayidx();
+  assert(arrayidx->find(array) != arrayidx->end());
   
   if (_lockmanager->is_region_granular()) {
-    preexisting_only=_barrier(lockingposition(_lockmanager->_arrayidx[array],indexstart,false));
+    preexisting_only=_barrier(lockingposition((*arrayidx)[array],indexstart,false));
   } else {
-    preexisting_only=_barrier(lockingposition(_lockmanager->_arrayidx[array],0,false));
+    preexisting_only=_barrier(lockingposition((*arrayidx)[array],0,false));
   }
   
   if (preexisting_only) {
@@ -231,7 +235,7 @@ std::pair<lockholder_index,rwlock_token_set> snde::lockingprocess_threaded::get_
   }
   merge_into_rwlock_token_set(used_tokens,newset);
 
-  //(*arrayreadregions)[_lockmanager->_arrayidx[array]].mark_region(indexstart,numelems);
+  //(*arrayreadregions)[(*arrayidx)[array]].mark_region(indexstart,numelems);
   
   return std::make_pair(lockholder_index(array,false,indexstart,numelems),newset);
 }
@@ -257,7 +261,24 @@ std::pair<lockholder_index,rwlock_token_set> snde::lockingprocess_threaded::get_
   }
 }
 
-std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> snde::lockingprocess_threaded::alloc_array_region(void **allocatedptr,snde_index nelem,std::string allocid)
+std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_array_mask(void **array,uint64_t maskentry,uint64_t resizemaskentry,uint64_t readmask,uint64_t writemask,uint64_t resizemask,snde_index indexstart,snde_index numelems)
+{
+  if (resizemask & resizemaskentry) {
+    // if resizing must lock whole array for write
+    return get_locks_array(array,true);
+  } else if (writemask & maskentry) {
+    // Lock region for write
+    return get_locks_array_region(array,true,indexstart,numelems);
+  } else if (readmask & maskentry) {
+    // lock region for read
+    return get_locks_array_region(array,false,indexstart,numelems);
+    
+  } else {
+    return std::make_pair(lockholder_index(),empty_rwlock_token_set());
+  }
+}
+
+std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> snde::lockingprocess_threaded::alloc_array_region(std::shared_ptr<arraymanager> manager,void **allocatedptr,snde_index nelem,std::string allocid)
 /* Note: returns write lock tokens for ALL arrays allocated by the allocated array referred to by allocatedptr */
 /* This allocates the entire allocatedptr array for write AND any other arrays that are allocated in parallel. 
    If you will be locking anything else prior to the end of the last such array, this 
@@ -272,10 +293,10 @@ std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> snde::loc
 
   rwlock_token_set ret_tokens;
   snde_index ret_addr;
-
+  auto arrays_managed_by_allocator = manager->arrays_managed_by_allocator();
 
   /* iterate over all arrays managed by this same allocator */
-  for (auto allocator_managed=_manager->arrays_managed_by_allocator.lower_bound(allocatedptr);allocator_managed != _manager->arrays_managed_by_allocator.end() && allocator_managed->first==allocatedptr;allocator_managed++) {
+  for (auto allocator_managed=arrays_managed_by_allocator->lower_bound(allocatedptr);allocator_managed != arrays_managed_by_allocator->end() && allocator_managed->first==allocatedptr;allocator_managed++) {
 
     /* lock entire array */
     _lockmanager->get_locks_write_array_region(all_tokens,allocator_managed->second,0,SNDE_INDEX_INVALID);
@@ -287,7 +308,7 @@ std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> snde::loc
 
   /* perform allocation */
   std::vector<std::pair<std::shared_ptr<alloc_voidpp>,rwlock_token_set>> vector_arrayptr_tokens;
-  std::tie(ret_addr,vector_arrayptr_tokens) = _manager->alloc_arraylocked(all_tokens,allocatedptr,nelem);
+  std::tie(ret_addr,vector_arrayptr_tokens) = manager->alloc_arraylocked(all_tokens,allocatedptr,nelem);
 
   // iterate over returned pointers and tokens
   for (auto & arrayptr_tokens : vector_arrayptr_tokens) {    

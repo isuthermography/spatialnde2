@@ -9,6 +9,7 @@
 #include <vector>
 #include <deque>
 #include <cmath>
+#include <functional>
 
 #include <libxml/xmlreader.h>
 
@@ -311,6 +312,57 @@ namespace snde {
     }
   }
 
+  std::vector<std::string> read_mfstring(std::string mfstring)
+  {
+    /* Break the given mfstring up into its components, and return them */
+    std::vector<std::string> Strings;
+    std::string StringBuf;
+
+    size_t pos=0;
+    bool in_string=false;
+    bool last_was_escape=false;
+
+    while (pos < mfstring.size()) {
+      if (!in_string) {
+	if (mfstring[pos]=='\"') {
+	  in_string=true;
+	} else {
+	  if (mfstring[pos] > 127 || !isspace(mfstring[pos])) {
+	    throw x3derror("Invalid character %c in between MFString components (\'%s\')",mfstring[pos],mfstring);
+	  }	  
+	}
+	last_was_escape=false;
+      } else {
+	// We are in_string
+	if (mfstring[pos]=='\"' && !last_was_escape) {
+	  // End of the string
+	  in_string=false;
+	  Strings.push_back(StringBuf);
+	  StringBuf="";
+	} else if (mfstring[pos]=='\\' && !last_was_escape) {
+	  // Escape character
+	  last_was_escape=true;
+	} else if ((mfstring[pos]=='\\' || mfstring[pos]=='\"') && last_was_escape) {
+	  // Add escaped character
+	  StringBuf+=mfstring[pos];
+	  last_was_escape=false;
+	} else if (last_was_escape) {
+	  throw x3derror("Invalid escaped character %s in MFString \"%s\"" ,mfstring[pos],mfstring);	  
+	} else {
+	  // not last_was_escape and we have a regular character
+	  StringBuf += mfstring[pos];
+	  
+	}
+      }
+      pos++;
+    }
+
+    if (in_string) {
+      throw x3derror("Unterminated string in MFString \"%s\"",mfstring);
+    }
+
+    return Strings;
+  }
 
   static bool IsX3DNamespaceUri(char *NamespaceUri)
   {
@@ -868,14 +920,25 @@ namespace snde {
 
     static std::shared_ptr<x3d_imagetexture> fromcurrentelement(x3d_loader *loader) {
       std::shared_ptr<x3d_imagetexture> tex=std::make_shared<x3d_imagetexture>();
-
+      std::string urlfield;
 
       
       SetBoolIfX3DAttribute(loader->reader, "repeatS", &tex->repeatS);
       SetBoolIfX3DAttribute(loader->reader, "repeatT", &tex->repeatT);
 
-      SetStringIfX3DAttribute(loader->reader, "url", &tex->url);
+      SetStringIfX3DAttribute(loader->reader, "url", &urlfield);
 
+      size_t firstidx = urlfield.find_first_not_of(" \t\r\n"); // ignore leading whitespace
+      if (firstidx < urlfield.size() && urlfield[firstidx] != '\"') {
+	// url content does not start with a '"'... therfore it is not an
+	// MFString, so we will interpret it as a URL directly
+	tex->url=urlfield;
+      } else {
+	// strip quotes from MFString urlfield -> url
+	tex->url=read_mfstring(urlfield)[0];
+      }
+
+      
       loader->dispatchcontent(std::dynamic_pointer_cast<x3d_node>(tex));
 
       return tex;
@@ -1117,17 +1180,28 @@ namespace snde {
 
   
   
-  std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> x3d_load_geometry(std::shared_ptr<geometry> geom,const char *filename,std::shared_ptr<std::vector<trm_arrayregion>> modified_region_accum,bool reindex_vertices,bool reindex_tex_vertices)
+  std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> x3d_load_geometry(std::shared_ptr<geometry> geom,std::vector<std::shared_ptr<x3d_shape>> shapes,std::shared_ptr<std::vector<trm_arrayregion>> modified_region_accum,std::function<snde_image(std::shared_ptr<geometry> geom,std::string texture_url)> get_texture_image,bool reindex_vertices,bool reindex_tex_vertices)
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
      modified_region_accum will accumulate all of the array regions that are written to during the loading
 
+     get_texture_image() is a function (or nullptr)
+     that should load the texture image, based on the 
+     texture_url parameter extracted from the .x3d, into the geometry database,
+     and return a snde_image structure (that has NOT been inserted into the geometry
+     database). get_texture_image() will be called without any locks held, so it is
+     free to write into the geometry database
+     NOTE: The startcorner and step parameters from this file
+     will be used to scale the texture coordinates into meaningful units!!!
+     NOTE2: get_texture_image() is free to modify modified_region_accum 
+     to mark the geometry database region it writes to. 
+
      If reindex_vertices is set, then re-identify matching vertices. 
      Otherwise vertex_tolerance is the tolerance in meters. */
 
   /* returns a shared ptr to a vector of meshedparts. */
-    
+
   /* *** Might make sense to put X3D transform into scene definition rather than 
      transforming coordinates */
     
@@ -1135,19 +1209,14 @@ namespace snde {
     
   {
     
-    std::vector<std::shared_ptr<x3d_shape>> shapes=x3d_loader::shapes_from_file(filename);
-    
     
     std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> meshedpart_objs=std::make_shared<std::vector<std::shared_ptr<meshedpart>>>();
     
     for (auto & shape: shapes) {
       
       /* build vertex list */
-      std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
-      rwlock_token_set all_locks;
       
       
-      std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager); // new locking process
       
       if (!shape->nodedata.count("geometry") || !shape->nodedata["geometry"]) {
 	throw x3derror("Shape tag missing geometry field (i.e. indexedfaceset or indexedtriangleset)");
@@ -1195,31 +1264,45 @@ namespace snde {
       std::vector<snde_index> & normalIndex = ((isfaceset) ?
 						 std::dynamic_pointer_cast<x3d_indexedfaceset>(indexedset)->normalIndex :
 					       std::dynamic_pointer_cast<x3d_indexedtriangleset>(indexedset)->index);
+
+      snde_image teximage_data={ SNDE_INDEX_INVALID, // imgbufoffset
+				 SNDE_INDEX_INVALID, // rgba_imgbufoffset
+				 1024,1024, // nx,ny
+				 { {0.0,0.0} }, // startcorner
+				 { {1.0/1024,1.0/1024} }, // step
+      };
+      // Grab texture image, if available
+      if (texture && get_texture_image) {
+	teximage_data=get_texture_image(geom,texture->url);	
+      }
       
       
-      
+      std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
+      std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
+      rwlock_token_set all_locks;
+
       
       // Allocate enough storage for vertices, edges, and triangles
-      holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.meshedparts,1,""));      
-      holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.triangles,coordIndex.size(),""));
-      holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.edges,3*coordIndex.size(),""));
-      holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.vertices,coords->point.size(),""));
+      holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.meshedparts,1,""));      
+      holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.triangles,coordIndex.size(),""));
+      holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.edges,3*coordIndex.size(),""));
+      holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.vertices,coords->point.size(),""));
       // Edgelist may need to be big enough to store # of edges*2 +  # of vertices
       snde_index vertex_edgelist_maxsize=coords->point.size()*7;
-      holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.vertex_edgelist,vertex_edgelist_maxsize,""));
+      holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.vertex_edgelist,vertex_edgelist_maxsize,""));
 
       // allocate for parameterization
       if (texCoords) {
 	assert(coordIndex.size()==texCoordIndex.size());
-	holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.mesheduv,1,""));      
-	holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.uv_triangles,texCoordIndex.size(),""));
-	holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.uv_edges,3*texCoordIndex.size(),""));
-	holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.uv_vertices,texCoords->point.size(),""));
+	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.mesheduv,1,""));      
+	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_triangles,texCoordIndex.size(),""));
+	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_edges,3*texCoordIndex.size(),""));
+	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_vertices,texCoords->point.size(),""));
 	// Edgelist may need to be big enough to store # of edges*2 +  # of vertices
 	snde_index uv_vertex_edgelist_maxsize=texCoords->point.size()*7;
-	holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.uv_vertex_edgelist,uv_vertex_edgelist_maxsize,""));
+	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_vertex_edgelist,uv_vertex_edgelist_maxsize,""));
 	if (texture) {
-	  holder->store_alloc(lockprocess->alloc_array_region((void **)&geom->geom.uv_patches,1,""));	  
+	  holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_patches,1,""));	  
 	}
       }
       
@@ -1269,6 +1352,7 @@ namespace snde {
 	firstuvtri = holder->get_alloc((void **)&geom->geom.uv_triangles,"");
 	
 	firstuvedge = holder->get_alloc((void **)&geom->geom.uv_edges,"");
+	
 	/* edge modified region marked with realloc_down() call below */
 	firstuvvertex = holder->get_alloc((void **)&geom->geom.uv_vertices,"");
 	/* vertices modified region marked with realloc_down() call below */
@@ -1650,8 +1734,17 @@ namespace snde {
 	      //Eigen::Matrix<snde_coord,4,1> TransformPoint = indexedset->transform * RawPoint;
 	      //memcpy(&geom->geom.vertices[firstvertex+next_vertexnum],TransformPoint.data(),3*sizeof(*geom->geom.vertices));
 	      // Store in data array 
-	      geom->geom.uv_vertices[firstuvvertex+next_vertexnum]=texCoords->point[cnt];
+
+	      // This would load in the texture coordinates unscaled: 
+	      //geom->geom.uv_vertices[firstuvvertex+next_vertexnum]=texCoords->point[cnt];
+
+	      // Scaled read (we mark our intrinsic parameterization as
+	      // going over a width of teximage_data.nx*teximage_data.step.coord[0]
+	      // rather than u=0..1
+	      geom->geom.uv_vertices[firstuvvertex+next_vertexnum].coord[0]=texCoords->point[cnt].coord[0]*teximage_data.nx*teximage_data.step.coord[0];
+	      geom->geom.uv_vertices[firstuvvertex+next_vertexnum].coord[1]=texCoords->point[cnt].coord[1]*teximage_data.ny*teximage_data.step.coord[1];
 	      
+		
 	      next_vertexnum++;
 	    
 	    } else {
@@ -1699,9 +1792,9 @@ namespace snde {
 	snde_index origvertex[3];
 	unsigned vertcnt;
 	snde_index num_uv_edges=0;
+	snde_index next_uv_edgenum=0;
 	
 	std::unordered_map<std::pair<snde_index,snde_index>,snde_index,x3d_hash<std::pair<snde_index,snde_index>>> uv_edgenum_byvertices;
-	snde_index next_edgenum=0;
 
 
 	snde_index numuvtris = texCoordIndex.size()/coordindex_step;
@@ -1739,7 +1832,6 @@ namespace snde {
 	  bool first_edge_face_a=false;
 	  snde_index edgecnt;
 	  bool new_edge;
-	  snde_index next_uv_edgenum=0;
 	  
 	  for (edgecnt=0;edgecnt < 3;edgecnt++) {
 	    // Need to search for vertices in both orders
@@ -1846,7 +1938,9 @@ namespace snde {
 	  
 	  
 	}
-	num_uv_edges = next_edgenum;
+
+
+	num_uv_edges = next_uv_edgenum;
 	// realloc and shrink geom->geom.uv_edges allocation to num_edges
 	geom->manager->realloc_down((void **)&geom->geom.uv_edges,firstuvedge,3*texCoordIndex.size(),num_uv_edges);
 	modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.uv_edges,firstuvedge,num_uv_edges);
@@ -1924,11 +2018,18 @@ namespace snde {
 	geom->geom.mesheduv[firstmesheduv].numuvboxpoly=SNDE_INDEX_INVALID;
 	geom->geom.mesheduv[firstmesheduv].firstuvboxcoord=SNDE_INDEX_INVALID;
 	geom->geom.mesheduv[firstmesheduv].numuvboxcoords=SNDE_INDEX_INVALID;
+
+	// Assign physical size of texture space
+	geom->geom.mesheduv[firstmesheduv].tex_startcorner.coord[0]=teximage_data.startcorner.coord[0];
+	geom->geom.mesheduv[firstmesheduv].tex_startcorner.coord[1]=teximage_data.startcorner.coord[1];
+	geom->geom.mesheduv[firstmesheduv].tex_endcorner.coord[0]=teximage_data.startcorner.coord[0]+teximage_data.nx*teximage_data.step.coord[0];
+	geom->geom.mesheduv[firstmesheduv].tex_endcorner.coord[1]=teximage_data.startcorner.coord[0]+teximage_data.ny*teximage_data.step.coord[1];
 	
-	geom->geom.mesheduv[firstmesheduv].numuvpatches=1; /* x3d can only represent a single UV patch */
+	//geom->geom.mesheduv[firstmesheduv].numuvpatches=1; /* x3d can only represent a single UV patch */
 	
 	parameterization=std::make_shared<mesheduv>(geom,"intrinsic",firstmesheduv);
 	/* add this parameterization to our part */
+	
 	curpart->addparameterization(parameterization);
 
 	modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.mesheduv,firstmesheduv,1);
@@ -1938,13 +2039,7 @@ namespace snde {
 
 	if (texture) {
 	  /* set up blank snde_image structure to be filled in by caller with texture buffer data */
-	  geom->geom.uv_patches[firstuvpatch].imgbufoffset=SNDE_INDEX_INVALID;
-	  geom->geom.uv_patches[firstuvpatch].ncols=0;
-	  geom->geom.uv_patches[firstuvpatch].nrows=0;
-	  geom->geom.uv_patches[firstuvpatch].inival.coord[0]=0.0;
-	  geom->geom.uv_patches[firstuvpatch].inival.coord[1]=0.0;
-	  geom->geom.uv_patches[firstuvpatch].step.coord[0]=1.0;
-	  geom->geom.uv_patches[firstuvpatch].step.coord[1]=1.0;
+	  geom->geom.uv_patches[firstuvpatch]=teximage_data;
 
 	  modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.uv_patches,firstuvpatch,1);
 
@@ -1980,6 +2075,24 @@ namespace snde {
        (imgbufoffset==SNDE_INDEX_INVALID). No image buffer space is allocated */
     
     return meshedpart_objs;
+  }
+
+
+  std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> x3d_load_geometry(std::shared_ptr<geometry> geom,const char *filename,std::shared_ptr<std::vector<trm_arrayregion>> modified_region_accum,std::function<snde_image(std::shared_ptr<geometry> geom,std::string texture_url)> get_texture_image,bool reindex_vertices,bool reindex_tex_vertices)
+  /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
+     is presumed to be a separate object. Must consist of strictly triangles.
+     
+     modified_region_accum will accumulate all of the array regions that are written to during the loading
+
+     If reindex_vertices is set, then re-identify matching vertices. 
+     Otherwise vertex_tolerance is the tolerance in meters. */
+    
+  /* returns a shared ptr to a vector of meshedparts. */
+  {
+    std::vector<std::shared_ptr<x3d_shape>> shapes=x3d_loader::shapes_from_file(filename);
+    
+    return x3d_load_geometry(geom,shapes,modified_region_accum,get_texture_image,reindex_vertices,reindex_tex_vertices);
+    
   }
 
 };

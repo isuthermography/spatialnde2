@@ -8,8 +8,8 @@
 #include <osg/Geometry>
 #include <osgViewer/Viewer>
 #include <osgGA/TrackballManipulator>
-#include <osgDB/ReadFile>
-#include <osgDB/WriteFile>
+//#include <osgDB/ReadFile>
+//#include <osgDB/WriteFile>
 
 #include "openscenegraph_geom.hpp"
 #include "revision_manager.hpp"
@@ -20,6 +20,7 @@
 using namespace snde;
 
 osg::ref_ptr<osgViewer::Viewer> viewer;
+osg::ref_ptr<snde::OSGComponent> OSGComp;
 
 osg::observer_ptr<osgViewer::GraphicsWindow> window;
 
@@ -36,8 +37,21 @@ void x3d_viewer_display()
   
   //osg::ref_ptr<OSGComponent> group = new OSGComponent(geom,cache,comp);
 
-  if (viewer.valid()) viewer->frame();
-  
+  if (viewer.valid()) {
+    /* Because our data is marked as DYNAMIC, so long as we have it 
+       locked during viewer->frame() we should be OK */
+    
+    std::lock_guard<std::mutex> object_trees_lock(geom->object_trees_lock);
+
+    std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
+    std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
+    OSGComp->LockVertexArraysTextures(holder,lockprocess);
+    rwlock_token_set all_locks=lockprocess->finish();
+    
+    viewer->frame();
+
+    unlock_rwlock_token_set(all_locks); // Drop our locks 
+  }
   // swap front and back buffers
   glutSwapBuffers();
 
@@ -102,12 +116,17 @@ void x3d_viewer_close()
 }
 
 
+snde_image load_image_url(std::shared_ptr<geometry> geom,std::string url_context, std::string texture_url,std::shared_ptr<std::vector<trm_arrayregion>> modified)
+{
+  // not yet implemented
+}
+
 int main(int argc, char **argv)
 {
   cl_context context;
   cl_device_id device;
   std::string clmsgs;
-  osg::ref_ptr<snde::OSGComponent> OSGComp;
+  snde_index revnum;
   
   glutInit(&argc, argv);
 
@@ -181,8 +200,13 @@ int main(int argc, char **argv)
     revision_manager->Start_Transaction();
     
     std::shared_ptr<std::vector<trm_arrayregion>> modified = std::make_shared<std::vector<trm_arrayregion>>();
+
+    std::function<snde_image(std::shared_ptr<geometry> geom,std::string texture_url)> get_texture_image = [ argv,modified ](std::shared_ptr<geometry> geom,std::string texture_url) -> snde_image {
+													   return load_image_url(geom,argv[1],texture_url,modified);	   
+													 };
     
-    parts = x3d_load_geometry(geom,argv[1],modified,false,false); // !!!*** Try enable vertex reindexing !!!***
+    
+    parts = x3d_load_geometry(geom,argv[1],modified,nullptr/*get_texture_image*/,false,false); // !!!*** Try enable vertex reindexing !!!***
 
     revision_manager->End_Transaction(modified);
   }
@@ -212,7 +236,7 @@ int main(int argc, char **argv)
        Maybe we should just extract stuff from the cache dirtying info ***!!! */
     std::shared_ptr<std::vector<trm_arrayregion>> modified=std::make_shared<std::vector<trm_arrayregion>>();
     
-    revision_manager->End_Transaction(modified);
+    revnum=revision_manager->End_Transaction(modified);
   }
   
   
@@ -231,23 +255,42 @@ int main(int argc, char **argv)
   glutKeyboardFunc(&x3d_viewer_kbd);
 
   // load the scene. (testing only)
-  osg::ref_ptr<osg::Node> loadedModel = osgDB::readRefNodeFile(argv[2]);
-  if (!loadedModel)
-    {
-      //std::cout << argv[0] <<": No data loaded." << std::endl;
-      return 1;
-    }
+  //osg::ref_ptr<osg::Node> loadedModel = osgDB::readRefNodeFile(argv[2]);
+  //if (!loadedModel)
+  //{
+  //    //std::cout << argv[0] <<": No data loaded." << std::endl;
+  //   return 1;
+  //  }
   
   viewer = new osgViewer::Viewer;
   window = viewer->setUpViewerAsEmbeddedInWindow(100,100,800,600);
   //viewer->setSceneData(loadedModel.get());
-  sleep(1);
-  viewer->setSceneData(OSGComp);
-  osgDB::writeNodeFile(*OSGComp, "/tmp/modeltest.osgt"); 
 
-  viewer->setCameraManipulator(new osgGA::TrackballManipulator);
+  // wait for the first version of the geometry data to become available,
+  // before we let OSG look at it. 
+  revision_manager->Wait_Computation(revnum);
+  
+  {
+    std::lock_guard<std::mutex> object_trees_lock(geom->object_trees_lock);
+    std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
+    std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
+    OSGComp->LockVertexArraysTextures(holder,lockprocess);
 
-  viewer->realize();
+    rwlock_token_set all_locks=lockprocess->finish();
+
+    //auto bound = OSGComp->getBound();
+    //auto center = bound.center();
+    //double radius=bound.radius();
+    //fprintf(stderr,"radius=%f\n",radius);
+
+    viewer->setSceneData(OSGComp);
+    
+    viewer->setCameraManipulator(new osgGA::TrackballManipulator);
+    
+    viewer->realize();
+    unlock_rwlock_token_set(all_locks); // Drop our locks
+  }
+  
   glutMainLoop();
 
   exit(0);

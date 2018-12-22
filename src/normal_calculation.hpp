@@ -58,10 +58,10 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 
 						// Perform locking
 						std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
-						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager); // new locking process
+						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
 						
 						/* Obtain lock for this component -- in parallel with our write lock on the vertex array, below */
-						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, SNDE_COMPONENT_GEOMWRITE_NORMALS); });
+						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, SNDE_COMPONENT_GEOM_MESHEDPARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,SNDE_COMPONENT_GEOM_NORMALS); });
 						
 						rwlock_token_set all_locks=lockprocess->finish();
 
@@ -119,10 +119,10 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						
 						// Perform locking
 						std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
-						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager); // new locking process
+						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
 						
-						/* Obtain lock for this component -- in parallel with our write lock on the vertex array, below */
-						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, 0); });
+						/* Obtain lock for this component */
+						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, SNDE_COMPONENT_GEOM_MESHEDPARTS,0); });
 						
 						rwlock_token_set all_locks=lockprocess->finish();
 						
@@ -144,7 +144,7 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						
 					      }, 
 					      inputs_seed, 
-					      [ geom ](std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
+					      [ comp,geom ](std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
 						// update_output_regions()
 
 						std::vector<trm_arrayregion> new_outputs;
@@ -152,6 +152,15 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						snde_meshedpart meshedp;
 						trm_arrayregion tri_region;
 						
+						// Perform locking
+						std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
+						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
+						
+						/* Obtain read lock for the meshedpart array for this component  */
+						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, SNDE_COMPONENT_GEOM_MESHEDPARTS,0); });
+						
+						rwlock_token_set all_locks=lockprocess->finish();
+
 						std::tie(meshedp,tri_region) = extract_regions<singleton<snde_meshedpart>,rawregion>(std::vector<trm_arrayregion>(inputs.begin(),inputs.begin()+1+1));
 						assert(tri_region.array==(void**)&geom->geom.triangles);
 						new_outputs.emplace_back(geom->manager,(void**)&geom->geom.normals,tri_region.start,tri_region.len);

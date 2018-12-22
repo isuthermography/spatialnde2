@@ -1,6 +1,7 @@
 %shared_ptr(snde::allocator);
 %shared_ptr(snde::allocator_alignment);
 %shared_ptr(snde::alloc_voidpp);
+%shared_ptr(std::deque<struct arrayinfo>);
 //%shared_ptr(snde::cmemallocator);
 
 %{
@@ -87,11 +88,15 @@ namespace snde {
     //void **_arrayptr;
     //size_t _elemsize;
 
-    // The arrays member is genuinely public for read access and
+    // The arrays member is genuinely public for read access through
+    // the arrays() accessor and
     // may be iterated over. Note that it may only be written
-    // from the single thread during the initialization phase
-    std::deque<struct arrayinfo> arrays;
-    
+    // to when allocatormutex is locked.
+    // Elements may never be deleted, so as to maintain numbering.
+    // The shared_ptr around _arrays
+    // is atomic, so it may be freely read through the accessor
+    //std::shared_ptr<std::deque<struct arrayinfo>> _arrays; // atomic shared_ptr 
+
     
     /* Freelist structure ... 
     */
@@ -104,6 +109,9 @@ namespace snde {
     allocator(const allocator &)=delete; /* copy constructor disabled */
     allocator& operator=(const allocator &)=delete; /* assignment disabled */
 
+    // accessor for atomic _arrays member
+    std::shared_ptr<std::deque<struct arrayinfo>> arrays();
+    
     size_t add_other_array(void **arrayptr, size_t elsize);
 
     size_t num_arrays(void);

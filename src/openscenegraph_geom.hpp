@@ -186,7 +186,7 @@ public:
    */
   OSGArray(std::shared_ptr<snde_geometry> snde_geom,void **array,size_t offset,size_t elemsize, size_t vecsize, size_t nvec) :
     snde_geom(snde_geom),
-    osg::Array((vecsize==2) ? osg::Array::Vec2ArrayType : osg::Array::Vec3ArrayType,vecsize,(elemsize==4) ? GL_FLOAT:GL_DOUBLE),
+    osg::Array((vecsize==2) ? ((elemsize==4) ? osg::Array::Vec2ArrayType : osg::Array::Vec2dArrayType) : ((elemsize==4) ? osg::Array::Vec3ArrayType : osg::Array::Vec3dArrayType),vecsize,(elemsize==4) ? GL_FLOAT:GL_DOUBLE),
     offset(offset),
     nvec(nvec), 
     vecsize(vecsize),
@@ -199,7 +199,7 @@ public:
   /** OSG Copy ctor. */
   OSGArray(const OSGArray& other, const osg::CopyOp& /*copyop*/) :
     snde_geom(other.snde_geom),
-    osg::Array((other.vecsize==2) ? osg::Array::Vec2ArrayType : osg::Array::Vec3ArrayType,other.vecsize,(other.elemsize==4) ? GL_FLOAT:GL_DOUBLE),
+    osg::Array(other.getType(),(other.elemsize==4) ? GL_FLOAT:GL_DOUBLE),
     nvec(other.nvec),
     _ptr(other._ptr),
     vecsize(other.vecsize),
@@ -358,7 +358,7 @@ struct osg_snde_partinstance_hash
   /* note: we ignore orientation in the hash/equality operators! */
   size_t operator()(const snde_partinstance &x) const
   {
-    return std::hash<snde_index>{}(x.nurbspartnum) + std::hash<snde_index>{}(x.meshedpartnum) + std::hash<snde_index>{}(x.firstuvpatch) + std::hash<snde_index>{}(x.mesheduvnum);
+    return std::hash<snde_index>{}(x.nurbspartnum) + std::hash<snde_index>{}(x.meshedpartnum)  + std::hash<snde_index>{}(x.mesheduvnum); /* + std::hash<snde_index>{}(x.firstuvpatch)*/
 									      
   }
 };
@@ -368,7 +368,7 @@ struct osg_snde_partinstance_equal
   /* note: we ignore orientation in the hash/equality operators! */
   size_t operator()(const snde_partinstance &x, const snde_partinstance &y) const
   {
-    return x.nurbspartnum==y.nurbspartnum && x.meshedpartnum==y.meshedpartnum && x.firstuvpatch==y.firstuvpatch && x.mesheduvnum==y.mesheduvnum;
+    return x.nurbspartnum==y.nurbspartnum && x.meshedpartnum==y.meshedpartnum && x.mesheduvnum==y.mesheduvnum; /* && x.firstuvpatch==y.firstuvpatch  */
 									      
   }
 };
@@ -388,6 +388,7 @@ public:
   std::weak_ptr<geometry> snde_geom;
   osg::ref_ptr<osg::Geode> geode;
   osg::ref_ptr<osg::Geometry> geom;
+  osg::ref_ptr<osg::DrawArrays> drawarrays;
   bool isnurbs;
   osg::ref_ptr<snde::OSGArray> DataArray;
   osg::ref_ptr<snde::OSGArray> NormalArray;
@@ -415,6 +416,21 @@ public:
     geom=NULL;
     isnurbs=false;
     cachedversion=0;
+
+    instance.orientation.offset.coord[0]=0.0;
+    instance.orientation.offset.coord[1]=0.0;
+    instance.orientation.offset.coord[2]=0.0;
+    instance.orientation.pad1=0.0;
+    instance.orientation.quat.coord[0]=0.0;
+    instance.orientation.quat.coord[1]=0.0;
+    instance.orientation.quat.coord[2]=0.0;
+    instance.orientation.quat.coord[3]=0.0;
+    instance.nurbspartnum=SNDE_INDEX_INVALID;
+    instance.meshedpartnum=SNDE_INDEX_INVALID;
+    instance.firstuvpatch=SNDE_INDEX_INVALID;
+    instance.numuvpatches=SNDE_INDEX_INVALID;
+    instance.mesheduvnum=SNDE_INDEX_INVALID;
+    instance.imgbuf_extra_offset=0;
     //vertex_start_index=SNDE_INDEX_INVALID;
     //numvertices=0;
   }
@@ -434,29 +450,29 @@ public:
 
   // !!!*** Add locking method, function method, region updater method!
 
-  rwlock_token_set obtain_array_locks(std::shared_ptr<component> comp,bool include_vertex_arrays, bool vertex_arrays_write, bool vertex_arrays_entire_array)
+  void obtain_array_locks(std::shared_ptr<lockholder> holder,std::shared_ptr<lockingprocess_threaded> lockprocess, std::shared_ptr<component> comp,unsigned readmask, unsigned writemask,bool include_vertex_arrays, bool vertex_arrays_write, bool vertex_arrays_entire_array)
   // the geometry object_trees_lock should be held when this is called (but not necessarily by
   // this thread -- just to make sure it can't be changed) 
     
   // Locking the object_trees_lock should be taken care of by whoever is starting the transaction
   {
-    std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
     std::shared_ptr<geometry> snde_geom_strong(snde_geom);
-    std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(snde_geom_strong->manager); // new locking process
     
     /* Obtain lock for this component -- in parallel with our write lock on the vertex array, below */
-    lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess,0); });
+    if (readmask != 0 || writemask != 0) {
+      lockprocess->spawn( [ comp, lockprocess, readmask, writemask ]() { comp->obtain_lock(lockprocess,SNDE_COMPONENT_GEOM_MESHEDPARTS | readmask, writemask); });
+    }
     
     if (include_vertex_arrays && vertex_arrays_write && !vertex_arrays_entire_array) {
       /* Obtain write lock on vertex array output */
       rwlock_token_set vertex_arrays_lock;
       lockholder_index vertex_arrays_info;
-      std::tie(vertex_arrays_info,vertex_arrays_lock) = lockprocess->get_locks_write_array_region((void **)&snde_geom_strong->geom.vertex_arrays,DataArray->offset,DataArray->nvec*3);
+      std::tie(vertex_arrays_info,vertex_arrays_lock) = lockprocess->get_locks_write_array_region((void **)&snde_geom_strong->geom.vertex_arrays,vertex_function->outputs[0].start,vertex_function->outputs[0].len);//DataArray->offset,DataArray->nvec*3);
     } else if (include_vertex_arrays && !vertex_arrays_entire_array) {
       /* Obtain read lock on vertex array output */
       rwlock_token_set vertex_arrays_lock;
       lockholder_index vertex_arrays_info;
-      std::tie(vertex_arrays_info,vertex_arrays_lock) = lockprocess->get_locks_read_array_region((void **)&snde_geom_strong->geom.vertex_arrays,DataArray->offset,DataArray->nvec*3);
+      std::tie(vertex_arrays_info,vertex_arrays_lock) = lockprocess->get_locks_read_array_region((void **)&snde_geom_strong->geom.vertex_arrays,vertex_function->outputs[0].start,vertex_function->outputs[0].len);//,DataArray->offset,DataArray->nvec*3);
 
     } else if (include_vertex_arrays && vertex_arrays_write && !vertex_arrays_entire_array) {
       rwlock_token_set vertex_arrays_lock;
@@ -468,6 +484,20 @@ public:
       std::tie(vertex_arrays_info,vertex_arrays_lock) = lockprocess->get_locks_read_array((void **)&snde_geom_strong->geom.vertex_arrays);      
     }
     
+  }
+
+  rwlock_token_set obtain_array_locks(std::shared_ptr<component> comp,unsigned readmask, unsigned writemask,bool include_vertex_arrays, bool vertex_arrays_write, bool vertex_arrays_entire_array)
+  // the geometry object_trees_lock should be held when this is called (but not necessarily by
+  // this thread -- just to make sure it can't be changed) 
+    
+  // Locking the object_trees_lock should be taken care of by whoever is starting the transaction
+  {
+    std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
+    std::shared_ptr<geometry> snde_geom_strong(snde_geom);
+    std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(snde_geom_strong->manager->locker); // new locking process
+    
+    obtain_array_locks(holder,lockprocess,comp,readmask,writemask,include_vertex_arrays,vertex_arrays_write,vertex_arrays_entire_array);
+        
     rwlock_token_set all_locks=lockprocess->finish();
 
     return all_locks; // !!!*** Should we also return vertex_arrays_lock and/or _info? 
@@ -556,7 +586,10 @@ public:
       entry->second.thisptr = entry_ptr; /* stored as a weak_ptr so we can recall it on lookup but it doesn't count as a reference */
       entry->second.geode=new osg::Geode();
       entry->second.geom=new osg::Geometry();
+      entry->second.drawarrays=new osg::DrawArrays(osg::PrimitiveSet::TRIANGLES,0,0);
+      entry->second.geom->addPrimitiveSet(entry->second.drawarrays);
       entry->second.geom->setDataVariance(osg::Object::DYNAMIC);
+      entry->second.geom->setUseVertexBufferObjects(true);
       entry->second.geode->addDrawable(entry->second.geom.get());
       
       entry->second.isnurbs = (instance.nurbspartnum != SNDE_INDEX_INVALID);
@@ -605,20 +638,30 @@ public:
 						      entry_ptr->DataArray->nvec = vertex_array_out.len/3; // vertex_array_out.len is in number of coordinates; DataArray is counted in vectors
 						      
 						      // Perform locking
-						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,true,true,false);
+						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,SNDE_COMPONENT_GEOM_MESHEDPARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,0,true,true,false);
+						      //fprintf(stderr,"vertexarray locked for write\n");
+						      //fflush (stderr);
 						      
-						      
-						      entry_ptr->DataArray->offset = vertexarray_from_instance_vertexarrayslocked(shared_cache->snde_geom,all_locks,dep->inputs[0].start,vertex_array_out.start,vertex_array_out.len,shared_cache->context,shared_cache->device,shared_cache->queue);
+						      entry_ptr->DataArray->offset = vertex_array_out.start;
 						      entry_ptr->DataArray->nvec = shared_cache->snde_geom->geom.meshedparts[entry_ptr->instance.meshedpartnum].numtris*3; // DataArray is counted in terms of (x,y,z) vectors, so three sets of coordinates per triangle
-						      // Should probably convert write lock to read lock and spawn this stuff off, maybe in a different thread (?) (WHY???) 
-						      fprintf(stderr,"setVertexArray()\n");
-						      entry_ptr->geom->setVertexArray(entry_ptr->DataArray); /* tell OSG this is dirty */
+						      // Should probably convert write lock to read lock and spawn this stuff off, maybe in a different thread (?) (WHY???) 						      
+						      vertexarray_from_instance_vertexarrayslocked(shared_cache->snde_geom,all_locks,dep->inputs[0].start,vertex_array_out.start,vertex_array_out.len,shared_cache->context,shared_cache->device,shared_cache->queue);
+						      
 
 						      entry_ptr->NormalArray->offset = shared_cache->snde_geom->geom.meshedparts[entry_ptr->instance.meshedpartnum].firsttri*9; // offset counted in terms of floating point numbers
 						      entry_ptr->NormalArray->nvec = shared_cache->snde_geom->geom.meshedparts[entry_ptr->instance.meshedpartnum].numtris*3;
 
-						      entry_ptr->geom->setNormalArray(entry_ptr->NormalArray, osg::Array::BIND_PER_VERTEX); /* Normals might be dirty too... */
+						      if (entry_ptr->drawarrays->getCount() > shared_cache->snde_geom->geom.meshedparts[entry_ptr->instance.meshedpartnum].numtris) {
+							entry_ptr->drawarrays->setCount(0);
+						      }
 
+						      entry_ptr->geom->setNormalArray(entry_ptr->NormalArray, osg::Array::BIND_PER_VERTEX); /* Normals might be dirty too... */
+						      fprintf(stderr,"setVertexArray()\n");
+						      entry_ptr->geom->setVertexArray(entry_ptr->DataArray); /* tell OSG this is dirty */
+
+						      if (entry_ptr->drawarrays->getCount() != shared_cache->snde_geom->geom.meshedparts[entry_ptr->instance.meshedpartnum].numtris*3) {
+							entry_ptr->drawarrays->setCount(shared_cache->snde_geom->geom.meshedparts[entry_ptr->instance.meshedpartnum].numtris*3);
+						      }
 
 						      // ***!!! Should we express as tuple, then do tuple->vector conversion?
 						      // ***!!! Can we extract the changed regions from the lower level notifications
@@ -636,7 +679,7 @@ public:
 						      // Extract the first parameter (meshedpart) only
 						      
 						      // Perform locking
-						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,false,false,false);
+						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,SNDE_COMPONENT_GEOM_MESHEDPARTS,0,false,false,false);
 
 
 						      // Note: We would really rather this
@@ -660,7 +703,7 @@ public:
 						    [ shared_cache,entry_ptr,comp ](std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
 										   // update_output_regions()
 
-						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,true,true,true); // Must lock entire vertex_arrays here because we may need to reallocate it. Also when calling this we don't necessarily know the correct positioning. 
+						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,SNDE_COMPONENT_GEOM_MESHEDPARTS,0,true,true,true); // Must lock entire vertex_arrays here because we may need to reallocate it. Also when calling this we don't necessarily know the correct positioning. 
 
 									       
 						      // Inputs: meshedpart
@@ -679,7 +722,7 @@ public:
 						      assert(outputs.size() <= 1);
 						      if (outputs.size()==1) {
 							// already have an allocation 
-							//allocationinfo & allocinfo = manager->allocators.at((void**)&shared_cache->snde_geom->geom.vertex_arrays);
+							//allocationinfo allocinfo = manager->allocators()->at((void**)&shared_cache->snde_geom->geom.vertex_arrays);
 							//snde_index alloclen = allocinfo.alloc->get_length(outputs[0].start);
 							
 							snde_index alloclen = shared_cache->snde_geom->manager->get_length((void **)&shared_cache->snde_geom->geom.vertex_arrays,outputs[0].start);
@@ -693,7 +736,7 @@ public:
 							}
 						      }
 						      
-						      if (outputs.size() < 1) {										     //allocationinfo & allocinfo = manager->allocators.at(&shared_cache->snde_geom->geom.vertex_arrays);
+						      if (outputs.size() < 1) {										     //allocationinfo allocinfo = manager->allocators()->at(&shared_cache->snde_geom->geom.vertex_arrays);
 							std::vector<std::pair<std::shared_ptr<alloc_voidpp>,rwlock_token_set>> allocation_vector;
 							// ***!!! Should we allocate extra space here for additional output? 
 							snde_index start;
@@ -737,9 +780,15 @@ class OSGComponent: public osg::Group {
   // subclass of osg::Group that stores an array of references to the cache entries
 
 public:
+
+  std::shared_ptr<osg_instancecache> cache;
+  std::shared_ptr<component> comp;
+  std::shared_ptr<trm> revman;
+  
   // elements of this group will be osg::MatrixTransform objects containing the osg::Geodes of the cache entries.
   std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> instances; // instances from last update... numbered identically to Group.
   std::vector<std::shared_ptr<osg_instancecacheentry>> cacheentries;
+  std::vector<osg::ref_ptr<osg::MatrixTransform>> transforms;
 
   /* Constructor: Build an OSGComponent from a snde::component 
  ***!!! May only be called within a transaction (per revman) 
@@ -757,12 +806,16 @@ public:
      NEW SOLUTION: Output location is defined by and allocated by update_output_regions() parameter to add_dependency_during_update()...
      This is called immediately. 
 */
-  OSGComponent(std::shared_ptr<snde::geometry> geom,std::shared_ptr<osg_instancecache> cache,std::shared_ptr<snde::component> comp,std::shared_ptr<trm> revman) {
+  OSGComponent(std::shared_ptr<snde::geometry> geom,std::shared_ptr<osg_instancecache> cache,std::shared_ptr<component> comp,std::shared_ptr<trm> revman) :
+    cache(cache),
+    comp(comp),
+    revman(revman)
+  {
 
     // ***!!! NEED TO REORGANIZE THIS CONSTRUCTOR SO THAT MOST OF IT CAN BE PUT IN AN UPDATE() method
     
     //std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
-    //std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(manager); // new locking process
+    //std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(manager->locker); // new locking process
 
     ///* Obtain lock for this component -- in parallel with our write lock on the vertex array, below */
     //lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess,0); });
@@ -774,15 +827,42 @@ public:
 
     //rwlock_token_set all_locks=lockprocess->finish();
 
+    Update();
+    
+    
+  }
+
+  void Update(void)
+  /* Object_trees_lock must be locked prior to calling */
+  {
+    std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> oldinstances; // instances from last update... numbered identically to Group.
+    std::vector<std::shared_ptr<osg_instancecacheentry>> oldcacheentries;
+
+    oldinstances=instances;
+    oldcacheentries=cacheentries;
+    
     auto emptyparamdict = std::make_shared<std::unordered_map<std::string,paramdictentry>>();
 
     instances = comp->get_instances(snde_null_orientation3(),emptyparamdict);
-
+    cacheentries.clear();
+    
+    size_t pos=0;
     for (auto & instance_comp: instances) {
-      
-      auto cacheentry = cache->lookup(revman,instance_comp.first,instance_comp.second);
-      cacheentries.push_back(cacheentry);
+      bool newcacheentry=false;
+      bool newxform=false;
+      std::shared_ptr<osg_instancecacheentry> cacheentry;
 
+      if (pos < oldinstances.size() && osg_snde_partinstance_equal()(oldinstances[pos].first,instance_comp.first)) {
+	// if we have this partinstance verbatim in our old array (note that
+	// equality will be satisified even if orientations are different)
+	cacheentry=oldcacheentries[pos];
+	cacheentries.push_back(oldcacheentries[pos]);
+      } else {
+	// Not present in old array... perform lookcup 
+	cacheentry = cache->lookup(revman,instance_comp.first,instance_comp.second);
+	cacheentries.push_back(cacheentry);
+	newcacheentry=true;
+      }
 
       const snde_orientation3 &orient=instance_comp.first.orientation;
 
@@ -792,22 +872,61 @@ public:
       osg::Matrixd translate;
       translate.makeTranslate(orient.offset.coord[0],orient.offset.coord[1],orient.offset.coord[2]);
 
-      osg::ref_ptr<osg::MatrixTransform> xform(new osg::MatrixTransform());
+      osg::ref_ptr<osg::MatrixTransform> xform;
 
+      if (pos < transforms.size()) {
+	xform=transforms[pos];
+      } else {
+	xform = new osg::MatrixTransform();
+	transforms.push_back(xform);
+	newxform=true;
+      }
       xform->setMatrix(translate*rotate);
 
       /* only meshed version implemented so far */
       assert(instance_comp.first.nurbspartnum == SNDE_INDEX_INVALID);
       assert(instance_comp.first.meshedpartnum != SNDE_INDEX_INVALID);
 
-      xform->addChild(cacheentry->geode);
-
-      this->addChild(xform);
+      if (newcacheentry && newxform) {
+	xform->addChild(cacheentry->geode);
+	this->addChild(xform);
+      } else if (newcacheentry && !newxform) {
+	xform->removeChild(oldcacheentries[pos]->geode);
+	xform->addChild(cacheentry->geode);	
+      } else if (!newcacheentry && newxform) {
+	assert(0); // shouldn't be possible
+      } else {
+	assert(!newcacheentry && !newxform);
+	/* everything already in place */
+      }
+      
+      pos++;
+    }
+    
+    /* if there are more transforms than needed, remove the excess ones */
+    if (transforms.size() > pos) {
+      size_t targetsize = pos;
+      // remove excess transforms
+      while (pos < transforms.size()) {
+	this->removeChild(transforms[pos]);
+	pos++;
+      }
+      transforms.resize(targetsize);
       
     }
 
-    
-  };
+  }
+
+  void LockVertexArraysTextures(std::shared_ptr<lockholder> holder,std::shared_ptr<lockingprocess_threaded> lockprocess)
+  /* This locks the generated vertex arrays and normals (for OSG) and generated textures (for OSG) for read */
+  /* ***!!!! TEXTURES NOT INCLUDED YET BECAUSE NOT IMPLEMENTED YET!!!****/
+  /* Object_trees_lock must be locked prior to calling */
+  /* Should have just done an Update() so that cacheentries is up-to-date */
+  {
+    for (auto & cacheentry: cacheentries) {
+      lockprocess->spawn( [ cacheentry, holder, lockprocess, this]() { cacheentry->obtain_array_locks(holder,lockprocess,comp,SNDE_COMPONENT_GEOM_MESHEDPARTS|SNDE_COMPONENT_GEOM_NORMALS, 0,true, false, false); });
+    }
+  }
 };
 
 

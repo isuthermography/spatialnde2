@@ -300,9 +300,6 @@ namespace snde {
      (for now) managed by a single arraymanager/lockmanager  */ 
   class openclcachemanager : public cachemanager {
   public: 
-    /* Look up allocator by __allocated_array_pointer__ only */
-    /* mapping index is arrayptr, returns allocator */
-    //std::unordered_map<void **,allocationinfo> allocators;
     //std::shared_ptr<memallocator> _memalloc;
     // locker defined by arraymanager base class
     std::mutex admin; /* lock our data structures, including buffer_map and descendents. We are allowed to call allocators/lock managers while holding 
@@ -366,7 +363,7 @@ namespace snde {
       rangetracker<openclregion>::iterator invalidregion;
       
       if (numelem==SNDE_INDEX_INVALID) {
-	numelem=manager_strong->allocators[arrayptr].alloc->total_nelem()-firstelem;
+	numelem=(*manager_strong->allocators())[arrayptr].alloc->total_nelem()-firstelem;
       }
 
       /* transfer any relevant areas that are invalid and not currently pending */
@@ -417,13 +414,14 @@ namespace snde {
       std::shared_ptr<_openclbuffer> oclbuffer;
       openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr);
       std::shared_ptr<arraymanager> manager_strong(manager); /* as manager references us, it should always exist while we do. This will throw an exception if it doesn't */
-      std::shared_ptr<allocator> alloc=manager_strong->allocators[arrayptr].alloc;
+      allocationinfo thisalloc = (*manager_strong->allocators())[arrayptr];
+      //std::shared_ptr<allocator> alloc=thisalloc.alloc;
 	    
       std::unordered_map<openclarrayinfo,std::shared_ptr<_openclbuffer>>::iterator buffer;
       buffer=buffer_map.find(arrayinfo);
       if (buffer == buffer_map.end()) {
 	/* need to create buffer */
-	oclbuffer=std::make_shared<_openclbuffer>(context,alloc,alloc->arrays[manager_strong->allocators[arrayptr].allocindex].elemsize,arrayptr,&admin);
+	oclbuffer=std::make_shared<_openclbuffer>(context,thisalloc.alloc,(*thisalloc.alloc->arrays())[thisalloc.allocindex].elemsize,arrayptr,&admin);
 	buffer_map[arrayinfo]=oclbuffer;
 
 	std::vector<openclarrayinfo> & buffers_for_this_array=buffers_by_array[arrayinfo.arrayptr];
@@ -444,7 +442,7 @@ namespace snde {
       openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr);
 
       std::shared_ptr<arraymanager> manager_strong(manager); /* as manager references us, it should always exist while we do. This will throw an exception if it doesn't */
-      std::shared_ptr<allocator> alloc=manager_strong->allocators[arrayptr].alloc;
+      std::shared_ptr<allocator> alloc=(*manager_strong->allocators())[arrayptr].alloc;
       std::vector<cl_event> ev;
 
       std::shared_ptr<_openclbuffer> oclbuffer=_GetBufferObject(context,arrayptr);
@@ -594,7 +592,7 @@ namespace snde {
 
       std::shared_ptr<arraymanager> manager_strong(manager); /* as manager references us, it should always exist while we do. This will throw an exception if it doesn't */
 
-      std::shared_ptr<allocator> alloc=manager_strong->allocators[arrayptr].alloc;
+      std::shared_ptr<allocator> alloc=(*manager_strong->allocators())[arrayptr].alloc;
       std::shared_ptr<_openclbuffer> oclbuffer;
       std::vector<cl_event> ev;
       rangetracker<openclregion>::iterator invalidregion;
@@ -735,7 +733,7 @@ namespace snde {
 
       //size_t arrayidx=manager_strong->locker->get_array_idx(arrayptr);
 
-      //std::shared_ptr<allocator> alloc=manager_strong->allocators[arrayptr].alloc;
+      //std::shared_ptr<allocator> alloc=(*manager_strong->allocators())[arrayptr].alloc;
 
       /* create arrayinfo key */
       openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr);
@@ -768,7 +766,7 @@ namespace snde {
 	snde_index numelem;
 	
 	if (dirtyregion.second->regionend==SNDE_INDEX_INVALID) {
-	  numelem=manager_strong->allocators[arrayptr].alloc->total_nelem()-dirtyregion.second->regionstart;
+	  numelem=(*manager_strong->allocators())[arrayptr].alloc->total_nelem()-dirtyregion.second->regionstart;
 	} else {
 	  numelem=dirtyregion.second->regionend-dirtyregion.second->regionstart;
 	}
@@ -1384,7 +1382,7 @@ namespace snde {
       openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr);
       
       std::shared_ptr<_openclbuffer> buffer=info.cachemanager->buffer_map.at(arrayinfo);
-      snde_index numelem=info.manager->allocators[arrayptr].alloc->total_nelem();
+      snde_index numelem=(*info.manager->allocators())[arrayptr].alloc->total_nelem();
 
       buffer->mark_as_gpu_modified(0,numelem);
     }

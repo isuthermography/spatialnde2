@@ -98,21 +98,21 @@ kernel=program.testkern_onepart # NOTE: must only extract kernel attribute once 
 # during the locking process
 
 holder = spatialnde2.lockholder()
-all_locks = spatialnde2.pylockprocess(manager,
+all_locks = spatialnde2.pylockprocess(manager.locker,
                                       lambda proc: [  # Remember to follow locking order
                                           # Allocate pieces of these arrays and return the allocated pieces.
                                           # Note that it will temporarily lock the entire arrays for write
                                           # in order to do the allocation
                                           
                                           # Allocate a single entry in the "meshedparts" array
-                                          holder.store_alloc((yield proc.alloc_array_region(geometry.addr("meshedparts"),1,""))),
+                                          holder.store_alloc((yield proc.alloc_array_region(manager,geometry.addr("meshedparts"),1,""))),
                                           # Note: Because the triangles allocator also allocates several other fields (per
                                           # comments in geometrydata.h and add_follower_array() call in geometry.hpp,
                                           # the allocation of "triangles" allocates and locks both it and the other arrays.  
-                                          holder.store_alloc((yield proc.alloc_array_region(geometry.addr("triangles"),1,""))),                                            
-                                          holder.store_alloc((yield proc.alloc_array_region(geometry.addr("edges"),3,""))),                                            
-                                          holder.store_alloc((yield proc.alloc_array_region(geometry.addr("vertices"),3,""))),
-                                          holder.store_alloc((yield proc.alloc_array_region(geometry.addr("vertex_edgelist"),6,""))),
+                                          holder.store_alloc((yield proc.alloc_array_region(manager,geometry.addr("triangles"),1,""))),                                            
+                                          holder.store_alloc((yield proc.alloc_array_region(manager,geometry.addr("edges"),3,""))),                                            
+                                          holder.store_alloc((yield proc.alloc_array_region(manager,geometry.addr("vertices"),3,""))),
+                                          holder.store_alloc((yield proc.alloc_array_region(manager,geometry.addr("vertex_edgelist"),6,""))),
                                       ])
 # Can list the locks in holder with "print(holder)"
 # Can access the allocation index with
@@ -205,7 +205,7 @@ del meshedparts
 
 # Store which part address for later use
 # Represent the above triangle as a "meshedpart"
-part=spatialnde2.meshedpart(geometry,holder.get_alloc(geometry.addr("meshedparts"),""))
+part=spatialnde2.meshedpart(geometry,"my_triangle",holder.get_alloc(geometry.addr("meshedparts"),""))
 
 # Unlock now that we have written
 # (if we wanted we could use from the GPU under this same lock
@@ -218,8 +218,8 @@ del holder
 # Now (perhaps later) we want to use the GPU to calculate the surface area of this part...
 # Begin a new locking process
 holder = spatialnde2.lockholder()   # new holder
-all_locks = spatialnde2.pylockprocess(manager,
-                                      lambda proc: part.obtain_lock_pycpp(proc,holder,0))  # 0 indicates flags for which arrays we want write locks (none in this case)
+all_locks = spatialnde2.pylockprocess(manager.locker,
+                                      lambda proc: part.obtain_lock_pycpp(proc,holder,spatialnde2.SNDE_COMPONENT_GEOM_ALL,0,0))  # 0 indicates flags for which arrays we want write and resize locks (none in this case)
 
 # now we can access (read only) the data from the cpu
 meshedparts=geometry.field(holder,"meshedparts",False,spatialnde2.nt_snde_meshedpart,part.idx,1)

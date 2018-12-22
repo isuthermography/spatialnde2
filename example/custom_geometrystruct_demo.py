@@ -37,11 +37,11 @@ geometry=customgeometry(manager)
 # Pure-python locking process
 
 lockholder = spatialnde2.lockholder()
-all_locks = spatialnde2.pylockprocess(manager,
+all_locks = spatialnde2.pylockprocess(manager.locker,
                                       lambda proc: [
                                           # remember to follow locking order!
-                                          lockholder.store_alloc((yield proc.alloc_array_region(geometry.addr("vertexidx"),10,""))),
-                                          lockholder.store_alloc((yield proc.alloc_array_region(geometry.addr("vertices"),15,"")))
+                                          lockholder.store_alloc((yield proc.alloc_array_region(manager,geometry.addr("vertexidx"),10,""))),
+                                          lockholder.store_alloc((yield proc.alloc_array_region(manager,geometry.addr("vertices"),15,"")))
                                       ])
 
 # can now access lockholder.vertices, etc.

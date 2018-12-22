@@ -222,7 +222,8 @@ are otherwise never generated, even if their input changes ***!!!
 
      std::tie(meshedpart,coords,indexes,region) = extract_regions<singleton<meshedpart>,snde_coord3,indexrange,rawregion>(inputs);
 
-     // Note that this does nothing in terms of locking, which probably must be done separately
+     // Note that this does nothing in terms of locking, which generally must be done separately (and 
+     // before calling extract_regions<>() -- at least if you are extracting anything but rawregions)
   */
 
 

@@ -63,66 +63,188 @@ namespace snde {
     /* in this simple manager, allocators _memalloc and locker are presumed to be fixed
        after single-threaded startup, so we don't worry about thread safety */
     //std::unordered_map<void **,std::shared_ptr<allocator>> allocators;
-    std::unordered_map<void **,allocationinfo> allocators;
-    std::shared_ptr<memallocator> _memalloc;
-    std::shared_ptr<lockmanager> locker;
-    std::shared_ptr<allocator_alignment> alignment_requirements;
-    std::unordered_map<void **,void **> allocation_arrays; // look up the arrays used for allocation
-    std::multimap<void **,void **> arrays_managed_by_allocator; // look up the managed arrays by the allocator array... ordering is as the arrays are created, which follows the locking order
+    std::shared_ptr<memallocator> _memalloc; /* must be fixed and unchanged after initialization */
+    std::shared_ptr<lockmanager> locker; /* must be fixed and unchanged after initialization */
+    std::shared_ptr<allocator_alignment> alignment_requirements; /* must be fixed and unchanged after initialization */
 
-    std::mutex admin; /* serializes access to caches */
+    std::mutex admin; /* serializes access to caches, and write access (but not read 
+			 access) to _allocators, _allocation_arrays, 
+			 and arrays_managed_by_allocator, below... 
+			 late in all locking orders... the allocatormutex's in the 
+			 allocators may be locked while this is locked. */
+    
     std::unordered_map<std::string,std::shared_ptr<cachemanager>> _caches;
+    /* (Should _caches also use the atomic synchronization model?) */
+
+    
+    /* Synchronization model for _allocators, _allocation_arrays, 
+       and arrays_managed_by_allocator: Atomic shared pointer for 
+       the content for reading. To change the content, lock the 
+       admin mutex, make a complete copy, then 
+       switch the atomic pointer. 
+
+       non-atomic shared pointer copy retrieved by the allocators(), 
+       allocation_arrays(), and arrays_managed_by_allocator() methods
+    */
+
+    std::shared_ptr<std::unordered_map<void **,allocationinfo>> _allocators; // C++11 atomic shared_ptr
+    std::shared_ptr<std::unordered_map<void **,void **>> _allocation_arrays; // C++11 atomic shared_ptr: look up the arrays used for allocation
+    std::shared_ptr<std::multimap<void **,void **>> _arrays_managed_by_allocator; // C++11 atomic shared_ptr: look up the managed arrays by the allocator array... ordering is as the arrays are created, which follows the locking order
+
+
 
     
 
-    arraymanager(std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements)
+    
+
+    arraymanager(std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> locker=nullptr)
     {
+      std::atomic_store(&_allocators,std::make_shared<std::unordered_map<void **,allocationinfo>>());
+      std::atomic_store(&_allocation_arrays,std::make_shared<std::unordered_map<void **,void **>>());
+      std::atomic_store(&_arrays_managed_by_allocator,std::make_shared<std::multimap<void **,void **>>());
       _memalloc=memalloc;
+      
       this->alignment_requirements=alignment_requirements;
-      locker = std::make_shared<lockmanager>();
+      if (!locker) {
+	locker = std::make_shared<lockmanager>();
+      }
+      this->locker=locker;
     }
 
     arraymanager(const arraymanager &)=delete; /* copy constructor disabled */
     arraymanager& operator=(const arraymanager &)=delete; /* assignment disabled */
 
+    virtual std::shared_ptr<std::unordered_map<void **,allocationinfo>> allocators()
+    {
+      return std::atomic_load(&_allocators);
+    }
+    virtual std::shared_ptr<std::unordered_map<void **,void **>> allocation_arrays()
+    {
+      // look up the arrays used for allocation
+      return std::atomic_load(&_allocation_arrays);
+    }
+    
+    virtual std::shared_ptr<std::multimap<void **,void **>> arrays_managed_by_allocator()
+    {
+
+      // look up the managed arrays by the allocator array... ordering is as the arrays are created, which follows the locking order
+      return std::atomic_load(&_arrays_managed_by_allocator);
+    }
+
+    virtual std::tuple<std::shared_ptr<std::unordered_map<void **,allocationinfo>>,
+		       std::shared_ptr<std::unordered_map<void **,void **>>,
+		       std::shared_ptr<std::multimap<void **,void **>>> _begin_atomic_update()
+    // adminlock must be locked when calling this function...
+    // it returns new copies of the atomically-guarded data
+    {
+
+      // Make copies of atomically-guarded data 
+      std::shared_ptr<std::unordered_map<void **,allocationinfo>> new_allocators=std::make_shared<std::unordered_map<void **,allocationinfo>>(*allocators());
+      std::shared_ptr<std::unordered_map<void **,void **>> new_allocation_arrays=std::make_shared<std::unordered_map<void **,void **>>(*allocation_arrays());
+      std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator=std::make_shared<std::multimap<void **,void **>>(*arrays_managed_by_allocator());      
+
+      return std::make_tuple(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator);
+    }
+
+    virtual void _end_atomic_update(std::shared_ptr<std::unordered_map<void **,allocationinfo>> new_allocators,				  
+				     std::shared_ptr<std::unordered_map<void **,void **>> new_allocation_arrays,
+				     std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator)
+    // adminlock must be locked when calling this function...
+    {
+
+      // replace old with new
+
+      std::atomic_store(&_allocators,new_allocators);
+      std::atomic_store(&_allocation_arrays,new_allocation_arrays);
+      std::atomic_store(&_arrays_managed_by_allocator,new_arrays_managed_by_allocator);
+      
+    }
+
+    
     virtual void add_allocated_array(void **arrayptr,size_t elemsize,snde_index totalnelem)
     {
       //std::lock_guard<std::mutex> adminlock(admin);
 
-      // Make sure arrayptr not already managed
-      assert(allocators.find(arrayptr)==allocators.end());
-
-      //allocators[arrayptr]=std::make_shared<allocator>(_memalloc,locker,arrayptr,elemsize,totalnelem);
-      allocators[arrayptr]=allocationinfo{std::make_shared<allocator>(_memalloc,locker,alignment_requirements,arrayptr,elemsize,totalnelem),0};
+      {
+	std::lock_guard<std::mutex> adminlock(admin); // required because we are updating atomically-guarded data
+	// Make copies of atomically-guarded data 
+	std::shared_ptr<std::unordered_map<void **,allocationinfo>> new_allocators;
+	std::shared_ptr<std::unordered_map<void **,void **>> new_allocation_arrays;
+	std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator;
+	
+	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator)
+	  = _begin_atomic_update();
+	
+	// Make sure arrayptr not already managed
+	assert(new_allocators->find(arrayptr)==new_allocators->end());
+	
+	//allocators[arrayptr]=std::make_shared<allocator>(_memalloc,locker,arrayptr,elemsize,totalnelem);
+	
+	
+	(*new_allocators)[arrayptr]=allocationinfo{std::make_shared<allocator>(_memalloc,locker,alignment_requirements,arrayptr,elemsize,totalnelem),0};
+	
+	(*new_allocation_arrays)[arrayptr]=arrayptr;
+	new_arrays_managed_by_allocator->emplace(std::make_pair(arrayptr,arrayptr));
+	
+	
+	// replace old with new
+	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator);
+      }
       locker->addarray(arrayptr);
-    
-      allocation_arrays[arrayptr]=arrayptr;
-      arrays_managed_by_allocator.emplace(std::make_pair(arrayptr,arrayptr));
-      
     
     }
   
     virtual void add_follower_array(void **allocatedptr,void **arrayptr,size_t elemsize)
     {
-      //std::lock_guard<std::mutex> adminlock(admin);
-      std::shared_ptr<allocator> alloc=allocators[allocatedptr].alloc;
-      // Make sure arrayptr not already managed
-      assert(allocators.find(arrayptr)==allocators.end());
 
-      //alloc->add_other_array(arrayptr,elemsize);
-      allocators[arrayptr]=allocationinfo{alloc,alloc->add_other_array(arrayptr,elemsize)};
+      {
+	std::lock_guard<std::mutex> adminlock(admin); // required because we are updating atomically-guarded data
+	
+	// Make copies of atomically-guarded data 
+	std::shared_ptr<std::unordered_map<void **,allocationinfo>> new_allocators;
+	std::shared_ptr<std::unordered_map<void **,void **>> new_allocation_arrays;
+	std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator;
+	
+	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator)
+	  = _begin_atomic_update();
+	
+	std::shared_ptr<allocator> alloc=(*new_allocators)[allocatedptr].alloc;
+	// Make sure arrayptr not already managed
+	assert(new_allocators->find(arrayptr)==new_allocators->end());
+	
+	//alloc->add_other_array(arrayptr,elemsize);
+	(*new_allocators)[arrayptr]=allocationinfo{alloc,alloc->add_other_array(arrayptr,elemsize)};
+	
+	(*new_allocation_arrays)[arrayptr]=allocatedptr;
+	
+	new_arrays_managed_by_allocator->emplace(std::make_pair(allocatedptr,arrayptr));
 
-      allocation_arrays[arrayptr]=allocatedptr;
-
-      arrays_managed_by_allocator.emplace(std::make_pair(allocatedptr,arrayptr));
+	// replace old with new
+	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator);
+      }
       locker->addarray(arrayptr);
 
     }
 
     virtual void add_unmanaged_array(void **allocatedptr,void **arrayptr)
     {
-      allocators[arrayptr]=allocationinfo{nullptr,0};
-      allocation_arrays[arrayptr]=nullptr;
+      {
+	std::lock_guard<std::mutex> adminlock(admin); // required because we are updating atomically-guarded data
+	
+	// Make copies of atomically-guarded data 
+	std::shared_ptr<std::unordered_map<void **,allocationinfo>> new_allocators;
+	std::shared_ptr<std::unordered_map<void **,void **>> new_allocation_arrays;
+	std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator;
+	
+	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator)
+	  = _begin_atomic_update();
+	
+	(*new_allocators)[arrayptr]=allocationinfo{nullptr,0};
+	(*new_allocation_arrays)[arrayptr]=nullptr;
+	// replace old with new
+	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator);
+      }
+      
       locker->addarray(arrayptr);
     }
     
@@ -157,14 +279,14 @@ namespace snde {
     
     virtual snde_index get_elemsize(void **arrayptr)
     {
-      struct allocationinfo & alloc = allocators[arrayptr];
+      struct allocationinfo alloc = (*allocators())[arrayptr];
 
-      return alloc.alloc->arrays[alloc.allocindex].elemsize;
+      return (*alloc.alloc->arrays())[alloc.allocindex].elemsize;
     }
     virtual snde_index get_total_nelem(void **arrayptr)
     {
-      struct allocationinfo & alloc = allocators[arrayptr];
-
+      struct allocationinfo alloc = (*allocators())[arrayptr];
+      
       //alloc.alloc->arrays[alloc.allocindex].elemsize
       return alloc.alloc->_totalnchunks*alloc.alloc->_allocchunksize;
     }
@@ -172,7 +294,7 @@ namespace snde {
     virtual void realloc_down(void **allocatedptr,snde_index addr,snde_index orignelem, snde_index newnelem)
     {
       /* Shrink an allocation. Can ONLY be called if you have a write lock to this allocation */
-      std::shared_ptr<allocator> alloc=allocators[allocatedptr].alloc;
+      std::shared_ptr<allocator> alloc=(*allocators())[allocatedptr].alloc;
       alloc->realloc_down(addr,orignelem,newnelem);
     }
 
@@ -180,7 +302,7 @@ namespace snde {
     virtual std::pair<snde_index,std::vector<std::pair<std::shared_ptr<alloc_voidpp>,rwlock_token_set>>> alloc_arraylocked(rwlock_token_set all_locks,void **allocatedptr,snde_index nelem)
     {
       //std::lock_guard<std::mutex> adminlock(admin);
-      std::shared_ptr<allocator> alloc=allocators[allocatedptr].alloc;
+      std::shared_ptr<allocator> alloc=(*allocators())[allocatedptr].alloc;
       return alloc->alloc_arraylocked(all_locks,nelem);    
     }
     
@@ -195,52 +317,85 @@ namespace snde {
     virtual snde_index get_length(void **allocatedptr,snde_index addr)
     {
       //std::lock_guard<std::mutex> adminlock(admin);
-      std::shared_ptr<allocator> alloc=allocators[allocatedptr].alloc;
+      std::shared_ptr<allocator> alloc=(*allocators())[allocatedptr].alloc;
       return alloc->get_length(addr);    
     }
 
     virtual void free(void **allocatedptr,snde_index addr)
     {
       //std::lock_guard<std::mutex> adminlock(admin);
-      std::shared_ptr<allocator> alloc=allocators[allocatedptr].alloc;
+      std::shared_ptr<allocator> alloc=(*allocators())[allocatedptr].alloc;
       alloc->free(addr);    
     }
 
     virtual void clear() /* clear out all references to allocated and followed arrays */
     {
-      //std::lock_guard<std::mutex> adminlock(admin);
-      allocators.clear();
-    }
+      {
+	std::lock_guard<std::mutex> adminlock(admin); // required because we are updating atomically-guarded data
+	// Make copies of atomically-guarded data 
+	std::shared_ptr<std::unordered_map<void **,allocationinfo>> new_allocators;
+	std::shared_ptr<std::unordered_map<void **,void **>> new_allocation_arrays;
+	std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator;
+	
+	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator)
+	  = _begin_atomic_update();
+	new_allocators->clear();
+	new_allocation_arrays->clear();
+	new_arrays_managed_by_allocator->clear();
+	
+	// replace old with new
+	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator);
+      }
 
+      // * Should we remove these arrays from locker (?) 
+    }
+    
     virtual void cleararrays(void *structaddr, size_t structlen)
     {
       /* clear all arrays within the specified structure */
-      size_t pos;
-      char *thisaddr;
+      {
+	std::lock_guard<std::mutex> adminlock(admin); // required because we are updating atomically-guarded data
+	// Make copies of atomically-guarded data 
+	std::shared_ptr<std::unordered_map<void **,allocationinfo>> new_allocators;
+	std::shared_ptr<std::unordered_map<void **,void **>> new_allocation_arrays;
+	std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator;
+	
+	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator)
+	  = _begin_atomic_update();
+	
+	size_t pos;
+	char *thisaddr;
       
-      /* for each address in the structure... */
-      for (pos=0; pos < structlen; pos++) {
-	thisaddr = ((char *)structaddr)+pos;
-
-	/* find any allocator pointed at this addr */
-	std::unordered_map<void **,allocationinfo>::iterator this_arrayptr_allocationinfo;
-	for (std::unordered_map<void **,allocationinfo>::iterator next_arrayptr_allocationinfo=allocators.begin();next_arrayptr_allocationinfo != allocators.end();) {
-	  this_arrayptr_allocationinfo=next_arrayptr_allocationinfo;
-	  next_arrayptr_allocationinfo++;
+	/* for each address in the structure... */
+	for (pos=0; pos < structlen; pos++) {
+	  thisaddr = ((char *)structaddr)+pos;
 	  
-	  if ((char *)this_arrayptr_allocationinfo->first == thisaddr) {
-	    /* match! */
-
-	    this_arrayptr_allocationinfo->second.alloc->remove_array((void **)thisaddr);
+	  /* find any allocator pointed at this addr */
+	  std::unordered_map<void **,allocationinfo>::iterator this_arrayptr_allocationinfo;
+	  for (std::unordered_map<void **,allocationinfo>::iterator next_arrayptr_allocationinfo=new_allocators->begin();next_arrayptr_allocationinfo != new_allocators->end();) {
+	    this_arrayptr_allocationinfo=next_arrayptr_allocationinfo;
+	    next_arrayptr_allocationinfo++;
 	    
-	    if (this_arrayptr_allocationinfo->second.alloc->num_arrays()==0 && this_arrayptr_allocationinfo->second.alloc.use_count() > 1) {
-	      throw(std::runtime_error("Residual references to array allocation during structure deletion")); /* This error indicates that excess std::shared_ptr<allocator> references are alive during cleanup */
+	    if ((char *)this_arrayptr_allocationinfo->first == thisaddr) {
+	      /* match! */
+	      
+	      this_arrayptr_allocationinfo->second.alloc->remove_array((void **)thisaddr);
+	    
+	      if (this_arrayptr_allocationinfo->second.alloc->num_arrays()==0 && this_arrayptr_allocationinfo->second.alloc.use_count() > 2) {
+		throw(std::runtime_error("Residual references to array allocation during structure deletion")); /* This error indicates that excess std::shared_ptr<allocator> references are alive during cleanup */
+	      }
+	    
+	      while (new_arrays_managed_by_allocator->find(this_arrayptr_allocationinfo->first) != new_arrays_managed_by_allocator->end()) {
+		new_arrays_managed_by_allocator->erase(new_arrays_managed_by_allocator->find(this_arrayptr_allocationinfo->first));
+	      }
+	      new_allocation_arrays->erase(new_allocation_arrays->find(this_arrayptr_allocationinfo->first));
+	      new_allocators->erase(this_arrayptr_allocationinfo);
 	    }
 	    
-	    allocators.erase(this_arrayptr_allocationinfo);
 	  }
-	
 	}
+	// replace old with new
+	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator);
       }
     }
     
