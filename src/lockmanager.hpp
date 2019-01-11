@@ -602,10 +602,16 @@ namespace snde {
       // prior is like a rwlock_token_set **
       std::shared_ptr<arraylock> thislock=_locks()->at(arrayidx);
       std::unique_lock<std::mutex> lock(thislock->admin); // lock the subregions field
-      
-      std::shared_ptr<rwlock> rwlockobj = thislock->subregions.at(markedregion(pos,pos+size));
-      lock.unlock();
-      return std::make_pair(&rwlockobj->reader,_get_preexisting_lock_read_array_lockobj(all_locks, arrayidx,rwlockobj));
+
+      if (!thislock->subregions.size() && pos==0) {
+	// this array does not have regions ... just lock whole array
+	lock.unlock();
+	return std::make_pair(&thislock->wholearray->reader,_get_preexisting_lock_read_array_lockobj(all_locks, arrayidx,thislock->wholearray));
+      } else {
+	std::shared_ptr<rwlock> rwlockobj = thislock->subregions.at(markedregion(pos,pos+size));
+	lock.unlock();
+	return std::make_pair(&rwlockobj->reader,_get_preexisting_lock_read_array_lockobj(all_locks, arrayidx,rwlockobj));
+      }
     }
     
 
@@ -777,6 +783,13 @@ namespace snde {
       std::shared_ptr<arraylock> thislock=_locks()->at(arrayidx);
       std::unique_lock<std::mutex> lock(thislock->admin); // lock the subregions field
 
+
+      if (!thislock->subregions.size() && indexstart==0) {
+	// This array does not have subregions... lock the whole array
+	lock.unlock();
+	return std::make_pair(&thislock->wholearray->writer,_get_preexisting_lock_write_array_lockobj(all_locks, arrayidx,thislock->wholearray));
+	
+      }
       std::shared_ptr<rwlock> rwlockobj = thislock->subregions.at(markedregion(indexstart,indexstart+numelems));
       lock.unlock();
       return std::make_pair(&rwlockobj->writer,_get_preexisting_lock_write_array_lockobj(all_locks, arrayidx,rwlockobj));
@@ -927,7 +940,7 @@ namespace snde {
     }
 
 
-
+  
     void downgrade_to_read(rwlock_token_set locks) {
       /* locks within the token_set MUST NOT be referenced more than once.... That means you must
 	 have released your all_locks rwlock_token_set object*/
@@ -1274,6 +1287,8 @@ namespace snde{
     {
       std::unordered_map<lockholder_index,rwlock_token_set>::iterator value=values.find(lockholder_index(array,write,indexstart,numelem));
 
+
+      
       if (value==values.end()) {
 	throw std::runtime_error("Specified array and region with given writable status not found in lockholder. Was it locked with the same parameters?");
       }

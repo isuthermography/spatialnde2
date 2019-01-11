@@ -1180,11 +1180,10 @@ namespace snde {
 
   
   
-  std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> x3d_load_geometry(std::shared_ptr<geometry> geom,std::vector<std::shared_ptr<x3d_shape>> shapes,std::shared_ptr<std::vector<trm_arrayregion>> modified_region_accum,std::function<snde_image(std::shared_ptr<geometry> geom,std::string texture_url)> get_texture_image,bool reindex_vertices,bool reindex_tex_vertices)
+  std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> x3d_load_geometry(std::shared_ptr<geometry> geom,std::vector<std::shared_ptr<x3d_shape>> shapes,std::function<snde_image(std::shared_ptr<geometry> geom,std::string texture_url)> get_texture_image,bool reindex_vertices,bool reindex_tex_vertices)
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
-     modified_region_accum will accumulate all of the array regions that are written to during the loading
 
      get_texture_image() is a function (or nullptr)
      that should load the texture image, based on the 
@@ -1194,8 +1193,6 @@ namespace snde {
      free to write into the geometry database
      NOTE: The startcorner and step parameters from this file
      will be used to scale the texture coordinates into meaningful units!!!
-     NOTE2: get_texture_image() is free to modify modified_region_accum 
-     to mark the geometry database region it writes to. 
 
      If reindex_vertices is set, then re-identify matching vertices. 
      Otherwise vertex_tolerance is the tolerance in meters. */
@@ -1266,7 +1263,7 @@ namespace snde {
 					       std::dynamic_pointer_cast<x3d_indexedtriangleset>(indexedset)->index);
 
       snde_image teximage_data={ SNDE_INDEX_INVALID, // imgbufoffset
-				 SNDE_INDEX_INVALID, // rgba_imgbufoffset
+				 //SNDE_INDEX_INVALID, // rgba_imgbufoffset
 				 1024,1024, // nx,ny
 				 { {0.0,0.0} }, // startcorner
 				 { {1.0/1024,1.0/1024} }, // step
@@ -1425,8 +1422,9 @@ namespace snde {
 	  
 	}
       }
-      modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.vertices,firstvertex,num_vertices);     
-      modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.vertex_edgelist_indices,first_vertex_edgelist_index,num_vertices);
+      // mark vertices and vertex_edgelist_indices as modified by the CPU
+      geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.vertices,firstvertex,num_vertices);     
+      geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.vertex_edgelist_indices,first_vertex_edgelist_index,num_vertices);
 
       geom->geom.meshedparts[firstpart].firstvertex=firstvertex;
       geom->geom.meshedparts[firstpart].numvertices=num_vertices;
@@ -1628,7 +1626,9 @@ namespace snde {
       num_edges = next_edgenum;
       // realloc and shrink geom->geom.edges allocation to num_edges
       geom->manager->realloc_down((void **)&geom->geom.edges,firstedge,3*coordIndex.size(),num_edges);
-      modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.edges,firstedge,num_edges);     
+
+      // mark edges as modified by the CPU
+      geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.edges,firstedge,num_edges);     
  
       geom->geom.meshedparts[firstpart].firstedge=firstedge;
       geom->geom.meshedparts[firstpart].numedges=num_edges;
@@ -1685,7 +1685,9 @@ namespace snde {
       geom->geom.meshedparts[firstpart].first_vertex_edgelist=first_vertex_edgelist;
       geom->geom.meshedparts[firstpart].num_vertex_edgelist=next_vertex_edgelist_pos;
       geom->manager->realloc_down((void **)&geom->geom.vertex_edgelist,first_vertex_edgelist,vertex_edgelist_maxsize,next_vertex_edgelist_pos);
-      modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.vertex_edgelist,first_vertex_edgelist,next_vertex_edgelist_pos);     
+
+      // mark vertex_edgelist as modified by CPU
+      geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.vertex_edgelist,first_vertex_edgelist,next_vertex_edgelist_pos);     
 
 
 
@@ -1696,9 +1698,9 @@ namespace snde {
       curpart->need_normals=!(bool)normal;
       meshedpart_objs->push_back(curpart);
 
-      // Mark that we have made changes
-      modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.meshedparts,firstpart,1);
-      modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.triangles,firsttri,numtris);
+      // Mark that we have made changes to meshedparts and triangles
+      geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.meshedparts,firstpart,1);
+      geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.triangles,firsttri,numtris);
 
     
       
@@ -1776,8 +1778,9 @@ namespace snde {
 	  //}
 	}
 	
-	modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.uv_vertices,firstuvvertex,num_uv_vertices);
-	modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.uv_vertex_edgelist_indices,first_uv_vertex_edgelist_index,num_uv_vertices);
+	// Mark that we have made changes with the CPU to uv_vertices and uv_vertex_edgelist_indices
+	geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.uv_vertices,firstuvvertex,num_uv_vertices);
+	geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.uv_vertex_edgelist_indices,first_uv_vertex_edgelist_index,num_uv_vertices);
 	
 	geom->geom.mesheduv[firstmesheduv].firstuvvertex=firstuvvertex;
 	geom->geom.mesheduv[firstmesheduv].numuvvertices=num_uv_vertices;
@@ -1943,7 +1946,9 @@ namespace snde {
 	num_uv_edges = next_uv_edgenum;
 	// realloc and shrink geom->geom.uv_edges allocation to num_edges
 	geom->manager->realloc_down((void **)&geom->geom.uv_edges,firstuvedge,3*texCoordIndex.size(),num_uv_edges);
-	modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.uv_edges,firstuvedge,num_uv_edges);
+
+	// Mark that we have made changes using the CPU to uv_edges
+	geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.uv_edges,firstuvedge,num_uv_edges);
 
 	
 	geom->geom.mesheduv[firstmesheduv].firstuvtri=firstuvtri;
@@ -2009,8 +2014,10 @@ namespace snde {
 	geom->geom.mesheduv[firstmesheduv].first_uv_vertex_edgelist=first_uv_vertex_edgelist;
 	geom->geom.mesheduv[firstmesheduv].num_uv_vertex_edgelist=next_uv_vertex_edgelist_pos;
 	geom->manager->realloc_down((void **)&geom->geom.uv_vertex_edgelist,first_uv_vertex_edgelist,vertex_edgelist_maxsize,next_uv_vertex_edgelist_pos);
-	modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.uv_vertex_edgelist,first_uv_vertex_edgelist,next_uv_vertex_edgelist_pos);     
 
+	// Mark that we have modified uv_vertex_edgelist with the CPU
+	geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.uv_vertex_edgelist,first_uv_vertex_edgelist,next_uv_vertex_edgelist_pos);     
+	
 	
 	geom->geom.mesheduv[firstmesheduv].firstuvbox=SNDE_INDEX_INVALID;
 	geom->geom.mesheduv[firstmesheduv].numuvboxes=SNDE_INDEX_INVALID;
@@ -2032,8 +2039,9 @@ namespace snde {
 	
 	curpart->addparameterization(parameterization);
 
-	modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.mesheduv,firstmesheduv,1);
-	modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.uv_triangles,firstuvtri,numtris);
+	// Mark that we have modified mesheduv and uv_triangles with the CPU
+	geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.mesheduv,firstmesheduv,1);
+	geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.uv_triangles,firstuvtri,numtris);
 
 
 
@@ -2041,7 +2049,8 @@ namespace snde {
 	  /* set up blank snde_image structure to be filled in by caller with texture buffer data */
 	  geom->geom.uv_patches[firstuvpatch]=teximage_data;
 
-	  modified_region_accum->emplace_back(geom->manager,(void **)&geom->geom.uv_patches,firstuvpatch,1);
+	  // mark that we have modified uv_patches with the CPU
+	  geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.uv_patches,firstuvpatch,1);
 
 	  
 	  std::shared_ptr<uv_patches> texurlpatches = std::make_shared<uv_patches>(geom,texture->url,firstuvpatch,1);
@@ -2078,11 +2087,10 @@ namespace snde {
   }
 
 
-  std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> x3d_load_geometry(std::shared_ptr<geometry> geom,const char *filename,std::shared_ptr<std::vector<trm_arrayregion>> modified_region_accum,std::function<snde_image(std::shared_ptr<geometry> geom,std::string texture_url)> get_texture_image,bool reindex_vertices,bool reindex_tex_vertices)
+  std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> x3d_load_geometry(std::shared_ptr<geometry> geom,const char *filename,std::function<snde_image(std::shared_ptr<geometry> geom,std::string texture_url)> get_texture_image,bool reindex_vertices,bool reindex_tex_vertices)
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
-     modified_region_accum will accumulate all of the array regions that are written to during the loading
 
      If reindex_vertices is set, then re-identify matching vertices. 
      Otherwise vertex_tolerance is the tolerance in meters. */
@@ -2091,7 +2099,7 @@ namespace snde {
   {
     std::vector<std::shared_ptr<x3d_shape>> shapes=x3d_loader::shapes_from_file(filename);
     
-    return x3d_load_geometry(geom,shapes,modified_region_accum,get_texture_image,reindex_vertices,reindex_tex_vertices);
+    return x3d_load_geometry(geom,shapes,get_texture_image,reindex_vertices,reindex_tex_vertices);
     
   }
 

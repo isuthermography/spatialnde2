@@ -176,6 +176,8 @@ extern "C" {
 
     snde_coord *vertex_arrays; /* transformed vertex array for OpenSceneGraph / OpenGL */
     snde_coord *texvertex_arrays; /* transformed texture vertex array for OpenSceneGraph / OpenGL */
+    snde_rgba *texbuffer; // allocated separately
+    
     
   };
 #ifdef __cplusplus

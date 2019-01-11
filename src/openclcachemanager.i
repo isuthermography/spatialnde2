@@ -121,10 +121,12 @@ namespace snde {
   class openclarrayinfo {
   public:
     cl_context context; /* when on openclcachemanager's arrayinfomap, held in memory by clRetainContext() */
+    cl_device_id device;
+
     /* could insert some flag to indicate use of zero-copy memory */
     void **arrayptr;
     
-    openclarrayinfo(cl_context context, void **arrayptr);
+    openclarrayinfo(cl_context context, cl_device_id device, void **arrayptr);
     openclarrayinfo(const openclarrayinfo &orig); /* copy constructor */
     
     //openclarrayinfo& operator=(const openclarrayinfo &orig); /* copy assignment operator */
@@ -155,7 +157,7 @@ namespace snde {
     
     _openclbuffer(const _openclbuffer &)=delete; /* copy constructor disabled */
     
-    _openclbuffer(cl_context context,std::shared_ptr<snde::allocator> alloc,size_t elemsize,void **arrayptr, std::mutex *arraymanageradminmutex);
+    _openclbuffer(cl_context context,std::shared_ptr<snde::allocator> alloc,snde_index totalnelem,size_t elemsize,void **arrayptr, std::mutex *arraymanageradminmutex);
     void mark_as_gpu_modified(snde_index pos,snde_index nelem);
 
     ~_openclbuffer();
@@ -187,8 +189,10 @@ namespace snde {
     openclcachemanager(const openclcachemanager &)=delete; /* copy constructor disabled */
     openclcachemanager& operator=(const openclcachemanager &)=delete; /* assignment disabled */
 
+    cl_command_queue get_queue_ref(cl_context context,cl_device_id device);
+    
     void mark_as_dirty_except_buffer(std::shared_ptr<_openclbuffer> exceptbuffer,void **arrayptr,snde_index pos,snde_index numelem);
-    virtual void mark_as_dirty(void **arrayptr,snde_index pos,snde_index numelem);
+    virtual void mark_as_dirty(std::shared_ptr<arraymanager> specified_manager,void **arrayptr,snde_index pos,snde_index numelem);
 
     /** Will need a function ReleaseOpenCLBuffer that takes an event
         list indicating dependencies. This function queues any necessary
@@ -199,17 +203,17 @@ namespace snde {
     pointer to the openclbuffer. It will need to queue the transfer
     of any writes, and also clReleaseEvent the fill_event fields 
     of the invalidregions, and remove the markings as invalid */
-    void _TransferInvalidRegions(cl_command_queue queue,std::shared_ptr<_openclbuffer> oclbuffer,void **arrayptr,snde_index firstelem,snde_index numelems,std::vector<cl_event> &ev);
+    void _TransferInvalidRegions(cl_context context,cl_device_id device,std::shared_ptr<_openclbuffer> oclbuffer,void **arrayptr,snde_index firstelem,snde_index numelems,std::vector<cl_event> &ev);
 
 
-    std::shared_ptr<_openclbuffer> _GetBufferObject(cl_context context, void **arrayptr);
+    std::shared_ptr<_openclbuffer> _GetBufferObject(cl_context context, cl_device_id device, void **arrayptr);
 
-    std::tuple<rwlock_token_set,cl_mem,std::vector<cl_event>> GetOpenCLSubBuffer(rwlock_token_set alllocks,cl_context context, cl_command_queue queue, void **arrayptr,snde_index startelem,snde_index numelem,bool write,bool write_only=false);
-    std::tuple<rwlock_token_set,cl_mem,std::vector<cl_event>> GetOpenCLBuffer(rwlock_token_set alllocks,cl_context context, cl_command_queue queue, void **arrayptr,bool write,bool write_only=false);
+    std::tuple<rwlock_token_set,cl_mem,std::vector<cl_event>> GetOpenCLSubBuffer(rwlock_token_set alllocks,cl_context context, cl_device_id device, void **arrayptr,snde_index startelem,snde_index numelem,bool write,bool write_only=false);
+    std::tuple<rwlock_token_set,cl_mem,std::vector<cl_event>> GetOpenCLBuffer(rwlock_token_set alllocks,cl_context context, cl_device_id device, void **arrayptr,bool write,bool write_only=false);
 
-    std::pair<std::vector<cl_event>,std::vector<cl_event>> FlushWrittenOpenCLBuffer(cl_context context,cl_command_queue queue,void **arrayptr,std::vector<cl_event> explicit_prerequisites);
+    std::pair<std::vector<cl_event>,std::vector<cl_event>> FlushWrittenOpenCLBuffer(cl_context context,cl_device_id device ,void **arrayptr,std::vector<cl_event> explicit_prerequisites);
     
-    std::pair<std::vector<cl_event>,std::shared_ptr<std::thread>> ReleaseOpenCLBuffer(rwlock_token_set locks,cl_context context, cl_command_queue queue, cl_mem mem, void **arrayptr, cl_event input_data_not_needed,std::vector<cl_event> output_data_complete);
+    std::pair<std::vector<cl_event>,std::shared_ptr<std::thread>> ReleaseOpenCLBuffer(rwlock_token_set locks,cl_context context, cl_device_id device, cl_mem mem, void **arrayptr, cl_event input_data_not_needed,std::vector<cl_event> output_data_complete);
 
     virtual ~openclcachemanager();
   };
@@ -221,13 +225,13 @@ namespace snde {
   public:
     std::shared_ptr<arraymanager> manager;
     std::shared_ptr<openclcachemanager> cachemanager;
-    cl_command_queue queue;  /* counted by clRetainCommandQueue */
+    //cl_command_queue queue;  /* counted by clRetainCommandQueue */
     cl_mem mem; /* counted by clRetainMemObject */
     void **arrayptr;
     rwlock_token_set locks;
     
     OpenCLBuffer_info(std::shared_ptr<arraymanager> manager,
-		      cl_command_queue queue,  /* adds new reference */
+		      //cl_command_queue queue,  /* adds new reference */
 		      cl_mem mem, /* adds new reference */
 		      void **arrayptr,
 		      rwlock_token_set locks);
@@ -243,13 +247,14 @@ namespace snde {
     // opencl array manager
   public:
     cl_context context;  /* counted by clRetainContext() */
+    cl_device_id device;  /* counted by clRetainDevice() */
     rwlock_token_set all_locks;
 
     //std::unordered_map<void **,OpenCLBuffer_info> buffers; /* indexed by arrayidx */
 
     std::vector<cl_event> fill_events; /* each counted by clRetainEvent() */
      
-    OpenCLBuffers(cl_context context,rwlock_token_set all_locks);
+    OpenCLBuffers(cl_context context,cl_device_id device,rwlock_token_set all_locks);
     
     /* no copying */
     OpenCLBuffers(const OpenCLBuffers &) = delete;
@@ -267,11 +272,11 @@ namespace snde {
     
     cl_int SetBufferAsKernelArg(cl_kernel kernel, cl_uint arg_index, void **arrayptr,snde_index firstelem,snde_index numelem);
   
-    void AddSubBuffer(std::shared_ptr<arraymanager> manager,cl_command_queue queue, void **arrayptr,snde_index indexstart,snde_index numelem,bool write,bool write_only=false);
-    void AddBuffer(std::shared_ptr<arraymanager> manager,cl_command_queue queue, void **arrayptr,bool write,bool write_only=false);
+    void AddSubBuffer(std::shared_ptr<arraymanager> manager, void **arrayptr,snde_index indexstart,snde_index numelem,bool write,bool write_only=false);
+    void AddBuffer(std::shared_ptr<arraymanager> manager, void **arrayptr,bool write,bool write_only=false);
 
-    cl_int AddSubBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl_command_queue queue,cl_kernel kernel,cl_uint arg_index,void **arrayptr,snde_index indexstart,snde_index numelem,bool write,bool write_only=false);
-    cl_int AddBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl_command_queue queue,cl_kernel kernel,cl_uint arg_index,void **arrayptr,bool write,bool write_only=false);
+    cl_int AddSubBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl_kernel kernel,cl_uint arg_index,void **arrayptr,snde_index indexstart,snde_index numelem,bool write,bool write_only=false);
+    cl_int AddBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl_kernel kernel,cl_uint arg_index,void **arrayptr,bool write,bool write_only=false);
     void BufferDirty(void **arrayptr);    /* This indicates that the array has been written to by an OpenCL kernel, 
        and that therefore it needs to be copied back into CPU memory */
 

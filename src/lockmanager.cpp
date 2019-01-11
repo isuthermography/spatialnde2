@@ -47,7 +47,8 @@ snde::lockingprocess_threaded::lockingprocess_threaded(std::shared_ptr<lockmanag
   _executor_lock(_mutex)
 {
   this->_lockmanager=lockmanager;
-  
+
+  fprintf(stderr,"Creating new lockingprocess_threaded()\n");
   
   all_tokens=empty_rwlock_token_set();
   used_tokens=empty_rwlock_token_set();
@@ -67,6 +68,8 @@ bool snde::lockingprocess_threaded::_barrier(lockingposition lockpos) //(size_t 
 /* returns preexisting_only */
 {
   bool preexisting_only=false;
+
+  fprintf(stderr,"Reached barrier... lockpos=%d\n",lockpos.arrayidx);
   
   /* Since we must be the running thread in order to take
      this call, take the lock from _executor_lock */
@@ -93,10 +96,11 @@ bool snde::lockingprocess_threaded::_barrier(lockingposition lockpos) //(size_t 
   }
   
   /* now wait for us to be the lowest available waiter AND the runnablethreads to be empty */
-  while ((*_waitingthreads.begin()).second != &ourcv && _runnablethreads.size() == 0) {
+  while ((*_waitingthreads.begin()).second != &ourcv || _runnablethreads.size() > 0) {
     ourcv.wait(lock);
   }
   
+  fprintf(stderr,"Proceeding from barrier... lockpos=%d\n",lockpos.arrayidx);
   /* because the wait terminated we must be first on the waiting list */
   _waitingthreads.erase(_waitingthreads.begin());
   
@@ -344,7 +348,7 @@ void snde::lockingprocess_threaded::spawn(std::function<void(void)> f)
   
   /* but this top entry represents the new thread */
   _runnablethreads.push_front(NULL);
-  
+  fprintf(stderr,"Spawning thread\n");
   std::thread *newthread=new std::thread([f,this]() {
       std::unique_lock<std::mutex> subthreadlock(this->_mutex);
       
@@ -379,6 +383,9 @@ void snde::lockingprocess_threaded::spawn(std::function<void(void)> f)
   while (_runnablethreads[0] != &ourcv) {
     ourcv.wait(lock);
   }
+
+  fprintf(stderr,"Proceeding after spawn\n");
+
   /* we are now at the front of the runnables. Switch to
      running state by popping us off and pushing NULL */
   
@@ -411,8 +418,19 @@ rwlock_token_set snde::lockingprocess_threaded::finish()
     _runnablethreads.pop_front();
   }
   
+  /* notify first runnable or waiting thread that it can proceed */
+  if (_runnablethreads.size() > 0) {
+    _runnablethreads[0]->notify_all();
+  } else {
+    if (_waitingthreads.size() > 0) {
+      (*_waitingthreads.begin()).second->notify_all();
+    }
+  }
+  
+  
   /* join each of the threads */
   while (_threadarray.size() > 0) {
+    
     std::thread *tojoin = _threadarray[0];
     
     lock.unlock();

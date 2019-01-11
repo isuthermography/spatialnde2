@@ -1,11 +1,23 @@
 /* transactional revision manager */
 /* ***!!!!  SHOULD REDESIGN WITH PROPER DATABASE INDEXED BY 
    WHAT THE FUNCTION IS DEPENDENT ON
+
+   ***!!!! Need some way to declare dependence on waveform metadata ***!!!
+
+
+   ***!!! Need some way to auto-lock output at the end of transaction ***!!!   
+
    ***!!! SHOULD IMPLEMENT SPECIFYING ON-DEMAND ARRAYS so that
    functions which only generate stuff in on-demand arrays get 
-   postponed until output is needed */
+   postponed until output is needed 
+
+   *** Should implement lock "keys" whereby the revision manager acquires the keys, 
+   and then only lockers with access to the keys are are allowed to lock the arrays. 
+   Others have to wait...   ... acts as a prior lock in the locking order... 
+*/
 
 #include <unordered_set>
+#include <set>
 #include <atomic>
 #include "gsl-lite.hpp"
 #include "arraymanager.hpp"
@@ -25,24 +37,25 @@ namespace snde {
      what those read locks are protecting.
 
 
-     All changes to the associated arrays must be managed through this manager, and 
-     obtaining write locks to them in other ways (beyond what is facilitated/permitted 
-     by the TRM) is not allowed. 
+     All changes to the associated arrays SHOULD be managed through this manager.
 
      Dependencies can be registered with the TRM so that outputs can be automatically
      recalculated from inputs. 
 
 
      TRM can manage arrays that cross the boundary between arraymanagers, but
-     you still need to follow the locking order.. e.g. stuff managed by 
-     one arraymanager should be locked prior to stuff managed by 
-     the other arraymanager or some other consistent rule. 
-
+     you still need to follow the locking order, according to array creation, 
+     and with a single lockmanager. 
 
      ***!!! Should be modified to support functions that are only executed on-demand...
 i.e. a transaction that does nothing but mark demands on some outputs.... Those outputs
 are otherwise never generated, even if their input changes ***!!!
   */
+
+  // forward declaration
+  class trm;
+
+  
   class trm_arrayregion {
   public:
     std::shared_ptr<arraymanager> manager;
@@ -229,23 +242,27 @@ are otherwise never generated, even if their input changes ***!!!
 
   
   
-  class trm_dependency { /* dependency of one memory region on another */
+  class trm_dependency : public std::enable_shared_from_this<trm_dependency> { /* dependency of one memory region on another */
   public:
-    std::function<std::vector<rangetracker<markedregion>>(snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)> function; /* returns updated output region array */
+    std::weak_ptr<trm> revman;
+    std::function<void(snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)> function; /* returns updated output region array */
     /* if function is NULL, that means that this is an input, i.e. one of the input arrays that is locked for 
        write and that we will be responding to changes from */
     
-    std::function<std::vector<trm_arrayregion>(std::vector<trm_arrayregion> inputs)> regionupdater; /* to be called when an input changes... returns updated input region array ... Must not be able to make calls that will try to mess with the dependency graph, as that will already be locked when this call is made */
+    std::function<std::vector<trm_arrayregion>(std::vector<trm_arrayregion> inputs)> regionupdater; /* to be called when an input changes... returns updated input region array ... Must not be able to make calls that will try to mess with the dependency graph, as that will already be locked when this call is made. regionupdater is called with the dependency_table locked, so in general it should try to return quickly. Under no conditions should revision manager calls be made inside. Arrays can be locked, however, following the locking order, and only for read. */
 
     std::function<std::vector<trm_arrayregion>(std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> update_output_regions;
+
+    std::function<void(std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> cleanup;
     
     std::vector<rangetracker<markedregion>> inputchangedregion; // rangetracker for changed zones, for each input 
     std::vector<trm_arrayregion> inputs;
     std::vector<trm_arrayregion> outputs;
 
-    std::vector<std::unordered_set<std::shared_ptr<trm_dependency>>> input_dependencies; /* vector of input dependencies,  per input DOES IT REALLY NEED TO BE A SET? DON'T THINK SO!!! */
-    std::vector<std::unordered_set<std::shared_ptr<trm_dependency>>> output_dependencies; /* vector of output dependencies, per output */
+    std::vector<std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>>> input_dependencies; /* vector of input dependencies,  per input... These are sets because of possible overlap of regions or one output being used by multiple inputs */
+    std::vector<std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>>> output_dependencies; /* vector of output dependencies, per output */
 
+    std::weak_ptr<trm_dependency> weak_this; // used in destructor
 
     /* pending_input_dependencies is only valid during a transaction, and lists
        input dependencies that will be modified by other dependencies */
@@ -253,21 +270,28 @@ are otherwise never generated, even if their input changes ***!!!
 
     
 
-    trm_dependency(std::function<std::vector<rangetracker<markedregion>>(snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)> function,
+    trm_dependency(std::shared_ptr<trm> revman,
+		   std::function<void(snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)> function,
 		   std::function<std::vector<trm_arrayregion>(std::vector<trm_arrayregion> inputs)> regionupdater,
 		   std::function<std::vector<trm_arrayregion>(std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> update_output_regions,
+		   std::function<void(std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> cleanup,
 		   std::vector<trm_arrayregion> inputs,
 		   std::vector<trm_arrayregion> outputs) :
+      revman(revman),
       function(function),
       regionupdater(regionupdater),
       update_output_regions(update_output_regions),
+      cleanup(cleanup),
       inputs(inputs),
       outputs(outputs)
     {
-      
+      // weak_this=shared_from_this();
     }
 		   
-
+    trm_dependency(const trm_dependency &)=delete; // copy constructor disabled
+    trm_dependency& operator=(const trm_dependency &)=delete; // copy assignment disabled
+    
+    ~trm_dependency(); // destructor in .cpp file to avoid circular class dependency
   };
 
 
@@ -277,16 +301,17 @@ are otherwise never generated, even if their input changes ***!!!
 #define TRMS_DEPENDENCY 2 /* performing dependency updates inside EndTransaction() */
 
   
-  class trm { /* transactional revision manager */
-    /* General rule: You are not allowed to write to any of the 
+  class trm : public std::enable_shared_from_this<trm> { /* transactional revision manager */
+    /* General rule: You should not write to any of the 
        managed arrays without doing so as part of a transaction. 
        
-       So locking of the managed arrays for write may be done only
+       So locking of the managed arrays for write should be done only
        through the transaction process, or when executing a registered
        dependency update. 
 
        Locking the managed arrays for read should generally be done 
-       through trm::lock_arrays_read(), which will always get you 
+       through trm::lock_arrays_read() (NOT YET IMPLEMENTED), which 
+       will always get you 
        a consistent set and which will also minimize the risk of 
        starving the write processes of access. */
 
@@ -304,8 +329,10 @@ are otherwise never generated, even if their input changes ***!!!
 
     std::atomic<snde_index> currevision;
     
-    std::mutex dependency_table_lock; /* Must be final lock in order (after transaction_update_lock and after locking of arrays; locks dependencies, contents of dependencies,  and dependency execution tracking variables */
-    std::unordered_set<std::shared_ptr<trm_dependency>> dependencies; /* list of all dependencies */
+    std::recursive_mutex dependency_table_lock; /* ordered after transaction_update_lock but before locking of arrays; locks dependencies, contents of dependencies,  and dependency execution tracking variables */
+    /* dependency_tabel_lock is a recursive mutex so it can be safely re-locked when a trm_dependency's 
+       destructor is called, auto removing the trm_dependency from the various sets */
+    std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> dependencies; /* list of all dependencies */
     
     /* dependency graph edges map inputs to outputs */
     /* we can execute the graph by:
@@ -369,30 +396,66 @@ are otherwise never generated, even if their input changes ***!!!
        trigger the calculation... How does this interact with locking order?  Any ask to read after new
        version is defined must wait for new version. */
     
-    std::unordered_set<std::shared_ptr<trm_dependency>> unsorted; /* not yet idenfified into one of the other categories */
-    std::unordered_set<std::shared_ptr<trm_dependency>> unexecuted; /* will need execution but haven't figured out if we have to wait on deps or not */
-    std::unordered_set<std::shared_ptr<trm_dependency>> no_need_to_execute; /* no (initial) need to execute, but may still be dependent on something */
+    std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> unsorted; /* not yet idenfified into one of the other categories */
+    std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> unexecuted; /* will need execution but haven't figured out if we have to wait on deps or not */
+    std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> no_need_to_execute; /* no (initial) need to execute, but may still be dependent on something */
     
-    std::unordered_set<std::shared_ptr<trm_dependency>> unexecuted_with_deps;
-    std::unordered_set<std::shared_ptr<trm_dependency>> unexecuted_no_deps;
+    std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> unexecuted_with_deps;
+    std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> unexecuted_no_deps;
     std::unordered_set<std::shared_ptr<trm_dependency>> executing;
-    std::unordered_set<std::shared_ptr<trm_dependency>> done;
+    std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> done;
 
     /* locked by dependency_table_lock; modified_db is a database of which array
        regions have been modified during this transaction. Should be
        cleared at end of transaction */
     std::unordered_map<void **,std::pair<std::shared_ptr<arraymanager>,rangetracker<markedregion>>> modified_db;
 
-
-    std::condition_variable job_to_do; /* associated with dependency_table_lock  mutex */
-    std::condition_variable jobs_done; /* associated with dependency_table_lock mutex... indicator used by transaction_wait_thread to see when it is time to wrap-up the transaction */
-    std::condition_variable all_done; /* associated with dependency_table_lock mutex... indicator that the transaction is fully wrapped up and next one can start */
+    
+    // note: these condition variables are condition_variable_any instead of
+    // condition_variable because that is what is required for compatibility with
+    // our recursive mutex.
+    // ... it's recursive so the destructor can re-lock if necessary. Other
+    // recursion will generally NOT be OK because wait() only unlocks it once...
+    std::condition_variable_any job_to_do; /* associated with dependency_table_lock  mutex */
+    std::condition_variable_any jobs_done; /* associated with dependency_table_lock mutex... indicator used by transaction_wait_thread to see when it is time to wrap-up the transaction */
+    std::condition_variable_any all_done; /* associated with dependency_table_lock mutex... indicator that the transaction is fully wrapped up and next one can start */
     std::vector<std::thread> threadpool;
 
     std::thread transaction_wait_thread; /* This thread waits for all computation functions to complete, then releases transaction_update_lock */
 
     bool threadcleanup; /* guarded by dependency_table_lock */
 
+
+    /* the change_detection_pseudo_cache is registered as a cachemanager with the various arraymanagers for the input
+       dependencies, so we get notified when things are modified, and can update our modified_db, 
+       ... we are registered under "our_unique_name" which is "trm_" followed by our pointer address */ 
+    std::shared_ptr<cachemanager> change_detection_pseudo_cache;
+    std::string our_unique_name;
+
+    // Nested class
+    class trm_change_detection_pseudo_cache: public cachemanager {
+    public:
+      std::weak_ptr<trm> revman;
+      
+      trm_change_detection_pseudo_cache(std::shared_ptr<trm> revman) :
+	revman(revman)
+      {
+	
+      }
+      virtual void mark_as_dirty(std::shared_ptr<arraymanager> manager,void **arrayptr,snde_index pos,snde_index numelem)
+      {
+	std::shared_ptr<trm> revman_strong(revman);
+	std::lock_guard<std::recursive_mutex> dep_tbl(revman_strong->dependency_table_lock);
+	
+	revman_strong->_mark_region_as_modified(trm_arrayregion(manager,arrayptr,pos,numelem));
+      }
+      
+      virtual ~trm_change_detection_pseudo_cache() {};
+      
+  };
+
+
+    
     trm(const trm &)=delete; /* copy constructor disabled */
     trm& operator=(const trm &)=delete; /* copy assignment disabled */
 
@@ -404,13 +467,20 @@ are otherwise never generated, even if their input changes ***!!!
       state=TRMS_IDLE;
       transaction_update_lock=std::make_shared<rwlock>();
 
+      our_unique_name="trm_" + std::to_string((unsigned long long)this);
+
+      // Assigment of change_detection_pseudo_cache moved to first
+      // use because we are not allowed to use shared_from_this() in
+      // a constructor...
+      //change_detection_pseudo_cache = std::make_shared<trm_change_detection_pseudo_cache>(shared_from_this());
+
       if (num_threads==-1) {
 	num_threads=std::thread::hardware_concurrency();
       }
 
       for (size_t cnt=0;cnt < num_threads;cnt++) {
 	threadpool.push_back(std::thread( [ this ]() {
-	      std::unique_lock<std::mutex> dep_tbl(dependency_table_lock);
+	      std::unique_lock<std::recursive_mutex> dep_tbl(dependency_table_lock);
 	      for (;;) {
 		job_to_do.wait(dep_tbl,[ this ]() { return threadcleanup || (unexecuted_no_deps.size() > 0 && state==TRMS_DEPENDENCY); } );
 
@@ -424,98 +494,109 @@ are otherwise never generated, even if their input changes ***!!!
 		if (job != unexecuted_no_deps.end()) {
 		  size_t changedcnt=0;
 
-		  std::shared_ptr<trm_dependency> job_ptr = *job;
+		  std::shared_ptr<trm_dependency> job_ptr = job->lock();
 		  
 		  //std::vector<std::vector<trm_arrayregion>> inputchangedregions;
-		  size_t inputcnt=0;
-		  for (auto & input: job_ptr->inputs) {
-		    //std::vector<trm_arrayregion> inputchangedregion=_modified_regions(input);
-		    _merge_modified_regions(job_ptr->inputchangedregion[inputcnt],input);
-		    //inputchangedregions.push_back(inputchangedregion);
-
-		    job_ptr->inputchangedregion[inputcnt].merge_adjacent_regions();
-		    
-		    changedcnt += job_ptr->inputchangedregion[inputcnt].size(); /* count of changed regions in this input */
-
-		    inputcnt++;
-		  }
-		  /* Here is where we call the dependency function ... but we need to be able to figure out the parameters. 
-		     Also if the changes did not line up with the 
-		     dependency inputs it should be moved to no_need_to_execute
-		     instead */
-
-		  
-		  std::vector<rangetracker<markedregion>> outputchangedregions;
-
-		  if (changedcnt > 0) {
-
-		    unexecuted_no_deps.erase(job);
-		    executing.insert(job_ptr);		    
-		    dep_tbl.unlock();
-		    job_ptr->outputs=job_ptr->update_output_regions(job_ptr->inputs,job_ptr->outputs);
-		    outputchangedregions=job_ptr->function(this->currevision,job_ptr,job_ptr->inputchangedregion);
-		    dep_tbl.lock();
-		    executing.erase(job_ptr);
-		    done.insert(job_ptr);
-		    
-		  } else {
-
-		    unexecuted_no_deps.erase(job);
-
-		    no_need_to_execute.insert(job_ptr);
-		  }
-
-
-		  size_t outcnt=0;
-		  for (auto & ocr_entry: outputchangedregions) {
-		    _mark_regions_as_modified(job_ptr->outputs[outcnt].manager,job_ptr->outputs[outcnt].array,ocr_entry);
-		    
-
-		    if (ocr_entry.size() > 0) {
-		      for (auto & outdep: job_ptr->output_dependencies[outcnt]) {
-			/* !!!*** Is there any way to check whether we have really messed with an input of this output dependency? */
-			_call_regionupdater(outdep);
-			
-		      }
+		  if (job_ptr) {
+		    size_t inputcnt=0;
+		    for (auto & input: job_ptr->inputs) {
+		      //std::vector<trm_arrayregion> inputchangedregion=_modified_regions(input);
+		      _merge_modified_regions(job_ptr->inputchangedregion[inputcnt],input);
+		      //inputchangedregions.push_back(inputchangedregion);
+		      
+		      job_ptr->inputchangedregion[inputcnt].merge_adjacent_regions();
+		      
+		      changedcnt += job_ptr->inputchangedregion[inputcnt].size(); /* count of changed regions in this input */
+		      
+		      inputcnt++;
 		    }
-
+		    /* Here is where we call the dependency function ... but we need to be able to figure out the parameters. 
+		       Also if the changes did not line up with the 
+		       dependency inputs it should be moved to no_need_to_execute
+		       instead */
 		    
-		    for (auto & outdep: job_ptr->output_dependencies[outcnt]) {
-		      if (unexecuted_with_deps.count(outdep)) {
-			/* this still needs to be executed */
-			/* are all of its input dependencies complete? */
-			bool deps_complete=true;
+		    
+		    std::vector<rangetracker<markedregion>> outputchangedregions;
+		    
+		    if (changedcnt > 0) {
+		      
+		      unexecuted_no_deps.erase(job);
+		      executing.insert(job_ptr);		    
+		      dep_tbl.unlock();
+		      job_ptr->outputs=job_ptr->update_output_regions(job_ptr->inputs,job_ptr->outputs);
+		      job_ptr->function(this->currevision,job_ptr,job_ptr->inputchangedregion);
+		      dep_tbl.lock();
+		      executing.erase(job_ptr);
+		      done.insert(job_ptr);
+		      
+		    } else {
+		      
+		      unexecuted_no_deps.erase(job);
+		      
+		      no_need_to_execute.insert(job_ptr);
+		    }
+		    
+		  
+		    size_t outcnt=0;
+		    //for (auto & ocr_entry: outputchangedregions) {
+		    //  _mark_regions_as_modified(job_ptr->outputs[outcnt].manager,job_ptr->outputs[outcnt].array,ocr_entry);
+		    //
+		    //
+		    //  if (ocr_entry.size() > 0) {
+		    //    for (auto & outdep: job_ptr->output_dependencies[outcnt]) {
+		    //	/* !!!*** Is there any way to check whether we have really messed with an input of this output dependency? */
+		    // _call_regionupdater(outdep);
+		    //
+		    //    }
+		    //  }
+		    
+		    /* ***!!! We should have a better way to map the dirty() call from the 
+		       function code back to this dependency so we don't just have to blindly
+		       iterate over all of them ... */
+		    for (outcnt=0; outcnt < job_ptr->output_dependencies.size();outcnt++) {
+		      
+		      for (auto & outdep: job_ptr->output_dependencies[outcnt]) {
 			
-			for (size_t indepcnt=0;indepcnt < outdep->input_dependencies.size();indepcnt++) {
-			  for (auto & indep: outdep->input_dependencies[indepcnt]) {
-			    if (executing.count(indep) || unexecuted_with_deps.count(indep) || unexecuted_no_deps.count(indep)) {
-			      deps_complete=false;
+			
+			if (unexecuted_with_deps.count(outdep)) {
+			  /* this still needs to be executed */
+			  /* are all of its input dependencies complete? */
+			  bool deps_complete=true;
+			  std::shared_ptr<trm_dependency> outdep_strong=outdep.lock();
+			  if (outdep_strong) {
+			    for (size_t indepcnt=0;indepcnt < outdep_strong->input_dependencies.size();indepcnt++) {
+			      for (auto & indep: outdep_strong->input_dependencies[indepcnt]) {
+				std::shared_ptr<trm_dependency> indep_strong=indep.lock();
+				if (indep_strong) {
+				  if (executing.count(indep_strong) || unexecuted_with_deps.count(indep) || unexecuted_no_deps.count(indep)) {
+				    deps_complete=false;
+				  }
+				}
+			      }
 			    }
 			  }
-			}
-			if (deps_complete) {
-			  /* This dep has all input dependencies satisfied... move it into unexecuted_no_deps */
-			  //outdep_ptr=*outdep;
-			  unexecuted_with_deps.erase(outdep);
-			  unexecuted_no_deps.insert(outdep);
+			  if (deps_complete) {
+			    /* This dep has all input dependencies satisfied... move it into unexecuted_no_deps */
+			    //outdep_ptr=*outdep;
+			    unexecuted_with_deps.erase(outdep);
+			    unexecuted_no_deps.insert(outdep);
+			  }
 			}
 		      }
 		    }
-		    outcnt++;
-		  }
-
-
+		    
+		  } 
 		  /*  signal job_to_do condition variable
-		     according to the (number of entries in
-		     unexecuted_no_deps)-1.... because if there's only
-		     one left, we can handle it ourselves when we loop back */
-
+		      according to the (number of entries in
+		      unexecuted_no_deps)-1.... because if there's only
+		      one left, we can handle it ourselves when we loop back */
+		  
 		  size_t njobs=unexecuted_no_deps.size();
 		  while (njobs > 1) {
 		    job_to_do.notify_one();
 		    njobs--;
 		  }
-
+		  
 		  if (njobs==0) {
 		    jobs_done.notify_all();
 		  }
@@ -527,8 +608,9 @@ are otherwise never generated, even if their input changes ***!!!
       }
 
       transaction_wait_thread=std::thread([ this ]() {
-					    std::unique_lock<std::mutex> dep_tbl(dependency_table_lock);
+					    std::unique_lock<std::recursive_mutex> dep_tbl(dependency_table_lock);
 					    for (;;) {
+					      
 					      jobs_done.wait(dep_tbl,[ this ]() { return (unexecuted_no_deps.size()==0 && unexecuted_with_deps.size()==0 && executing.size()==0 && state==TRMS_DEPENDENCY) || threadcleanup;});
 
 					      if (threadcleanup) {
@@ -542,7 +624,19 @@ are otherwise never generated, even if their input changes ***!!!
 
 					      // Clear out modified_db
 					      modified_db.clear();
-					      
+
+					      // move everything from done into unsorted
+					      for (auto done_iter = done.begin();done_iter != done.end();done_iter=done.begin()) {
+						unsorted.insert(*done_iter);
+						done.erase(done_iter);
+					      }
+
+					      // move everything from no_need_to_execute into unsorted
+					      for (auto nnte_iter = no_need_to_execute.begin();nnte_iter != no_need_to_execute.end();nnte_iter=no_need_to_execute.begin()) {
+						unsorted.insert(*nnte_iter);
+						no_need_to_execute.erase(nnte_iter);
+					      }
+
 					      state=TRMS_IDLE; 
 					      
 					      holder.swap(transaction_update_writelock_holder);
@@ -559,7 +653,7 @@ are otherwise never generated, even if their input changes ***!!!
     {
       /* clean up threads */
       {
-	std::lock_guard<std::mutex> dep_tbl(dependency_table_lock);
+	std::lock_guard<std::recursive_mutex> dep_tbl(dependency_table_lock);
 	threadcleanup=true;
 	job_to_do.notify_all();
 	jobs_done.notify_all();
@@ -612,39 +706,47 @@ are otherwise never generated, even if their input changes ***!!!
       //return retval;
     }
       
-    void _remove_depgraph_node_edges(std::shared_ptr<trm_dependency> dependency)
+    void _remove_depgraph_node_edges(std::weak_ptr<trm_dependency> dependency,std::vector<std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>>> &input_dependencies,std::vector<std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>>> &output_dependencies)
     /* Clear out the graph node edges that impinge on dependency, 
        based on its professed inputs and outputs */
     /* dependency_table_lock must be held by caller */
     {
-      for (auto & old_input: dependency->input_dependencies) {
-	for (auto & old_input_dep: old_input) { // step through the set for this input
-	  for (size_t outcnt=0;outcnt < old_input_dep->output_dependencies.size();outcnt++) {
-	    if (old_input_dep->output_dependencies[outcnt].count(dependency)) {
-	      old_input_dep->output_dependencies[outcnt].erase(dependency);
+      for (auto & old_input: input_dependencies) {
+	for (auto & old_input_dep: old_input ) { // step through the set for this input
+	  std::shared_ptr<trm_dependency> old_input_dep_strong=old_input_dep.lock();
+	  if (old_input_dep_strong) {
+	    for (size_t outcnt=0;outcnt < old_input_dep_strong->output_dependencies.size();outcnt++) {
+	      if (old_input_dep_strong->output_dependencies[outcnt].count(dependency)) {
+		old_input_dep_strong->output_dependencies[outcnt].erase(dependency);
+	      }
 	    }
+	    
 	  }
 	}
       }
 
-      for (auto & old_output: dependency->output_dependencies) {
+      for (auto & old_output: output_dependencies) {
 	for (auto & old_output_dep: old_output) { // step through the set for this output
-	  for (size_t inpcnt=0;inpcnt < old_output_dep->input_dependencies.size();inpcnt++) {
-	    if (old_output_dep->input_dependencies[inpcnt].count(dependency)) {
-	      old_output_dep->input_dependencies[inpcnt].erase(dependency);
+	  std::shared_ptr<trm_dependency> old_output_dep_strong=old_output_dep.lock();
+	  if (old_output_dep_strong) {
+	    for (size_t inpcnt=0;inpcnt < old_output_dep_strong->input_dependencies.size();inpcnt++) {
+	      if (old_output_dep_strong->input_dependencies[inpcnt].count(dependency)) {
+		old_output_dep_strong->input_dependencies[inpcnt].erase(dependency);
+	      }
 	    }
 	  }
+	
 	}
       }
 
 
-    }
+    } 
     void _rebuild_depgraph_node_edges(std::shared_ptr<trm_dependency> dependency)
     /* Clear out and rebuild the dependency graph node edges that impinge on dependency, 
        based on its professed inputs and outputs */
     /* dependency_table_lock must be held by caller */
     {
-      _remove_depgraph_node_edges(dependency);
+      _remove_depgraph_node_edges(dependency,dependency->input_dependencies,dependency->output_dependencies);
 
       /* make sure dependency has a big enough input_dependencies array */
       while (dependency->input_dependencies.size() < dependency->inputs.size()) {
@@ -654,54 +756,59 @@ are otherwise never generated, even if their input changes ***!!!
       /* Iterate over all existing dependencies we could have a relationship to */
       for (auto & existing_dep: dependencies) {
 
+	std::shared_ptr<trm_dependency> existing_dep_strong=existing_dep.lock();
 	/* make sure existing dep has a big enough output_dependencies array */
-	while (existing_dep->output_dependencies.size() < existing_dep->outputs.size()) {
-	  existing_dep->output_dependencies.emplace_back();
-	}
 	
+	if (existing_dep_strong) {
+	  while (existing_dep_strong->output_dependencies.size() < existing_dep_strong->outputs.size()) {
+	    existing_dep_strong->output_dependencies.emplace_back();
+	  }
 	
-	
-	/* For each of our input dependencies, does the existing dependency have an output
-	   dependency? */
-	size_t inpcnt=0;
-	for (auto & input: dependency->inputs) { // input is a trm_arrayregion
 	  
 	  
-	  auto & this_input_depset = dependency->input_dependencies[inpcnt];
-	  for (size_t outcnt=0;outcnt < existing_dep->outputs.size();outcnt++) {
-
+	  /* For each of our input dependencies, does the existing dependency have an output
+	     dependency? */
+	  size_t inpcnt=0;
+	  for (auto & input: dependency->inputs) { // input is a trm_arrayregion
 	    
-	    if (input.overlaps(existing_dep->outputs[outcnt])) {
-	      this_input_depset.emplace(existing_dep);
-	      existing_dep->output_dependencies[outcnt].emplace(dependency);
-	    } 
-	  }
-	  inpcnt++;
-	}
-
-	/* For each of our output dependencies, does the existing dependency have an input
-	   dependency? */
-	size_t outcnt=0;
-	for (auto & output: dependency->outputs) {
-	  auto & this_output_depset = dependency->output_dependencies[outcnt];
-	  for (inpcnt=0;inpcnt < existing_dep->inputs.size();inpcnt++) {
-	    if (existing_dep->inputs[inpcnt].overlaps(output)) {
-	      this_output_depset.emplace(existing_dep);
-	      existing_dep->input_dependencies[inpcnt].emplace(dependency);
+	    
+	    auto & this_input_depset = dependency->input_dependencies[inpcnt];
+	    for (size_t outcnt=0;outcnt < existing_dep_strong->outputs.size();outcnt++) {
+	      
+	    
+	      if (input.overlaps(existing_dep_strong->outputs[outcnt])) {
+		this_input_depset.emplace(existing_dep_strong);
+	      existing_dep_strong->output_dependencies[outcnt].emplace(dependency);
+	      } 
 	    }
+	    inpcnt++;
 	  }
-	  outcnt++;
+	
+
+	  /* For each of our output dependencies, does the existing dependency have an input
+	     dependency? */
+	  size_t outcnt=0;
+	  for (auto & output: dependency->outputs) {
+	    auto & this_output_depset = dependency->output_dependencies[outcnt];
+	    for (inpcnt=0;inpcnt < existing_dep_strong->inputs.size();inpcnt++) {
+	      if (existing_dep_strong->inputs[inpcnt].overlaps(output)) {
+		this_output_depset.emplace(existing_dep_strong);
+		existing_dep_strong->input_dependencies[inpcnt].emplace(dependency);
+	      }
+	    }
+	    outcnt++;
+	  }
 	}
       }
       
     }
     
-    std::shared_ptr<trm_dependency>  add_dependency(std::function<std::vector<rangetracker<markedregion>>(snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)> function,
+    std::shared_ptr<trm_dependency>  add_dependency(std::function<void(snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)> function,
 								 std::function<std::vector<trm_arrayregion>(std::vector<trm_arrayregion> inputs)> regionupdater,
 								 std::vector<trm_arrayregion> inputs, // inputs array does not need to be complete; will be passed immediately to regionupdater() -- so this need only be a valid seed. 
 								 //std::vector<trm_arrayregion> outputs)
-								 std::function<std::vector<trm_arrayregion>(std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> update_output_regions, //,rwlock_token_set all_locks),
-								 std::shared_ptr<arraymanager> manager)
+						    std::function<std::vector<trm_arrayregion>(std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> update_output_regions,
+						    std::function<void(std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> cleanup) // cleanup() should not generally do any locking but just free regions. 
     {
       /* Add a dependency outside StartTransaction()...EndTransaction()... First execution opportunity will be at next call to EndTransaction() */
       /* acquire necessary read lock to allow modifying dependency tree */
@@ -710,7 +817,7 @@ are otherwise never generated, even if their input changes ***!!!
 					  regionupdater,
 					  inputs,
 					  update_output_regions,
-					  manager);
+					  cleanup);
     }
 
     void _categorize_dependency(std::shared_ptr<trm_dependency> dependency)
@@ -766,16 +873,20 @@ are otherwise never generated, even if their input changes ***!!!
 	 
 	 Anything that remains in unexecuted can be shifted into unexecuted_no_deps */
       
-      std::vector<std::shared_ptr<trm_dependency>> unexecuted_copy(unexecuted.begin(),unexecuted.end());
+      std::vector<std::weak_ptr<trm_dependency>> unexecuted_copy(unexecuted.begin(),unexecuted.end());
 
       
       
       for (auto & dependency: unexecuted_copy) {
-	_output_deps_into_unexecwithdeps(dependency,false);
+
+	std::shared_ptr<trm_dependency> dep_strong(dependency);
+	if (dep_strong) {
+	  _output_deps_into_unexecwithdeps(dep_strong,false);
+	}
       }
       
       /* shift any that remain in unexecuted into unexecuted_no_deps */
-      std::vector<std::shared_ptr<trm_dependency>> unexecuted_copy2(unexecuted.begin(),unexecuted.end());
+      std::vector<std::weak_ptr<trm_dependency>> unexecuted_copy2(unexecuted.begin(),unexecuted.end());
       for (auto & dependency: unexecuted_copy2) {
 	unexecuted.erase(dependency);
 	unexecuted_no_deps.insert(dependency);
@@ -783,46 +894,85 @@ are otherwise never generated, even if their input changes ***!!!
       
     }
     
-    
 
-    void remove_dependency(std::shared_ptr<trm_dependency> dependency)
+    void _erase_dep_from_tree(std::weak_ptr<trm_dependency> dependency,std::vector<std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>>> &input_dependencies,std::vector<std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>>> &output_dependencies)
+    // called by trm_dependency's destructor
     {
-      /* Can only remove dependency while an update is not in progress */
-      std::lock_guard<rwlock_lockable> ourlock(transaction_update_lock->reader);
-
-      /* must hold dependency_table_lock */ 
-      std::lock_guard<std::mutex> dep_tbl(dependency_table_lock);
+      // must hold dependency table lock
+      std::lock_guard<std::recursive_mutex> dep_tbl(dependency_table_lock);
+      // not permitted to do anything that requires a mutex here,
+      // as we may be called during a destructor and we already
+      // own the dep table lock
       
-      _remove_depgraph_node_edges(dependency);
+      _remove_depgraph_node_edges(dependency,input_dependencies,output_dependencies);
 
 
       /* remove from full list of all dependencies */
       dependencies.erase(dependency);
 
       /* remove from queue to execute */
-      unsorted.erase(dependency); 
+      if (unsorted.find(dependency) != unsorted.end()) {
+	unsorted.erase(dependency);
+      }
+      if (unexecuted.find(dependency) != unexecuted.end()) {
+	unexecuted.erase(dependency);
+      }
+      if (no_need_to_execute.find(dependency) != no_need_to_execute.end()) {
+	no_need_to_execute.erase(dependency);
+      }
+      if (unexecuted_with_deps.find(dependency) != unexecuted_with_deps.end()) {
+	unexecuted_with_deps.erase(dependency);
+      }
+      if (unexecuted_no_deps.find(dependency) != unexecuted_no_deps.end()) {
+	unexecuted_no_deps.erase(dependency);
+      }
+      // no need to look at the executing set, because those are shared_ptrs,
+      // so we wouldn't be called if in there!
+      if (done.find(dependency) != done.end()) {
+	done.erase(dependency);
+      }
+
     }
+
+
+    // remove_dependency() no longer necessary... just allow all shared_ptr references
+    // to the trm_dependency to expire!
+    
+    //void remove_dependency(std::weak_ptr<trm_dependency> dependency)
+    //{
+    //  ///* Can only remove dependency while an update is not in progress */
+    //  //std::lock_guard<rwlock_lockable> ourlock(transaction_update_lock->reader);
+    //
+    //  /* must hold dependency_table_lock */ 
+    //  std::lock_guard<std::recursive_mutex> dep_tbl(dependency_table_lock);
+    //  // (content moved into _erase_dep_from_tree)
+    //  _remove_dependency(dependency);
+    //}
     
     /* add_dependency_during_update may only be called during a transaction */
     /* MUST HOLD WRITE LOCK for all output_arrays specified... may reallocate these arrays! */
-    std::shared_ptr<trm_dependency> add_dependency_during_update(std::function<std::vector<rangetracker<markedregion>>(snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)> function,
+    std::shared_ptr<trm_dependency> add_dependency_during_update(std::function<void(snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)> function,
 								 std::function<std::vector<trm_arrayregion>(std::vector<trm_arrayregion> inputs)> regionupdater,
 								 std::vector<trm_arrayregion> inputs, // inputs array does not need to be complete; will be passed immediately to regionupdater() -- so this need only be a valid seed. 
 								 //std::vector<trm_arrayregion> outputs)
-								 std::function<std::vector<trm_arrayregion>(std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> update_output_regions, //,rwlock_token_set all_locks),
-								 std::shared_ptr<arraymanager> manager)
+								 std::function<std::vector<trm_arrayregion>(std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> update_output_regions,
+								 std::function<void(std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> cleanup) // cleanup() should not generally do any locking but just free regions. 
     /* May only be called while holding transaction_update_lock, either as a reader(maybe?) or as a writer */
     {
 
       /* Construct inputs */
       inputs=regionupdater(inputs);
+      _ensure_input_cachemanagers_registered(inputs);
+      
       /* construct empty output regions */
       std::vector<trm_arrayregion> outputs; // start with blank output array
       outputs=update_output_regions(inputs,outputs);
       
-      std::shared_ptr<trm_dependency> dependency=std::make_shared<trm_dependency>(function,regionupdater,update_output_regions,inputs,outputs);
+      std::shared_ptr<trm_dependency> dependency=std::make_shared<trm_dependency>(shared_from_this(),function,regionupdater,update_output_regions,cleanup,inputs,outputs);
+      dependency->weak_this = dependency; // couldn't be set in constructor because you can't call shared_form_this() in constructor, but it is needed in the destructor and can't be created there either(!)
 
-      std::lock_guard<std::mutex> dep_tbl(dependency_table_lock);
+      
+      std::lock_guard<std::recursive_mutex> dep_tbl(dependency_table_lock);
       
       /*  Check input and output dependencies; 
 	  if we are inside a transactional update and there are 
@@ -853,7 +1003,7 @@ are otherwise never generated, even if their input changes ***!!!
 	bool have_input_dependency=false;
 	for (size_t inpcnt=0;inpcnt < dependency->input_dependencies.size();inpcnt++) {
 	  for (auto & input_dependency: dependency->input_dependencies[inpcnt]) {
-	    assert(!executing.count(input_dependency)); /* if this triggers, it would be a potential race condition */
+	    assert(!executing.count(std::shared_ptr<trm_dependency>(input_dependency))); /* if this triggers, it would be a potential race condition */
 	    if (unexecuted_with_deps.count(input_dependency) || unexecuted_no_deps.count(input_dependency)) {
 	      have_input_dependency=true;
 	    }
@@ -893,56 +1043,75 @@ are otherwise never generated, even if their input changes ***!!!
       /* recursive loop */
       for (auto & out : dependency->output_dependencies) {
 	for (auto & outdep : out) {
-	  _output_deps_into_unexecwithdeps(outdep,true);
+	  std::shared_ptr<trm_dependency> outdep_strong=outdep.lock();
+	  if (outdep_strong) {
+	    _output_deps_into_unexecwithdeps(outdep_strong,true);
+	  }
 	}
       }
     }
 
+
+    void _Start_Transaction(std::unique_lock<rwlock_lockable> &ourlock)
+    {
+      /* assumes dependency_table_lock is held already */
+      assert(!transaction_update_writelock_holder.owns_lock());
+      
+      assert(unexecuted.empty());
+      assert(no_need_to_execute.empty());
+      assert(unexecuted_with_deps.empty());
+      assert(unexecuted_no_deps.empty());
+      assert(executing.empty());
+      assert(done.empty());
+      
+      assert(modified_db.empty());
+      
+      
+      state=TRMS_TRANSACTION;
+      
+      currevision++; 
+      
+      // Move transaction lock to holder 
+      ourlock.swap(transaction_update_writelock_holder);
+      
+      
+      for (auto & dependency : dependencies) {
+	// Clear out inputchangedregions
+	std::shared_ptr<trm_dependency> dep_strong=dependency.lock();
+	if (dep_strong) {
+	  dep_strong->inputchangedregion.empty();
+	
+	  //for (auto & icr : dependency->inputchangedregion) {
+	  //  icr.clear_all();
+	  //}
+	  
+	// Fill inputchangedregions with empty trackers according to number of inputs
+	  for (size_t inpcnt=0;inpcnt < dep_strong->inputs.size();inpcnt++) {
+	    dep_strong->inputchangedregion.emplace_back(); 
+	  }
+	}
+      }
+      
+    }
+
+  
+
     void Start_Transaction()
     {
+      {
+	std::unique_lock<std::recursive_mutex> dep_tbl(dependency_table_lock);
+	_Wait_Computation(currevision,dep_tbl);
+      }
+      
       std::unique_lock<rwlock_lockable> ourlock(transaction_update_lock->writer);
       
 
       {
-	std::lock_guard<std::mutex> dep_tbl(dependency_table_lock);
-	
-	assert(!transaction_update_writelock_holder.owns_lock());
-	
-	assert(unexecuted.empty());
-	assert(no_need_to_execute.empty());
-	assert(unexecuted_with_deps.empty());
-	assert(unexecuted_no_deps.empty());
-	assert(executing.empty());
-	assert(done.empty());
-	
-	assert(modified_db.empty());
+	std::lock_guard<std::recursive_mutex> dep_tbl(dependency_table_lock);
 
-	
-	state=TRMS_TRANSACTION;
-	
-	currevision++; 
-	
-	// Move transaction lock to holder 
-	ourlock.swap(transaction_update_writelock_holder);
-
-
-	for (auto & dependency : dependencies) {
-	  // Clear out inputchangedregions
-	  dependency->inputchangedregion.empty();
-	  
-	  //for (auto & icr : dependency->inputchangedregion) {
-	  //  icr.clear_all();
-	  //}
-
-	  // Fill inputchangedregions with empty trackers according to number of inputs
-	  for (size_t inpcnt=0;inpcnt < dependency->inputs.size();inpcnt++) {
-	    dependency->inputchangedregion.emplace_back(); 
-	  }
-	  
-	}
+	_Start_Transaction(ourlock);
 
       }
-
     }
 
     void _mark_region_as_modified(const trm_arrayregion &modified)
@@ -973,13 +1142,14 @@ are otherwise never generated, even if their input changes ***!!!
       
     }
 
-    void Transaction_Mark_Modified(const trm_arrayregion &modified)
-    {
-      std::lock_guard<std::mutex> dep_tbl(dependency_table_lock);
-
-      _mark_region_as_modified(modified);
-      
-    }
+    /* ***!!!!!*** SHOULD REMOVE CALLS TO THIS AND REPLACE WITH arraymanager's MARK_AS_DIRTY */
+    //void Transaction_Mark_Modified(const trm_arrayregion &modified)
+    //{
+    //  std::lock_guard<std::recursive_mutex> dep_tbl(dependency_table_lock);
+    //
+    //  _mark_region_as_modified(modified);
+    //  
+    //}
 
 
     void _mark_regions_as_modified(std::shared_ptr<arraymanager> manager,void **array,rangetracker<markedregion> & modified)
@@ -999,27 +1169,48 @@ are otherwise never generated, even if their input changes ***!!!
     }
 
     
-    void Transaction_Mark_Modified(std::vector<trm_arrayregion> &modified)
-    {
-      std::lock_guard<std::mutex> dep_tbl(dependency_table_lock);
-      
-      _mark_regions_as_modified(modified);
-      
-    }
+    /* ***!!!!!*** SHOULD REMOVE CALLS TO THIS AND REPLACE WITH arraymanager's MARK_AS_DIRTY 
+     through arraymanager */
+    //void Transaction_Mark_Modified(std::vector<trm_arrayregion> &modified)
+    //{
+    //  std::lock_guard<std::recursive_mutex> dep_tbl(dependency_table_lock);
+    //  
+    //  _mark_regions_as_modified(modified);
+    //  
+    //}
 
-    void Transaction_Mark_Modified(std::shared_ptr<std::vector<trm_arrayregion>> modified)
-    {
-      std::lock_guard<std::mutex> dep_tbl(dependency_table_lock);
-      
-      _mark_regions_as_modified(*modified);
-      
-    }
+    /* ***!!!!!*** SHOULD REMOVE CALLS TO THIS AND REPLACE WITH arraymanager's MARK_AS_DIRTY 
+     through arraymanager */
+    //void Transaction_Mark_Modified(std::shared_ptr<std::vector<trm_arrayregion>> modified)
+    //{
+    //  std::lock_guard<std::recursive_mutex> dep_tbl(dependency_table_lock);
+    //  
+    //  _mark_regions_as_modified(*modified);
+    //  
+    //}
 
     /*void _Modified_Dependencies()
     {
       
     }*/
 
+    void _ensure_input_cachemanagers_registered(std::vector<trm_arrayregion> inputs)
+    /* Ensure that our trm is registered as a cachemanager for each of the arraymanagers corresponding to the given inputs, 
+       so that we are kept abreast of changes to those inputs and can update our modified_db */ 
+    {
+
+      if (!change_detection_pseudo_cache) {
+	// change_detection_pseudo_cache is not created in our constructor
+	// because we are not allowed to use shared_from_this() in that context. 
+	change_detection_pseudo_cache = std::make_shared<trm_change_detection_pseudo_cache>(shared_from_this());
+      }
+      
+      for (auto & input: inputs) {
+	if (!input.manager->has_cache(our_unique_name)) {
+	  input.manager->set_cache(our_unique_name,change_detection_pseudo_cache);
+	}
+      }
+    }
 
     void _call_regionupdater(std::shared_ptr<trm_dependency> dependency)
     /* Call the region updater code for a dependency. dependency_table_lock must be locked */
@@ -1032,75 +1223,86 @@ are otherwise never generated, even if their input changes ***!!!
 
 	if (!(newinputs == dependency->inputs)) {
 	  /* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */
+	  _ensure_input_cachemanagers_registered(newinputs);
+
+	  
+	  
 	  dependency->inputs=newinputs;
 	  _rebuild_depgraph_node_edges(dependency); 
 	} 
       }
     }
-    
-    snde_index End_Transaction(std::shared_ptr<std::vector<trm_arrayregion>> modified)
+
+
+    snde_index End_Transaction()
     /* Can call Wait_Computation on returned revision # to wait for 
        computation to be complete */
     {
-      std::unique_lock<rwlock_lockable> ourlock;
+    
       snde_index retval=currevision;
-      
-
-      Transaction_Mark_Modified(modified);
-
-
-      
-      /* Now need to go through our dependencies and see which have been modified */
-      {
-	std::lock_guard<std::mutex> dep_tbl(dependency_table_lock);
+      std::lock_guard<std::recursive_mutex> dep_tbl(dependency_table_lock);
 	
-	for (auto & dependency : dependencies) {
-
-	  if (!unexecuted.count(dependency)) {
-	    // if execution isn't already pending... 
-	    _categorize_dependency(dependency);
+      /* Now need to go through our dependencies and see which have been modified */
+      for (auto & dependency : dependencies) {
+	
+	if (!unexecuted.count(dependency)) {
+	  // if execution isn't already pending...
+	  std::shared_ptr<trm_dependency> dep_strong=dependency.lock();
+	  if (dep_strong) {
+	    _categorize_dependency(dep_strong);
 	  }
 	}
-
-	_figure_out_unexecuted_deps();
-
       }
+      
+      _figure_out_unexecuted_deps();
+
+      
 
       state=TRMS_DEPENDENCY;
       /* Need to run execution process */
       
-      {
-	std::unique_lock<std::mutex> dep_tbl(dependency_table_lock);
-
-	size_t njobs=unexecuted_no_deps.size();
-	if (!njobs) {
-	  jobs_done.notify_all(); /* if no jobs, notify anybody who is waiting so that we get our cleanup */
-	}
-	while (njobs > 0) {
-	  job_to_do.notify_one();
-	  njobs--;
-	}
-
-	//jobs_done.wait( dep_tbl, [ this ]() { return unexecuted_no_deps.size()==0 && unexecuted_with_deps.size()==0 && executing.size()==0;});
-	
+      size_t njobs=unexecuted_no_deps.size();
+      if (!njobs) {
+	jobs_done.notify_all(); /* if no jobs, notify anybody who is waiting so that we get our cleanup */
       }
+      while (njobs > 0) {
+	job_to_do.notify_one();
+	njobs--;
+      }
+      
+      //jobs_done.wait( dep_tbl, [ this ]() { return unexecuted_no_deps.size()==0 && unexecuted_with_deps.size()==0 && executing.size()==0;});
 
       // Computations may not be done.... need to Wait_Computation to be assured
       // of completions
-      
-      return retval;
-    }
 
-    void Wait_Computation(snde_index revnum)
+      //Transaction_Mark_Modified(modified);
+
+      return retval;
+
+    }
+    
+
+    void _Wait_Computation(snde_index revnum,std::unique_lock<std::recursive_mutex> &dep_tbl)
     /* Wait for computation of revnum to complete */
+    /* assumes dependency_table_lock is held by given unique_lock */
     {
-      std::unique_lock<std::mutex> dep_tbl(dependency_table_lock);
+      
       assert(revnum <= currevision);
       if (revnum==currevision) {
 	all_done.wait( dep_tbl, [ this,revnum ]() { return revnum < currevision || !transaction_update_writelock_holder.owns_lock();});
       }
     }
 
+    void Wait_Computation(snde_index revnum)
+    /* Wait for computation of revnum to complete */
+    {
+      std::unique_lock<std::recursive_mutex> dep_tbl(dependency_table_lock);
+
+      _Wait_Computation(revnum,dep_tbl);
+    }
+
+    /* ***!!!!! Should implement end_transaction() + wait_computation() that 
+       acquires and returns locks for all dependency inputs/regions to ensure consistency */
   };
   
 

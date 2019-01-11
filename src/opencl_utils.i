@@ -187,6 +187,22 @@ typedef struct _cl_mem *          cl_mem;
 }
 
 
+%typemap(out) cl_command_queue (PyObject *pyopencl=NULL,PyObject *clQueue=NULL,PyObject *clQueue_from_int_ptr=NULL) {
+  // eats the returned reference
+  pyopencl = PyImport_ImportModule("pyopencl");
+  if (!pyopencl) SWIG_fail; /* raise exception up */
+  clQueue=PyObject_GetAttrString(pyopencl,"CommandQueue");
+  clQueue_from_int_ptr=PyObject_GetAttrString(clQueue,"from_int_ptr");
+  
+  
+  $result=PyObject_CallFunction(clQueue_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)$1),Py_False);
+
+  Py_XDECREF(clQueue_from_int_ptr);
+  Py_XDECREF(clQueue);
+  Py_XDECREF(pyopencl);
+}
+
+
 
 // %typemap(out) std::vector<cl_event> is for functions returning such a vector.... we steal ownership of the cl_events
 %typemap(out) std::vector<cl_event> (PyObject *pyopencl=NULL,PyObject *clEvent=NULL,PyObject *clEvent_from_int_ptr=NULL,size_t cnt) {

@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.5)
 project(spatialnde)
 
+cmake_policy(SET CMP0071 NEW)
+set(CMAKE_AUTOMOC OFF)
+#set(CMAKE_INCLUDE_CURRENT_DIR)
+
 # Set a build type if none specified
 if(NOT CMAKE_BUILD_TYPE)
   message(STATUS "Setting build type to 'RelWithDebInfo' since none specified")
@@ -76,7 +80,7 @@ endif()
 
 
 
-set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/geometry.cpp)
+set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/geometry.cpp src/revision_manager.cpp src/mutablewfmstore.cpp )
 
 add_definitions(-DSNDE_LOCKMANAGER_COROUTINES_THREADED)
 IF(WIN32)
@@ -92,12 +96,18 @@ find_package(Threads REQUIRED)
 find_package(PythonInterp)
 find_package(SWIG)
 find_package(PythonLibs)
+find_package(PNG)
 
 
 # OpenSceneGraph (osg) dependencies
 find_package(OpenThreads)
 find_package(OpenSceneGraph REQUIRED osg osgViewer osgGA osgDB)
+
+
 find_package(GLUT)
+
+# QT
+find_package(Qt5 REQUIRED Core Widgets Gui OpenGL UiTools )
 
 
 IF (PythonInterp_FOUND)
@@ -105,6 +115,7 @@ IF (PythonInterp_FOUND)
 ENDIF (PythonInterp_FOUND)
 
 set(SPATIALNDE2_LIBS spatialnde2 ${CMAKE_THREAD_LIBS_INIT})
+set(SPATIALNDE2_QT_LIBS spatialnde2 spatialnde2_qt ${CMAKE_THREAD_LIBS_INIT})
 
 
 IF (OpenCL_FOUND)
@@ -112,7 +123,7 @@ IF (OpenCL_FOUND)
 
     add_definitions(-DSNDE_OPENCL)
     # Build OpenCL support into library
-    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/opencl_utils.cpp src/openclcachemanager.cpp)
+    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/opencl_utils.cpp src/openclcachemanager.cpp src/data_to_rgba.cpp )
     IF (PythonInterp_FOUND) 
       set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} src/normal_calculation.cpp)
       IF (OpenSceneGraph_FOUND)
@@ -123,6 +134,11 @@ IF (OpenCL_FOUND)
 
 ENDIF (OpenCL_FOUND)
 
+IF (Qt5_FOUND)
+  include_directories(${Qt5Widgets_INCLUDE_DIRS} ${Qt5Core_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5OpenGL_INCLUDE_DIRS} ${Qt5UiTools_INCLUDE_DIRS} ) 
+  QT5_WRAP_CPP(qtwfmviewer_MOC src/qtwfmviewer.cpp src/qtwfmviewer.hpp)
+  set(SPATIALNDE2_QT_SOURCES src/qtwfmviewer.cpp ${qtwfmviewer_MOC} )
+ENDIF()
 
 IF (LibXml2_FOUND)
   include_directories(${LIBXML2_INCLUDE_DIR})
@@ -153,9 +169,13 @@ ENDIF()
 
 
 
-
 # SpatialNDE2 library
 add_library(spatialnde2 SHARED ${SPATIALNDE2_SOURCES})
+
+IF (Qt5_FOUND)
+  qt5_add_resources(SPATIALNDE2_QT_RCC src/qtwfmviewer.qrc )
+  add_library(spatialnde2_qt SHARED ${SPATIALNDE2_QT_SOURCES} ${SPATIALNDE2_QT_RCC})
+ENDIF()
 
 # SpatialNDE2 headers
 FILE(GLOB SPATIALNDE2_CPP_HEADERS "src/*.hpp")
@@ -174,6 +194,10 @@ ENDIF()
 
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 	
+IF (OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PythonInterp_FOUND)
+  # Enable OSG support
+  add_definitions(-DSNDE_OPENSCENEGRAPH)
+ENDIF()
 
 # Tests
 add_executable(allocator_test
@@ -201,13 +225,16 @@ ENDIF (LibXml2_FOUND AND EIGEN3_FOUND)
 
 
 IF (PythonInterp_FOUND)
-    set(PYTHONGENHEADERS ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h)
+    set(PYTHONGENHEADERS ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
     add_custom_command(OUTPUT ${PYTHONGENHEADERS}
             COMMAND ${PYTHON_EXECUTABLE} file2header.py geometry_types.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h
             COMMAND ${PYTHON_EXECUTABLE} file2header.py vecops.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h
             COMMAND ${PYTHON_EXECUTABLE} file2header.py testkernel.c ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
             COMMAND ${PYTHON_EXECUTABLE} file2header.py osg_vertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h
             COMMAND ${PYTHON_EXECUTABLE} file2header.py normal_calc.c ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h
+            COMMAND ${PYTHON_EXECUTABLE} file2header.py colormap.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h
+            COMMAND ${PYTHON_EXECUTABLE} file2header.py scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h
+            COMMAND ${PYTHON_EXECUTABLE} file2header.py dummy_scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/src
             DEPENDS src/file2header.py src/geometry_types.h src/vecops.h src/testkernel.c src/osg_vertexarray.c src/normal_calc.c )
     add_custom_target(OpenCL_Headers DEPENDS ${PYTHONGENHEADERS})
@@ -230,9 +257,11 @@ IF (OpenCL_FOUND AND PythonInterp_FOUND AND OpenSceneGraph_FOUND AND LibXml2_FOU
   target_link_libraries(x3d_viewer ${SPATIALNDE2_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES} ${OpenCL_LIBRARIES}  ${LIBXML2_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
 ENDIF()
 
-IF (OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PythonInterp_FOUND)
-  # Enable OSG support
-  add_definitions(-DSNDE_OPENSCENEGRAPH)
+
+IF (Qt5_FOUND AND OpenCL_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
+  add_executable(png_viewer example/png_viewer.cpp)
+  add_dependencies(png_viewer OpenCL_Headers)
+  target_link_libraries(png_viewer ${SPATIALNDE2_QT_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${OpenCL_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
 ENDIF()
 
 
@@ -333,6 +362,12 @@ IF (OpenCL_FOUND AND PythonInterp_FOUND AND OpenSceneGraph_FOUND AND LibXml2_FOU
   
 ENDIF()
 
+IF (Qt5_FOUND AND OpenCL_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND )
+  install(TARGETS
+    png_viewer
+    DESTINATION ${APP_INSTALL_DIR}/example)
+ENDIF()
+
 install(FILES
         example/custom_geometrystruct_demo.py
         example/different_locking_processes.py
@@ -370,6 +405,12 @@ endif()
 install(TARGETS
         spatialnde2
         DESTINATION ${APP_INSTALL_DIR}/lib)
+
+IF (Qt5_FOUND)
+  install(TARGETS
+          spatialnde2_qt
+          DESTINATION ${APP_INSTALL_DIR}/lib)
+ENDIF()
 
 if((NOT WIN32) AND (NOT APPLE) AND INSTALL_BINARIES_INTO_INSTALL_PREFIX)
 install(TARGETS

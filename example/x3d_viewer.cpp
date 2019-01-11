@@ -116,7 +116,7 @@ void x3d_viewer_close()
 }
 
 
-snde_image load_image_url(std::shared_ptr<geometry> geom,std::string url_context, std::string texture_url,std::shared_ptr<std::vector<trm_arrayregion>> modified)
+snde_image load_image_url(std::shared_ptr<geometry> geom,std::string url_context, std::string texture_url)
 {
   // not yet implemented
 }
@@ -199,16 +199,16 @@ int main(int argc, char **argv)
   {
     revision_manager->Start_Transaction();
     
-    std::shared_ptr<std::vector<trm_arrayregion>> modified = std::make_shared<std::vector<trm_arrayregion>>();
+    //std::shared_ptr<std::vector<trm_arrayregion>> modified = std::make_shared<std::vector<trm_arrayregion>>();
 
-    std::function<snde_image(std::shared_ptr<geometry> geom,std::string texture_url)> get_texture_image = [ argv,modified ](std::shared_ptr<geometry> geom,std::string texture_url) -> snde_image {
-													   return load_image_url(geom,argv[1],texture_url,modified);	   
+    std::function<snde_image(std::shared_ptr<geometry> geom,std::string texture_url)> get_texture_image = [ argv ](std::shared_ptr<geometry> geom,std::string texture_url) -> snde_image {
+													   return load_image_url(geom,argv[1],texture_url);	   
 													 };
     
     
-    parts = x3d_load_geometry(geom,argv[1],modified,nullptr/*get_texture_image*/,false,false); // !!!*** Try enable vertex reindexing !!!***
+    parts = x3d_load_geometry(geom,argv[1],nullptr/*get_texture_image*/,false,false); // !!!*** Try enable vertex reindexing !!!***
 
-    revision_manager->End_Transaction(modified);
+    revision_manager->End_Transaction();
   }
 
   {
@@ -226,17 +226,16 @@ int main(int argc, char **argv)
 
     for (auto & part : *parts) {
       // add normal calculation for each part from the .x3d file
+      // warning: we don't do anything explicit here to make sure that the parts
+      // last as long as the nomral_calculation objects....
       normal_calcs.push_back(normal_calculation(geom,revision_manager,part,context,device,queue));
     }
     
     
     OSGComp=new snde::OSGComponent(geom,geomcache,assem,revision_manager); // OSGComp must be created during a transaction...
 
-    /* ***!!!! Modifications here are coming from the function call inside OSGComponent()... Do we need to propagate those into the "modified" data structure? 
-       Maybe we should just extract stuff from the cache dirtying info ***!!! */
-    std::shared_ptr<std::vector<trm_arrayregion>> modified=std::make_shared<std::vector<trm_arrayregion>>();
     
-    revnum=revision_manager->End_Transaction(modified);
+    revnum=revision_manager->End_Transaction();
   }
   
   

@@ -37,7 +37,7 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 					      // Function
 					      // input parameters are:
 					      // meshedpartnum
-					      [ comp,geom,context,device,queue ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions) -> std::vector<rangetracker<markedregion>> {
+					      [ comp,geom,context,device,queue ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)  {
 
 						// get inputs: meshedpart, triangles, edges, vertices
 						snde_meshedpart meshedp;
@@ -67,19 +67,19 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 
 						
 						
-						OpenCLBuffers Buffers(context,all_locks);
+						OpenCLBuffers Buffers(context,device,all_locks);
 						
 						// specify the arguments to the kernel, by argument number.
 						// The third parameter is the array element to be passed
 						// (actually comes from the OpenCL cache)
 						
-						Buffers.AddSubBufferAsKernelArg(geom->manager,queue,normal_kern,0,(void **)&geom->geom.meshedparts,dep->inputs[0].start,1,false);
+						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,0,(void **)&geom->geom.meshedparts,dep->inputs[0].start,1,false);
 						
 						
-						Buffers.AddSubBufferAsKernelArg(geom->manager,queue,normal_kern,1,(void **)&geom->geom.triangles,meshedp.firsttri,meshedp.numtris,false);
-						Buffers.AddSubBufferAsKernelArg(geom->manager,queue,normal_kern,2,(void **)&geom->geom.edges,meshedp.firstedge,meshedp.numedges,false);
-						Buffers.AddSubBufferAsKernelArg(geom->manager,queue,normal_kern,3,(void **)&geom->geom.vertices,meshedp.firstvertex,meshedp.numvertices,false);
-						Buffers.AddSubBufferAsKernelArg(geom->manager,queue,normal_kern,4,(void **)&geom->geom.normals,meshedp.firsttri,meshedp.numtris,true,true);
+						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,1,(void **)&geom->geom.triangles,meshedp.firsttri,meshedp.numtris,false);
+						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,2,(void **)&geom->geom.edges,meshedp.firstedge,meshedp.numedges,false);
+						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,3,(void **)&geom->geom.vertices,meshedp.firstvertex,meshedp.numvertices,false);
+						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,4,(void **)&geom->geom.normals,meshedp.firsttri,meshedp.numtris,true,true);
 						
 						size_t worksize=meshedp.numtris;
 						cl_event kernel_complete=NULL;
@@ -104,13 +104,13 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						// ***!!! Should we express as tuple, then do tuple->vector conversion?
 						// ***!!! Can we extract the changed regions from the lower level notifications
 						// i.e. the cache_manager's mark_as_dirty() and/or mark_as_gpu_modified()???
-						std::vector<rangetracker<markedregion>> outputchangedregions;
+						//std::vector<rangetracker<markedregion>> outputchangedregions;
 
-						outputchangedregions.emplace_back();
-						outputchangedregions[0].mark_region(normals_out.start,normals_out.len);
+						//outputchangedregions.emplace_back();
+						//outputchangedregions[0].mark_region(normals_out.start,normals_out.len);
 						
 						
-						return outputchangedregions;
+						//return outputchangedregions;
 					      },
 					      [ comp,geom ] (std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
 						// Regionupdater function
@@ -168,8 +168,11 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						
 						return new_outputs;
 					      },
-					      
-					      geom->manager);
+					      [ comp,geom ](std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
+						// cleanup
+						// nothing to do (we don't own the output allocation) 
+					      }
+					      );
   
 }
 

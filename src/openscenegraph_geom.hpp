@@ -42,7 +42,6 @@
 #include "openclcachemanager.hpp"
 #include "opencl_utils.hpp"
 
-
 #ifndef SNDE_OPENSCENEGRAPH_GEOM_HPP
 #define SNDE_OPENSCENEGRAPH_GEOM_HPP
 
@@ -82,7 +81,7 @@ namespace snde {
 extern opencl_program vertexarray_opencl_program;
 
 
-  snde_index vertexarray_from_instance_vertexarrayslocked(std::shared_ptr<geometry> geom,rwlock_token_set all_locks,snde_index meshedpartnum,snde_index outaddr,snde_index outlen,cl_context context,cl_device_id device,cl_command_queue queue)
+static snde_index vertexarray_from_instance_vertexarrayslocked(std::shared_ptr<geometry> geom,rwlock_token_set all_locks,snde_index meshedpartnum,snde_index outaddr,snde_index outlen,cl_context context,cl_device_id device,cl_command_queue queue)
 /* Should already have read locks on the part referenced by instance via obtain_lock() and the entire vertexarray locked for write */
 /* Need to make copy... texvertexarray_... that operates on texture */
 {
@@ -105,20 +104,20 @@ extern opencl_program vertexarray_opencl_program;
   cl_kernel vertexarray_kern = vertexarray_opencl_program.get_kernel(context,device);
 
 
-  OpenCLBuffers Buffers(context,all_locks);
+  OpenCLBuffers Buffers(context,device,all_locks);
   
   // specify the arguments to the kernel, by argument number.
   // The third parameter is the array element to be passed
   // (actually comes from the OpenCL cache)
   
-  Buffers.AddSubBufferAsKernelArg(geom->manager,queue,vertexarray_kern,0,(void **)&geom->geom.meshedparts,meshedpartnum,1,false);
+  Buffers.AddSubBufferAsKernelArg(geom->manager,vertexarray_kern,0,(void **)&geom->geom.meshedparts,meshedpartnum,1,false);
 
   
-  Buffers.AddSubBufferAsKernelArg(geom->manager,queue,vertexarray_kern,1,(void **)&geom->geom.triangles,part.firsttri,part.numtris,false);
-  Buffers.AddSubBufferAsKernelArg(geom->manager,queue,vertexarray_kern,2,(void **)&geom->geom.edges,part.firstedge,part.numedges,false);
-  Buffers.AddSubBufferAsKernelArg(geom->manager,queue,vertexarray_kern,3,(void **)&geom->geom.vertices,part.firstvertex,part.numvertices,false);
+  Buffers.AddSubBufferAsKernelArg(geom->manager,vertexarray_kern,1,(void **)&geom->geom.triangles,part.firsttri,part.numtris,false);
+  Buffers.AddSubBufferAsKernelArg(geom->manager,vertexarray_kern,2,(void **)&geom->geom.edges,part.firstedge,part.numedges,false);
+  Buffers.AddSubBufferAsKernelArg(geom->manager,vertexarray_kern,3,(void **)&geom->geom.vertices,part.firstvertex,part.numvertices,false);
 
-  Buffers.AddSubBufferAsKernelArg(geom->manager,queue,vertexarray_kern,4,(void **)&geom->geom.vertex_arrays,outaddr,part.numtris*9,true);
+  Buffers.AddSubBufferAsKernelArg(geom->manager,vertexarray_kern,4,(void **)&geom->geom.vertex_arrays,outaddr,part.numtris*9,true);
 
   
   size_t worksize=part.numtris;
@@ -366,7 +365,7 @@ struct osg_snde_partinstance_hash
 struct osg_snde_partinstance_equal
 {
   /* note: we ignore orientation in the hash/equality operators! */
-  size_t operator()(const snde_partinstance &x, const snde_partinstance &y) const
+  bool operator()(const snde_partinstance &x, const snde_partinstance &y) const
   {
     return x.nurbspartnum==y.nurbspartnum && x.meshedpartnum==y.meshedpartnum && x.mesheduvnum==y.mesheduvnum; /* && x.firstuvpatch==y.firstuvpatch  */
 									      
@@ -552,7 +551,7 @@ public:
   }
 
   
-  std::shared_ptr<osg_instancecacheentry> lookup(std::shared_ptr<trm> revman,snde_partinstance &instance,std::shared_ptr<snde::component> comp) //std::shared_ptr<geometry> geom,std::shared_ptr<lockholder> holder,rwlock_token_set all_locks,snde_partinstance &instance,cl_context context, cl_device device, cl_command_queue queue,snde_index thisversion)
+  std::shared_ptr<osg_instancecacheentry> lookup(std::shared_ptr<trm> rendering_revman,snde_partinstance &instance,std::shared_ptr<snde::component> comp) //std::shared_ptr<geometry> geom,std::shared_ptr<lockholder> holder,rwlock_token_set all_locks,snde_partinstance &instance,cl_context context, cl_device device, cl_command_queue queue,snde_index thisversion)
   {
     auto instance_iter = instance_map.find(instance);
     if (instance_iter==instance_map.end()) { // || instance_iter->obsolete()) {
@@ -606,7 +605,7 @@ public:
       // ****!!!!! NEED TO EXPLICITLY DECLARE NORMALS AS A DEPENDENCY ***!!!
       inputs_seed.emplace_back(snde_geom->manager,(void **)&snde_geom->geom.meshedparts,instance.meshedpartnum,1);
       
-      entry->second.vertex_function=revman->add_dependency_during_update(
+      entry->second.vertex_function=rendering_revman->add_dependency_during_update(
 								  // Function
 								  // input parameters are:
 								  // meshedpart
@@ -614,7 +613,7 @@ public:
 								  // edges, based on meshedpart.firstedge and meshedpart.numedges
 								  // vertices, based on meshedpart.firstvertex and meshedpart.numvertices
 								  
-									 [ entry_ptr,comp,shared_cache ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> inputchangedregions) -> std::vector<rangetracker<markedregion>> {
+								       [ entry_ptr,comp,shared_cache ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> inputchangedregions) {
 						      entry_ptr->cachedversion=newversion;
 						      
 						      // get inputs: meshedpart, triangles, edges, vertices, normals
@@ -667,11 +666,11 @@ public:
 						      // ***!!! Can we extract the changed regions from the lower level notifications
 						      // i.e. the cache_manager's mark_as_dirty() and/or mark_as_gpu_modified()???
 
-						      std::vector<rangetracker<markedregion>> outputchangedregions;
+						      //std::vector<rangetracker<markedregion>> outputchangedregions;
 						      
-						      outputchangedregions.emplace_back();
-						      outputchangedregions[0].mark_region(vertex_array_out.start,vertex_array_out.len);
-						      return outputchangedregions;
+						      //outputchangedregions.emplace_back();
+						      //outputchangedregions[0].mark_region(vertex_array_out.start,vertex_array_out.len);
+						      //return outputchangedregions;
 						    },
 						    [ shared_cache, entry_ptr,comp ] (std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
 						      // Regionupdater function
@@ -701,8 +700,8 @@ public:
 						    }, 
 						    inputs_seed, 
 						    [ shared_cache,entry_ptr,comp ](std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
-										   // update_output_regions()
-
+						      // update_output_regions()
+						      
 						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,SNDE_COMPONENT_GEOM_MESHEDPARTS,0,true,true,true); // Must lock entire vertex_arrays here because we may need to reallocate it. Also when calling this we don't necessarily know the correct positioning. 
 
 									       
@@ -750,8 +749,13 @@ public:
 						      
 						      return outputs;
 						    },
-									 
-									 snde_geom->manager);
+						  [ shared_cache ](std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
+						    if (outputs.size()==1) {
+						      shared_cache->snde_geom->manager->free((void **)&shared_cache->snde_geom->geom.vertex_arrays,outputs[0].start);
+						      
+						    }
+						    
+						  });
       //// Changing these flags will tickle different cases in
       //// Geometry::drawImplementation. They should all work fine
       //// with the shared array.
@@ -783,7 +787,7 @@ public:
 
   std::shared_ptr<osg_instancecache> cache;
   std::shared_ptr<component> comp;
-  std::shared_ptr<trm> revman;
+  std::shared_ptr<trm> rendering_revman;
   
   // elements of this group will be osg::MatrixTransform objects containing the osg::Geodes of the cache entries.
   std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> instances; // instances from last update... numbered identically to Group.
@@ -791,7 +795,7 @@ public:
   std::vector<osg::ref_ptr<osg::MatrixTransform>> transforms;
 
   /* Constructor: Build an OSGComponent from a snde::component 
- ***!!! May only be called within a transaction (per revman) 
+ ***!!! May only be called within a transaction (per rendering_revman) 
   The snde::geometry's object_trees_lock should be held 
    (locked prior to start of transaction) when making this call.
   */
@@ -806,10 +810,10 @@ public:
      NEW SOLUTION: Output location is defined by and allocated by update_output_regions() parameter to add_dependency_during_update()...
      This is called immediately. 
 */
-  OSGComponent(std::shared_ptr<snde::geometry> geom,std::shared_ptr<osg_instancecache> cache,std::shared_ptr<component> comp,std::shared_ptr<trm> revman) :
+  OSGComponent(std::shared_ptr<snde::geometry> geom,std::shared_ptr<osg_instancecache> cache,std::shared_ptr<component> comp,std::shared_ptr<trm> rendering_revman) :
     cache(cache),
     comp(comp),
-    revman(revman)
+    rendering_revman(rendering_revman)
   {
 
     // ***!!! NEED TO REORGANIZE THIS CONSTRUCTOR SO THAT MOST OF IT CAN BE PUT IN AN UPDATE() method
@@ -859,7 +863,7 @@ public:
 	cacheentries.push_back(oldcacheentries[pos]);
       } else {
 	// Not present in old array... perform lookcup 
-	cacheentry = cache->lookup(revman,instance_comp.first,instance_comp.second);
+	cacheentry = cache->lookup(rendering_revman,instance_comp.first,instance_comp.second);
 	cacheentries.push_back(cacheentry);
 	newcacheentry=true;
       }

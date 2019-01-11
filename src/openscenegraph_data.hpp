@@ -1,0 +1,676 @@
+#include <osg/Geode>
+#include <osg/Geometry>
+#include <osg/PrimitiveSet>
+#include <osg/Texture>
+#include <osg/Texture2D>
+#include <osg/Image>
+#include <osg/StateSet>
+#include <osg/LineWidth>
+
+#include <algorithm>
+
+
+#include "revision_manager.hpp"
+#include "data_to_rgba.hpp"
+#include "wfm_display.hpp"
+
+#ifndef SNDE_OPENSCENEGRAPH_DATA_HPP
+#define SNDE_OPENSCENEGRAPH_DATA_HPP
+
+namespace snde {
+  
+class osg_datacachebase  { // base class for datacache entries
+public:
+  osg::ref_ptr<osg::Group> group; 
+  bool touched; // used in our latest update() pass
+
+  osg_datacachebase()
+  {
+    group=new osg::Group();
+    touched=true;
+  }
+  
+  virtual ~osg_datacachebase() {}  // This is a polymorphic class
+};
+
+class osg_dataimagecacheentry: public osg_datacachebase {
+public:
+  // transform element is in the base class (osg_datacachebase)
+  //osg::ref_ptr<osg::MatrixTransform> transform; /* contains geode */
+  osg::ref_ptr<osg::MatrixTransform> transform; /* contains geode */
+  osg::ref_ptr<osg::Geode> bordergeode; /* contains bordergeom */
+  osg::ref_ptr<osg::Geometry> bordergeom;
+  osg::ref_ptr<osg::DrawArrays> borderlines; // add rest of stuff here
+  osg::ref_ptr<osg::StateSet> borderstateset;
+  osg::ref_ptr<osg::LineWidth> borderlinewidth;
+  
+  osg::ref_ptr<osg::Geode> imagegeode;
+  osg::ref_ptr<osg::Geometry> imagegeom;
+  osg::ref_ptr<osg::DrawArrays> imagetris;
+  osg::ref_ptr<osg::Texture2D> imagetexture;
+  osg::ref_ptr<osg::Image> image;
+  osg::ref_ptr<osg::PixelBufferObject> imagepbo;
+  
+  osg::ref_ptr<osg::StateSet> imagestateset;
+  
+  std::shared_ptr<trm_dependency> rgba_dep;
+
+  osg_dataimagecacheentry() :
+    osg_datacachebase()
+  {
+    transform=new osg::MatrixTransform();
+    bordergeode=new osg::Geode();
+    bordergeom=new osg::Geometry();
+    borderlines=new osg::DrawArrays(osg::PrimitiveSet::LINES,0,0); // # is number of lines * number of coordinates per line
+    borderstateset=nullptr;
+    borderlinewidth=new osg::LineWidth();
+    imagegeode=new osg::Geode();
+    imagegeom=new osg::Geometry();
+    imagetris=new osg::DrawArrays(osg::PrimitiveSet::TRIANGLES,0,0); // # is number of triangles * number of coordinates per triangle
+    imagetexture=new osg::Texture2D();
+    image=new osg::Image();
+    imagepbo=new osg::PixelBufferObject();
+    imagestateset=nullptr;
+    rgba_dep=nullptr;
+    
+  }
+};
+
+
+/* I think this is overcomplicated, making the map index be weak_ptrs...
+   because we really want to destroy any cache elements not needed NOW.. 
+   because they demand keeping the renderable textures updated --
+   which isn't necessary if they aren't being used! 
+*/
+
+template <typename T>
+class osg_datacache {
+  // single-threaded -- not thread safe at this time
+public:
+  std::map<std::weak_ptr<display_channel>,std::shared_ptr<T>,std::owner_less<std::weak_ptr<display_channel>>> cache;
+
+  std::shared_ptr<T> lookup(std::shared_ptr<display_channel> chan)
+  {
+    auto cache_iter=cache.find(std::weak_ptr<display_channel>(chan));
+    if (cache_iter==cache.end()) {
+      return nullptr;
+    }
+    return cache_iter->second;
+  }
+  
+  void cache_cleanup() /// I don't think this is currently used... the cacheiter cleanup way below is quite a bit more agressive
+  // Call this regularly! ... perhaps after each frame... */
+  {
+    typename std::map<std::weak_ptr<display_channel>,std::shared_ptr<T>>::iterator cur,next;
+
+    for (cur=cache.begin();cur != cache.end();cur=next) {
+      next=cur;
+      next++;
+
+      if (cur.first.expired()) {
+	cache.erase(cur);
+      }
+    }
+  }
+};
+
+
+template <typename test, typename instance>
+static inline bool instanceof(const instance &inst) {
+  return dynamic_cast<const test *>(&inst) != nullptr;
+}
+
+
+static inline void GetGeom(std::shared_ptr<mutabledatastore> datastore,size_t *ndim,
+	     double *IniValX,double *StepSzX,snde_index *dimlenx,
+	     double *IniValY,double *StepSzY,snde_index *dimleny,
+	     double *IniValZ,double *StepSzZ,snde_index *dimlenz, /* Z optional */
+	     double *IniValW,double *StepSzW,snde_index *dimlenw) /* W optional */
+{
+  double Junk=0.0;
+  snde_index Junk2=0;
+  
+  if (!IniValZ) IniValZ=&Junk;
+  if (!StepSzZ) StepSzZ=&Junk;
+  if (!dimlenz) dimlenz=&Junk2;
+
+  if (!IniValW) IniValW=&Junk;
+  if (!StepSzW) StepSzW=&Junk;
+  if (!dimlenw) dimlenw=&Junk2;
+  
+  
+  *ndim=datastore->dimlen.size();
+
+
+  *IniValX=datastore->metadata.GetMetaDatumDbl("IniVal1",0.0); /* in units  */
+  *StepSzX=datastore->metadata.GetMetaDatumDbl("Step1",1.0);  /* in units/index */
+
+  if (datastore->dimlen.size() >= 1) {
+    *dimlenx=datastore->dimlen[0];
+  } else {
+    *dimlenx=1;
+  }
+  
+  
+  *IniValY=datastore->metadata.GetMetaDatumDbl("IniVal2",0.0); /* in units */
+  *StepSzY=datastore->metadata.GetMetaDatumDbl("Step2",1.0); /* in units/index */
+
+  if (datastore->dimlen.size() >= 2) {
+      *dimleny=datastore->dimlen[1];
+  } else {
+    *dimleny=1;
+  }
+  
+  *IniValZ=datastore->metadata.GetMetaDatumDbl("IniVal3",0.0); /* in units */
+  *StepSzZ=datastore->metadata.GetMetaDatumDbl("Step3",1.0); /* in units/index */
+  if (datastore->dimlen.size() >= 3) {
+    *dimlenz=datastore->dimlen[2];
+  } else {
+    *dimlenz=1;
+  }
+  
+
+  *IniValW=datastore->metadata.GetMetaDatumDbl("IniVal4",0.0); /* in units */
+  *StepSzW=datastore->metadata.GetMetaDatumDbl("Step4",1.0); /* in units/index */
+  if (datastore->dimlen.size() >= 4) {
+    *dimlenw=datastore->dimlen[3];
+  } else {
+    *dimlenw=1;
+  }
+  
+  
+}
+
+
+class OSGData: public osg::Group {
+public:
+  std::shared_ptr<osg_datacache<osg_dataimagecacheentry>> imagecache;
+  std::shared_ptr<trm> rendering_revman; // on-demand revision manager used for rendering
+  
+
+ 
+  // osg::StateSet *ss = getOrCreateStateSet(); 
+  // Geode->getStateSet()->setRenderBinDetails(1, "transparent");
+  // ss->setRenderingHint( osg::StateSet::TRANSPARENT_BIN ); 
+  // // ... which is apparently a front end to  ss->setRenderBinDetails(10, "DepthSortedBin"); 
+  //  ss->setMode( GL_DEPTH_TEST, osg::StateAttribute::ON ); 
+
+  ////osg::BlendFunc *fuct = new osg::BlendFunc(); 
+  ////func->setFunction(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); 
+  //// Geode->getStateSet()->setAttributeAndModes(func); 
+
+
+  // alternatively: use scenegraphorderrenderbin
+  
+  //Geode->getStateSet()->setMode( GL_BLEND, osg::StateAttribute::ON ); 
+  //Geode->getStateSet()->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
+  
+  OSGData(//std::shared_ptr<osg_datacache<osg_dataimagecacheentry>> imagecache,
+	  std::shared_ptr<trm> rendering_revman) :
+    //imagecache(imagecache),
+    rendering_revman(rendering_revman)
+  {
+    imagecache=std::make_shared<osg_datacache<osg_dataimagecacheentry>>();
+    
+  }
+
+  std::shared_ptr<osg_datacachebase> update_datastore_image(std::shared_ptr<geometry> geom,std::shared_ptr<display_info> display,std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan, double pixelsperdiv,size_t drawareawidth,size_t drawareaheight,size_t layer_index,cl_context context, cl_device_id device, cl_command_queue queue)
+  /****!!! Can only be called during a rendering_revman transaction (but 
+       nothing shoudl be locked) */ 
+  {
+    double IniValX,IniValY,StepSzX,StepSzY,IniValZ=0.0,StepSzZ=0.0,IniValW=0.0,StepSzW=0.0;
+    size_t ndim;
+    snde_index dimlen1,dimlen2,dimlen3,dimlen4;
+
+    double vertscalefactor,horizscalefactor;
+    
+    std::shared_ptr<display_axis> third_axis,fourth_axis;
+    std::shared_ptr<display_unit> third_unit,fourth_unit;
+    double thirdunitperdiv,fourthunitperdiv;
+
+    double borderbox_xleft,borderbox_xright;
+    double borderbox_ybot,borderbox_ytop;
+
+    
+    GetGeom(datastore,&ndim,
+	    &IniValX,&StepSzX,&dimlen1,
+	    &IniValY,&StepSzY,&dimlen2,
+	    &IniValZ,&StepSzZ,&dimlen3,
+	    &IniValW,&StepSzW,&dimlen4);
+
+    assert(ndim <= 4);
+    
+    if (ndim==4) {
+      if (displaychan->DisplaySeq >= dimlen4) {
+	displaychan->DisplaySeq=dimlen4-1;
+      }
+    } else {
+      displaychan->DisplaySeq=0;
+    }
+    
+    if (ndim>=3) {
+      if (displaychan->DisplayFrame >= dimlen3) {
+	displaychan->DisplayFrame=dimlen3-1;
+      }
+    } else {
+      displaychan->DisplayFrame=0;
+    }
+    assert(ndim >= 2);
+    
+    std::shared_ptr<display_axis> a = display->GetFirstAxis(datastore);
+    std::shared_ptr<display_axis> b = display->GetSecondAxis(datastore);
+
+    std::shared_ptr<display_unit> u = a->unit;
+    std::shared_ptr<display_unit> v = b->unit;
+    
+    
+    if (ndim >= 3) {
+      third_axis=display->GetThirdAxis(datastore);
+      third_unit=third_axis->unit;
+      
+      if (third_unit->pixelflag)
+	thirdunitperdiv=third_unit->scale*pixelsperdiv;
+      else
+	thirdunitperdiv=third_unit->scale;
+      
+    }
+    
+    if (ndim >= 4) {
+      fourth_axis=display->GetFourthAxis(datastore);
+      fourth_unit=fourth_axis->unit;
+      
+      if (fourth_unit->pixelflag)
+	fourthunitperdiv=fourth_unit->scale*pixelsperdiv;
+      else
+	fourthunitperdiv=fourth_unit->scale;
+    }
+
+
+    if (u->pixelflag)
+      horizscalefactor=u->scale*pixelsperdiv;
+    else
+      horizscalefactor=u->scale;
+    
+    if (v->pixelflag)
+      vertscalefactor=v->scale*pixelsperdiv;
+    else
+      vertscalefactor=v->scale;
+    
+    
+    // we assume a drawing area that goes from (-0.5,-0.5) in the lower-left corner
+    // to (drawareawidth-0.5,drawareaheight-0.5) in the upper-right.
+
+    // pixel centers are at (0,0)..(drawareawidth-1,drawareaheight-1)
+    
+    double xcenter=a->CenterCoord; /* in units */
+    double ycenter=displaychan->Position*display->GetVertUnitsPerDiv(displaychan,pixelsperdiv);/**pixelsperdiv*scalefactor;*/ /* in units */
+
+    double horizontal_padding = (drawareawidth-display->horizontal_divisions*pixelsperdiv)/2.0;
+    double vertical_padding = (drawareaheight-display->vertical_divisions*pixelsperdiv)/2.0;
+    
+
+    // NOTE: transform includes z shift (away from viewer) of layer_index
+    // OSG transformation matrices are transposed (!)
+    osg::Matrixd transformmtx(pixelsperdiv/horizscalefactor,0,0,0, 
+			      0,pixelsperdiv/vertscalefactor,0,0,
+			      0,0,1,0,
+			      horizontal_padding+pixelsperdiv*display->horizontal_divisions/2.0-0.5,vertical_padding+pixelsperdiv*display->vertical_divisions/2.0-0.5,-layer_index,1);// ***!!! are -0.5's correct? 
+
+    if (StepSzX > 0) {
+      borderbox_xleft = std::max(IniValX-StepSzX*0.5-display->borderwidthpixels*horizscalefactor/pixelsperdiv/2.0,
+				   (display->borderwidthpixels/2.0-0.5 - transformmtx(3,0))/transformmtx(0,0));
+      borderbox_xright = std::min(IniValX+StepSzX*(dimlen1-1)+StepSzX*0.5+display->borderwidthpixels*horizscalefactor/pixelsperdiv/2.0,
+				    (drawareawidth-display->borderwidthpixels/2.0-0.5 - transformmtx(3,0))/transformmtx(0,0));
+    } else {
+      borderbox_xleft = std::max(IniValX+StepSzX*(dimlen1-1)+StepSzX*0.5-display->borderwidthpixels*horizscalefactor/pixelsperdiv/2.0,
+				   (display->borderwidthpixels/2.0-0.5 - transformmtx(3,0))/transformmtx(0,0));
+      borderbox_xright = std::min(IniValX-StepSzX*0.5+display->borderwidthpixels*horizscalefactor/pixelsperdiv/2.0,
+				    (drawareawidth-display->borderwidthpixels/2.0-0.5 - transformmtx(3,0))/transformmtx(0,0));
+      
+    }
+
+    if (StepSzY > 0) {
+      borderbox_ybot = std::max(IniValY-StepSzY*0.5-display->borderwidthpixels*vertscalefactor/pixelsperdiv/2.0,
+			   (display->borderwidthpixels/2.0-0.5 - transformmtx(3,1))/transformmtx(1,1));
+      borderbox_ytop = std::min(IniValY+StepSzY*(dimlen2-1)+StepSzY*0.5+display->borderwidthpixels*vertscalefactor/pixelsperdiv/2.0,
+			   (drawareaheight-display->borderwidthpixels/2.0-0.5 - transformmtx(3,1))/transformmtx(1,1));
+    } else {
+      borderbox_ybot = std::max(IniValY+StepSzY*(dimlen2-1)+StepSzY*0.5-display->borderwidthpixels*vertscalefactor/pixelsperdiv/2.0,
+			   (display->borderwidthpixels/2.0-0.5 - transformmtx(3,1))/transformmtx(1,1));
+      borderbox_ytop = std::min(IniValY-StepSzY*0.5+display->borderwidthpixels*vertscalefactor/pixelsperdiv/2.0,
+			   (drawareaheight-display->borderwidthpixels/2.0-0.5 - transformmtx(3,1))/transformmtx(1,1));
+      
+    }
+
+    // Z position of border is -0.5 relative to image, so it appears on top
+    // around edge
+    osg::ref_ptr<osg::Vec3Array> BorderCoords=new osg::Vec3Array(8);
+    (*BorderCoords)[0]=osg::Vec3(borderbox_xleft,borderbox_ybot,-0.5);
+    (*BorderCoords)[1]=osg::Vec3(borderbox_xright,borderbox_ybot,-0.5);
+    
+    (*BorderCoords)[2]=osg::Vec3(borderbox_xright,borderbox_ybot,-0.5);
+    (*BorderCoords)[3]=osg::Vec3(borderbox_xright,borderbox_ytop,-0.5);
+    
+    (*BorderCoords)[4]=osg::Vec3(borderbox_xright,borderbox_ytop,-0.5);
+    (*BorderCoords)[5]=osg::Vec3(borderbox_xleft,borderbox_ytop,-0.5);
+
+    (*BorderCoords)[6]=osg::Vec3(borderbox_xleft,borderbox_ytop,-0.5);
+    (*BorderCoords)[7]=osg::Vec3(borderbox_xleft,borderbox_ybot,-0.5);
+
+
+    // Image coordinates, from actual corners, counterclockwise,
+    // Two triangles    
+    osg::ref_ptr<osg::Vec3Array> ImageCoords=new osg::Vec3Array(6);
+    osg::ref_ptr<osg::Vec2Array> ImageTexCoords=new osg::Vec2Array(6);
+
+    if ((StepSzX >= 0 && StepSzY >= 0) || (StepSzX < 0 && StepSzY < 0)) {
+      // lower-left triangle (if both StepSzX and StepSzY positive)
+      (*ImageCoords)[0]=osg::Vec3(IniValX-0.5*StepSzX,
+				   IniValY-0.5*StepSzY,
+				   0.0);
+      (*ImageCoords)[1]=osg::Vec3(IniValX+dimlen1*StepSzX-0.5*StepSzX,
+				   IniValY-0.5*StepSzY,
+				   0.0);
+      (*ImageCoords)[2]=osg::Vec3(IniValX-0.5*StepSzX,
+				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
+				   0.0);
+      (*ImageTexCoords)[0]=osg::Vec2(0,0);
+      (*ImageTexCoords)[1]=osg::Vec2(1,0);
+      (*ImageTexCoords)[2]=osg::Vec2(0,1);
+      
+      // upper-right triangle (if both StepSzX and StepSzY positive)
+      (*ImageCoords)[3]=osg::Vec3(IniValX+dimlen1*StepSzX-0.5*StepSzX,
+				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
+				   0.0);
+      (*ImageCoords)[4]=osg::Vec3(IniValX-0.5*StepSzX,
+				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
+				   0.0);
+      (*ImageCoords)[5]=osg::Vec3(IniValX+dimlen1*StepSzX-0.5*StepSzX,
+				   IniValY-0.5*StepSzY,
+				   0.0);
+      (*ImageTexCoords)[3]=osg::Vec2(1,1);
+      (*ImageTexCoords)[4]=osg::Vec2(0,1);
+      (*ImageTexCoords)[5]=osg::Vec2(1,0);
+    } else {
+      // One of StepSzX or StepSzY is positive, one is negative
+      // work as raster coordinates (StepSzY negative)
+      // lower-left triangle
+      (*ImageCoords)[0]=osg::Vec3(IniValX-0.5*StepSzX,
+				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
+				   0.0);
+      (*ImageCoords)[1]=osg::Vec3(IniValX+dimlen1*StepSzX-0.5*StepSzX,
+				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
+				   0.0);
+      (*ImageCoords)[2]=osg::Vec3(IniValX-0.5*StepSzX,
+				   IniValY-0.5*StepSzY,
+				   0.0);
+      (*ImageTexCoords)[0]=osg::Vec2(0,1);
+      (*ImageTexCoords)[1]=osg::Vec2(1,1);
+      (*ImageTexCoords)[2]=osg::Vec2(0,0);
+      
+      // upper-right triangle 
+      (*ImageCoords)[3]=osg::Vec3(IniValX+dimlen1*StepSzX-0.5*StepSzX,
+				   IniValY-0.5*StepSzY,
+				   0.0);
+      (*ImageCoords)[4]=osg::Vec3(IniValX-0.5*StepSzX,
+				   IniValY-0.5*StepSzY,
+				   0.0);
+      (*ImageCoords)[5]=osg::Vec3(IniValX+dimlen1*StepSzX-0.5*StepSzX,
+				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
+				   0.0);
+      (*ImageTexCoords)[3]=osg::Vec2(1,0);
+      (*ImageTexCoords)[4]=osg::Vec2(0,0);
+      (*ImageTexCoords)[5]=osg::Vec2(1,1);
+      
+    }
+
+    
+    
+    std::shared_ptr<osg_dataimagecacheentry> cacheentry=imagecache->lookup(displaychan);
+    if (!cacheentry) {
+      cacheentry=std::make_shared<osg_dataimagecacheentry>();
+      cacheentry->group->addChild(cacheentry->transform);
+      cacheentry->transform->addChild(cacheentry->bordergeode);
+      cacheentry->bordergeode->addDrawable(cacheentry->bordergeom);
+      cacheentry->bordergeom->setUseVertexBufferObjects(true);
+      cacheentry->bordergeom->addPrimitiveSet(cacheentry->borderlines);
+      cacheentry->borderstateset=cacheentry->bordergeode->getOrCreateStateSet();
+      cacheentry->borderstateset->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
+      
+      cacheentry->borderlinewidth->setWidth(display->borderwidthpixels);
+      cacheentry->borderstateset->setAttributeAndModes(cacheentry->borderlinewidth,osg::StateAttribute::ON);
+      cacheentry->bordergeom->setStateSet(cacheentry->borderstateset);
+      osg::ref_ptr<osg::Vec4Array> BorderColorArray=new osg::Vec4Array();
+      BorderColorArray->push_back(osg::Vec4(WfmColorTable[displaychan->ColorIdx].R,WfmColorTable[displaychan->ColorIdx].G,WfmColorTable[displaychan->ColorIdx].B,1.0));
+      cacheentry->bordergeom->setColorArray(BorderColorArray,osg::Array::BIND_OVERALL);
+      cacheentry->bordergeom->setColorBinding(osg::Geometry::BIND_OVERALL);
+      
+
+      
+      cacheentry->transform->addChild(cacheentry->imagegeode);
+      cacheentry->imagegeom->setUseVertexBufferObjects(true);
+      cacheentry->imagegeom->addPrimitiveSet(cacheentry->imagetris);
+      cacheentry->imagepbo->setImage(cacheentry->image);
+      cacheentry->image->setPixelBufferObject(cacheentry->imagepbo);
+      cacheentry->imagetexture->setResizeNonPowerOfTwoHint(false);
+      cacheentry->imagestateset=cacheentry->imagegeode->getOrCreateStateSet();
+      cacheentry->imagestateset->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
+      cacheentry->imagestateset->setTextureAttributeAndModes(0,cacheentry->imagetexture,osg::StateAttribute::ON);
+
+      osg::ref_ptr<osg::Vec4Array> ColorArray=new osg::Vec4Array();
+      ColorArray->push_back(osg::Vec4(.8,.8,.8,1.0));
+      cacheentry->imagegeom->setColorArray(ColorArray,osg::Array::BIND_OVERALL);
+      cacheentry->imagegeom->setColorBinding(osg::Geometry::BIND_OVERALL);
+
+      cacheentry->imagegeom->setStateSet(cacheentry->imagestateset);
+      cacheentry->imagegeode->addDrawable(cacheentry->imagegeom);
+    
+      cacheentry->image->setDataVariance(osg::Object::DYNAMIC);
+
+      
+      
+      std::weak_ptr<osg_dataimagecacheentry> cacheentryweak=std::weak_ptr<osg_dataimagecacheentry>(cacheentry);
+      
+      cacheentry->rgba_dep=CreateRGBADependency(rendering_revman,
+						datastore,
+						datastore->typenum,
+						geom->manager,
+						(void **)&geom->geom.texbuffer,
+						displaychan,
+						context,
+						device,
+						queue,
+						[ cacheentryweak, geom ] (std::unique_lock<rwlock_lockable> inputlock,std::shared_ptr<lockholder> array_locks,rwlock_token_set all_locks,trm_arrayregion input,trm_arrayregion output,snde_rgba **imagearray,snde_index start,size_t xsize,size_t ysize) {
+						  rwlock_token_set input_lock = array_locks->get(input.array,false,input.start,input.len);
+						  unlock_rwlock_token_set(input_lock); // free up input lock while we process
+						  assert(output.array==(void**)imagearray);
+						  assert(output.start==start);
+						  
+						  rwlock_token_set output_lock = array_locks->get(output.array,true,output.start,output.len);
+
+						  // release all_locks by moving them into a new context that we then release. 
+						  {
+						    rwlock_token_set release_locks=std::move(all_locks);
+						  }
+						  // !!!*** downgrade_to_read not currently working
+						  // probably not a problem because I don't think
+						  // setImage() and dirty() are time consuming --
+						  // the work is done later, during rendering. 
+						  //geom->manager->locker->downgrade_to_read(output_lock); // free up output write-lock while we process
+						  
+						  
+						  std::shared_ptr<osg_dataimagecacheentry> cacheentrystrong(cacheentryweak);
+						  // release lock on input control data structure
+						  inputlock.unlock();
+						  // 
+						  
+						  
+						  if (cacheentrystrong) {
+						    //cacheentrystrong->imagetexture->setTextureWidth(xsize);
+						    //cacheentrystrong->imagetexture->setTextureHeight(ysize);
+
+						    /* ****!!!! WHY does OSG report (in Texture.cpp) scaling the image down from 300x300->256x256 ***???? */
+						    cacheentrystrong->image->setImage(xsize,ysize,1,GL_RGBA,GL_RGBA,GL_UNSIGNED_BYTE,(unsigned char *)((*imagearray)+start),osg::Image::AllocationMode::NO_DELETE);
+						    cacheentrystrong->imagetexture->setImage(cacheentrystrong->image);
+						    fprintf(stderr,"First texture pixel: 0x%x 0x%x 0x%x 0x%x\n",
+							    (unsigned)*((unsigned char *)((*imagearray)+start)+0),
+							    (unsigned)*((unsigned char *)((*imagearray)+start)+1),
+							    (unsigned)*((unsigned char *)((*imagearray)+start)+2),
+							    (unsigned)*((unsigned char *)((*imagearray)+start)+3));
+						      
+						    //cacheentrystrong->image->setFileName("Foo.png");
+						    //cacheentrystrong->imagestateset->setTextureAttributeAndModes(0,cacheentrystrong->imagetexture,osg::StateAttribute::ON);
+						    //cacheentrystrong->imagepbo->setImage(cacheentrystrong->image);
+						    //cacheentrystrong->image->setPixelBufferObject(cacheentrystrong->imagepbo);
+
+						    cacheentrystrong->image->dirty();
+						  }
+						});
+      imagecache->cache.emplace(displaychan,cacheentry);
+    }
+    cacheentry->transform->setMatrix(transformmtx);
+    cacheentry->bordergeom->setVertexArray(BorderCoords);
+    //cacheentry->bordergeom->dirty();
+    cacheentry->borderlines->setCount(8);
+    
+    cacheentry->imagegeom->setVertexArray(ImageCoords);
+    cacheentry->imagegeom->setTexCoordArray(0,ImageTexCoords);
+    //cacheentry->imagegeom->dirty();
+    cacheentry->imagetris->setCount(6);
+    
+    return cacheentry;
+  }
+  
+  /* Update our cache/OSG tree entries for a mutabledatastore */
+
+  std::shared_ptr<osg_datacachebase> update_datastore(std::shared_ptr<geometry> geom,std::shared_ptr<display_info> display,std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan, double pixelsperdiv,size_t drawareawidth,size_t drawareaheight,size_t layer_index,cl_context context, cl_device_id device, cl_command_queue queue)
+  /* Update our cache/OSG tree entries for a mutabledatastore */
+  // geom needed because that is teh current location for the texture RGBA... it also references the array manager and lock manager ....
+  /****!!! Can only be called during a rendering_revman transaction (but 
+       nothing should be locked) */ 
+  {
+    double horizunitsperdiv=1.0;
+    std::shared_ptr<osg_datacachebase> cacheentry=nullptr;
+
+      
+    /* Figure out type of rendering... */
+    std::shared_ptr<display_axis> axis=display->GetFirstAxis(datastore);
+    if (axis->unit->pixelflag) {
+      horizunitsperdiv=axis->unit->scale*pixelsperdiv;
+    } else {
+      horizunitsperdiv=axis->unit->scale;
+    }
+
+    // Perhaps evaluate/render Max and Min levels here (see scope_drawwfm.c)
+
+    snde_index NDim = datastore->dimlen.size();
+    snde_index DimLen1=1;
+    if (NDim > 0) {
+      DimLen1 = datastore->dimlen[0];
+    }
+
+    //if (!displaychan->Enabled) {
+    //  return nullptr; /* no point in update for a disabled waveform */
+    //}
+    
+    if (NDim<=1 && DimLen1==1) {
+      /* "single point" waveform */
+      fprintf(stderr,"openscenegraph_data: Single point waveform rendering not yet implemented\n");
+    } else if (NDim==1) {
+      // 1D waveform
+      fprintf(stderr,"openscenegraph_data: 1D waveform rendering not yet implemented\n");
+    } else if (NDim > 1 && NDim <= 4) {
+      // image data
+      cacheentry=update_datastore_image(geom,display,datastore,displaychan,pixelsperdiv,drawareawidth,drawareaheight,layer_index,context,device,queue);
+    }
+    
+    
+    return cacheentry;
+  }
+
+  void clearcache()
+  {
+    /* clear out our cache, if we aren't going to be used for a while */
+    std::map<std::weak_ptr<display_channel>,std::shared_ptr<osg_dataimagecacheentry>>::iterator cacheiter;
+    std::map<std::weak_ptr<display_channel>,std::shared_ptr<osg_dataimagecacheentry>>::iterator nextcacheiter;
+    for (cacheiter=imagecache->cache.begin(); cacheiter != imagecache->cache.end(); cacheiter=nextcacheiter) {
+      nextcacheiter=cacheiter;
+      nextcacheiter++;
+      
+      imagecache->cache.erase(cacheiter);
+      
+
+    }
+    
+    
+  }
+  
+  // update operates on a flattened list (from display_info::update()) instead of wfmdb directly!
+  // displaychans list should generally not include disabled waveforms 
+  void update(std::shared_ptr<geometry> geom, std::shared_ptr<display_info> display,const std::vector<std::shared_ptr<display_channel>> & displaychans,double pixelsperdiv,size_t drawareawidth,size_t drawareaheight,cl_context context,cl_device_id device,cl_command_queue queue)
+  // geom needed because that is the current location for the texture RGBA... it also references the array manager and lock manager ....
+  /****!!! Can only be called during a rendering_revman transaction (but 
+       nothing should be locked) */ 
+  {
+    /* NOTE: NOT THREAD SAFE... should probably be called from GUI rendering thread only! */
+    
+
+    // iterate over cache, setting touched flag
+    for (auto & cacheentry : imagecache->cache) {
+      cacheentry.second->touched=true; 
+    }
+    
+    /* alternate approach (not used):  use a std::map on an osg::observer_ptr to the cacheentry->transform...
+     * Build map to boolean by iterating over existing children in OSG tree. 
+     * Set booleans to true as they come back from updatedatastore(), etc. 
+     * Remove any children not marked as true from OSG tree */
+    
+    std::shared_ptr<osg_datacachebase> cacheentry; 
+    size_t child_num=0;
+    size_t layer_index=0;
+    for (auto & displaychan : displaychans) {
+      //if std::type_index(typeid(*(*displaychan)->chan_data))==std::type_index(typeid())
+      if (instanceof<mutabledatastore>(*displaychan->chan_data)) {
+	cacheentry = update_datastore(geom,display,std::dynamic_pointer_cast<mutabledatastore>(displaychan->chan_data),displaychan,pixelsperdiv,drawareawidth,drawareaheight,layer_index,context,device,queue);
+	cacheentry->touched=true; 
+	if (child_num >= getNumChildren() || getChild(child_num)!=cacheentry->group.get()) {
+	  // not in correct position in our osg::Group (superclass)
+	  if (containsNode(cacheentry->group)) {
+	    removeChild(cacheentry->group);
+	  }
+	  insertChild(child_num,cacheentry->group);
+	  child_num++;
+	  
+	}
+      } else if (instanceof<mutablegeomstore>(*displaychan->chan_data)) {
+	
+	// geomstores handled separately by openscenegraph_geom.hpp...
+      } else {
+	fprintf(stderr,"Warning: Unknown mutableinfostore subclass %s is not renderable.\n",typeid(*displaychan->chan_data).name());
+      }
+      layer_index++;
+      
+    }
+
+
+    // iterate again over cache, checking 'touched' flag and removing anything not touched.
+    std::map<std::weak_ptr<display_channel>,std::shared_ptr<osg_dataimagecacheentry>>::iterator cacheiter;
+    std::map<std::weak_ptr<display_channel>,std::shared_ptr<osg_dataimagecacheentry>>::iterator nextcacheiter;
+    for (cacheiter=imagecache->cache.begin(); cacheiter != imagecache->cache.end(); cacheiter=nextcacheiter) {
+      nextcacheiter=cacheiter;
+      nextcacheiter++;
+
+      if (!(*cacheiter).second->touched) {
+	imagecache->cache.erase(cacheiter);
+      }
+
+    }
+  }
+  
+};
+
+}
+
+#endif // SNDE_OPENSCENEGRAPH_DATA_HPP
+
+

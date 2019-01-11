@@ -414,6 +414,7 @@ namespace snde {
     }
   }
 
+  
   static inline rwlock_token_set clone_rwlock_token_set(rwlock_token_set orig)
   {
     /* Clone a rwlock_token_set so that the copy can be delegated

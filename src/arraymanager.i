@@ -37,7 +37,7 @@ namespace snde {
   
   class cachemanager /* : public std::enable_shared_from_this<cachemanager> */ { /* abstract base class for cache managers */
   public:
-    virtual void mark_as_dirty(void **arrayptr,snde_index pos,snde_index numelem) {};
+    virtual void mark_as_dirty(std::shared_ptr<arraymanager> manager,void **arrayptr,snde_index pos,snde_index numelem) {};
     virtual ~cachemanager() {};
     
   };
@@ -84,19 +84,27 @@ namespace snde {
 
     virtual void add_allocated_array(void **arrayptr,size_t elemsize,snde_index totalnelem);
     virtual void add_follower_array(void **allocatedptr,void **arrayptr,size_t elemsize);
-    virtual void add_unmanaged_array(void **allocatedptr,void **arrayptr);
+    
+    virtual void add_unmanaged_array(void **arrayptr,size_t elemsize,snde_index totalnelem);
     virtual void mark_as_dirty(cachemanager *owning_cache_or_null,void **arrayptr,snde_index pos,snde_index len);
     virtual void dirty_alloc(std::shared_ptr<lockholder> holder,void **arrayptr,std::string allocid, snde_index numelem);
     virtual snde_index get_elemsize(void **arrayptr);
     virtual snde_index get_total_nelem(void **arrayptr);
 
+    virtual void realloc_down(void **allocatedptr,snde_index addr,snde_index orignelem, snde_index newnelem);
+
     // This next one gives SWIG trouble because of confusion over whether snde_index is an unsigned long or an unsigned long long
     //virtual std::pair<snde_index,std::vector<std::pair<void **,rwlock_token_set>>> alloc_arraylocked(snde::rwlock_token_set all_locks,void **allocatedptr,snde_index nelem);
     virtual std::vector<std::pair<std::shared_ptr<snde::alloc_voidpp>,rwlock_token_set>> alloc_arraylocked_swigworkaround(snde::rwlock_token_set all_locks,void **allocatedptr,snde_index nelem,snde_index *OUTPUT);
 
+
+    virtual snde_index get_length(void **allocatedptr,snde_index addr);
+    
     virtual void free(void **allocatedptr,snde_index addr);
 
     virtual void clear();
+
+    virtual void remove_unmanaged_array(void **basearray);
 
     virtual void cleararrays(void *structaddr, size_t structlen);    
     virtual std::shared_ptr<snde::cachemanager> get_cache(std::string name);

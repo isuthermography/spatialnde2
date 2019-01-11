@@ -1,3 +1,14 @@
+
+#include "geometry_types.h"
+#include "geometrydata.h"
+
+#include "arraymanager.hpp"
+
+
+#include <stdexcept>
+#include <cstring>
+
+
 #ifndef SNDE_GEOMETRY_HPP
 #define SNDE_GEOMETRY_HPP
 
@@ -13,15 +24,6 @@
  * ... 64 bit indices yet. 
 
 */
-
-
-//#include "geometry_types.h"
-
-#include "arraymanager.hpp"
-
-
-#include <stdexcept>
-#include <cstring>
 
 
 
@@ -207,6 +209,8 @@ namespace snde {
       manager->add_allocated_array((void **)&geom.vertex_arrays,sizeof(*geom.vertex_arrays),0);
 
       manager->add_allocated_array((void **)&geom.texvertex_arrays,sizeof(*geom.texvertex_arrays),0);
+
+      manager->add_allocated_array((void **)&geom.texbuffer,sizeof(*geom.texbuffer),0);
 
       
       // ... need to initialize rest of struct...

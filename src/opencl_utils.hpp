@@ -10,6 +10,10 @@
 #include <vector>
 #include <string>
 
+#ifndef CL_USE_DEPRECATED_OPENCL_1_2_APIS
+#define CL_USE_DEPRECATED_OPENCL_1_2_APIS
+#endif
+
 #include <CL/opencl.h>
 
 #include "allocator.hpp"
@@ -24,17 +28,115 @@ namespace snde {
 
   void add_opencl_alignment_requirement(std::shared_ptr<allocator_alignment> alignment,cl_device_id device);
 
-
-  struct context_device { // used internal to class opencl_program as map key
-    context_device(cl_context context,cl_device_id device) :
-      context(context),
-      device(device)
+  struct _snde_cl_retain_command_queue {
+    static void retain(cl_command_queue queue)
+    {
+      clRetainCommandQueue(queue);
+    }
+  };
+  struct _snde_cl_release_command_queue {
+    static void release(cl_command_queue queue)
+    {
+      clReleaseCommandQueue(queue);
+    }
+  };
+  
+  
+  template <typename T,typename retaincls, typename releasecls>
+  struct clobj_wrapper {
+    T clobj;
+    clobj_wrapper() :
+      clobj(nullptr)
     {
       
     }
     
+    clobj_wrapper(T clobj) :
+      clobj(clobj)
+    {
+      /* eats exactly one reference on instantiation. If you 
+	 don't own the reference provided, you should Retain() first */
+     
+    }
+
+    clobj_wrapper(const clobj_wrapper &orig) :
+      clobj(orig.clobj)
+    {
+      if (clobj) {
+	retaincls::retain(clobj);
+      }
+    }
+    
+    clobj_wrapper & operator=(const clobj_wrapper &orig) 
+    {
+      if (clobj) {
+	releasecls::release(clobj);
+      }
+      clobj=orig.clobj;
+
+      if (clobj) {
+	retaincls::retain(clobj);
+      }
+    }
+
+    T get_noref()
+    {
+      return clobj;
+    }
+    
+    T get_ref() // return with a retain reference
+    {
+      if (clobj) {
+	retaincls::retain(clobj);
+      }
+      return clobj;
+    }
+
+  };
+
+  typedef clobj_wrapper<cl_command_queue,_snde_cl_retain_command_queue,_snde_cl_release_command_queue> cl_command_queue_wrapped;
+  
+  struct context_device { // used internal to class opencl_program as map key
     cl_context context;
     cl_device_id device; 
+
+    context_device(cl_context context,cl_device_id device) :
+      context(context),
+      device(device)
+    {
+      clRetainContext(this->context); /* increase refcnt */
+      clRetainDevice(this->device);      
+    }
+    
+    context_device(const context_device &orig) /* copy constructor */
+    {
+      context=orig.context;
+      clRetainContext(context);
+      device=orig.device;
+      clRetainDevice(device);
+    }
+    
+    context_device & operator=(const context_device &orig) /* copy assignment operator */
+    {
+      clReleaseContext(context);
+      context=orig.context;
+      clRetainContext(context);
+      device=orig.device;
+      clRetainDevice(device);
+      
+      return *this;
+    }
+
+    // equality operator for std::unordered_map
+    bool operator==(const context_device b) const
+    {
+      return b.context==context&& b.device==device;
+    }
+    
+    ~context_device() {
+      clReleaseContext(context);
+      clReleaseDevice(device);
+    }
   };
   
   // Need to provide hash and equality implementation for context_device so

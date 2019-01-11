@@ -14,7 +14,8 @@ typedef float snde_imagedata;
 typedef ulong snde_index;
 typedef uint snde_shortindex;
 typedef long snde_ioffset;
-typedef char snde_bool;
+typedef unsigned char snde_bool;
+typedef unsigned char uint8_t;
   
 #else
   //#if 0 && defined(SNDE_OPENCL)
@@ -30,7 +31,7 @@ typedef char snde_bool;
 typedef double snde_coord;
 typedef float snde_imagedata;
 typedef uint32_t snde_shortindex;
-typedef char snde_bool;
+typedef unsigned char snde_bool;
 
   // Don't specify 64 bit integers in terms of int64_t/uint64_t to work around
   // https://github.com/swig/swig/issues/568
@@ -68,6 +69,30 @@ typedef struct {
   snde_coord4 quat; // normalized quaternion ... represented as , i (x) component, j (y) component, k (z) component, real (w) component
 } snde_orientation3;
 
+typedef struct {
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+  uint8_t a;
+#ifdef __cplusplus
+  operator double() const // need operator(double) because we don't (yet) have template code to check for existance of such a cast method. 
+  {
+    // operator(double) always returns NaN... 
+    uint8_t NaNconstLE[4]={ 0x00,0x00,0xc0,0x7f };
+    uint8_t NaNconstBE[4]={ 0x7f,0xc0,0x00,0x00 };
+
+    if (*((uint32_t*)NaNconstBE) & 0xff == 0x00) {
+      // big endian
+      return (double)*((float *)NaNconstBE);
+    } else {
+      // little endian
+      return (double)*((float *)NaNconstLE);
+    }
+    
+  }  
+#endif
+} snde_rgba;
+  
 static inline snde_orientation3 snde_null_orientation3()
 {
   snde_orientation3 null_orientation = { { 0.0, 0.0, 0.0 }, 0.0, {0.0, 0.0, 0.0, 1.0} }; /* unit (null) quaternion */
@@ -302,7 +327,7 @@ struct snde_partinstance {
   
 struct snde_image  {
   snde_index imgbufoffset; /* index into image buffer array */
-  snde_index rgba_imgbufoffset; /* index into rgba image buffer array (if imgbufoffset is SNDE_INDEX_INVALID */
+  //snde_index rgba_imgbufoffset; /* index into rgba image buffer array (if imgbufoffset is SNDE_INDEX_INVALID */
   
   snde_index nx,ny; // X and Y size (ncols, nrows) ... note Fortran style indexing
   snde_coord2 startcorner; /* Coordinates of the edge of the first texel in image, 

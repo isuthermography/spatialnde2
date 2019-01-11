@@ -305,15 +305,15 @@ int main(int argc, char *argv[])
     // Buffers are OpenCL-accessible memory. You don't need to keep the buffers
     // open and active; the arraymanager maintains a cache, so if you
     // request a buffer a second time it will be there already. 
-    OpenCLBuffers Buffers(context,all_locks);
+    OpenCLBuffers Buffers(context,device,all_locks);
     
     // specify the arguments to the kernel, by argument number.
     // The third parameter is the array element to be passed
     // (actually comes from the OpenCL cache)
-    Buffers.AddSubBufferAsKernelArg(manager,queue,kernel,0,(void **)&geom->geom.meshedparts,part->idx,1,false);
-    Buffers.AddSubBufferAsKernelArg(manager,queue,kernel,1,(void **)&geom->geom.triangles,meshedparts[0].firsttri,meshedparts[0].numtris,false);
-    Buffers.AddSubBufferAsKernelArg(manager,queue,kernel,2,(void **)&geom->geom.edges,meshedparts[0].firstedge,meshedparts[0].numedges,false);
-    Buffers.AddSubBufferAsKernelArg(manager,queue,kernel,3,(void **)&geom->geom.vertices,meshedparts[0].firstvertex,meshedparts[0].numvertices,false);
+    Buffers.AddSubBufferAsKernelArg(manager,kernel,0,(void **)&geom->geom.meshedparts,part->idx,1,false);
+    Buffers.AddSubBufferAsKernelArg(manager,kernel,1,(void **)&geom->geom.triangles,meshedparts[0].firsttri,meshedparts[0].numtris,false);
+    Buffers.AddSubBufferAsKernelArg(manager,kernel,2,(void **)&geom->geom.edges,meshedparts[0].firstedge,meshedparts[0].numedges,false);
+    Buffers.AddSubBufferAsKernelArg(manager,kernel,3,(void **)&geom->geom.vertices,meshedparts[0].firstvertex,meshedparts[0].numvertices,false);
     
     size_t worksize=meshedparts[0].numtris;
     
@@ -337,6 +337,9 @@ int main(int argc, char *argv[])
     }
     
     cl_event xfer_complete=NULL;
+    // The only reason we need to explicitly transfer our
+    // result is that it didn't go into an array (if it did, the
+    // opencl cache manager would manage the transfer) 
     err=clEnqueueReadBuffer(queue,result_gpu,CL_FALSE,0,worksize*sizeof(*result_host),result_host,1,&kernel_complete,&xfer_complete);
     
     if (err != CL_SUCCESS) {
