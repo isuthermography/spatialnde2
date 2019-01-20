@@ -95,7 +95,7 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 	  DisplayFrame=scaling_colormap_channel->DisplayFrame;
 	  DisplaySeq=scaling_colormap_channel->DisplaySeq;
 	  ColorMap=scaling_colormap_channel->ColorMap;
-	  DivPerUnits = 1.0/scaling_colormap_channel->UnitsPerDiv;
+	  DivPerUnits = 1.0/scaling_colormap_channel->Scale; // !!!*** Should we consider pixelflag here? Probably not because color axis can't be in pixels, so it wouldn't make sense
 	}
 
 

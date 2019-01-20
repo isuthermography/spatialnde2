@@ -69,10 +69,17 @@ namespace snde {
     /* breakup method ends this region at breakpoint and returns
        a new region starting at from breakpoint to the prior end */
     {
-      assert(0); // ***!!! Should probably implement this..
       // note that it will be an error to do a breakup while there
       // are flushdoneevents pending
-      return nullptr;
+      std::shared_ptr<opencldirtyregion> newregion;
+
+      assert(!FlushDoneEvent);
+      assert(breakpoint > regionstart && breakpoint < regionend);
+
+      newregion=std::make_shared<opencldirtyregion>(breakpoint,regionend);
+      this->regionend=breakpoint;
+      
+      return newregion;
     }
       ~opencldirtyregion()
     {

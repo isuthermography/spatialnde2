@@ -185,8 +185,12 @@ static inline void GetGeom(std::shared_ptr<mutabledatastore> datastore,size_t *n
 class OSGData: public osg::Group {
 public:
   std::shared_ptr<osg_datacache<osg_dataimagecacheentry>> imagecache;
+  std::shared_ptr<display_info> display;
   std::shared_ptr<trm> rendering_revman; // on-demand revision manager used for rendering
-  
+
+  osg::ref_ptr<osg::MatrixTransform> GraticuleTransform; // entire graticule hangs off of this!
+  //osg::ref_ptr<osg::Geode> GraticuleGeode;
+  // osg::ref_ptr<osg::Geometry> GraticuleGeometry;
 
  
   // osg::StateSet *ss = getOrCreateStateSet(); 
@@ -206,15 +210,100 @@ public:
   //Geode->getStateSet()->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
   
   OSGData(//std::shared_ptr<osg_datacache<osg_dataimagecacheentry>> imagecache,
+	  std::shared_ptr<display_info> display,
 	  std::shared_ptr<trm> rendering_revman) :
     //imagecache(imagecache),
+    display(display),
     rendering_revman(rendering_revman)
+    
   {
     imagecache=std::make_shared<osg_datacache<osg_dataimagecacheentry>>();
+
+    GraticuleTransform = new osg::MatrixTransform();
+    osg::ref_ptr<osg::Geode> GraticuleThickGeode = new osg::Geode();
+    GraticuleTransform->addChild(GraticuleThickGeode);
+    osg::ref_ptr<osg::Geometry> GraticuleThickGeom = new osg::Geometry();
+    GraticuleThickGeode->addDrawable(GraticuleThickGeom);
+    osg::ref_ptr<osg::Geode> GraticuleThinGeode = new osg::Geode();
+    GraticuleTransform->addChild(GraticuleThinGeode);
+    osg::ref_ptr<osg::Geometry> GraticuleThinGeom = new osg::Geometry();
+    GraticuleThinGeode->addDrawable(GraticuleThinGeom);
     
+    osg::ref_ptr<osg::StateSet> GraticuleThinStateSet=GraticuleThinGeode->getOrCreateStateSet();
+    GraticuleThinStateSet->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
+    osg::ref_ptr<osg::LineWidth> GraticuleThinLineWidth=new osg::LineWidth();
+    GraticuleThinLineWidth->setWidth(display->borderwidthpixels);
+    GraticuleThinStateSet->setAttributeAndModes(GraticuleThinLineWidth,osg::StateAttribute::ON);
+    GraticuleThinGeom->setStateSet(GraticuleThinStateSet);
+    
+    osg::ref_ptr<osg::StateSet> GraticuleThickStateSet=GraticuleThickGeode->getOrCreateStateSet();
+    GraticuleThickStateSet->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
+    osg::ref_ptr<osg::LineWidth> GraticuleThickLineWidth=new osg::LineWidth();
+    GraticuleThickLineWidth->setWidth(display->borderwidthpixels*2);
+    GraticuleThickStateSet->setAttributeAndModes(GraticuleThickLineWidth,osg::StateAttribute::ON);
+    GraticuleThickGeom->setStateSet(GraticuleThickStateSet);
+
+    osg::ref_ptr<osg::Vec4Array> GraticuleColorArray=new osg::Vec4Array();
+    GraticuleColorArray->push_back(osg::Vec4(1.0,1.0,1.0,1.0));
+    GraticuleThinGeom->setColorArray(GraticuleColorArray,osg::Array::BIND_OVERALL);
+    GraticuleThinGeom->setColorBinding(osg::Geometry::BIND_OVERALL);
+    GraticuleThickGeom->setColorArray(GraticuleColorArray,osg::Array::BIND_OVERALL);
+    GraticuleThickGeom->setColorBinding(osg::Geometry::BIND_OVERALL);
+
+    // Units in these coordinates are 5 per division
+    osg::ref_ptr<osg::Vec3dArray> ThinGridLineCoords=new osg::Vec3dArray();
+    // horizontal thin grid lines
+    for (size_t cnt=0; cnt <= display->vertical_divisions;cnt++) {
+      double Pos;
+      Pos = -1.0*display->vertical_divisions*5.0/2.0 + cnt*5.0;
+      ThinGridLineCoords->push_back(osg::Vec3d(-1.0*display->horizontal_divisions*5.0/2.0,Pos,0));
+      ThinGridLineCoords->push_back(osg::Vec3d(display->horizontal_divisions*5.0/2.0,Pos,0));
+    }
+    // vertical thin grid lines
+    for (size_t cnt=0; cnt <= display->horizontal_divisions;cnt++) {
+      double Pos;
+      Pos = -1.0*display->horizontal_divisions*5.0/2.0 + cnt*5.0;
+      ThinGridLineCoords->push_back(osg::Vec3d(Pos,-1.0*display->vertical_divisions*5.0/2.0,0));
+      ThinGridLineCoords->push_back(osg::Vec3d(Pos,display->vertical_divisions*5.0/2.0,0));
+    }
+
+    // horizontal thin minidiv lines
+    for (size_t cnt=0; cnt <= display->vertical_divisions*5;cnt++) {
+      double Pos;
+      Pos = -1.0*display->vertical_divisions*5.0/2.0 + cnt;
+      ThinGridLineCoords->push_back(osg::Vec3d(-0.5,Pos,0));
+      ThinGridLineCoords->push_back(osg::Vec3d(0.5,Pos,0));
+    }
+    // vertical thin minidiv lines
+    for (size_t cnt=0; cnt <= display->horizontal_divisions*5;cnt++) {
+      double Pos;
+      Pos = -1.0*display->horizontal_divisions*5.0/2.0 + cnt;
+      ThinGridLineCoords->push_back(osg::Vec3d(Pos,-0.5,0));
+      ThinGridLineCoords->push_back(osg::Vec3d(Pos,0.5,0));
+    }
+
+    osg::ref_ptr<osg::Vec3dArray> ThickGridLineCoords=new osg::Vec3dArray();
+    // horizontal main cross line
+    ThickGridLineCoords->push_back(osg::Vec3d(-1.0*display->horizontal_divisions*5.0/2.0,0.0,0.0));
+    ThickGridLineCoords->push_back(osg::Vec3d(display->horizontal_divisions*5.0/2.0,0.0,0.0));
+
+    // vertical main cross line
+    ThickGridLineCoords->push_back(osg::Vec3d(0.0,-1.0*display->vertical_divisions*5.0/2.0,0.0));
+    ThickGridLineCoords->push_back(osg::Vec3d(0.0,display->vertical_divisions*5.0/2.0,0.0));
+
+
+    
+    osg::ref_ptr<osg::DrawArrays> GraticuleThinLines = new osg::DrawArrays(osg::PrimitiveSet::LINES,0,ThinGridLineCoords->size()/2);
+    osg::ref_ptr<osg::DrawArrays> GraticuleThickLines = new osg::DrawArrays(osg::PrimitiveSet::LINES,0,ThickGridLineCoords->size()/2);
+    
+    GraticuleThinGeom->addPrimitiveSet(GraticuleThinLines);
+    GraticuleThickGeom->addPrimitiveSet(GraticuleThickLines);
+    
+    GraticuleThinGeom->setVertexArray(ThinGridLineCoords);
+    GraticuleThickGeom->setVertexArray(ThickGridLineCoords);
   }
 
-  std::shared_ptr<osg_datacachebase> update_datastore_image(std::shared_ptr<geometry> geom,std::shared_ptr<display_info> display,std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan, double pixelsperdiv,size_t drawareawidth,size_t drawareaheight,size_t layer_index,cl_context context, cl_device_id device, cl_command_queue queue)
+  std::shared_ptr<osg_datacachebase> update_datastore_image(std::shared_ptr<geometry> geom,std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index,cl_context context, cl_device_id device, cl_command_queue queue)
   /****!!! Can only be called during a rendering_revman transaction (but 
        nothing shoudl be locked) */ 
   {
@@ -269,7 +358,7 @@ public:
       third_unit=third_axis->unit;
       
       if (third_unit->pixelflag)
-	thirdunitperdiv=third_unit->scale*pixelsperdiv;
+	thirdunitperdiv=third_unit->scale*display->pixelsperdiv;
       else
 	thirdunitperdiv=third_unit->scale;
       
@@ -280,19 +369,23 @@ public:
       fourth_unit=fourth_axis->unit;
       
       if (fourth_unit->pixelflag)
-	fourthunitperdiv=fourth_unit->scale*pixelsperdiv;
+	fourthunitperdiv=fourth_unit->scale*display->pixelsperdiv;
       else
 	fourthunitperdiv=fourth_unit->scale;
     }
 
 
-    if (u->pixelflag)
-      horizscalefactor=u->scale*pixelsperdiv;
-    else
+    if (u->pixelflag) {
+      horizscalefactor=u->scale*display->pixelsperdiv;
+      //fprintf(stderr,"%f units/pixel\n",u->scale);
+    }
+    else {
       horizscalefactor=u->scale;
+      //fprintf(stderr,"%f units/div",horizscalefactor);
+    }
     
     if (v->pixelflag)
-      vertscalefactor=v->scale*pixelsperdiv;
+      vertscalefactor=v->scale*display->pixelsperdiv;
     else
       vertscalefactor=v->scale;
     
@@ -303,124 +396,137 @@ public:
     // pixel centers are at (0,0)..(drawareawidth-1,drawareaheight-1)
     
     double xcenter=a->CenterCoord; /* in units */
-    double ycenter=displaychan->Position*display->GetVertUnitsPerDiv(displaychan,pixelsperdiv);/**pixelsperdiv*scalefactor;*/ /* in units */
+    //fprintf(stderr,"Got Centercoord=%f\n",xcenter);
 
-    double horizontal_padding = (drawareawidth-display->horizontal_divisions*pixelsperdiv)/2.0;
-    double vertical_padding = (drawareaheight-display->vertical_divisions*pixelsperdiv)/2.0;
+    double ycenter;
+    if (displaychan->VertZoomAroundAxis) {
+      ycenter=-displaychan->Position*display->GetVertUnitsPerDiv(displaychan);/**pixelsperdiv*scalefactor;*/ /* in units */
+    } else {
+      ycenter=displaychan->VertCenterCoord;/**pixelsperdiv*scalefactor;*/ /* in units */
+    }
+
+    double horizontal_padding = (drawareawidth-display->horizontal_divisions*display->pixelsperdiv)/2.0;
+    double vertical_padding = (drawareaheight-display->vertical_divisions*display->pixelsperdiv)/2.0;
     
 
     // NOTE: transform includes z shift (away from viewer) of layer_index
     // OSG transformation matrices are transposed (!)
-    osg::Matrixd transformmtx(pixelsperdiv/horizscalefactor,0,0,0, 
-			      0,pixelsperdiv/vertscalefactor,0,0,
+    fprintf(stderr,"-xcenter/horizscalefactor = %f\n",-xcenter/horizscalefactor);
+    osg::Matrixd transformmtx(display->pixelsperdiv/horizscalefactor,0,0,0, 
+			      0,display->pixelsperdiv/vertscalefactor,0,0,
 			      0,0,1,0,
-			      horizontal_padding+pixelsperdiv*display->horizontal_divisions/2.0-0.5,vertical_padding+pixelsperdiv*display->vertical_divisions/2.0-0.5,-layer_index,1);// ***!!! are -0.5's correct? 
+			      -xcenter*display->pixelsperdiv/horizscalefactor+horizontal_padding+display->pixelsperdiv*display->horizontal_divisions/2.0-0.5,-ycenter*display->pixelsperdiv/vertscalefactor+vertical_padding+display->pixelsperdiv*display->vertical_divisions/2.0-0.5,-1.0*layer_index,1);// ***!!! are -0.5's and negative sign in front of layer_index correct?  .... fix here and in GraticuleTransform->setMatrix
 
     if (StepSzX > 0) {
-      borderbox_xleft = std::max(IniValX-StepSzX*0.5-display->borderwidthpixels*horizscalefactor/pixelsperdiv/2.0,
+      borderbox_xleft = std::max(IniValX-StepSzX*0.5-display->borderwidthpixels*horizscalefactor/display->pixelsperdiv/2.0,
 				   (display->borderwidthpixels/2.0-0.5 - transformmtx(3,0))/transformmtx(0,0));
-      borderbox_xright = std::min(IniValX+StepSzX*(dimlen1-1)+StepSzX*0.5+display->borderwidthpixels*horizscalefactor/pixelsperdiv/2.0,
+      borderbox_xright = std::min(IniValX+StepSzX*(dimlen1-1)+StepSzX*0.5+display->borderwidthpixels*horizscalefactor/display->pixelsperdiv/2.0,
 				    (drawareawidth-display->borderwidthpixels/2.0-0.5 - transformmtx(3,0))/transformmtx(0,0));
     } else {
-      borderbox_xleft = std::max(IniValX+StepSzX*(dimlen1-1)+StepSzX*0.5-display->borderwidthpixels*horizscalefactor/pixelsperdiv/2.0,
+      borderbox_xleft = std::max(IniValX+StepSzX*(dimlen1-1)+StepSzX*0.5-display->borderwidthpixels*horizscalefactor/display->pixelsperdiv/2.0,
 				   (display->borderwidthpixels/2.0-0.5 - transformmtx(3,0))/transformmtx(0,0));
-      borderbox_xright = std::min(IniValX-StepSzX*0.5+display->borderwidthpixels*horizscalefactor/pixelsperdiv/2.0,
+      borderbox_xright = std::min(IniValX-StepSzX*0.5+display->borderwidthpixels*horizscalefactor/display->pixelsperdiv/2.0,
 				    (drawareawidth-display->borderwidthpixels/2.0-0.5 - transformmtx(3,0))/transformmtx(0,0));
       
     }
 
     if (StepSzY > 0) {
-      borderbox_ybot = std::max(IniValY-StepSzY*0.5-display->borderwidthpixels*vertscalefactor/pixelsperdiv/2.0,
+      borderbox_ybot = std::max(IniValY-StepSzY*0.5-display->borderwidthpixels*vertscalefactor/display->pixelsperdiv/2.0,
 			   (display->borderwidthpixels/2.0-0.5 - transformmtx(3,1))/transformmtx(1,1));
-      borderbox_ytop = std::min(IniValY+StepSzY*(dimlen2-1)+StepSzY*0.5+display->borderwidthpixels*vertscalefactor/pixelsperdiv/2.0,
+      borderbox_ytop = std::min(IniValY+StepSzY*(dimlen2-1)+StepSzY*0.5+display->borderwidthpixels*vertscalefactor/display->pixelsperdiv/2.0,
 			   (drawareaheight-display->borderwidthpixels/2.0-0.5 - transformmtx(3,1))/transformmtx(1,1));
     } else {
-      borderbox_ybot = std::max(IniValY+StepSzY*(dimlen2-1)+StepSzY*0.5-display->borderwidthpixels*vertscalefactor/pixelsperdiv/2.0,
+      borderbox_ybot = std::max(IniValY+StepSzY*(dimlen2-1)+StepSzY*0.5-display->borderwidthpixels*vertscalefactor/display->pixelsperdiv/2.0,
 			   (display->borderwidthpixels/2.0-0.5 - transformmtx(3,1))/transformmtx(1,1));
-      borderbox_ytop = std::min(IniValY-StepSzY*0.5+display->borderwidthpixels*vertscalefactor/pixelsperdiv/2.0,
+      borderbox_ytop = std::min(IniValY-StepSzY*0.5+display->borderwidthpixels*vertscalefactor/display->pixelsperdiv/2.0,
 			   (drawareaheight-display->borderwidthpixels/2.0-0.5 - transformmtx(3,1))/transformmtx(1,1));
       
     }
 
+
+    /* !!!*** NOTE: These sets of coordinates (esp. ImageCoords) SHOULD 
+       be in double precision, but that seems to have triggered an 
+       OSG bug related to the bounding box size (?) */
+    
     // Z position of border is -0.5 relative to image, so it appears on top
     // around edge
-    osg::ref_ptr<osg::Vec3Array> BorderCoords=new osg::Vec3Array(8);
-    (*BorderCoords)[0]=osg::Vec3(borderbox_xleft,borderbox_ybot,-0.5);
-    (*BorderCoords)[1]=osg::Vec3(borderbox_xright,borderbox_ybot,-0.5);
+    osg::ref_ptr<osg::Vec3dArray> BorderCoords=new osg::Vec3dArray(8);
+    (*BorderCoords)[0]=osg::Vec3d(borderbox_xleft,borderbox_ybot,-0.5);
+    (*BorderCoords)[1]=osg::Vec3d(borderbox_xright,borderbox_ybot,-0.5);
     
-    (*BorderCoords)[2]=osg::Vec3(borderbox_xright,borderbox_ybot,-0.5);
-    (*BorderCoords)[3]=osg::Vec3(borderbox_xright,borderbox_ytop,-0.5);
+    (*BorderCoords)[2]=osg::Vec3d(borderbox_xright,borderbox_ybot,-0.5);
+    (*BorderCoords)[3]=osg::Vec3d(borderbox_xright,borderbox_ytop,-0.5);
     
-    (*BorderCoords)[4]=osg::Vec3(borderbox_xright,borderbox_ytop,-0.5);
-    (*BorderCoords)[5]=osg::Vec3(borderbox_xleft,borderbox_ytop,-0.5);
+    (*BorderCoords)[4]=osg::Vec3d(borderbox_xright,borderbox_ytop,-0.5);
+    (*BorderCoords)[5]=osg::Vec3d(borderbox_xleft,borderbox_ytop,-0.5);
 
-    (*BorderCoords)[6]=osg::Vec3(borderbox_xleft,borderbox_ytop,-0.5);
-    (*BorderCoords)[7]=osg::Vec3(borderbox_xleft,borderbox_ybot,-0.5);
+    (*BorderCoords)[6]=osg::Vec3d(borderbox_xleft,borderbox_ytop,-0.5);
+    (*BorderCoords)[7]=osg::Vec3d(borderbox_xleft,borderbox_ybot,-0.5);
 
 
     // Image coordinates, from actual corners, counterclockwise,
     // Two triangles    
-    osg::ref_ptr<osg::Vec3Array> ImageCoords=new osg::Vec3Array(6);
-    osg::ref_ptr<osg::Vec2Array> ImageTexCoords=new osg::Vec2Array(6);
+    osg::ref_ptr<osg::Vec3dArray> ImageCoords=new osg::Vec3dArray(6);
+    osg::ref_ptr<osg::Vec2dArray> ImageTexCoords=new osg::Vec2dArray(6);
 
     if ((StepSzX >= 0 && StepSzY >= 0) || (StepSzX < 0 && StepSzY < 0)) {
       // lower-left triangle (if both StepSzX and StepSzY positive)
-      (*ImageCoords)[0]=osg::Vec3(IniValX-0.5*StepSzX,
+      (*ImageCoords)[0]=osg::Vec3d(IniValX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
 				   0.0);
-      (*ImageCoords)[1]=osg::Vec3(IniValX+dimlen1*StepSzX-0.5*StepSzX,
+      (*ImageCoords)[1]=osg::Vec3d(IniValX+dimlen1*StepSzX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
 				   0.0);
-      (*ImageCoords)[2]=osg::Vec3(IniValX-0.5*StepSzX,
+      (*ImageCoords)[2]=osg::Vec3d(IniValX-0.5*StepSzX,
 				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
 				   0.0);
-      (*ImageTexCoords)[0]=osg::Vec2(0,0);
-      (*ImageTexCoords)[1]=osg::Vec2(1,0);
-      (*ImageTexCoords)[2]=osg::Vec2(0,1);
+      (*ImageTexCoords)[0]=osg::Vec2d(0,0);
+      (*ImageTexCoords)[1]=osg::Vec2d(1,0);
+      (*ImageTexCoords)[2]=osg::Vec2d(0,1);
       
       // upper-right triangle (if both StepSzX and StepSzY positive)
-      (*ImageCoords)[3]=osg::Vec3(IniValX+dimlen1*StepSzX-0.5*StepSzX,
+      (*ImageCoords)[3]=osg::Vec3d(IniValX+dimlen1*StepSzX-0.5*StepSzX,
 				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
 				   0.0);
-      (*ImageCoords)[4]=osg::Vec3(IniValX-0.5*StepSzX,
+      (*ImageCoords)[4]=osg::Vec3d(IniValX-0.5*StepSzX,
 				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
 				   0.0);
-      (*ImageCoords)[5]=osg::Vec3(IniValX+dimlen1*StepSzX-0.5*StepSzX,
+      (*ImageCoords)[5]=osg::Vec3d(IniValX+dimlen1*StepSzX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
 				   0.0);
-      (*ImageTexCoords)[3]=osg::Vec2(1,1);
-      (*ImageTexCoords)[4]=osg::Vec2(0,1);
-      (*ImageTexCoords)[5]=osg::Vec2(1,0);
+      (*ImageTexCoords)[3]=osg::Vec2d(1,1);
+      (*ImageTexCoords)[4]=osg::Vec2d(0,1);
+      (*ImageTexCoords)[5]=osg::Vec2d(1,0);
     } else {
       // One of StepSzX or StepSzY is positive, one is negative
       // work as raster coordinates (StepSzY negative)
       // lower-left triangle
-      (*ImageCoords)[0]=osg::Vec3(IniValX-0.5*StepSzX,
+      (*ImageCoords)[0]=osg::Vec3d(IniValX-0.5*StepSzX,
 				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
 				   0.0);
-      (*ImageCoords)[1]=osg::Vec3(IniValX+dimlen1*StepSzX-0.5*StepSzX,
+      (*ImageCoords)[1]=osg::Vec3d(IniValX+dimlen1*StepSzX-0.5*StepSzX,
 				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
 				   0.0);
-      (*ImageCoords)[2]=osg::Vec3(IniValX-0.5*StepSzX,
+      (*ImageCoords)[2]=osg::Vec3d(IniValX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
 				   0.0);
-      (*ImageTexCoords)[0]=osg::Vec2(0,1);
-      (*ImageTexCoords)[1]=osg::Vec2(1,1);
-      (*ImageTexCoords)[2]=osg::Vec2(0,0);
+      (*ImageTexCoords)[0]=osg::Vec2d(0,1);
+      (*ImageTexCoords)[1]=osg::Vec2d(1,1);
+      (*ImageTexCoords)[2]=osg::Vec2d(0,0);
       
       // upper-right triangle 
-      (*ImageCoords)[3]=osg::Vec3(IniValX+dimlen1*StepSzX-0.5*StepSzX,
+      (*ImageCoords)[3]=osg::Vec3d(IniValX+dimlen1*StepSzX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
 				   0.0);
-      (*ImageCoords)[4]=osg::Vec3(IniValX-0.5*StepSzX,
+      (*ImageCoords)[4]=osg::Vec3d(IniValX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
 				   0.0);
-      (*ImageCoords)[5]=osg::Vec3(IniValX+dimlen1*StepSzX-0.5*StepSzX,
+      (*ImageCoords)[5]=osg::Vec3d(IniValX+dimlen1*StepSzX-0.5*StepSzX,
 				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
 				   0.0);
-      (*ImageTexCoords)[3]=osg::Vec2(1,0);
-      (*ImageTexCoords)[4]=osg::Vec2(0,0);
-      (*ImageTexCoords)[5]=osg::Vec2(1,1);
+      (*ImageTexCoords)[3]=osg::Vec2d(1,0);
+      (*ImageTexCoords)[4]=osg::Vec2d(0,0);
+      (*ImageTexCoords)[5]=osg::Vec2d(1,1);
       
     }
 
@@ -543,7 +649,7 @@ public:
   
   /* Update our cache/OSG tree entries for a mutabledatastore */
 
-  std::shared_ptr<osg_datacachebase> update_datastore(std::shared_ptr<geometry> geom,std::shared_ptr<display_info> display,std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan, double pixelsperdiv,size_t drawareawidth,size_t drawareaheight,size_t layer_index,cl_context context, cl_device_id device, cl_command_queue queue)
+  std::shared_ptr<osg_datacachebase> update_datastore(std::shared_ptr<geometry> geom,std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index,cl_context context, cl_device_id device, cl_command_queue queue)
   /* Update our cache/OSG tree entries for a mutabledatastore */
   // geom needed because that is teh current location for the texture RGBA... it also references the array manager and lock manager ....
   /****!!! Can only be called during a rendering_revman transaction (but 
@@ -556,7 +662,7 @@ public:
     /* Figure out type of rendering... */
     std::shared_ptr<display_axis> axis=display->GetFirstAxis(datastore);
     if (axis->unit->pixelflag) {
-      horizunitsperdiv=axis->unit->scale*pixelsperdiv;
+      horizunitsperdiv=axis->unit->scale*display->pixelsperdiv;
     } else {
       horizunitsperdiv=axis->unit->scale;
     }
@@ -581,7 +687,7 @@ public:
       fprintf(stderr,"openscenegraph_data: 1D waveform rendering not yet implemented\n");
     } else if (NDim > 1 && NDim <= 4) {
       // image data
-      cacheentry=update_datastore_image(geom,display,datastore,displaychan,pixelsperdiv,drawareawidth,drawareaheight,layer_index,context,device,queue);
+      cacheentry=update_datastore_image(geom,datastore,displaychan,drawareawidth,drawareaheight,layer_index,context,device,queue);
     }
     
     
@@ -607,13 +713,40 @@ public:
   
   // update operates on a flattened list (from display_info::update()) instead of wfmdb directly!
   // displaychans list should generally not include disabled waveforms 
-  void update(std::shared_ptr<geometry> geom, std::shared_ptr<display_info> display,const std::vector<std::shared_ptr<display_channel>> & displaychans,double pixelsperdiv,size_t drawareawidth,size_t drawareaheight,cl_context context,cl_device_id device,cl_command_queue queue)
+  void update(std::shared_ptr<geometry> geom,const std::vector<std::shared_ptr<display_channel>> & displaychans,size_t drawareawidth,size_t drawareaheight,cl_context context,cl_device_id device,cl_command_queue queue)
   // geom needed because that is the current location for the texture RGBA... it also references the array manager and lock manager ....
   /****!!! Can only be called during a rendering_revman transaction (but 
        nothing should be locked) */ 
   {
     /* NOTE: NOT THREAD SAFE... should probably be called from GUI rendering thread only! */
+    size_t child_num=0;
+    size_t layer_index=0;
+
+
+    // Update graticule matrix
+    // transform from the 5/div scaling of the graticule, onto the screen
+    // placing it at a z distance of child_num
+    double horizontal_padding = (drawareawidth-display->horizontal_divisions*display->pixelsperdiv)/2.0;
+    double vertical_padding = (drawareaheight-display->vertical_divisions*display->pixelsperdiv)/2.0;
     
+
+    GraticuleTransform->setMatrix(osg::Matrixd(display->pixelsperdiv/5.0,0,0,0,
+					       0,display->pixelsperdiv/5.0,0,0,
+					       0,0,1,0,
+					       horizontal_padding+display->pixelsperdiv*display->horizontal_divisions/2.0-0.5,vertical_padding+display->pixelsperdiv*display->vertical_divisions/2.0-0.5,-1.0*layer_index,1)); // ***!!! are -0.5's and negative sign in front of layer_index correct?  .... fix here and in transformmtx, above. 
+    
+    // Check for graticule in our group
+    if (child_num >= getNumChildren() || getChild(child_num)!=GraticuleTransform) {
+      // graticule missing or out-of-place
+      if (containsNode(GraticuleTransform)) {
+	removeChild(GraticuleTransform);
+      }
+      insertChild(child_num,GraticuleTransform);
+    } 
+    child_num++; // Graticule child/layer got added either way
+    layer_index++;
+
+
 
     // iterate over cache, setting touched flag
     for (auto & cacheentry : imagecache->cache) {
@@ -626,12 +759,10 @@ public:
      * Remove any children not marked as true from OSG tree */
     
     std::shared_ptr<osg_datacachebase> cacheentry; 
-    size_t child_num=0;
-    size_t layer_index=0;
     for (auto & displaychan : displaychans) {
       //if std::type_index(typeid(*(*displaychan)->chan_data))==std::type_index(typeid())
       if (instanceof<mutabledatastore>(*displaychan->chan_data)) {
-	cacheentry = update_datastore(geom,display,std::dynamic_pointer_cast<mutabledatastore>(displaychan->chan_data),displaychan,pixelsperdiv,drawareawidth,drawareaheight,layer_index,context,device,queue);
+	cacheentry = update_datastore(geom,std::dynamic_pointer_cast<mutabledatastore>(displaychan->chan_data),displaychan,drawareawidth,drawareaheight,layer_index,context,device,queue);
 	cacheentry->touched=true; 
 	if (child_num >= getNumChildren() || getChild(child_num)!=cacheentry->group.get()) {
 	  // not in correct position in our osg::Group (superclass)
@@ -639,9 +770,9 @@ public:
 	    removeChild(cacheentry->group);
 	  }
 	  insertChild(child_num,cacheentry->group);
-	  child_num++;
 	  
 	}
+	child_num++;
       } else if (instanceof<mutablegeomstore>(*displaychan->chan_data)) {
 	
 	// geomstores handled separately by openscenegraph_geom.hpp...
@@ -652,7 +783,12 @@ public:
       
     }
 
-
+    
+    // remove any remaining children...
+    while (child_num < getNumChildren()) {
+      removeChild(getChild(child_num));
+    }
+    
     // iterate again over cache, checking 'touched' flag and removing anything not touched.
     std::map<std::weak_ptr<display_channel>,std::shared_ptr<osg_dataimagecacheentry>>::iterator cacheiter;
     std::map<std::weak_ptr<display_channel>,std::shared_ptr<osg_dataimagecacheentry>>::iterator nextcacheiter;

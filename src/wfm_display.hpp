@@ -23,7 +23,7 @@ struct display_axis {
   std::shared_ptr<display_unit> unit;
   bool has_abbrev;
 
-  double CenterCoord; // horizontal coordinate of the center of the display
+  double CenterCoord; // horizontal coordinate (in axis units) of the center of the display
   double DefaultOffset;
   double DefaultUnitsPerDiv; // Should be 1.0, 2.0, or 5.0 times a power of 10
 
@@ -37,11 +37,14 @@ struct display_channel {
   std::string FullName; // full name, including colon (or slash?) separating tree elements
   std::shared_ptr<mutableinfostore> chan_data;
   
-  float UnitsPerDiv; // vertical axis scaling for 1D wfms; color axis scaling for 2D waveforms
-  float Position; // vertical offset on display, in divisions. To get in units, multiply by GetVertUnitsPerDiv(Chan)
+  float Scale; // vertical axis scaling for 1D wfms; color axis scaling for 2D waveforms; units/pixel if pixelflag is set is set for the axis/units, units/div (or equivalently units/intensity) if pixelflag is not set
+  float Position; // vertical offset on display, in divisions. To get in units, multiply by GetVertUnitsPerDiv(Chan) USED ONLY IF VertZoomAroundAxis is true
+  float VertCenterCoord; // Vertical position, in vertical axis units, of center of display. USE ONLY IF VertZoomAroundAxis is false;
+  bool VertZoomAroundAxis;
   float Offset; // >= 2d only, intensity offset on display, in amplitude units
   float Alpha; // alpha transparency of channel: 1: fully visible, 0: fully transparent
   size_t ColorIdx; // index into color table for how this channel is colored
+  
   bool Enabled; // Is this channel currently visible
   // unsigned long long currevision;
   size_t DisplayFrame; // Frame # to display
@@ -56,13 +59,15 @@ struct display_channel {
 
   
   display_channel(std::string FullName,std::shared_ptr<mutableinfostore> chan_data,
-		  float UnitsPerDiv,float Position,float Offset,float Alpha,
+		  float Scale,float Position,float VertCenterCoord,bool VertZoomAroundAxis,float Offset,float Alpha,
 		  size_t ColorIdx,bool Enabled, size_t DisplayFrame,size_t DisplaySeq,
 		  size_t ColorMap) :
     FullName(FullName),
     chan_data(chan_data),
-    UnitsPerDiv(UnitsPerDiv),
+    Scale(Scale),
     Position(Position),
+    VertCenterCoord(VertCenterCoord),
+    VertZoomAroundAxis(VertZoomAroundAxis),
     Offset(Offset),
     Alpha(Alpha),
     ColorIdx(ColorIdx),
@@ -125,6 +130,7 @@ public:
   size_t horizontal_divisions;
   size_t vertical_divisions;
   float borderwidthpixels;
+  double pixelsperdiv;
   
 
   std::unordered_map<std::string,std::shared_ptr<display_channel>> channel_info;
@@ -176,22 +182,24 @@ public:
     AxisList.push_back(std::make_shared<display_axis>(display_axis{"Moment","M",FindUnit("Newton-meters"),false,0.0,0.0,1.0}));
     AxisList.push_back(std::make_shared<display_axis>(display_axis{"Angle","ang",FindUnit("degrees"),false,0.0,0.0,1.0}));
     AxisList.push_back(std::make_shared<display_axis>(display_axis{"Intensity","I",FindUnit("arbitrary"),false,0.0,0.0,1.0}));
-    
+
+    pixelsperdiv=1.0; // will need to be updated by set_pixelsperdiv
   }
 
-  double pixelsperdiv(size_t drawareawidth,size_t drawareaheight)
+  void set_pixelsperdiv(size_t drawareawidth,size_t drawareaheight)
   {
     double pixelsperdiv_width = drawareawidth*1.0/horizontal_divisions;
-    double pixelsperdiv_height = drawareawidth*1.0/vertical_divisions;
+    double pixelsperdiv_height = drawareaheight*1.0/vertical_divisions;
 
-    return std::min(pixelsperdiv_width,pixelsperdiv_height);
+    pixelsperdiv = std::min(pixelsperdiv_width,pixelsperdiv_height);
   }
 
   std::vector<std::shared_ptr<display_channel>> update(std::shared_ptr<mutablewfmdb> wfmdb,std::shared_ptr<mutableinfostore> selected, bool include_disabled,bool include_hidden)
 
-  // STILL NEED TO IMPLEMENT THE FOLLOWING: 
-  // if selected is not nullptr, it will be moved to the head of the list
   // if include_disabled is set, disabled channels will be included
+  // if selected is not nullptr, it will be moved to the head of the list
+
+  // STILL NEED TO IMPLEMENT THE FOLLOWING: 
   // if include_hidden is set, hidden channels will be included
   {
 
@@ -206,14 +214,26 @@ public:
       // do we have this wfm in our channel_info database? 
       auto ci_iter = channel_info.find(fullname);
       if (ci_iter != channel_info.end() && ci_iter->second->chan_data==info) {
-	retval.push_back(ci_iter->second);
+	if (include_disabled || ci_iter->second->Enabled) {
+	  if (selected && info==selected) {
+	    retval.insert(retval.begin(),ci_iter->second);
+	  } else {
+	    retval.push_back(ci_iter->second);
+	  }
+	}
       } else {
 	// create a new display_channel
-	std::shared_ptr<display_channel> new_display_channel=std::make_shared<display_channel>(fullname,info,1.0,0.0,0.0,1.0,NextColor,true,0,0,0);
+	std::shared_ptr<display_channel> new_display_channel=std::make_shared<display_channel>(fullname,info,1.0,0.0,0.0,false,0.0,1.0,NextColor,true,0,0,0);
 	NextColor = (NextColor + 1) % (sizeof(WfmColorTable)/sizeof(WfmColorTable[0]));
 
 	channel_info[fullname]=new_display_channel;
-	retval.push_back(new_display_channel);
+	if (include_disabled || new_display_channel->Enabled) {
+	  if (selected && info==selected) {
+	    retval.insert(retval.begin(),new_display_channel);
+	  } else {
+	    retval.push_back(new_display_channel);
+	  }
+	}
       }
       
     }
@@ -291,11 +311,59 @@ public:
     return FindAxis(AxisName,UnitName);
   }
 
-  double GetVertUnitsPerDiv(std::shared_ptr<display_channel> c,double pixelsperdiv)
+  std::shared_ptr<display_axis> GetAmplAxis(std::shared_ptr<mutableinfostore> wfm)
+  {
+    std::string AxisName = wfm->metadata.GetMetaDatumStr("AmplCoord","Voltage");
+    std::string UnitName = wfm->metadata.GetMetaDatumStr("AmplUnits","Volts");
+
+    return FindAxis(AxisName,UnitName);
+  }
+
+  void SetVertScale(std::shared_ptr<display_channel> c,double scalefactor,bool pixelflag)
+  {
+    std::shared_ptr<display_axis> a;
+    
+    std::shared_ptr<mutabledatastore> datastore;
+
+    datastore=std::dynamic_pointer_cast<mutabledatastore>(c->chan_data);
+
+    if (datastore) {
+      size_t ndim=datastore->dimlen.size();
+
+      /*  set the scaling of whatever unit is used on the vertical axis of this channel */
+      if (ndim==1) {
+	a = GetAmplAxis(datastore);
+	//if (pixelflag) {
+	//  c->UnitsPerDiv=scalefactor/pixelsperdiv;
+	//} else {
+	c->Scale=scalefactor;	  
+	//}
+	
+	return;
+      } else if (ndim==0) {
+	return;
+      } else if (ndim >= 2) {
+	/* image or image array */
+	a=GetSecondAxis(c->chan_data);
+	//if (pixelflag)
+	//  a->unit->scale=scalefactor/pixelsperdiv;
+	//else
+	a->unit->scale=scalefactor;
+	return;
+      } else {
+	assert(0);
+	return;
+      }
+
+      
+    }
+  }
+
+  std::tuple<double,bool> GetVertScale(std::shared_ptr<display_channel> c)
   {
     std::shared_ptr<display_axis> a;
     double scalefactor;
-
+    
     std::shared_ptr<mutabledatastore> datastore;
 
     datastore=std::dynamic_pointer_cast<mutabledatastore>(c->chan_data);
@@ -305,17 +373,65 @@ public:
 
       /* return the units/div of whatever unit is used on the vertical axis of this channel */
       if (ndim==1) {
-	return c->UnitsPerDiv;
+	a = GetAmplAxis(datastore);
+	//if (a->unit->pixelflag) {
+	//  scalefactor=c->UnitsPerDiv*pixelsperdiv;
+	///} else {
+	scalefactor=c->Scale;	  
+	  //}
+	return std::make_tuple(scalefactor,a->unit->pixelflag);
+      } else if (ndim==0) {
+	return std::make_tuple(1.0,false);
+      } else if (ndim >= 2) {
+	/* image or image array */
+	a=GetSecondAxis(c->chan_data);
+	//if (a->unit->pixelflag)
+	//  scalefactor=a->unit->scale*pixelsperdiv;
+	//else
+	scalefactor=a->unit->scale;
+	return std::make_tuple(scalefactor,a->unit->pixelflag);
+      } else {
+	assert(0);
+	return std::make_tuple(0.0,false);
+      }
+    }
+    return std::make_tuple(0.0,false);    
+  }
+
+
+  
+  double GetVertUnitsPerDiv(std::shared_ptr<display_channel> c)
+  {
+    std::shared_ptr<display_axis> a;
+    double scalefactor;
+    double UnitsPerDiv;
+    std::shared_ptr<mutabledatastore> datastore;
+
+    datastore=std::dynamic_pointer_cast<mutabledatastore>(c->chan_data);
+
+    if (datastore) {
+      size_t ndim=datastore->dimlen.size();
+
+      /* return the units/div of whatever unit is used on the vertical axis of this channel */
+      if (ndim==1) {
+	a = GetAmplAxis(datastore);
+	scalefactor=c->Scale;
+	UnitsPerDiv=scalefactor;
+	if (a->unit->pixelflag) {
+	  UnitsPerDiv *= pixelsperdiv;
+	} 
+	return UnitsPerDiv;
       } else if (ndim==0) {
 	return 1.0;
       } else if (ndim >= 2) {
 	/* image or image array */
 	a=GetSecondAxis(c->chan_data);
-	if (a->unit->pixelflag)
-	  scalefactor=a->unit->scale;
-	else
-	  scalefactor=a->unit->scale/pixelsperdiv;
-	return scalefactor*pixelsperdiv;
+	scalefactor=a->unit->scale;
+	UnitsPerDiv=scalefactor;
+	if (a->unit->pixelflag) {
+	  UnitsPerDiv *= pixelsperdiv;
+	} 
+	return UnitsPerDiv;
       } else {
 	assert(0);
 	return 0.0;

@@ -1,9 +1,14 @@
+#include <cmath>
+
 #include <QString>
 #include <QWidget>
 #include <QOpenGLWidget>
 #include <QMouseEvent>
 #include <QFrame>
 #include <QRadioButton>
+#include <QToolButton>
+#include <QAbstractSlider>
+#include <QSlider>
 #include <QLayout>
 #include <QVBoxLayout>
 #include <QtUiTools/QUiLoader>
@@ -67,7 +72,11 @@ namespace snde {
       Viewer->realize();
     }
 
-    
+    void update()
+    {
+      //fprintf(stderr,"QOpenGLWidget update()\n");
+      QOpenGLWidget::update();
+    }
     
     void SetTwoDimensional(bool twod)
     {
@@ -101,6 +110,7 @@ namespace snde {
 	Viewer->setSceneData(RootNode);
       }
     }
+
     
   protected:
     virtual void paintGL(); // rendeirng code in qtwfmviewer.cpp
@@ -140,9 +150,13 @@ namespace snde {
       return QOpenGLWidget::event(event);
     }
   };
+
+
+  
   class QTWfmSelector : public QFrame {
   public:
     std::string Name;
+    QTWfmViewer *Viewer;
     QRadioButton *RadioButton;
     bool touched_during_update; // has this QTWfmSelector been touched during the latest update pass
     QPalette basepalette;
@@ -150,8 +164,9 @@ namespace snde {
     bool selected;
     WfmColor wfmcolor; 
     
-    QTWfmSelector(std::string Name,WfmColor wfmcolor,QWidget *parent=0) :
+    QTWfmSelector(QTWfmViewer *Viewer,std::string Name,WfmColor wfmcolor,QWidget *parent=0) :
       QFrame(parent),
+      Viewer(Viewer),
       RadioButton(new QRadioButton(QString::fromStdString(Name),this)),
       Name(Name),
       basepalette(palette()),
@@ -168,6 +183,8 @@ namespace snde {
       setLayout(Layout);
       Layout->addWidget(RadioButton);
 
+      // eventfilter monitors for focus activation of the Selector
+      RadioButton->installEventFilter(this);
       
       //setStyleSheet(QString("");
       selectedpalette = basepalette;
@@ -197,11 +214,647 @@ namespace snde {
 	setPalette(basepalette);
       }
     }
+    bool eventFilter(QObject *object,QEvent *event); // in qtwfmviewer.cpp
   };
+
+
+
+  /* Position management
+     Position slider has 10001 (call it nsteps) integer steps. 
+     let RelPos = (Position-(nsteps-1)/2)
+     Mapping between scaled position and RelPos: 
+     
+
+     dScaledPos/dRelPos = 10^(C*ScaledPos/(num_div*unitsperdiv))
+
+     dScaledPos/10^(C*ScaledPos/(num_div*unitsperdiv)) = dRelPos
+
+     integral_SP1^SP2 10^-(C*ScaledPos/(num_div*unitsperdiv))dScaledPos = RelPos2-RelPos1
+
+     let u = -(C*ScaledPos/(num_div*unitsperdiv))
+     du = -(C/(num_div*unitsperdiv))*dScaledPos
+     dScaledPos = -(num_div*unitsperdiv)/C du 
+
+     -(num_div*unitsperdiv)/C integral_SP=SP1^SP=SP2 10^u du = RelPos2-RelPos1
+     
+     -(num_div*unitsperdiv)/C 10^u/ln 10|_SP=SP1^SP=SP2 = RelPos2-RelPos1
+
+     (num_div*unitsperdiv)/C 10^(-C*ScaledPos1/(num_div*unitsperdiv)))/ln(10) - (num_div*unitsperdiv)/C 10^(-C*ScaledPos2/(num_div*unitsperdiv)))/ln(10) = RelPos2-RelPos1
+     
+
+     Let ScaledPos1 = 0.0
+     Let RelPos1 = 0
+     (num_div*unitsperdiv)/(C*ln(10)) (  1 - 10^(-C*ScaledPos2/(num_div*unitsperdiv))) = RelPos2
+
+     Use absolute values
+     RelPos2 = sgn(ScaledPos2)*(num_div*unitsperdiv)/(C*ln(10)) (  1 - 10^(-C*|ScaledPos2|/(num_div*unitsperdiv)))
+
+     Use absolute values, substitute C formula from below
+     RelPos2 = sgn(ScaledPos2)*((nsteps-1)/2 + 1) (  1 - 10^(-|ScaledPos2|/(ln(10)*((nsteps-1)/2+1))))
+
+     at ScaledPos2=infinity,   RelPos2 = (num_div*unitsperdiv)/(C*ln(10))
+     ... This should correspond to RelPos2 = (nsteps-1)/2 + 1
+     5001 = (num_div*unitsperdiv)/(C*ln(10))
+     C = (num_div*unitsperdiv)/(ln(10)*[ (nsteps-1)/2 + 1])
+
+     
+     Inverse formula (on absolute values)
+     ScaledPos2 = -log10( 1 - RelPos2/((nsteps-1)/2 + 1) )*ln(10)*((nsteps-1)/2+1)
+     ScaledPos2 = -ln( 1 - RelPos2/((nsteps-1)/2 + 1) )*((nsteps-1)/2+1)
+
+     Check forward formula:
+     [ 1-exp(-ScaledPos2/((nsteps-1)/2+1)) ]*((nsteps-1)/2+1) = RelPos2
+
+     ... Power doesn't matter!
+   */
+
+  static int SliderPosFromScaledPos(double ScaledPos,double unitsperdiv, double num_div,double power,int nsteps)
+  {
+    double retdbl=0.0;
+    if (ScaledPos < 0) retdbl = -((nsteps-1)/2 + 1)*(1-exp(-fabs(ScaledPos)/(((nsteps-1)/2+1))));
+    else retdbl = ((nsteps-1)/2 + 1)*(1-exp(-fabs(ScaledPos)/(((nsteps-1)/2+1))));
+
+    // shift to 0...(nsteps-1) from -(nsteps-1)/2..(nsteps-1)/2
+
+    retdbl+=round((nsteps-1.0)/2.0);
+
+    if (retdbl < 0.0) retdbl=0.0;
+    if (retdbl >= nsteps-1) retdbl=nsteps-1;
+
+    return (int)retdbl;
+  }
+
+  static inline std::tuple<int,double> round_to_zoom_digit(double val)
+  // Rounds an integer 0-10 to the nearest valid zoom digit (1,2, or 5)
+  // returns (index,rounded) where index is 0, 1, or 2
+  {
+    int index=0;
+    int intval=(int)val;
+
+    assert(intval==val); // inputs should be small integers
+    
+    switch (intval) {
+    case 0:
+    case 1:
+      val=1.0;
+      index=0;
+      break;
+      
+    case 2:
+    case 3:
+      val=2.0;
+      index=1;
+      break;
+      
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    case 10:
+      val=5.0;
+      index=2;
+      break;
+      
+    default:
+      assert(0); // means val is invalid (not an integer 0..10)
+    }
+    return std::make_tuple(index,val);
+  }
+
+  
+  class qtwfm_position_manager: public QObject
+  {
+    Q_OBJECT
+
+  public:    
+    std::shared_ptr<display_info> display;
+    std::shared_ptr<display_channel> selected_channel;
+    QAbstractSlider *HorizSlider; // owned by our parent
+    QAbstractSlider *VertSlider; // owned by our parent
+
+    QAbstractSlider *HorizZoom; // owned by our parent
+    QToolButton *HorizZoomInButton; // owned by our parent
+    QToolButton *HorizZoomOutButton; // owned by our parent
+    QAbstractSlider *VertZoom; // owned by our parent
+    QToolButton *VertZoomInButton; // owned by our parent
+    QToolButton *VertZoomOutButton; // owned by our parent
+    
+    double power; /* determines nature of curve mapping between slider position and motion */
+    int nsteps;
+    int nzoomsteps;
+    // zoom values go e.g. for nzoomsteps=7, in REVERSE ORDER units per division of 
+    // 1e-1, 2e-1, 5e-1, 1e0, 2e0, 5e0, 1e1
+
+    
+    qtwfm_position_manager(std::shared_ptr<display_info> display,QAbstractSlider *HorizSlider,QAbstractSlider *VertSlider,QAbstractSlider *HorizZoom,QToolButton *HorizZoomInButton, QToolButton *HorizZoomOutButton, QAbstractSlider *VertZoom,QToolButton *VertZoomInButton,QToolButton *VertZoomOutButton) :
+      display(display),
+      HorizSlider(HorizSlider),
+      VertSlider(VertSlider),
+      HorizZoom(HorizZoom),
+      HorizZoomInButton(HorizZoomInButton),
+      HorizZoomOutButton(HorizZoomOutButton),
+      VertZoom(VertZoom),
+      VertZoomInButton(VertZoomInButton),
+      VertZoomOutButton(VertZoomOutButton)
+    {
+      power=100.0;
+      nsteps=1000;
+      nzoomsteps=43; // should be multiple of 6+1, e.g. 2*3*7=42, add 1 -> 43
+
+
+      assert((nzoomsteps-1) % 6 == 0); // enforce multiple of 6+1
+      
+      HorizSlider->setRange(0,nsteps-1);
+      VertSlider->setRange(0,nsteps-1);
+
+      VertZoom->setRange(0,nzoomsteps-1);
+      HorizZoom->setRange(0,nzoomsteps-1);
+    }
+
+    ~qtwfm_position_manager();
+
+
+    std::tuple<double,bool> GetHorizScale()
+    {
+     double horizscale = 2.0/display->horizontal_divisions;
+     bool horizpixelflag=false;
+     
+     if (selected_channel) {
+       std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->chan_data);
+       horizscale = a->unit->scale;
+       horizpixelflag = a->unit->pixelflag;
+     }
+     
+     return std::make_tuple(horizscale,horizpixelflag);
+    }
+
+    std::tuple<double,bool> GetVertScale()
+    {
+      double vertscale = 2.0/display->vertical_divisions;
+      bool vertpixelflag=false;
+     
+     if (selected_channel) {
+       return display->GetVertScale(selected_channel);
+       
+     }
+     
+     return std::make_tuple(vertscale,vertpixelflag);
+    }
+
+    void SetHorizScale(double horizscale,bool horizpixelflag)
+    {
+      fprintf(stderr,"SetHorizScale %.2g\n",horizscale);
+      if (selected_channel) {
+	std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->chan_data);
+	a->unit->scale = horizscale;
+	a->unit->pixelflag = horizpixelflag;
+	
+      }
+    }
+    
+
+    void SetVertScale(double vertscale,bool vertpixelflag)
+    {
+     if (selected_channel) {
+       display->SetVertScale(selected_channel,vertscale,vertpixelflag);
+       
+     }
+    }
+
+
+    double GetScaleFromZoomPos(int zoompos,bool pixelflag)     
+    {
+      // see comment under definition of nzoomsteps for step definition
+      double scale;
+      int forwardzoompos = nzoomsteps-1 - zoompos; // regular zoompos is REVERSED so higher numbers mean fewer unitsperdiv... this one is FORWARD so higher numbers mean more unitsperdiv
+      
+      const unsigned zoommultiplier[] = {1,2,5};
+      double zoompower = forwardzoompos/3 - (nzoomsteps-1)/6;
+      scale = pow(10,zoompower)*zoommultiplier[forwardzoompos % 3];
+
+      fprintf(stderr,"GetScaleFromZoom(%d)=%f\n",zoompos,scale);
+      //if (pixelflag) {
+      //scale /= display->pixelsperdiv;
+      //}
+
+
+      return scale;
+    }
+    
+    int GetZoomPosFromScale(double scale, bool pixelflag)
+    {
+      
+      // see comment under definition of nzoomsteps for step definition
+      //double unitsperdiv = scale; // a->unit->scale;
+      //if (pixelflag) { // a->unit->pixelflag
+      //unitsperdiv *= display->pixelsperdiv;
+      //}
+      
+      double zoompower_floor = floor(log(scale)/log(10.0));
+      double zoompower_ceil = ceil(log(scale)/log(10.0));
+      
+      double leadingdigit_floor;
+      int leadingdigit_flooridx;
+      std::tie(leadingdigit_flooridx,leadingdigit_floor) = round_to_zoom_digit(round(scale/pow(10,zoompower_floor)));
+      
+      double leadingdigit_ceil;
+      int leadingdigit_ceilidx;
+      std::tie(leadingdigit_ceilidx,leadingdigit_ceil) = round_to_zoom_digit(round(scale/pow(10,zoompower_ceil)));
+      // Now find whichever reconstruction is closer, floor or ceil
+      double floordist = fabs(leadingdigit_floor*pow(10,zoompower_floor)-scale);
+      double ceildist = fabs(leadingdigit_ceil*pow(10,zoompower_ceil)-scale);
+      
+      int forwardsliderpos; // regular zoompos is REVERSED so higher numbers mean fewer unitsperdiv... this one is FORWARD so higher numbers mean more unitsperdiv
+      if (floordist < ceildist) {
+	forwardsliderpos = (nzoomsteps-1)/2 + ((int)zoompower_floor)*3 + leadingdigit_flooridx;
+      } else {
+	forwardsliderpos = (nzoomsteps-1)/2 + ((int)zoompower_ceil)*3 + leadingdigit_ceilidx;
+	
+      }
+      if (forwardsliderpos >= nzoomsteps) {
+	forwardsliderpos=nzoomsteps-1;
+      }
+      if (forwardsliderpos < 0) {
+	forwardsliderpos=0;
+      }
+
+      return nzoomsteps-1 - forwardsliderpos; // return properly REVERSED sliderpos
+    }
+    
+    
+    std::tuple<double,double,double> GetHorizEdges()
+    {
+      double LeftEdge = -1.0;
+      double RightEdge = 1.0;
+      double horizunitsperdiv = (RightEdge-LeftEdge)/display->horizontal_divisions;
+
+      if (selected_channel) {
+	std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->chan_data);
+
+	horizunitsperdiv = a->unit->scale;
+	if (a->unit->pixelflag) horizunitsperdiv *= display->pixelsperdiv;
+	LeftEdge=a->CenterCoord-horizunitsperdiv*display->horizontal_divisions/2;
+	RightEdge=a->CenterCoord+horizunitsperdiv*display->horizontal_divisions/2;
+
+	fprintf(stderr,"LeftEdge=%f, RightEdge=%f\n",LeftEdge,RightEdge);
+	
+      }
+      return std::make_tuple(LeftEdge,RightEdge,horizunitsperdiv);
+    }
+
+
+    std::tuple<double,double,double> GetVertEdges()
+    {
+      double BottomEdge = -1.0;
+      double TopEdge = 1.0;
+      double vertunitsperdiv = (TopEdge-BottomEdge)/display->horizontal_divisions;
+
+      if (selected_channel) {
+	vertunitsperdiv = display->GetVertUnitsPerDiv(selected_channel);
+	if (selected_channel->VertZoomAroundAxis) {
+	  BottomEdge=-selected_channel->Position*vertunitsperdiv-vertunitsperdiv*display->vertical_divisions/2;
+	  TopEdge=-selected_channel->Position*vertunitsperdiv+vertunitsperdiv*display->vertical_divisions/2;	
+	} else {
+	  BottomEdge=selected_channel->VertCenterCoord-vertunitsperdiv*display->vertical_divisions/2;
+	  TopEdge=selected_channel->VertCenterCoord+vertunitsperdiv*display->vertical_divisions/2;	
+	  
+	}
+      }
+      return std::make_tuple(BottomEdge,TopEdge,vertunitsperdiv);
+    }
+    
+    void trigger()
+    {
+      double LeftEdgeWfm,RightEdgeWfm,horizunitsperdiv;
+      double BottomEdgeWfm,TopEdgeWfm,vertunitsperdiv;
+
+      std::tie(LeftEdgeWfm,RightEdgeWfm,horizunitsperdiv)=GetHorizEdges();
+      std::tie(BottomEdgeWfm,TopEdgeWfm,vertunitsperdiv)=GetVertEdges();
+
+      /* NOTE: LeftEdgeWfm and RightEdgeWfm are in waveform coordinates (with units)
+	 so the farther right the waveform is scrolled, the more negative 
+	 LeftEdgeWfm and RightEdgeWfm are.
+	 
+	 By contrast, LeftEdgeInt and RightEdgeInt are the other way around and we 
+	 negate and interchange them to make things work nicely
+
+      */
+      int LeftEdgeInt = SliderPosFromScaledPos(LeftEdgeWfm/horizunitsperdiv,horizunitsperdiv, display->horizontal_divisions,power,nsteps);
+      int RightEdgeInt = SliderPosFromScaledPos(RightEdgeWfm/horizunitsperdiv,horizunitsperdiv, display->horizontal_divisions,power,nsteps);
+
+      int BottomEdgeInt = SliderPosFromScaledPos(-BottomEdgeWfm/vertunitsperdiv,vertunitsperdiv, display->vertical_divisions,power,nsteps);
+      int TopEdgeInt = SliderPosFromScaledPos(-TopEdgeWfm/vertunitsperdiv,vertunitsperdiv, display->vertical_divisions,power,nsteps);
+      
+
+      fprintf(stderr,"LeftEdgeInt=%d; RightEdgeInt=%d\n",LeftEdgeInt,RightEdgeInt);
+      
+      bool horizblocked=HorizSlider->blockSignals(true); // prevent our change from propagating back -- because the slider being integer based will screw up the correct values
+      HorizSlider->setMaximum(nsteps-(RightEdgeInt-LeftEdgeInt)-1);
+      HorizSlider->setSliderPosition(LeftEdgeInt);
+      HorizSlider->setPageStep(RightEdgeInt-LeftEdgeInt);
+      //emit NewHorizSliderPosition(LeftEdgeInt);
+      HorizSlider->blockSignals(horizblocked);
+
+      fprintf(stderr,"LeftEdgeInt=%d RightEdgeInt=%d width=%d\n",LeftEdgeInt,RightEdgeInt,RightEdgeInt-LeftEdgeInt);
+      bool vertblocked=VertSlider->blockSignals(true); // prevent our change from propagating back -- because the slider being integer based will screw up the correct values
+      VertSlider->setMaximum(nsteps-(TopEdgeInt-BottomEdgeInt)-1);
+      VertSlider->setSliderPosition(BottomEdgeInt);
+      VertSlider->setPageStep(TopEdgeInt-BottomEdgeInt);
+      VertSlider->blockSignals(vertblocked);
+      //fprintf(stderr,"BottomEdgeInt=%d TopEdgeInt=%d width=%d\n",BottomEdgeInt,TopEdgeInt,TopEdgeInt-BottomEdgeInt);
+      //emit NewVertSliderPosition(BottomEdgeInt);
+      //fprintf(stderr,"Emitting NewPosition()\n");
+
+
+      double horizscale;
+      bool horizpixelflag;
+      std::tie(horizscale,horizpixelflag) = GetHorizScale();
+
+      //fprintf(stderr,"HorizScale=%f\n",horizscale);
+      
+      double vertscale;
+      bool vertpixelflag;
+      std::tie(vertscale,vertpixelflag) = GetVertScale();
+
+      int horiz_zoom_pos = GetZoomPosFromScale(horizscale, horizpixelflag);
+      //fprintf(stderr,"Set Horiz Zoom sliderpos: %d\n",horiz_zoom_pos);
+      
+      HorizZoom->setSliderPosition(horiz_zoom_pos);
+
+
+      int vert_zoom_pos = GetZoomPosFromScale(vertscale, vertpixelflag);
+      fprintf(stderr,"Set vert Zoom sliderpos: %d\n",vert_zoom_pos);
+      VertZoom->setSliderPosition(vert_zoom_pos);
+
+
+      
+      emit NewPosition();
+    }
+
+    void set_selected(std::shared_ptr<display_channel> chan)
+    {
+      selected_channel=chan;
+
+      trigger();
+      
+    }
+  public slots:
+
+    void HorizSliderActionTriggered(int action)
+    {
+      double HorizPosn = HorizSlider->sliderPosition()-(nsteps-1)/2.0;
+
+      double CenterCoord=0.0;
+      double horizunitsperdiv=1.0;
+      
+      std::shared_ptr<display_axis> a = nullptr;
+      if (selected_channel) {
+	a = display->GetFirstAxis(selected_channel->chan_data);
+	
+	horizunitsperdiv = a->unit->scale;
+	if (a->unit->pixelflag) horizunitsperdiv *= display->pixelsperdiv;
+	CenterCoord = a->CenterCoord;
+	
+      }
+
+      switch(action) {
+      case QAbstractSlider::SliderSingleStepAdd:
+	if (a) {
+	  a->CenterCoord+=horizunitsperdiv;
+	}
+	
+	break;
+      case QAbstractSlider::SliderSingleStepSub:
+	if (a) {
+	  a->CenterCoord-=horizunitsperdiv;
+	}
+	break;
+
+      case QAbstractSlider::SliderPageStepAdd:
+	if (a) {
+	  a->CenterCoord+=horizunitsperdiv*display->horizontal_divisions;
+	}
+	break;
+      case QAbstractSlider::SliderPageStepSub:
+	if (a) {
+	  a->CenterCoord-=horizunitsperdiv*display->horizontal_divisions;
+	}	
+	break;
+
+      case QAbstractSlider::SliderMove:
+	if (a) {
+	  double LeftEdgeWfm=-1.0;
+	  if (HorizPosn < 0.0) {
+	    LeftEdgeWfm = log(1.0 - fabs(HorizPosn)/((nsteps-1)/2.0 + 1.0) )*((nsteps-1)/2+1)*horizunitsperdiv;
+	  } else {
+	    LeftEdgeWfm = -log(1.0 - HorizPosn/((nsteps-1)/2.0 + 1.0) )*((nsteps-1)/2+1)*horizunitsperdiv;
+	    
+	  }
+	  a->CenterCoord = (LeftEdgeWfm + horizunitsperdiv*display->horizontal_divisions/2);
+	  fprintf(stderr,"HorizSliderMove: Setting CenterCoord to %f\n",a->CenterCoord);
+	}
+	
+	break;
+      }
+      if (a) {
+	fprintf(stderr,"HorizCenterCoord=%f\n",a->CenterCoord);
+      }
+      trigger();
+    }
+
+    void VertSliderActionTriggered(int action)
+    {
+      double VertPosn = VertSlider->sliderPosition() - (nsteps-1)/2.0;
+
+      double CenterCoord=0.0;
+      double vertunitsperdiv=1.0;
+      
+      std::shared_ptr<display_axis> a = nullptr;
+      if (selected_channel) {
+	vertunitsperdiv = display->GetVertUnitsPerDiv(selected_channel);
+	
+	
+      }
+
+      switch(action) {
+      case QAbstractSlider::SliderSingleStepAdd:
+	if (selected_channel) {
+	  if (selected_channel->VertZoomAroundAxis) {
+	    selected_channel->Position++;
+	  } else {
+	    selected_channel->VertCenterCoord -= vertunitsperdiv;
+	  }
+	}
+	
+	break;
+      case QAbstractSlider::SliderSingleStepSub:
+	if (selected_channel) {
+	  if (selected_channel->VertZoomAroundAxis) {
+	    selected_channel->Position--;
+	  } else {
+	    selected_channel->VertCenterCoord += vertunitsperdiv;
+	  }
+	}
+	break;
+
+      case QAbstractSlider::SliderPageStepAdd:
+	if (selected_channel) {
+	  if (selected_channel->VertZoomAroundAxis) {
+	    selected_channel->Position+=display->vertical_divisions;
+	  } else {
+	    selected_channel->VertCenterCoord -= vertunitsperdiv*display->vertical_divisions;	    
+	  }
+	}
+	break;
+      case QAbstractSlider::SliderPageStepSub:
+	if (selected_channel) {
+	  if (selected_channel->VertZoomAroundAxis) {
+	    selected_channel->Position-=display->vertical_divisions;
+	  } else {
+	    selected_channel->VertCenterCoord += vertunitsperdiv*display->vertical_divisions;	    
+
+	  }
+	}	
+	break;
+	
+      case QAbstractSlider::SliderMove:
+	double BottomEdgeWfm=1.0;
+	
+	if (selected_channel) {
+	  if (VertPosn < 0.0) {
+	    BottomEdgeWfm = -log(1.0 - fabs(VertPosn)/((nsteps-1)/2.0 + 1.0) )*((nsteps-1)/2+1)*vertunitsperdiv;
+	  } else {
+	    BottomEdgeWfm = log(1.0 - VertPosn/((nsteps-1)/2.0 + 1.0) )*((nsteps-1)/2+1)*vertunitsperdiv;
+	  }
+	  
+	  if (selected_channel->VertZoomAroundAxis) {
+	    selected_channel->Position = -BottomEdgeWfm/vertunitsperdiv + display->vertical_divisions/2;
+	    //fprintf(stderr,"Position = %f vert units\n",selected_channel->Position);
+	  } else {
+	    selected_channel->VertCenterCoord = BottomEdgeWfm + vertunitsperdiv*display->vertical_divisions/2;
+	    fprintf(stderr,"BottomEdgeWfm=%f; VertCenterCoord=%f\n",BottomEdgeWfm,selected_channel->VertCenterCoord);
+	  }
+	  
+
+	}
+	break;
+      }
+      trigger();
+      
+    }
+
+  
+    void HorizZoomActionTriggered(int action)
+    {
+      
+      double horizscale;
+      bool horizpixelflag;
+      std::tie(horizscale,horizpixelflag) = GetHorizScale();
+      
+      int horiz_zoom_pos = GetZoomPosFromScale(horizscale, horizpixelflag);
+
+      double rounded_scale = GetScaleFromZoomPos(horiz_zoom_pos,horizpixelflag);
+
+      switch(action) {
+      case QAbstractSlider::SliderSingleStepAdd:
+      case QAbstractSlider::SliderPageStepAdd:
+
+	if (rounded_scale > horizscale) {
+	  // round up
+	  SetHorizScale(rounded_scale,horizpixelflag);	  
+	} else {
+	  // Step up
+	  double new_scale = GetScaleFromZoomPos(horiz_zoom_pos+1,horizpixelflag);
+	  SetHorizScale(new_scale,horizpixelflag);	  
+	}
+	break;
+	
+      case QAbstractSlider::SliderSingleStepSub:
+      case QAbstractSlider::SliderPageStepSub:
+	if (rounded_scale < horizscale) {
+	  // round down
+	  SetHorizScale(rounded_scale,horizpixelflag);	  
+	} else {
+	  // Step down
+	  double new_scale = GetScaleFromZoomPos(horiz_zoom_pos-1,horizpixelflag);
+	  SetHorizScale(new_scale,horizpixelflag);	  
+	}
+	break;
+
+      case QAbstractSlider::SliderMove:
+	fprintf(stderr,"Got Horiz Zoom slidermove: %d\n",HorizZoom->sliderPosition());
+
+	double HorizZoomPosn = GetScaleFromZoomPos(HorizZoom->sliderPosition(),horizpixelflag);
+	SetHorizScale(HorizZoomPosn,horizpixelflag);	  
+		
+	break;
+      }
+      trigger();
+    }
+
+
+    void VertZoomActionTriggered(int action)
+    {
+      
+      double vertscale;
+      bool vertpixelflag;
+      std::tie(vertscale,vertpixelflag) = GetVertScale();
+      
+      int vert_zoom_pos = GetZoomPosFromScale(vertscale, vertpixelflag);
+
+      double rounded_scale = GetScaleFromZoomPos(vert_zoom_pos,vertpixelflag);
+      
+      switch(action) {
+      case QAbstractSlider::SliderSingleStepAdd:
+      case QAbstractSlider::SliderPageStepAdd:
+	
+	if (rounded_scale > vertscale) {
+	  // round up
+	  SetVertScale(rounded_scale,vertpixelflag);	  
+	} else {
+	  // Step up
+	  double new_scale = GetScaleFromZoomPos(vert_zoom_pos+1,vertpixelflag);
+	  SetVertScale(new_scale,vertpixelflag);	  
+	}
+	break;
+	
+      case QAbstractSlider::SliderSingleStepSub:
+      case QAbstractSlider::SliderPageStepSub:
+	if (rounded_scale < vertscale) {
+	  // round down
+	  SetVertScale(rounded_scale,vertpixelflag);	  
+	} else {
+	  // Step down
+	  double new_scale = GetScaleFromZoomPos(vert_zoom_pos-1,vertpixelflag);
+	  SetVertScale(new_scale,vertpixelflag);	  
+	}
+	break;
+
+      case QAbstractSlider::SliderMove:
+	double VertZoomPosn = GetScaleFromZoomPos(VertZoom->sliderPosition(),vertpixelflag);
+	SetVertScale(VertZoomPosn,vertpixelflag);	  
+		
+	break;
+      }
+      trigger();
+    }
+
+
+    
+    signals:
+    void NewPosition();
+    //void NewHorizSliderPosition(int value);
+    //void NewVertSliderPosition(int value);
+  };
+    
+
+
   
     
   class QTWfmViewer : public QWidget {
-    Q_OBJECT;
+    Q_OBJECT
   public:
     QTWfmRender *OSGWidget;
     std::shared_ptr<mutablewfmdb> wfmdb;
@@ -223,6 +876,8 @@ namespace snde {
     osg::ref_ptr<OSGData> DataRenderer; 
     osg::ref_ptr<OSGComponent> GeomRenderer;
 
+    std::shared_ptr<qtwfm_position_manager> posmgr; 
+    
     std::shared_ptr<osg_instancecache> geomcache;
     
     QTWfmViewer(std::shared_ptr<mutablewfmdb> wfmdb,std::shared_ptr<snde::geometry> sndegeom,std::shared_ptr<trm> rendering_revman,cl_context context, cl_device_id device, cl_command_queue queue,QWidget *parent =0)
@@ -260,22 +915,161 @@ namespace snde {
       info = std::make_shared<display_info>(wfmdb);
       //setWindowTitle(tr("QTWfmViewer"));
 
+      QAbstractSlider *HorizSlider = DesignerTree->findChild<QAbstractSlider*>("horizontalScrollBar");
+      QAbstractSlider *VertSlider = DesignerTree->findChild<QAbstractSlider*>("verticalScrollBar");
+
+      QAbstractSlider *HorizZoom = DesignerTree->findChild<QAbstractSlider*>("horizZoomSlider");
+      QAbstractSlider *VertZoom = DesignerTree->findChild<QAbstractSlider*>("vertZoomSlider");
+      QToolButton *HorizZoomInButton = DesignerTree->findChild<QToolButton*>("horizZoomInButton");
+      QToolButton *HorizZoomOutButton = DesignerTree->findChild<QToolButton*>("horizZoomOutButton");
+      QToolButton *VertZoomInButton = DesignerTree->findChild<QToolButton*>("vertZoomInButton");
+      QToolButton *VertZoomOutButton = DesignerTree->findChild<QToolButton*>("vertZoomOutButton");
+      
+      
+      // Force slider up and down arrows to be together, by some fixed-size QML magic...
+      HorizSlider->setStyleSheet(QString::fromStdString("QScrollBar:horizontal { \n"
+							"   border: 2px;\n"
+							"   height: 20px;\n"
+							"   margin: 0px 60px 0px 0px;\n"
+							"}\n"
+							"QScrollBar::add-line:horizontal {\n"
+							"   width: 20px;\n"
+							"   border: 2px outset black;\n"
+							"   subcontrol-position: right;\n"
+							"   subcontrol-origin: margin;\n"
+							"}\n"
+							"QScrollBar::sub-line:horizontal {\n"
+							"   width: 20px;\n"
+							"   border: 2px outset black;\n"
+							"   subcontrol-position: top right;\n"
+							"   subcontrol-origin: margin;\n"
+							"   position: absolute;\n"
+							"   right: 30px;\n"
+							
+							"}\n"
+							"QScrollBar::left-arrow:horizontal {\n"
+							"   width: 18px;\n"
+							"   height: 18px;\n"
+							"   color: black;\n"
+							//"   background: pink;\n"
+							"   image: url(\":/larrow.png\");\n"
+							"}\n"
+							"QScrollBar::right-arrow:horizontal {\n"
+							"   width: 18px;\n"
+							"   height: 18px;\n"
+							"   color: black;\n"
+							//"   background: pink;\n"
+							"   image: url(\":/rarrow.png\");\n"
+							"}\n"));
+      
+      VertSlider->setStyleSheet(QString::fromStdString("QScrollBar:vertical { \n"
+							"   border: 2px;\n"
+							"   width: 20px;\n"
+							"   margin: 0px 0px 60px 0px;\n"
+							"}\n"
+							"QScrollBar::add-line:vertical {\n"
+							"   height: 20px;\n"
+							"   border: 2px outset black;\n"
+							"   subcontrol-position: bottom;\n"
+							"   subcontrol-origin: margin;\n"
+							"}\n"
+							"QScrollBar::sub-line:vertical {\n"
+							"   height: 20px;\n"
+							"   border: 2px outset black;\n"
+							"   subcontrol-position: bottom;\n"
+							"   subcontrol-origin: margin;\n"
+							"   position: absolute;\n"
+							"   bottom: 30px;\n"
+							
+							"}\n"
+							"QScrollBar::up-arrow:vertical {\n"
+							"   width: 18px;\n"
+							"   height: 18px;\n"
+							"   color: black;\n"
+							//"   background: pink;\n"
+							"   image: url(\":/uarrow.png\");\n"
+							"}\n"
+							"QScrollBar::down-arrow:vertical {\n"
+							"   width: 18px;\n"
+							"   height: 18px;\n"
+							"   color: black;\n"
+							//"   background: pink;\n"
+							"   image: url(\":/darrow.png\");\n"
+							"}\n"));
+
+      posmgr = std::make_shared<qtwfm_position_manager>(info,HorizSlider,VertSlider,HorizZoom,HorizZoomInButton,HorizZoomOutButton,VertZoom,VertZoomInButton,VertZoomOutButton);
+      QObject::connect(HorizSlider,SIGNAL(actionTriggered(int)),
+		       posmgr.get(), SLOT(HorizSliderActionTriggered(int)));
+
+      QObject::connect(VertSlider,SIGNAL(actionTriggered(int)),
+		       posmgr.get(), SLOT(VertSliderActionTriggered(int)));
+      
+
+      QObject::connect(HorizZoom,SIGNAL(actionTriggered(int)),
+		       posmgr.get(), SLOT(HorizZoomActionTriggered(int)));
+      QObject::connect(VertZoom,SIGNAL(actionTriggered(int)),
+		       posmgr.get(), SLOT(VertZoomActionTriggered(int)));
+
+      QObject::connect(posmgr.get(),SIGNAL(NewPosition()),
+		       OSGWidget,SLOT(update()));
+		       
 
       update_wfm_list();
       rendering_revman->Start_Transaction();
       update_renderer();
       rendering_revman->End_Transaction();
+      posmgr->trigger();
+      
     }
 
+    std::shared_ptr<display_channel> FindDisplayChan(QTWfmSelector *Selector)
+    {
+
+      if (!Selector) return nullptr;
+      
+      auto ci_iter = info->channel_info.find(Selector->Name);
+      if (ci_iter != info->channel_info.end()) {
+	auto & displaychan = ci_iter->second;
+	
+	if (displaychan->FullName==Selector->Name) {
+	  //auto selector_iter = Selectors.find(displaychan->FullName);
+	  //if (selector_iter != Selectors.end() && selector_iter->second==Selector) {
+	  return displaychan;
+	}
+      }
+      return nullptr; 
+    }
+    
+    void set_selected(QTWfmSelector *Selector)
+    // assumes Selector already highlighted 
+    {
+
+      std::shared_ptr<display_channel> displaychan=FindDisplayChan(Selector);
+      
+      Selector->setselected(true);
+      //std::shared_ptr<iterablewfmrefs> wfmlist=wfmdb->wfmlist();
+      
+      //for (auto wfmiter=wfmlist->begin();wfmiter != wfmlist->end();wfmiter++) {
+      //std::shared_ptr<mutableinfostore> infostore=*wfmiter;
+      posmgr->set_selected(displaychan);
+      selected = displaychan->chan_data;
+      //}
+      
+      deselect_other_selectors(Selector);
+
+      
+    }
+    
     void update_data_renderer(const std::vector<std::shared_ptr<display_channel>> &currentwfmlist)
     // Must be called inside a transaction!
     {
       GeomRenderer=nullptr; /* remove geom rendering while rendering data */ 
 
       if (!DataRenderer) {
-	DataRenderer=new OSGData(rendering_revman);
+	DataRenderer=new OSGData(info,rendering_revman);
       }
-      DataRenderer->update(sndegeom,info,currentwfmlist,info->pixelsperdiv(OSGWidget->width(),OSGWidget->height()),OSGWidget->width(),OSGWidget->height(),context,device,queue);
+      info->set_pixelsperdiv(OSGWidget->width(),OSGWidget->height());
+      DataRenderer->update(sndegeom,currentwfmlist,OSGWidget->width(),OSGWidget->height(),context,device,queue);
       OSGWidget->SetTwoDimensional(true);
       OSGWidget->SetRootNode(DataRenderer);
     }
@@ -332,12 +1126,15 @@ namespace snde {
 	auto selector_iter = Selectors.find(displaychan->FullName);
 	if (selector_iter == Selectors.end()) {
 	  // create a new selector
-	  QTWfmSelector *NewSel = new QTWfmSelector(displaychan->FullName,WfmColorTable[displaychan->ColorIdx],WfmListScrollAreaContent);
+	  QTWfmSelector *NewSel = new QTWfmSelector(this,displaychan->FullName,WfmColorTable[displaychan->ColorIdx],WfmListScrollAreaContent);
 	  WfmListScrollAreaLayout->insertWidget(pos,NewSel);
 	  Selectors[displaychan->FullName]=NewSel;
-	  
+	  QObject::connect(NewSel->RadioButton,SIGNAL(clicked(bool)),
+			   this,SLOT(SelectorClicked(bool)));
+	  //QObject::connect(NewSel->RadioButton,SIGNAL(toggled(bool)),
+	  //this,SLOT(SelectorClicked(bool)));
 	}
-
+      
 	QTWfmSelector *Sel = Selectors[displaychan->FullName];
 	Sel->touched_during_update=true;
 	
@@ -377,14 +1174,37 @@ namespace snde {
       }
     }
 
+    void deselect_other_selectors(QTWfmSelector *Selected)
+    {
+      for (auto & name_sel : Selectors) {
+	if (name_sel.second != Selected) {
+	  name_sel.second->setselected(false);
+	}
+      }
+    }
+  
+  public slots:
+    void SelectorClicked(bool checked)
+    {
+      fprintf(stderr,"SelectorClicked()\n");
+      QObject *obj = sender();      
+      for (auto & name_selector: Selectors) {
+	if (name_selector.second->RadioButton==obj) {
 
+	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(name_selector.second);
+	  if (displaychan) {
+	    displaychan->Enabled = checked;
+	    OSGWidget->update();
+	  }
+	}
+      }
+      
+      
+    }
+    
   };
-    
   
-
   
-    
-
 
 }
 #endif // SNDE_QTWFMVIEWER_HPP

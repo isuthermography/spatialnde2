@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QMainWindow>
+#include <QStyleFactory>
 
 #include "qtwfmviewer.hpp"
 
@@ -8,6 +9,28 @@
 #include "pngimage.hpp"
 
 using namespace snde;
+
+void StdErrOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg)
+{
+    QByteArray localMsg = msg.toLocal8Bit();
+    switch (type) {
+    case QtDebugMsg:
+        fprintf(stderr, "Debug: %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
+        break;
+    case QtInfoMsg:
+        fprintf(stderr, "Info: %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
+        break;
+    case QtWarningMsg:
+        fprintf(stderr, "Warning: %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
+        break;
+    case QtCriticalMsg:
+        fprintf(stderr, "Critical: %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
+        break;
+    case QtFatalMsg:
+        fprintf(stderr, "Fatal: %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
+        break;
+    }
+}
 
 int main(int argc, char **argv)
 {
@@ -28,7 +51,7 @@ int main(int argc, char **argv)
 
 
   
-
+  
   std::shared_ptr<memallocator> lowlevel_alloc;
   std::shared_ptr<allocator_alignment> alignment_requirements;
   std::shared_ptr<arraymanager> manager;
@@ -69,10 +92,19 @@ int main(int argc, char **argv)
   revision_manager->Start_Transaction();
   std::shared_ptr<mutabledatastore> pngstore = ReadPNG(manager,"PNGFile",argv[1]);
   wfmdb->addinfostore(pngstore);
+
+  //std::shared_ptr<mutabledatastore> pngstore2 = ReadPNG(manager,"PNGFile2",argv[2]);
+  //wfmdb->addinfostore(pngstore2);
   revision_manager->End_Transaction();
-  
+
+  qInstallMessageHandler(StdErrOutput);
+     
   QApplication qapp(argc,argv);
   QMainWindow window;
+
+  ////hardwire QT style
+  //qapp.setStyle(QStyleFactory::create("Fusion"));
+  window.setAttribute(Qt::WA_AcceptTouchEvents, true);
   QTWfmViewer *Viewer = new QTWfmViewer(wfmdb,geom,revision_manager,context,device,queue,&window);
   window.setCentralWidget(Viewer);
   window.show();

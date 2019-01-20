@@ -1,4 +1,4 @@
-//#include <osgDB/WriteFile>
+#include <osgDB/WriteFile>
 
 #include "qtwfmviewer.hpp"
 
@@ -6,7 +6,7 @@ namespace snde {
   
   /* virtual */ void QTWfmRender::paintGL()
   {
-    
+    //fprintf(stderr,"paintGL()\n");
     
     if (Viewer.valid()) {
       /* Because our data is marked as DYNAMIC, so long as we have it 
@@ -20,9 +20,9 @@ namespace snde {
       //rwlock_token_set all_locks=lockprocess->finish();
       
       
-
-      QTViewer->rendering_revman->Start_Transaction();
+ 
       QTViewer->update_wfm_list();
+      QTViewer->rendering_revman->Start_Transaction();
       QTViewer->update_renderer();
       /* !!!*** Need to be able to auto-lock all inputs as 
 	 we start End_Transaction to ensure a consistent state at the end */
@@ -38,6 +38,7 @@ namespace snde {
       //osgDB::writeNodeFile(*RootNode,"/tmp/qtwfmviewer.osg");
       
       assert(!Camera->getViewMatrix().isNaN());
+      fprintf(stderr,"Render!\n");
       Viewer->frame();
       
       //unlock_rwlock_token_set(all_locks); // Drop our locks 
@@ -53,10 +54,27 @@ namespace snde {
     Camera->setViewport(0,0,width,height);
     SetProjectionMatrix();
     QTViewer->update();
+    //QTViewer->
   }
 
 
+  
+  qtwfm_position_manager::~qtwfm_position_manager()
+  {
+    
+  }
 
+  bool QTWfmSelector::eventFilter(QObject *object,QEvent *event)
+  {
+    if (event->type()==QEvent::FocusIn) {
+      fprintf(stderr,"FocusIn\n");
 
+      if (object==RadioButton) {
+	Viewer->set_selected(this);
+      }
+    }
+    return QFrame::eventFilter(object,event);
+  }
+  
   
 }
