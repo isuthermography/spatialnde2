@@ -1,10 +1,10 @@
 %shared_ptr(snde::geometry);
-%shared_ptr(snde::mesheduv);
+%shared_ptr(snde::parameterization);
 %shared_ptr(snde::component);
 %shared_ptr(snde::assembly);
 %shared_ptr(snde::nurbspart);
-%shared_ptr(snde::meshedpart);
-%shared_ptr(std::vector<std::shared_ptr<snde::meshedpart>>);
+%shared_ptr(snde::part);
+%shared_ptr(std::vector<std::shared_ptr<snde::part>>);
 
 %{
 
@@ -105,18 +105,99 @@ namespace snde {
     // ***!!! NOTE: "addr()" method delegated to geom.contents by "bit of magic" below
     ~geometry();
   };
+  class uv_image {
+  public:
+    // represents single snde_image
+    // intended as a base class
+    std::shared_ptr<geometry> geom;
+    snde_index firstuvimage;
+    snde_index imageidx;
+
+    uv_image(std::shared_ptr<uv_images> images,
+	     snde_index imageidx); // implementation in geometry.cpp
+
+    uv_image(const uv_image &)=delete; /* copy constructor disabled */
+    uv_image& operator=(const uv_image &)=delete; /* copy assignment disabled */
+
+    virtual snde_image &get_ref_arraylocked();
+
+    virtual ~uv_image();
+  };
+
+  class uv_images {
+  public:
+    /* a collection of uv images represents the uv-data for a meshedpart or nurbspart, as references to images. 
+       each patch has a corresponding image and set of meaningful coordinates. The collection is named, so that 
+       we can map a different collection onto our part by changing the name. */
+    std::shared_ptr<geometry> geom;
+    std::string parameterization_name; 
+    snde_index firstuvimage,numuvimages; /*must match the numbers to be put into the snde_partinstance/snde_parameterization */
+
+    std::vector<uv_image *> images; // These pointers shouldn't be shared (otherwise they would be shared pointers) because we are responsible for destroying them
+    
+    bool destroyed;
+
+    uv_images(const uv_images &)=delete; /* copy constructor disabled */
+    uv_images& operator=(const uv_images &)=delete; /* copy assignment disabled */
+
+    
+    uv_images(std::shared_ptr<geometry> geom, std::string parameterization_name, snde_index firstuvimage, snde_index numuvimages);
+    void set_image(uv_image *image);    // takes ownership of image
+
+    void free();
+    
+    ~uv_images();
+
+    
+  };
 
 
-  class mesheduv {
+/* *** Must keep sync'd with geometry.hpp */
+#define SNDE_UV_GEOM_UVS (1ull<<0)
+#define SNDE_UV_GEOM_UV_TOPOS (1ull<<1)
+#define SNDE_UV_GEOM_UV_TOPO_INDICES (1ull<<2)
+#define SNDE_UV_GEOM_UV_TRIANGLES (1ull<<3)
+#define SNDE_UV_GEOM_INPLANE2UVCOORDS (1ull<<4)
+#define SNDE_UV_GEOM_UVCOORDS2INPLANE (1ull<<5)
+#define SNDE_UV_GEOM_UV_EDGES (1ull<<6)
+#define SNDE_UV_GEOM_UV_VERTICES (1ull<<7)
+#define SNDE_UV_GEOM_UV_VERTEX_EDGELIST_INDICES (1ull<<8)
+#define SNDE_UV_GEOM_UV_VERTEX_EDGELIST (1ull<<9)
+#define SNDE_UV_GEOM_UV_BOXES (1ull<<10)
+#define SNDE_UV_GEOM_UV_BOXCOORD (1ull<<11)
+#define SNDE_UV_GEOM_UV_BOXPOLYS (1ull<<12)
+
+#define SNDE_UV_GEOM_ALL ((1ull<<13)-1)
+
+// Resizing masks -- mark those arrays that resize together
+#define SNDE_UV_GEOM_UVS_RESIZE (SNDE_UV_GEOM_UVS)
+#define SNDE_UV_GEOM_UV_TOPOS_RESIZE (SNDE_UV_GEOM_UV_TOPOS)
+#define SNDE_UV_GEOM_UV_TOPO_INDICES_RESIZE (SNDE_UV_GEOM_UV_TOPO_INDICES)
+#define SNDE_UV_GEOM_UV_TRIANGLES_RESIZE (SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_INPLANE2UVCOORDS|SNDE_UV_GEOM_UVCOORDS2INPLANE)
+#define SNDE_UV_GEOM_UV_EDGES_RESIZE (SNDE_UV_GEOM_UV_EDGES)
+#define SNDE_UV_GEOM_UV_VERTICES_RESIZE (SNDE_UV_GEOM_UV_VERTICES|SNDE_UV_GEOM_UV_VERTEX_EDGELIST_INDICES)
+#define SNDE_UV_GEOM_UV_VERTEX_EDGELIST_RESIZE (SNDE_UV_GEOM_UV_VERTEX_EDGELIST)
+#define SNDE_UV_GEOM_UV_BOXES_RESIZE (SNDE_UV_GEOM_UV_BOXES|SNDE_UV_GEOM_UV_BOXCOORD)
+#define SNDE_UV_GEOM_UV_BOXPOLYS_RESIZE (SNDE_UV_GEOM_UV_BOXPOLYS)
+
+  
+typedef uint64_t snde_uv_geom_mask_t;
+
+
+  class parameterization {
   public:
 
     std::shared_ptr<geometry> geom;
     std::string name;
     snde_index idx;
 
-    mesheduv(std::shared_ptr<geometry> geom, std::string name,snde_index mesheduvnum);
+    parameterization(std::shared_ptr<geometry> geom, std::string name,snde_index parameterizationnum);
 
-    ~mesheduv();
+    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_uv_geom_mask_t readmask=SNDE_UV_GEOM_ALL, snde_uv_geom_mask_t writemask=0, snde_uv_geom_mask_t resizemask=0);
+    void free();
+
+
+    ~parameterization();
     
   };
 
@@ -138,30 +219,10 @@ namespace snde {
 
 }
 
-#define SNDE_PDET_INVALID 0
-#define SNDE_PDET_INDEX 1
-#define SNDE_PDET_DOUBLE 2
-#define SNDE_PDET_STRING 3
- class paramdictentry {
-  public:
-    int type; /* see SNDE_PDET_... below */
-    snde_index indexval;
-    double doubleval;
-    std::string stringval;
-
-    paramdictentry();
-    paramdictentry(snde_index _indexval);
-    paramdictentry(double _doubleval);
-    paramdictentry(std::string _stringval);
-    snde_index idx();
-    double dbl();
-    std::string str();
-  };
-
 
 
 /* ***!!! Must keep sync'd with geometry.hpp */
-#define SNDE_COMPONENT_GEOM_MESHEDPARTS (1ull<<0)
+#define SNDE_COMPONENT_GEOM_PARTS (1ull<<0)
 #define SNDE_COMPONENT_GEOM_TRIS (1ull<<1)
 #define SNDE_COMPONENT_GEOM_REFPOINTS (1ull<<2)
 #define SNDE_COMPONENT_GEOM_MAXRADIUS (1ull<<3)
@@ -180,7 +241,7 @@ namespace snde {
 #define SNDE_COMPONENT_GEOM_ALL ((1ull<<15)-1)
 
 // Resizing masks -- mark those arrays that resize together
-#define SNDE_COMPONENT_GEOM_MESHEDPARTS_RESIZE (SNDE_COMPONENT_GEOM_MESHEDPARTS)
+#define SNDE_COMPONENT_GEOM_PARTS_RESIZE (SNDE_COMPONENT_GEOM_PARTS)
 #define SNDE_COMPONENT_GEOM_TRIS_RESIZE (SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_REFPOINTS|SNDE_COMPONENT_GEOM_MAXRADIUS|SNDE_COMPONENT_GEOM_NORMALS|SNDE_COMPONENT_GEOM_INPLANEMAT)
 #define SNDE_COMPONENT_GEOM_EDGES_RESIZE (SNDE_COMPONENT_GEOM_EDGES)
 #define SNDE_COMPONENT_GEOM_VERTICES_RESIZE (SNDE_COMPONENT_GEOM_VERTICES|SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES|SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES|SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES)
@@ -191,63 +252,25 @@ namespace snde {
 
 typedef uint64_t snde_component_geom_mask_t;
 
- class component { /* abstract base class for geometric components (assemblies, nurbspart, meshedpart) */
+ class component { /* abstract base class for geometric components (assemblies, nurbspart, part) */
   public:
-    typedef enum {
-      subassembly=0,
-      nurbs=1,
-      meshed=2,
-    } TYPE;
+   //typedef enum {
+   //   subassembly=0,
+   //   nurbs=1,
+   //   meshed=2,
+   //} TYPE;
+   //
+   // TYPE type;
 
-    TYPE type;
+    virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation, const std::unordered_map<std::string,std::shared_ptr<uv_images>> & parameterization_data)=0;//,std::shared_ptr<std::unordered_map<std::string,metadatum>> metadata)=0;
 
-    virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict)=0;
+    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_component_geom_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_component_geom_mask_t writemask=0,snde_component_geom_mask_t resizemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */
 
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_component_geom_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_component_geom_mask_t writemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */
-
-    virtual ~component()=0;
+    virtual ~component();
   };
   
 
-  class assembly : public component {
-    /* NOTE: Unlike other types of component, assemblies ARE copyable/assignable */
-    /* (this is because they don't have a representation in the underlying
-       geometry database) */
-  public:    
-    std::deque<std::shared_ptr<component>> pieces;
-    snde_orientation3 _orientation; /* orientation of this part/assembly relative to its parent */
-
-    assembly(std::string name,snde_orientation3 orientation);
-
-    virtual snde_orientation3 orientation(void);
-
-    virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict);
-
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_component_geom_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_component_geom_mask_t writemask=0);
-    
-    virtual ~assembly();
-  };
-
-  
-
-
-  /* NOTE: Could have additional abstraction layer to accommodate 
-     multi-resolution approximations */
-  class nurbspart : public component {
-    nurbspart(const nurbspart &)=delete; /* copy constructor disabled */
-    nurbspart& operator=(const nurbspart &)=delete; /* copy assignment disabled */
-  public:
-    snde_index nurbspartnum;
-    std::shared_ptr<geometry> geom;
-
-    nurbspart(std::shared_ptr<geometry> geom,std::string name,snde_index nurbspartnum);
-    
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_component_geom_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_component_geom_mask_t writemask=0);
-    virtual ~nurbspart();
-    
-  };
-
-  %extend meshedpart {
+  %extend part {
     %pythoncode %{
       def obtain_lock_pycpp(self,process,holder,readmask,writemask,resizemask):
         # NOTE: Parallel C++ implementation obtain_lock_pycpp 
@@ -255,89 +278,117 @@ typedef uint64_t snde_component_geom_mask_t;
         #        holder=pylockholder()
         	
         if self.idx != SNDE_INDEX_INVALID:
-          assert(readmask & SNDE_COMPONENT_GEOM_MESHEDPARTS)
-          holder.store((yield process.get_locks_array_mask(self.geom.addr("meshedparts"),SNDE_COMPONENT_GEOM_MESHEDPARTS,SNDE_COMPONENT_GEOM_MESHEDPARTS_RESIZE,readmask,writemask,resizemask,self.idx,1)))
+          assert(readmask & SNDE_COMPONENT_GEOM_PARTS)
+          holder.store((yield process.get_locks_array_mask(self.geom.addr("parts"),SNDE_COMPONENT_GEOM_PARTS,SNDE_COMPONENT_GEOM_PARTS_RESIZE,readmask,writemask,resizemask,self.idx,1)))
             
-          meshedparts=self.geom.field(holder,"meshedparts",writemask & SNDE_COMPONENT_GEOM_MESHEDPARTS,nt_snde_meshedpart,self.idx,1)
-          if meshedparts[0]["firsttri"] != SNDE_INDEX_INVALID:
-            holder.store((yield process.get_locks_array_mask(self.geom.addr("triangles"),SNDE_COMPONENT_GEOM_TRIS,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,meshedparts[0]["firsttri"],meshedparts[0]["numtris"])))
+          parts=self.geom.field(holder,"parts",writemask & SNDE_COMPONENT_GEOM_PARTS,nt_snde_part,self.idx,1)
+          if parts[0]["firsttri"] != SNDE_INDEX_INVALID:
+            holder.store((yield process.get_locks_array_mask(self.geom.addr("triangles"),SNDE_COMPONENT_GEOM_TRIS,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,parts[0]["firsttri"],parts[0]["numtris"])))
             pass      
             if self.geom.field_valid("refpoints"):
-              holder.store((yield process.get_locks_array_mask(self.geom.addr("refpoints"),SNDE_COMPONENT_GEOM_REFPOINTS,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,meshedparts[0]["firsttri"],meshedparts[0]["numtris"])))
+              holder.store((yield process.get_locks_array_mask(self.geom.addr("refpoints"),SNDE_COMPONENT_GEOM_REFPOINTS,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,parts[0]["firsttri"],parts[0]["numtris"])))
               pass
             if self.geom.field_valid("maxradius"):
-              holder.store((yield process.get_locks_array_mask(self.geom.addr("maxradius"),SNDE_COMPONENT_GEOM_MAXRADIUS,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,meshedparts[0]["firsttri"],meshedparts[0]["numtris"])))
+              holder.store((yield process.get_locks_array_mask(self.geom.addr("maxradius"),SNDE_COMPONENT_GEOM_MAXRADIUS,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,parts[0]["firsttri"],parts[0]["numtris"])))
               pass
             if self.geom.field_valid("normal"):
-              holder.store((yield process.get_locks_array_mask(self.geom.addr("normal"),SNDE_COMPONENT_GEOM_NORMAL,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,meshedparts[0]["firsttri"],meshedparts[0]["numtris"])))
+              holder.store((yield process.get_locks_array_mask(self.geom.addr("normal"),SNDE_COMPONENT_GEOM_NORMAL,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,parts[0]["firsttri"],parts[0]["numtris"])))
               pass
             if self.geom.field_valid("inplanemat"):
-              holder.store((yield process.get_locks_array_mask(self.geom.addr("inplanemat"),SNDE_COMPONENT_GEOM_INPLANEMAT,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,meshedparts[0]["firsttri"],meshedparts[0]["numtris"])))
+              holder.store((yield process.get_locks_array_mask(self.geom.addr("inplanemat"),SNDE_COMPONENT_GEOM_INPLANEMAT,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,parts[0]["firsttri"],parts[0]["numtris"])))
               pass
             pass
           
-          if meshedparts[0]["firstedge"] != SNDE_INDEX_INVALID:
-            holder.store((yield process.get_locks_array_mask(self.geom.addr("edges"),SNDE_COMPONENT_GEOM_EDGES,SNDE_COMPONENT_GEOM_EDGES_RESIZE,readmask,writemask,resizemask,meshedparts[0]["firstedge"],meshedparts[0]["numedges"])))
+          if parts[0]["firstedge"] != SNDE_INDEX_INVALID:
+            holder.store((yield process.get_locks_array_mask(self.geom.addr("edges"),SNDE_COMPONENT_GEOM_EDGES,SNDE_COMPONENT_GEOM_EDGES_RESIZE,readmask,writemask,resizemask,parts[0]["firstedge"],parts[0]["numedges"])))
             pass
           
-          if meshedparts[0]["firstvertex"] != SNDE_INDEX_INVALID:
-            holder.store((yield process.get_locks_array_mask(self.geom.addr("vertices"),SNDE_COMPONENT_GEOM_VERTICES,SNDE_COMPONENT_GEOM_VERTICES_RESIZE,readmask,writemask,resizemask,meshedparts[0]["firstvertex"],meshedparts[0]["numvertices"])))
+          if parts[0]["firstvertex"] != SNDE_INDEX_INVALID:
+            holder.store((yield process.get_locks_array_mask(self.geom.addr("vertices"),SNDE_COMPONENT_GEOM_VERTICES,SNDE_COMPONENT_GEOM_VERTICES_RESIZE,readmask,writemask,resizemask,parts[0]["firstvertex"],parts[0]["numvertices"])))
             if self.geom.field_valid("principal_curvatures"):
-              holder.store((yield process.get_locks_array_mask(self.geom.addr("principal_curvatures"),SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES,SNDE_COMPONENT_GEOM_VERTICES_RESIZE,readmask,writemask,resizemask,meshedparts[0]["firstvertex"],meshedparts[0]["numvertices"])))
+              holder.store((yield process.get_locks_array_mask(self.geom.addr("principal_curvatures"),SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES,SNDE_COMPONENT_GEOM_VERTICES_RESIZE,readmask,writemask,resizemask,parts[0]["firstvertex"],parts[0]["numvertices"])))
               pass
             if self.geom.field_valid("curvature_tangent_axes"):
-              holder.store((yield process.get_locks_array_mask(self.geom.addr("curvature_tangent_axes"),SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES,SNDE_COMPONENT_GEOM_VERTICES_RESIZE,readmask,writemask,resizemask,meshedparts[0]["firstvertex"],meshedparts[0]["numvertices"])))
+              holder.store((yield process.get_locks_array_mask(self.geom.addr("curvature_tangent_axes"),SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES,SNDE_COMPONENT_GEOM_VERTICES_RESIZE,readmask,writemask,resizemask,parts[0]["firstvertex"],parts[0]["numvertices"])))
               pass
             if self.geom.field_valid("vertex_edgelist_indices"):
-              holder.store((yield process.get_locks_array_mask(self.geom.addr("vertex_edgelist_indices"),SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES,SNDE_COMPONENT_GEOM_VERTICES_RESIZE,readmask,writemask,resizemask,meshedparts[0]["firstvertex"],meshedparts[0]["numvertices"])))
+              holder.store((yield process.get_locks_array_mask(self.geom.addr("vertex_edgelist_indices"),SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES,SNDE_COMPONENT_GEOM_VERTICES_RESIZE,readmask,writemask,resizemask,parts[0]["firstvertex"],parts[0]["numvertices"])))
               pass		  
             pass
           	    
-          if meshedparts[0]["first_vertex_edgelist"] != SNDE_INDEX_INVALID:
-            holder.store((yield process.get_locks_array_mask(self.geom.addr("vertex_edgelist"),SNDE_COMPONENT_GEOM_VERTEX_EDGELIST,SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_RESIZE,readmask,writemask,resizemask,meshedparts[0]["first_vertex_edgelist"],meshedparts[0]["num_vertex_edgelist"])))
+          if parts[0]["first_vertex_edgelist"] != SNDE_INDEX_INVALID:
+            holder.store((yield process.get_locks_array_mask(self.geom.addr("vertex_edgelist"),SNDE_COMPONENT_GEOM_VERTEX_EDGELIST,SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_RESIZE,readmask,writemask,resizemask,parts[0]["first_vertex_edgelist"],parts[0]["num_vertex_edgelist"])))
             pass
           	    
-          if meshedparts[0]["firstbox"] != SNDE_INDEX_INVALID:
-            holder.store((yield process.get_locks_array_mask(self.geom.addr("boxes"),SNDE_COMPONENT_GEOM_BOXES,SNDE_COMPONENT_GEOM_BOXES_RESIZE,readmask,writemask,resizemask,meshedparts[0]["firstbox"],meshedparts[0]["numboxes"])))
+          if parts[0]["firstbox"] != SNDE_INDEX_INVALID:
+            holder.store((yield process.get_locks_array_mask(self.geom.addr("boxes"),SNDE_COMPONENT_GEOM_BOXES,SNDE_COMPONENT_GEOM_BOXES_RESIZE,readmask,writemask,resizemask,parts[0]["firstbox"],parts[0]["numboxes"])))
             if self.geom.field_valid("boxcoord"):
-              holder.store((yield process.get_locks_array_mask(self.geom.addr("boxcoord"),SNDE_COMPONENT_GEOM_BOXCOORD,SNDE_COMPONENT_GEOM_BOXES_RESIZE,readmask,writemask,resizemask,meshedparts[0]["firstbox"],meshedparts[0]["numboxes"])))
+              holder.store((yield process.get_locks_array_mask(self.geom.addr("boxcoord"),SNDE_COMPONENT_GEOM_BOXCOORD,SNDE_COMPONENT_GEOM_BOXES_RESIZE,readmask,writemask,resizemask,parts[0]["firstbox"],parts[0]["numboxes"])))
               pass
             pass
           
-          if meshedparts[0]["firstboxpoly"] != SNDE_INDEX_INVALID:
-            holder.store((yield process.get_locks_array_mask(self.geom.addr("boxpolys"),SNDE_COMPONENT_GEOM_BOXPOLYS,SNDE_COMPONENT_GEOM_BOXPOLYS_RESIZE,readmask,writemask,resizemask,meshedparts[0]["firstboxpoly"],meshedparts[0]["numboxpolys"])))
+          if parts[0]["firstboxpoly"] != SNDE_INDEX_INVALID:
+            holder.store((yield process.get_locks_array_mask(self.geom.addr("boxpolys"),SNDE_COMPONENT_GEOM_BOXPOLYS,SNDE_COMPONENT_GEOM_BOXPOLYS_RESIZE,readmask,writemask,resizemask,parts[0]["firstboxpoly"],parts[0]["numboxpolys"])))
             pass
-          del meshedparts  # numpy array is temporary; good practice to explicitly delete
+          del parts  # numpy array is temporary; good practice to explicitly delete
           pass
         pass  
       
 %}
   }
-  class meshedpart : public component {
-    meshedpart(const meshedpart &)=delete; /* copy constructor disabled */
-    meshedpart& operator=(const meshedpart &)=delete; /* copy assignment disabled */
+  class part : public component {
+    part(const part &)=delete; /* copy constructor disabled */
+    part& operator=(const part &)=delete; /* copy assignment disabled */
     
   public:
     std::shared_ptr<geometry> geom;
     snde_index idx;
-    std::map<std::string,std::shared_ptr<mesheduv>> parameterizations;
+    std::map<std::string,std::shared_ptr<parameterization>> parameterizations;
+    bool need_normals; // set if this part was loaded/created without normals being assigned, and therefore still needs normals
     bool destroyed;
  
     
-    meshedpart(std::shared_ptr<geometry> geom,std::string name,snde_index idx);
+    part(std::shared_ptr<geometry> geom,std::string name,snde_index idx);
 
-    void addparameterization(std::shared_ptr<mesheduv> parameterization);
+    void addparameterization(std::shared_ptr<parameterization> uv_parameterization);
     
-    virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation,std::shared_ptr<std::unordered_map<std::string,paramdictentry>> paramdict);
+    virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation,const std::unordered_map<std::string,std::shared_ptr<uv_images>> & parameterization_data);
     
 
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_component_geom_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_component_geom_mask_t writemask=0);
+    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_component_geom_mask_t readmask=SNDE_COMPONENT_GEOM_ALL, snde_component_geom_mask_t writemask=0, snde_component_geom_mask_t resizemask=0);
 
     void free(); /* You must be certain that nothing could be using this part's database entries prior to free() */
 
-    ~meshedpart();
+    ~part();
   };
+
+
+
+    class assembly : public component {
+    /* NOTE: Unlike other types of component, assemblies ARE copyable/assignable */
+    /* (this is because they don't have a representation in the underlying
+       geometry database) */
+  public:    
+      //std::map<std::string,std::shared_ptr<component>> pieces;
+    snde_orientation3 _orientation; /* orientation of this part/assembly relative to its parent */
+
+    assembly(std::string name,snde_orientation3 orientation);
+
+    virtual snde_orientation3 orientation(void);
+
+    virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation, const std::unordered_map<std::string,std::shared_ptr<uv_images>> & parameterization_data);
+
+    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_component_geom_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_component_geom_mask_t writemask=0,snde_component_geom_mask_t resizemask=0);
+    
+    virtual ~assembly();
+
+    //static std::tuple<std::shared_ptr<assembly>,std::unordered_map<std::string,metadatum>> from_partlist(std::string name,std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>> parts);
+
+  };
+
+  
+
 
 }
 
-%template(meshedpart_vector) std::vector<std::shared_ptr<snde::meshedpart>>;  // used for return of x3d_load_geometry 
+%template(part_vector) std::vector<std::shared_ptr<snde::part>>;  // used for return of x3d_load_geometry 

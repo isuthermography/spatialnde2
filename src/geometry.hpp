@@ -334,7 +334,7 @@ namespace snde {
 
   
 
-  /* ***!!! Must keep sync'd with geometry.i */
+/* *** Must keep sync'd with geometry.i */
 #define SNDE_UV_GEOM_UVS (1ull<<0)
 #define SNDE_UV_GEOM_UV_TOPOS (1ull<<1)
 #define SNDE_UV_GEOM_UV_TOPO_INDICES (1ull<<2)

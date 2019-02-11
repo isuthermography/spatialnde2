@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
   cl_kernel kernel;
   cl_int clerror=0;
 
-  std::shared_ptr<meshedpart> part;
+  std::shared_ptr<part> Part;
   
   // get_opencl_context() is a convenience routine for obtaining an
   // OpenCL context and device. You pass it a query string of the
@@ -143,8 +143,8 @@ int main(int argc, char *argv[])
     std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(manager->locker); // new locking process
     
     
-    // Allocate a single entry in the "meshedparts" array
-    holder->store_alloc(lockprocess->alloc_array_region(manager,(void **)&geom->geom.meshedparts,1,""));
+    // Allocate a single entry in the "parts" array
+    holder->store_alloc(lockprocess->alloc_array_region(manager,(void **)&geom->geom.parts,1,""));
     // Note: Because the triangles allocator also allocates several other fields (per
     // comments in geometrydata.h and add_follower_array() call in geometry.hpp,
     // the allocation of "triangles" allocates and locks both it and the other arrays.  
@@ -170,32 +170,32 @@ int main(int argc, char *argv[])
     // Build a meshed part with exactly one triangle (three edges, and three vertices) 
     
     // Define an array pointer representing the "meshedparts allocation
-    struct snde_meshedpart *meshedparts=geom->geom.meshedparts+holder->get_alloc((void**)&geom->geom.meshedparts,"");
-    //meshedparts[0].orientation.offset[0]=0;
-    //meshedparts[0].orientation.offset[1]=0;
-    //meshedparts[0].orientation.offset[2]=0;
+    struct snde_part *parts=geom->geom.parts+holder->get_alloc((void**)&geom->geom.parts,"");
+    //parts[0].orientation.offset[0]=0;
+    //parts[0].orientation.offset[1]=0;
+    //parts[0].orientation.offset[2]=0;
     
-    //meshedparts[0].orientation.quat[0]=0;
-    //meshedparts[0].orientation.quat[1]=0;
-    //meshedparts[0].orientation.quat[2]=0;
-    //meshedparts[0].orientation.quat[3]=1;
+    //parts[0].orientation.quat[0]=0;
+    //parts[0].orientation.quat[1]=0;
+    //parts[0].orientation.quat[2]=0;
+    //parts[0].orientation.quat[3]=1;
     
-    meshedparts[0].firsttri =  holder->get_alloc((void **)&geom->geom.triangles,"");
-    meshedparts[0].numtris = 1;
+    parts[0].firsttri =  holder->get_alloc((void **)&geom->geom.triangles,"");
+    parts[0].numtris = 1;
     
-    meshedparts[0].firstedge =  holder->get_alloc((void **)&geom->geom.edges,"");
-    meshedparts[0].numedges = 3;
+    parts[0].firstedge =  holder->get_alloc((void **)&geom->geom.edges,"");
+    parts[0].numedges = 3;
     
-    meshedparts[0].firstvertex =  holder->get_alloc((void **)&geom->geom.vertices,"");
-    meshedparts[0].numvertices = 3;
+    parts[0].firstvertex =  holder->get_alloc((void **)&geom->geom.vertices,"");
+    parts[0].numvertices = 3;
 
-    meshedparts[0].first_vertex_edgelist = holder->get_alloc((void **)&geom->geom.vertex_edgelist_indices,"");
-    meshedparts[0].num_vertex_edgelist = 6;
-    meshedparts[0].firstbox = SNDE_INDEX_INVALID;
-    meshedparts[0].numboxes = SNDE_INDEX_INVALID;
-    meshedparts[0].firstboxpoly = SNDE_INDEX_INVALID;
-    meshedparts[0].numboxpolys = SNDE_INDEX_INVALID;
-    meshedparts[0].solid = false;
+    parts[0].first_vertex_edgelist = holder->get_alloc((void **)&geom->geom.vertex_edgelist_indices,"");
+    parts[0].num_vertex_edgelist = 6;
+    parts[0].firstbox = SNDE_INDEX_INVALID;
+    parts[0].numboxes = SNDE_INDEX_INVALID;
+    parts[0].firstboxpoly = SNDE_INDEX_INVALID;
+    parts[0].numboxpolys = SNDE_INDEX_INVALID;
+    parts[0].solid = false;
     
     snde_triangle *triangles=geom->geom.triangles+holder->get_alloc((void**)&geom->geom.triangles,"");
     triangles[0].edges[0]=0;
@@ -206,22 +206,22 @@ int main(int argc, char *argv[])
     snde_edge *edges=geom->geom.edges+holder->get_alloc((void**)&geom->geom.edges,"");
     edges[0].vertex[0]=0;
     edges[0].vertex[1]=1;
-    edges[0].face_a=0;
-    edges[0].face_b=SNDE_INDEX_INVALID;
-    edges[0].face_a_next_edge=1;
-    edges[0].face_a_prev_edge=2;
+    edges[0].tri_a=0;
+    edges[0].tri_b=SNDE_INDEX_INVALID;
+    edges[0].tri_a_next_edge=1;
+    edges[0].tri_a_prev_edge=2;
     edges[1].vertex[0]=1;
     edges[1].vertex[1]=2;
-    edges[1].face_a=0;
-    edges[1].face_b=SNDE_INDEX_INVALID;
-    edges[1].face_a_next_edge=2;
-    edges[1].face_a_prev_edge=0;
+    edges[1].tri_a=0;
+    edges[1].tri_b=SNDE_INDEX_INVALID;
+    edges[1].tri_a_next_edge=2;
+    edges[1].tri_a_prev_edge=0;
     edges[2].vertex[0]=2;
     edges[2].vertex[1]=0;
-    edges[2].face_a=0;
-    edges[2].face_b=SNDE_INDEX_INVALID;
-    edges[2].face_a_next_edge=0;
-    edges[2].face_a_prev_edge=1;
+    edges[2].tri_a=0;
+    edges[2].tri_b=SNDE_INDEX_INVALID;
+    edges[2].tri_a_next_edge=0;
+    edges[2].tri_a_prev_edge=1;
     
     
     snde_coord3 *vertices=geom->geom.vertices+holder->get_alloc((void **)&geom->geom.vertices,"");
@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
     vertex_edgelist[5]=2;
     
     // Mark that we have made changes with the CPU
-    manager->dirty_alloc(holder,(void **)&geom->geom.meshedparts,"",1);
+    manager->dirty_alloc(holder,(void **)&geom->geom.parts,"",1);
     manager->dirty_alloc(holder,(void **)&geom->geom.triangles,"",1);
     manager->dirty_alloc(holder,(void **)&geom->geom.edges,"",3);
     manager->dirty_alloc(holder,(void **)&geom->geom.vertices,"",3);
@@ -265,7 +265,7 @@ int main(int argc, char *argv[])
     
     // Store which part address for later use
     // Represent the above triangle as a "meshedpart"
-    part=std::make_shared<meshedpart>(geom,"tri",holder->get_alloc((void **)&geom->geom.meshedparts,""));
+    Part=std::make_shared<part>(geom,"tri",holder->get_alloc((void **)&geom->geom.parts,""));
     
     // Unlock now that we have written
     // (if we wanted we could use from the GPU under this same lock
@@ -285,11 +285,11 @@ int main(int argc, char *argv[])
     
     std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(manager->locker); // new locking process
     
-    part->obtain_lock(lockprocess,SNDE_COMPONENT_GEOM_ALL,0); // 0 indicates flags for which arrays we want write locks (none in this case)
+    Part->obtain_lock(lockprocess,SNDE_COMPONENT_GEOM_ALL,0); // 0 indicates flags for which arrays we want write locks (none in this case)
     all_locks=lockprocess->finish();
     
     // now we can access (read only) the data from the cpu
-    struct snde_meshedpart *meshedparts=geom->geom.meshedparts+part->idx;
+    struct snde_part *parts=geom->geom.parts+Part->idx;
     
     
     
@@ -310,12 +310,12 @@ int main(int argc, char *argv[])
     // specify the arguments to the kernel, by argument number.
     // The third parameter is the array element to be passed
     // (actually comes from the OpenCL cache)
-    Buffers.AddSubBufferAsKernelArg(manager,kernel,0,(void **)&geom->geom.meshedparts,part->idx,1,false);
-    Buffers.AddSubBufferAsKernelArg(manager,kernel,1,(void **)&geom->geom.triangles,meshedparts[0].firsttri,meshedparts[0].numtris,false);
-    Buffers.AddSubBufferAsKernelArg(manager,kernel,2,(void **)&geom->geom.edges,meshedparts[0].firstedge,meshedparts[0].numedges,false);
-    Buffers.AddSubBufferAsKernelArg(manager,kernel,3,(void **)&geom->geom.vertices,meshedparts[0].firstvertex,meshedparts[0].numvertices,false);
+    Buffers.AddSubBufferAsKernelArg(manager,kernel,0,(void **)&geom->geom.parts,Part->idx,1,false);
+    Buffers.AddSubBufferAsKernelArg(manager,kernel,1,(void **)&geom->geom.triangles,parts[0].firsttri,parts[0].numtris,false);
+    Buffers.AddSubBufferAsKernelArg(manager,kernel,2,(void **)&geom->geom.edges,parts[0].firstedge,parts[0].numedges,false);
+    Buffers.AddSubBufferAsKernelArg(manager,kernel,3,(void **)&geom->geom.vertices,parts[0].firstvertex,parts[0].numvertices,false);
     
-    size_t worksize=meshedparts[0].numtris;
+    size_t worksize=parts[0].numtris;
     
     snde_coord *result_host=(snde_coord*)calloc(1,worksize*sizeof(*result_host));
     cl_int err=CL_SUCCESS;
@@ -373,7 +373,7 @@ int main(int argc, char *argv[])
 
     clReleaseMemObject(result_gpu);
     free(result_host);
-    part->free(); // explicitly delete the part
+    Part->free(); // explicitly delete the part
 
     // Ending the block makes the various lock and reference variables go out of scope
   }

@@ -220,11 +220,11 @@ IF (Eigen3_FOUND)
             test/transform_eval_test.cpp)
 ENDIF (Eigen3_FOUND)
 
-IF (LibXml2_FOUND AND EIGEN3_FOUND)
+IF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
         add_executable(x3d_test
                 test/x3d_test.cpp)
-        target_link_libraries(x3d_test ${SPATIALNDE2_LIBS} ${LIBXML2_LIBRARIES})
-ENDIF (LibXml2_FOUND AND EIGEN3_FOUND)
+        target_link_libraries(x3d_test ${SPATIALNDE2_LIBS} ${LIBXML2_LIBRARIES} ${PNG_LIBRARIES} )
+ENDIF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
 
 
 IF (PythonInterp_FOUND)
@@ -344,7 +344,6 @@ install(TARGETS
         transform_eval_test
         manager_test
         thread_test
-        x3d_test
         DESTINATION ${APP_INSTALL_DIR}/test)
 install(FILES
         test/transform_eval_test.py
@@ -352,6 +351,12 @@ install(FILES
         DESTINATION ${APP_INSTALL_DIR}/test)
 
 # EXAMPLE
+IF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
+  install(TARGETS
+    x3d_test
+    DESTINATION ${APP_INSTALL_DIR}/test)
+ENDIF()
+
 IF (OpenCL_FOUND AND PythonInterp_FOUND)
   install(TARGETS
     opencl_example

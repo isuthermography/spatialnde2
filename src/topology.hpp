@@ -1,3 +1,8 @@
+#include <set>
+#include <memory>
+#include <vector>
+#include <deque>
+#include <unordered_map>
 
 #include "geometry.hpp"
 
