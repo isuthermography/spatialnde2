@@ -1,7 +1,6 @@
 #ifndef SNDE_OPENCLCACHEMANAGER_HPP
 #define SNDE_OPENCLCACHEMANAGER_HPP
 
-
 #include <cstring>
 
 #ifndef CL_USE_DEPRECATED_OPENCL_1_2_APIS
@@ -47,6 +46,7 @@ namespace snde {
       this->regionend=regionend;
       FlushDoneEvent=NULL;
       FlushDoneEventComplete=false;
+      //fprintf(stderr,"Create opencldirtyregion(%d,%d)\n",regionstart,regionend);
     }
 
     opencldirtyregion(const opencldirtyregion &orig)
@@ -73,6 +73,7 @@ namespace snde {
       // are flushdoneevents pending
       std::shared_ptr<opencldirtyregion> newregion;
 
+      //fprintf(stderr,"Create opencldirtyregion.sp_breakup(%d,%d)->(%d,%d)\n",regionstart,regionend,regionstart,breakpoint);
       assert(!FlushDoneEvent);
       assert(breakpoint > regionstart && breakpoint < regionend);
 
@@ -346,8 +347,11 @@ namespace snde {
     openclcachemanager(const openclcachemanager &)=delete; /* copy constructor disabled */
     openclcachemanager& operator=(const openclcachemanager &)=delete; /* assignment disabled */
 
-    cl_command_queue get_queue_no_ref(cl_context context,cl_device_id device)
+
+    cl_command_queue _get_queue_no_ref(cl_context context,cl_device_id device)
+    // internal version for when adminlock is alread held 
     {
+    
       auto c_d = context_device(context,device);
       auto iter = queue_map.find(c_d);
       if (iter==queue_map.end()) {
@@ -359,9 +363,17 @@ namespace snde {
       }
       return queue_map[c_d].get_noref();
     }
+    
+    cl_command_queue get_queue_no_ref(cl_context context,cl_device_id device)
+    {
+      std::lock_guard<std::mutex> adminlock(admin);
+      return _get_queue_no_ref(context,device);
+      
+    }
 
     cl_command_queue get_queue_ref(cl_context context,cl_device_id device)
     {
+      std::lock_guard<std::mutex> adminlock(admin);
       auto c_d = context_device(context,device);
       auto iter = queue_map.find(c_d);
       if (iter==queue_map.end()) {
@@ -377,6 +389,7 @@ namespace snde {
     
     cl_command_queue_wrapped get_queue(cl_context context,cl_device_id device)
     {
+      std::lock_guard<std::mutex> adminlock(admin);
       auto c_d = context_device(context,device);
       auto iter = queue_map.find(c_d);
       if (iter==queue_map.end()) {
@@ -413,7 +426,17 @@ namespace snde {
       
     }
       
+    virtual void mark_as_gpu_modified(cl_context context, cl_device_id device, void **arrayptr,snde_index pos,snde_index len)
+    {
+      openclarrayinfo arrayinfo=openclarrayinfo(context,device,arrayptr);
+      
+      std::unique_lock<std::mutex> adminlock(admin);
 
+      std::shared_ptr<_openclbuffer> buffer=buffer_map.at(arrayinfo);
+      buffer->mark_as_gpu_modified(pos,len);
+
+    }
+    
     
     virtual void mark_as_dirty(std::shared_ptr<arraymanager> specified_manager,void **arrayptr,snde_index pos,snde_index numelem)
     {
@@ -426,7 +449,8 @@ namespace snde {
   
     void _TransferInvalidRegions(cl_context context, cl_device_id device,std::shared_ptr<_openclbuffer> oclbuffer,void **arrayptr,snde_index firstelem,snde_index numelem,std::vector<cl_event> &ev)
     // internal use only... initiates transfers of invalid regions prior to setting up a read buffer
-    // WARNING: operates in-place on prerequisite event vector ev 
+    // WARNING: operates in-place on prerequisite event vector ev
+    // assumes admin lock is held
     {
 
       std::shared_ptr<arraymanager> manager_strong(manager); /* as manager references us, it should always exist while we do. This will throw an exception if it doesn't */
@@ -456,7 +480,7 @@ namespace snde {
 	    evptr=&ev[0];
 	  }
 	  
-	  clEnqueueWriteBuffer(get_queue_no_ref(context,device),oclbuffer->buffer,CL_FALSE,offset,(invalidregion.second->regionend-invalidregion.second->regionstart)*oclbuffer->elemsize,(char *)*arrayptr + offset,ev.size(),evptr,&newevent);
+	  clEnqueueWriteBuffer(_get_queue_no_ref(context,device),oclbuffer->buffer,CL_FALSE,offset,(invalidregion.second->regionend-invalidregion.second->regionstart)*oclbuffer->elemsize,(char *)*arrayptr + offset,ev.size(),evptr,&newevent);
 	  
 	  /* now that it is enqueued we can replace our event list 
 	     with this newevent */
@@ -473,13 +497,15 @@ namespace snde {
 	}
 	
       }
-      
+
+      clFlush(_get_queue_no_ref(context,device));
     }
 
     std::shared_ptr<_openclbuffer> _GetBufferObject(cl_context context, cl_device_id device,void **arrayptr)
     {
       // internal use only; assumes admin lock is held;
 
+      //fprintf(stderr,"_GetBufferObject(0x%lx,0x%lx,0x%lx)... buffer_map.size()=%u, tid=0x%lx admin->__owner=0x%lx\n",(unsigned long)context,(unsigned long)device,(unsigned long)arrayptr,(unsigned)buffer_map.size(),(unsigned long)((pid_t)syscall(SYS_gettid)),(unsigned long) admin._M_mutex.__data.__owner);
 
       std::shared_ptr<_openclbuffer> oclbuffer;
       openclarrayinfo arrayinfo=openclarrayinfo(context,device,arrayptr);
@@ -493,17 +519,19 @@ namespace snde {
 	/* need to create buffer */
 	oclbuffer=std::make_shared<_openclbuffer>(context,thisalloc.alloc,thisalloc.totalnelem(),thisalloc.elemsize,arrayptr,&admin);
 	buffer_map[arrayinfo]=oclbuffer;
+	
+	//fprintf(stderr,"_GetBufferObject(0x%lx,0x%lx,0x%lx) created buffer_map entry. buffer_map.size()=%u, tid=0x%lx admin->__owner=0x%lx\n",(unsigned long)context,(unsigned long)device,(unsigned long)arrayptr,(unsigned)buffer_map.size(),(unsigned long)((pid_t)syscall(SYS_gettid)),(unsigned long) admin._M_mutex.__data.__owner);
 
 	std::vector<openclarrayinfo> & buffers_for_this_array=buffers_by_array[arrayinfo.arrayptr];
 	buffers_for_this_array.push_back(arrayinfo);
 	
       } else {
-	oclbuffer=buffer_map[arrayinfo];
+	oclbuffer=buffer_map.at(arrayinfo);
       }
 
       return oclbuffer;
     }
-
+  
       
     std::tuple<rwlock_token_set,cl_mem,std::vector<cl_event>> GetOpenCLSubBuffer(rwlock_token_set alllocks,cl_context context, cl_device_id device, void **arrayptr,snde_index startelem,snde_index numelem,bool write,bool write_only=false)
     {
@@ -668,7 +696,7 @@ namespace snde {
       rangetracker<openclregion>::iterator invalidregion;
       //size_t arrayidx=manager_strong->locker->get_array_idx(arrayptr);
 
-
+    
       oclbuffer=_GetBufferObject(context,device,arrayptr);
       /* Need to enqueue transfer (if necessary) and return an event set that can be waited for and that the
 	 clEnqueueKernel can be dependent on */
@@ -812,7 +840,7 @@ namespace snde {
 
       std::shared_ptr<_openclbuffer> oclbuffer;
 
-      oclbuffer=buffer_map[arrayinfo]; /* buffer should exist because should have been created in GetOpenCLBuffer() */
+      oclbuffer=buffer_map.at(arrayinfo); /* buffer should exist because should have been created in GetOpenCLBuffer() */
 
       /* check for pending events and accumulate them into wait list */
       /* ... all transfers in to this buffer should be complete before we allow a transfer out */
@@ -853,9 +881,12 @@ namespace snde {
 	  
 	  cl_event newevent=NULL;
 	  
-	  clEnqueueReadBuffer(get_queue_no_ref(context,device),oclbuffer->buffer,CL_FALSE,offset*oclbuffer->elemsize,(numelem)*oclbuffer->elemsize,((char *)(*arrayptr)) + (offset*oclbuffer->elemsize),wait_events.size(),&wait_events[0],&newevent);
+	  clEnqueueReadBuffer(_get_queue_no_ref(context,device),oclbuffer->buffer,CL_FALSE,offset*oclbuffer->elemsize,(numelem)*oclbuffer->elemsize,((char *)(*arrayptr)) + (offset*oclbuffer->elemsize),wait_events.size(),&wait_events[0],&newevent);
 	  dirtyregion.second->FlushDoneEvent=newevent;
-	  clRetainEvent(newevent);
+	  //fprintf(stderr,"Setting FlushDoneEvent...\n");
+
+	  clRetainEvent(newevent);/* dirtyregion retains a reference to newevent */
+
 	  
 	  /**** trigger marking of other caches as invalid */
 	  
@@ -867,9 +898,8 @@ namespace snde {
 	  }
 	  wait_events.clear();
 	  
-	  dirtyregion.second->FlushDoneEvent=newevent;
-	  clRetainEvent(newevent); /* dirtyregion retains a reference to newevent */
-
+	  //dirtyregion.second->FlushDoneEvent=newevent;
+	  //clRetainEvent(newevent); 
 
 	  /* queue up our callback request (queue it rather than do it now, so as to avoid a deadlock
 	     if it is processed inline) */
@@ -908,7 +938,7 @@ namespace snde {
 		dirtyregionptr->complete_condition.notify_all();
 		clReleaseEvent(dirtyregionptr->FlushDoneEvent);
 		dirtyregionptr->FlushDoneEvent=NULL;
-		
+		//fprintf(stderr,"FlushDoneEventComplete\n");
 
 		
 		})));
@@ -919,7 +949,7 @@ namespace snde {
 	}
       }
 	
-      
+      clFlush(_get_queue_no_ref(context,device));
       
       /* Trigger notifications to others once transfer is complete and we can release our admin lock */
       adminlock.unlock();
@@ -1028,7 +1058,7 @@ namespace snde {
       /* create arrayinfo key */
       openclarrayinfo arrayinfo=openclarrayinfo(context,device,arrayptr);
       
-      oclbuffer=buffer_map[arrayinfo]; /* buffer should exist because should have been created in GetOpenCLBuffer() */
+      oclbuffer=buffer_map.at(arrayinfo); /* buffer should exist because should have been created in GetOpenCLBuffer() */
 
       //std::vector<std::shared_ptr<opencldirtyregion>> *dirtyregions_copy=new std::vector<std::shared_ptr<opencldirtyregion>>();
 
@@ -1213,8 +1243,8 @@ namespace snde {
     
     
     if (!manager->has_cache("OpenCL")) {
-      /* create the cache manager since it doesn't exist */
-      manager->set_cache("OpenCL",std::make_shared<openclcachemanager>(manager));
+      /* create the cache manager since it may not exist (... or another thread could be creating int in parallel. set_undefined_cache will ignore us if it is already set */
+      manager->set_undefined_cache("OpenCL",std::make_shared<openclcachemanager>(manager));
     } 
     return std::dynamic_pointer_cast<openclcachemanager>(manager->get_cache("OpenCL"));
   }
@@ -1313,7 +1343,8 @@ namespace snde {
   
   class OpenCLBuffers {
     // Class for managing array of opencl buffers returned by the
-    // opencl array manager
+    // opencl array manager... SHOULD ONLY BE USED BY ONE THREAD.
+    
   public:
     cl_context context;  /* counted by clRetainContext() */
     cl_device_id device;  /* counted by clRetainDevice() */
@@ -1453,12 +1484,10 @@ namespace snde {
       OpenCLBuffer_info &info=buffers.at(OpenCLBufferKey(arrayptr,0,SNDE_INDEX_INVALID));
 
       
-      openclarrayinfo arrayinfo=openclarrayinfo(context,device,arrayptr);
-      
-      std::shared_ptr<_openclbuffer> buffer=info.cachemanager->buffer_map.at(arrayinfo);
       snde_index numelem=(*info.manager->allocators())[arrayptr].alloc->total_nelem();
+      info.cachemanager->mark_as_gpu_modified(context,device,arrayptr,0,numelem);
+      
 
-      buffer->mark_as_gpu_modified(0,numelem);
     }
 
     void BufferDirty(void **arrayptr,snde_index pos,snde_index len)
@@ -1467,9 +1496,8 @@ namespace snde {
     {
       OpenCLBuffer_info &info=buffers.at(OpenCLBufferKey(arrayptr,0,SNDE_INDEX_INVALID));
       
-      openclarrayinfo arrayinfo=openclarrayinfo(context,device,arrayptr);
-      std::shared_ptr<_openclbuffer> buffer=info.cachemanager->buffer_map.at(arrayinfo);
-      buffer->mark_as_gpu_modified(pos,len);
+      info.cachemanager->mark_as_gpu_modified(context,device,arrayptr,pos,len);
+      
     }
     void SubBufferDirty(void **arrayptr,snde_index sb_pos,snde_index sb_len)
     /* This indicates that the array region has been written to by an OpenCL kernel, 
@@ -1477,9 +1505,8 @@ namespace snde {
     {
       OpenCLBuffer_info &info=buffers.at(OpenCLBufferKey(arrayptr,sb_pos,sb_len));
 
-      openclarrayinfo arrayinfo=openclarrayinfo(context,device,arrayptr);
-      std::shared_ptr<_openclbuffer> buffer=info.cachemanager->buffer_map.at(arrayinfo);
-      buffer->mark_as_gpu_modified(sb_pos,sb_len);
+      info.cachemanager->mark_as_gpu_modified(context,device,arrayptr,sb_pos,sb_len);
+      
     }
 
     void SubBufferDirty(void **arrayptr,snde_index sb_pos,snde_index sb_len,snde_index dirtypos,snde_index dirtylen)
@@ -1488,9 +1515,7 @@ namespace snde {
     {
       OpenCLBuffer_info &info=buffers.at(OpenCLBufferKey(arrayptr,sb_pos,sb_len));
 
-      openclarrayinfo arrayinfo=openclarrayinfo(context,device,arrayptr);
-      std::shared_ptr<_openclbuffer> buffer=info.cachemanager->buffer_map.at(arrayinfo);
-      buffer->mark_as_gpu_modified(sb_pos+dirtypos,dirtylen);
+      info.cachemanager->mark_as_gpu_modified(context,device,arrayptr,sb_pos+dirtypos,dirtylen);
     }
 
 

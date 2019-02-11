@@ -205,8 +205,10 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 	  throw openclerror(err,"Error enqueueing kernel");
 	}
 	
+	clFlush(queue); /* trigger execution */
+
 	Buffers.SubBufferDirty(dep->outputs[0].array,dep->outputs[0].start,dep->outputs[0].len);
-	Buffers.RemBuffers(kernel_complete,kernel_complete,true); /* trigger execution... wait for completion */
+	Buffers.RemBuffers(kernel_complete,kernel_complete,true); /* wait for completion */
 	clReleaseEvent(kernel_complete);
 
 

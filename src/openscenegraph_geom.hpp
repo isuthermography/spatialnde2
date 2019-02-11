@@ -21,7 +21,6 @@
 *  THE SOFTWARE.
 */
 
-//#include <unistd.h> // temporary... for sleep(3)
 
 #include <osg/Array>
 #include <osg/Geode>
@@ -81,12 +80,12 @@ namespace snde {
 extern opencl_program vertexarray_opencl_program;
 
 
-static snde_index vertexarray_from_instance_vertexarrayslocked(std::shared_ptr<geometry> geom,rwlock_token_set all_locks,snde_index meshedpartnum,snde_index outaddr,snde_index outlen,cl_context context,cl_device_id device,cl_command_queue queue)
+static snde_index vertexarray_from_instance_vertexarrayslocked(std::shared_ptr<geometry> geom,rwlock_token_set all_locks,snde_index partnum,snde_index outaddr,snde_index outlen,cl_context context,cl_device_id device,cl_command_queue queue)
 /* Should already have read locks on the part referenced by instance via obtain_lock() and the entire vertexarray locked for write */
 /* Need to make copy... texvertexarray_... that operates on texture */
 {
 
-  snde_meshedpart &part = geom->geom.meshedparts[meshedpartnum];
+  snde_part &part = geom->geom.parts[partnum];
 
 
   assert(outlen==part.numtris*9);
@@ -110,7 +109,7 @@ static snde_index vertexarray_from_instance_vertexarrayslocked(std::shared_ptr<g
   // The third parameter is the array element to be passed
   // (actually comes from the OpenCL cache)
   
-  Buffers.AddSubBufferAsKernelArg(geom->manager,vertexarray_kern,0,(void **)&geom->geom.meshedparts,meshedpartnum,1,false);
+  Buffers.AddSubBufferAsKernelArg(geom->manager,vertexarray_kern,0,(void **)&geom->geom.parts,partnum,1,false);
 
   
   Buffers.AddSubBufferAsKernelArg(geom->manager,vertexarray_kern,1,(void **)&geom->geom.triangles,part.firsttri,part.numtris,false);
@@ -129,10 +128,11 @@ static snde_index vertexarray_from_instance_vertexarrayslocked(std::shared_ptr<g
     throw openclerror(err,"Error enqueueing kernel");
   }
   /*** Need to mark as dirty; Need to Release Buffers once kernel is complete ****/
+
+  clFlush(queue); /* trigger execution */
   Buffers.SubBufferDirty((void **)&geom->geom.vertex_arrays,outaddr,part.numtris*9,0,part.numtris*9);
 
-  
-  Buffers.RemBuffers(kernel_complete,kernel_complete,true); /* trigger execution... don't wait for completion */
+  Buffers.RemBuffers(kernel_complete,kernel_complete,true); 
   // Actually, we SHOULD wait for completion. (we are running in a compute thread, so waiting isn't really a problem)
   // (Are there unnecessary locks we can release first?)
   // ***!!! NOTE: Possible bug: If we manually step in the
@@ -141,8 +141,10 @@ static snde_index vertexarray_from_instance_vertexarrayslocked(std::shared_ptr<g
   // ... If we just insert a sleep, though, clWaitForEvents works
   // fine. Perhaps a debugger/PoCL interaction? 
   //sleep(3);
-  //clWaitForEvents(1,&kernel_complete);
-    
+  clWaitForEvents(1,&kernel_complete);
+  //fprintf(stderr,"VertexArray kernel complete\n");
+  
+  
   clReleaseEvent(kernel_complete);
 
   // Release our reference to kernel, allowing it to be free'd
@@ -357,7 +359,7 @@ struct osg_snde_partinstance_hash
   /* note: we ignore orientation in the hash/equality operators! */
   size_t operator()(const snde_partinstance &x) const
   {
-    return std::hash<snde_index>{}(x.nurbspartnum) + std::hash<snde_index>{}(x.meshedpartnum)  + std::hash<snde_index>{}(x.mesheduvnum); /* + std::hash<snde_index>{}(x.firstuvpatch)*/
+    return /*std::hash<snde_index>{}(x.nurbspartnum) +*/ std::hash<snde_index>{}(x.partnum)  + std::hash<snde_index>{}(x.uvnum); /* + std::hash<snde_index>{}(x.firstuvpatch)*/
 									      
   }
 };
@@ -367,7 +369,7 @@ struct osg_snde_partinstance_equal
   /* note: we ignore orientation in the hash/equality operators! */
   bool operator()(const snde_partinstance &x, const snde_partinstance &y) const
   {
-    return x.nurbspartnum==y.nurbspartnum && x.meshedpartnum==y.meshedpartnum && x.mesheduvnum==y.mesheduvnum; /* && x.firstuvpatch==y.firstuvpatch  */
+    return /*x.nurbspartnum==y.nurbspartnum &&*/ x.partnum==y.partnum && x.uvnum==y.uvnum; /* && x.firstuvpatch==y.firstuvpatch  */
 									      
   }
 };
@@ -388,15 +390,15 @@ public:
   osg::ref_ptr<osg::Geode> geode;
   osg::ref_ptr<osg::Geometry> geom;
   osg::ref_ptr<osg::DrawArrays> drawarrays;
-  bool isnurbs;
+  //bool isnurbs;
   osg::ref_ptr<snde::OSGArray> DataArray;
   osg::ref_ptr<snde::OSGArray> NormalArray;
   std::shared_ptr<trm_dependency> vertex_function; /* revision_manager function that renders winged edge structure into vertices */
   
 
   /* Remaining fields are updated when the vertex_function executes */
-  struct snde_meshedpart partdata_meshed;
-  struct snde_nurbspart partdata_nurbs;
+  struct snde_part partdata;
+  //struct snde_nurbspart partdata_nurbs;
   snde_index cachedversion;
   
   
@@ -413,7 +415,7 @@ public:
     this->snde_geom=snde_geom;
     geode=NULL;
     geom=NULL;
-    isnurbs=false;
+    //isnurbs=false;
     cachedversion=0;
 
     instance.orientation.offset.coord[0]=0.0;
@@ -424,11 +426,11 @@ public:
     instance.orientation.quat.coord[1]=0.0;
     instance.orientation.quat.coord[2]=0.0;
     instance.orientation.quat.coord[3]=0.0;
-    instance.nurbspartnum=SNDE_INDEX_INVALID;
-    instance.meshedpartnum=SNDE_INDEX_INVALID;
-    instance.firstuvpatch=SNDE_INDEX_INVALID;
-    instance.numuvpatches=SNDE_INDEX_INVALID;
-    instance.mesheduvnum=SNDE_INDEX_INVALID;
+    //instance.nurbspartnum=SNDE_INDEX_INVALID;
+    instance.partnum=SNDE_INDEX_INVALID;
+    instance.firstuvimage=SNDE_INDEX_INVALID;
+    //instance.numuvimages=SNDE_INDEX_INVALID;
+    instance.uvnum=SNDE_INDEX_INVALID;
     instance.imgbuf_extra_offset=0;
     //vertex_start_index=SNDE_INDEX_INVALID;
     //numvertices=0;
@@ -459,7 +461,7 @@ public:
     
     /* Obtain lock for this component -- in parallel with our write lock on the vertex array, below */
     if (readmask != 0 || writemask != 0) {
-      lockprocess->spawn( [ comp, lockprocess, readmask, writemask ]() { comp->obtain_lock(lockprocess,SNDE_COMPONENT_GEOM_MESHEDPARTS | readmask, writemask); });
+      lockprocess->spawn( [ comp, lockprocess, readmask, writemask ]() { comp->obtain_lock(lockprocess,SNDE_COMPONENT_GEOM_PARTS | readmask, writemask); });
     }
     
     if (include_vertex_arrays && vertex_arrays_write && !vertex_arrays_entire_array) {
@@ -591,7 +593,7 @@ public:
       entry->second.geom->setUseVertexBufferObjects(true);
       entry->second.geode->addDrawable(entry->second.geom.get());
       
-      entry->second.isnurbs = (instance.nurbspartnum != SNDE_INDEX_INVALID);
+      //entry->second.isnurbs = (instance.nurbspartnum != SNDE_INDEX_INVALID);
       entry->second.DataArray = new snde::OSGArray(snde_geom,(void **)&snde_geom->geom.vertex_arrays,SNDE_INDEX_INVALID,sizeof(snde_coord),3,0);
 
       // From the OSG perspective NormalArray is just a bunch of normals.
@@ -603,26 +605,26 @@ public:
       /* seed first input for dependency function -- regionupdater will provide the rest */
       std::vector<trm_arrayregion> inputs_seed;
       // ****!!!!! NEED TO EXPLICITLY DECLARE NORMALS AS A DEPENDENCY ***!!!
-      inputs_seed.emplace_back(snde_geom->manager,(void **)&snde_geom->geom.meshedparts,instance.meshedpartnum,1);
+      inputs_seed.emplace_back(snde_geom->manager,(void **)&snde_geom->geom.parts,instance.partnum,1);
       
       entry->second.vertex_function=rendering_revman->add_dependency_during_update(
 								  // Function
 								  // input parameters are:
-								  // meshedpart
-								  // triangles, based on meshedpart.firsttri and meshedpart.numtris
-								  // edges, based on meshedpart.firstedge and meshedpart.numedges
-								  // vertices, based on meshedpart.firstvertex and meshedpart.numvertices
+								  // part
+								  // triangles, based on part.firsttri and part.numtris
+								  // edges, based on part.firstedge and part.numedges
+								  // vertices, based on part.firstvertex and part.numvertices
 								  
 								       [ entry_ptr,comp,shared_cache ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> inputchangedregions) {
 						      entry_ptr->cachedversion=newversion;
 						      
-						      // get inputs: meshedpart, triangles, edges, vertices, normals
-						      //snde_meshedpart meshedp;
+						      // get inputs: part, triangles, edges, vertices, normals
+						      //snde_part meshedp;
 						      //trm_arrayregion triangles, edges, vertices;
 						      
-						      //std::tie(meshedp,triangles,edges,vertices) = extract_regions<singleton<snde_meshedpart>,rawregion,rawregion,rawregion>(dep->inputs);
+						      //std::tie(meshedp,triangles,edges,vertices) = extract_regions<singleton<snde_part>,rawregion,rawregion,rawregion>(dep->inputs);
 
-						      fprintf(stderr,"Vertex array generation\n");
+						      //fprintf(stderr,"Vertex array generation\n");
 						      
 						      
 						      // get output location from outputs
@@ -637,29 +639,29 @@ public:
 						      entry_ptr->DataArray->nvec = vertex_array_out.len/3; // vertex_array_out.len is in number of coordinates; DataArray is counted in vectors
 						      
 						      // Perform locking
-						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,SNDE_COMPONENT_GEOM_MESHEDPARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,0,true,true,false);
+						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,0,true,true,false);
 						      //fprintf(stderr,"vertexarray locked for write\n");
 						      //fflush (stderr);
 						      
 						      entry_ptr->DataArray->offset = vertex_array_out.start;
-						      entry_ptr->DataArray->nvec = shared_cache->snde_geom->geom.meshedparts[entry_ptr->instance.meshedpartnum].numtris*3; // DataArray is counted in terms of (x,y,z) vectors, so three sets of coordinates per triangle
+						      entry_ptr->DataArray->nvec = shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].numtris*3; // DataArray is counted in terms of (x,y,z) vectors, so three sets of coordinates per triangle
 						      // Should probably convert write lock to read lock and spawn this stuff off, maybe in a different thread (?) (WHY???) 						      
 						      vertexarray_from_instance_vertexarrayslocked(shared_cache->snde_geom,all_locks,dep->inputs[0].start,vertex_array_out.start,vertex_array_out.len,shared_cache->context,shared_cache->device,shared_cache->queue);
 						      
 
-						      entry_ptr->NormalArray->offset = shared_cache->snde_geom->geom.meshedparts[entry_ptr->instance.meshedpartnum].firsttri*9; // offset counted in terms of floating point numbers
-						      entry_ptr->NormalArray->nvec = shared_cache->snde_geom->geom.meshedparts[entry_ptr->instance.meshedpartnum].numtris*3;
+						      entry_ptr->NormalArray->offset = shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].firsttri*9; // offset counted in terms of floating point numbers
+						      entry_ptr->NormalArray->nvec = shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].numtris*3;
 
-						      if (entry_ptr->drawarrays->getCount() > shared_cache->snde_geom->geom.meshedparts[entry_ptr->instance.meshedpartnum].numtris) {
+						      if (entry_ptr->drawarrays->getCount() > shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].numtris) {
 							entry_ptr->drawarrays->setCount(0);
 						      }
 
 						      entry_ptr->geom->setNormalArray(entry_ptr->NormalArray, osg::Array::BIND_PER_VERTEX); /* Normals might be dirty too... */
-						      fprintf(stderr,"setVertexArray()\n");
+						      //fprintf(stderr,"setVertexArray()\n");
 						      entry_ptr->geom->setVertexArray(entry_ptr->DataArray); /* tell OSG this is dirty */
 
-						      if (entry_ptr->drawarrays->getCount() != shared_cache->snde_geom->geom.meshedparts[entry_ptr->instance.meshedpartnum].numtris*3) {
-							entry_ptr->drawarrays->setCount(shared_cache->snde_geom->geom.meshedparts[entry_ptr->instance.meshedpartnum].numtris*3);
+						      if (entry_ptr->drawarrays->getCount() != shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].numtris*3) {
+							entry_ptr->drawarrays->setCount(shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].numtris*3);
 						      }
 
 						      // ***!!! Should we express as tuple, then do tuple->vector conversion?
@@ -675,26 +677,26 @@ public:
 						    [ shared_cache, entry_ptr,comp ] (std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
 						      // Regionupdater function
 						      // See Function input parameters, above
-						      // Extract the first parameter (meshedpart) only
+						      // Extract the first parameter (part) only
 						      
 						      // Perform locking
-						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,SNDE_COMPONENT_GEOM_MESHEDPARTS,0,false,false,false);
+						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,SNDE_COMPONENT_GEOM_PARTS,0,false,false,false);
 
 
 						      // Note: We would really rather this
 						      // be a reference but there is no good way to do that until C++17
 						      // See: https://stackoverflow.com/questions/39103792/initializing-multiple-references-with-stdtie
-						      snde_meshedpart meshedpart;
+						      snde_part part;
 						      
-						      // Construct the regions based on the meshedpart
-						      std::tie(meshedpart) = extract_regions<singleton<snde_meshedpart>>(std::vector<trm_arrayregion>(inputs.begin(),inputs.begin()+1));
+						      // Construct the regions based on the part
+						      std::tie(part) = extract_regions<singleton<snde_part>>(std::vector<trm_arrayregion>(inputs.begin(),inputs.begin()+1));
 						      
 						      std::vector<trm_arrayregion> new_inputs;
 						      new_inputs.push_back(inputs[0]);
-						      new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.triangles,meshedpart.firsttri,meshedpart.numtris);
-						      new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.edges,meshedpart.firstedge,meshedpart.numedges);
-						      new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.vertices,meshedpart.firstvertex,meshedpart.numvertices);
-						      new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.normals,meshedpart.firsttri,meshedpart.numtris);
+						      new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.triangles,part.firsttri,part.numtris);
+						      new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.edges,part.firstedge,part.numedges);
+						      new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.vertices,part.firstvertex,part.numvertices);
+						      new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.normals,part.firsttri,part.numtris);
 						      return new_inputs;
 						      
 						    }, 
@@ -702,10 +704,10 @@ public:
 						    [ shared_cache,entry_ptr,comp ](std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
 						      // update_output_regions()
 						      
-						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,SNDE_COMPONENT_GEOM_MESHEDPARTS,0,true,true,true); // Must lock entire vertex_arrays here because we may need to reallocate it. Also when calling this we don't necessarily know the correct positioning. 
+						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,SNDE_COMPONENT_GEOM_PARTS,0,true,true,true); // Must lock entire vertex_arrays here because we may need to reallocate it. Also when calling this we don't necessarily know the correct positioning. 
 
 									       
-						      // Inputs: meshedpart
+						      // Inputs: part
 						      //         triangles
 						      //         edges
 						      //         vertices
@@ -713,8 +715,8 @@ public:
 						      snde_index numtris=0;
 						      
 						      if (inputs[0].len > 0) {
-							assert(inputs[0].len==1); // sizeof(snde_meshedpart));
-							numtris=((struct snde_meshedpart *)(*inputs[0].array))[inputs[0].start].numtris;
+							assert(inputs[0].len==1); // sizeof(snde_part));
+							numtris=((struct snde_part *)(*inputs[0].array))[inputs[0].start].numtris;
 						      }
 						      snde_index neededsize=numtris*9; // 9 vertex coords per triangle
 						      
@@ -765,11 +767,11 @@ public:
       //geode->addDrawable( geom.get() );
 
       
-      // entry->partdata_meshed = geom->geom.meshedparts[instance.meshedpartnum];
+      // entry->partdata = geom->geom.parts[instance.partnum];
       // /* could copy partdata_nurbs here if this is a NURBS part !!!*** */
       // entry->cachedversion=thisversion;
       // entry.vertex_start_index = vertexarray_from_instance_vertexarrayslocked(geom,holder,all_locks,instances[cnt],context,device,queue);
-      // entry.numvertices=geom->geom.meshedparts[instance.meshedpartnum].numtris*3;
+      // entry.numvertices=geom->geom.parts[instance.partnum].numtris*3;
       return entry_ptr;
     } else {
       /* return shared pointer from stored weak pointer */
@@ -845,9 +847,9 @@ public:
     oldinstances=instances;
     oldcacheentries=cacheentries;
     
-    auto emptyparamdict = std::make_shared<std::unordered_map<std::string,paramdictentry>>();
+    //auto emptyparamdict = std::make_shared<std::unordered_map<std::string,paramdictentry>>();
 
-    instances = comp->get_instances(snde_null_orientation3(),emptyparamdict);
+    instances = comp->get_instances(snde_null_orientation3(),std::unordered_map<std::string,std::shared_ptr<uv_images>>());
     cacheentries.clear();
     
     size_t pos=0;
@@ -888,8 +890,8 @@ public:
       xform->setMatrix(translate*rotate);
 
       /* only meshed version implemented so far */
-      assert(instance_comp.first.nurbspartnum == SNDE_INDEX_INVALID);
-      assert(instance_comp.first.meshedpartnum != SNDE_INDEX_INVALID);
+      //assert(instance_comp.first.nurbspartnum == SNDE_INDEX_INVALID);
+      assert(instance_comp.first.partnum != SNDE_INDEX_INVALID);
 
       if (newcacheentry && newxform) {
 	xform->addChild(cacheentry->geode);
@@ -928,7 +930,7 @@ public:
   /* Should have just done an Update() so that cacheentries is up-to-date */
   {
     for (auto & cacheentry: cacheentries) {
-      lockprocess->spawn( [ cacheentry, holder, lockprocess, this]() { cacheentry->obtain_array_locks(holder,lockprocess,comp,SNDE_COMPONENT_GEOM_MESHEDPARTS|SNDE_COMPONENT_GEOM_NORMALS, 0,true, false, false); });
+      lockprocess->spawn( [ cacheentry, holder, lockprocess, this]() { cacheentry->obtain_array_locks(holder,lockprocess,comp,SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_NORMALS, 0,true, false, false); });
     }
   }
 };
@@ -940,7 +942,7 @@ public:
   This function SHOULD (currently doesn't) create and return an osg::Group (or subclass) representing a component. 
    The group should contain osg::MatrixTransforms with osg::Geodes with corresponding osg::Geometries for all of the instances. 
 
-   The Geodes and Geometries come from a cache based on the underlying meshedpart (or, eventually, nurbspart). 
+   The Geodes and Geometries come from a cache based on the underlying part (or, eventually, nurbspart). 
    The osg::Group subclass should contain additional data structures with references to the cache entries 
 
    The cache defines TRM dependencies for calculating the vertex_array data from the winged edge mesh. 
@@ -967,8 +969,8 @@ public:
    doesn't invalidate existing pointers when you change it. 
 
    SOLUTION: High level function (maybe evolution of OSG_From_Component()) that creates concrete visualization of a component, 
-   causing math functions for the vertex_arrays of the various underlying meshedparts to be created. Also causing osg::Geometry objects
-   for those meshedparts to be created. Need to make sure OSG objects will be automatically updated when parameters change. 
+   causing math functions for the vertex_arrays of the various underlying parts to be created. Also causing osg::Geometry objects
+   for those parts to be created. Need to make sure OSG objects will be automatically updated when parameters change. 
    Then on render, just need to get read_lock on vertex_arrays, update the scene graph to match output of comp->get_instances(), 
    and trigger the render. 
 
@@ -1029,7 +1031,7 @@ public:
 //      
 //    /* only meshed version implemented so far */
 //    assert(instances[cnt].nurbspartnum == SNDE_INDEX_INVALID);
-//    assert(instances[cnt].meshedpartnum != SNDE_INDEX_INVALID);
+//    assert(instances[cnt].partnum != SNDE_INDEX_INVALID);
 //    snde_index vertex_start_index = cacheentry.vertex_start_index; 
 //
 //    //instances[cnt]
@@ -1055,7 +1057,7 @@ public:
 //  for (size_t cnt=0;cnt < instances.size();cnt++)
 //  {
 //    /* *** We cache the underlying data of the OSGArrays, but not the OSGArray itself... (will this be a performance problem?) */
-//    osg::ref_ptr<snde::OSGArray> vertexarray(new snde::OSGArray(&geom->geom.vertex_arrays,startindices[cnt],sizeof(snde_coord),3,geom->geom.meshedparts[instances[cnt]->meshedpartnum].numtris));
+//    osg::ref_ptr<snde::OSGArray> vertexarray(new snde::OSGArray(&geom->geom.vertex_arrays,startindices[cnt],sizeof(snde_coord),3,geom->geom.parts[instances[cnt]->partnum].numtris));
 //    
 //    /* ***!!!! We should make setVertexArray conditional on something actually changing and move the vertexarray itself into the cache !!!*** */
 //    instancegeoms[cnt]->setVertexArray(vertexarray.get());

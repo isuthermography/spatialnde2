@@ -1,7 +1,7 @@
 /* implicit include of geometry_types.h */
 /* implicit include of vecops.h */
 
-__kernel void normalcalc(__global const struct snde_meshedpart *meshedpart,
+__kernel void normalcalc(__global const struct snde_part *part,
 			 __global const snde_triangle *part_triangles,
 			 __global const snde_edge *part_edges,
 			 __global const snde_coord3 *part_vertices,
@@ -25,10 +25,10 @@ __kernel void normalcalc(__global const struct snde_meshedpart *meshedpart,
   while (edgecnt < 3) {
     //printf("thisedge=%d\n",(int)thisedge);
     
-    if (part_edges[thisedge].face_a==trianglenum) {
-      nextedge = part_edges[thisedge].face_a_next_edge;  /* get our next edge from the Winged Edge */
+    if (part_edges[thisedge].tri_a==trianglenum) {
+      nextedge = part_edges[thisedge].tri_a_next_edge;  /* get our next edge from the Winged Edge */
     } else {
-      nextedge = part_edges[thisedge].face_b_next_edge;
+      nextedge = part_edges[thisedge].tri_b_next_edge;
     }
     //printf("nextedge=%d\n",(int)nextedge);
 

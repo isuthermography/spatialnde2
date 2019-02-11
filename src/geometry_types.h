@@ -1,5 +1,11 @@
+#ifndef __OPENCL_VERSION__
+// if this is not an OpenCL kernel
+#include <assert.h>
+#endif
+
 #ifndef SNDE_GEOMETRY_TYPES
 #define SNDE_GEOMETRY_TYPES
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,6 +22,7 @@ typedef uint snde_shortindex;
 typedef long snde_ioffset;
 typedef unsigned char snde_bool;
 typedef unsigned char uint8_t;
+typedef unsigned int uint32_t;
   
 #else
   //#if 0 && defined(SNDE_OPENCL)
@@ -49,8 +56,26 @@ typedef unsigned char snde_bool;
   //#endif /* 0 && SNDE_OPENCL*/
 #endif /* __OPENCL_VERSION__ */
 
+#define SIZEOF_SNDE_INDEX 8 // must be kept consistent with typedefs!
+  
 #define SNDE_INDEX_INVALID (~((snde_index)0))
-
+#define SNDE_DIRECTION_CCW 0 // counterclockwise
+#define SNDE_DIRECTION_CW 1 // clockwise
+  
+static inline int snde_direction_flip(int direction)
+{
+  if (direction==SNDE_DIRECTION_CCW) {
+    return SNDE_DIRECTION_CW;
+  } else if (direction==SNDE_DIRECTION_CW) {
+    return SNDE_DIRECTION_CCW;
+  } else {
+#ifndef __OPENCL_VERSION__
+    assert(0); // bad direction
+#endif
+  }
+  return SNDE_DIRECTION_CCW;
+}
+  
 typedef struct {
   snde_coord coord[4];
 } snde_coord4;
@@ -81,7 +106,7 @@ typedef struct {
     uint8_t NaNconstLE[4]={ 0x00,0x00,0xc0,0x7f };
     uint8_t NaNconstBE[4]={ 0x7f,0xc0,0x00,0x00 };
 
-    if (*((uint32_t*)NaNconstBE) & 0xff == 0x00) {
+    if ((*((uint32_t*)NaNconstBE) & 0xff) == 0x00) {
       // big endian
       return (double)*((float *)NaNconstBE);
     } else {
@@ -112,11 +137,14 @@ typedef struct {
   snde_coord coord[3];
 } snde_axis3;
 
+
+  /* Note: mesh edges (snde_edge) connect between triangles, 
+     see struct snde_faceedge for connection between faces */ 
 typedef struct {
   snde_index vertex[2];
-  snde_index face_a,face_b;
-  snde_index face_a_prev_edge, face_a_next_edge; /* counter-clockwise ordering */
-  snde_index face_b_prev_edge, face_b_next_edge; /* counter-clockwise ordering */
+  snde_index tri_a,tri_b;
+  snde_index tri_a_prev_edge, tri_a_next_edge; /* counter-clockwise ordering */
+  snde_index tri_b_prev_edge, tri_b_next_edge; /* counter-clockwise ordering */
 } snde_edge;
 
 
@@ -127,7 +155,8 @@ typedef struct {
 
 typedef struct {
   snde_index edges[3];
-} snde_triangle;
+  snde_index face; // topological face (3D or 2D depending on whether this is part of triangles or uv_triangles) this triangle is part of (index, relative to first_topo) 
+} snde_triangle; // NOTE if this triangle does not exist, is invalid, etc, then face should be set to SNDE_INDEX_INVALID
   
 typedef struct {
   snde_index start;
@@ -141,6 +170,7 @@ typedef struct {
 typedef struct {
   snde_index subbox[8];
   snde_index boxpolysidx;
+  snde_index numboxpolys; 
 } snde_box3;
 
 typedef struct {
@@ -150,7 +180,7 @@ typedef struct {
 typedef struct {
   snde_index subbox[4];
   snde_index boxpolysidx;
-  snde_index numboxpolys; /* why we have this member for 2D boxes but not 3D boxes is unclear... should probably be consistent */
+  snde_index numboxpolys; 
 } snde_box2;
 
 typedef struct {
@@ -191,6 +221,7 @@ struct snde_nurbsubssurfaceuv {
 struct snde_nurbssurfaceuv {
   snde_index nurbssurface; /* surface we are reparameterizing */
   snde_index firstnurbssubsurfaceuv, numnurbssubsurfaceuv;
+  bool valid;
 };
   
 struct snde_nurbsuv {
@@ -202,25 +233,37 @@ struct snde_nurbsuv {
   
   snde_index firstuvbox, numuvboxes;
   snde_index firstuvboxpoly,numuvboxpoly;
-  snde_index firstuvboxcoord,numuvboxcoords; 
 
 };
 
   
 
-struct snde_trimcurvesegment {
-  snde_index firstcontrolpointtrim,numcontrolpointstrim;
-  snde_index firstweight,numweights;
-  snde_index firstknot,numknots;
-  snde_index order;
-};
+  //struct snde_trimcurvesegment {  // replaced with nurbsedge
+  //snde_index firstcontrolpointtrim,numcontrolpointstrim;
+  //snde_index firstweight,numweights;
+  //snde_index firstknot,numknots;
+  //snde_index order;
+  //};
 
 struct snde_nurbsedge {
-  snde_index firstcontrolpoint,numcontrolpoints;
+  snde_index firstcontrolpoint,numcontrolpoints; // index into 2D or 3D control point array according
+  // to context: 3D for edges between surfaces, 2D for trim curves or edges in uv parameterization
   snde_index firstweight,numweights;
   snde_index firstknot,numknots;
   snde_index order;
+  snde_bool valid;
 };
+
+  struct snde_meshededge { // additional edge structure showing mesh entries that comprise a face edge
+  snde_index firstmeshedgeindex; // indices are stored in the topo_indices array, and refer to
+                                 // mesh edges... Edges start from the vertex[0] of the
+                                 // faceedge and go to the vertex[1] of the faceedge.
+                                 // refer either to 3D edges or 2D uv_edges depending
+                                 // on context... edges in CCW order!
+  snde_index nummeshedgeindices;
+  snde_bool valid; 
+};
+  
 
 struct snde_nurbssurface {
   snde_index firstcontrolpoint,numcontrolpoints; /* NOTE: Control points are in part coordinates, and need to be transformed */
@@ -228,67 +271,174 @@ struct snde_nurbssurface {
   snde_index firstuknot,numuknots;
   snde_index firstvknot,numvknots;
   snde_index uorder,vorder;
-  snde_index firstnurbsedgeindex,numnurbsedgeindices; /* edges form a closed loop in (x,y,z) space. Note that multiple surfaces which share an edge need to refer to the same edge database entry */ 
-  snde_index firsttrimcurvesegment,numtrimcurvesegments; /* trim curve segments form a closed loop in (u,v) space and are the projection of the edge onto this surface. Should be ordered in parallel with firstnurbsedgeindex, etc .*/ 
+  snde_index firsttrimcurvesegment,numtrimcurvesegments; /* trim curve segments form a closed loop in (u,v) space and are the projection of the edge onto this surface. Should be ordered in parallel with the faceedgeindices of the underlying snde_face, etc. struct snde_nurbsedge, but referring to 2D control point array by context */ 
   snde_bool uclosed,vclosed;
+  snde_bool valid;
 };
 
-
-  
-struct snde_nurbspart {
-  snde_orientation3 orientation; /* orientation of this part relative to its environment */
-  snde_index firstnurbssurface,numnurbssurfaces;
-
-  snde_index firstbox,numboxes;
-  snde_index firstboxnurbssurface,numboxnurbssurfaces; /* nurbs equivalent of boxpolys */
-  snde_index firstboxcoord,numboxcoords; /* NOTE: Boxes are in part coordinates, and need to be transformed */
-  
-  snde_bool solid;
-  
-};
-
-
-
-  
-struct snde_meshedpart { /* !!!*** Be careful about CPU <-> GPU structure layout differences ***!!! */
+    
+struct snde_meshedsurface { /* !!!*** Be careful about CPU <-> GPU structure layout differences ***!!! */
   /* indices into raw geometry */
   /* snde_orientation3 orientation; (orientation now */ /* orientation of this part relative to its environment */
-  snde_index firsttri,numtris; /* apply to triangles, refpoints, maxradius, normal, inplanemat */
-  snde_index firstedge,numedges; /* apply to edges, r */
-  snde_index firstvertex,numvertices; /* NOTE: Vertices must be transformed according to orientation prior to rendering */ /* These indices also apply to principal_curvatures and principal_tangent_axes, if present */
-  snde_index first_vertex_edgelist,num_vertex_edgelist; 
+  
+  // winged edge triangular mesh
+  snde_index firsttri,numtris; /* apply to triangles, refpoints, maxradius, normal, inplanemat... WITHIN the pool specified in the snde_part */
 
-  /* indices into calculated fields */
-  snde_index firstbox,numboxes;  /* also applies to boxcoord */
-  snde_index firstboxpoly,numboxpolys; /* NOTE: Boxes are in part coordinates, not world coordinates */
-    
- 
-  snde_bool solid; // If nonzero, this part is considered solid (fully enclosed), so the back side does not need to be rendered. Otherwise, it may be a bounded surface
-  snde_bool has_triangledata; // Have we stored/updated refpoints, maxradius, normal, inplanemat
-  snde_bool has_curvatures; // Have we stored principal_curvatures/curvature_tangent_axes? 
-  snde_bool pad1[5];
+  snde_bool valid; // is this snde_meshedsurface valid and can be used? 
+  snde_bool pad1[7];
+
+  // formerly 104 bytes total (pad carefully because precedes nurbssurface in snde_face data structure
 };
 
+  struct snde_mesheduvsurface {
 
-  
-struct snde_mesheduv {
-  /* snde_orientation2 orientation; */ /* orientation multiplied on right by coordinates of vertices to get output coordinates in parameterization */
-  /* snde_index meshedpartnum; */ /* Do we really need this? */
-  snde_index firstuvtri, numuvtris; /* triangles in mesheduv MUST line up with triangles in object. */
-  snde_index firstuvedge, numuvedges; /* triangles in mesheduv MUST line up with triangles in object. */
-  snde_index firstuvvertex,numuvvertices;
-  snde_index first_uv_vertex_edgelist,num_uv_vertex_edgelist; 
+  /* !!!*** Possible problem: What if we need to go from a triangle index 
+     to identify the uv surface? Answer: use the face index in the struct snde_triangle */
 
-  snde_index firstuvbox, numuvboxes; /* the first numuvpatches boxes correspond to the outer boxes for each patch */
-  snde_index firstuvboxpoly,numuvboxpoly;
-  snde_index firstuvboxcoord,numuvboxcoords; 
+  snde_index firstuvtriindex, numuvtriindices; /* refer to a range of topo_indices referencing triangle indices for the triangles composing this surface. The triangles in mesheduv themselves line up with triangles in object. */
 
-  snde_coord2 tex_startcorner; /* (x,y) coordinates of one corner of parameterization (texture) space */
-  snde_coord2 tex_endcorner; /* (x,y) coordinates of other corner of parameterization (texture) space */
+  //snde_coord2 tex_startcorner; /* (x,y) coordinates of one corner of parameterization (texture) space */
+  //snde_coord2 tex_endcorner; /* (x,y) coordinates of other corner of parameterization (texture) space */
   
   //snde_index /*firstuvpatch,*/ numuvpatches; /* "patches" are regions in uv space that the vertices are represented in. There can be multiple images pointed to by the different patches.  Indexes in uv_patch_index go from zero to numuvpatches. They will need to be added to the firstuvpatch of the snde_partinstance */ 
   
 };
+
+  
+struct snde_facevertex {
+  snde_index meshedvertex; // could be SNDE_INDEX_INVALID if no meshed representation... either an intex into the vertices array or the uv_vertices array dpeending on context
+  union {
+    snde_coord3 ThreeD;
+    snde_coord2 TwoD;
+  } coord; // should match meshedvertex, if meshedvertex is valid
+  snde_index firstfaceedgeindex;  // reference to list of edges for this vertex in the topo_indices array. Edges should be CCW ordered. 
+  snde_index numfaceedgeindices;  
+};
+  
+struct snde_faceedge {
+  snde_index vertex[2]; // indices of facevertex 
+  snde_index face_a; // indices of snde_face
+  snde_index face_b;
+  snde_index face_a_prev_edge, face_a_next_edge; // counter-clockwise ordering
+  snde_index face_b_prev_edge, face_b_next_edge; // counter-clockwise ordering
+  struct snde_meshededge meshededge;
+  struct snde_nurbsedge nurbsedge; 
+};
+ 
+struct snde_face {
+  snde_index firstfaceedgeindex; // refer to a list of faceedges within the topo_indices array
+  snde_index numfaceedgeindices;
+  snde_index imagenum; // index of snde_image within which this face is located. should be less than snde_parameterization.numuvimages
+  snde_index boundary_num; // boundary number within the part (NOT relative to first_topological) (valid for 3D faces but not 2D faces)
+                           // boundary number of 0 means outer boundary, > 0 means void boundary
+  union {
+    struct {
+      struct snde_meshedsurface meshed; 
+      struct snde_nurbssurface nurbs; 
+    } ThreeD;
+
+    struct {
+      struct snde_mesheduvsurface meshed;
+      struct snde_nurbssurfaceuv nurbs;
+    } TwoD;
+  } surface;
+  // 227 bytes total
+  
+};
+
+  
+struct snde_boundary {
+  snde_index firstface,numfaces; // relative to first_topo 
+  // Each face contained within the part can have a meshed surface representation,
+  // a NURBS surface representation, or both, controlled by the "valid" boolean within the
+  // edges referenced in the meshedsurface
+  // corresponding surface structure
+  // 16 bytes total
+};
+
+union snde_topological {
+  struct snde_boundary boundary;
+  struct snde_face face;
+  struct snde_faceedge faceedge;
+  struct snde_facevertex facevertex;
+  struct snde_nurbssurface nurbssurface;
+  struct snde_meshedsurface meshedsurface; 
+  //struct snde_trimcurvesegment trimcurvedsegment; 
+  struct snde_nurbsedge nurbsedge; 
+  struct snde_meshededge meshededge;
+  // IDEA: Allow freelist to also be present within
+  // the snde_topological array for a part, so allocation
+  // and freeing can be performed on-GPU with non-locking data structures
+  // (first entry would always have to be free)
+};
+  
+struct snde_part {
+
+  snde_index firstboundary;  // firstboundary is outer boundary (relative to first_topological)
+  snde_index numboundaries;  // all remaining boundaries are boundaries of voids.
+
+  snde_index first_topo;
+  snde_index num_topo; 
+
+  snde_index first_topoidx;
+  snde_index num_topoidxs; 
+  
+  
+  snde_index firsttri,numtris; /* apply to triangles, refpoints, maxradius, normal, inplanemat... broken into segments, one per surface. NOTE: any triangles that are not valid should have their .face set to SNDE_INDEX_INVALID */
+  
+  snde_index firstedge,numedges; /* apply to triangle edges of the mesh -- single pool for entire mesh */
+  snde_index firstvertex,numvertices; /* vertex indices of the mesh, if present NOTE: Vertices must be transformed according to instance orientation prior to rendering */ /* These indices also apply to principal_curvatures and principal_tangent_axes, if present */
+  snde_index first_vertex_edgelist,num_vertex_edgelist; // vertex edges for a particular vertex are listed in in CCW order
+  
+  // Boxes for identifying which triangle and face is intersected along a ray
+  snde_index firstbox,numboxes;  /* also applies to boxcoord */
+  snde_index firstboxpoly,numboxpolys; /* NOTE: Boxes are in part coordinates, not world coordinates */
+  snde_index firstboxnurbssurface,numboxnurbssurfaces; /* nurbs equivalent of boxpolys */
+  snde_index firstboxcoord,numboxcoords; /* NOTE: Boxes are in part coordinates, and need to be transformed */
+  
+  snde_bool solid;
+  snde_bool has_triangledata; // Have we stored/updated refpoints, maxradius, normal, inplanemat
+  snde_bool has_curvatures; // Have we stored principal_curvatures/curvature_tangent_axes?  
+  uint8_t pad1;
+  uint8_t pad2[4];
+  // formerly 81 bytes total  
+};
+
+struct snde_parameterization {
+  // specific to a part;
+  snde_index first_uv_topo;
+  snde_index num_uv_topos;
+
+  snde_index first_uv_topoidx;
+  snde_index num_uv_topoidxs;
+
+  snde_index firstuvtri, numuvtris; // storage region in uv_triangles... triangles must line up with triangles of underlying 3D mesh. Triangles identified topologically via the faces array. 
+
+  
+  snde_index firstuvface;  //  uv faces are struct snde_face with the .TwoD filled out. relative to first_uv_topo
+  snde_index numuvfaces;  
+
+
+  // The rest of these fields are the storage where triangle edges, vertices, 
+  snde_index firstuvedge, numuvedges; /* edges in mesheduv may not line up with edges in object, 
+					 but instead specify connectivity in (u,v) space. */
+  snde_index firstuvvertex,numuvvertices; /* vertices in mesheduv may not line up with edges in object */
+  snde_index first_uv_vertex_edgelist,num_uv_vertex_edgelist; // vertex edges for a particular vertex are listed in in CCW order
+
+  snde_index numuvimages; /* "images" are regions in uv space that the vertices are represented in. There can be multiple images pointed to by the different patches.  Indexes  go from zero to numuvimage. They will need to be added to the firstuvimage of the snde_partinstance. Note that if numuvimages > 1, the parameterization is not directly renderable and needs a processing step prior to rendering to combine the uv images into a single parameterization space */
+
+  
+  // Boxes for identifying which triangle and face is at a particular (u,v)
+  snde_index firstuvbox, numuvboxes; /* the first numuvpatches boxes correspond to the outer boxes for each patch */
+  snde_index firstuvboxpoly,numuvboxpoly;
+  snde_index firstuvboxcoord,numuvboxcoords; 
+};
+  
+
+
+
+  
+  
 
   //struct snde_assemblyelement {
   /***!!!*** NOTE: Because GPU code generally can't be 
@@ -314,12 +464,11 @@ struct snde_mesheduv {
 struct snde_partinstance {
   /* (this isn't really in the database? Actually generated dynamically from the assembly structures) */
    snde_orientation3 orientation;
-  snde_index nurbspartnum; /* if nurbspartnum is SNDE_INDEX_INVALID, then there is a meshed representation only */
-  snde_index meshedpartnum;
+  //snde_index nurbspartnum; /* if nurbspartnum is SNDE_INDEX_INVALID, then there is a meshed representation only */
+  snde_index partnum; // was meshedpartnum
   //std::string discrete_parameterization_name; -- really maps to mesheduvnmum /* index of the discrete parameterization */
-  snde_index firstuvpatch; /* starting uv_patch # (snde_image) for this instance...  */ 
-  snde_index numuvpatches; /* "patches" are regions in uv space that the vertices are represented in. There can be multiple images pointed to by the different patches.  Indexes in uv_patch_index go from zero to numuvpatches. They will need to be added to the firstuvpatch of the snde_partinstance */
-  snde_index mesheduvnum; /* numvertices arrays must match between partinstance and mesheduv */
+  snde_index firstuvimage; /* starting uv_patch # (snde_image) for this instance...  */ 
+  snde_index uvnum; /* select which parameterization... */
   snde_index imgbuf_extra_offset; // Additional offset into imgbuf, e.g. to select a particular frame of multiframe image data 
 };
   
@@ -331,7 +480,8 @@ struct snde_image  {
   
   snde_index nx,ny; // X and Y size (ncols, nrows) ... note Fortran style indexing
   snde_coord2 startcorner; /* Coordinates of the edge of the first texel in image, 
-			      in meaningful units (meters). first coordinate is the 
+			      in meaningful units (meters). Assume for the moment
+			      that steps will always be positive. first coordinate is the 
 			      x (column) position; second coordinate
 			      is the y (row position). The center of the first texel 
 			      is at (startcorner.coord[0]+step.coord[0]/2,
@@ -341,7 +491,8 @@ struct snde_image  {
                                     (startcorner.coord[0]+step.coord[0]*nx,
 				    (startcorner.coord[1]+step.coord[1]*ny)
                             */
-  snde_coord2 step; /* step size per texel, in meaningful units */ 
+  snde_coord2 step; /* step size per texel, in meaningful units. For the moment, at least, both should be positive */
+  //snde_index nextimage; // index of alternate image to be used if data in this image shows as NaN, fully transparent, or is outside the image boundary... set to SNDE_INDEX_INVALID if there should be no nextimage.
 };
 
   

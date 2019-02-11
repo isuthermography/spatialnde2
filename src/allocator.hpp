@@ -257,14 +257,18 @@ namespace snde {
       // Round up when determining chunk size
       _allocchunksize = (2*sizeof(snde_index) + elemsize-1)/elemsize;
 
-      // satisfy alignment requirement on _allocchunksize
-      allocator_alignment our_alignment=*alignment;
-      our_alignment.add_requirement(_allocchunksize*elemsize);
-      _allocchunksize = our_alignment.get_alignment()/elemsize;
-      
+      if (alignment) {
+	// satisfy alignment requirement on _allocchunksize
+	allocator_alignment our_alignment=*alignment;
+	our_alignment.add_requirement(_allocchunksize*elemsize);
+	_allocchunksize = our_alignment.get_alignment()/elemsize;
+	
+      } else {
+	_allocchunksize=1;
+      }
       // _totalnchunks = totalnelem / _allocchunksize  but round up. 
       _totalnchunks = (totalnelem + _allocchunksize-1)/_allocchunksize;
-
+      
       if (_totalnchunks < 2) {
 	_totalnchunks=2;
       }
@@ -391,10 +395,31 @@ namespace snde {
       
     }
 
-    snde_index total_nelem() {
+    snde_index total_nelem()
+    // return total number of elements in pool
+    {
       std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
       assert(!destroyed);
       return _totalnchunks*_allocchunksize;
+    }
+
+    snde_index space_needed()
+    // return size (in elements) of minimal pool into which currently
+    // allocated data could be copied without changing
+    // indices
+    {
+      std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex
+      snde_index space_end=0;
+      
+      auto allocation=allocations.end();
+
+      if (allocation==allocations.begin()) {
+	// empty -- no space needed
+	return 0;
+      }
+      allocation--;
+
+      return allocation->second->regionend*_allocchunksize;
     }
 
 
@@ -479,10 +504,22 @@ namespace snde {
 	  retlocks.push_back(std::make_pair(std::make_shared<alloc_voidpp>(thisarray.arrayptr),token_set));
 	}
       }
-      
+
+      //fprintf(stderr,"alloc_arraylocked(%llu)->%llu\n",nelem,retpos);
       return std::make_pair(retpos,retlocks);
     }
 
+
+    snde_index alloc_nolocking(snde_index nelem)
+    {
+      // allocation function for when you are not using locking at all
+      
+      snde_index retpos = _alloc(nelem);
+      return retpos;
+    }
+
+
+    
     //std::pair<rwlock_token_set,snde_index> alloc(snde_index nelem) {
     //  // must be in a locking process or otherwise where we can lock the entire array...
     //  // this locks the entire array, allocates the new element, and

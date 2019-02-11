@@ -16,7 +16,10 @@ extern "C" {
     //allocatorbase  *instances_alloc; // really allocator<struct snde_partinstance>*
 
     /* meshed 3D geometry */
-    struct snde_meshedpart *meshedparts; /* allocated separately */
+    struct snde_part *parts; /* allocated separately */
+    union snde_topological *topos; /* allocated separately */
+    snde_index  *topo_indices; /* allocated separately */
+    
 
     /* winged edge mesh format */
     snde_triangle *triangles; // allocated separately
@@ -86,13 +89,15 @@ extern "C" {
     // Add polynum_by_vertex and/or adjacent_vertices? 
 
     // Meshed parameterizations
-    snde_mesheduv *mesheduv; /* array of meshed uv parameterizations */
-    //allocatorbase *mesheduv_alloc; // really allocator<struct snde_mesheduv> *
+    snde_parameterization *uvs; /* array of uv parameterizations */
+    
+    union snde_topological *uv_topos; /* allocated separately */
+    snde_index  *uv_topo_indices; /* allocated separately */
 
     snde_triangle *uv_triangles; /* allocated separately */
     snde_mat23 *inplane2uvcoords;  /* allocated with uv_triangles */
     snde_mat23 *uvcoords2inplane; /* allocated with uv_triangles */
-    snde_index *uv_patch_index; // uv_patch_index is indexed by and allocated with uv_triangle, like uv_vertexidx, and indicates which patch of uv space for this mesheduv the triangle vertices correspond to  
+    //snde_index *uv_patch_index; // uv_patch_index is indexed by and allocated with uv_triangle, like uv_vertexidx, and indicates which patch of uv space for this mesheduv the triangle vertices correspond to  
     
     snde_edge *uv_edges; /* allocated separately */
     
@@ -100,7 +105,7 @@ extern "C" {
     snde_coord2 *uv_vertices;
     snde_vertex_edgelist_index *uv_vertex_edgelist_indices; // allocated with vertices
 
-    snde_index *uv_vertex_edgelist; // allocated separately
+    snde_index *uv_vertex_edgelist; // allocated separately... vertex edges are listed in in CCW order
 
     
 
@@ -148,13 +153,15 @@ extern "C" {
 
     
 
-    snde_image *uv_patches; /* allocated separately */
-    //allocatorbase *uv_patches_alloc; // really allocator<snde_image> *
+    snde_image *uv_images; /* allocated separately */
+    //allocatorbase *uv_images_alloc; // really allocator<snde_image> *    
+    
+    // Generally can only operate with a single uv_image at a time... Shouldn't
+    // be a problem because we can real-time composite the image from
+    // multiple data stores using the TRM (which then will also need
+    // to do RGBA conversion for rendering)
 
-    
-    
-    
-    
+    // 
     // We can also think about breaking 2dobj into contiguous pieces (?)
     // Also want in some cases a reference to a
     // concrete instance of the parameterization (bitmap)

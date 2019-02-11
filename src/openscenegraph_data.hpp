@@ -293,8 +293,8 @@ public:
 
 
     
-    osg::ref_ptr<osg::DrawArrays> GraticuleThinLines = new osg::DrawArrays(osg::PrimitiveSet::LINES,0,ThinGridLineCoords->size()/2);
-    osg::ref_ptr<osg::DrawArrays> GraticuleThickLines = new osg::DrawArrays(osg::PrimitiveSet::LINES,0,ThickGridLineCoords->size()/2);
+    osg::ref_ptr<osg::DrawArrays> GraticuleThinLines = new osg::DrawArrays(osg::PrimitiveSet::LINES,0,ThinGridLineCoords->size());
+    osg::ref_ptr<osg::DrawArrays> GraticuleThickLines = new osg::DrawArrays(osg::PrimitiveSet::LINES,0,ThickGridLineCoords->size());
     
     GraticuleThinGeom->addPrimitiveSet(GraticuleThinLines);
     GraticuleThickGeom->addPrimitiveSet(GraticuleThickLines);
@@ -411,7 +411,7 @@ public:
 
     // NOTE: transform includes z shift (away from viewer) of layer_index
     // OSG transformation matrices are transposed (!)
-    fprintf(stderr,"-xcenter/horizscalefactor = %f\n",-xcenter/horizscalefactor);
+    //fprintf(stderr,"-xcenter/horizscalefactor = %f\n",-xcenter/horizscalefactor);
     osg::Matrixd transformmtx(display->pixelsperdiv/horizscalefactor,0,0,0, 
 			      0,display->pixelsperdiv/vertscalefactor,0,0,
 			      0,0,1,0,

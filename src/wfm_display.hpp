@@ -120,6 +120,50 @@ struct WfmColor {
   };
   
 
+static std::string PrintWithSIPrefix(double val, std::string unitabbrev, int sigfigs)
+  {
+    std::string buff="";
+    
+    if (val < 0) {
+      val=-val;
+      buff += "-";
+    }
+
+    std::stringstream numberbuf;
+    
+    if (val >= 1.0 && val < 1000.0) {
+      numberbuf << std::defaultfloat << std::setprecision(sigfigs) << val;
+      buff += numberbuf.str() + unitabbrev;
+    } else if (val >= 1000.0 && val < 1.e6) {
+      numberbuf << std::defaultfloat << std::setprecision(sigfigs) << val*1e-3;
+      buff += numberbuf.str() + "k" + unitabbrev;
+    } else if (val >= 1.e6 && val < 1.e9) {
+      numberbuf << std::defaultfloat << std::setprecision(sigfigs) << val*1e-6;
+      buff += numberbuf.str() + "M" + unitabbrev;
+    } else if (val >= 1.e9) {
+      numberbuf << std::defaultfloat << std::setprecision(sigfigs) << val*1e-9;
+      buff += numberbuf.str() + "G" + unitabbrev;
+    } else if (val >=1e-3 && val < 1.0) {
+      numberbuf << std::defaultfloat << std::setprecision(sigfigs) << val*1e3;
+      buff += numberbuf.str() + "m" + unitabbrev;
+    } else if (val >= 1e-6 && val < 1.e-3) {
+      numberbuf << std::defaultfloat << std::setprecision(sigfigs) << val*1e6;
+      buff += numberbuf.str() + "u" + unitabbrev;
+    } else if (val >= 1e-9 && val < 1.e-6) {
+      numberbuf << std::defaultfloat << std::setprecision(sigfigs) << val*1e9;
+      buff += numberbuf.str() + "n" + unitabbrev;
+    } else if (val >= 1e-12 && val < 1.e-9) {
+      numberbuf << std::defaultfloat << std::setprecision(sigfigs) << val*1e12;
+      buff += numberbuf.str() + "p" + unitabbrev;
+    } else {
+      numberbuf << std::defaultfloat << std::setprecision(sigfigs) << val;
+      buff += numberbuf.str() + unitabbrev;
+    }
+
+    return buff;
+  }
+  
+  
   
 class display_info {
 public:
@@ -197,17 +241,23 @@ public:
   std::vector<std::shared_ptr<display_channel>> update(std::shared_ptr<mutablewfmdb> wfmdb,std::shared_ptr<mutableinfostore> selected, bool include_disabled,bool include_hidden)
 
   // if include_disabled is set, disabled channels will be included
-  // if selected is not nullptr, it will be moved to the head of the list
-
+  // if selected is not nullptr, it will be moved to the end of the list
+  // to be rendered on top (last)
+    
   // STILL NEED TO IMPLEMENT THE FOLLOWING: 
   // if include_hidden is set, hidden channels will be included
   {
 
     std::vector<std::shared_ptr<display_channel>> retval;
+    std::shared_ptr<display_channel> selected_chan=nullptr;
     
     std::shared_ptr<iterablewfmrefs> wfmlist=wfmdb->wfmlist();
 
+    // go through wfmlist forwards, assembling wfmlist
+    // so last entries in wfmlist will be on top
+    // (except for selected_chan which will be last, if given).
     for (auto wfmiter=wfmlist->begin();wfmiter != wfmlist->end();wfmiter++) {
+      
       std::shared_ptr<mutableinfostore> info=*wfmiter;
       std::string fullname=wfmiter.get_full_name();
 
@@ -216,7 +266,9 @@ public:
       if (ci_iter != channel_info.end() && ci_iter->second->chan_data==info) {
 	if (include_disabled || ci_iter->second->Enabled) {
 	  if (selected && info==selected) {
-	    retval.insert(retval.begin(),ci_iter->second);
+	    //retval.insert(retval.begin(),ci_iter->second);
+	    assert(!selected_chan);
+	    selected_chan = ci_iter->second;
 	  } else {
 	    retval.push_back(ci_iter->second);
 	  }
@@ -229,7 +281,9 @@ public:
 	channel_info[fullname]=new_display_channel;
 	if (include_disabled || new_display_channel->Enabled) {
 	  if (selected && info==selected) {
-	    retval.insert(retval.begin(),new_display_channel);
+	    //retval.insert(retval.begin(),new_display_channel);
+	    assert(!selected_chan);
+	    selected_chan = ci_iter->second;
 	  } else {
 	    retval.push_back(new_display_channel);
 	  }
@@ -237,6 +291,11 @@ public:
       }
       
     }
+
+    if (selected_chan) {
+      retval.push_back(selected_chan);
+    }
+    
     return retval;
   }
   

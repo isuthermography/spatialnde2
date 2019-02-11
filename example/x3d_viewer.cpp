@@ -9,7 +9,7 @@
 #include <osgViewer/Viewer>
 #include <osgGA/TrackballManipulator>
 //#include <osgDB/ReadFile>
-//#include <osgDB/WriteFile>
+#include <osgDB/WriteFile>
 
 #include "openscenegraph_geom.hpp"
 #include "revision_manager.hpp"
@@ -48,6 +48,10 @@ void x3d_viewer_display()
     OSGComp->LockVertexArraysTextures(holder,lockprocess);
     rwlock_token_set all_locks=lockprocess->finish();
     
+
+    
+    //osgDB::writeNodeFile(*OSGComp,"/tmp/x3dviewer.osg");
+
     viewer->frame();
 
     unlock_rwlock_token_set(all_locks); // Drop our locks 
@@ -194,7 +198,7 @@ int main(int argc, char **argv)
 
   std::vector<std::shared_ptr<trm_dependency>> normal_calcs;
 
-  std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> parts;
+  std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>> parts;
   
   {
     revision_manager->Start_Transaction();
@@ -206,7 +210,7 @@ int main(int argc, char **argv)
 													 };
     
     
-    parts = x3d_load_geometry(geom,argv[1],nullptr/*get_texture_image*/,false,false); // !!!*** Try enable vertex reindexing !!!***
+    parts = x3d_load_geometry(geom,argv[1],nullptr/*wfmdb*/,false,true); // !!!*** Try enable vertex reindexing !!!***
 
     revision_manager->End_Transaction();
   }
@@ -219,16 +223,18 @@ int main(int argc, char **argv)
     //  partname="LoadedX3D"+partcnt;
     //  geom->object_trees.insert(std::make_pair(partname,parts[partcnt]));    
     //}
-    std::shared_ptr<assembly> assem=assembly::from_partlist("LoadedX3D",parts);
+    std::shared_ptr<assembly> assem;
+    std::unordered_map<std::string,metadatum> md;
+    std::tie(assem,md)=assembly::from_partlist("LoadedX3D",parts);
     
     geom->object_trees.insert(std::make_pair("LoadedX3D",assem));
     revision_manager->Start_Transaction();
 
-    for (auto & part : *parts) {
+    for (auto & part_md : *parts) {
       // add normal calculation for each part from the .x3d file
       // warning: we don't do anything explicit here to make sure that the parts
       // last as long as the nomral_calculation objects....
-      normal_calcs.push_back(normal_calculation(geom,revision_manager,part,context,device,queue));
+      normal_calcs.push_back(normal_calculation(geom,revision_manager,part_md.first,context,device,queue));
     }
     
     

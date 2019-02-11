@@ -48,7 +48,7 @@ snde::lockingprocess_threaded::lockingprocess_threaded(std::shared_ptr<lockmanag
 {
   this->_lockmanager=lockmanager;
 
-  fprintf(stderr,"Creating new lockingprocess_threaded()\n");
+  //fprintf(stderr,"Creating new lockingprocess_threaded()\n");
   
   all_tokens=empty_rwlock_token_set();
   used_tokens=empty_rwlock_token_set();
@@ -69,7 +69,7 @@ bool snde::lockingprocess_threaded::_barrier(lockingposition lockpos) //(size_t 
 {
   bool preexisting_only=false;
 
-  fprintf(stderr,"Reached barrier... lockpos=%d\n",lockpos.arrayidx);
+  //fprintf(stderr,"Reached barrier... lockpos=%d\n",lockpos.arrayidx);
   
   /* Since we must be the running thread in order to take
      this call, take the lock from _executor_lock */
@@ -100,7 +100,7 @@ bool snde::lockingprocess_threaded::_barrier(lockingposition lockpos) //(size_t 
     ourcv.wait(lock);
   }
   
-  fprintf(stderr,"Proceeding from barrier... lockpos=%d\n",lockpos.arrayidx);
+  //fprintf(stderr,"Proceeding from barrier... lockpos=%d\n",lockpos.arrayidx);
   /* because the wait terminated we must be first on the waiting list */
   _waitingthreads.erase(_waitingthreads.begin());
   
@@ -348,7 +348,7 @@ void snde::lockingprocess_threaded::spawn(std::function<void(void)> f)
   
   /* but this top entry represents the new thread */
   _runnablethreads.push_front(NULL);
-  fprintf(stderr,"Spawning thread\n");
+  //fprintf(stderr,"Spawning thread\n");
   std::thread *newthread=new std::thread([f,this]() {
       std::unique_lock<std::mutex> subthreadlock(this->_mutex);
       
@@ -384,7 +384,7 @@ void snde::lockingprocess_threaded::spawn(std::function<void(void)> f)
     ourcv.wait(lock);
   }
 
-  fprintf(stderr,"Proceeding after spawn\n");
+  //fprintf(stderr,"Proceeding after spawn\n");
 
   /* we are now at the front of the runnables. Switch to
      running state by popping us off and pushing NULL */

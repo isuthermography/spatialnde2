@@ -93,13 +93,16 @@ int main(int argc, char **argv)
   std::shared_ptr<mutabledatastore> pngstore = ReadPNG(manager,"PNGFile",argv[1]);
   wfmdb->addinfostore(pngstore);
 
-  //std::shared_ptr<mutabledatastore> pngstore2 = ReadPNG(manager,"PNGFile2",argv[2]);
-  //wfmdb->addinfostore(pngstore2);
+  std::shared_ptr<mutabledatastore> pngstore2 = ReadPNG(manager,"PNGFile2",argv[2]);
+  wfmdb->addinfostore(pngstore2);
   revision_manager->End_Transaction();
 
   qInstallMessageHandler(StdErrOutput);
      
   QApplication qapp(argc,argv);
+
+  //qapp.setNavigationMode(Qt::NavigationModeNone);
+  
   QMainWindow window;
 
   ////hardwire QT style

@@ -64,15 +64,110 @@ namespace snde {
     
   }
 
+
   bool QTWfmSelector::eventFilter(QObject *object,QEvent *event)
   {
     if (event->type()==QEvent::FocusIn) {
-      fprintf(stderr,"FocusIn\n");
+      //fprintf(stderr,"FocusIn\n");
 
       if (object==RadioButton) {
 	Viewer->set_selected(this);
       }
     }
+    if (event->type()==QEvent::KeyRelease || event->type()==QEvent::KeyPress) {
+      QKeyEvent *key = static_cast<QKeyEvent *>(event);
+	switch(key->key()) {
+	case Qt::Key_Left:
+	  if (event->type()==QEvent::KeyPress) {
+	    Viewer->posmgr->HorizZoomOut(false);
+	  }
+	  return true;
+
+	case Qt::Key_Right:
+	  if (event->type()==QEvent::KeyPress) {
+	    //fprintf(stderr,"Press right\n");
+	    Viewer->posmgr->HorizZoomIn(false);
+	  }
+	  // else fprintf(stderr,"Release right\n");
+	  return true;
+	  
+	  
+	case Qt::Key_Down:
+	  if (event->type()==QEvent::KeyPress) {
+	    if (Viewer->posmgr->selected_channel) {
+	      std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(Viewer->posmgr->selected_channel->chan_data);
+	      if (datastore) {
+		if (datastore->dimlen.size() > 1) {
+		  // image data... decrease contrast instead
+		  Viewer->LessContrast(false);
+		  return true;
+		}
+	      }
+	    }
+	    Viewer->posmgr->VertZoomOut(false);
+	  }
+	  return true;
+
+	case Qt::Key_Up:
+	  if (event->type()==QEvent::KeyPress) {
+
+	    if (Viewer->posmgr->selected_channel) {
+	      std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(Viewer->posmgr->selected_channel->chan_data);
+	      if (datastore) {
+		if (datastore->dimlen.size() > 1) {
+		  // image data... increase contrast instead
+		  Viewer->MoreContrast(false);
+		  return true;
+		}
+	      }
+	    }
+	    Viewer->posmgr->VertZoomIn(false);
+	  }
+	  return true;
+
+	case Qt::Key_Home:
+	  if (event->type()==QEvent::KeyPress) {
+	    Viewer->posmgr->HorizSliderActionTriggered(QAbstractSlider::SliderSingleStepAdd);
+	  }
+	  return true;
+	  
+	case Qt::Key_End:
+	  if (event->type()==QEvent::KeyPress) {
+	    Viewer->posmgr->HorizSliderActionTriggered(QAbstractSlider::SliderSingleStepSub);
+	  }
+	  return true;
+
+	case Qt::Key_PageUp:
+	  if (event->type()==QEvent::KeyPress) {
+	    Viewer->posmgr->VertSliderActionTriggered(QAbstractSlider::SliderSingleStepAdd);
+	  }
+	  return true;
+
+	case Qt::Key_PageDown:
+	  if (event->type()==QEvent::KeyPress) {
+	    Viewer->posmgr->VertSliderActionTriggered(QAbstractSlider::SliderSingleStepSub);
+	  }
+	  return true;
+
+	case Qt::Key_Insert:
+	  if (event->type()==QEvent::KeyPress) {
+	    Viewer->Brighten(false);
+	  }
+	  return true;
+
+	case Qt::Key_Delete:
+	  if (event->type()==QEvent::KeyPress) {
+	    Viewer->Darken(false);
+	  }
+	  return true;
+
+	default:
+	  return QFrame::eventFilter(object,event);
+	  
+	}
+    }
+
+    
     return QFrame::eventFilter(object,event);
   }
   

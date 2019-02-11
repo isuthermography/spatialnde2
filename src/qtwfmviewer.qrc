@@ -5,5 +5,12 @@
   <file>larrow.png</file>
   <file>uarrow.png</file>
   <file>darrow.png</file>
+  <file>ZoomIn.png</file>
+  <file>ZoomOut.png</file>
+  <file>Brighten.png</file>
+  <file>ResetIntensity.png</file>
+  <file>Darken.png</file>  
+  <file>LessContrast.png</file>
+  <file>MoreContrast.png</file>
 </qresource>
 </RCC>

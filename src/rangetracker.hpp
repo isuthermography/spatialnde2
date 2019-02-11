@@ -104,6 +104,10 @@ namespace snde {
       region=trackedregions.lower_bound(firstelem);
       
       if ((region != trackedregions.end() && region->first != firstelem) || (region==trackedregions.end())) {
+
+	if (region==trackedregions.begin()) {
+	  return trackedregions.end(); // no such region!
+	}
 	
 	if (region != trackedregions.begin()) {
 	  // region we want may start partway through an invalidregion 
@@ -458,7 +462,7 @@ namespace snde {
 	/* in general we iterate over blocks that consist of an 
 	   unmarked region, followed by a marked region */
 	if (unmarked_size >= size) {
-	  return std::make_shared<T>(pos,size,std::forward<Args>(args) ...); 
+	  return std::make_shared<T>(pos,pos+size,std::forward<Args>(args) ...); 
 	}
 
 	nextpos=pos+unmarked_size+marked_size;

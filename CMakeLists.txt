@@ -82,6 +82,9 @@ endif()
 
 set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/geometry.cpp src/revision_manager.cpp src/mutablewfmstore.cpp )
 
+#add_definitions(-Dprivate=public)
+#add_definitions(-Dprotected=public)
+
 add_definitions(-DSNDE_LOCKMANAGER_COROUTINES_THREADED)
 IF(WIN32)
   #add_definitions(-fpermissive) # Allow casting on windows (unsigned long) in lockmanager and arraymanager  !!! Should fix the casts, probably
@@ -249,12 +252,12 @@ IF (OpenCL_FOUND AND PythonInterp_FOUND)
     target_link_libraries(opencl_example ${SPATIALNDE2_LIBS} ${OpenCL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 ENDIF()
 
-IF (OpenCL_FOUND AND PythonInterp_FOUND AND OpenSceneGraph_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND GLUT_FOUND)
+IF (OpenCL_FOUND AND PythonInterp_FOUND AND OpenSceneGraph_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND GLUT_FOUND AND PNG_FOUND)
   add_executable(x3d_viewer
     example/x3d_viewer.cpp
     )
   add_dependencies(x3d_viewer OpenCL_Headers)
-  target_link_libraries(x3d_viewer ${SPATIALNDE2_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES} ${OpenCL_LIBRARIES}  ${LIBXML2_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
+  target_link_libraries(x3d_viewer ${SPATIALNDE2_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES} ${OpenCL_LIBRARIES} ${PNG_LIBRARIES} ${LIBXML2_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
 ENDIF()
 
 
@@ -355,7 +358,7 @@ IF (OpenCL_FOUND AND PythonInterp_FOUND)
     DESTINATION ${APP_INSTALL_DIR}/example)
 ENDIF()
 
-IF (OpenCL_FOUND AND PythonInterp_FOUND AND OpenSceneGraph_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND GLUT_FOUND)
+IF (OpenCL_FOUND AND PythonInterp_FOUND AND OpenSceneGraph_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND GLUT_FOUND AND PNG_FOUND)
   install(TARGETS
     x3d_viewer
     DESTINATION ${APP_INSTALL_DIR}/example)

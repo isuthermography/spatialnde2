@@ -22,29 +22,31 @@ extern opencl_program normalcalc_opencl_program;
 static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<snde::component> comp,cl_context context,cl_device_id device,cl_command_queue queue)
 {
   
-  assert(comp->type==component::TYPE::meshed); // May support NURBS in the future...
+  //assert(comp->type==component::TYPE::meshed); // May support NURBS in the future...
 
 
-  std::shared_ptr<meshedpart> part = std::dynamic_pointer_cast<meshedpart>(comp);
+  std::shared_ptr<part> partobj = std::dynamic_pointer_cast<part>(comp);
+
+  assert(partobj);
   
-  snde_index meshedpartnum = part->idx;
+  snde_index partnum = partobj->idx;
   std::vector<trm_arrayregion> inputs_seed;
 
-  inputs_seed.emplace_back(geom->manager,(void **)&geom->geom.meshedparts,meshedpartnum,1);
+  inputs_seed.emplace_back(geom->manager,(void **)&geom->geom.parts,partnum,1);
   
   
   return revman->add_dependency_during_update(
 					      // Function
 					      // input parameters are:
-					      // meshedpartnum
+					      // partnum
 					      [ comp,geom,context,device,queue ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)  {
 
-						// get inputs: meshedpart, triangles, edges, vertices
-						snde_meshedpart meshedp;
+						// get inputs: partobj, triangles, edges, vertices
+						snde_part partobj;
 						trm_arrayregion triangles, edges, vertices;
 						
-						fprintf(stderr,"Normal calculation\n");
-						std::tie(meshedp,triangles,edges,vertices) = extract_regions<singleton<snde_meshedpart>,rawregion,rawregion,rawregion>(dep->inputs);
+						//fprintf(stderr,"Normal calculation\n");
+						std::tie(partobj,triangles,edges,vertices) = extract_regions<singleton<snde_part>,rawregion,rawregion,rawregion>(dep->inputs);
 
 						
 						//!!!meshedp.firsttri,meshedp.numtris
@@ -61,7 +63,7 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
 						
 						/* Obtain lock for this component -- in parallel with our write lock on the vertex array, below */
-						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, SNDE_COMPONENT_GEOM_MESHEDPARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,SNDE_COMPONENT_GEOM_NORMALS); });
+						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,SNDE_COMPONENT_GEOM_NORMALS); });
 						
 						rwlock_token_set all_locks=lockprocess->finish();
 
@@ -73,15 +75,15 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						// The third parameter is the array element to be passed
 						// (actually comes from the OpenCL cache)
 						
-						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,0,(void **)&geom->geom.meshedparts,dep->inputs[0].start,1,false);
+						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,0,(void **)&geom->geom.parts,dep->inputs[0].start,1,false);
 						
 						
-						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,1,(void **)&geom->geom.triangles,meshedp.firsttri,meshedp.numtris,false);
-						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,2,(void **)&geom->geom.edges,meshedp.firstedge,meshedp.numedges,false);
-						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,3,(void **)&geom->geom.vertices,meshedp.firstvertex,meshedp.numvertices,false);
-						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,4,(void **)&geom->geom.normals,meshedp.firsttri,meshedp.numtris,true,true);
+						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,1,(void **)&geom->geom.triangles,partobj.firsttri,partobj.numtris,false);
+						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,2,(void **)&geom->geom.edges,partobj.firstedge,partobj.numedges,false);
+						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,3,(void **)&geom->geom.vertices,partobj.firstvertex,partobj.numvertices,false);
+						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,4,(void **)&geom->geom.normals,partobj.firsttri,partobj.numtris,true,true);
 						
-						size_t worksize=meshedp.numtris;
+						size_t worksize=partobj.numtris;
 						cl_event kernel_complete=NULL;
 						
 						// Enqueue the kernel 
@@ -89,11 +91,13 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						if (err != CL_SUCCESS) {
 						  throw openclerror(err,"Error enqueueing kernel");
 						}
+						clFlush(queue); /* trigger execution */
+
 						/*** Need to mark as dirty; Need to Release Buffers once kernel is complete ****/
-						Buffers.SubBufferDirty((void **)&geom->geom.normals,meshedp.firsttri,meshedp.numtris);
+						Buffers.SubBufferDirty((void **)&geom->geom.normals,partobj.firsttri,partobj.numtris);
 						
 						
-						Buffers.RemBuffers(kernel_complete,kernel_complete,true); /* trigger execution... do wait for completion */
+						Buffers.RemBuffers(kernel_complete,kernel_complete,true); /* wait for completion */
 						// Actually, we SHOULD wait for completion.
 						// (Are there unnecessary locks we can release first?)
 						//clWaitForEvents(1,&kernel_complete);
@@ -115,14 +119,14 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 					      [ comp,geom ] (std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
 						// Regionupdater function
 						// See Function input parameters, above
-						// Extract the first parameter (meshedpart) only
+						// Extract the first parameter (partobj) only
 						
 						// Perform locking
 						std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
 						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
 						
 						/* Obtain lock for this component */
-						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, SNDE_COMPONENT_GEOM_MESHEDPARTS,0); });
+						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS,0); });
 						
 						rwlock_token_set all_locks=lockprocess->finish();
 						
@@ -130,16 +134,16 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						// Note: We would really rather this
 						// be a reference but there is no good way to do that until C++17
 						// See: https://stackoverflow.com/questions/39103792/initializing-multiple-references-with-stdtie
-						snde_meshedpart meshedp;
+						snde_part partobj;
 						      
-						// Construct the regions based on the meshedpart
-						std::tie(meshedp) = extract_regions<singleton<snde_meshedpart>>(std::vector<trm_arrayregion>(inputs.begin(),inputs.begin()+1));
+						// Construct the regions based on the part
+						std::tie(partobj) = extract_regions<singleton<snde_part>>(std::vector<trm_arrayregion>(inputs.begin(),inputs.begin()+1));
 						
 						std::vector<trm_arrayregion> new_inputs;
 						new_inputs.push_back(inputs[0]);
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.triangles,meshedp.firsttri,meshedp.numtris);
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.edges,meshedp.firstedge,meshedp.numedges);
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.vertices,meshedp.firstvertex,meshedp.numvertices);
+						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.triangles,partobj.firsttri,partobj.numtris);
+						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.edges,partobj.firstedge,partobj.numedges);
+						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.vertices,partobj.firstvertex,partobj.numvertices);
 						return new_inputs;
 						
 					      }, 
@@ -149,19 +153,19 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 
 						std::vector<trm_arrayregion> new_outputs;
 
-						snde_meshedpart meshedp;
+						snde_part partobj;
 						trm_arrayregion tri_region;
 						
 						// Perform locking
 						std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
 						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
 						
-						/* Obtain read lock for the meshedpart array for this component  */
-						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, SNDE_COMPONENT_GEOM_MESHEDPARTS,0); });
+						/* Obtain read lock for the part array for this component  */
+						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS,0); });
 						
 						rwlock_token_set all_locks=lockprocess->finish();
 
-						std::tie(meshedp,tri_region) = extract_regions<singleton<snde_meshedpart>,rawregion>(std::vector<trm_arrayregion>(inputs.begin(),inputs.begin()+1+1));
+						std::tie(partobj,tri_region) = extract_regions<singleton<snde_part>,rawregion>(std::vector<trm_arrayregion>(inputs.begin(),inputs.begin()+1+1));
 						assert(tri_region.array==(void**)&geom->geom.triangles);
 						new_outputs.emplace_back(geom->manager,(void**)&geom->geom.normals,tri_region.start,tri_region.len);
 						

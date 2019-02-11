@@ -500,14 +500,19 @@ namespace snde {
       return true;
     }
 
-    virtual void set_cache(std::string name,std::shared_ptr<cachemanager> cache)
+    virtual void set_undefined_cache(std::string name,std::shared_ptr<cachemanager> cache)
+    /* set a cache according to name, if it is undefined. 
+       If a corresponding cache already exists, this does nothing (does NOT replace 
+       the cache) */
     {
       std::lock_guard<std::mutex> lock(admin);
       std::shared_ptr<std::unordered_map<std::string,std::shared_ptr<cachemanager>>> new__caches;
       std::tie(new__caches) =  _begin_caches_atomic_update();
 
-      (*new__caches)[name]=cache;
-
+      if (new__caches->find(name)==new__caches->end()) {
+	(*new__caches)[name]=cache;
+      }
+      
       _end_caches_atomic_update(new__caches);
     }
 

@@ -1,6 +1,6 @@
 /* implicit include of geometry_types.h */
 
-__kernel void osg_vertexarray(__global const struct snde_meshedpart *meshedpart,
+__kernel void osg_vertexarray(__global const struct snde_part *part,
 			      __global const snde_triangle *part_triangles,
 			      __global const snde_edge *part_edges,
 			      __global const snde_coord3 *part_vertices,
@@ -20,6 +20,30 @@ __kernel void osg_vertexarray(__global const struct snde_meshedpart *meshedpart,
   int edgecnt;
   snde_index vapos=trianglenum*9;
 
+  if (part_triangles[trianglenum].face==SNDE_INDEX_INVALID) {
+
+    // invalid triangle... set vertices to NaN
+    
+    uint8_t NaNconstLE[4]={ 0x00,0x00,0xc0,0x7f };
+    uint8_t NaNconstBE[4]={ 0x7f,0xc0,0x00,0x00 };
+    float NaN;
+    
+    if ((*((uint32_t*)NaNconstBE) & 0xff) == 0x00) {
+      // big endian
+      NaN = (float)*((float *)NaNconstBE);
+    } else {
+      // little endian
+      NaN = (float)*((float *)NaNconstLE);
+    }
+
+    for (edgecnt=0;edgecnt < 3;edgecnt++) {
+      vertex_arrays[vapos+3*edgecnt]=NaN;
+      vertex_arrays[vapos+3*edgecnt+1]=NaN;
+      vertex_arrays[vapos+3*edgecnt+2]=NaN;
+    }
+    return;
+  }
+  
   //printf("tri_offs=%d,trianglenum=%d,meshedpartnum=%d\n",(int)tri_offs,(int)trianglenum,(int)meshedpartnum);
   //printf("edge_offs=%d, vert_offs=%d\n",(int)edge_offs,(int)vert_offs);
   thisedge=part_triangles[trianglenum].edges[0];
@@ -29,10 +53,10 @@ __kernel void osg_vertexarray(__global const struct snde_meshedpart *meshedpart,
   while (edgecnt < 3) {
     //printf("thisedge=%d\n",(int)thisedge);
     
-    if (part_edges[thisedge].face_a==trianglenum) {
-      nextedge = part_edges[thisedge].face_a_next_edge;  /* get our next edge from the Winged Edge */
+    if (part_edges[thisedge].tri_a==trianglenum) {
+      nextedge = part_edges[thisedge].tri_a_next_edge;  /* get our next edge from the Winged Edge */
     } else {
-      nextedge = part_edges[thisedge].face_b_next_edge;
+      nextedge = part_edges[thisedge].tri_b_next_edge;
     }
     //printf("nextedge=%d\n",(int)nextedge);
 

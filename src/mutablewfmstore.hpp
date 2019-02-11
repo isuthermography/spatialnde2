@@ -10,17 +10,14 @@
 
 #include "geometry_types.h"
 #include "arraymanager.hpp"
+#include "metadata.hpp"
 #include "geometry.hpp"
+
 
 #ifndef SNDE_MUTABLEWFMSTORE_HPP
 #define SNDE_MUTABLEWFMSTORE_HPP
 
 namespace snde { 
-
-#define MWS_MDT_INT 0
-#define MWS_MDT_STR 1
-#define MWS_MDT_DBL 2
-
 
 #if defined(_WIN32) || defined(_WIN64)
 #define mws_strtok strtok_s
@@ -28,72 +25,6 @@ namespace snde {
 #define mws_strtok strtok_r
 #endif
 
-class metadatum {
-public:
-  std::string Name;
-  
-  int64_t intval;
-  std::string strval;
-  double dblval;
-
-  unsigned md_type; /* MWS_MDT_... */
-
-  metadatum() :  // invalid, empty metadatum
-    Name(""),
-    intval(0),
-    md_type(MWS_MDT_INT)
-  {
-
-  }
-  
-  metadatum(std::string Name,int64_t intval) :
-    Name(Name),
-    intval(intval),
-    md_type(MWS_MDT_INT)
-  {
-    
-  }
-  
-  metadatum(std::string Name,std::string strval) :
-    Name(Name),
-    strval(strval),
-    md_type(MWS_MDT_STR)
-  {
-    
-  }
-  
-  metadatum(std::string Name,double dblval) :
-    Name(Name),
-    dblval(dblval),
-    md_type(MWS_MDT_DBL)
-  {
-    
-  }
-
-  double Int(int64_t defaultval)
-  {
-    if (md_type != MWS_MDT_INT) {
-      return defaultval;
-    }
-    return intval;
-  }
-
-  std::string Str(std::string defaultval)
-  {
-    if (md_type != MWS_MDT_STR) {
-      return defaultval;
-    }
-    return strval;
-  }
-  double Dbl(double defaultval)
-  {
-    if (md_type != MWS_MDT_DBL) {
-      return defaultval;
-    }
-    return dblval;
-  }
-  
-};
 
 class mutableinfostore;
 class mutabledatastore;
@@ -161,16 +92,6 @@ public:
       return iterator{refs,newpos};
     }
 
-    iterator& operator++() // prefix++
-    {
-      std::vector<size_t> newpos=pos;
-      assert(newpos.size() > 0);
-      newpos[newpos.size()-1]++;
-	     
-      *this=iterator{refs,newpos}.resolve();
-
-      return *this;
-    };
 
     iterator operator++(int) // postfix++
     {
@@ -197,6 +118,22 @@ public:
 	*this=iterator{refs,newpos}.resolve();
       }
     };
+
+    iterator& operator--() // prefix--
+    {
+      std::vector<size_t> newpos=pos;
+      assert(newpos.size() > 0);
+
+      while (newpos[newpos.size()-1] == 0) {
+	
+      }
+      newpos[newpos.size()-1]--;
+	     
+      *this=iterator{refs,newpos}.resolve();
+
+      return *this;
+    };
+
 
     std::shared_ptr<mutableinfostore> operator*() const {
       std::shared_ptr<iterablewfmrefs> thisrefs=refs;
@@ -283,7 +220,7 @@ public:
   
   std::shared_ptr<mutableinfostore> lookup(std::string Name)
   {
-    // Name can be split into pieces by colons to traverse into the tree
+    // Name can be split into pieces by slashes to traverse into the tree
 
     //char *NameCopy=strdup(Name.c_str());
     //char *SavePtr=nullptr;
@@ -298,13 +235,13 @@ public:
       return std::get<0>(wfms.at(index_it->second));
     }
 
-    size_t ColPos;
+    size_t SlashPos;
 
 
-    ColPos=Name.find_first_of(":");
-    if (ColPos != std::string::npos) {
-      std::string IterableName=Name.substr(0,ColPos);
-      std::string SubName=Name.substr(ColPos+1);
+    SlashPos=Name.find_first_of("/");
+    if (SlashPos != std::string::npos) {
+      std::string IterableName=Name.substr(0,SlashPos);
+      std::string SubName=Name.substr(SlashPos+1);
       std::shared_ptr<iterablewfmrefs> subtree;
       subtree = subtree->lookup_subtree(IterableName);
 
@@ -322,10 +259,10 @@ public:
       return std::get<1>(wfms.at(index_it->second));
     }
 
-    size_t ColPos = Name.find_first_of(":");
-    if (ColPos != std::string::npos) {
-      std::string IterableName=Name.substr(0,ColPos);
-      std::string SubName=Name.substr(ColPos+1);
+    size_t SlashPos = Name.find_first_of("/");
+    if (SlashPos != std::string::npos) {
+      std::string IterableName=Name.substr(0,SlashPos);
+      std::string SubName=Name.substr(SlashPos+1);
       std::shared_ptr<iterablewfmrefs> subtree;
       subtree = subtree->lookup_subtree(IterableName);
 
@@ -359,117 +296,6 @@ static inline snde_index total_numelements(std::vector<snde_index> shape) {
 }
 
 
-class wfmmetadata {
-public:
-  std::shared_ptr<std::unordered_map<std::string,metadatum>> _metadata; // c++11 atomic shared pointer to metadata map
-  std::mutex admin; // must be locked during changes to _wfmlist (replacement of C++11 atomic shared_ptr)
-  
-  wfmmetadata()
-    
-  {
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> new_metadata;
-    new_metadata=std::make_shared<std::unordered_map<std::string,metadatum>>();
-    
-    _end_atomic_update(new_metadata);
-  }
-
-  
-  // thread-safe copy constructor and copy assignment operators
-  wfmmetadata(const wfmmetadata &orig) /* copy constructor  */
-  {
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> new_metadata;
-    new_metadata=std::make_shared<std::unordered_map<std::string,metadatum>>(*orig.metadata());
-
-    _end_atomic_update(new_metadata);    
-  }
-
-  // copy assignment operator
-  wfmmetadata& operator=(const wfmmetadata & orig)
-  {
-    std::lock_guard<std::mutex> adminlock(admin);
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> new_metadata=std::make_shared<std::unordered_map<std::string,metadatum>>(*orig.metadata());
-    _end_atomic_update(new_metadata);
-
-    return *this;
-  }
-  
-  // accessor method for metadata map
-  std::shared_ptr<std::unordered_map<std::string,metadatum>> metadata() const
-  {
-    // read atomic shared pointer
-    return std::atomic_load(&_metadata);
-  }
-
-  std::tuple<std::shared_ptr<std::unordered_map<std::string,metadatum>>> _begin_atomic_update()
-  // admin must be locked when calling this function...
-  // it returns new copies of the atomically-guarded data
-  {
-    
-    // Make copies of atomically-guarded data 
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> new_metadata=std::make_shared<std::unordered_map<std::string,metadatum>>(*metadata());
-    
-    return std::make_tuple(new_metadata);
-
-  }
-
-  void _end_atomic_update(std::shared_ptr<std::unordered_map<std::string,metadatum>> new_metadata)
-  {
-    std::atomic_store(&_metadata,new_metadata);
-  }
-
-
-  int64_t GetMetaDatumInt(std::string Name,int64_t defaultval)
-  {
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> md=metadata();
-    std::unordered_map<std::string,metadatum>::iterator mditer; 
-
-    mditer = md->find(Name);
-    if (mditer == md->end() || mditer->second.md_type != MWS_MDT_INT) {
-      return defaultval;
-    }
-    return (*mditer).second.Int(defaultval);
-  }
-
-  std::string GetMetaDatumStr(std::string Name,std::string defaultval)
-  {
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> md=metadata();
-    std::unordered_map<std::string,metadatum>::iterator mditer; 
-
-    mditer = md->find(Name);
-    if (mditer == md->end() || mditer->second.md_type != MWS_MDT_STR) {
-      return defaultval;
-    }
-    return (*mditer).second.Str(defaultval);
-  }
-
-  double GetMetaDatumDbl(std::string Name,double defaultval)
-  {
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> md=metadata();
-    std::unordered_map<std::string,metadatum>::iterator mditer; 
-
-    mditer = md->find(Name);
-    if (mditer == md->end() || mditer->second.md_type != MWS_MDT_DBL) {
-      return defaultval;
-    }
-    return (*mditer).second.Dbl(defaultval);
-  }
-
-  void AddMetaDatum(metadatum newdatum)
-  // Add or update an entry 
-  {
-    std::lock_guard<std::mutex> adminlock(admin);
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> new_metadata;
-    
-    std::tie(new_metadata) = _begin_atomic_update();
-    
-    (*new_metadata)[newdatum.Name]=newdatum;
-    
-    _end_atomic_update(new_metadata);
-    
-  }
-
-
-};
 
 class mutableinfostore {
   /* NOTE: if you add more mutableinfostore subclasses, may need to add 
@@ -587,17 +413,28 @@ public:
 
 
 
-
+  // A renderable textured geometry contains three pieces:
+  //  * The underlying geometry, represented by snde::component 
+  //  * A surface parameterization for that component, represented by snde::parameterization
+  //  * Image data corresponding to that surface parameterization, represented by
+  //    snde_image in the geometry data structure (and owned by a mutablegeomstore or
+  //    other structure)
+  //  * How and from where that image data gets composited. 
+  
 class mutablegeomstore: public mutableinfostore
 {
 public:
   std::shared_ptr<geometry> geom;
   std::shared_ptr<component> comp;
+  //std::shared_ptr<paramdictentry> paramdict;
+  snde_index image; // address within uv_images field of geometry structure... represents our ownership of this image
 
-  mutablegeomstore(std::string name,const wfmmetadata &metadata,std::shared_ptr<geometry> geom,std::shared_ptr<component> comp) :
+  
+  mutablegeomstore(std::string name,const wfmmetadata &metadata,std::shared_ptr<geometry> geom,std::shared_ptr<component> comp) : //,std::shared_ptr<paramdictentry> paramdict) :
     mutableinfostore(name,metadata,geom->manager),
     geom(geom),
     comp(comp)
+    //paramdict(paramdict)
   {
     
   }

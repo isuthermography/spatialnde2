@@ -21,10 +21,10 @@ void evalarea_onetriangle(__global const struct snde_meshedpart *meshedpart,
   while (edgecnt < 3) {
     //printf("thisedge=%d\n",(int)thisedge);
     
-    if (part_edges[thisedge].face_a==trianglenum) {
-      nextedge = part_edges[thisedge].face_a_next_edge;
+    if (part_edges[thisedge].tri_a==trianglenum) {
+      nextedge = part_edges[thisedge].tri_a_next_edge;
     } else {
-      nextedge = part_edges[thisedge].face_b_next_edge;
+      nextedge = part_edges[thisedge].tri_b_next_edge;
     }
     //printf("nextedge=%d\n",(int)nextedge);
 

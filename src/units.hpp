@@ -1,4 +1,6 @@
 #include <unordered_map>
+#include <ios>
+#include <iomanip>
 #include <cstring>
 #include <vector>
 #include <cmath>
@@ -25,7 +27,7 @@ static inline std::string stripstr(std::string inp)
     }
 
     assert(startpos != std::string::npos);
-    out=inp.substr(startpos,endpos-startpos);
+    out=inp.substr(startpos,endpos-startpos+1);
 
     return out; 
   }
@@ -259,7 +261,8 @@ static inline  std::tuple<std::vector<UnitFactor>,double> sortunits(std::vector<
 			    {"power","Watt","Watts",{"W"},0,true},
 			    {"voltage","Volt","Volts",{"V"},0,true},
 			    {"current","Amp","Amps",{"A"},0,true},
-			    {"length","meter","meters",{"m"},0,true},
+			    {"position","pixel","pixels",{"px"},0,true},
+			    {"position","meter","meters",{"m"},0,true},
 			    {"time","second","seconds",{"s"},0,true},
 			    {"frequency","Hertz","Hertz",{"Hz"},0,true},
 			    // include velocity here? Python version did...
@@ -295,8 +298,47 @@ static inline  std::tuple<std::vector<UnitFactor>,double> sortunits(std::vector<
 		  {"yocto", "y", -24},
 
   };
+
+
+  static std::string FactorName(const UnitFactor &Factor,bool longflag,bool pluralflag)
+  {
+    if (Factor.Unit) {
+      if (!longflag) {
+	if (Factor.Unit->AbbrevList.size() > 0) {
+	  return Factor.Unit->AbbrevList.at(0);
+	}	
+      }
+      if (pluralflag) {
+	return Factor.Unit->PluralName;
+      }
+      return Factor.Unit->SingularName;
+      
+    } else {
+      return Factor.NameOnly;
+    }
+  }
   
-static inline  std::tuple<bool,std::string,int> HasSIPrefix(std::string Name)
+  static std::shared_ptr<std::string> IsSiPrefix(double Power,bool longflag)
+  {
+    // return SI prefix string for power \approx Power, or nullptr
+    if (fabs(Power) < 1e-8) {
+      return std::make_shared<std::string>("");
+    }
+
+    for (auto & SiPrefix : SIPrefixes) {
+      if (fabs(SiPrefix.Power-Power) < 1e-8) {
+	if (longflag || SiPrefix.Abbrev=="") {
+	  return std::make_shared<std::string>(SiPrefix.Prefix);
+	} else {
+	  return std::make_shared<std::string>(SiPrefix.Abbrev);
+	}
+      }
+    }
+    return nullptr;
+    
+  }
+  
+  static inline  std::tuple<bool,std::string,int> HasSIPrefix(std::string Name)
   {
     //  look up unabbreviated prefixes, case insensitive
     for (auto & SIPrefix : SIPrefixes) {
@@ -470,6 +512,120 @@ static inline  std::tuple<bool,std::string,int> HasSIPrefix(std::string Name)
       
       return units(SortedFactors,SortedCoeff*Coefficient);
       
+    }
+
+    std::string print(bool longflag=true)
+    {
+      bool first=true;
+      double lastpower=0;
+      double PrintCoefficient=1.0;
+      bool hasdenominator=false;
+
+      std::string buff="";
+
+      for (auto & Factor: Factors) {
+	if (Factor.Power > 0) {
+	  if (lastpower > 0) {
+	    // factors separated by "*"
+	    buff += "*";
+	  }
+	  lastpower=Factor.Power;
+
+	  if (first) {
+	    // Write SI prefix for unit combination
+	    // Just this first factor
+	    std::shared_ptr<std::string> FactorPrefix=IsSiPrefix(log10(Factor.Coefficient),false);
+	    std::shared_ptr<std::string> FactorPlusCombPrefix=IsSiPrefix(log10(pow(Coefficient,(1.0/Factor.Power))*Factor.Coefficient),longflag);
+	    if (Factor.Unit && Factor.Unit->SiPrefixFlag && FactorPrefix && FactorPlusCombPrefix) {
+	      // Print combined prefix
+	      buff += *FactorPlusCombPrefix;
+	    } else {
+	      // accumulate Comb coefficient and print out regular prefix for factor
+	      PrintCoefficient *= Coefficient;
+	      std::shared_ptr<std::string> FactorPrefix=IsSiPrefix(log10(Factor.Coefficient),longflag);
+	      if (Factor.Unit && Factor.Unit->SiPrefixFlag && FactorPrefix) {
+		buff += *FactorPrefix;
+	      } else {
+		// Couldn't print SI prefix for Factor. Accumulate coefficient to print at end 
+		PrintCoefficient *= pow(Factor.Coefficient,Factor.Power);
+	      }
+	    }
+	    first=false;
+	  } else {
+	    // Not first
+	    if (fabs(Factor.Coefficient -1.0) > 1e-8) {
+	      std::shared_ptr<std::string> FactorPrefix=IsSiPrefix(log10(Factor.Coefficient),longflag);
+	      if (FactorPrefix) {
+		buff+=*FactorPrefix;
+	      } else {
+		// Couldn't print SI prefix for Factor. Accumulate coefficient to print at end                         
+		PrintCoefficient *= pow(Factor.Coefficient,Factor.Power);
+
+	      }
+	    }
+	  }
+
+	  buff += FactorName(Factor,longflag,true);
+	  if (fabs(Factor.Power-1.0) > 1e-8) {
+	    std::stringstream factorpower;
+	    factorpower << std::defaultfloat << std::setprecision(6) << Factor.Power;
+	    buff += "^" + factorpower.str();
+	  }
+	} else {
+	  // not (Factor.Power > 0)
+	  hasdenominator=true;
+
+	}
+      }
+      if (first) {
+	// Never wrote a factor in the numerator
+	PrintCoefficient *= Coefficient;
+	first = false;
+
+	if (hasdenominator) {
+	  // Write 1 in numerator
+	  buff += "1";
+	}
+      }
+
+      // print denominator
+      for (auto & Factor: Factors) {
+	if (Factor.Power < 0) {
+	  buff += "/"; // Slash to pad divisors
+	  
+
+	  // attempt to write si prefix
+	  
+	  if (fabs(Factor.Coefficient-1.0) > 1e-8) {
+	    std::shared_ptr<std::string> FactorPrefix=IsSiPrefix(log10(Factor.Coefficient),longflag);
+	    if (Factor.Unit && Factor.Unit->SiPrefixFlag && FactorPrefix) {
+	      buff+=*FactorPrefix;
+	    } else {
+	      PrintCoefficient *= pow(Factor.Coefficient,Factor.Power);
+	    }
+
+	  }
+	  
+	  buff += FactorName(Factor,longflag,false);
+	  
+	  // Print factor power
+	  
+	  if (fabs(Factor.Power+1.0) > 1e-8) {
+	    std::stringstream factorpower;
+	    factorpower << std::defaultfloat << std::setprecision(6) << -Factor.Power;
+	    
+	    buff += factorpower.str();
+	  }
+	}
+      }
+      // print accumulated coefficient, if any
+      if (fabs(PrintCoefficient-1.0) > 1e-8) {
+	std::stringstream coeff;
+	coeff << std::scientific << std::setprecision(6) << PrintCoefficient;
+	buff += "*"+coeff.str();
+      }
+
+      return buff;
     }
     
     static std::tuple<std::string,units> parseunitpower_right(std::string unitstr)

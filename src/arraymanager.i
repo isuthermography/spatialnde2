@@ -110,7 +110,7 @@ namespace snde {
     virtual std::shared_ptr<snde::cachemanager> get_cache(std::string name);
 
     virtual bool has_cache(std::string name);
-    virtual void set_cache(std::string name,std::shared_ptr<snde::cachemanager> cache);
+    virtual void set_undefined_cache(std::string name,std::shared_ptr<snde::cachemanager> cache);
     virtual ~arraymanager();
   };
 

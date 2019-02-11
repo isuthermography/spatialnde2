@@ -1069,7 +1069,8 @@ are otherwise never generated, even if their input changes ***!!!
       
       state=TRMS_TRANSACTION;
       
-      currevision++; 
+      currevision++;
+      //fprintf(stderr,"_Start_Transaction(%u)\n",(unsigned)currevision);
       
       // Move transaction lock to holder 
       ourlock.swap(transaction_update_writelock_holder);
@@ -1207,7 +1208,7 @@ are otherwise never generated, even if their input changes ***!!!
       
       for (auto & input: inputs) {
 	if (!input.manager->has_cache(our_unique_name)) {
-	  input.manager->set_cache(our_unique_name,change_detection_pseudo_cache);
+	  input.manager->set_undefined_cache(our_unique_name,change_detection_pseudo_cache);
 	}
       }
     }
@@ -1240,6 +1241,9 @@ are otherwise never generated, even if their input changes ***!!!
     {
     
       snde_index retval=currevision;
+
+      //fprintf(stderr,"_End_Transaction(%u)\n",(unsigned)currevision);
+
       std::lock_guard<std::recursive_mutex> dep_tbl(dependency_table_lock);
 	
       /* Now need to go through our dependencies and see which have been modified */
@@ -1287,10 +1291,12 @@ are otherwise never generated, even if their input changes ***!!!
     /* assumes dependency_table_lock is held by given unique_lock */
     {
       
+      //fprintf(stderr,"_Wait_Computation(%u)\n",revnum);
       assert(revnum <= currevision);
       if (revnum==currevision) {
 	all_done.wait( dep_tbl, [ this,revnum ]() { return revnum < currevision || !transaction_update_writelock_holder.owns_lock();});
       }
+      //fprintf(stderr,"_Wait_Computation(%u) complete.\n",revnum);
     }
 
     void Wait_Computation(snde_index revnum)

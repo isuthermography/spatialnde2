@@ -4,10 +4,14 @@
 extern "C"
 {
   #include <zlib.h>
-  #include <png.h>
-
-  
+  #include <png.h>  
 }
+
+#include "mutablewfmstore.hpp"
+
+#ifndef SNDE_PNGIMAGE_HPP
+#define SNDE_PNGIMAGE_HPP
+
 
 namespace snde {
   template <typename T>
@@ -35,7 +39,8 @@ namespace snde {
     // set metadata
     png_uint_32 res_x=0,res_y=0;
     int unit_type=0;
-    png_get_pHYs(png,endinfo,&res_x,&res_y,&unit_type);
+    png_get_pHYs(png,info,&res_x,&res_y,&unit_type);
+    fprintf(stderr,"res_x=%d; res_y=%d; unit_type=%d\n",res_x,res_y,unit_type);
 
     if (unit_type==PNG_RESOLUTION_METER && res_x) {
       retval->metadata.AddMetaDatum(metadatum("Step1",1.0/res_x));
@@ -54,11 +59,13 @@ namespace snde {
     if (unit_type==PNG_RESOLUTION_METER && res_y) {
       retval->metadata.AddMetaDatum(metadatum("Step2",-1.0/res_y));
       retval->metadata.AddMetaDatum(metadatum("IniVal2",(height*1.0)/res_y/2.0));
-      retval->metadata.AddMetaDatum(metadatum("Units2","meters"));      
+      retval->metadata.AddMetaDatum(metadatum("Units2","meters"));
+      fprintf(stderr,"Got Y resolution in meters\n");
     } else {
       retval->metadata.AddMetaDatum(metadatum("Step2",-1.0));
       retval->metadata.AddMetaDatum(metadatum("IniVal2",(height*1.0)/2.0));
       retval->metadata.AddMetaDatum(metadatum("Units2","pixels"));      
+      fprintf(stderr,"Got Y resolution in arbitrary\n");
     }
     retval->metadata.AddMetaDatum(metadatum("Coord2","Y Position"));
 
@@ -187,3 +194,4 @@ namespace snde {
   }
 
 }
+#endif // SNDE_PNGIMAGE_HPP
