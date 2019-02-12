@@ -43,7 +43,7 @@ snde::lockingprocess::~lockingprocess()
 snde::lockingprocess_threaded::lockingprocess_threaded(std::shared_ptr<lockmanager> lockmanager) :
   //arrayreadregions(std::make_shared<std::vector<rangetracker<markedregion>>>(manager->locker->_arrays.size())),
   //arraywriteregions(std::make_shared<std::vector<rangetracker<markedregion>>>(manager->locker->_arrays.size())),
-  lastlockingposition(0,0,true),
+  lastlockingposition(std::numeric_limits<lockindex_t>::min(),0,true),
   _executor_lock(_mutex)
 {
   this->_lockmanager=lockmanager;
@@ -62,14 +62,36 @@ snde::lockingprocess_threaded::lockingprocess_threaded(std::shared_ptr<lockmanag
 }
 
 
+snde::lockingprocess_threaded::lockingprocess_threaded(std::shared_ptr<lockmanager> lockmanager,rwlock_token_set all_locks) :
+  //arrayreadregions(std::make_shared<std::vector<rangetracker<markedregion>>>(manager->locker->_arrays.size())),
+  //arraywriteregions(std::make_shared<std::vector<rangetracker<markedregion>>>(manager->locker->_arrays.size())),
+  lastlockingposition(0,0,true),
+  _executor_lock(_mutex)
+{
+  this->_lockmanager=lockmanager;
+
+  //fprintf(stderr,"Creating new lockingprocess_threaded()\n");
+  
+  all_tokens=all_locks;
+  used_tokens=empty_rwlock_token_set();
+        /* locking can occur in original thread, so
+	   include us in _runnablethreads  */
+  _runnablethreads.emplace_back((std::condition_variable *)NULL);
+  
+  /* since we return as the running thread,
+     we return with the mutex locked via _executor_lock (from constructor, above). */
+  
+}
 
 
-bool snde::lockingprocess_threaded::_barrier(lockingposition lockpos) //(size_t arrayidx,snde_index pos,bool write)
+
+
+bool snde::lockingprocess_threaded::_barrier(lockingposition lockpos) //(lockindex_t idx,snde_index pos,bool write)
 /* returns preexisting_only */
 {
   bool preexisting_only=false;
 
-  //fprintf(stderr,"Reached barrier... lockpos=%d\n",lockpos.arrayidx);
+  //fprintf(stderr,"Reached barrier... lockpos=%d\n",lockpos.idx);
   
   /* Since we must be the running thread in order to take
      this call, take the lock from _executor_lock */
@@ -100,7 +122,7 @@ bool snde::lockingprocess_threaded::_barrier(lockingposition lockpos) //(size_t 
     ourcv.wait(lock);
   }
   
-  //fprintf(stderr,"Proceeding from barrier... lockpos=%d\n",lockpos.arrayidx);
+  //fprintf(stderr,"Proceeding from barrier... lockpos=%d\n",lockpos.idx);
   /* because the wait terminated we must be first on the waiting list */
   _waitingthreads.erase(_waitingthreads.begin());
   
@@ -147,6 +169,25 @@ void snde::lockingprocess_threaded::postunlock(void *prelockstate)
 
 }
 
+std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_write_infostore(std::shared_ptr<mutableinfostore> infostore)
+{
+  rwlock_token_set newset;
+  bool preexisting_only;
+  auto arrayidx = _lockmanager->_arrayidx();
+  assert(arrayidx->find((void*)infostore.get()) != arrayidx->end());
+  
+  preexisting_only=_barrier(lockingposition((*arrayidx)[(void*)infostore.get()],0,true));
+  if (preexisting_only) {
+    newset = _lockmanager->get_preexisting_locks_write_infostore(all_tokens,infostore);
+  } else {
+    newset = _lockmanager->get_locks_write_infostore(all_tokens,infostore);
+  }
+  merge_into_rwlock_token_set(used_tokens,newset);
+  
+  //(*arraywriteregions)[_lockmanager->_arrayidx[array]].mark_all(SNDE_INDEX_INVALID);
+  
+  return std::make_pair(lockholder_index(infostore.get(),true),newset);
+}
 
 
 std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_write_array(void **array)
@@ -154,9 +195,9 @@ std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get
   rwlock_token_set newset;
   bool preexisting_only;
   auto arrayidx = _lockmanager->_arrayidx();
-  assert(arrayidx->find(array) != arrayidx->end());
+  assert(arrayidx->find((void*)array) != arrayidx->end());
   
-  preexisting_only=_barrier(lockingposition((*arrayidx)[array],0,true));
+  preexisting_only=_barrier(lockingposition((*arrayidx)[(void*)array],0,true));
   if (preexisting_only) {
     newset = _lockmanager->get_preexisting_locks_write_array_region(all_tokens,array,0,SNDE_INDEX_INVALID);
   } else {
@@ -174,13 +215,13 @@ std::pair<lockholder_index,rwlock_token_set> snde::lockingprocess_threaded::get_
   rwlock_token_set newset;
   bool preexisting_only;
   auto arrayidx = _lockmanager->_arrayidx();
-  assert(arrayidx->find(array) != arrayidx->end());
+  assert(arrayidx->find((void*)array) != arrayidx->end());
 
   
   if (_lockmanager->is_region_granular()) {
-    preexisting_only=_barrier(lockingposition((*arrayidx)[array],indexstart,true));
+    preexisting_only=_barrier(lockingposition((*arrayidx)[(void*)array],indexstart,true));
   } else {
-    preexisting_only=_barrier(lockingposition((*arrayidx)[array],0,true));
+    preexisting_only=_barrier(lockingposition((*arrayidx)[(void*)array],0,true));
   }
   if (preexisting_only) {
     newset = _lockmanager->get_preexisting_locks_write_array_region(all_tokens,array,indexstart,numelems);
@@ -189,10 +230,33 @@ std::pair<lockholder_index,rwlock_token_set> snde::lockingprocess_threaded::get_
   }
   merge_into_rwlock_token_set(used_tokens,newset);
   
-  //(*arraywriteregions)[_lockmanager->_arrayidx[array]].mark_region(indexstart,numelems);
+  //(*arraywriteregions)[_lockmanager->_arrayidx[(void*)array]].mark_region(indexstart,numelems);
   
   return std::make_pair(lockholder_index(array,true,indexstart,numelems),newset);
 }
+
+
+std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_read_infostore(std::shared_ptr<mutableinfostore> infostore)
+{
+  rwlock_token_set newset;
+  bool preexisting_only;
+  auto arrayidx = _lockmanager->_arrayidx();
+  assert(arrayidx->find((void*)infostore.get()) != arrayidx->end());
+  
+  preexisting_only=_barrier(lockingposition((*arrayidx)[(void*)infostore.get()],0,false));
+  if (preexisting_only) {
+    newset = _lockmanager->get_preexisting_locks_read_infostore(all_tokens,infostore);
+  } else {
+    newset = _lockmanager->get_locks_read_infostore(all_tokens,infostore);
+  }
+  merge_into_rwlock_token_set(used_tokens,newset);
+  
+  //(*arraywriteregions)[_lockmanager->_arrayidx[array]].mark_all(SNDE_INDEX_INVALID);
+  
+  return std::make_pair(lockholder_index(infostore.get(),false),newset);
+}
+
+
 
 std::pair<lockholder_index,rwlock_token_set> snde::lockingprocess_threaded::get_locks_read_array(void **array)
 {
@@ -200,10 +264,10 @@ std::pair<lockholder_index,rwlock_token_set> snde::lockingprocess_threaded::get_
   bool preexisting_only;
   
   auto arrayidx = _lockmanager->_arrayidx();
-  assert(arrayidx->find(array) != arrayidx->end());
+  assert(arrayidx->find((void*)array) != arrayidx->end());
 
   
-  preexisting_only=_barrier(lockingposition((*arrayidx)[array],0,false));
+  preexisting_only=_barrier(lockingposition((*arrayidx)[(void*)array],0,false));
   if (preexisting_only) {
     newset = _lockmanager->get_preexisting_locks_read_array_region(all_tokens,array,0,SNDE_INDEX_INVALID);
   } else {
@@ -211,7 +275,7 @@ std::pair<lockholder_index,rwlock_token_set> snde::lockingprocess_threaded::get_
   }
   merge_into_rwlock_token_set(used_tokens,newset);
 	
-  //(*arrayreadregions)[(*arrayidx)[array]].mark_all(SNDE_INDEX_INVALID);
+  //(*arrayreadregions)[(*arrayidx)[(void*)array]].mark_all(SNDE_INDEX_INVALID);
   
   
   return std::make_pair(lockholder_index(array,false,0,SNDE_INDEX_INVALID),newset);
@@ -224,12 +288,12 @@ std::pair<lockholder_index,rwlock_token_set> snde::lockingprocess_threaded::get_
   rwlock_token_set newset;
 
   auto arrayidx = _lockmanager->_arrayidx();
-  assert(arrayidx->find(array) != arrayidx->end());
+  assert(arrayidx->find((void*)array) != arrayidx->end());
   
   if (_lockmanager->is_region_granular()) {
-    preexisting_only=_barrier(lockingposition((*arrayidx)[array],indexstart,false));
+    preexisting_only=_barrier(lockingposition((*arrayidx)[(void*)array],indexstart,false));
   } else {
-    preexisting_only=_barrier(lockingposition((*arrayidx)[array],0,false));
+    preexisting_only=_barrier(lockingposition((*arrayidx)[(void*)array],0,false));
   }
   
   if (preexisting_only) {
@@ -239,7 +303,7 @@ std::pair<lockholder_index,rwlock_token_set> snde::lockingprocess_threaded::get_
   }
   merge_into_rwlock_token_set(used_tokens,newset);
 
-  //(*arrayreadregions)[(*arrayidx)[array]].mark_region(indexstart,numelems);
+  //(*arrayreadregions)[(*arrayidx)[(void*)array]].mark_region(indexstart,numelems);
   
   return std::make_pair(lockholder_index(array,false,indexstart,numelems),newset);
 }

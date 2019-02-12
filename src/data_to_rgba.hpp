@@ -54,7 +54,7 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 						       cl_context context,
 						       cl_device_id device,
 						       cl_command_queue queue,
-						       std::function<void(std::unique_lock<rwlock_lockable> inputlock,std::shared_ptr<lockholder> array_locks,rwlock_token_set all_locks,trm_arrayregion input,trm_arrayregion output,snde_rgba **imagearray,snde_index start,size_t xsize,size_t ysize)> callback) // OK for callback to explicitly unlock locks, as it is the last thing called. 
+						       std::function<void(std::shared_ptr<lockholder> input_and_array_locks,rwlock_token_set all_locks,trm_arrayregion input,trm_arrayregion output,snde_rgba **imagearray,snde_index start,size_t xsize,size_t ysize)> callback) // OK for callback to explicitly unlock locks, as it is the last thing called. 
   {
     
     std::shared_ptr<trm_dependency> retval;
@@ -103,7 +103,7 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 	// perform locking
 
 	// obtain lock for input structure (prior to all arrays in locking order)
-	std::unique_lock<rwlock_lockable> inputlock(input->lock->reader);
+	//std::unique_lock<rwlock_lockable> inputlock(input->lock->reader);
 
 	//// obtain lock for output structure (prior to all arrays in locking order)
 	//std::unique_lock<rwlock_lockable> outputlock(output->lock->writer);
@@ -112,7 +112,10 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 	std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(output_manager->locker); // new locking process
 
 	// Use spawn to get the locks, as we don't know where we are in the locking order
-	lockprocess->spawn( [ dep,lockprocess,holder ]() { holder->store(lockprocess->get_locks_read_array_region(dep->inputs[0].array,dep->inputs[0].start,dep->inputs[0].len)); });
+	lockprocess->spawn( [ dep,input,lockprocess,holder ]() {
+			      holder->store(lockprocess->get_locks_read_infostore(input));
+			      holder->store(lockprocess->get_locks_read_array_region(dep->inputs[0].array,dep->inputs[0].start,dep->inputs[0].len));
+			    });
 	lockprocess->spawn( [ output_array,dep,lockprocess,holder ]() { holder->store(lockprocess->get_locks_write_array_region(output_array,dep->outputs[0].start,dep->outputs[0].len)); });
 	
 	rwlock_token_set all_locks=lockprocess->finish();
@@ -225,7 +228,7 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 	// while we still have our locks (all_locks),
 	// call callback function with the data we have generated 
 	// OK for callback to explicitly unlock locks
-	callback(std::move(inputlock),holder,std::move(all_locks),dep->inputs[0],dep->outputs[0],(snde_rgba **)dep->outputs[0].array,dep->outputs[0].start,xsize,ysize);
+	callback(holder,std::move(all_locks),dep->inputs[0],dep->outputs[0],(snde_rgba **)dep->outputs[0].array,dep->outputs[0].start,xsize,ysize);
 
 	// cannot use inputlock anymore after this because of std::move... (of course we are done anyway)
 	
@@ -242,8 +245,12 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
       [ output_manager,output_array,input ] (std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {
 	/* update_output_regions code */
 
-	// obtain lock for input structure (prior to all arrays in locking order)
-	std::lock_guard<rwlock_lockable> inputlock(input->lock->reader);
+	// obtain lock for input structure (prior to all arrays in locking order
+	rwlock_token_set all_locks=empty_rwlock_token_set();
+	input->manager->locker->get_locks_read_infostore(all_locks,input);
+	
+	//std::lock_guard<rwlock_lockable> inputlock(input->lock->reader);
+	std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
 	snde_index input_len = 0;
 	if (input->dimlen.size() >= 1) {
 	  input_len=input->dimlen[0];
@@ -256,7 +263,6 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 	  outputs.empty();
 	}
 	if (outputs.size() < 1) {
-	  std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
 	  std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(output_manager->locker); // new locking process
 	  
 	  lockprocess->get_locks_write_array(output_array);

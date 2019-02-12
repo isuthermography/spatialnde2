@@ -10,9 +10,13 @@ import types as pytypes
 %shared_ptr(std::vector<snde::rangetracker<snde::markedregion>>);
 %shared_ptr(voidpp_voidpp_multimap_pyiterator)
 
-%shared_ptr(std::vector<void **>);
-%shared_ptr(std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>>);
-%shared_ptr(std::deque<std::shared_ptr<arraylock>>);
+ //%shared_ptr(std::vector<void **>);
+%shared_ptr(std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>>);
+%shared_ptr(std::unordered_map<snde::lockindex_t,void **>);
+//%shared_ptr(std::unordered_map<snde::lockindex_t,std::weak_ptr<snde::mutableinfostore>);
+%shared_ptr(std::unordered_map<snde::lockindex_t,std::shared_ptr<snde::datalock>>);
+  
+//%shared_ptr(std::deque<std::shared_ptr<arraylock>>);
 
 %template(LockingPositionMap) std::multimap<snde::lockingposition,snde::CountedPyObject>;
 
@@ -129,12 +133,12 @@ public:
 %template(VectorOfRegions) std::vector<snde::rangetracker<snde::markedregion>>;
 %template(lockingposition_generator) std::pair<snde::lockingposition,snde::CountedPyObject>; 
 
-//%template(voidpp_posn_map) std::unordered_map<void **,size_t>;
-%template(voidpp_posn_map) std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > >;
+//%template(voidp_posn_map) std::unordered_map<void *,size_t>;
+%template(voidp_posn_map) std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > >;
 
-%extend std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > > {
+%extend std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > > {
   bool has_key(ArrayPtr key) {
-    if (self->find(key)==self->end()) return false;
+    if (self->find((void*)key)==self->end()) return false;
     return true;
   }
 };
@@ -143,28 +147,28 @@ public:
 
 // NOTE: This iterator std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > >::iterator   is currently causing a memory leak message.... seems to be a swig bug...
 
-size_t voidpp_posn_map_iterator_posn(std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > >::iterator);
+snde::lockindex_t voidp_posn_map_iterator_posn(std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > >::iterator);
 
 %{
-size_t voidpp_posn_map_iterator_posn(std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > >::iterator self) {
+  snde::lockindex_t voidp_posn_map_iterator_posn(std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > >::iterator self) {
     return self->second;
 
 }
 %}
 
-snde::ArrayPtr voidpp_posn_map_iterator_ptr(std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > >::iterator);
+snde::ArrayPtr voidp_posn_map_iterator_ptr(std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > >::iterator);
 %{
-snde::ArrayPtr voidpp_posn_map_iterator_ptr(std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > >::iterator self)
+  snde::ArrayPtr voidp_posn_map_iterator_ptr(std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > >::iterator self)
 {
-  return self->first;
+  return (void**)self->first;
 }
 %}
 
 // Workaround for memory leak: Never expose the iterator to Python
-%extend std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > > {
+%extend std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > > {
   
-  size_t get_ptr_posn(snde::ArrayPtr ptr){
-    std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > >::iterator it=self->find(ptr);
+  snde::lockindex_t get_ptr_posn(snde::ArrayPtr ptr){
+    std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > >::iterator it=self->find((void *)ptr);
     assert(it != self->end()); /* should diagnose lack of entry prior to calling with has_key() */
     	      
     return it->second;
@@ -248,8 +252,25 @@ struct arrayregion {
     std::shared_ptr<markedregion> sp_breakup(snde_index breakpoint);
   };
 
+
+    class datalock {
+  public: 
+      //std::mutex admin; /* locks access to subregions field of arraylock subclass, lock after everything; see also whole_array_write */
+      %immutable;
+    std::shared_ptr<rwlock> whole; /* This is in the locking order with the arrays and mutableinfostores. In
+				      order to modify subregions you must hold this AND all subregions AND admin (above) 
+				      for write... Note: Not used for dirty tracking (put dirty stuff in subregions!) */
+    %mutable;
+	 
+    datalock() {
+      whole=std::make_shared<rwlock>();
+      
+    }
+  };
+    
+
   
-  class arraylock {
+    class arraylock: public datalock {
   public:
     //std::mutex admin; (swig incompatible) /* locks access to subregions, lock after everything; see also whole_array_write */
 
@@ -258,15 +279,10 @@ struct arrayregion {
     //%mutable;
     //std::vector<rwlock> subregions;
     %immutable;
-    std::shared_ptr<rwlock> wholearray; /* This is in the locking order with the arrays. In
-				 order to modify subregions you must hold this AND all subregions AND admin (above) 
-				 for write... Note: Not used for dirty tracking (put dirty stuff in subregions!) */
     std::map<markedregion,std::shared_ptr<rwlock>> subregions;
     %mutable;
 
-    arraylock() {
-
-    }
+    arraylock();
   };
 
   //typedef std::vector<void **> arrayvector;
@@ -284,11 +300,11 @@ struct arrayregion {
     lockmanager();
 
     /* Accessors for atomic shared pointers */
-    std::shared_ptr<std::vector<void **>> _arrays();
-    std::shared_ptr<std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>>> _arrayidx();
-    std::shared_ptr<std::deque<std::shared_ptr<arraylock>>> _locks();
+    std::shared_ptr<std::unordered_map<lockindex_t,void **>> _arrays();
+    std::shared_ptr<std::unordered_map<void *,lockindex_t,std::hash<void *>,std::equal_to<void *>>> _arrayidx();
+    std::shared_ptr<std::unordered_map<lockindex_t,std::shared_ptr<datalock>>> _locks();
 
-    size_t get_array_idx(void **array);
+    lockindex_t get_array_idx(void **array);
 
     void addarray(void **array);
       /* WARNING: ALL addarray() CALLS MUST BE ON INITIALIZATION
@@ -303,9 +319,9 @@ struct arrayregion {
     void realloc_down_allocation(void **arrayptr, snde_index addr,snde_index orignelem, snde_index newnelem);
 
 
-    rwlock_token  _get_preexisting_lock_read_array_lockobj(rwlock_token_set all_locks, size_t arrayidx,std::shared_ptr<rwlock> rwlockobj);
-    std::pair<rwlock_lockable *,rwlock_token>  _get_preexisting_lock_read_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index pos,snde_index size);
-    std::pair<rwlock_lockable *,rwlock_token>  _get_lock_read_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index pos,snde_index size);
+    rwlock_token  _get_preexisting_lock_read_lockobj(rwlock_token_set all_locks, lockindex_t arrayidx,std::shared_ptr<rwlock> rwlockobj);
+    std::pair<rwlock_lockable *,rwlock_token>  _get_preexisting_lock_read_array_region(rwlock_token_set all_locks, lockindex_t arrayidx,snde_index pos,snde_index size);
+    std::pair<rwlock_lockable *,rwlock_token>  _get_lock_read_array_region(rwlock_token_set all_locks, lockindex_t arrayidx,snde_index pos,snde_index size);
     rwlock_token_set get_locks_read_array(rwlock_token_set all_locks, void **array);
     rwlock_token_set get_preexisting_locks_read_array(rwlock_token_set all_locks, void **array);
     rwlock_token_set get_preexisting_locks_read_array_region(rwlock_token_set all_locks, void **array,snde_index indexstart,snde_index numelems);
@@ -313,11 +329,11 @@ struct arrayregion {
     rwlock_token_set get_locks_read_array_region(rwlock_token_set all_locks, void **array,snde_index indexstart,snde_index numelems);
     rwlock_token_set get_locks_read_all(rwlock_token_set all_locks);
     
-    rwlock_token  _get_preexisting_lock_write_array_lockobj(rwlock_token_set all_locks, size_t arrayidx,std::shared_ptr<rwlock> rwlockobj);
+    rwlock_token  _get_preexisting_lock_write_lockobj(rwlock_token_set all_locks, lockindex_t arrayidx,std::shared_ptr<rwlock> rwlockobj);
     
-    std::pair<rwlock_lockable *,rwlock_token>  _get_preexisting_lock_write_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index indexstart,snde_index numelems);
+    std::pair<rwlock_lockable *,rwlock_token>  _get_preexisting_lock_write_array_region(rwlock_token_set all_locks, lockindex_t arrayidx,snde_index indexstart,snde_index numelems);
 
-    std::pair<rwlock_lockable *,rwlock_token>  _get_lock_write_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index pos,snde_index size);
+    std::pair<rwlock_lockable *,rwlock_token>  _get_lock_write_array_region(rwlock_token_set all_locks, lockindex_t arrayidx,snde_index pos,snde_index size);
     rwlock_token_set get_locks_write_array(rwlock_token_set all_locks, void **array);
     rwlock_token_set get_preexisting_locks_write_array(rwlock_token_set all_locks, void **array);
     rwlock_token_set get_preexisting_locks_write_array_region(rwlock_token_set all_locks, void **array,snde_index indexstart,snde_index numelems);
@@ -331,11 +347,11 @@ struct arrayregion {
 
   class lockingposition {
   public:
-    size_t arrayidx; /* index of array we want to lock, or numeric_limits<size_t>.max() */
+    lockindex_t idx; /* index of array we want to lock, or numeric_limits<size_t>.max() */
     snde_index idx_in_array; /* index within array, or SNDE_INDEX_INVALID*/
     bool write; /* are we trying to lock for write? */ 
     lockingposition();
-    lockingposition(size_t arrayidx,snde_index idx_in_array,bool write);
+    lockingposition(lockindex_t idx,snde_index idx_in_array,bool write);
 
     bool operator<(const lockingposition & other) const;
   };
@@ -861,11 +877,11 @@ class lockingprocess_python(lockingprocess_pycpp):
 
         (lockpos,lockcall_gen_genparent)=iterator.value()
 
-        #sys.stderr.write("Got first waiting generator, idx=%d" % (lockpos.arrayidx))
+        #sys.stderr.write("Got first waiting generator, idx=%d" % (lockpos.idx))
         #if len(waiting_generators) > 1:
         #  second_iterator=waiting_generators.begin();
         #  second_iterator+=1
-        #  sys.stderr.write("; 2nd, idx=%d" % (second_iterator.value()[0].arrayidx))
+        #  sys.stderr.write("; 2nd, idx=%d" % (second_iterator.value()[0].idx))
         #  pass
         #sys.stderr.write("\n")
         (lockcall,gen,genparent)=lockcall_gen_genparent.value()
@@ -920,7 +936,7 @@ class lockingprocess_python(lockingprocess_pycpp):
       assert(isinstance(gen_out[1],lockingposition))
       (name,posn,lockcall) = gen_out	
 
-      #sys.stderr.write("Adding waiting generator,posn.arrayidx=%d\n" % (posn.arrayidx))
+      #sys.stderr.write("Adding waiting generator,posn.idx=%d\n" % (posn.idx))
       self.waiting_generators.emplace_pair(lockingposition_generator(posn,CountedPyObject((lockcall,thisgen,thisgen_parent))))
       pass
     pass
@@ -948,7 +964,7 @@ class lockingprocess_python(lockingprocess_pycpp):
       raise ValueError("Array not found")
     
     #iterator = self.lockmanager._arrayidx.find(fieldaddr)
-    #arrayidx = voidpp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
+    #arrayidx = voidp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
     arrayidx = self.lockmanager._arrayidx().get_ptr_posn(fieldaddr)
 
       
@@ -992,7 +1008,7 @@ class lockingprocess_python(lockingprocess_pycpp):
       raise ValueError("Array not found")
     
     #iterator = self.lockmanager._arrayidx.find(fieldaddr)
-    #arrayidx = voidpp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
+    #arrayidx = voidp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
     arrayidx = self.lockmanager._arrayidx().get_ptr_posn(fieldaddr)
 
       

@@ -71,11 +71,11 @@ The order is from the top of the struct snde_geometrydata  to the bottom. Once y
 namespace snde {
   class lockholder_index; // forward declaration 
   
-  typedef  std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > > voidpp_size_map;
-  typedef voidpp_size_map::iterator voidpp_size_map_iterator;
+  typedef  std::unordered_map<void *,lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,lockindex_t > > > voidp_size_map;
+  typedef voidp_size_map::iterator voidp_size_map_iterator;
   
   class arraymanager; // forward declaration
-
+  class mutableinfostore; // forward declaration
 
     struct arrayregion {
     void **array;
@@ -139,21 +139,36 @@ namespace snde {
   //    }
   //  };
 
-  class arraylock {
+  class datalock {
+  public: 
+    std::mutex admin; /* locks access to subregions field of arraylock subclass, lock after everything; see also whole_array_write */
+    std::shared_ptr<rwlock> whole; /* This is in the locking order with the arrays and mutableinfostores. In
+				      order to modify subregions you must hold this AND all subregions AND admin (above) 
+				      for write... Note: Not used for dirty tracking (put dirty stuff in subregions!) */
+    
+    datalock() {
+      whole=std::make_shared<rwlock>();
+      
+    }
+
+    virtual ~datalock() {}
+  };
+    
+    
+    
+  class arraylock: public datalock {
   public:
-    std::mutex admin; /* locks access to subregions, lock after everything; see also whole_array_write */
 
     //rwlock full_array;
     //std::vector<rwlock> subregions;
 
-    std::shared_ptr<rwlock> wholearray; /* This is in the locking order with the arrays. In
-				 order to modify subregions you must hold this AND all subregions AND admin (above) 
-				 for write... Note: Not used for dirty tracking (put dirty stuff in subregions!) */
-    std::map<markedregion,std::shared_ptr<rwlock>> subregions;
+    std::map<markedregion,std::shared_ptr<rwlock>> subregions; // locked by admin mutex of datalock superclass
     
-    arraylock() {
-      wholearray=std::make_shared<rwlock>();
+    arraylock() : datalock() {
+      
     }
+
+    virtual ~arraylock() {}
   };
 
   class lockmanager {
@@ -325,8 +340,11 @@ namespace snde {
     /* These next few elements may ONLY be modified during
        initialization phase (single thread, etc.) */
   public:
-    std::mutex admin; // Should ONLY be held when rearranging __arrays/__arrayidx/__locks
+    std::mutex admin; // Should ONLY be held when rearranging __arrays/__infostores/__arrayidx/__locks, or manipulating next_array/next_infostore
 
+    lockindex_t _next_array;
+    lockindex_t _next_infostore;
+    
     /* DO NOT ACCESS THESE ARRAYS DIRECTLY... ALWAYS USE THE ACCESSORS FOR READ OR THE
        _begin_atomic_update()/_end_atomic_update() FOR WRITE */
     // Note: locking index and locking order position is defined based
@@ -334,11 +352,19 @@ namespace snde {
     // BE REMOVED because that would change succeeding indices,
     // but they may in the future support disabling, and entries may be added
     // (using _begin_atomic_update(), etc.)
-    std::shared_ptr<std::vector<void **>> __arrays; /* atomic shared pointer to get array pointer from index */
-    //std::unordered_map<void **,size_t> _arrayidx; /* get array index from pointer */
-    std::shared_ptr<std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>>> __arrayidx; /* atomic shared pointer to get array index from pointer */
 
-    std::shared_ptr<std::deque<std::shared_ptr<arraylock>>> __locks; /* atomic shared pointer to get lock from index */
+    // Update 2/11/19:
+    //            * Change __arrays/__locks from vector/deque into unordered_map to support array removal
+    //            * Change arrayidx to lockindex_t (signed int64_t) -- arrays grow positive, infostores grow negative
+    //            * Add __infostores map
+    
+    std::shared_ptr<std::unordered_map<lockindex_t,void **>> __arrays; /* atomic shared pointer to get array pointer from index */
+    std::shared_ptr<std::unordered_map<lockindex_t,mutableinfostore *>> __infostores; 
+    
+    //std::unordered_map<void **,size_t> _arrayidx; /* get array index from pointer */
+    std::shared_ptr<std::unordered_map<void *,lockindex_t,std::hash<void *>,std::equal_to<void *>>> __arrayidx; /* atomic shared pointer to get array index from pointer (void *) cast of (void **) or (void *) cast of shared_ptr<mutableinfostore>.get() */
+
+    std::shared_ptr<std::unordered_map<lockindex_t,std::shared_ptr<datalock>>> __locks; /* atomic shared pointer to get lock from index */
     //std::unordered_map<rwlock *,size_t> _idx_from_lockptr; /* get array index from lock pointer */
 
     // basic lockmanager data structures (arrays, arrayidx,locks).
@@ -349,96 +375,260 @@ namespace snde {
     // and is locked with locks[...].mutex  mutex.
     
     lockmanager() {
-      std::atomic_store(&__arrays,std::make_shared<std::vector<void **>>());
-      std::atomic_store(&__arrayidx,std::make_shared<std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>>>());;
-      std::atomic_store(&__locks,std::make_shared<std::deque<std::shared_ptr<arraylock>>>());
-    }
+      std::atomic_store(&__arrays,std::make_shared<std::unordered_map<lockindex_t,void **>>());
+      std::atomic_store(&__infostores,std::make_shared<std::unordered_map<lockindex_t,mutableinfostore *>>());
+      std::atomic_store(&__arrayidx,std::make_shared<std::unordered_map<void *,lockindex_t,std::hash<void *>,std::equal_to<void *>>>());;
+      std::atomic_store(&__locks,std::make_shared<std::unordered_map<lockindex_t,std::shared_ptr<datalock>>>());
 
+      _next_array=1;
+      _next_infostore=-1;
+    }
+    
     /* Accessors for atomic shared pointers */
-    std::shared_ptr<std::vector<void **>> _arrays()
+    std::shared_ptr<std::unordered_map<lockindex_t,void **>> _arrays()
     {
       /* get array pointer from index */    
       return std::atomic_load(&__arrays);
     }
-    std::shared_ptr<std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>>> _arrayidx()
+
+    /* Accessors for atomic shared pointers */
+    std::shared_ptr<std::unordered_map<lockindex_t,mutableinfostore *>> _infostores()
+    {
+      /* get array pointer from index */    
+      return std::atomic_load(&__infostores);
+    }
+
+    std::shared_ptr<std::unordered_map<void *,lockindex_t,std::hash<void *>,std::equal_to<void *>>> _arrayidx()
     {
       /* get array index from pointer */    
       return std::atomic_load(&__arrayidx);
     }
     
-    std::shared_ptr<std::deque<std::shared_ptr<arraylock>>> _locks()
+    std::shared_ptr<std::unordered_map<lockindex_t,std::shared_ptr<datalock>>> _locks()
     {
       /* Get lock from index */
       return std::atomic_load(&__locks);
     }
 
-    std::tuple<std::shared_ptr<std::vector<void **>>,
-	       std::shared_ptr<std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>>>,
-	       std::shared_ptr<std::deque<std::shared_ptr<arraylock>>>> _begin_atomic_update()
+    std::tuple<std::shared_ptr<std::unordered_map<lockindex_t,void **>>,
+	       std::shared_ptr<std::unordered_map<lockindex_t,mutableinfostore *>>,
+	       std::shared_ptr<std::unordered_map<void *,lockindex_t,std::hash<void *>,std::equal_to<void *>>>,
+	       std::shared_ptr<std::unordered_map<lockindex_t,std::shared_ptr<datalock>>>> _begin_atomic_update()
     // adminlock must be locked when calling this function...
     // it returns new copies of the atomically-guarded data
     {
 
       // Make copies of atomically-guarded data 
-      std::shared_ptr<std::vector<void **>> new__arrays=std::make_shared<std::vector<void **>>(*_arrays());
-      std::shared_ptr<std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>>> new__arrayidx=std::make_shared<std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>>>(*_arrayidx());
-      std::shared_ptr<std::deque<std::shared_ptr<arraylock>>> new__locks=std::make_shared<std::deque<std::shared_ptr<arraylock>>>(*_locks());      
+      std::shared_ptr<std::unordered_map<lockindex_t,void **>> new__arrays=std::make_shared<std::unordered_map<lockindex_t,void **>>(*_arrays());
+      std::shared_ptr<std::unordered_map<lockindex_t,mutableinfostore *>> new__infostores=std::make_shared<std::unordered_map<lockindex_t,mutableinfostore *>>(*_infostores());
+      std::shared_ptr<std::unordered_map<void *,lockindex_t,std::hash<void *>,std::equal_to<void *>>> new__arrayidx=std::make_shared<std::unordered_map<void *,lockindex_t,std::hash<void *>,std::equal_to<void *>>>(*_arrayidx());
+      std::shared_ptr<std::unordered_map<lockindex_t,std::shared_ptr<datalock>>> new__locks=std::make_shared<std::unordered_map<lockindex_t,std::shared_ptr<datalock>>>(*_locks());      
       
-      return std::make_tuple(new__arrays,new__arrayidx,new__locks);
+      return std::make_tuple(new__arrays,new__infostores,new__arrayidx,new__locks);
     }
-
-    void _end_atomic_update(std::shared_ptr<std::vector<void **>> new__arrays,
-			     std::shared_ptr<std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>>> new__arrayidx,
-			     std::shared_ptr<std::deque<std::shared_ptr<arraylock>>> new__locks)
+    
+    void _end_atomic_update(std::shared_ptr<std::unordered_map<lockindex_t,void **>> new__arrays,
+			    std::shared_ptr<std::unordered_map<lockindex_t,mutableinfostore *>> new__infostores,			    
+			    std::shared_ptr<std::unordered_map<void *,lockindex_t,std::hash<void *>,std::equal_to<void *>>> new__arrayidx,
+			    std::shared_ptr<std::unordered_map<lockindex_t,std::shared_ptr<datalock>>> new__locks)
     // adminlock must be locked when calling this function...
     {
-
+      
       // replace old with new
 
       std::atomic_store(&__arrays,new__arrays);
+      std::atomic_store(&__infostores,new__infostores);
       std::atomic_store(&__arrayidx,new__arrayidx);
       std::atomic_store(&__locks,new__locks);
       
     }
-
-    size_t get_array_idx(void **array)
+    
+    lockindex_t get_array_idx(void **array)
     {
+      lockindex_t ret;
       auto arrayidx = _arrayidx();
-      assert(arrayidx->find(array) != arrayidx->end());
-      return (*arrayidx)[array];
+      assert(arrayidx->find((void *)array) != arrayidx->end());
+      ret = (*arrayidx)[(void *)array];
+      assert(ret > 0);
+      return ret;
     }
 
-    void addarray(void **array) {
+    lockindex_t get_infostore_idx(std::shared_ptr<mutableinfostore> infostore)
+    {
+      lockindex_t ret;
+      auto arrayidx = _arrayidx();
+      assert(arrayidx->find((void *)infostore.get()) != arrayidx->end());
+      ret = (*arrayidx)[(void *)infostore.get()];
+      assert(ret < 0);
+      return ret;
+    }
+
+
+    void addinfostore_rawptr(mutableinfostore *infostore)
+    {
       // array is pointer to pointer to array data, because
       // the pointer to pointer remains fixed even as the array itself may be reallocated
-      size_t idx;
+      lockindex_t idx;
       std::lock_guard<std::mutex> lock(admin);
-
+      
       // Make copies of atomically-guarded data 
-      std::shared_ptr<std::vector<void **>> new__arrays;
-      std::shared_ptr<std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>>> new__arrayidx;
-      std::shared_ptr<std::deque<std::shared_ptr<arraylock>>> new__locks;
+      std::shared_ptr<std::unordered_map<lockindex_t,void **>> new__arrays;
+      std::shared_ptr<std::unordered_map<lockindex_t,mutableinfostore *>> new__infostores;
+      std::shared_ptr<std::unordered_map<void *,lockindex_t,std::hash<void *>,std::equal_to<void *>>> new__arrayidx;
+      std::shared_ptr<std::unordered_map<lockindex_t,std::shared_ptr<datalock>>> new__locks;
 
-      std::tie(new__arrays,new__arrayidx,new__locks) = _begin_atomic_update();
+      std::tie(new__arrays,new__infostores,new__arrayidx,new__locks) = _begin_atomic_update();
       
-      assert(new__arrayidx->count(array)==0);
+      assert(new__arrayidx->find((void *)infostore)==new__arrayidx->end());
       
-      idx=new__arrays->size();
-      new__arrays->push_back(array);
+      idx=_next_infostore;
+      _next_infostore--; // infostore indexes grow downwards
+      
+      new__infostores->emplace(idx,infostore);
+      
+      (*new__arrayidx)[(void*)infostore]=idx;
+      
 
-      (*new__arrayidx)[array]=idx;
       
-
-      
-      new__locks->emplace_back(std::make_shared<arraylock>());  /* Create arraylock object */
+      new__locks->emplace(idx,std::make_shared<datalock>());  /* Create datalock (NOT arraylock)  object */
 
       //_idx_from_lockptr[&_locks.back().full_array]=idx;
       // replace old with new
-      _end_atomic_update(new__arrays,new__arrayidx,new__locks);
+      _end_atomic_update(new__arrays,new__infostores,new__arrayidx,new__locks);
+
+    }
+    
+    void addinfostore(std::shared_ptr<mutableinfostore> infostore)
+    {
+
+      addinfostore_rawptr(infostore.get());
+      
+    }
+    
+    
+    void addarray(void **array) {
+      // array is pointer to pointer to array data, because
+      // the pointer to pointer remains fixed even as the array itself may be reallocated
+      lockindex_t idx;
+      std::lock_guard<std::mutex> lock(admin);
+
+      // Make copies of atomically-guarded data 
+      std::shared_ptr<std::unordered_map<lockindex_t,void **>> new__arrays;
+      std::shared_ptr<std::unordered_map<lockindex_t,mutableinfostore *>> new__infostores;
+      std::shared_ptr<std::unordered_map<void *,lockindex_t,std::hash<void *>,std::equal_to<void *>>> new__arrayidx;
+      std::shared_ptr<std::unordered_map<lockindex_t,std::shared_ptr<datalock>>> new__locks;
+
+      std::tie(new__arrays,new__infostores,new__arrayidx,new__locks) = _begin_atomic_update();
+      
+      assert(new__arrayidx->find((void *)array)==new__arrayidx->end());
+      
+      idx=_next_array;
+      _next_array++;
+      
+      new__arrays->emplace(idx,array);
+      
+      (*new__arrayidx)[(void*)array]=idx;
+      
+
+      
+      new__locks->emplace(idx,std::make_shared<arraylock>());  /* Create arraylock object */
+
+      //_idx_from_lockptr[&_locks.back().full_array]=idx;
+      // replace old with new
+      _end_atomic_update(new__arrays,new__infostores,new__arrayidx,new__locks);
 
 
     }
 
+    void remarray(void **array)
+    {
+      std::lock_guard<std::mutex> lock(admin);
+
+      // Make copies of atomically-guarded data 
+      std::shared_ptr<std::unordered_map<lockindex_t,void **>> new__arrays;
+      std::shared_ptr<std::unordered_map<lockindex_t,mutableinfostore *>> new__infostores;
+      std::shared_ptr<std::unordered_map<void *,lockindex_t,std::hash<void *>,std::equal_to<void *>>> new__arrayidx;
+      std::shared_ptr<std::unordered_map<lockindex_t,std::shared_ptr<datalock>>> new__locks;
+
+      std::tie(new__arrays,new__infostores,new__arrayidx,new__locks) = _begin_atomic_update();
+
+      auto new__ai_iter = new__arrayidx->find((void *)array);
+      
+      assert(new__ai_iter != new__arrayidx->end());
+      lockindex_t idx = new__ai_iter->second;
+      assert(idx > 0);
+      
+      
+      new__arrayidx->erase(new__ai_iter);
+      
+      
+
+      auto new__a_iter = new__arrays->find(idx);
+      assert(new__a_iter != new__arrays->end());
+      new__arrays->erase(new__a_iter);
+
+
+      auto new__l_iter = new__locks->find(idx);
+      assert(new__l_iter != new__locks->end());
+      new__locks->erase(new__l_iter);
+
+      
+      //_idx_from_lockptr[&_locks.back().full_array]=idx;
+      // replace old with new
+      _end_atomic_update(new__arrays,new__infostores,new__arrayidx,new__locks);
+
+
+
+    }
+
+    void reminfostore_rawptr(mutableinfostore *infostore)
+    {
+      std::lock_guard<std::mutex> lock(admin);
+      
+      // Make copies of atomically-guarded data 
+      std::shared_ptr<std::unordered_map<lockindex_t,void **>> new__arrays;
+      std::shared_ptr<std::unordered_map<lockindex_t,mutableinfostore *>> new__infostores;
+      std::shared_ptr<std::unordered_map<void *,lockindex_t,std::hash<void *>,std::equal_to<void *>>> new__arrayidx;
+      std::shared_ptr<std::unordered_map<lockindex_t,std::shared_ptr<datalock>>> new__locks;
+
+      std::tie(new__arrays,new__infostores,new__arrayidx,new__locks) = _begin_atomic_update();
+
+      auto new__ai_iter = new__arrayidx->find((void *)infostore);
+      
+      assert(new__ai_iter != new__arrayidx->end());
+      lockindex_t idx = new__ai_iter->second;
+      assert(idx < 0);
+      
+      
+      new__arrayidx->erase(new__ai_iter);
+      
+      
+
+      auto new__is_iter = new__infostores->find(idx);
+      assert(new__is_iter != new__infostores->end());
+      new__infostores->erase(new__is_iter);
+
+
+      auto new__l_iter = new__locks->find(idx);
+      assert(new__l_iter != new__locks->end());
+      new__locks->erase(new__l_iter);
+
+      
+      //_idx_from_lockptr[&_locks.back().full_array]=idx;
+      // replace old with new
+      _end_atomic_update(new__arrays,new__infostores,new__arrayidx,new__locks);
+
+
+
+    }
+    void reminfostore(std::shared_ptr<mutableinfostore> infostore)
+    {
+
+      reminfostore_rawptr(infostore.get());
+
+    }
+
+    
     bool is_region_granular(void) /* Return whether locking is really granular on a region-by-region basis (true) or just on an array-by-array basis (false) */
     {
       return true;
@@ -486,9 +676,9 @@ namespace snde {
       /* callback from allocator */
       /* returns locked token */
       /* Entire array should be write locked in order to call this */
-      size_t arrayidx=_arrayidx()->at(arrayptr);
+      lockindex_t arrayidx=_arrayidx()->at((void*)arrayptr);
 
-      std::shared_ptr<arraylock> thislock=_locks()->at(arrayidx);
+      std::shared_ptr<arraylock> thislock=std::dynamic_pointer_cast<arraylock>(_locks()->at(arrayidx));
       std::unique_lock<std::mutex> lock(thislock->admin); // lock the subregions field
 
       
@@ -517,8 +707,8 @@ namespace snde {
     {
       /* callback from allocator */
       /* callback from allocator */
-      size_t idx=_arrayidx()->at(arrayptr);
-      std::shared_ptr<arraylock> thislock=_locks()->at(idx);
+      lockindex_t idx=_arrayidx()->at((void *)arrayptr);
+      std::shared_ptr<arraylock> thislock=std::dynamic_pointer_cast<arraylock>(_locks()->at(idx));
       std::lock_guard<std::mutex> lock(thislock->admin);
 
       // notification from allocator that an allocation has shrunk
@@ -537,8 +727,8 @@ namespace snde {
     void freeallocation(void **arrayptr,snde_index pos, snde_index size,snde_index elemsize)
     {
       /* callback from allocator */
-      size_t idx=_arrayidx()->at(arrayptr);
-      std::shared_ptr<arraylock> thislock=_locks()->at(idx);
+      lockindex_t idx=_arrayidx()->at((void *)arrayptr);
+      std::shared_ptr<arraylock> thislock=std::dynamic_pointer_cast<arraylock>(_locks()->at(idx));
       std::lock_guard<std::mutex> lock(thislock->admin);
 
 
@@ -548,7 +738,7 @@ namespace snde {
     }
 
 
-    rwlock_token  _get_preexisting_lock_read_array_lockobj(rwlock_token_set all_locks, size_t arrayidx,std::shared_ptr<rwlock> rwlockobj)
+    rwlock_token  _get_preexisting_lock_read_lockobj(rwlock_token_set all_locks, lockindex_t arrayidx,std::shared_ptr<rwlock> rwlockobj)
     /* returns NULL if there is no such preexisting read lock or
        there is no preexisting write lock that is convertable to a read lock */
     {      // must hold write lock on entire array... returns write lock on new allocation
@@ -595,28 +785,28 @@ namespace snde {
     }
 
     
-    std::pair<rwlock_lockable *,rwlock_token>  _get_preexisting_lock_read_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index pos,snde_index size)
+    std::pair<rwlock_lockable *,rwlock_token>  _get_preexisting_lock_read_array_region(rwlock_token_set all_locks, lockindex_t arrayidx,snde_index pos,snde_index size)
     /* returns NULL if there is no such preexisting read lock or
        there is no preexisting write lock that is convertable to a read lock */
     {
       // prior is like a rwlock_token_set **
-      std::shared_ptr<arraylock> thislock=_locks()->at(arrayidx);
+      std::shared_ptr<arraylock> thislock=std::dynamic_pointer_cast<arraylock>(_locks()->at(arrayidx));
       std::unique_lock<std::mutex> lock(thislock->admin); // lock the subregions field
 
       if (!thislock->subregions.size() && pos==0) {
 	// this array does not have regions ... just lock whole array
 	lock.unlock();
-	return std::make_pair(&thislock->wholearray->reader,_get_preexisting_lock_read_array_lockobj(all_locks, arrayidx,thislock->wholearray));
+	return std::make_pair(&thislock->whole->reader,_get_preexisting_lock_read_lockobj(all_locks, arrayidx,thislock->whole));
       } else {
 	std::shared_ptr<rwlock> rwlockobj = thislock->subregions.at(markedregion(pos,pos+size));
 	lock.unlock();
-	return std::make_pair(&rwlockobj->reader,_get_preexisting_lock_read_array_lockobj(all_locks, arrayidx,rwlockobj));
+	return std::make_pair(&rwlockobj->reader,_get_preexisting_lock_read_lockobj(all_locks, arrayidx,rwlockobj));
       }
     }
     
 
 
-    std::pair<rwlock_lockable *,rwlock_token>  _get_lock_read_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index pos,snde_index size)
+    std::pair<rwlock_lockable *,rwlock_token>  _get_lock_read_array_region(rwlock_token_set all_locks, lockindex_t arrayidx,snde_index pos,snde_index size)
     {
 
       rwlock_token retval;
@@ -630,24 +820,39 @@ namespace snde {
       }
       return std::make_pair(lockobj,retval);
     }
-    
+
+
+    rwlock_token_set get_locks_read_infostore(rwlock_token_set all_locks,std::shared_ptr<mutableinfostore> infostore)
+    {
+      lockindex_t idx = _arrayidx()->at(infostore.get());
+
+      rwlock_lockable *reader = &_locks()->at(idx)->whole->reader;
+      rwlock_token tok = std::make_shared<std::unique_lock<rwlock_lockable>>(*reader);
+      
+      rwlock_token_set ret = std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+      ret->emplace(reader,tok);
+
+      merge_into_rwlock_token_set(all_locks,ret);
+      
+      return ret;      
+    }
 
     rwlock_token_set get_locks_read_array(rwlock_token_set all_locks, void **array)
     {
       rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
       
-      size_t idx=_arrayidx()->at(array);
-      std::shared_ptr<arraylock> alock=_locks()->at(idx);
+      lockindex_t idx=_arrayidx()->at(array);
+      std::shared_ptr<arraylock> alock=std::dynamic_pointer_cast<arraylock>(_locks()->at(idx));
 
 
       // First, get wholearray lock
       
-      rwlock_token wholearray_token = _get_preexisting_lock_read_array_lockobj(all_locks,idx,alock->wholearray);
+      rwlock_token wholearray_token = _get_preexisting_lock_read_lockobj(all_locks,idx,alock->whole);
       if (wholearray_token==nullptr) {
-	wholearray_token = rwlock_token(new std::unique_lock<rwlock_lockable>(alock->wholearray->reader));
-	(*all_locks)[&alock->wholearray->reader]=wholearray_token;
+	wholearray_token = rwlock_token(new std::unique_lock<rwlock_lockable>(alock->whole->reader));
+	(*all_locks)[&alock->whole->reader]=wholearray_token;
       }
-      (*token_set)[&alock->wholearray->reader]=wholearray_token;
+      (*token_set)[&alock->whole->reader]=wholearray_token;
             
       /* now that we have wholearray_lock, nobody else can do allocations, etc. that may modify subregions, 
 	 so we can safely iterate over it without holding the admin lock */
@@ -661,21 +866,42 @@ namespace snde {
       return token_set;
     }
 
+
+    rwlock_token_set get_preexisting_locks_read_infostore(rwlock_token_set all_locks, std::shared_ptr<mutableinfostore> infostore)
+    {
+      rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+
+      //assert(_arrayidx.find(array) != _arrayidx.end());
+      lockindex_t idx=_arrayidx()->at((void *)infostore.get());
+      std::shared_ptr<datalock> dlock=_locks()->at(idx);
+
+      // First, get whole lock      
+      rwlock_token whole_token = _get_preexisting_lock_read_lockobj(all_locks,idx,dlock->whole);
+      if (whole_token==nullptr) {
+	throw std::invalid_argument("Must have valid preexisting whole lock (this may be a locking order violation)");
+      }
+
+      (*token_set)[&dlock->whole->reader]=whole_token;
+      
+      return token_set;
+    }
+
+
     rwlock_token_set get_preexisting_locks_read_array(rwlock_token_set all_locks, void **array)
     {
       rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
 
       //assert(_arrayidx.find(array) != _arrayidx.end());
-      size_t idx=_arrayidx()->at(array);
-      std::shared_ptr<arraylock> alock=_locks()->at(idx);
+      lockindex_t idx=_arrayidx()->at(array);
+      std::shared_ptr<arraylock> alock=std::dynamic_pointer_cast<arraylock>(_locks()->at(idx));
 
       // First, get wholearray lock      
-      rwlock_token wholearray_token = _get_preexisting_lock_read_array_lockobj(all_locks,idx,alock->wholearray);
+      rwlock_token wholearray_token = _get_preexisting_lock_read_lockobj(all_locks,idx,alock->whole);
       if (wholearray_token==nullptr) {
-	throw std::invalid_argument("Must have valid preexisting wholearray lock (this may be a locking order violation)");
+	throw std::invalid_argument("Must have valid preexisting whole lock (this may be a locking order violation)");
       }
 
-      (*token_set)[&alock->wholearray->reader]=wholearray_token;
+      (*token_set)[&alock->whole->reader]=wholearray_token;
       
       /* now that we have wholearray_lock, nobody else can do allocations, etc. that may modify subregions, 
 	 so we can safely iterate over it without holding the admin lock */
@@ -709,7 +935,7 @@ namespace snde {
 	return get_preexisting_locks_read_array(all_locks,array);
       }
 
-      size_t arrayidx=_arrayidx()->at(array);
+      lockindex_t arrayidx=_arrayidx()->at(array);
 
       std::tie(lockobj,retval) =  _get_preexisting_lock_read_array_region(all_locks, arrayidx,indexstart,numelems);
 
@@ -733,7 +959,7 @@ namespace snde {
 
       
       rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
-      size_t arrayidx=_arrayidx()->at(array);
+      lockindex_t arrayidx=_arrayidx()->at(array);
 
       std::tie(lockobj,retval) =  _get_lock_read_array_region(all_locks, arrayidx,indexstart,numelems);
 
@@ -743,18 +969,44 @@ namespace snde {
 
 
 
+    rwlock_token_set get_locks_read_all_arrays(rwlock_token_set all_locks)
+    {
+      rwlock_token_set tokens=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+      std::vector<lockindex_t> idxs;
+      idxs.reserve(_arrays()->size());
+
+      for (auto & lockindex_voidpp: *_arrays()) {
+	idxs.push_back(lockindex_voidpp.first);
+      }
+      std::sort(idxs.begin(),idxs.end());
+      
+      for (size_t cnt=0;cnt < idxs.size();cnt++) {
+        rwlock_token_set thisset = get_locks_read_array(all_locks,(*_arrays())[idxs[cnt]]);
+	merge_into_rwlock_token_set(tokens,thisset);
+      }
+      return tokens;
+    }
+
     rwlock_token_set get_locks_read_all(rwlock_token_set all_locks)
     {
       rwlock_token_set tokens=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+      std::vector<lockindex_t> idxs;
+      idxs.reserve(_arrayidx()->size());
 
-      for (size_t cnt=0;cnt < _arrays()->size();cnt++) {
-	rwlock_token_set thisset = get_locks_read_array(all_locks,(*_arrays())[cnt]);
+
+      for (auto & voidptr_lockindex: *_arrayidx()) {
+	idxs.push_back(voidptr_lockindex.second);	
+      }
+      std::sort(idxs.begin(),idxs.end());
+      
+      for (size_t cnt=0;cnt < idxs.size();cnt++) {
+        rwlock_token_set thisset = get_locks_read_array(all_locks,(*_arrays())[idxs[cnt]]);
 	merge_into_rwlock_token_set(tokens,thisset);
       }
       return tokens;
     }
     
-    rwlock_token  _get_preexisting_lock_write_array_lockobj(rwlock_token_set all_locks, size_t arrayidx,std::shared_ptr<rwlock> rwlockobj)
+    rwlock_token  _get_preexisting_lock_write_lockobj(rwlock_token_set all_locks, lockindex_t arrayidx,std::shared_ptr<rwlock> rwlockobj)
     {
       // but we do store the bounds for notification purposes (NOT ANYMORE; dirty marking is now explicit)
 
@@ -774,29 +1026,29 @@ namespace snde {
     }
     
 
-    std::pair<rwlock_lockable *,rwlock_token>  _get_preexisting_lock_write_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index indexstart,snde_index numelems)
+    std::pair<rwlock_lockable *,rwlock_token>  _get_preexisting_lock_write_array_region(rwlock_token_set all_locks, lockindex_t arrayidx,snde_index indexstart,snde_index numelems)
     {
       // We currently implement region-granular locking
       // but we do store the bounds for notification purposes (NOT ANYMORE; dirty marking is now explicit)
 
       // prior is like a rwlock_token_set **
-      std::shared_ptr<arraylock> thislock=_locks()->at(arrayidx);
+      std::shared_ptr<arraylock> thislock=std::dynamic_pointer_cast<arraylock>(_locks()->at(arrayidx));
       std::unique_lock<std::mutex> lock(thislock->admin); // lock the subregions field
 
 
       if (!thislock->subregions.size() && indexstart==0) {
 	// This array does not have subregions... lock the whole array
 	lock.unlock();
-	return std::make_pair(&thislock->wholearray->writer,_get_preexisting_lock_write_array_lockobj(all_locks, arrayidx,thislock->wholearray));
+	return std::make_pair(&thislock->whole->writer,_get_preexisting_lock_write_lockobj(all_locks, arrayidx,thislock->whole));
 	
       }
       std::shared_ptr<rwlock> rwlockobj = thislock->subregions.at(markedregion(indexstart,indexstart+numelems));
       lock.unlock();
-      return std::make_pair(&rwlockobj->writer,_get_preexisting_lock_write_array_lockobj(all_locks, arrayidx,rwlockobj));
+      return std::make_pair(&rwlockobj->writer,_get_preexisting_lock_write_lockobj(all_locks, arrayidx,rwlockobj));
       
     }
     
-    std::pair<rwlock_lockable *,rwlock_token>  _get_lock_write_array_region(rwlock_token_set all_locks, size_t arrayidx,snde_index pos,snde_index size)
+    std::pair<rwlock_lockable *,rwlock_token>  _get_lock_write_array_region(rwlock_token_set all_locks, lockindex_t arrayidx,snde_index pos,snde_index size)
     {
       // but we do store the bounds for notification purposes (NOT ANYMORE; dirty marking is now explicit)
 
@@ -819,21 +1071,35 @@ namespace snde {
       
     }
 
-    
+    rwlock_token_set get_locks_write_infostore(rwlock_token_set all_locks,std::shared_ptr<mutableinfostore> infostore)
+    {
+      lockindex_t idx = _arrayidx()->at(infostore.get());
+
+      rwlock_lockable *writer = &_locks()->at(idx)->whole->writer;
+      rwlock_token tok = std::make_shared<std::unique_lock<rwlock_lockable>>(*writer);
+      
+      rwlock_token_set ret = std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+      ret->emplace(writer,tok);
+      
+      merge_into_rwlock_token_set(all_locks,ret);
+      
+      return ret;      
+    }
+
     rwlock_token_set get_locks_write_array(rwlock_token_set all_locks, void **array) {
       rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
       
-      size_t idx=_arrayidx()->at(array);
-      std::shared_ptr<arraylock> alock=_locks()->at(idx);
+      lockindex_t idx=_arrayidx()->at(array);
+      std::shared_ptr<arraylock> alock=std::dynamic_pointer_cast<arraylock>(_locks()->at(idx));
       
       // First, get wholearray lock
       
-      rwlock_token wholearray_token = _get_preexisting_lock_write_array_lockobj(all_locks,idx,alock->wholearray);
+      rwlock_token wholearray_token = _get_preexisting_lock_write_lockobj(all_locks,idx,alock->whole);
       if (wholearray_token==nullptr) {
-	wholearray_token = rwlock_token(new std::unique_lock<rwlock_lockable>(alock->wholearray->writer));
-	(*all_locks)[&alock->wholearray->writer]=wholearray_token;
+	wholearray_token = rwlock_token(new std::unique_lock<rwlock_lockable>(alock->whole->writer));
+	(*all_locks)[&alock->whole->writer]=wholearray_token;
       }
-      (*token_set)[&alock->wholearray->writer]=wholearray_token;
+      (*token_set)[&alock->whole->writer]=wholearray_token;
       
       /* now that we have wholearray_lock, nobody else can do allocations, etc. that may modify subregions, 
 	 so we can safely iterate over it without holding the admin lock */
@@ -849,20 +1115,39 @@ namespace snde {
       return token_set;
     }
 
+    rwlock_token_set get_preexisting_locks_write_infostore(rwlock_token_set all_locks, std::shared_ptr<mutableinfostore> infostore)
+    {
+      rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+
+      //assert(_arrayidx.find(array) != _arrayidx.end());
+      lockindex_t idx=_arrayidx()->at((void *)infostore.get());
+      std::shared_ptr<datalock> dlock=_locks()->at(idx);
+
+      // First, get whole lock      
+      rwlock_token whole_token = _get_preexisting_lock_write_lockobj(all_locks,idx,dlock->whole);
+      if (whole_token==nullptr) {
+	throw std::invalid_argument("Must have valid preexisting whole lock (this may be a locking order violation)");
+      }
+
+      (*token_set)[&dlock->whole->writer]=whole_token;
+      
+      return token_set;
+    }
+
     rwlock_token_set get_preexisting_locks_write_array(rwlock_token_set all_locks, void **array) {
       rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
 
       //assert(_arrayidx.find(array) != _arrayidx.end());
-      size_t idx=_arrayidx()->at(array);
-      std::shared_ptr<arraylock> alock=_locks()->at(idx);
+      lockindex_t idx=_arrayidx()->at(array);
+      std::shared_ptr<arraylock> alock=std::dynamic_pointer_cast<arraylock>(_locks()->at(idx));
 
       // First, get wholearray lock      
-      rwlock_token wholearray_token = _get_preexisting_lock_write_array_lockobj(all_locks,idx,alock->wholearray);
+      rwlock_token wholearray_token = _get_preexisting_lock_write_lockobj(all_locks,idx,alock->whole);
       if (wholearray_token==nullptr) {
-	throw std::invalid_argument("Must have valid preexisting wholearray lock (this may be a locking order violation)");
+	throw std::invalid_argument("Must have valid preexisting whole lock (this may be a locking order violation)");
       }
 
-      (*token_set)[&alock->wholearray->writer]=wholearray_token;
+      (*token_set)[&alock->whole->writer]=wholearray_token;
       
       /* now that we have wholearray_lock, nobody else can do allocations, etc. that may modify subregions, 
 	 so we can safely iterate over it without holding the admin lock */
@@ -891,7 +1176,7 @@ namespace snde {
       }
 
       rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
-      size_t arrayidx=_arrayidx()->at(array);
+      lockindex_t arrayidx=_arrayidx()->at(array);
 
       std::tie(lockobj,retval) =  _get_preexisting_lock_write_array_region(all_locks, arrayidx,indexstart,numelems);
 
@@ -915,7 +1200,7 @@ namespace snde {
       }
       
       rwlock_token_set token_set=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
-      size_t arrayidx=_arrayidx()->at(array);
+      lockindex_t arrayidx=_arrayidx()->at(array);
 
       std::tie(lockobj,retval) =  _get_lock_write_array_region(all_locks, arrayidx,indexstart,numelems);
 
@@ -927,18 +1212,43 @@ namespace snde {
 
 
 
-
-    rwlock_token_set get_locks_write_all(rwlock_token_set all_locks)
+    rwlock_token_set get_locks_write_all_arrays(rwlock_token_set all_locks)
     {
       rwlock_token_set tokens=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+      std::vector<lockindex_t> idxs;
+      idxs.reserve(_arrays()->size());
 
-      for (size_t cnt=0;cnt < _arrays()->size();cnt++) {
-	rwlock_token_set thisset = get_locks_write_array(all_locks,(*_arrays())[cnt]);
+      for (auto & lockindex_voidpp: *_arrays()) {
+	idxs.push_back(lockindex_voidpp.first);
+      }
+      std::sort(idxs.begin(),idxs.end());
+      
+      for (size_t cnt=0;cnt < idxs.size();cnt++) {
+        rwlock_token_set thisset = get_locks_write_array(all_locks,(*_arrays())[idxs[cnt]]);
 	merge_into_rwlock_token_set(tokens,thisset);
       }
       return tokens;
     }
 
+    rwlock_token_set get_locks_write_all(rwlock_token_set all_locks)
+    {
+      rwlock_token_set tokens=std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+      std::vector<lockindex_t> idxs;
+      idxs.reserve(_arrayidx()->size());
+
+
+      for (auto & voidptr_lockindex: *_arrayidx()) {
+	idxs.push_back(voidptr_lockindex.second);	
+      }
+      std::sort(idxs.begin(),idxs.end());
+      
+      for (size_t cnt=0;cnt < idxs.size();cnt++) {
+        rwlock_token_set thisset = get_locks_write_array(all_locks,(*_arrays())[idxs[cnt]]);
+	merge_into_rwlock_token_set(tokens,thisset);
+      }
+      return tokens;
+    }
+    
 
   
     void downgrade_to_read(rwlock_token_set locks) {
@@ -971,8 +1281,10 @@ namespace snde {
     //lockingprocess(const lockingprocess &)=delete; /* copy constructor disabled */
     //lockingprocess& operator=(const lockingprocess &)=delete; /* copy assignment disabled */
 
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_infostore(std::shared_ptr<mutableinfostore> infostore)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_array(void **array)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems)=0;
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_infostore(std::shared_ptr<mutableinfostore> infostore)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array(void **array)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array_region(void **array,bool write,snde_index indexstart,snde_index numelems)=0;
@@ -991,27 +1303,27 @@ namespace snde {
 
     class lockingposition {
     public:
-      size_t arrayidx; /* index of array we want to lock, or numeric_limits<size_t>.max() */
+      lockindex_t idx; /* index of infostore (negative) or array (positive) we want to lock, or (perhaps) 0 for invalid (was numeric_limits<size_t>.max()  for invalid) but this doesn't seem to actually be used */
       snde_index idx_in_array; /* index within array, or SNDE_INDEX_INVALID*/
       bool write; /* are we trying to lock for write? */
 
       lockingposition()
       {
-	arrayidx=0;
+	idx=0;
 	idx_in_array=0;
 	write=0;
       }
       
-      lockingposition(size_t arrayidx,snde_index idx_in_array,bool write)
+      lockingposition(lockindex_t idx,snde_index idx_in_array,bool write)
       {
-        this->arrayidx=arrayidx;
+        this->idx=idx;
         this->idx_in_array=idx_in_array;
         this->write=write;
       }
 
       bool operator<(const lockingposition & other) const {
-        if (arrayidx < other.arrayidx) return true;
-        if (arrayidx > other.arrayidx) return false;
+        if (idx < other.idx) return true;
+        if (idx > other.idx) return false;
 
         if (idx_in_array < other.idx_in_array) return true;
         if (idx_in_array > other.idx_in_array) return false;
@@ -1057,8 +1369,8 @@ namespace snde {
     rwlock_token_set all_tokens; /* these are all the tokens we have acquired along the way */
     rwlock_token_set used_tokens; /* these are all the tokens we are actually returning */
     
-    std::shared_ptr<std::vector<rangetracker<markedregion>>> arrayreadregions; /* indexed by arrayidx */
-    std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions; /* indexed by arrayidx */
+    //std::shared_ptr<std::vector<rangetracker<markedregion>>> arrayreadregions; /* indexed by arrayidx... 0th element empty */
+    //std::shared_ptr<std::vector<rangetracker<markedregion>>> arraywriteregions; /* indexed by arrayidx... 0th element empty */
 
     
     lockingposition lastlockingposition; /* for diagnosing locking order violations */
@@ -1088,8 +1400,9 @@ namespace snde {
 
 
     lockingprocess_threaded(std::shared_ptr<lockmanager> lockmanager);
+    lockingprocess_threaded(std::shared_ptr<lockmanager> lockmanager,rwlock_token_set all_locks);
     
-    virtual bool _barrier(lockingposition lockpos); //(size_t arrayidx,snde_index pos,bool write);
+    virtual bool _barrier(lockingposition lockpos); //(lockindex_t idx,snde_index pos,bool write);
 
     virtual void *pre_callback();
     
@@ -1099,11 +1412,13 @@ namespace snde {
     
     virtual void postunlock(void *prelockstate);
 
+    virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_infostore(std::shared_ptr<mutableinfostore> infostore);
     virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_array(void **array);
 
     virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems);
 
 
+    virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_read_infostore(std::shared_ptr<mutableinfostore> infostore);
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array(void **array);
 
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems);
@@ -1135,19 +1450,26 @@ namespace snde {
 
   class lockholder_index {
   public:
+    mutableinfostore *infostore;
     void **array;
     bool write;
     snde_index startidx;
     snde_index numelem;
 
     lockholder_index() :
-      array(NULL), write(false), startidx(SNDE_INDEX_INVALID), numelem(SNDE_INDEX_INVALID)
+      infostore(nullptr), array(nullptr), write(false), startidx(SNDE_INDEX_INVALID), numelem(SNDE_INDEX_INVALID)
     {
 
     }
     
     lockholder_index(void **_array,bool _write, snde_index _startidx,snde_index _numelem) :
-      array(_array), write(_write), startidx(_startidx), numelem(_numelem)
+      infostore(nullptr), array(_array), write(_write), startidx(_startidx), numelem(_numelem)
+    {
+
+    }
+    
+    lockholder_index(mutableinfostore *_infostore,bool _write) :
+      infostore(_infostore), array(nullptr), write(_write), startidx(0), numelem(SNDE_INDEX_INVALID)
     {
 
     }
@@ -1155,7 +1477,7 @@ namespace snde {
     // equality operator for std::unordered_map
     bool operator==(const lockholder_index b) const
     {
-      return b.array==array && b.write==write && b.startidx==startidx && b.numelem==numelem;
+      return b.infostore==infostore && b.array==array && b.write==write && b.startidx==startidx && b.numelem==numelem;
     }
   };
 
@@ -1169,7 +1491,7 @@ namespace std {
     size_t operator()(const snde::lockholder_index & x) const
     {
 
-      return std::hash<void *>{}((void *)x.array) + std::hash<bool>{}(x.write) + std::hash<snde_index>{}(x.startidx) + std::hash<snde_index>{}(x.numelem);
+      return std::hash<void *>{}((void *)x.infostore)+std::hash<void *>{}((void *)x.array) + std::hash<bool>{}(x.write) + std::hash<snde_index>{}(x.startidx) + std::hash<snde_index>{}(x.numelem);
     }
   };
 }
@@ -1294,6 +1616,20 @@ namespace snde{
       }
       return value->second;
     }
+
+    rwlock_token_set get(std::shared_ptr<mutableinfostore> infostore,bool write)
+    {
+      std::unordered_map<lockholder_index,rwlock_token_set>::iterator value=values.find(lockholder_index(infostore.get(),write));
+
+
+      
+      if (value==values.end()) {
+	throw std::runtime_error("Specified infostore with given writable status not found in lockholder. Was it locked with the same parameters?");
+      }
+      return value->second;
+    }
+
+
     rwlock_token_set get_alloc_lock(void **array,snde_index numelem,std::string allocid)
     {
       std::unordered_map<std::pair<void **,std::string>,snde_index>::iterator allocvalue=allocvalues.find(std::make_pair(array,allocid));

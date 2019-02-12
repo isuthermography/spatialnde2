@@ -312,6 +312,8 @@ namespace snde {
 
   };
 
+
+  typedef int64_t lockindex_t; 
   
   // Persistent token of lock ownership
   typedef std::unique_lock<rwlock_lockable> rwlock_token_content;

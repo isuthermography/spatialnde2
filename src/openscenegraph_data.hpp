@@ -586,13 +586,13 @@ public:
 						context,
 						device,
 						queue,
-						[ cacheentryweak, geom ] (std::unique_lock<rwlock_lockable> inputlock,std::shared_ptr<lockholder> array_locks,rwlock_token_set all_locks,trm_arrayregion input,trm_arrayregion output,snde_rgba **imagearray,snde_index start,size_t xsize,size_t ysize) {
-						  rwlock_token_set input_lock = array_locks->get(input.array,false,input.start,input.len);
-						  unlock_rwlock_token_set(input_lock); // free up input lock while we process
+						[ cacheentryweak, geom ] (std::shared_ptr<lockholder> input_and_array_locks,rwlock_token_set all_locks,trm_arrayregion input,trm_arrayregion output,snde_rgba **imagearray,snde_index start,size_t xsize,size_t ysize) {
+						  rwlock_token_set input_array_lock = input_and_array_locks->get(input.array,false,input.start,input.len);
+						  unlock_rwlock_token_set(input_array_lock); // free up input lock while we process output array
 						  assert(output.array==(void**)imagearray);
 						  assert(output.start==start);
 						  
-						  rwlock_token_set output_lock = array_locks->get(output.array,true,output.start,output.len);
+						  rwlock_token_set output_lock = input_and_array_locks->get(output.array,true,output.start,output.len);
 
 						  // release all_locks by moving them into a new context that we then release. 
 						  {
@@ -607,7 +607,7 @@ public:
 						  
 						  std::shared_ptr<osg_dataimagecacheentry> cacheentrystrong(cacheentryweak);
 						  // release lock on input control data structure
-						  inputlock.unlock();
+						  //inputlock.unlock();
 						  // 
 						  
 						  

@@ -137,14 +137,6 @@ namespace snde {
     /* All arrays allocated by a particular allocator are locked together by manager->locker */
 
 
-    // object_trees is a set of named scene graphs (actually scene trees)
-    // They can be accessed by unique names, with any default given a
-    // name of "", which (due to the string sort order) is also
-    // accessible as object_trees.begin()
-    std::map<std::string,std::shared_ptr<component>> object_trees;
-    std::mutex object_trees_lock; // Any access to object_trees or contents or rendering engines set up to handle object_trees. PRECEDES any locking of
-    // geometry data in the locking order, and PRECEDES any locking of the
-    // transactional revision manager (if in use for this geometry).
     
     geometry(double tol,std::shared_ptr<arraymanager> manager) {
       memset(&geom,0,sizeof(geom)); // reset everything to NULL

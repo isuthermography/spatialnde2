@@ -41,7 +41,7 @@ void x3d_viewer_display()
     /* Because our data is marked as DYNAMIC, so long as we have it 
        locked during viewer->frame() we should be OK */
     
-    std::lock_guard<std::mutex> object_trees_lock(geom->object_trees_lock);
+    //std::lock_guard<std::mutex> object_trees_lock(geom->object_trees_lock);
 
     std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
     std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
@@ -216,7 +216,7 @@ int main(int argc, char **argv)
   }
 
   {
-    std::lock_guard<std::mutex> object_trees_lock(geom->object_trees_lock);
+    //std::lock_guard<std::mutex> object_trees_lock(geom->object_trees_lock);
     
     //for (size_t partcnt=0;partcnt < parts.size();partcnt++) {
     //  std::string partname;
@@ -227,7 +227,7 @@ int main(int argc, char **argv)
     std::unordered_map<std::string,metadatum> md;
     std::tie(assem,md)=assembly::from_partlist("LoadedX3D",parts);
     
-    geom->object_trees.insert(std::make_pair("LoadedX3D",assem));
+    //geom->object_trees.insert(std::make_pair("LoadedX3D",assem));
     revision_manager->Start_Transaction();
 
     for (auto & part_md : *parts) {
@@ -276,7 +276,7 @@ int main(int argc, char **argv)
   revision_manager->Wait_Computation(revnum);
   
   {
-    std::lock_guard<std::mutex> object_trees_lock(geom->object_trees_lock);
+    //std::lock_guard<std::mutex> object_trees_lock(geom->object_trees_lock);
     std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
     std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
     OSGComp->LockVertexArraysTextures(holder,lockprocess);

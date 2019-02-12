@@ -297,7 +297,7 @@ static inline snde_index total_numelements(std::vector<snde_index> shape) {
 
 
 
-class mutableinfostore {
+class mutableinfostore  {
   /* NOTE: if you add more mutableinfostore subclasses, may need to add 
      handlers to OSGData::update() in openscenegraph_data.hpp ! */
 public:
@@ -306,22 +306,30 @@ public:
 
   wfmmetadata metadata;
   std::shared_ptr<arraymanager> manager;
-
-  std::shared_ptr<rwlock> lock; // Prior to all array data in the locking order
-  // if you need to lock multiple infostores, do so in the iteration
-  // order in the wfmdb.... NOTE: You must do the locking with the wfmdb
-  // admin lock secured because otherwise the wfmdb might change
-  // (and therefore change the locking order) under you.
+  
+  // lock the infostore with manager->locker->get_locks_read_infostore(all_locks,mutableinfostore)
+  // *** MUST FOLLOW LOCKING ORDER DEFINED BY manager->locker. infostore should be locked
+  // PRIOR TO locking data arrays.
 
   mutableinfostore(std::string name,const wfmmetadata &metadata,std::shared_ptr<arraymanager> manager) :
     name(name),
     metadata(metadata),
     manager(manager)
   {
-    lock=std::make_shared<rwlock>();
+    manager->locker->addinfostore_rawptr(this);
   }
 
-  virtual ~mutableinfostore() { };
+  // Disable copy constructor and copy assignment operators
+  mutableinfostore(const mutableinfostore &)=delete; /* copy constructor disabled */
+  mutableinfostore& operator=(const mutableinfostore &)=delete; /* assignment disabled */
+
+
+  
+  virtual ~mutableinfostore()
+  {
+    manager->locker->reminfostore_rawptr(this);
+    
+  };
 };
 
 

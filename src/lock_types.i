@@ -81,6 +81,7 @@ namespace snde {
 
   };
 
+  typedef long lockindex_t; // ***!!!! Should really be int64_t, but we do this to work around swig bugs...
 
   //typedef std::unique_lock<rwlock_lockable> rwlock_token_content;
   class rwlock_token_content {
