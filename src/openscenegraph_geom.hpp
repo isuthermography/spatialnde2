@@ -21,6 +21,7 @@
 *  THE SOFTWARE.
 */
 
+#include <vector>
 
 #include <osg/Array>
 #include <osg/Geode>
@@ -615,7 +616,7 @@ public:
 								  // edges, based on part.firstedge and part.numedges
 								  // vertices, based on part.firstvertex and part.numvertices
 								  
-								       [ entry_ptr,comp,shared_cache ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> inputchangedregions) {
+								       [ entry_ptr,comp,shared_cache ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions) {
 						      entry_ptr->cachedversion=newversion;
 						      
 						      // get inputs: part, triangles, edges, vertices, normals
@@ -674,7 +675,7 @@ public:
 						      //outputchangedregions[0].mark_region(vertex_array_out.start,vertex_array_out.len);
 						      //return outputchangedregions;
 						    },
-						    [ shared_cache, entry_ptr,comp ] (std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
+		  			            [ shared_cache, entry_ptr,comp ] (std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
 						      // Regionupdater function
 						      // See Function input parameters, above
 						      // Extract the first parameter (part) only
@@ -699,9 +700,11 @@ public:
 						      new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.normals,part.firsttri,part.numtris);
 						      return new_inputs;
 						      
-						    }, 
-						    inputs_seed, 
-						    [ shared_cache,entry_ptr,comp ](std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
+						    },
+						    std::vector<std::shared_ptr<mutableinfostore>>(), // metadata_inputs
+						    inputs_seed, // inputs
+					            std::vector<std::shared_ptr<mutableinfostore>>(), // metadata_outputs
+					            [ shared_cache,entry_ptr,comp ](std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs, std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
 						      // update_output_regions()
 						      
 						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,SNDE_COMPONENT_GEOM_PARTS,0,true,true,true); // Must lock entire vertex_arrays here because we may need to reallocate it. Also when calling this we don't necessarily know the correct positioning. 
@@ -751,7 +754,7 @@ public:
 						      
 						      return outputs;
 						    },
-						  [ shared_cache ](std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
+					            [ shared_cache ](std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
 						    if (outputs.size()==1) {
 						      shared_cache->snde_geom->manager->free((void **)&shared_cache->snde_geom->geom.vertex_arrays,outputs[0].start);
 						      

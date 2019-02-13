@@ -233,7 +233,7 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 	// cannot use inputlock anymore after this because of std::move... (of course we are done anyway)
 	
       },
-      [ input ] (std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
+      [ input ] (std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
 	/* regionupdater code */
 	if (inputs.size() > 0) {
 	  inputs.empty();
@@ -241,8 +241,10 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 	inputs.push_back(trm_arrayregion(input->manager,input->basearray,input->startelement,input->numelements));
 	return inputs; 
       },
-      std::vector<trm_arrayregion>(),
-      [ output_manager,output_array,input ] (std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {
+      std::vector<std::shared_ptr<mutableinfostore>>(), // metadata_inputs
+      std::vector<trm_arrayregion>(), // inputs
+      std::vector<std::shared_ptr<mutableinfostore>>(), // metadata_outputs
+      [ output_manager,output_array,input ] (std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs, std::vector<trm_arrayregion> inputs,std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {
 	/* update_output_regions code */
 
 	// obtain lock for input structure (prior to all arrays in locking order
@@ -281,7 +283,7 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 	}
 	return outputs;
       } ,
-      [ output_manager,output_array ](std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
+      [ output_manager,output_array ](std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
 	// cleanup
 	if (outputs.size()==1) {
 	  output_manager->free(output_array,outputs[0].start);

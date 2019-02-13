@@ -1,5 +1,6 @@
 #include <string>
 #include <map>
+#include <set>
 #include <unordered_map>
 #include <functional>
 #include <typeinfo>
@@ -332,13 +333,20 @@ public:
   };
 };
 
+class wfmdirty_notification_receiver { // abstract base class
+public: 
+  virtual void mark_as_dirty(std::shared_ptr<mutableinfostore> infostore)=0;  
+  virtual ~wfmdirty_notification_receiver() {};
+};
+  
 
 class mutablewfmdb {
 public:
   std::mutex admin; // must be locked during changes to _wfmlist (replacement of C++11 atomic shared_ptr)... BEFORE the mutableinfostore rwlocks and BEFORE the various array data in the locking order. 
   
   std::shared_ptr<iterablewfmrefs> _wfmlist; // an atomic shared pointer to an immutable reference list of mutable waveforms
-
+  std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> __dirtynotifies; // an atomic shared pointer to an array of notification receivers
+  
   // To iterate over wfmlist,
   // first create a shared_ptr to <iterablewfmrefs> by calling wfmlist(),
   // then iterate over that.
@@ -346,8 +354,10 @@ public:
   mutablewfmdb()
   {
     std::shared_ptr<iterablewfmrefs> new_wfmlist=std::make_shared<iterablewfmrefs>();
-    
-    _end_atomic_update(new_wfmlist);
+    std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> new__dirtynotifies=std::make_shared<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>();
+      
+    _end_atomic_wfmlist_update(new_wfmlist);
+    _end_atomic__dirtynotifies_update(new__dirtynotifies);
   }
   
   
@@ -356,8 +366,12 @@ public:
     return std::atomic_load(&_wfmlist);
   }
 
+  std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> _dirtynotifies()
+  {
+    return std::atomic_load(&__dirtynotifies);
+  }
 
-  virtual std::tuple<std::shared_ptr<iterablewfmrefs>> _begin_atomic_update()
+  virtual std::tuple<std::shared_ptr<iterablewfmrefs>> _begin_atomic_wfmlist_update()
   // admin must be locked when calling this function...
   // it returns new copies of the atomically-guarded data
   {
@@ -369,9 +383,26 @@ public:
 
   }
 
-  virtual void _end_atomic_update(std::shared_ptr<iterablewfmrefs> new_wfmlist)
+  virtual std::tuple<std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>> _begin_atomic__dirtynotifies_update()
+  // admin must be locked when calling this function...
+  // it returns new copies of the atomically-guarded data
+  {
+    
+      // Make copies of atomically-guarded data 
+    std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> new__dirtynotifies=std::make_shared<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>(*_dirtynotifies());
+    
+    return std::make_tuple(new__dirtynotifies);
+
+  }
+
+  virtual void _end_atomic_wfmlist_update(std::shared_ptr<iterablewfmrefs> new_wfmlist)
   {
     std::atomic_store(&_wfmlist,new_wfmlist);
+  }
+
+  virtual void _end_atomic__dirtynotifies_update(std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> new__dirtynotifies)
+  {
+    std::atomic_store(&__dirtynotifies,new__dirtynotifies);
   }
 
   virtual std::shared_ptr<mutableinfostore> lookup(std::string Name)
@@ -408,15 +439,59 @@ public:
 
     std::shared_ptr<iterablewfmrefs> new_wfmlist;
     
-    std::tie(new_wfmlist)=_begin_atomic_update();
+    std::tie(new_wfmlist)=_begin_atomic_wfmlist_update();
     // new_wfmlist is our own private copy so it is for the moment mutable
     size_t num_wfms=new_wfmlist->wfms.size();
     new_wfmlist->wfms.push_back(std::make_tuple(infostore,std::shared_ptr<iterablewfmrefs>(nullptr)));
     new_wfmlist->indexbyname.emplace(infostore->name,num_wfms);
     
-    _end_atomic_update(new_wfmlist);
+    _end_atomic_wfmlist_update(new_wfmlist);
   }
-  
+
+  virtual void add_dirty_notification_receiver(std::weak_ptr<wfmdirty_notification_receiver> rcvr)
+  {
+    std::lock_guard<std::mutex> adminlock(admin);
+    std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> new__dirtynotifies;
+    std::tie(new__dirtynotifies) = _begin_atomic__dirtynotifies_update();
+
+    new__dirtynotifies->emplace(rcvr);
+    
+    _end_atomic__dirtynotifies_update(new__dirtynotifies);
+    
+  }
+
+  virtual void remove_dirty_notification_receiver(std::weak_ptr<wfmdirty_notification_receiver> rcvr)
+  {
+    std::lock_guard<std::mutex> adminlock(admin);
+    std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> new__dirtynotifies;
+    std::tie(new__dirtynotifies) = _begin_atomic__dirtynotifies_update();
+
+    auto iter = new__dirtynotifies->find(rcvr);
+
+    assert(iter != new__dirtynotifies->end());
+    
+    new__dirtynotifies->erase(iter);
+    
+    _end_atomic__dirtynotifies_update(new__dirtynotifies);
+    
+  }
+
+  virtual void mark_as_dirty(std::shared_ptr<mutableinfostore> infostore)
+  {
+    // should be called while holding infostore's write lock
+    // mark that the infostore metadata has changed
+    // (changes to underlying data repositories are marked as dirty through
+    // their corresponding arraymanager)
+    
+    std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> dirtynotifies=_dirtynotifies();
+
+    for (auto & dirtynotify : *dirtynotifies) {
+      std::shared_ptr<wfmdirty_notification_receiver> notify=dirtynotify.lock();
+      if (notify) { // pointer still exists
+	notify->mark_as_dirty(infostore); 
+      }
+    }
+  }
 };
 
 

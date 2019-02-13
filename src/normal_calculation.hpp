@@ -32,6 +32,9 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
   snde_index partnum = partobj->idx;
   std::vector<trm_arrayregion> inputs_seed;
 
+  std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs;
+  std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs;
+
   inputs_seed.emplace_back(geom->manager,(void **)&geom->geom.parts,partnum,1);
   
   
@@ -116,7 +119,7 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						
 						//return outputchangedregions;
 					      },
-					      [ comp,geom ] (std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
+					      [ comp,geom ] (std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
 						// Regionupdater function
 						// See Function input parameters, above
 						// Extract the first parameter (partobj) only
@@ -146,9 +149,11 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.vertices,partobj.firstvertex,partobj.numvertices);
 						return new_inputs;
 						
-					      }, 
-					      inputs_seed, 
-					      [ comp,geom ](std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
+					      },
+					      metadata_inputs,
+					      inputs_seed,
+					      metadata_outputs,
+					      [ comp,geom ](std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
 						// update_output_regions()
 
 						std::vector<trm_arrayregion> new_outputs;
@@ -172,7 +177,7 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						
 						return new_outputs;
 					      },
-					      [ comp,geom ](std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
+					      [ comp,geom ](std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
 						// cleanup
 						// nothing to do (we don't own the output allocation) 
 					      }

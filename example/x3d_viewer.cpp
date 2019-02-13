@@ -181,8 +181,9 @@ int main(int argc, char **argv)
   // locking of resources) 
   geom=std::make_shared<geometry>(1e-6,manager);
 
+  std::shared_ptr<mutablewfmdb> wfmdb = std::make_shared<mutablewfmdb>();
   
-  revision_manager=std::make_shared<trm>(); /* transactional revision manager */
+  revision_manager=std::make_shared<trm>(wfmdb); /* transactional revision manager */
 
   // Create a command queue for the specified context and device. This logic
   // tries to obtain one that permits out-of-order execution, if available.

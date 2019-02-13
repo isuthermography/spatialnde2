@@ -7,7 +7,7 @@ namespace snde {
   {
     std::shared_ptr<trm> revman_strong=revman.lock();
     
-    cleanup(inputs,outputs);
+    cleanup(metadata_inputs,inputs,outputs);
     
     revman_strong->_erase_dep_from_tree(weak_this,input_dependencies,output_dependencies);
     
