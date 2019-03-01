@@ -228,12 +228,13 @@ ENDIF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
 
 
 IF (PythonInterp_FOUND)
-    set(PYTHONGENHEADERS ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
+    set(PYTHONGENHEADERS ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
     add_custom_command(OUTPUT ${PYTHONGENHEADERS}
             COMMAND ${PYTHON_EXECUTABLE} file2header.py geometry_types.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h
             COMMAND ${PYTHON_EXECUTABLE} file2header.py vecops.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h
             COMMAND ${PYTHON_EXECUTABLE} file2header.py testkernel.c ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
             COMMAND ${PYTHON_EXECUTABLE} file2header.py osg_vertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h
+            COMMAND ${PYTHON_EXECUTABLE} file2header.py osg_texvertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h
             COMMAND ${PYTHON_EXECUTABLE} file2header.py normal_calc.c ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h
             COMMAND ${PYTHON_EXECUTABLE} file2header.py colormap.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h
             COMMAND ${PYTHON_EXECUTABLE} file2header.py scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h
@@ -266,6 +267,13 @@ IF (Qt5_FOUND AND OpenCL_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenScene
   add_dependencies(png_viewer OpenCL_Headers)
   target_link_libraries(png_viewer ${SPATIALNDE2_QT_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${OpenCL_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
 ENDIF()
+
+IF (Qt5_FOUND AND PythonInterp_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND OpenCL_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PNG_FOUND)
+  add_executable(x3d_viewer_qt example/x3d_viewer_qt.cpp)
+  add_dependencies(x3d_viewer_qt OpenCL_Headers)
+  target_link_libraries(x3d_viewer_qt ${SPATIALNDE2_QT_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${OpenCL_LIBRARIES}  ${LIBXML2_LIBRARIES} ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
+ENDIF()
+
 
 
 include_directories(src/)
@@ -375,6 +383,13 @@ IF (Qt5_FOUND AND OpenCL_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenScene
     png_viewer
     DESTINATION ${APP_INSTALL_DIR}/example)
 ENDIF()
+
+IF (Qt5_FOUND AND PythonInterp_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND OpenCL_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PNG_FOUND)
+  install(TARGETS
+    x3d_viewer_qt
+    DESTINATION ${APP_INSTALL_DIR}/example)
+ENDIF()
+
 
 install(FILES
         example/custom_geometrystruct_demo.py

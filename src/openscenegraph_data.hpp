@@ -303,7 +303,7 @@ public:
     GraticuleThickGeom->setVertexArray(ThickGridLineCoords);
   }
 
-  std::shared_ptr<osg_datacachebase> update_datastore_image(std::shared_ptr<geometry> geom,std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index,cl_context context, cl_device_id device, cl_command_queue queue)
+  std::shared_ptr<osg_datacachebase> update_datastore_image(std::shared_ptr<geometry> geom,std::shared_ptr<mutablewfmdb> wfmdb, std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index,cl_context context, cl_device_id device, cl_command_queue queue)
   /****!!! Can only be called during a rendering_revman transaction (but 
        nothing shoudl be locked) */ 
   {
@@ -356,55 +356,78 @@ public:
     if (ndim >= 3) {
       third_axis=display->GetThirdAxis(datastore);
       third_unit=third_axis->unit;
-      
-      if (third_unit->pixelflag)
-	thirdunitperdiv=third_unit->scale*display->pixelsperdiv;
-      else
-	thirdunitperdiv=third_unit->scale;
-      
+
+      {
+	std::lock_guard<std::mutex> adminlock(third_unit->admin);
+	if (third_unit->pixelflag)
+	  thirdunitperdiv=third_unit->scale*display->pixelsperdiv;
+	else
+	  thirdunitperdiv=third_unit->scale;
+      }
     }
     
     if (ndim >= 4) {
       fourth_axis=display->GetFourthAxis(datastore);
       fourth_unit=fourth_axis->unit;
-      
-      if (fourth_unit->pixelflag)
-	fourthunitperdiv=fourth_unit->scale*display->pixelsperdiv;
-      else
-	fourthunitperdiv=fourth_unit->scale;
+
+      {
+	std::lock_guard<std::mutex> adminlock(fourth_unit->admin);
+	if (fourth_unit->pixelflag)
+	  fourthunitperdiv=fourth_unit->scale*display->pixelsperdiv;
+	else
+	  fourthunitperdiv=fourth_unit->scale;
+      }
     }
 
 
-    if (u->pixelflag) {
-      horizscalefactor=u->scale*display->pixelsperdiv;
-      //fprintf(stderr,"%f units/pixel\n",u->scale);
-    }
-    else {
-      horizscalefactor=u->scale;
+    {
+      std::lock_guard<std::mutex> adminlock(u->admin);
+      if (u->pixelflag) {
+	horizscalefactor=u->scale*display->pixelsperdiv;
+	//fprintf(stderr,"%f units/pixel\n",u->scale);
+      }
+      else {
+	horizscalefactor=u->scale;
       //fprintf(stderr,"%f units/div",horizscalefactor);
+      }
     }
+
     
-    if (v->pixelflag)
-      vertscalefactor=v->scale*display->pixelsperdiv;
-    else
-      vertscalefactor=v->scale;
-    
+    {
+      std::lock_guard<std::mutex> adminlock(v->admin);
+      if (v->pixelflag)
+	vertscalefactor=v->scale*display->pixelsperdiv;
+      else
+	vertscalefactor=v->scale;
+    }
     
     // we assume a drawing area that goes from (-0.5,-0.5) in the lower-left corner
     // to (drawareawidth-0.5,drawareaheight-0.5) in the upper-right.
 
     // pixel centers are at (0,0)..(drawareawidth-1,drawareaheight-1)
-    
-    double xcenter=a->CenterCoord; /* in units */
+
+    double xcenter;
+      
+    {
+      std::lock_guard<std::mutex> adminlock(a->admin);
+      xcenter=a->CenterCoord; /* in units */
+    }
     //fprintf(stderr,"Got Centercoord=%f\n",xcenter);
 
     double ycenter;
-    if (displaychan->VertZoomAroundAxis) {
-      ycenter=-displaychan->Position*display->GetVertUnitsPerDiv(displaychan);/**pixelsperdiv*scalefactor;*/ /* in units */
-    } else {
-      ycenter=displaychan->VertCenterCoord;/**pixelsperdiv*scalefactor;*/ /* in units */
+    double VertUnitsPerDiv=display->GetVertUnitsPerDiv(displaychan);
+
+    {
+      std::lock_guard<std::mutex> adminlock(displaychan->admin);
+      
+      if (displaychan->VertZoomAroundAxis) {
+	ycenter=-displaychan->Position*VertUnitsPerDiv;/**pixelsperdiv*scalefactor;*/ /* in units */
+      } else {
+	ycenter=displaychan->VertCenterCoord;/**pixelsperdiv*scalefactor;*/ /* in units */
+      }
     }
 
+    
     double horizontal_padding = (drawareawidth-display->horizontal_divisions*display->pixelsperdiv)/2.0;
     double vertical_padding = (drawareaheight-display->vertical_divisions*display->pixelsperdiv)/2.0;
     
@@ -578,15 +601,16 @@ public:
       std::weak_ptr<osg_dataimagecacheentry> cacheentryweak=std::weak_ptr<osg_dataimagecacheentry>(cacheentry);
       
       cacheentry->rgba_dep=CreateRGBADependency(rendering_revman,
-						datastore,
-						datastore->typenum,
+						wfmdb,
+						datastore->fullname,
+						//datastore->typenum,
 						geom->manager,
 						(void **)&geom->geom.texbuffer,
 						displaychan,
 						context,
 						device,
 						queue,
-						[ cacheentryweak, geom ] (std::shared_ptr<lockholder> input_and_array_locks,rwlock_token_set all_locks,trm_arrayregion input,trm_arrayregion output,snde_rgba **imagearray,snde_index start,size_t xsize,size_t ysize) {
+						[ cacheentryweak, geom ] (std::shared_ptr<lockholder> input_and_array_locks,rwlock_token_set all_locks,trm_arrayregion input,trm_arrayregion output,snde_rgba **imagearray,snde_index start,size_t xsize,size_t ysize,snde_coord2 inival, snde_coord2 step) {
 						  rwlock_token_set input_array_lock = input_and_array_locks->get(input.array,false,input.start,input.len);
 						  unlock_rwlock_token_set(input_array_lock); // free up input lock while we process output array
 						  assert(output.array==(void**)imagearray);
@@ -649,7 +673,7 @@ public:
   
   /* Update our cache/OSG tree entries for a mutabledatastore */
 
-  std::shared_ptr<osg_datacachebase> update_datastore(std::shared_ptr<geometry> geom,std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index,cl_context context, cl_device_id device, cl_command_queue queue)
+  std::shared_ptr<osg_datacachebase> update_datastore(std::shared_ptr<geometry> geom,std::shared_ptr<mutablewfmdb> wfmdb, std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index,cl_context context, cl_device_id device, cl_command_queue queue)
   /* Update our cache/OSG tree entries for a mutabledatastore */
   // geom needed because that is teh current location for the texture RGBA... it also references the array manager and lock manager ....
   /****!!! Can only be called during a rendering_revman transaction (but 
@@ -661,12 +685,15 @@ public:
       
     /* Figure out type of rendering... */
     std::shared_ptr<display_axis> axis=display->GetFirstAxis(datastore);
-    if (axis->unit->pixelflag) {
-      horizunitsperdiv=axis->unit->scale*display->pixelsperdiv;
-    } else {
-      horizunitsperdiv=axis->unit->scale;
+    
+    {
+      std::lock_guard<std::mutex> adminlock(axis->unit->admin);
+      if (axis->unit->pixelflag) {
+	horizunitsperdiv=axis->unit->scale*display->pixelsperdiv;
+      } else {
+	horizunitsperdiv=axis->unit->scale;
+      }
     }
-
     // Perhaps evaluate/render Max and Min levels here (see scope_drawwfm.c)
 
     snde_index NDim = datastore->dimlen.size();
@@ -687,7 +714,7 @@ public:
       fprintf(stderr,"openscenegraph_data: 1D waveform rendering not yet implemented\n");
     } else if (NDim > 1 && NDim <= 4) {
       // image data
-      cacheentry=update_datastore_image(geom,datastore,displaychan,drawareawidth,drawareaheight,layer_index,context,device,queue);
+      cacheentry=update_datastore_image(geom,wfmdb,datastore,displaychan,drawareawidth,drawareaheight,layer_index,context,device,queue);
     }
     
     
@@ -713,7 +740,7 @@ public:
   
   // update operates on a flattened list (from display_info::update()) instead of wfmdb directly!
   // displaychans list should generally not include disabled waveforms 
-  void update(std::shared_ptr<geometry> geom,const std::vector<std::shared_ptr<display_channel>> & displaychans,size_t drawareawidth,size_t drawareaheight,cl_context context,cl_device_id device,cl_command_queue queue)
+  void update(std::shared_ptr<geometry> geom,std::shared_ptr<mutablewfmdb> wfmdb,const std::vector<std::shared_ptr<display_channel>> & displaychans,size_t drawareawidth,size_t drawareaheight,cl_context context,cl_device_id device,cl_command_queue queue)
   // geom needed because that is the current location for the texture RGBA... it also references the array manager and lock manager ....
   /****!!! Can only be called during a rendering_revman transaction (but 
        nothing should be locked) */ 
@@ -722,29 +749,6 @@ public:
     size_t child_num=0;
     size_t layer_index=0;
 
-
-    // Update graticule matrix
-    // transform from the 5/div scaling of the graticule, onto the screen
-    // placing it at a z distance of child_num
-    double horizontal_padding = (drawareawidth-display->horizontal_divisions*display->pixelsperdiv)/2.0;
-    double vertical_padding = (drawareaheight-display->vertical_divisions*display->pixelsperdiv)/2.0;
-    
-
-    GraticuleTransform->setMatrix(osg::Matrixd(display->pixelsperdiv/5.0,0,0,0,
-					       0,display->pixelsperdiv/5.0,0,0,
-					       0,0,1,0,
-					       horizontal_padding+display->pixelsperdiv*display->horizontal_divisions/2.0-0.5,vertical_padding+display->pixelsperdiv*display->vertical_divisions/2.0-0.5,-1.0*layer_index,1)); // ***!!! are -0.5's and negative sign in front of layer_index correct?  .... fix here and in transformmtx, above. 
-    
-    // Check for graticule in our group
-    if (child_num >= getNumChildren() || getChild(child_num)!=GraticuleTransform) {
-      // graticule missing or out-of-place
-      if (containsNode(GraticuleTransform)) {
-	removeChild(GraticuleTransform);
-      }
-      insertChild(child_num,GraticuleTransform);
-    } 
-    child_num++; // Graticule child/layer got added either way
-    layer_index++;
 
 
 
@@ -762,7 +766,7 @@ public:
     for (auto & displaychan : displaychans) {
       //if std::type_index(typeid(*(*displaychan)->chan_data))==std::type_index(typeid())
       if (instanceof<mutabledatastore>(*displaychan->chan_data)) {
-	cacheentry = update_datastore(geom,std::dynamic_pointer_cast<mutabledatastore>(displaychan->chan_data),displaychan,drawareawidth,drawareaheight,layer_index,context,device,queue);
+	cacheentry = update_datastore(geom,wfmdb,std::dynamic_pointer_cast<mutabledatastore>(displaychan->chan_data),displaychan,drawareawidth,drawareaheight,layer_index,context,device,queue);
 	cacheentry->touched=true; 
 	if (child_num >= getNumChildren() || getChild(child_num)!=cacheentry->group.get()) {
 	  // not in correct position in our osg::Group (superclass)
@@ -782,6 +786,29 @@ public:
       layer_index++;
       
     }
+
+    // Update graticule matrix
+    // transform from the 5/div scaling of the graticule, onto the screen
+    // placing it at a z distance of layerindex
+    double horizontal_padding = (drawareawidth-display->horizontal_divisions*display->pixelsperdiv)/2.0;
+    double vertical_padding = (drawareaheight-display->vertical_divisions*display->pixelsperdiv)/2.0;
+    
+
+    GraticuleTransform->setMatrix(osg::Matrixd(display->pixelsperdiv/5.0,0,0,0,
+					       0,display->pixelsperdiv/5.0,0,0,
+					       0,0,1,0,
+					       horizontal_padding+display->pixelsperdiv*display->horizontal_divisions/2.0-0.5,vertical_padding+display->pixelsperdiv*display->vertical_divisions/2.0-0.5,-1.0*layer_index,1)); // ***!!! are -0.5's and negative sign in front of layer_index correct?  .... fix here and in transformmtx, above. 
+    
+    // Check for graticule in our group
+    if (child_num >= getNumChildren() || getChild(child_num)!=GraticuleTransform) {
+      // graticule missing or out-of-place
+      if (containsNode(GraticuleTransform)) {
+	removeChild(GraticuleTransform);
+      }
+      insertChild(child_num,GraticuleTransform);
+    } 
+    child_num++; // Graticule child/layer got added either way
+    layer_index++;
 
     
     // remove any remaining children...

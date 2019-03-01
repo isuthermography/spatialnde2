@@ -395,12 +395,18 @@ namespace snde {
       
     }
 
+    snde_index _total_nelem()
+    // return total number of elements in pool ALLOCATORMUTEX MUST BE LOCKED!
+    {
+      assert(!destroyed);
+      return _totalnchunks*_allocchunksize;
+    }
+
     snde_index total_nelem()
     // return total number of elements in pool
     {
-      std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
-      assert(!destroyed);
-      return _totalnchunks*_allocchunksize;
+      std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex
+      return _total_nelem();
     }
 
     snde_index space_needed()
@@ -465,7 +471,7 @@ namespace snde {
 	std::deque<std::shared_ptr<std::function<void(snde_index)>>> realloccallbacks_copy(pool_realloc_callbacks); // copy can be iterated with allocatormutex unlocked
 	
 	for (std::deque<std::shared_ptr<std::function<void(snde_index)>>>::iterator reallocnotify=realloccallbacks_copy.begin();reallocnotify != realloccallbacks_copy.end();reallocnotify++) {
-	  snde_index new_total_nelem=total_nelem();
+	  snde_index new_total_nelem=_total_nelem();
 	  lock.unlock(); // release allocatormutex
 	  (**reallocnotify)(new_total_nelem);
 	  lock.lock();

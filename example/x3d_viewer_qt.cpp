@@ -6,7 +6,8 @@
 
 #include "revision_manager.hpp"
 #include "arraymanager.hpp"
-#include "pngimage.hpp"
+#include "x3d.hpp"
+#include "openscenegraph_geom.hpp"
 
 using namespace snde;
 
@@ -45,11 +46,14 @@ int main(int argc, char **argv)
     exit(1);
   }
 
+       
+
   std::tie(context,device,clmsgs) = get_opencl_context("::",true,NULL,NULL);
 
   fprintf(stderr,"%s",clmsgs.c_str());
 
 
+  QApplication qapp(argc,argv);
   
   
   std::shared_ptr<memallocator> lowlevel_alloc;
@@ -90,20 +94,21 @@ int main(int argc, char **argv)
     
   }
   
-  
-  revision_manager->Start_Transaction();
-  std::shared_ptr<mutabledatastore> pngstore = ReadPNG(manager,"PNGFile","PNGFile",argv[1]);
-  wfmdb->addinfostore(pngstore);
 
-  std::shared_ptr<mutabledatastore> pngstore2 = ReadPNG(manager,"PNGFile2","PNGFile2",argv[2]);
-  wfmdb->addinfostore(pngstore2);
+  std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>> parts;
+  revision_manager->Start_Transaction();
+  parts = x3d_load_geometry(geom,argv[1],wfmdb,false,true); // !!!*** Try enable vertex reindexing !!!***
   revision_manager->End_Transaction();
 
-  qInstallMessageHandler(StdErrOutput);
-     
-  QApplication qapp(argc,argv);
 
-  //qapp.setNavigationMode(Qt::NavigationModeNone);
+  std::shared_ptr<osg_instancecache> geomcache;
+  std::shared_ptr<osg_texturecache> texcache=std::make_shared<osg_texturecache>(geom,revision_manager,wfmdb,context,device,queue);
+
+  std::shared_ptr<osg_parameterizationcache> paramcache=std::make_shared<osg_parameterizationcache>(geom,context,device,queue);
+  
+  geomcache=std::make_shared<osg_instancecache>(geom,paramcache,context,device,queue);
+
+
   
   QMainWindow window;
 
@@ -111,6 +116,41 @@ int main(int argc, char **argv)
   //qapp.setStyle(QStyleFactory::create("Fusion"));
   window.setAttribute(Qt::WA_AcceptTouchEvents, true);
   QTWfmViewer *Viewer = new QTWfmViewer(wfmdb,geom,revision_manager,context,device,queue,&window);
+
+  
+  {
+    std::shared_ptr<assembly> assem;
+    std::unordered_map<std::string,metadatum> md;
+    std::tie(assem,md)=assembly::from_partlist("LoadedX3D",parts);
+
+    
+    
+    //geom->object_trees.insert(std::make_pair("LoadedX3D",assem));
+    revision_manager->Start_Transaction();
+    
+    std::shared_ptr<mutablegeomstore> LoadedX3D = std::make_shared<mutablegeomstore>("LoadedX3D","LoadedX3D",wfmmetadata(md),geom,assem);
+    
+    wfmdb->addinfostore(LoadedX3D);
+    
+    //for (auto & part_md : *parts) {
+    //  // add normal calculation for each part from the .x3d file
+    //  // warning: we don't do anything explicit here to make sure that the parts
+    //  // last as long as the nomral_calculation objects....
+    //  normal_calcs.push_back(normal_calculation(geom,revision_manager,part_md.first,context,device,queue));
+    //}
+    
+    
+    osg::ref_ptr<snde::OSGComponent> OSGComp;
+
+    OSGComp=new snde::OSGComponent(geom,geomcache,paramcache,texcache,wfmdb,revision_manager,LoadedX3D,LoadedX3D->metadata.metadata(),Viewer->display); // OSGComp must be created during a transaction...
+
+    
+    revnum=revision_manager->End_Transaction();
+  }
+
+  qInstallMessageHandler(StdErrOutput);
+
+  //qapp.setNavigationMode(Qt::NavigationModeNone);
   window.setCentralWidget(Viewer);
   window.show();
 

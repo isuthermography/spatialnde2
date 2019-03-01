@@ -76,7 +76,8 @@ namespace snde {
   
   class arraymanager; // forward declaration
   class mutableinfostore; // forward declaration
-
+  class component; // forward declaration
+  
     struct arrayregion {
     void **array;
     snde_index indexstart;
@@ -821,7 +822,7 @@ namespace snde {
       return std::make_pair(lockobj,retval);
     }
 
-
+  
     rwlock_token_set get_locks_read_infostore(rwlock_token_set all_locks,std::shared_ptr<mutableinfostore> infostore)
     {
       lockindex_t idx = _arrayidx()->at(infostore.get());
@@ -1266,6 +1267,37 @@ namespace snde {
 
     }
 
+    rwlock_token_set lock_infostores(rwlock_token_set all_locks,std::vector<std::shared_ptr<mutableinfostore>> infostores,bool write)
+    {
+      // sort infostores into proper locking order
+      auto arrayidx = _arrayidx();
+      rwlock_token_set new_locks=empty_rwlock_token_set();
+
+      std::sort(infostores.begin(),infostores.end(), [ arrayidx ] (std::shared_ptr<mutableinfostore> a, std::shared_ptr<mutableinfostore> b)
+						     {
+						       // return if a < b
+
+						       
+						       // lockingposition is (*arrayidx)[(void *)infostore.get()]
+
+						       return arrayidx->at((void *)a.get()) < arrayidx->at((void *)b.get());
+						       
+						     });
+
+      // now that we have the order figured out, perform the locking.
+      for (auto & infostore: infostores) {
+	if (write) {
+	  rwlock_token_set infostore_locks=get_locks_write_infostore(all_locks,infostore);
+	  merge_into_rwlock_token_set(new_locks,infostore_locks);
+	} else {
+	  rwlock_token_set infostore_locks=get_locks_read_infostore(all_locks,infostore);
+	  merge_into_rwlock_token_set(new_locks,infostore_locks);
+
+	}
+      }
+      return new_locks;
+    }
+
   };
   
 
@@ -1427,6 +1459,7 @@ namespace snde {
 
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array(void **array,bool write);
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array_mask(void **array,uint64_t maskentry,uint64_t resizemaskentry,uint64_t readmask,uint64_t writemask,uint64_t resizemask,snde_index indexstart,snde_index numelems);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_infostore_mask(std::shared_ptr<mutableinfostore> infostore,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
 
     virtual std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> alloc_array_region(std::shared_ptr<arraymanager> manager,void **allocatedptr,snde_index nelem,std::string allocid);
 

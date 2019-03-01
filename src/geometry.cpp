@@ -18,13 +18,13 @@ namespace snde {
 
   }
 
-  uv_image::uv_image(std::shared_ptr<uv_images> images,
-		     snde_index imageidx) :
-    geom(images->geom),
-    firstuvimage(images->firstuvimage),
-    imageidx(imageidx)
-  {
-    
-  }
+  //uv_image::uv_image(std::shared_ptr<uv_images> images,
+  //snde_index imageidx) :
+  //  geom(images->geom),
+  //  firstuvimage(images->firstuvimage),
+  //  imageidx(imageidx)
+  //{
+  // 
+  //}
   
 };

@@ -18,11 +18,12 @@
 
 #include <unordered_set>
 #include <set>
+#include <typeinfo>
+#include <typeindex>
 #include <atomic>
 #include "gsl-lite.hpp"
 #include "arraymanager.hpp"
 
-#include "mutablewfmstore.hpp" // for wfmdirty_notification_receiver and class mutableinfostore
 
 #ifndef SNDE_REVISION_MANAGER_HPP
 #define SNDE_REVISION_MANAGER_HPP
@@ -56,6 +57,105 @@ are otherwise never generated, even if their input changes ***!!!
 
   // forward declaration
   class trm;
+
+
+class trm_struct_depend_keyimpl_base {
+public:
+  trm_struct_depend_keyimpl_base(const trm_struct_depend_keyimpl_base &)=delete; // no copy constructor
+  trm_struct_depend_keyimpl_base & operator=(const trm_struct_depend_keyimpl_base &)=delete; // no copy assignment
+
+  trm_struct_depend_keyimpl_base()
+  {
+
+  }
+  
+  // objects should be immutable
+  virtual bool less_than(const trm_struct_depend_keyimpl_base &other) const
+  {
+    // return whether this object is less than other
+    
+    // in your implementation of less than, you may assume that
+    // both parameters can be dynamically casted to your type.
+    // (otherwise your less_than function wouldn't be called)
+    return false;
+  }
+  
+  virtual ~trm_struct_depend_keyimpl_base() {}
+};
+
+class trm_struct_depend_key
+// index key class for identifying dependency on external structure...
+// includes pointer to a trm_struct_depend_keyimpl_base from which
+// the actual implementation is derived
+{
+public:
+  std::shared_ptr<trm_struct_depend_keyimpl_base> keyimpl;
+
+  
+  trm_struct_depend_key(std::shared_ptr<trm_struct_depend_keyimpl_base> keyimpl) :
+    keyimpl(keyimpl)
+  {
+
+  }
+  
+  // need operator < so this can be used as a set key.
+  // use set rather than unordered set so that we can
+  // use weak pointers as part of the key structure. 
+  friend bool operator<(const trm_struct_depend_key &l,const trm_struct_depend_key &r)
+  {
+    // so we really don't care about the ordering so long as it
+    // is consistent and unchanging based on the
+    // fundamental fixed parameters
+    // of the dependency -- e.g. type, channel name, etc.
+    // stored in specializations of this
+    // class. 
+
+    // So we use the typeid operator to check the underlying
+    // types (since we are polymorphic). If they are the
+    // same we call the virtual less_than method. 
+    // If they are different we use the ordering of
+    // the types instead.
+
+    const std::type_index tl = typeid(*l.keyimpl);
+    const std::type_index tr = typeid(*r.keyimpl);
+
+    if (tl==tr) {
+      return l.keyimpl->less_than(*r.keyimpl);
+    } else {
+      return tl < tr; 
+    }
+  }
+  
+  
+};
+
+class trm_struct_depend_notifier
+{
+  // base class for notification component that tells us
+  // when external structure has changed.
+
+  // notifier has the potential to store the value(s) of interest and only
+  // propagate the notification if the value has changed
+
+
+  // to notify: Call  recipient->mark_struct_depend_as_modified(key);
+public:
+  
+  std::weak_ptr<trm> recipient;
+  trm_struct_depend_key key;
+  trm_struct_depend_notifier(std::weak_ptr<trm> recipient,
+			     trm_struct_depend_key key) :
+    recipient(recipient),
+    key(key)
+  {
+
+  }
+
+  virtual void trm_notify(); // implementation in revision_manager.cpp
+  
+  virtual ~trm_struct_depend_notifier() {}
+};
+
 
   
   class trm_arrayregion {
@@ -242,7 +342,7 @@ are otherwise never generated, even if their input changes ***!!!
   */
 
 
-  
+  typedef std::pair<trm_struct_depend_key,std::shared_ptr<trm_struct_depend_notifier>> trm_struct_depend;
   
   class trm_dependency : public std::enable_shared_from_this<trm_dependency> { /* dependency of one memory region on another */
   public:
@@ -251,18 +351,19 @@ are otherwise never generated, even if their input changes ***!!!
     /* if function is NULL, that means that this is an input, i.e. one of the input arrays that is locked for 
        write and that we will be responding to changes from */
     
-    std::function<std::vector<trm_arrayregion>(std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs)> regionupdater; /* to be called when an input changes... returns updated input region array. Should try to return quickly. Arrays can be locked following the locking order, and only for read. */
+    std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> &struct_inputs,std::vector<trm_arrayregion> &inputs)> regionupdater; /* to be called when an input changes... returns updated input region array. Should try to return quickly. Arrays can be locked following the locking order, and only for read. */
 
-    std::function<std::vector<trm_arrayregion>(std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs,std::vector<trm_arrayregion> outputs)> update_output_regions;
+    std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> &struct_inputs,std::vector<trm_arrayregion> &inputs,std::vector<trm_struct_depend> &struct_outputs,std::vector<trm_arrayregion> &outputs)> update_output_regions;
 
-    std::function<void(std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> cleanup;
+    std::function<void(std::vector<trm_struct_depend> &struct_inputs,std::vector<trm_arrayregion> &inputs,std::vector<trm_arrayregion> &outputs)> cleanup;
     
     std::vector<rangetracker<markedregion>> inputchangedregion; // rangetracker for changed zones, for each input 
-    std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs;
+    std::vector<trm_struct_depend> struct_inputs;
     std::vector<trm_arrayregion> inputs;
-    std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs;
+    std::vector<trm_struct_depend> struct_outputs;
     std::vector<trm_arrayregion> outputs;
-
+    trm_struct_depend implicit_trm_trmdependency_output;
+    
     std::vector<std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>>> input_dependencies; /* vector of input dependencies,  ordered per metadatainput then per input... These are sets because of possible overlap of regions or one output being used by multiple inputs */
     std::vector<std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>>> output_dependencies; /* vector of output dependencies, per metadataoutput then per output  */
 
@@ -277,25 +378,27 @@ are otherwise never generated, even if their input changes ***!!!
 
     trm_dependency(std::shared_ptr<trm> revman,
 		   std::function<void(snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)> function,
-		   std::function<std::vector<trm_arrayregion>(std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs)> regionupdater,
-		   std::function<std::vector<trm_arrayregion>(std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs,std::vector<trm_arrayregion> outputs)> update_output_regions,
-		   std::function<void(std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> cleanup,
-		   std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,
+		   std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> &struct_inputs,std::vector<trm_arrayregion> &inputs)> regionupdater,
+		   std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> &struct_inputs,std::vector<trm_arrayregion> &inputs,std::vector<trm_struct_depend> &struct_outputs,std::vector<trm_arrayregion> &outputs)> update_output_regions,
+		   std::function<void(std::vector<trm_struct_depend> &struct_inputs,std::vector<trm_arrayregion> &inputs,std::vector<trm_arrayregion> &outputs)> cleanup,
+		   std::vector<trm_struct_depend> struct_inputs,
 		   std::vector<trm_arrayregion> inputs,
-		   std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs,
+		   std::vector<trm_struct_depend> struct_outputs,
 		   std::vector<trm_arrayregion> outputs) :
       revman(revman),
       function(function),
       regionupdater(regionupdater),
       update_output_regions(update_output_regions),
       cleanup(cleanup),
-      metadata_inputs(metadata_inputs),
+      struct_inputs(struct_inputs),
       inputs(inputs),
-      metadata_outputs(metadata_outputs),
+      struct_outputs(struct_outputs),
       outputs(outputs),
-      force_full_rebuild(true)
+      force_full_rebuild(true),
+      implicit_trm_trmdependency_output(std::make_pair<trm_struct_depend_key,std::shared_ptr<snde::trm_struct_depend_notifier>>(trm_struct_depend_key(nullptr),std::shared_ptr<snde::trm_struct_depend_notifier>(nullptr)))
     {
       // weak_this=shared_from_this();
+
     }
 		   
     trm_dependency(const trm_dependency &)=delete; // copy constructor disabled
@@ -305,6 +408,79 @@ are otherwise never generated, even if their input changes ***!!!
   };
 
 
+
+// trm struct depend on another specific  trm_dependency:
+class trm_trmdependency_key: public trm_struct_depend_keyimpl_base {
+public:
+  std::weak_ptr<trm_dependency> dependent_on;
+
+  trm_trmdependency_key(const trm_trmdependency_key &)=delete; // no copy constructor
+  trm_trmdependency_key & operator=(const trm_trmdependency_key &)=delete; // no copy assignment
+
+  trm_trmdependency_key(std::shared_ptr<trm_dependency> dependent_on) :
+    dependent_on(dependent_on)
+  {
+    
+  }
+  virtual bool less_than(const trm_struct_depend_keyimpl_base &other) const
+  {
+    // called to identify mapping location of the trm_struct_depend.
+    // both l&r should be our class
+    const trm_trmdependency_key *op = dynamic_cast<const trm_trmdependency_key *>(&other);
+
+    assert(op);
+    
+    return dependent_on.owner_before(op->dependent_on);
+    
+  }
+
+};
+
+
+class trm_trmdependency_notifier: public trm_struct_depend_notifier {
+  // inherited members:
+  //   from trm_struct_depend_notifier: 
+  //     std::weak_ptr<trm> recipient;
+  //     trm_struct_depend_key key;
+  //
+  //  key has a member keyimpl that can be dynamically pointer casted to trm_trmdependency_key 
+public:
+  
+  trm_trmdependency_notifier(const trm_trmdependency_notifier &)=delete; // no copy constructor
+  trm_trmdependency_notifier & operator=(const trm_trmdependency_notifier &)=delete; // no copy assignment
+  
+  trm_trmdependency_notifier(std::shared_ptr<trm> recipient,std::shared_ptr<trm_dependency> dependent_on) :
+    trm_struct_depend_notifier(recipient,trm_struct_depend_key(std::make_shared<trm_trmdependency_key>(dependent_on)))
+    
+  {
+
+  }
+
+  std::shared_ptr<trm_dependency> get_dependent_on()
+  {
+    std::shared_ptr<trm_trmdependency_key> keyimpl = std::dynamic_pointer_cast<trm_trmdependency_key>(key.keyimpl);
+    std::shared_ptr<trm_dependency> dependent_on=keyimpl->dependent_on.lock();
+    return dependent_on;
+  }
+
+  // note inherited method:
+  //trm_notify();
+  
+  virtual ~trm_trmdependency_notifier() {}
+};
+
+
+static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::shared_ptr<trm_dependency> dependent_on)
+{
+  std::shared_ptr<trm_trmdependency_notifier> notifier = std::make_shared<trm_trmdependency_notifier>(revman,dependent_on);
+  
+  return std::make_pair(notifier->key,notifier);
+
+}
+
+
+  
+  
   /* #defines for trm::state */ 
 #define TRMS_IDLE 0
 #define TRMS_TRANSACTION 1 /* Between BeginTransaction() and EndTransaction() */
@@ -423,10 +599,12 @@ are otherwise never generated, even if their input changes ***!!!
        cleared at end of transaction */
     std::unordered_map<void **,std::pair<std::shared_ptr<arraymanager>,rangetracker<markedregion>>> modified_db;
 
-    /* locked by dependency_table_lock; modified_metadata_db is a database of which mutableinfostore's 
-       metadata have been modified during (or before?) this transaction. Should be
+    /* locked by dependency_table_lock; modified_struct_db is a database of which structures we are 
+       dependent on that  have been modified during (or before?) this transaction. Should be
        cleared at end of transaction */
-    std::set<std::weak_ptr<mutableinfostore>,std::owner_less<std::weak_ptr<mutableinfostore>>> modified_metadata_db;
+    //std::set<std::weak_ptr<mutableinfostore>,std::owner_less<std::weak_ptr<mutableinfostore>>> modified_metadata_db;
+    //std::set<std::string> modified_metadata_db;
+    std::set<trm_struct_depend_key> modified_struct_db;
     
     
     // note: these condition variables are condition_variable_any instead of
@@ -474,47 +652,21 @@ are otherwise never generated, even if their input changes ***!!!
       
     };
 
-    // another nested class:
-    class trm_wfmdirty_notification: public wfmdirty_notification_receiver {
-    public:
-      trm *revman;
-      
-      trm_wfmdirty_notification(trm *revman) :
-	wfmdirty_notification_receiver(),
-	revman(revman)
-      {
-	
-      }
-
-      virtual void mark_as_dirty(std::shared_ptr<mutableinfostore> infostore)
-      {
-	// Warning: Various arrays may be locked when this is called!
-	//std::shared_ptr<trm> revman_strong(revman);
-	std::lock_guard<std::recursive_mutex> dep_tbl(revman->dependency_table_lock);
-	
-	revman->_mark_infostore_as_modified(infostore);
-
-      }
-      
-      virtual ~trm_wfmdirty_notification() {};
-    };
-
-    std::shared_ptr<trm_wfmdirty_notification> wfmdb_notifier;
     
     
     trm(const trm &)=delete; /* copy constructor disabled */
     trm& operator=(const trm &)=delete; /* copy assignment disabled */
 
     
-    trm(std::shared_ptr<mutablewfmdb> wfmdb, int num_threads=-1)
+    trm(int num_threads=-1)
     {
       currevision=1;
       threadcleanup=false;
       state=TRMS_IDLE;
       transaction_update_lock=std::make_shared<rwlock>();
 
-      wfmdb_notifier = std::make_shared<trm_wfmdirty_notification>(this);
-      wfmdb->add_dirty_notification_receiver(wfmdb_notifier);
+      //wfmdb_notifier = std::make_shared<trm_wfmdirty_notification>(this);
+      //wfmdb->add_dirty_notification_receiver(wfmdb_notifier);
       our_unique_name="trm_" + std::to_string((unsigned long long)this);
 
       // Assigment of change_detection_pseudo_cache moved to first
@@ -553,13 +705,16 @@ are otherwise never generated, even if their input changes ***!!!
 		      executing_regionupdater.emplace(job_ptr);
 		      
 		      //assert(added_to_ex_ru); // dependency is allowed to be in exactly one set at a time
+
+		      // note parallel code in add_dependency_during_update 
 		      
 		      std::vector<trm_arrayregion> newinputs;
 		      std::vector<trm_arrayregion> newoutputs;
 		      bool inputs_changed=false;
+
 		      
 		      dep_tbl.unlock();		
-		      newinputs = job_ptr->regionupdater(job_ptr->metadata_inputs,job_ptr->inputs);
+		      newinputs = job_ptr->regionupdater(job_ptr->struct_inputs,job_ptr->inputs);
 		      dep_tbl.lock();
 		      
 		      if (!(newinputs == job_ptr->inputs)) { /* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */
@@ -569,7 +724,7 @@ are otherwise never generated, even if their input changes ***!!!
 		      }
 		      
 		      dep_tbl.unlock();		
-		      newoutputs = job_ptr->update_output_regions(job_ptr->metadata_inputs,job_ptr->inputs,job_ptr->metadata_outputs,job_ptr->outputs);
+		      newoutputs = job_ptr->update_output_regions(job_ptr->struct_inputs,job_ptr->inputs,job_ptr->struct_outputs,job_ptr->outputs);
 		      dep_tbl.lock();		
 		      
 		      if (inputs_changed || !(newoutputs == job_ptr->outputs)) {
@@ -648,12 +803,25 @@ are otherwise never generated, even if their input changes ***!!!
 			
 			unexecuted_no_deps.erase(job);
 			executing.insert(job_ptr);
+			std::vector<trm_arrayregion> newinputs;
 			std::vector<trm_arrayregion> newoutputs;
+			bool inputs_changed=false;
 			bool outputs_changed=false;
-
-			// update output regions first 
+			
+			// call regionupdater first...
+			dep_tbl.unlock();		
+			newinputs = job_ptr->regionupdater(job_ptr->struct_inputs,job_ptr->inputs);
+			dep_tbl.lock();
+			
+			if (!(newinputs == job_ptr->inputs)) { /* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */
+			  inputs_changed=true;
+			  _ensure_input_cachemanagers_registered(newinputs);
+			  job_ptr->inputs=newinputs;
+			}
+			
+			// now call update output regions 
 			dep_tbl.unlock();
-			newoutputs=job_ptr->update_output_regions(job_ptr->metadata_inputs,job_ptr->inputs,job_ptr->metadata_outputs,job_ptr->outputs);
+			newoutputs=job_ptr->update_output_regions(job_ptr->struct_inputs,job_ptr->inputs,job_ptr->struct_outputs,job_ptr->outputs);
 			dep_tbl.lock();
 			
 			if (!(newoutputs == job_ptr->outputs)) { /* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */
@@ -665,6 +833,9 @@ are otherwise never generated, even if their input changes ***!!!
 			// now execute!
 			dep_tbl.unlock();
 			job_ptr->function(this->currevision,job_ptr,job_ptr->inputchangedregion);
+
+			// notify that we have dirtied our implicit output
+			job_ptr->implicit_trm_trmdependency_output.second->trm_notify();
 			dep_tbl.lock();
 			
 			if (outputs_changed) {			  
@@ -772,7 +943,7 @@ are otherwise never generated, even if their input changes ***!!!
 					    std::unique_lock<std::recursive_mutex> dep_tbl(dependency_table_lock);
 					    for (;;) {
 					      
-					      jobs_done.wait(dep_tbl,[ this ]() { return (unexecuted_no_deps.size()==0 && unexecuted_with_deps.size()==0 && executing.size()==0 && state==TRMS_DEPENDENCY) || threadcleanup;});
+					      jobs_done.wait(dep_tbl,[ this ]() { return (unexecuted_no_deps.size()==0 && unexecuted_with_deps.size()==0 && unexecuted_needs_regionupdater.size()==0 && unexecuted_regionupdated.size()==0 && executing_regionupdater.size()==0 &&  executing.size()==0 && state==TRMS_DEPENDENCY) || threadcleanup;});
 
 					      if (threadcleanup) {
 						return; 
@@ -787,7 +958,7 @@ are otherwise never generated, even if their input changes ***!!!
 					      // **** NOTE: If stuff is modified externally between End_Transaction() and
 					      // the end of computation we may miss it because of these clear() calls
 					      modified_db.clear();
-					      modified_metadata_db.clear();
+					      modified_struct_db.clear();
 
 					      // move everything from done into unsorted
 					      for (auto done_iter = done.begin();done_iter != done.end();done_iter=done.begin()) {
@@ -827,7 +998,7 @@ are otherwise never generated, even if their input changes ***!!!
       }
       transaction_wait_thread.join();
 
-      wfmdb_notifier=nullptr; // trigger deletion of wfmdb_notifier before we disappear ourselves, because it has a pointer to us. 
+      //wfmdb_notifier=nullptr; // trigger deletion of wfmdb_notifier before we disappear ourselves, because it has a pointer to us. 
 
     }
 
@@ -915,47 +1086,73 @@ are otherwise never generated, even if their input changes ***!!!
       _remove_depgraph_node_edges(dependency,dependency->input_dependencies,dependency->output_dependencies);
 
       /* make sure dependency has a big enough input_dependencies array */
-      while (dependency->input_dependencies.size() < dependency->metadata_inputs.size() + dependency->inputs.size()) {
+      while (dependency->input_dependencies.size() < dependency->struct_inputs.size() + dependency->inputs.size()) {
 	dependency->input_dependencies.emplace_back();
       }
-      
+
+      /* make sure dependency has a big enough output_dependencies array */
+      while (dependency->output_dependencies.size() < dependency->struct_outputs.size() + dependency->outputs.size() +1 ) { // last entry is the implicit struct output dependency that is a trm_trmdependency(dependent_on=ourselves)
+	dependency->output_dependencies.emplace_back();
+      }
+
       /* Iterate over all existing dependencies we could have a relationship to */
       for (auto & existing_dep: dependencies) {
 
 	std::shared_ptr<trm_dependency> existing_dep_strong=existing_dep.lock();
-	/* make sure existing dep has a big enough output_dependencies array */
 	
 	if (existing_dep_strong) {
-	  while (existing_dep_strong->output_dependencies.size() < existing_dep_strong->metadata_outputs.size() + existing_dep_strong->outputs.size()) {
+	  
+	  /* make sure existing dep has a big enough input_dependencies array */
+	  while (existing_dep_strong->input_dependencies.size() < existing_dep_strong->struct_inputs.size() + existing_dep_strong->inputs.size()) {
+	    existing_dep_strong->input_dependencies.emplace_back();
+	  }
+
+	  /* make sure existing dep has a big enough output_dependencies array */
+	  while (existing_dep_strong->output_dependencies.size() < existing_dep_strong->struct_outputs.size() + existing_dep_strong->outputs.size() + 1) {
+	    // last entry is the implicit struct output dependency that is a trm_trmdependency(dependent_on=ourselves)
 	    existing_dep_strong->output_dependencies.emplace_back();
 	  }
 	
 	  
 	  
-	  /* For each of our input metadata dependencies, does the existing dependency have an output
+	  /* For each of our input structure dependencies, does the existing dependency have an output
 	     dependency? */
 	  size_t inpcnt=0;
-	  for (auto & input: dependency->metadata_inputs) { // input is a weak_ptr to an infostore
+	  for (auto & inputstruct: dependency->struct_inputs) { 
+
+	    trm_struct_depend_key &inputkey=inputstruct.first;
 	    
-	    
-	    auto & this_input_depset = dependency->input_dependencies[inpcnt];
-	    for (size_t outcnt=0;outcnt < existing_dep_strong->metadata_outputs.size();outcnt++) {
-	      // existing_dep_strong->metadata_outputs.at(outcnt) is a weak pointer to an infostore...
+	    auto & this_input_depset = dependency->input_dependencies.at(inpcnt);
+	    for (size_t outcnt=0;outcnt < existing_dep_strong->struct_outputs.size();outcnt++) {
+	      // existing_dep_strong->struct_outputs.at(outcnt) is another trm_struct_depend_key...
 	      // need to compare with input
-
-	      // use owner_before() attributes for comparison so comparison is legitimate even if
+		
+	      // use (indirectly) owner_before() attributes for comparison so comparison is legitimate even if
 	      // weak_pointers have been released.
-	      const std::weak_ptr<mutableinfostore> & output = existing_dep_strong->metadata_outputs.at(outcnt);
-
+	      const trm_struct_depend_key &outputkey = existing_dep_strong->struct_outputs.at(outcnt).first;
+		
 	      // basically we are looking for input==output
 	      // expressed as !(input < output) && !(output < input)
 	      // where input < output expressed as input.owner_before(output)
-	      if (!input.owner_before(output) && !output.owner_before(input)) {
-	      
+	      if (!(inputkey < outputkey)  && !(outputkey < inputkey)) {
+		
 		this_input_depset.emplace(existing_dep_strong);
-		existing_dep_strong->output_dependencies[outcnt].emplace(dependency);
+		existing_dep_strong->output_dependencies.at(outcnt).emplace(dependency);
 	      } 
+	      
 	    }
+	    
+	    const trm_struct_depend_key &outputkey = existing_dep_strong->implicit_trm_trmdependency_output.first;
+		
+	    // basically we are looking for input==output
+	    // expressed as !(input < output) && !(output < input)
+	    // where input < output expressed as input.owner_before(output)
+	    if (!(inputkey < outputkey)  && !(outputkey < inputkey)) {
+	      
+	      this_input_depset.emplace(existing_dep_strong);
+	      existing_dep_strong->output_dependencies.at(existing_dep_strong->struct_outputs.size() + existing_dep_strong->outputs.size()).emplace(dependency);
+	    } 
+	    
 	    inpcnt++;
 	  }
 
@@ -965,56 +1162,82 @@ are otherwise never generated, even if their input changes ***!!!
 	  for (auto & input: dependency->inputs) { // input is a trm_arrayregion
 	    
 	    
-	    auto & this_input_depset = dependency->input_dependencies[dependency->metadata_inputs.size() + inpcnt];
+	    auto & this_input_depset = dependency->input_dependencies.at(dependency->struct_inputs.size() + inpcnt);
 	    for (size_t outcnt=0;outcnt < existing_dep_strong->outputs.size();outcnt++) {
 	      
 	    
 	      if (input.overlaps(existing_dep_strong->outputs[outcnt])) {
 		this_input_depset.emplace(existing_dep_strong);
-		existing_dep_strong->output_dependencies[existing_dep_strong->metadata_outputs.size() +outcnt].emplace(dependency);
+		existing_dep_strong->output_dependencies.at(existing_dep_strong->struct_outputs.size() +outcnt).emplace(dependency);
 	      } 
 	    }
 	    inpcnt++;
 	  }
 	
-	  /* For each of our output metadata dependencies, does the existing dependency have an input
+	  /* For each of our output structure dependencies, does the existing dependency have an input
 	     dependency? */
 	  size_t outcnt=0;
-	  for (auto & output: dependency->metadata_outputs) { // output is a weak_ptr to an infostore	    
-
-	    auto & this_output_depset = dependency->output_dependencies[outcnt];
-	    for (inpcnt=0;inpcnt < existing_dep_strong->metadata_inputs.size();inpcnt++) {
-	      // existing_dep_strong->metadata_inputs.at(inpcnt) is a weak pointer to an infostore...
+	  for (auto & outputstruct: dependency->struct_outputs) { 
+	    trm_struct_depend_key &outputkey=outputstruct.first;
+	    
+	    auto & this_output_depset = dependency->output_dependencies.at(outcnt);
+	    for (inpcnt=0;inpcnt < existing_dep_strong->struct_inputs.size();inpcnt++) {
+	      // existing_dep_strong->struct_inputs.at(inpcnt) is another trm_struct_depend_key
 	      // need to compare with output
-
-	      // use owner_before() attributes for comparison so comparison is legitimate even if
-	      // weak_pointers have been released.
-	      const std::weak_ptr<mutableinfostore> & input = existing_dep_strong->metadata_inputs.at(inpcnt);
 	      
+	      // use (indirectly) owner_before() attributes for comparison so comparison is legitimate even if
+	      // weak_pointers have been released.
+	      const trm_struct_depend_key & inputkey = existing_dep_strong->struct_inputs.at(inpcnt).first;
+		
 	      // basically we are looking for input==output
 	      // expressed as !(input < output) && !(output < input)
 	      // where input < output expressed as input.owner_before(output)
-	      if (!input.owner_before(output) && !output.owner_before(input)) {
-	      
+	      if (!(inputkey < outputkey) && !(outputkey < inputkey)) {
+		
 		this_output_depset.emplace(existing_dep_strong);
-		existing_dep_strong->input_dependencies[inpcnt].emplace(dependency);
+		existing_dep_strong->input_dependencies.at(inpcnt).emplace(dependency);
 	      } 
-
 	      
+		
 	    }
+	    
 	    outcnt++;
 	  }
 
+	  trm_struct_depend_key &outputkey=dependency->implicit_trm_trmdependency_output.first;
+	  
+	  auto & this_output_depset = dependency->output_dependencies.at(dependency->struct_outputs.size() + dependency->outputs.size());
+	  for (inpcnt=0;inpcnt < existing_dep_strong->struct_inputs.size();inpcnt++) {
+	    // existing_dep_strong->struct_inputs.at(inpcnt) is another trm_struct_depend_key
+	    // need to compare with output
+	    
+	    // use (indirectly) owner_before() attributes for comparison so comparison is legitimate even if
+	    // weak_pointers have been released.
+	    const trm_struct_depend_key & inputkey = existing_dep_strong->struct_inputs.at(inpcnt).first;
+	    
+	    // basically we are looking for input==output
+	    // expressed as !(input < output) && !(output < input)
+	    // where input < output expressed as input.owner_before(output)
+	    if (!(inputkey < outputkey) && !(outputkey < inputkey)) {
+	      
+	      this_output_depset.emplace(existing_dep_strong);
+	      existing_dep_strong->input_dependencies.at(inpcnt).emplace(dependency);
+	    } 
+	    
+	    
+	  }
+	  
+	  
 	  
 	  /* For each of our output array dependencies, does the existing dependency have an input
 	     dependency? */
 	  outcnt=0;
 	  for (auto & output: dependency->outputs) {
-	    auto & this_output_depset = dependency->output_dependencies[dependency->metadata_outputs.size() + outcnt];
+	    auto & this_output_depset = dependency->output_dependencies.at(dependency->struct_outputs.size() + outcnt);
 	    for (inpcnt=0;inpcnt < existing_dep_strong->inputs.size();inpcnt++) {
 	      if (existing_dep_strong->inputs[inpcnt].overlaps(output)) {
 		this_output_depset.emplace(existing_dep_strong);
-		existing_dep_strong->input_dependencies[existing_dep_strong->metadata_inputs.size() + inpcnt].emplace(dependency);
+		existing_dep_strong->input_dependencies.at(existing_dep_strong->struct_inputs.size() + inpcnt).emplace(dependency);
 	      }
 	    }
 	    outcnt++;
@@ -1025,22 +1248,22 @@ are otherwise never generated, even if their input changes ***!!!
     }
     
     std::shared_ptr<trm_dependency>  add_dependency(std::function<void(snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)> function,
-						    std::function<std::vector<trm_arrayregion>(std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs)> regionupdater,
-						    std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,
+						    std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs)> regionupdater,
+						    std::vector<trm_struct_depend> struct_inputs,
 						    std::vector<trm_arrayregion> inputs, // inputs array does not need to be complete; will be passed immediately to regionupdater() -- so this need only be a valid seed. 
 						    //std::vector<trm_arrayregion> outputs)
-						    std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs,
-						    std::function<std::vector<trm_arrayregion>(std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs, std::vector<trm_arrayregion> inputs,std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs,std::vector<trm_arrayregion> outputs)> update_output_regions,
-						    std::function<void(std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> cleanup) // cleanup() should not generally do any locking but just free regions. 
+						    std::vector<trm_struct_depend> struct_outputs,
+						    std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> struct_inputs, std::vector<trm_arrayregion> inputs,std::vector<trm_struct_depend> struct_outputs,std::vector<trm_arrayregion> outputs)> update_output_regions,
+						    std::function<void(std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> cleanup) // cleanup() should not generally do any locking but just free regions. 
     {
       /* Add a dependency outside StartTransaction()...EndTransaction()... First execution opportunity will be at next call to EndTransaction() */
       /* acquire necessary read lock to allow modifying dependency tree */
       std::lock_guard<rwlock_lockable> ourlock(transaction_update_lock->reader);
       return add_dependency_during_update(function,
 					  regionupdater,
-					  metadata_inputs,
+					  struct_inputs,
 					  inputs,
-					  metadata_outputs,
+					  struct_outputs,
 					  update_output_regions,
 					  cleanup);
     }
@@ -1068,8 +1291,8 @@ are otherwise never generated, even if their input changes ***!!!
       }
       
       if (!modified_input_dep) {
-	for (auto & metadatainput: dependency->metadata_inputs) {
-	  if (modified_metadata_db.find(metadatainput) != modified_metadata_db.end()) {
+	for (auto & metadatainput: dependency->struct_inputs) {
+	  if (modified_struct_db.find(metadatainput.first) != modified_struct_db.end()) {
 	    // marked as modified
 	    modified_input_dep=true;
 	    break;
@@ -1202,34 +1425,33 @@ are otherwise never generated, even if their input changes ***!!!
     /* add_dependency_during_update may only be called during a transaction */
     /* MUST HOLD WRITE LOCK for all output_arrays specified... may reallocate these arrays! */
     std::shared_ptr<trm_dependency> add_dependency_during_update(std::function<void(snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)> function,
-								 std::function<std::vector<trm_arrayregion>(std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs)> regionupdater,
-								 std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,
+								 std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs)> regionupdater,
+								 std::vector<trm_struct_depend> struct_inputs,
 								 std::vector<trm_arrayregion> inputs, // inputs array does not need to be complete; will be passed immediately to regionupdater() -- so this need only be a valid seed.
-								 std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs,
+								 std::vector<trm_struct_depend> struct_outputs,
 								 //std::vector<trm_arrayregion> outputs)
-								 std::function<std::vector<trm_arrayregion>(std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs,std::vector<trm_arrayregion> outputs)> update_output_regions,
-								 std::function<void(std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs, std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> cleanup) // cleanup() should not generally do any locking but just free regions. 
+								 std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_struct_depend> struct_outputs,std::vector<trm_arrayregion> outputs)> update_output_regions,
+								 std::function<void(std::vector<trm_struct_depend> struct_inputs, std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> cleanup) // cleanup() should not generally do any locking but just free regions. 
     /* May only be called while holding transaction_update_lock, either as a reader(maybe?) or as a writer */
     {
 
       /* Construct inputs */
-      inputs=regionupdater(metadata_inputs,inputs);
+      inputs=regionupdater(struct_inputs,inputs);
       _ensure_input_cachemanagers_registered(inputs);
       
       /* construct empty output regions */
       std::vector<trm_arrayregion> outputs; // start with blank output array
       //outputs=update_output_regions(inputs,outputs);
       
-      std::shared_ptr<trm_dependency> dependency=std::make_shared<trm_dependency>(shared_from_this(),function,regionupdater,update_output_regions,cleanup,metadata_inputs,inputs,metadata_outputs,outputs);
+      std::shared_ptr<trm_dependency> dependency=std::make_shared<trm_dependency>(shared_from_this(),function,regionupdater,update_output_regions,cleanup,struct_inputs,inputs,struct_outputs,outputs);
       dependency->weak_this = dependency; // couldn't be set in constructor because you can't call shared_form_this() in constructor, but it is needed in the destructor and can't be created there either(!)
 
-      
-      std::lock_guard<std::recursive_mutex> dep_tbl(dependency_table_lock);
+      std::unique_lock<std::recursive_mutex> dep_tbl(dependency_table_lock);
       
       /*  Check input and output dependencies; 
 	  if we are inside a transactional update and there are 
 	  no unexecuted dependencies, we should drop into unexecuted_no_deps, unexecuted_with_deps, no_need_to_execute, etc. instead of unsorted */
-
+      
       //_call_regionupdater(dependency); // Make sure we have full list of dependencies.
       // 
       //// Fill inputchangedregions with full trackers according to number of inputs (now replaced with force_full_rebuild auto-initialized to true)
@@ -1238,18 +1460,57 @@ are otherwise never generated, even if their input changes ***!!!
       //dependency->inputchangedregion[inpcnt].mark_region(0,SNDE_INDEX_INVALID); // Mark entire block
       //}
       
+      dependency->implicit_trm_trmdependency_output = trm_trmdependency(shared_from_this(),dependency);
       
       dependencies.emplace(dependency);
-
+      
       _rebuild_depgraph_node_edges(dependency);
       
+      // Now run the regionupdater and update_output_regions methods..... Have to release the locks, run them
+      // like they would be in the sub-threads. (note parallel code in subtread 
+      executing_regionupdater.emplace(dependency);
 
-      if (state==TRMS_DEPENDENCY) {
+      		      
+      std::vector<trm_arrayregion> newinputs;
+      std::vector<trm_arrayregion> newoutputs;
+      bool inputs_changed=false;
+      
+      dep_tbl.unlock();		
+      newinputs = dependency->regionupdater(dependency->struct_inputs,dependency->inputs);
+      dep_tbl.lock();
+      
+      if (!(newinputs == dependency->inputs)) { /* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */
+	inputs_changed=true;
+	_ensure_input_cachemanagers_registered(newinputs);
+	dependency->inputs=newinputs;
+      }
+      
+      dep_tbl.unlock();		
+      newoutputs = dependency->update_output_regions(dependency->struct_inputs,dependency->inputs,dependency->struct_outputs,dependency->outputs);
+      dep_tbl.lock();		
+      
+      if (inputs_changed || !(newoutputs == dependency->outputs)) {
+	/* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */			
+	
+	_rebuild_depgraph_node_edges(dependency); 
+      } 
+      executing_regionupdater.erase(dependency); //ex_ru_iter);
+      
+      
+      
+      if (state==TRMS_DEPENDENCY || state==TRMS_REGIONUPDATE) {
 	unexecuted_needs_regionupdater.insert(dependency);
-	job_to_do.notify_one();
+	if (state==TRMS_DEPENDENCY) {
+	  _figure_out_unexecuted_deps();
+	}
       } else {
 	unsorted.insert(dependency);	
       }
+      
+      
+      
+
+      
       return dependency;
     }
 
@@ -1299,7 +1560,7 @@ are otherwise never generated, even if their input changes ***!!!
       assert(done.empty());
       
       assert(modified_db.empty());
-      assert(modified_metadata_db.empty());
+      //assert(modified_struct_db.empty());
       
       
       state=TRMS_TRANSACTION;
@@ -1349,19 +1610,26 @@ are otherwise never generated, even if their input changes ***!!!
 
       }
     }
-    
-    void _mark_infostore_as_modified(std::shared_ptr<mutableinfostore> infostore)
+
+    void _mark_struct_depend_as_modified(const trm_struct_depend_key &struct_key)
     {
       /* dependency_table_lock must be locked when this function is called */
-      auto dbregion = modified_metadata_db.find(infostore);
+      auto dbregion = modified_struct_db.find(struct_key);
 
-      if (dbregion==modified_metadata_db.end()) {
+      if (dbregion==modified_struct_db.end()) {
 	/* this infostore not currently marked as modified */
-	modified_metadata_db.emplace(infostore);
+	//assert(state==TRMS_TRANSACTION || state==TRMS_DEPENDENCY);
+	modified_struct_db.emplace(struct_key);
       }
       
     }
 
+    void mark_struct_depend_as_modified(const trm_struct_depend_key &struct_key)
+    {
+      std::lock_guard<std::recursive_mutex> dep_tbl(dependency_table_lock);
+      _mark_struct_depend_as_modified(struct_key);
+    }
+    
     void _mark_region_as_modified(const trm_arrayregion &modified)
     {
       /* dependency_table_lock must be locked when this function is called */
@@ -1470,6 +1738,10 @@ are otherwise never generated, even if their input changes ***!!!
     // at the end of computation... should we incrementally remove stuff from
     // the modified db during the categorization process? ... and the NOT do
     // the clear() in transaction_wait_thread?
+    //
+
+    // ***!!!!! We need to fix so we never clear the modified_db,
+    // just move stuff out of it. That way we will never miss a modification ***!!!
     {
     
       snde_index retval=currevision;

@@ -15,14 +15,14 @@ extern "C"
 
 namespace snde {
   template <typename T>
-  std::shared_ptr<mutableelementstore<T>> _store_pngimage_data(std::shared_ptr<arraymanager> manager,std::string Name,png_structp png,png_infop info,png_infop endinfo,size_t width,size_t height)
+  std::shared_ptr<mutableelementstore<T>> _store_pngimage_data(std::shared_ptr<arraymanager> manager,std::string leafname,std::string fullname,png_structp png,png_infop info,png_infop endinfo,size_t width,size_t height)
   {
     //std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
     //std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(output_manager->locker); // new locking process
     // since it's new, we don't have to worry about locking it!
 
     
-    std::shared_ptr<mutableelementstore<T>> retval = std::make_shared<mutableelementstore<T>>(Name,wfmmetadata(),manager,std::vector<snde_index>{width,height},std::vector<snde_index>{1,width});
+    std::shared_ptr<mutableelementstore<T>> retval = std::make_shared<mutableelementstore<T>>(leafname,fullname,wfmmetadata(),manager,std::vector<snde_index>{width,height},std::vector<snde_index>{1,width});
 
 
     size_t rowcnt;
@@ -76,7 +76,7 @@ namespace snde {
 
   
   
-  static inline std::shared_ptr<mutabledatastore> ReadPNG(std::shared_ptr<arraymanager> manager,std::string Name,std::string fname)
+  static inline std::shared_ptr<mutabledatastore> ReadPNG(std::shared_ptr<arraymanager> manager,std::string leafname,std::string fullname,std::string filename)
   // Should probably be called in a transaction in most cases
   // does not add returned datastore to wfmdb -- you have to do that!
   {
@@ -96,7 +96,7 @@ namespace snde {
     png_uint_32 width,height;
     int bit_depth=0, color_type=0,interlace_method=0,compression_method=0,filter_method=0;
     
-    infile=fopen(fname.c_str(),"rb");
+    infile=fopen(filename.c_str(),"rb");
     if (!infile) return nullptr;
     png=png_create_read_struct(PNG_LIBPNG_VER_STRING,NULL,NULL,NULL);
 
@@ -160,10 +160,10 @@ namespace snde {
     case PNG_COLOR_TYPE_GRAY:
       if (bit_depth==8) {
 	width = png_get_rowbytes(png,info)/sizeof(uint8_t);
-	retval=_store_pngimage_data<uint8_t>(manager,Name,png,info,endinfo,width,height);
+	retval=_store_pngimage_data<uint8_t>(manager,leafname,fullname,png,info,endinfo,width,height);
       } else if (bit_depth==16) {
 	width = png_get_rowbytes(png,info)/sizeof(uint16_t);
-	retval=_store_pngimage_data<uint16_t>(manager,Name,png,info,endinfo,width,height);
+	retval=_store_pngimage_data<uint16_t>(manager,leafname,fullname,png,info,endinfo,width,height);
 	
       } else {
 	assert(0); // invalid depth
@@ -175,7 +175,7 @@ namespace snde {
       
       if (bit_depth==8) {
 	width = png_get_rowbytes(png,info)/sizeof(snde_rgba);
-	retval=_store_pngimage_data<snde_rgba>(manager,Name,png,info,endinfo,width,height);
+	retval=_store_pngimage_data<snde_rgba>(manager,leafname,fullname,png,info,endinfo,width,height);
 	
       } else {
 	assert(0); // invalid depth

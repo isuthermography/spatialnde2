@@ -8,6 +8,8 @@
 #include "revision_manager.hpp"
 #include "mutablewfmstore.hpp"
 #include "wfm_display.hpp"
+#include "revman_wfm_display.hpp"
+#include "revman_wfmstore.hpp"
 
 #include "geometry_types_h.h"
 #include "colormap_h.h"
@@ -46,20 +48,26 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
   /* (Idea: just lock vertex_arrays, texvertex_arrays, and texbuffer) */
   /* ***!!! Should have ability to combine texture data from multiple patches... see geometry_types.h */ 
   static std::shared_ptr<trm_dependency> CreateRGBADependency(std::shared_ptr<trm> revman,
-						       std::shared_ptr<mutabledatastore> input,
-						       unsigned input_datatype, // MET_...
-						       std::shared_ptr<arraymanager> output_manager,
-						       void **output_array,
-						       std::shared_ptr<display_channel> scaling_colormap_channel,
-						       cl_context context,
-						       cl_device_id device,
-						       cl_command_queue queue,
-						       std::function<void(std::shared_ptr<lockholder> input_and_array_locks,rwlock_token_set all_locks,trm_arrayregion input,trm_arrayregion output,snde_rgba **imagearray,snde_index start,size_t xsize,size_t ysize)> callback) // OK for callback to explicitly unlock locks, as it is the last thing called. 
+							      std::shared_ptr<mutablewfmdb> wfmdb,
+							      std::string input_fullname,
+							      //std::shared_ptr<mutabledatastore> input,
+							      //unsigned input_datatype, // MET_...
+							      std::shared_ptr<arraymanager> output_manager,
+							      void **output_array,
+							      std::shared_ptr<display_channel> scaling_colormap_channel,
+							      cl_context context,
+							      cl_device_id device,
+							      cl_command_queue queue,
+							      std::function<void(std::shared_ptr<lockholder> input_and_array_locks,rwlock_token_set all_locks,trm_arrayregion input,trm_arrayregion output,snde_rgba **imagearray,snde_index start,size_t xsize,size_t ysize,snde_coord2 inival,snde_coord2 step)> callback) // OK for callback to explicitly unlock locks, as it is the last thing called. 
   {
     
     std::shared_ptr<trm_dependency> retval;
+    std::vector<trm_struct_depend> struct_inputs;
+
+    struct_inputs.emplace_back(display_channel_dependency(revman,scaling_colormap_channel));
+    struct_inputs.emplace_back(wfm_dependency(revman,wfmdb,input_fullname));
     
-    retval=revman->add_dependency_during_update([ input_datatype, context, device, queue, scaling_colormap_channel, input, output_manager, output_array, callback ] (snde_index newversion,std::shared_ptr<trm_dependency> dep, std::vector<rangetracker<markedregion>> &inputchangedregions) {
+    retval=revman->add_dependency_during_update([ context, device, queue, output_manager, output_array, callback ] (snde_index newversion,std::shared_ptr<trm_dependency> dep, std::vector<rangetracker<markedregion>> &inputchangedregions) {
 	// function code
 	float Offset;
 	float alpha_float;
@@ -69,24 +77,43 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 	size_t DisplaySeq;
 	snde_index ColorMap;
 
+	// extract mutableinfostore, which should come from dep->struct_inputs.at(1).first.keyimpl which
+	// is a trm_mutablewfm_key that has wfmdb and wfmfullname members
+	std::shared_ptr<mutablewfmdb> wfmdb = std::dynamic_pointer_cast<trm_mutablewfm_key>(dep->struct_inputs.at(1).first.keyimpl)->wfmdb.lock();
+	std::shared_ptr<mutabledatastore> input=std::dynamic_pointer_cast<mutabledatastore>(wfmdb->lookup(std::dynamic_pointer_cast<trm_mutablewfm_key>(dep->struct_inputs.at(1).first.keyimpl)->wfmfullname));
+	
+
+	snde_coord2 inival={
+			    input->metadata.GetMetaDatumDbl("IniVal1",0.0),
+			    input->metadata.GetMetaDatumDbl("IniVal2",0.0),
+	};
+
+	snde_coord2 step={
+			  input->metadata.GetMetaDatumDbl("Step1",1.0),
+			  input->metadata.GetMetaDatumDbl("Step2",1.0),
+	};
+
+	
 	cl_kernel scale_colormap_kern;
 	// obtain kernel
 	{
 	  std::lock_guard<std::mutex> scop_lock(scop_mutex);
-	  auto scop_iter = scale_colormap_opencl_program.find(input_datatype);
+	  auto scop_iter = scale_colormap_opencl_program.find(input->typenum);
 	  if (scop_iter==scale_colormap_opencl_program.end()) {
 
 	    
-	    scale_colormap_opencl_program.emplace(std::piecewise_construct,std::forward_as_tuple(input_datatype),std::forward_as_tuple(std::string("scale_colormap"), std::vector<std::string>{ get_data_to_rgba_program_text(input_datatype) }));
+	    scale_colormap_opencl_program.emplace(std::piecewise_construct,std::forward_as_tuple(input->typenum),std::forward_as_tuple(std::string("scale_colormap"), std::vector<std::string>{ get_data_to_rgba_program_text(input->typenum) }));
 	  }
 	  
-	  scale_colormap_kern = scale_colormap_opencl_program.at(input_datatype).get_kernel(context,device);
+	  scale_colormap_kern = scale_colormap_opencl_program.at(input->typenum).get_kernel(context,device);
 	  
 	}
 
-	// extract parameters from scaling_colormap_channel
+	// extract parameters from scaling_colormap_channel, which should come from dep->struct_inputs.at(0)
+	std::shared_ptr<display_channel> scaling_colormap_channel = std::dynamic_pointer_cast<trm_wfmdisplay_key>(dep->struct_inputs.at(0).first.keyimpl)->displaychan;//.lock();
+	
 	{
-	  std::lock_guard<std::mutex> displaychan_lock(scaling_colormap_channel->displaychan_mutex);
+	  std::lock_guard<std::mutex> displaychan_lock(scaling_colormap_channel->admin);
 	  Offset=scaling_colormap_channel->Offset;
 	  alpha_float=roundf(scaling_colormap_channel->Alpha*255.0);
 	  if (alpha_float < 0.0) alpha_float=0.0;
@@ -97,8 +124,7 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 	  ColorMap=scaling_colormap_channel->ColorMap;
 	  DivPerUnits = 1.0/scaling_colormap_channel->Scale; // !!!*** Should we consider pixelflag here? Probably not because color axis can't be in pixels, so it wouldn't make sense
 	}
-
-
+	
 	
 	// perform locking
 
@@ -228,25 +254,36 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 	// while we still have our locks (all_locks),
 	// call callback function with the data we have generated 
 	// OK for callback to explicitly unlock locks
-	callback(holder,std::move(all_locks),dep->inputs[0],dep->outputs[0],(snde_rgba **)dep->outputs[0].array,dep->outputs[0].start,xsize,ysize);
+	callback(holder,std::move(all_locks),dep->inputs[0],dep->outputs[0],(snde_rgba **)dep->outputs[0].array,dep->outputs[0].start,xsize,ysize,inival,step);
 
 	// cannot use inputlock anymore after this because of std::move... (of course we are done anyway)
 	
       },
-      [ input ] (std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
+      [  ] (std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
 	/* regionupdater code */
 	if (inputs.size() > 0) {
 	  inputs.empty();
 	}
+
+	// extract mutableinfostore, which should come from dep->struct_inputs.at(1).first.keyimpl which
+	// is a trm_mutablewfm_key that has wfmdb and wfmfullname members
+	std::shared_ptr<mutablewfmdb> wfmdb = std::dynamic_pointer_cast<trm_mutablewfm_key>(struct_inputs.at(1).first.keyimpl)->wfmdb.lock();
+	std::shared_ptr<mutabledatastore> input=std::dynamic_pointer_cast<mutabledatastore>(wfmdb->lookup(std::dynamic_pointer_cast<trm_mutablewfm_key>(struct_inputs.at(1).first.keyimpl)->wfmfullname));
+
 	inputs.push_back(trm_arrayregion(input->manager,input->basearray,input->startelement,input->numelements));
 	return inputs; 
       },
-      std::vector<std::shared_ptr<mutableinfostore>>(), // metadata_inputs
+      struct_inputs, // struct_inputs
       std::vector<trm_arrayregion>(), // inputs
-      std::vector<std::shared_ptr<mutableinfostore>>(), // metadata_outputs
-      [ output_manager,output_array,input ] (std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs, std::vector<trm_arrayregion> inputs,std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {
+      std::vector<trm_struct_depend>(), // struct_outputs
+      [ output_manager,output_array ] (std::vector<trm_struct_depend> struct_inputs, std::vector<trm_arrayregion> inputs,std::vector<trm_struct_depend> struct_outputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {
 	/* update_output_regions code */
 
+	// extract mutableinfostore, which should come from dep->struct_inputs.at(1).first.keyimpl which
+	// is a trm_mutablewfm_key that has wfmdb and wfmfullname members
+	std::shared_ptr<mutablewfmdb> wfmdb = std::dynamic_pointer_cast<trm_mutablewfm_key>(struct_inputs.at(1).first.keyimpl)->wfmdb.lock();
+	std::shared_ptr<mutabledatastore> input=std::dynamic_pointer_cast<mutabledatastore>(wfmdb->lookup(std::dynamic_pointer_cast<trm_mutablewfm_key>(struct_inputs.at(1).first.keyimpl)->wfmfullname));
+	
 	// obtain lock for input structure (prior to all arrays in locking order
 	rwlock_token_set all_locks=empty_rwlock_token_set();
 	input->manager->locker->get_locks_read_infostore(all_locks,input);
@@ -262,6 +299,9 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 	}
 	
 	if (outputs.size() >= 1 && outputs[0].len != input_len) {
+	  if (outputs[0].start != SNDE_INDEX_INVALID) {
+	    output_manager->free(output_array,outputs[0].start);
+	  }
 	  outputs.empty();
 	}
 	if (outputs.size() < 1) {
@@ -283,15 +323,16 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 	}
 	return outputs;
       } ,
-      [ output_manager,output_array ](std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
+      [ output_manager,output_array ](std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
 	// cleanup
 	if (outputs.size()==1) {
 	  output_manager->free(output_array,outputs[0].start);
 	}
       });
   
-    // mark that our dep must be rerun if the channel params change. 
-    scaling_colormap_channel->adjustment_deps.emplace(std::weak_ptr<trm_dependency>(retval));
+    // mark that our dep must be rerun if the channel params change. (NOW USING revman_wfm_display.hpp) via the call to display_channel_dependency()
+    
+    //scaling_colormap_channel->adjustment_deps.emplace(std::weak_ptr<trm_dependency>(retval));
     return retval;
       
   }

@@ -6,31 +6,13 @@
 #include <cmath>
 #include <regex>
 
+#include "stringtools.hpp"
+
 #ifndef SNDE_UNITS_HPP
 #define SNDE_UNITS_HPP
 
 namespace snde {
 
-
-static inline std::string stripstr(std::string inp)
-  {
-
-    std::string out;
-    
-    size_t startpos=inp.find_first_not_of(" \t\r\n");
-    size_t endpos=inp.find_last_not_of(" \t\r\n");
-    
-    if (endpos == std::string::npos) {
-      // no non-whitespace characters
-      out="";
-      return out;
-    }
-
-    assert(startpos != std::string::npos);
-    out=inp.substr(startpos,endpos-startpos+1);
-
-    return out; 
-  }
 
   class UnitDef {
   public:

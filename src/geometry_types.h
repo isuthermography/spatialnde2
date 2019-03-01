@@ -468,8 +468,8 @@ struct snde_partinstance {
   snde_index partnum; // was meshedpartnum
   //std::string discrete_parameterization_name; -- really maps to mesheduvnmum /* index of the discrete parameterization */
   snde_index firstuvimage; /* starting uv_patch # (snde_image) for this instance...  */ 
-  snde_index uvnum; /* select which parameterization... */
-  snde_index imgbuf_extra_offset; // Additional offset into imgbuf, e.g. to select a particular frame of multiframe image data 
+  snde_index uvnum; /* select which parameterization... can be SNDE_INDEX_INVALID or .idx of the parameterization */
+  //snde_index imgbuf_extra_offset; // Additional offset into imgbuf, e.g. to select a particular frame of multiframe image data 
 };
   
 
@@ -479,17 +479,17 @@ struct snde_image  {
   //snde_index rgba_imgbufoffset; /* index into rgba image buffer array (if imgbufoffset is SNDE_INDEX_INVALID */
   
   snde_index nx,ny; // X and Y size (ncols, nrows) ... note Fortran style indexing
-  snde_coord2 startcorner; /* Coordinates of the edge of the first texel in image, 
+  snde_coord2 inival; /* Coordinates of the center of the first texel in image, 
 			      in meaningful units (meters). Assume for the moment
 			      that steps will always be positive. first coordinate is the 
 			      x (column) position; second coordinate
-			      is the y (row position). The center of the first texel 
-			      is at (startcorner.coord[0]+step.coord[0]/2,
-			             startcorner.coord[1]+step.coord[1]/2) 
+			      is the y (row position). The edge of the first texel 
+			      is at (startcorner.coord[0]-step.coord[0]/2,
+			             startcorner.coord[1]-step.coord[1]/2) 
 
 			      The coordinates of the endcorner are:
-                                    (startcorner.coord[0]+step.coord[0]*nx,
-				    (startcorner.coord[1]+step.coord[1]*ny)
+                                    (startcorner.coord[0]+step.coord[0]*(nx-0.5),
+				    (startcorner.coord[1]+step.coord[1]*(ny-0.5))
                             */
   snde_coord2 step; /* step size per texel, in meaningful units. For the moment, at least, both should be positive */
   //snde_index nextimage; // index of alternate image to be used if data in this image shows as NaN, fully transparent, or is outside the image boundary... set to SNDE_INDEX_INVALID if there should be no nextimage.

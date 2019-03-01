@@ -2,25 +2,6 @@
 
 
 
-// Partly based on osgsharedarray example, which is
-// under more liberal license terms than OpenSceneGraph itself, specifically : 
-/* 
-*  Permission is hereby granted, free of charge, to any person obtaining a copy
-*  of this software and associated documentation files (the "Software"), to deal
-*  in the Software without restriction, including without limitation the rights
-*  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-*  copies of the Software, and to permit persons to whom the Software is
-*  furnished to do so, subject to the following conditions:
-*
-*  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-*  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-*  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-*  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-*  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-*  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-*  THE SOFTWARE.
-*/
-
 #include <vector>
 
 #include <osg/Array>
@@ -42,38 +23,16 @@
 #include "openclcachemanager.hpp"
 #include "opencl_utils.hpp"
 
+#include "normal_calculation.hpp"
+
+#include "mutablewfmstore.hpp"
+
+#include "openscenegraph_array.hpp"
+#include "openscenegraph_texture.hpp"
+#include "openscenegraph_parameterization.hpp"
+
 #ifndef SNDE_OPENSCENEGRAPH_GEOM_HPP
 #define SNDE_OPENSCENEGRAPH_GEOM_HPP
-
-
-/** This class is a subclass of osg::Array. This
-  * is useful because spatialnde2  has data in its own form of storage and 
-  * we don't 
-  * want to make another copy into one of the predefined osg::Array classes.
-  *
-  */
-
-/* This is based on the assumption that the osg::Vec3 and osg::Vec3d
-   classes are trivially copyable and standard layout */
-
-static_assert(std::is_standard_layout<osg::Vec3>::value);
-static_assert(std::is_trivially_copyable<osg::Vec3>::value);
-static_assert(std::is_standard_layout<osg::Vec3d>::value);
-static_assert(std::is_trivially_copyable<osg::Vec3d>::value);
-
-/* ***!!! This should probably be moved somewhere more central */
-
-template <typename T, std::size_t... I>
-auto vec2tup_impl(std::vector<T> vec, std::index_sequence<I...>)
-{
-  return std::make_tuple(vec[I]...);
-}
-
-template <size_t N,typename T>
-auto vec2tup(std::vector<T> vec) {
-  assert(vec.size()==N);
-  return vec2tup_impl(vec,std::make_index_sequence<N>{});
-}
 
 
 namespace snde {
@@ -156,205 +115,6 @@ static snde_index vertexarray_from_instance_vertexarrayslocked(std::shared_ptr<g
 
 
 
-  
-class OSGArray : public osg::Array {
-  /***!!! WARNING: The underlying data may change whenever the array is unlocked. 
-      Either after a version increment or before rendering we should push out 
-      any changes to OSG and (how?) make sure it processes them.  */
-  
-  
-public:
-  union {
-    volatile float **_float_ptr;
-    volatile double **_double_ptr;
-  } _ptr;
-  std::weak_ptr<snde::geometry> snde_geom;
-  size_t vecsize; /* 2 or 3 */
-  size_t elemsize; /* 4 (float) or 8 (double) */
-  snde_index nvec;
-  snde_index offset; // counted in elements (pieces of a vector)
-  
-  /** Default ctor. Creates an empty array. */
-  OSGArray(std::shared_ptr<snde_geometry> snde_geom) :
-    snde_geom(snde_geom),
-    osg::Array(osg::Array::Vec3ArrayType,3,GL_FLOAT),
-    vecsize(3),
-    elemsize(4) {
-    _ptr._float_ptr=NULL;
-  }
-  
-  /** "Normal" ctor.
-   * Elements presumed to be either float or double
-   */
-  OSGArray(std::shared_ptr<snde_geometry> snde_geom,void **array,size_t offset,size_t elemsize, size_t vecsize, size_t nvec) :
-    snde_geom(snde_geom),
-    osg::Array((vecsize==2) ? ((elemsize==4) ? osg::Array::Vec2ArrayType : osg::Array::Vec2dArrayType) : ((elemsize==4) ? osg::Array::Vec3ArrayType : osg::Array::Vec3dArrayType),vecsize,(elemsize==4) ? GL_FLOAT:GL_DOUBLE),
-    offset(offset),
-    nvec(nvec), 
-    vecsize(vecsize),
-    elemsize(elemsize)
-  {
-    if (elemsize==4) _ptr._float_ptr=(volatile float **)(array);
-    else _ptr._double_ptr=(volatile double **)(array);
-  }
-
-  /** OSG Copy ctor. */
-  OSGArray(const OSGArray& other, const osg::CopyOp& /*copyop*/) :
-    snde_geom(other.snde_geom),
-    osg::Array(other.getType(),(other.elemsize==4) ? GL_FLOAT:GL_DOUBLE),
-    nvec(other.nvec),
-    _ptr(other._ptr),
-    vecsize(other.vecsize),
-    elemsize(other.elemsize)
-  {
-    
-  }
-
-  
-  OSGArray(const OSGArray &)=delete; /* copy constructor disabled */
-  OSGArray& operator=(const OSGArray &)=delete; /* copy assignment disabled */
-
-  /** What type of object would clone return? */
-  virtual Object* cloneType() const {
-    std::shared_ptr<geometry> snde_geom_strong(snde_geom);
-    return new OSGArray(snde_geom_strong);
-  }
-  
-  /** Create a copy of the object. */
-  virtual osg::Object* clone(const osg::CopyOp& copyop) const {
-    return new OSGArray(*this,copyop);
-  }
-
-  /** Accept method for ArrayVisitors.
-   *
-   * @note This will end up in ArrayVisitor::apply(osg::Array&).
-   */
-  virtual void accept(osg::ArrayVisitor& av) {
-    av.apply(*this);
-  }
-  
-  /** Const accept method for ArrayVisitors.
-   *
-   * @note This will end up in ConstArrayVisitor::apply(const osg::Array&).
-   */
-  virtual void accept(osg::ConstArrayVisitor& cav) const {
-    cav.apply(*this);
-  }
-  
-  /** Accept method for ValueVisitors. */
-  virtual void accept(unsigned int index, osg::ValueVisitor& vv) {
-    if (elemsize==4) {
-      if (vecsize==2) {
-	osg::Vec2 v((*_ptr._float_ptr)[offset+index*2],(*_ptr._float_ptr)[offset + (index)*2+1]);	
-	vv.apply(v);
-
-      } else {
-	osg::Vec3 v((*_ptr._float_ptr)[offset+(index)*3],(*_ptr._float_ptr)[offset+(index)*3+1],(*_ptr._float_ptr)[offset + (index)*3+2]);
-	
-	vv.apply(v);
-      }
-    }
-    else {
-      if (vecsize==2) {
-	osg::Vec2d v((*_ptr._double_ptr)[offset+(index)*2],(*_ptr._double_ptr)[offset+(index)*2+1]);
-	vv.apply(v);
-      } else {
-	osg::Vec3d v((*_ptr._double_ptr)[offset+(index)*3],(*_ptr._double_ptr)[offset+(index)*3+1],(*_ptr._double_ptr)[offset+(index)*3+2]);
-	vv.apply(v);
-      }
-    }
-  }
-  
-  /** Const accept method for ValueVisitors. */
-  virtual void accept(unsigned int index, osg::ConstValueVisitor& cvv) const {
-    if (elemsize==4) {
-      if (vecsize==2) {
-	osg::Vec2 v((*_ptr._float_ptr)[offset+(index)*2],(*_ptr._float_ptr)[offset+(index)*2+1]);	
-	cvv.apply(v);
-	
-      } else {
-	osg::Vec3 v((*_ptr._float_ptr)[offset+(index)*3],(*_ptr._float_ptr)[offset+(index)*3+1],(*_ptr._float_ptr)[offset+(index)*3+2]);
-	
-	cvv.apply(v);
-      }
-    }
-    else {
-      if (vecsize==2) {
-	osg::Vec2d v((*_ptr._double_ptr)[offset+(index)*2],(*_ptr._double_ptr)[offset+(index)*2+1]);
-	cvv.apply(v);
-      } else {
-	osg::Vec3d v((*_ptr._double_ptr)[offset+(index)*3],(*_ptr._double_ptr)[offset+(index)*3+1],(*_ptr._double_ptr)[offset+(index)*3+2]);
-	cvv.apply(v);
-      }
-    }
-  }
-  
-  /** Compare method.
-   * Return -1 if lhs element is less than rhs element, 0 if equal,
-   * 1 if lhs element is greater than rhs element.
-   */
-  virtual int compare(unsigned int lhs,unsigned int rhs) const {
-    assert(0); // not implemented 
-    //const osg::Vec3& elem_lhs = _ptr[lhs];
-    //const osg::Vec3& elem_rhs = _ptr[rhs];
-    //if (elem_lhs<elem_rhs) return -1;
-    //if (elem_rhs<elem_lhs) return  1;
-    //return 0;
-  }
-
-  virtual unsigned int getElementSize() const {
-    if (elemsize==4) {
-      if (vecsize==2) {
-	return sizeof(osg::Vec2);
-      } else {
-	return sizeof(osg::Vec3);
-      }
-    }
-    else {
-      if (vecsize==2) {
-	return sizeof(osg::Vec2d);
-      } else {
-	return sizeof(osg::Vec3d);
-      }
-    }
-      
-  }
-
-  /** Returns a pointer to the first element of the array. */
-  virtual const GLvoid* getDataPointer() const {
-    if (elemsize==4) {
-      return (const GLvoid *)((*_ptr._float_ptr)+offset);
-    } else {
-      return (const GLvoid *)((*_ptr._double_ptr)+offset);
-    }
-  }
-
-  virtual const GLvoid* getDataPointer(unsigned int index) const {
-    if (elemsize==4) {
-      return (const GLvoid *)((*_ptr._float_ptr)+offset + (index)*vecsize);
-    } else {
-      return (const GLvoid *)((*_ptr._double_ptr)+offset + (index)*vecsize);
-    }
-  }
-  
-  /** Returns the number of elements (vectors) in the array. */
-  virtual unsigned int getNumElements() const {
-    return nvec;
-  }
-
-  /** Returns the number of bytes of storage required to hold
-   * all of the elements of the array.
-   */
-  virtual unsigned int getTotalDataSize() const {
-    return nvec * vecsize*elemsize;
-  }
-
-  virtual void reserveArray(unsigned int /*num*/) { OSG_NOTICE<<"reserveArray() not supported"<<std::endl; }
-  virtual void resizeArray(unsigned int /*num*/) { OSG_NOTICE<<"resizeArray() not supported"<<std::endl; }
-
-};
-
-
 struct osg_snde_partinstance_hash
 {
   /* note: we ignore orientation in the hash/equality operators! */
@@ -375,6 +135,9 @@ struct osg_snde_partinstance_equal
   }
 };
 
+
+
+
 class osg_instancecacheentry {
   // The osg_instancecacheentry represents an entry in the osg_instancecache that will
   // automatically remove itself once all references are gone
@@ -382,6 +145,20 @@ class osg_instancecacheentry {
   // It does this by being referenced through shared_ptrs created with a custom deleter
   // When the shared_ptr reference count drops to zero, the custom deleter gets called,
   // thus removing us from the cache
+
+  // We need to be careful what goes in here
+  // because the destructors for the content
+  // will be called while holding the instancecache's
+  // admin mutex. If any of the destructors
+  // could be locking something that could indirectly
+  // precede the instancecache admin mutex in the locking
+  // order, then we would have a problem.
+
+  // I think the osg:... structures are OK because
+  // OSG doesn't use callbacks and even if it did
+  // the OSG lock would have to be held while calling
+  // our OSGComponent constructor or Update() method.
+  
 public:
   snde_partinstance instance; // index of this cache entry
   std::weak_ptr<osg_instancecacheentry> thisptr; /* Store this pointer so we can return it on demand */
@@ -389,14 +166,19 @@ public:
   
   std::weak_ptr<geometry> snde_geom;
   osg::ref_ptr<osg::Geode> geode;
+  //osg::ref_ptr<osg::StateSet> geode_state_set;
   osg::ref_ptr<osg::Geometry> geom;
   osg::ref_ptr<osg::DrawArrays> drawarrays;
   //bool isnurbs;
   osg::ref_ptr<snde::OSGArray> DataArray;
   osg::ref_ptr<snde::OSGArray> NormalArray;
+  std::shared_ptr<trm_dependency> normal_function;
   std::shared_ptr<trm_dependency> vertex_function; /* revision_manager function that renders winged edge structure into vertices */
+  std::shared_ptr<trm_dependency> cacheentry_function; /* revision_manager function that pulls vertex, normal, and texture arrays into the osg::Geometry object */
   
 
+  std::shared_ptr<osg_paramcacheentry> param_cache_entry;
+  
   /* Remaining fields are updated when the vertex_function executes */
   struct snde_part partdata;
   //struct snde_nurbspart partdata_nurbs;
@@ -409,32 +191,33 @@ public:
   //snde_index numvertices;
 
   
-  osg_instancecacheentry(std::shared_ptr<geometry> snde_geom)
-			 // do not call directly! All entries made in osg_instancecache::lookup()
-  // which must also create a shared_ptr with our custom deleter
+  osg_instancecacheentry(std::shared_ptr<geometry> snde_geom) : 
+    // do not call directly! All entries made in osg_instancecache::lookup()
+    // which must also create a shared_ptr with our custom deleter
+    instance{
+	     .orientation={
+			   .offset={
+				    .coord={0.0,0.0,0.0},
+				    },
+			   .pad1=0.0,
+			   .quat={
+				  .coord={0.0,0.0,0.0,0.0},
+				  },
+			   },
+	     .partnum=SNDE_INDEX_INVALID,
+	     .firstuvimage=SNDE_INDEX_INVALID,
+	     .uvnum=SNDE_INDEX_INVALID,
+	     //.imgbuf_extra_offset=0,
+  }
+  
   {
     this->snde_geom=snde_geom;
     geode=NULL;
+    //geode_state_set=NULL;
     geom=NULL;
     //isnurbs=false;
     cachedversion=0;
 
-    instance.orientation.offset.coord[0]=0.0;
-    instance.orientation.offset.coord[1]=0.0;
-    instance.orientation.offset.coord[2]=0.0;
-    instance.orientation.pad1=0.0;
-    instance.orientation.quat.coord[0]=0.0;
-    instance.orientation.quat.coord[1]=0.0;
-    instance.orientation.quat.coord[2]=0.0;
-    instance.orientation.quat.coord[3]=0.0;
-    //instance.nurbspartnum=SNDE_INDEX_INVALID;
-    instance.partnum=SNDE_INDEX_INVALID;
-    instance.firstuvimage=SNDE_INDEX_INVALID;
-    //instance.numuvimages=SNDE_INDEX_INVALID;
-    instance.uvnum=SNDE_INDEX_INVALID;
-    instance.imgbuf_extra_offset=0;
-    //vertex_start_index=SNDE_INDEX_INVALID;
-    //numvertices=0;
   }
 
   osg_instancecacheentry(const osg_instancecacheentry &)=delete; /* copy constructor disabled */
@@ -452,17 +235,19 @@ public:
 
   // !!!*** Add locking method, function method, region updater method!
 
-  void obtain_array_locks(std::shared_ptr<lockholder> holder,std::shared_ptr<lockingprocess_threaded> lockprocess, std::shared_ptr<component> comp,unsigned readmask, unsigned writemask,bool include_vertex_arrays, bool vertex_arrays_write, bool vertex_arrays_entire_array)
-  // the geometry object_trees_lock should be held when this is called (but not necessarily by
-  // this thread -- just to make sure it can't be changed) 
-    
-  // Locking the object_trees_lock should be taken care of by whoever is starting the transaction
+  void obtain_array_locks(std::shared_ptr<lockholder> holder,std::shared_ptr<lockingprocess_threaded> lockprocess, std::shared_ptr<mutablegeomstore> comp,snde_component_geom_mask_t readmask, snde_component_geom_mask_t writemask,snde_component_geom_mask_t resizemask,bool include_vertex_arrays, bool vertex_arrays_write, bool vertex_arrays_entire_array)
+  // NOTE: This may be called from any thread!
   {
     std::shared_ptr<geometry> snde_geom_strong(snde_geom);
     
     /* Obtain lock for this component -- in parallel with our write lock on the vertex array, below */
     if (readmask != 0 || writemask != 0) {
-      lockprocess->spawn( [ comp, lockprocess, readmask, writemask ]() { comp->obtain_lock(lockprocess,SNDE_COMPONENT_GEOM_PARTS | readmask, writemask); });
+      lockprocess->spawn( [ comp, lockprocess, readmask, writemask, resizemask ]() {
+			    // first, get the lock on our mutableinfostore (comp) and associated snde::component structure comp->comp
+			    lockprocess->get_locks_infostore_mask(comp,SNDE_COMPONENT_GEOM_COMPONENT,readmask|SNDE_COMPONENT_GEOM_COMPONENT,writemask);
+			    // Now obtain lock for everything under that
+			    comp->comp->obtain_lock(lockprocess,SNDE_COMPONENT_GEOM_PARTS | readmask, writemask,resizemask);
+			  });
     }
     
     if (include_vertex_arrays && vertex_arrays_write && !vertex_arrays_entire_array) {
@@ -488,7 +273,7 @@ public:
     
   }
 
-  rwlock_token_set obtain_array_locks(std::shared_ptr<component> comp,unsigned readmask, unsigned writemask,bool include_vertex_arrays, bool vertex_arrays_write, bool vertex_arrays_entire_array)
+  rwlock_token_set obtain_array_locks(std::shared_ptr<mutablegeomstore> comp,snde_component_geom_mask_t readmask, snde_component_geom_mask_t writemask,snde_component_geom_mask_t resizemask,bool include_vertex_arrays, bool vertex_arrays_write, bool vertex_arrays_entire_array)
   // the geometry object_trees_lock should be held when this is called (but not necessarily by
   // this thread -- just to make sure it can't be changed) 
     
@@ -498,7 +283,7 @@ public:
     std::shared_ptr<geometry> snde_geom_strong(snde_geom);
     std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(snde_geom_strong->manager->locker); // new locking process
     
-    obtain_array_locks(holder,lockprocess,comp,readmask,writemask,include_vertex_arrays,vertex_arrays_write,vertex_arrays_entire_array);
+    obtain_array_locks(holder,lockprocess,comp,readmask,writemask,resizemask,include_vertex_arrays,vertex_arrays_write,vertex_arrays_entire_array);
         
     rwlock_token_set all_locks=lockprocess->finish();
 
@@ -518,9 +303,15 @@ public:
       geom->manager->free((void **)&geom->geom.vertex_arrays,DataArray->offset);
       DataArray->offset=SNDE_INDEX_INVALID;
       DataArray->nvec=0;
-      
-      
     }
+
+    if (geom && NormalArray && NormalArray->offset != SNDE_INDEX_INVALID) {
+
+      geom->manager->free((void **)&geom->geom.vertex_arrays,NormalArray->offset);
+      NormalArray->offset=SNDE_INDEX_INVALID;
+      NormalArray->nvec=0;
+    }
+
   }
   
 };
@@ -534,18 +325,31 @@ public:
   
   /* use an unordered_map because pointers to elements do not get invalidated until delete */
   /* We will add entries to instance_map then return shared pointers with the Delete function 
-     wired to remove the cache entry once there are no more references */ 
+     wired to remove the cache entry once there are no more references */
+
+  /* ***!!!!! BUG: instance_map should also be keyed on which parameterization, because 
+     osg::Geometry needs to have setTexCoordArray() called */
+  
   std::unordered_map<snde_partinstance,osg_instancecacheentry,osg_snde_partinstance_hash,osg_snde_partinstance_equal> instance_map;
+
+
+  // snde_geom, context, device, and queue shall be constant
+  // after creation so can be freely read from any thread context
   std::shared_ptr<geometry> snde_geom;
+  std::shared_ptr<osg_parameterizationcache> param_cache;
   cl_context context;
   cl_device_id device;
   cl_command_queue queue;
+
+  std::mutex admin; // serialize references to instance_map because that could be used from any thread that drops the last reference to an instancecacheentry... Need to think thread-safety of the instancecache through more carefully 
   
   osg_instancecache(std::shared_ptr<geometry> snde_geom,
+		    std::shared_ptr<osg_parameterizationcache> param_cache,
 		    cl_context context,
 		    cl_device_id device,
 		    cl_command_queue queue) :
     snde_geom(snde_geom),
+    param_cache(param_cache),
     context(context),
     device(device),
     queue(queue)
@@ -554,8 +358,13 @@ public:
   }
 
   
-  std::shared_ptr<osg_instancecacheentry> lookup(std::shared_ptr<trm> rendering_revman,snde_partinstance &instance,std::shared_ptr<snde::component> comp) //std::shared_ptr<geometry> geom,std::shared_ptr<lockholder> holder,rwlock_token_set all_locks,snde_partinstance &instance,cl_context context, cl_device device, cl_command_queue queue,snde_index thisversion)
+  std::shared_ptr<osg_instancecacheentry> lookup(std::shared_ptr<trm> rendering_revman,snde_partinstance &instance,std::shared_ptr<mutablegeomstore> info,std::shared_ptr<component> comp,std::shared_ptr<parameterization> param) //std::shared_ptr<geometry> geom,std::shared_ptr<lockholder> holder,rwlock_token_set all_locks,snde_partinstance &instance,cl_context context, cl_device device, cl_command_queue queue,snde_index thisversion)
+
+  // NOTE: May be called while locks held on the mutablegeomstore "comp"
   {
+
+    std::unique_lock<std::mutex> adminlock(admin);
+    
     auto instance_iter = instance_map.find(instance);
     if (instance_iter==instance_map.end()) { // || instance_iter->obsolete()) {
       
@@ -573,20 +382,29 @@ public:
       // cache entry
 
       std::shared_ptr<osg_instancecache> shared_cache=shared_from_this();
+
       
       std::shared_ptr<osg_instancecacheentry> entry_ptr(&(entry->second),
 							[ shared_cache ](osg_instancecacheentry *ent) { /* custom deleter... this is a parameter to the shared_ptr constructor, ... the osg_instancecachentry was created in emplace(), above.  */ 
 							  std::unordered_map<snde_partinstance,osg_instancecacheentry,osg_snde_partinstance_hash,osg_snde_partinstance_equal>::iterator foundent;
+
+							  std::lock_guard<std::mutex> adminlock(shared_cache->admin);
+							  
 							  foundent = shared_cache->instance_map.find(ent->instance);
 							  assert(foundent != shared_cache->instance_map.end()); /* cache entry should be in cache */
 							  assert(ent == &foundent->second); /* should match what we are trying to delete */
+							  // Note: cacheentry destructor being called while holding adminlock!
 							  shared_cache->instance_map.erase(foundent); /* remove the element */ 
 							  
 							} );
-
+      // Note: Currently holding adminlock
       entry->second.instance=instance;
       entry->second.thisptr = entry_ptr; /* stored as a weak_ptr so we can recall it on lookup but it doesn't count as a reference */
       entry->second.geode=new osg::Geode();
+      //entry->second.geode_state_set=entry->second.geode->getOrCreateStateSet();
+      //entry->second.geode_state_set->setMode(GL_DEPTH_TEST,osg::StateAttribute::ON);
+      //entry->second.geode_state_set->setMode(GL_LIGHTING,osg::StateAttribute::ON);
+      //entry->second.geode->setStateSet(entry->second.geode_state_set);
       entry->second.geom=new osg::Geometry();
       entry->second.drawarrays=new osg::DrawArrays(osg::PrimitiveSet::TRIANGLES,0,0);
       entry->second.geom->addPrimitiveSet(entry->second.drawarrays);
@@ -601,12 +419,19 @@ public:
       // Our NormalArray is counted by vectors (3 coordinates) whereas
       // snde_geom->geom.normals is counted by triangles (9 coordinates).
       entry->second.NormalArray = new snde::OSGArray(snde_geom,(void **)&snde_geom->geom.normals,SNDE_INDEX_INVALID,sizeof(snde_coord),3,0);
-      
+
+
       
       /* seed first input for dependency function -- regionupdater will provide the rest */
       std::vector<trm_arrayregion> inputs_seed;
-      // ****!!!!! NEED TO EXPLICITLY DECLARE NORMALS AS A DEPENDENCY ***!!!
       inputs_seed.emplace_back(snde_geom->manager,(void **)&snde_geom->geom.parts,instance.partnum,1);
+
+      
+      entry->second.normal_function = normal_calculation(snde_geom,rendering_revman,comp,context,device,queue);
+
+      /* ***!!!! NEED TO SEPARATE OUT normal_function and vertex_function INTO A SEPARATE CACHE FROM THE 
+             INSTANCE CACHE SO WE DON'T GET DOUBLE-CALCULATION IF THERE ARE TWO ENTRIES IN THE INSTANCE
+      CACHE ...E.G. WITH MULTIPLE PARAMETERIZATIONS ***!!! */
       
       entry->second.vertex_function=rendering_revman->add_dependency_during_update(
 								  // Function
@@ -616,8 +441,7 @@ public:
 								  // edges, based on part.firstedge and part.numedges
 								  // vertices, based on part.firstvertex and part.numvertices
 								  
-								       [ entry_ptr,comp,shared_cache ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions) {
-						      entry_ptr->cachedversion=newversion;
+								       [ entry_ptr,info,shared_cache ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions) {
 						      
 						      // get inputs: part, triangles, edges, vertices, normals
 						      //snde_part meshedp;
@@ -627,25 +451,28 @@ public:
 
 						      //fprintf(stderr,"Vertex array generation\n");
 						      
+	 					      fprintf(stderr,"vertex_function()\n");
 						      
 						      // get output location from outputs
 						      trm_arrayregion vertex_array_out;
 						      std::tie(vertex_array_out) = extract_regions<rawregion>(dep->outputs);
 						      assert((entry_ptr->DataArray->elemsize==4 && (void**)entry_ptr->DataArray->_ptr._float_ptr == (void **)&shared_cache->snde_geom->geom.vertex_arrays && vertex_array_out.array==(void **)&shared_cache->snde_geom->geom.vertex_arrays) || (entry_ptr->DataArray->elemsize==8 && (void**)entry_ptr->DataArray->_ptr._double_ptr == (void **)&shared_cache->snde_geom->geom.vertex_arrays) && vertex_array_out.array==(void **)&shared_cache->snde_geom->geom.vertex_arrays);
-						      // vertex_array_out.start is counted in snde_coords, whereas
-						      // DataArray is counted in vectors, so need to divide by 3
-						   
-						      entry_ptr->DataArray->offset = vertex_array_out.start;
-						      assert(vertex_array_out.len % 3 == 0);
-						      entry_ptr->DataArray->nvec = vertex_array_out.len/3; // vertex_array_out.len is in number of coordinates; DataArray is counted in vectors
+
 						      
 						      // Perform locking
-						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,0,true,true,false);
+						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(info,SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,0,0,true,true,false);
 						      //fprintf(stderr,"vertexarray locked for write\n");
 						      //fflush (stderr);
 						      
-						      entry_ptr->DataArray->offset = vertex_array_out.start;
-						      entry_ptr->DataArray->nvec = shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].numtris*3; // DataArray is counted in terms of (x,y,z) vectors, so three sets of coordinates per triangle
+						      //entry_ptr->DataArray->offset = vertex_array_out.start;
+						      //entry_ptr->DataArray->nvec = shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].numtris*3; // DataArray is counted in terms of (x,y,z) vectors, so three sets of coordinates per triangle
+
+						      // vertex_array_out.start is counted in snde_coords, whereas
+						      // DataArray is counted in vectors, so need to divide by 3 
+						      assert(vertex_array_out.len % 3 == 0);
+						      assert(shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].numtris*3 == vertex_array_out.len/3); // vertex_array_out.len is in number of coordinates; DataArray is counted in vectors
+
+						      
 						      // Should probably convert write lock to read lock and spawn this stuff off, maybe in a different thread (?) (WHY???) 						      
 						      vertexarray_from_instance_vertexarrayslocked(shared_cache->snde_geom,all_locks,dep->inputs[0].start,vertex_array_out.start,vertex_array_out.len,shared_cache->context,shared_cache->device,shared_cache->queue);
 						      
@@ -661,6 +488,7 @@ public:
 						      //fprintf(stderr,"setVertexArray()\n");
 						      entry_ptr->geom->setVertexArray(entry_ptr->DataArray); /* tell OSG this is dirty */
 
+						      
 						      if (entry_ptr->drawarrays->getCount() != shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].numtris*3) {
 							entry_ptr->drawarrays->setCount(shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].numtris*3);
 						      }
@@ -675,13 +503,14 @@ public:
 						      //outputchangedregions[0].mark_region(vertex_array_out.start,vertex_array_out.len);
 						      //return outputchangedregions;
 						    },
-		  			            [ shared_cache, entry_ptr,comp ] (std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
+		  			            [ shared_cache, entry_ptr,info ] (std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
 						      // Regionupdater function
 						      // See Function input parameters, above
 						      // Extract the first parameter (part) only
 						      
+						      fprintf(stderr,"vertex_regionupdater()\n");
 						      // Perform locking
-						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,SNDE_COMPONENT_GEOM_PARTS,0,false,false,false);
+						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(info,SNDE_COMPONENT_GEOM_PARTS,0,0,false,false,false);
 
 
 						      // Note: We would really rather this
@@ -701,13 +530,13 @@ public:
 						      return new_inputs;
 						      
 						    },
-						    std::vector<std::shared_ptr<mutableinfostore>>(), // metadata_inputs
+						    std::vector<trm_struct_depend>(), // struct_inputs
 						    inputs_seed, // inputs
-					            std::vector<std::shared_ptr<mutableinfostore>>(), // metadata_outputs
-					            [ shared_cache,entry_ptr,comp ](std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs, std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
+					            std::vector<trm_struct_depend>(), // struct_outputs
+					            [ shared_cache,entry_ptr,info ](std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_struct_depend> struct_outputs, std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
 						      // update_output_regions()
 						      
-						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(comp,SNDE_COMPONENT_GEOM_PARTS,0,true,true,true); // Must lock entire vertex_arrays here because we may need to reallocate it. Also when calling this we don't necessarily know the correct positioning. 
+						      rwlock_token_set all_locks=entry_ptr->obtain_array_locks(info,SNDE_COMPONENT_GEOM_PARTS,0,0,true,true,true); // Must lock entire vertex_arrays here because we may need to reallocate it. Also when calling this we don't necessarily know the correct positioning. 
 
 									       
 						      // Inputs: part
@@ -754,13 +583,119 @@ public:
 						      
 						      return outputs;
 						    },
-					            [ shared_cache ](std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
+					            [ shared_cache ](std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
 						    if (outputs.size()==1) {
 						      shared_cache->snde_geom->manager->free((void **)&shared_cache->snde_geom->geom.vertex_arrays,outputs[0].start);
 						      
 						    }
 						    
 						  });
+
+      if (param) {
+	entry->second.param_cache_entry=param_cache->lookup(rendering_revman,param);
+      }
+      
+
+      trm_struct_depend vertex_array_depend=entry->second.vertex_function->implicit_trm_trmdependency_output;
+
+      trm_struct_depend normal_output_depend = entry->second.normal_function->implicit_trm_trmdependency_output; 
+ 
+      std::vector<trm_struct_depend> cacheentry_struct_inputs;
+      cacheentry_struct_inputs.push_back(vertex_array_depend);
+      cacheentry_struct_inputs.push_back(normal_output_depend);
+      if (entry->second.param_cache_entry && entry->second.param_cache_entry->texvertex_function) {
+	
+	trm_struct_depend texcoord_output_depend = entry->second.param_cache_entry->texvertex_function->implicit_trm_trmdependency_output;
+	cacheentry_struct_inputs.push_back(texcoord_output_depend);
+      }
+      entry->second.cacheentry_function =
+	rendering_revman->add_dependency_during_update(
+						       // Function
+						       // input parameters are:
+						       // vertex_output_region
+						       // normal_output_region
+						       // texcoord_output_region (optional)						       
+						       [ entry_ptr,shared_cache ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions) {
+							 fprintf(stderr,"cacheentry_function()\n");
+							 entry_ptr->cachedversion=newversion;
+							 entry_ptr->DataArray->offset=dep->inputs.at(0).start;
+							 entry_ptr->DataArray->nvec = dep->inputs.at(0).len/3;
+							 
+							 snde_index numtris = entry_ptr->DataArray->nvec/3;
+							 
+							 //fprintf(stderr,"setVertexArray()\n");
+							 entry_ptr->geom->setVertexArray(entry_ptr->DataArray); /* tell OSG this is dirty */
+							 
+							 
+							 entry_ptr->NormalArray->offset = dep->inputs.at(1).start*9; //= shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].firsttri*9; // offset counted in terms of floating point numbers
+							 entry_ptr->NormalArray->nvec = dep->inputs.at(1).len*3; // shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].numtris*3;
+							 if (numtris != entry_ptr->NormalArray->nvec/3) {
+							   fprintf(stderr,"NormalArray size mismatch: %llu vs. %llu\n",(unsigned long long)numtris,(unsigned long long)entry_ptr->NormalArray->nvec/3);
+							   return;
+							 }
+							 
+							 entry_ptr->geom->setNormalArray(entry_ptr->NormalArray, osg::Array::BIND_PER_VERTEX); /* Normals might be dirty too... */
+							 if (dep->inputs.size() > 2) {
+							   
+							   entry_ptr->param_cache_entry->TexCoordArray->offset = dep->inputs.at(2).start; //= shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].firsttri*9; // offset counted in terms of floating point numbers
+							   entry_ptr->param_cache_entry->TexCoordArray->nvec = dep->inputs.at(2).len/3; // shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].numtris*3;
+							   if (numtris != entry_ptr->param_cache_entry->TexCoordArray->nvec/2) {
+							     fprintf(stderr,"TexCoordArray size mismatch: %llu vs. %llu\n",(unsigned long long)numtris,(unsigned long long)entry_ptr->NormalArray->nvec/2);
+							     return;
+							   }
+							   
+							   entry_ptr->geom->setTexCoordArray(0,entry_ptr->param_cache_entry->TexCoordArray); /* Texture coordinates might be dirty too... */
+							   
+							 }
+							 
+							 
+							 if (entry_ptr->drawarrays->getCount() != numtris*3) {
+							   entry_ptr->drawarrays->setCount(numtris*3);
+							   
+							 }
+							 
+						       },
+						       [ shared_cache, entry_ptr ] (std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
+							 // Regionupdater function
+							 
+							 // want struct_inputs to depend on output regions... but how do we find them if they move? 
+							 // See Function input parameters, above
+							 // Extract the first parameter (part) only
+							 
+							 fprintf(stderr,"cacheentry_regionupdater()\n");
+							 std::vector<trm_arrayregion> new_inputs;
+							 // first input: vertex_output
+							 std::shared_ptr<trm_dependency> vertout=std::dynamic_pointer_cast<trm_trmdependency_notifier>(struct_inputs.at(0).second)->get_dependent_on();
+							 // second input: normal_output
+							 std::shared_ptr<trm_dependency> normout=std::dynamic_pointer_cast<trm_trmdependency_notifier>(struct_inputs.at(1).second)->get_dependent_on();
+							 // third input: texcoord_output
+							 std::shared_ptr<trm_dependency> texcoordout;
+							 if (struct_inputs.size() > 2) {
+							   texcoordout=std::dynamic_pointer_cast<trm_trmdependency_notifier>(struct_inputs.at(2).second)->get_dependent_on();
+							 }
+
+							 if (vertout && normout && vertout->outputs.size() && normout->outputs.size()) {
+							   new_inputs.emplace_back(vertout->outputs.at(0));
+							   new_inputs.emplace_back(normout->outputs.at(0));
+							   if (texcoordout && texcoordout->outputs.size()) {
+							     new_inputs.emplace_back(texcoordout->outputs.at(0));
+							   }
+							 }
+							 return new_inputs;
+							 
+						       },
+						       cacheentry_struct_inputs, // struct_inputs
+						       std::vector<trm_arrayregion>(), // inputs
+						       std::vector<trm_struct_depend>(), // struct_outputs
+						       [ shared_cache,entry_ptr ](std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_struct_depend> struct_outputs, std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
+							 // update_output_regions()
+							 // we have no array outputs
+							 return outputs;
+						       },
+					            [ shared_cache ](std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
+						      // cleanup (none)
+						  });
+
       //// Changing these flags will tickle different cases in
       //// Geometry::drawImplementation. They should all work fine
       //// with the shared array.
@@ -784,25 +719,35 @@ public:
   
   }
 };
+
   
+
+
 class OSGComponent: public osg::Group {
   // subclass of osg::Group that stores an array of references to the cache entries
 
 public:
+  std::shared_ptr<geometry> snde_geom;
 
   std::shared_ptr<osg_instancecache> cache;
-  std::shared_ptr<component> comp;
+  std::shared_ptr<osg_texturecache> texcache;
+  std::shared_ptr<osg_parameterizationcache> paramcache;
+  std::shared_ptr<mutablewfmdb> wfmdb;
   std::shared_ptr<trm> rendering_revman;
+  std::shared_ptr<mutablegeomstore> comp;
   
   // elements of this group will be osg::MatrixTransform objects containing the osg::Geodes of the cache entries.
-  std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> instances; // instances from last update... numbered identically to Group.
+  std::vector<std::tuple<snde_partinstance,std::shared_ptr<component>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> instances; // instances from last update... numbered identically to Group.  ... The component indexes the 3D geometry, the parameterization indexes the 2D surface parameterization of that geometry, and the image_data provides the parameterized 2D data 
   std::vector<std::shared_ptr<osg_instancecacheentry>> cacheentries;
+  std::vector<std::shared_ptr<osg_paramcacheentry>> paramcacheentries;
+  std::vector<std::map<snde_index,std::shared_ptr<osg_texturecacheentry>>> texcacheentries;
+
   std::vector<osg::ref_ptr<osg::MatrixTransform>> transforms;
 
   /* Constructor: Build an OSGComponent from a snde::component 
  ***!!! May only be called within a transaction (per rendering_revman) 
-  The snde::geometry's object_trees_lock should be held 
-   (locked prior to start of transaction) when making this call.
+ ***!!! Need to consider locking requirements and threading!!!
+
   */
 
   /* *** PROBLEM: As we instantiate a component, until the functions
@@ -813,16 +758,20 @@ public:
      output allocation. 
      OLD SOLUTION: Define an initial (almost empty) output allocation
      NEW SOLUTION: Output location is defined by and allocated by update_output_regions() parameter to add_dependency_during_update()...
-     This is called immediately. 
+     This is called immediately. NEW PROBLEM: This is no longer called immediately... because we don't want to call it while holding
+     the main TRM mutex. NEW SOLUTION: Now we release the main TRM mutex while we call it immediately
+ 
 */
-  OSGComponent(std::shared_ptr<snde::geometry> geom,std::shared_ptr<osg_instancecache> cache,std::shared_ptr<component> comp,std::shared_ptr<trm> rendering_revman) :
+  OSGComponent(std::shared_ptr<snde::geometry> snde_geom,std::shared_ptr<osg_instancecache> cache,std::shared_ptr<osg_parameterizationcache> paramcache,std::shared_ptr<osg_texturecache> texcache,std::shared_ptr<mutablewfmdb> wfmdb,std::shared_ptr<trm> rendering_revman,std::shared_ptr<mutablegeomstore> comp,std::shared_ptr<immutable_metadata> metadata,std::shared_ptr<display_info> dispinfo) :
+    snde_geom(snde_geom),
     cache(cache),
-    comp(comp),
-    rendering_revman(rendering_revman)
+    paramcache(paramcache),
+    texcache(texcache),
+    wfmdb(wfmdb),
+    rendering_revman(rendering_revman),    
+    comp(comp)
   {
 
-    // ***!!! NEED TO REORGANIZE THIS CONSTRUCTOR SO THAT MOST OF IT CAN BE PUT IN AN UPDATE() method
-    
     //std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
     //std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(manager->locker); // new locking process
 
@@ -836,44 +785,225 @@ public:
 
     //rwlock_token_set all_locks=lockprocess->finish();
 
-    Update();
+    Update(metadata,dispinfo);
     
     
   }
 
-  void Update(void)
-  /* Object_trees_lock must be locked prior to calling */
+  void Update(std::shared_ptr<immutable_metadata> metadata,std::shared_ptr<display_info> dispinfo)
+  // must be called with the component UN-locked. !!!*** NOTE: x3d-viewer must have locking call removed***!!!
   {
-    std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> oldinstances; // instances from last update... numbered identically to Group.
+    std::vector<std::tuple<snde_partinstance,std::shared_ptr<component>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>>  oldinstances; // instances from last update... numbered identically to Group.
     std::vector<std::shared_ptr<osg_instancecacheentry>> oldcacheentries;
+    std::vector<std::shared_ptr<osg_paramcacheentry>> oldparamcacheentries;
+    std::vector<std::map<snde_index,std::shared_ptr<osg_texturecacheentry>>> oldtexcacheentries;
 
     oldinstances=instances;
     oldcacheentries=cacheentries;
+    oldparamcacheentries=paramcacheentries;
+    oldtexcacheentries=texcacheentries;
     
     //auto emptyparamdict = std::make_shared<std::unordered_map<std::string,paramdictentry>>();
 
-    instances = comp->get_instances(snde_null_orientation3(),std::unordered_map<std::string,std::shared_ptr<uv_images>>());
+
+    std::set<std::string> channels_to_lock;  // use std::set instead of std::unordered_set so we can compare them with operator==()
+    std::set<std::string> new_channels_to_lock;
+
+    new_channels_to_lock.emplace(comp->fullname);
+    
+    // repeatedly try to get instance data until channels_to_lock and new_channels_to_lock converge
+    // with all the right channels' metadata locked
+    while (!(channels_to_lock==new_channels_to_lock)) {
+
+      channels_to_lock=new_channels_to_lock;
+      
+      new_channels_to_lock.clear();
+      new_channels_to_lock.emplace(comp->fullname);
+      
+      {
+	rwlock_token_set all_locks=empty_rwlock_token_set();
+
+	// read lock on all these infostores
+	// ***!!! We should probably handle the exception where
+	// one of these channels_to_lock has just disappeared!
+	wfmdb->lock_infostores(all_locks,channels_to_lock,false);
+	//// lock access to comp mutablegeomstore
+	//rwlock_token_set all_locks=empty_rwlock_token_set();
+	//get_locks_read_infostore(all_locks,std::static_pointer_cast<mutableinfostore>(comp));
+	
+	
+	// OK. we seem to have a problem here. The geometry channel has metadata specifying the channel
+	// that holds its parameterization (texture) image.
+	// it's the parameterization image channel that identifies (by name) which parameterization is in use
+	// we need a uv_images object for each instance to represent the texture data that is pulled from/created in the cache.
+	
+	// so this probably needs to be modified to pass some kind of callback for creating the uv_image(s) structures. 
+	
+	//instances = comp->comp->get_instances(snde_null_orientation3(),std::unordered_map<std::string,std::shared_ptr<uv_images>>());
+	instances = comp->comp->get_instances(snde_null_orientation3(),metadata,[ this, &new_channels_to_lock, dispinfo ] (std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names) -> std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>> {
+
+	    std::map<snde_index,std::shared_ptr<image_data>> images_out;
+	    
+	    
+	    // NOTE: Parameterization_data_names is unordered... need to get the face number(s) from the uv_parameterization_facenum metadata
+	    std::shared_ptr<parameterization> use_param;
+	    
+	    for (auto & wfmname: parameterization_data_names) {	  
+	      std::shared_ptr<mutableinfostore> paraminfo = wfmdb->lookup(wfmname);
+
+	      new_channels_to_lock.emplace(std::string(wfmname));
+	      
+	      if (!paraminfo) {
+		continue;
+	      }
+	      std::shared_ptr<mutabledatastore> paramdata=std::dynamic_pointer_cast<mutabledatastore>(paraminfo);
+	      if (!paramdata) {
+		// must be a data channel
+		continue;
+	      }
+	      
+	      // look up parameterization
+	      std::string parameterization_name = paramdata->metadata.GetMetaDatumStr("uv_parameterization","intrinsic");
+	      
+	      std::map<std::string,std::shared_ptr<parameterization>>::iterator gotparam=partdata->parameterizations.find(parameterization_name);
+	      if (gotparam == partdata->parameterizations.end()) {
+		fprintf(stderr,"OSGComponent::Update(): Unknown parameterization %s specified in channel %s\n",parameterization_name,paramdata->fullname);
+		continue; 
+	      }
+	      if (!use_param) {
+		use_param=gotparam->second;
+	      } else {
+		if (gotparam->second != use_param) {
+		  fprintf(stderr,"OSGComponent::Update(): Warning: inconsistent parameterizations specified (including %s) in channel %s\n",parameterization_name,paramdata->fullname);
+		  continue; 
+		}
+	      }
+	      
+	    
+	      std::shared_ptr<osg_texturecacheentry> texinfo = texcache->lookup(paramdata,dispinfo->lookup_channel(wfmname)); // look up texture data
+	      //std::shared_ptr<snde_image> teximage = texinfo->get_texture_image();
+	      
+	      // ***!!!! Should really accept a comma separated array of facenums here. right now we have it hotwired so that
+	      // if uv_parameterization_facenum is unset it will be interpreted as matching every face OK!
+	      std::string parameterization_facenums_str = paramdata->metadata.GetMetaDatumStr("uv_parameterization_facenums","");
+	      if (parameterization_facenums_str=="") {
+		// interpret blank as all.. use SNDE_INDEX_INVALID as index
+		images_out.emplace(SNDE_INDEX_INVALID,std::static_pointer_cast<image_data>(texinfo));
+	      } else {
+		char *parameterization_facenums_tokenized=strdup(parameterization_facenums_str.c_str());
+		char *saveptr=NULL;
+		
+		for (char *tok=strtok_r(parameterization_facenums_tokenized,",",&saveptr);tok;tok=strtok_r(NULL,",",&saveptr)) {
+		  snde_index parameterization_facenum = strtoul(stripstr(tok).c_str(),NULL,10);
+		  images_out.emplace(parameterization_facenum,std::static_pointer_cast<image_data>(texinfo));
+		  
+		}
+		free(parameterization_facenums_tokenized);
+		
+		
+	      }
+	      
+	      // ***!!!!! NOT CURRENTLY DOING ANYTHING WITH teximage
+
+	      
+	    }
+	    //std::vector<std::tuple<std::shared_ptr<image_data>,std::shared_ptr<snde_image>>> images_outvec;
+	    return std::make_tuple(use_param,images_out);
+	  });
+      }
+
+    }
+    
     cacheentries.clear();
+
+    
+    /* ***!!!! NOTE: Will need to lock textures for compositing, but mutableinfostore locking
+       order is arbitrary, and texture channels may precede geometry channel. 
+       Fortunately it is OK to read metadata without a lock, so we can read the 
+       metadata, then lock all texture and geometry channels according to the 
+       order, then verify the metadata is unchanged, retrying if necessary ***!!! */
+    /* to partially address the above, we now have a loop above that locked all relevant metadata while evaluating
+      the instances array */
+    
+    
+      
     
     size_t pos=0;
-    for (auto & instance_comp: instances) {
+    for (auto & instance_comp_param_imagemap: instances) {
       bool newcacheentry=false;
+      bool newtexcacheentry=false;
+      bool newparamcacheentry=false;
       bool newxform=false;
-      std::shared_ptr<osg_instancecacheentry> cacheentry;
 
-      if (pos < oldinstances.size() && osg_snde_partinstance_equal()(oldinstances[pos].first,instance_comp.first)) {
+      std::shared_ptr<osg_instancecacheentry> cacheentry;
+      std::shared_ptr<osg_paramcacheentry> paramcacheentry;
+
+
+            //std::shared_ptr<osg_texturecacheentry> texcacheentry;
+      std::map<snde_index,std::shared_ptr<osg_texturecacheentry>> texcacheentry;
+      
+      
+      std::map<snde_index,std::shared_ptr<image_data>> & imagemap = std::get<3>(instance_comp_param_imagemap); // since it's a std::map we can use equality operator... 
+      if (pos < oldinstances.size() && std::get<3>(oldinstances[pos])==imagemap) {
+	// same imagemap as before
+	texcacheentry = oldtexcacheentries[pos];
+	texcacheentries.push_back(oldtexcacheentries[pos]);
+      } else {
+	// Not present or mismatch in old array... build from imagemap (texture cache lookup was above, inside where we called get_instances())
+	texcacheentry.clear();
+	for (auto & facenum__imagedata: imagemap) {
+	  texcacheentry.emplace(facenum__imagedata.first,std::dynamic_pointer_cast<osg_texturecacheentry>(facenum__imagedata.second));
+	}
+	texcacheentries.push_back(texcacheentry);
+	newtexcacheentry=true;
+      }
+
+      if (texcacheentry.size() > 0) {
+	fprintf(stderr,"Got texture\n");
+      } else {
+	fprintf(stderr,"Got no texture\n");
+      }
+      
+
+      if (pos < oldinstances.size() && std::get<2>(oldinstances[pos])==std::get<2>(instance_comp_param_imagemap)) {
+	// if we have this parameterization verbatim in our old array 
+	paramcacheentry=oldparamcacheentries[pos];
+	paramcacheentries.push_back(oldparamcacheentries[pos]);
+      } else {
+	// Not present or mismatch in old array... perform lookup
+	std::shared_ptr<parameterization> param;
+	
+	paramcacheentry = paramcache->lookup(rendering_revman,std::get<2>(instance_comp_param_imagemap));
+	paramcacheentries.push_back(paramcacheentry);
+	newparamcacheentry=true;
+      }
+
+      if (paramcacheentry) {
+	fprintf(stderr,"Got parameterization\n");
+      } else {
+	fprintf(stderr,"Got no parameterization\n");
+      }
+      
+      if (pos < oldinstances.size() && osg_snde_partinstance_equal()(std::get<0>(oldinstances[pos]),std::get<0>(instance_comp_param_imagemap))) {
 	// if we have this partinstance verbatim in our old array (note that
 	// equality will be satisified even if orientations are different)
 	cacheentry=oldcacheentries[pos];
 	cacheentries.push_back(oldcacheentries[pos]);
       } else {
-	// Not present in old array... perform lookcup 
-	cacheentry = cache->lookup(rendering_revman,instance_comp.first,instance_comp.second);
+	// Not present or mismatch in old array... perform lookup
+	cacheentry = cache->lookup(rendering_revman,std::get<0>(instance_comp_param_imagemap),comp,std::get<1>(instance_comp_param_imagemap),std::get<2>(instance_comp_param_imagemap));
+	assert(paramcacheentry==cacheentry->param_cache_entry);
+	
 	cacheentries.push_back(cacheentry);
 	newcacheentry=true;
       }
 
-      const snde_orientation3 &orient=instance_comp.first.orientation;
+
+      
+      
+
+      
+      const snde_orientation3 &orient=std::get<0>(instance_comp_param_imagemap).orientation;
 
       osg::Matrixd rotate;
       rotate.makeRotate(osg::Quat(orient.quat.coord[0],orient.quat.coord[1],orient.quat.coord[2],orient.quat.coord[3]));
@@ -892,9 +1022,35 @@ public:
       }
       xform->setMatrix(translate*rotate);
 
+      if (texcacheentry.size() > 1) {
+	snde_index multiple_face_entries=false;
+	std::shared_ptr<osg_texturecacheentry> firstface = texcacheentry.begin()->second;
+
+	for (auto & texcachefaceentry: texcacheentry) {
+	  if (texcachefaceentry.second != firstface) {
+	    assert(0); // Ability to merge textures from multiple sources not yet implemented!
+	  }
+	}	
+      }
+
+      if (texcacheentry.size() >= 1) {
+	// single face
+	std::shared_ptr<osg_texturecacheentry> face = texcacheentry.begin()->second;
+
+	// the texture_state_set enables texturing and the loaded texture.
+	// we apply it to the TextureTransform node. It will get merged
+	// with any state in the geode or geometry out of the cache
+	// for rendering (see http://www.bricoworks.com/articles/stateset/stateset.html
+	// for more information on how stateset info flows through the scenegraph and
+	// drawables)
+	xform->setStateSet(face->texture_state_set); 
+
+      }
+      
+
       /* only meshed version implemented so far */
       //assert(instance_comp.first.nurbspartnum == SNDE_INDEX_INVALID);
-      assert(instance_comp.first.partnum != SNDE_INDEX_INVALID);
+      assert(std::get<0>(instance_comp_param_imagemap).partnum != SNDE_INDEX_INVALID);
 
       if (newcacheentry && newxform) {
 	xform->addChild(cacheentry->geode);
@@ -933,7 +1089,7 @@ public:
   /* Should have just done an Update() so that cacheentries is up-to-date */
   {
     for (auto & cacheentry: cacheentries) {
-      lockprocess->spawn( [ cacheentry, holder, lockprocess, this]() { cacheentry->obtain_array_locks(holder,lockprocess,comp,SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_NORMALS, 0,true, false, false); });
+      lockprocess->spawn( [ cacheentry, holder, lockprocess, this]() { cacheentry->obtain_array_locks(holder,lockprocess,comp,SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_NORMALS, 0, 0,true, false, false); });
     }
   }
 };

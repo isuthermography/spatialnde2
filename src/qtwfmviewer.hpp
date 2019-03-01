@@ -5,6 +5,8 @@
 #include <QWidget>
 #include <QOpenGLWidget>
 #include <QMouseEvent>
+#include <QWheelEvent>
+#include <QTouchEvent>
 #include <QFrame>
 #include <QRadioButton>
 #include <QToolButton>
@@ -53,7 +55,7 @@ namespace snde {
       : QOpenGLWidget(parent),
 	GraphicsWindow(new osgViewer::GraphicsWindowEmbedded(x(),y(),width(),height())),
 	Viewer(new osgViewer::Viewer()),
-	Camera(new osg::Camera()),
+	Camera(Viewer->getCamera()),
 	QTViewer(QTViewer),
 	RootNode(RootNode),
 	twodimensional(false)
@@ -71,6 +73,8 @@ namespace snde {
       Viewer->setSceneData(RootNode);
       
       setMouseTracking(true); // ???
+
+      setAttribute(Qt::WA_AcceptTouchEvents,true);
 
       Viewer->realize();
     }
@@ -90,8 +94,9 @@ namespace snde {
 	Viewer->setCameraManipulator(nullptr);
 	Camera->setViewMatrix(osg::Matrixd::identity());
       } else {
-	Viewer->setCameraManipulator(Manipulator);
-	
+	if (Viewer->getCameraManipulator() != Manipulator) {
+	  Viewer->setCameraManipulator(Manipulator);
+	}
       }
     }
     
@@ -101,7 +106,7 @@ namespace snde {
 	Camera->setProjectionMatrixAsOrtho(0,static_cast<double>(width()),0,static_cast<double>(height()),-10.0,1000.0);
 	
       } else {
-	Camera->setProjectionMatrixAsPerspective(30.0,static_cast<float>(this->width())/static_cast<float>(this->height()),-1.0,1000.0);
+	Camera->setProjectionMatrixAsPerspective(30.0,static_cast<float>(this->width())/static_cast<float>(this->height()),0.5,1000.0);
 	
       }
     }
@@ -110,7 +115,9 @@ namespace snde {
     {
       this->RootNode=RootNode;
       if (RootNode) {
-	Viewer->setSceneData(RootNode);
+	if (Viewer->getSceneData() != RootNode) {
+	  Viewer->setSceneData(RootNode);
+	}
       }
     }
 
@@ -126,34 +133,125 @@ namespace snde {
       
     }
 
+    
     virtual void mouseMoveEvent(QMouseEvent *event)
     {
-      //getEventQueue()->mouseMotion(event->x(), event->y());
+      // translate Qt mouseMoveEvent to OpenSceneGraph
+      GraphicsWindow->getEventQueue()->mouseMotion(event->x(), event->y());// ,event->timestamp()/1000.0);
+
+      // should we only update if a button is pressed??
+      fprintf(stderr,"buttons=%llx\n",(unsigned long long)event->buttons());
+      if (event->buttons()) {
+	update();
+      }
     }
 
     virtual void mousePressEvent(QMouseEvent *event)
     {
+      int button;
       switch(event->button()) {
       case Qt::LeftButton:
-
+	button=1;
 	break;
+	
+      case Qt::MiddleButton:
+	button=2;
+	break;
+	
       case Qt::RightButton:
-
+	button=3;
 	break;
-	  
+	
+      default:
+	button=0;
+
+	
       }
+
+      GraphicsWindow->getEventQueue()->mouseButtonPress(event->x(),event->y(),button,event->timestamp()/1000.0);
+
+      update();
+      
       // Can adapt QT events -> OSG events here
       // would do e.g.
       //GraphicsWindow->getEventQueue()->mouseButtonPress(event->x(),event->y(),button#)
       // Would also want to forward mouseButtonRelease() 
     }
 
+    virtual void mouseReleaseEvent(QMouseEvent *event)
+    {
+      int button;
+      switch(event->button()) {
+      case Qt::LeftButton:
+	button=1;
+	break;
+	
+      case Qt::MiddleButton:
+	button=2;
+	break;
+	
+      case Qt::RightButton:
+	button=3;
+	break;
+	
+      default:
+	button=0;
+
+	
+      }
+
+      GraphicsWindow->getEventQueue()->mouseButtonRelease(event->x(),event->y(),button,event->timestamp()/1000.0);
+
+      update();
+      
+      // Can adapt QT events -> OSG events here
+      // would do e.g.
+      //GraphicsWindow->getEventQueue()->mouseButtonPress(event->x(),event->y(),button#)
+      // Would also want to forward mouseButtonRelease() 
+    }
+
+    virtual void wheelEvent(QWheelEvent *event)
+    {
+      GraphicsWindow->getEventQueue()->mouseScroll( (event->delta() > 0) ?
+						    osgGA::GUIEventAdapter::SCROLL_UP :
+						    osgGA::GUIEventAdapter::SCROLL_DOWN,
+						    event->timestamp()/1000.0);
+      
+    }
+
+
     virtual bool event(QEvent *event)
     {
-      return QOpenGLWidget::event(event);
+      if (event->type()==QEvent::TouchBegin || event->type()==QEvent::TouchUpdate || event->type()==QEvent::TouchEnd) {
+	QList<QTouchEvent::TouchPoint> TouchPoints = static_cast<QTouchEvent *>(event)->touchPoints();
+
+	double timestamp=static_cast<QInputEvent *>(event)->timestamp()/1000.0;
+	
+	for (auto & TouchPoint: TouchPoints) {
+	  
+	  if (TouchPoint.state()==Qt::TouchPointPressed) {
+	    GraphicsWindow->getEventQueue()->touchBegan(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_BEGAN,TouchPoint.pos().x(),TouchPoint.pos().y(),timestamp);
+	  } else if (TouchPoint.state()==Qt::TouchPointMoved) {
+	    GraphicsWindow->getEventQueue()->touchMoved(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_MOVED,TouchPoint.pos().x(),TouchPoint.pos().y(),timestamp);
+
+	  } else if (TouchPoint.state()==Qt::TouchPointStationary) {
+	    GraphicsWindow->getEventQueue()->touchMoved(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_STATIONERY,TouchPoint.pos().x(),TouchPoint.pos().y(),timestamp);
+
+	  } else if (TouchPoint.state()==Qt::TouchPointReleased) {
+	    GraphicsWindow->getEventQueue()->touchEnded(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_ENDED,TouchPoint.pos().x(),TouchPoint.pos().y(),timestamp);
+	    
+	  }
+	}
+	update();
+	return true;
+      } else {
+	
+	return QOpenGLWidget::event(event);
+      }
     }
   };
 
+  
 
   
   class QTWfmSelector : public QFrame {
@@ -405,6 +503,7 @@ namespace snde {
      
      if (selected_channel) {
        std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->chan_data);
+       std::lock_guard<std::mutex> axislock(a->unit->admin);
        horizscale = a->unit->scale;
        horizpixelflag = a->unit->pixelflag;
      }
@@ -414,7 +513,12 @@ namespace snde {
 
     std::tuple<double,bool> GetVertScale()
     {
-      double vertscale = 2.0/display->vertical_divisions;
+      double vertscale=0.0;
+      {
+	std::lock_guard<std::mutex> adminlock(display->admin);
+
+	vertscale = 2.0/display->vertical_divisions;
+      }
       bool vertpixelflag=false;
      
      if (selected_channel) {
@@ -430,9 +534,12 @@ namespace snde {
       //fprintf(stderr,"SetHorizScale %.2g\n",horizscale);
       if (selected_channel) {
 	std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->chan_data);
-	a->unit->scale = horizscale;
-	a->unit->pixelflag = horizpixelflag;
-	
+	{
+	  std::lock_guard<std::mutex> adminlock(a->unit->admin);
+	  a->unit->scale = horizscale;
+	  a->unit->pixelflag = horizpixelflag;
+	}
+	selected_channel->mark_as_dirty();
       }
     }
     
@@ -515,10 +622,21 @@ namespace snde {
       if (selected_channel) {
 	std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->chan_data);
 
-	horizunitsperdiv = a->unit->scale;
-	if (a->unit->pixelflag) horizunitsperdiv *= display->pixelsperdiv;
-	LeftEdge=a->CenterCoord-horizunitsperdiv*display->horizontal_divisions/2;
-	RightEdge=a->CenterCoord+horizunitsperdiv*display->horizontal_divisions/2;
+	{
+	  std::lock_guard<std::mutex> adminlock(a->unit->admin);
+	  horizunitsperdiv = a->unit->scale;
+	  if (a->unit->pixelflag) horizunitsperdiv *= display->pixelsperdiv;
+	}
+	
+	double CenterCoord;
+	
+	{
+	  std::lock_guard<std::mutex> adminlock(a->admin);
+	  CenterCoord=a->CenterCoord;
+	}
+	
+	LeftEdge=CenterCoord-horizunitsperdiv*display->horizontal_divisions/2;
+	RightEdge=CenterCoord+horizunitsperdiv*display->horizontal_divisions/2;
 
 	//fprintf(stderr,"LeftEdge=%f, RightEdge=%f\n",LeftEdge,RightEdge);
 	
@@ -535,6 +653,8 @@ namespace snde {
 
       if (selected_channel) {
 	vertunitsperdiv = display->GetVertUnitsPerDiv(selected_channel);
+	
+	std::lock_guard<std::mutex> adminlock(selected_channel->admin);
 	if (selected_channel->VertZoomAroundAxis) {
 	  BottomEdge=-selected_channel->Position*vertunitsperdiv-vertunitsperdiv*display->vertical_divisions/2;
 	  TopEdge=-selected_channel->Position*vertunitsperdiv+vertunitsperdiv*display->vertical_divisions/2;	
@@ -552,6 +672,8 @@ namespace snde {
     {
       double LeftEdgeWfm,RightEdgeWfm,horizunitsperdiv;
       double BottomEdgeWfm,TopEdgeWfm,vertunitsperdiv;
+
+      if (!selected_channel || !selected_channel->chan_data || std::dynamic_pointer_cast<mutablegeomstore>(selected_channel->chan_data)) return; // none of this matters for 3D rendering
 
       std::tie(LeftEdgeWfm,RightEdgeWfm,horizunitsperdiv)=GetHorizEdges();
       std::tie(BottomEdgeWfm,TopEdgeWfm,vertunitsperdiv)=GetVertEdges();
@@ -633,40 +755,55 @@ namespace snde {
       
       std::shared_ptr<display_axis> a = nullptr;
       if (selected_channel) {
-	a = display->GetFirstAxis(selected_channel->chan_data);
+	std::shared_ptr<mutableinfostore> chan_data;
+	{
+	  std::lock_guard<std::mutex> adminlock(selected_channel->admin);
+	  chan_data=selected_channel->chan_data;
+	}
+	a = display->GetFirstAxis(chan_data);
+	{
+	  std::lock_guard<std::mutex> adminlock(a->unit->admin);
+	  horizunitsperdiv = a->unit->scale;
+	  if (a->unit->pixelflag) horizunitsperdiv *= display->pixelsperdiv;
+	}
 	
-	horizunitsperdiv = a->unit->scale;
-	if (a->unit->pixelflag) horizunitsperdiv *= display->pixelsperdiv;
-	CenterCoord = a->CenterCoord;
-	
+	{
+	  std::lock_guard<std::mutex> adminlock(a->admin);
+	  CenterCoord = a->CenterCoord;
+	}
       }
 
       switch(action) {
       case QAbstractSlider::SliderSingleStepAdd:
 	if (a) {
+	  std::lock_guard<std::mutex> adminlock(a->admin);
 	  a->CenterCoord+=horizunitsperdiv;
 	}
 	
 	break;
       case QAbstractSlider::SliderSingleStepSub:
 	if (a) {
+	  std::lock_guard<std::mutex> adminlock(a->admin);
 	  a->CenterCoord-=horizunitsperdiv;
 	}
 	break;
 
       case QAbstractSlider::SliderPageStepAdd:
 	if (a) {
+	  std::lock_guard<std::mutex> adminlock(a->admin);
 	  a->CenterCoord+=horizunitsperdiv*display->horizontal_divisions;
 	}
 	break;
       case QAbstractSlider::SliderPageStepSub:
 	if (a) {
+	  std::lock_guard<std::mutex> adminlock(a->admin);
 	  a->CenterCoord-=horizunitsperdiv*display->horizontal_divisions;
 	}	
 	break;
 
       case QAbstractSlider::SliderMove:
 	if (a) {
+	  std::lock_guard<std::mutex> adminlock(a->admin);
 	  double LeftEdgeWfm=-1.0;
 	  if (HorizPosn < 0.0) {
 	    LeftEdgeWfm = log(1.0 - fabs(HorizPosn)/((nsteps-1)/2.0 + 1.0) )*((nsteps-1)/2+1)*horizunitsperdiv;
@@ -675,14 +812,14 @@ namespace snde {
 	    
 	  }
 	  a->CenterCoord = (LeftEdgeWfm + horizunitsperdiv*display->horizontal_divisions/2);
-	  fprintf(stderr,"HorizSliderMove: Setting CenterCoord to %f\n",a->CenterCoord);
+	  //fprintf(stderr,"HorizSliderMove: Setting CenterCoord to %f\n",a->CenterCoord);
 	}
 	
 	break;
       }
-      if (a) {
-	fprintf(stderr,"HorizCenterCoord=%f\n",a->CenterCoord);
-      }
+      //if (a) {
+      //fprintf(stderr,"HorizCenterCoord=%f\n",a->CenterCoord);
+      //}
       trigger();
     }
 
@@ -703,6 +840,7 @@ namespace snde {
       switch(action) {
       case QAbstractSlider::SliderSingleStepAdd:
 	if (selected_channel) {
+	  std::lock_guard<std::mutex> adminlock(selected_channel->admin);
 	  if (selected_channel->VertZoomAroundAxis) {
 	    selected_channel->Position++;
 	  } else {
@@ -713,6 +851,7 @@ namespace snde {
 	break;
       case QAbstractSlider::SliderSingleStepSub:
 	if (selected_channel) {
+	  std::lock_guard<std::mutex> adminlock(selected_channel->admin);
 	  if (selected_channel->VertZoomAroundAxis) {
 	    selected_channel->Position--;
 	  } else {
@@ -723,26 +862,43 @@ namespace snde {
 
       case QAbstractSlider::SliderPageStepAdd:
 	if (selected_channel) {
+	  size_t vertical_divisions;
+	  {
+	    std::lock_guard<std::mutex> adminlock(display->admin);
+	    vertical_divisions = display->vertical_divisions;
+	  }
+	  std::lock_guard<std::mutex> adminlock(selected_channel->admin);
 	  if (selected_channel->VertZoomAroundAxis) {
-	    selected_channel->Position+=display->vertical_divisions;
+	    selected_channel->Position+=vertical_divisions;
 	  } else {
-	    selected_channel->VertCenterCoord -= vertunitsperdiv*display->vertical_divisions;	    
+	    selected_channel->VertCenterCoord -= vertunitsperdiv*vertical_divisions;	    
 	  }
 	}
 	break;
       case QAbstractSlider::SliderPageStepSub:
 	if (selected_channel) {
+	  size_t vertical_divisions;
+	  {
+	    std::lock_guard<std::mutex> adminlock(display->admin);
+	    vertical_divisions = display->vertical_divisions;
+	  }
+	  std::lock_guard<std::mutex> adminlock(selected_channel->admin);
 	  if (selected_channel->VertZoomAroundAxis) {
-	    selected_channel->Position-=display->vertical_divisions;
+	    selected_channel->Position-=vertical_divisions;
 	  } else {
-	    selected_channel->VertCenterCoord += vertunitsperdiv*display->vertical_divisions;	    
-
+	    selected_channel->VertCenterCoord += vertunitsperdiv*vertical_divisions;	    
 	  }
 	}	
 	break;
 	
       case QAbstractSlider::SliderMove:
 	double BottomEdgeWfm=1.0;
+
+	size_t vertical_divisions;
+	{
+	  std::lock_guard<std::mutex> adminlock(display->admin);
+	  vertical_divisions = display->vertical_divisions;
+	}
 	
 	if (selected_channel) {
 	  if (VertPosn < 0.0) {
@@ -752,17 +908,20 @@ namespace snde {
 	  }
 	  
 	  if (selected_channel->VertZoomAroundAxis) {
-	    selected_channel->Position = -BottomEdgeWfm/vertunitsperdiv + display->vertical_divisions/2;
+	    std::lock_guard<std::mutex> adminlock(selected_channel->admin);
+	    selected_channel->Position = -BottomEdgeWfm/vertunitsperdiv + vertical_divisions/2;
 	    //fprintf(stderr,"Position = %f vert units\n",selected_channel->Position);
 	  } else {
-	    selected_channel->VertCenterCoord = BottomEdgeWfm + vertunitsperdiv*display->vertical_divisions/2;
-	    fprintf(stderr,"BottomEdgeWfm=%f; VertCenterCoord=%f\n",BottomEdgeWfm,selected_channel->VertCenterCoord);
+	    std::lock_guard<std::mutex> adminlock(selected_channel->admin);
+	    selected_channel->VertCenterCoord = BottomEdgeWfm + vertunitsperdiv*vertical_divisions/2;
+	    //fprintf(stderr,"BottomEdgeWfm=%f; VertCenterCoord=%f\n",BottomEdgeWfm,selected_channel->VertCenterCoord);
 	  }
 	  
 
 	}
 	break;
       }
+      selected_channel->mark_as_dirty();
       trigger();
       
     }
@@ -925,6 +1084,8 @@ namespace snde {
     std::shared_ptr<qtwfm_position_manager> posmgr; 
     
     std::shared_ptr<osg_instancecache> geomcache;
+    std::shared_ptr<osg_parameterizationcache> paramcache;
+    std::shared_ptr<osg_texturecache> texcache;
     
     QTWfmViewer(std::shared_ptr<mutablewfmdb> wfmdb,std::shared_ptr<snde::geometry> sndegeom,std::shared_ptr<trm> rendering_revman,cl_context context, cl_device_id device, cl_command_queue queue,QWidget *parent =0)
       : QWidget(parent),
@@ -936,7 +1097,10 @@ namespace snde {
 	queue(queue)   /* !!!*** Should either use reference tracking objects for context, device, and queue, or explicitly reference them and dereference them in the destructor !!!*** */ 
     {
 
-      geomcache = std::make_shared<osg_instancecache>(sndegeom,context,device,queue);
+      texcache=std::make_shared<osg_texturecache>(sndegeom,rendering_revman,wfmdb,context,device,queue);
+      paramcache=std::make_shared<osg_parameterizationcache>(sndegeom,context,device,queue);
+      
+      geomcache = std::make_shared<osg_instancecache>(sndegeom,paramcache,context,device,queue);
       
       QFile file(":/qtwfmviewer.ui");
       file.open(QFile::ReadOnly);
@@ -1076,8 +1240,8 @@ namespace snde {
 
       QObject::connect(VertZoomInButton,SIGNAL(clicked(bool)),
 		       posmgr.get(), SLOT(VertZoomIn(bool)));
-      QObject::connect(HorizZoomInButton,SIGNAL(clicked()),
-		       posmgr.get(), SLOT(HorizZoomIn()));
+      QObject::connect(HorizZoomInButton,SIGNAL(clicked(bool)),
+		       posmgr.get(), SLOT(HorizZoomIn(bool)));
       
       QObject::connect(VertZoomOutButton,SIGNAL(clicked(bool)),
 		       posmgr.get(), SLOT(VertZoomOut(bool)));
@@ -1168,7 +1332,7 @@ namespace snde {
 	DataRenderer=new OSGData(display,rendering_revman);
       }
       display->set_pixelsperdiv(OSGWidget->width(),OSGWidget->height());
-      DataRenderer->update(sndegeom,currentwfmlist,OSGWidget->width(),OSGWidget->height(),context,device,queue);
+      DataRenderer->update(sndegeom,wfmdb,currentwfmlist,OSGWidget->width(),OSGWidget->height(),context,device,queue);
       OSGWidget->SetTwoDimensional(true);
       OSGWidget->SetRootNode(DataRenderer);
     }
@@ -1178,9 +1342,10 @@ namespace snde {
     {
       DataRenderer->clearcache(); // empty out data renderer
       
-      if (!GeomRenderer  || (GeomRenderer && GeomRenderer->comp != geomstore->comp)) {
+      if (!GeomRenderer  || (GeomRenderer && GeomRenderer->comp != geomstore)) {
 	// component mismatch: Need new GeomRenderer
-	GeomRenderer=new OSGComponent(sndegeom,geomcache,geomstore->comp,rendering_revman);
+	fprintf(stderr,"New OSGComponent()\n");
+	GeomRenderer=new OSGComponent(sndegeom,geomcache,paramcache,texcache,wfmdb,rendering_revman,geomstore,geomstore->metadata.metadata(),display);
       }
       OSGWidget->SetTwoDimensional(false);
       OSGWidget->SetRootNode(GeomRenderer);
@@ -1189,7 +1354,7 @@ namespace snde {
     void update_renderer()
     // Must be called inside a transaction!
     {
-      std::vector<std::shared_ptr<display_channel>> currentwfmlist = display->update(wfmdb,selected,false,false);
+      std::vector<std::shared_ptr<display_channel>> currentwfmlist = display->update(selected,false,false);
       std::shared_ptr<display_channel> geomchan;
       // Is any channel a mutablegeomstore? i.e. do we render a 3D geometry
       std::shared_ptr<mutablegeomstore> geom;
@@ -1210,7 +1375,7 @@ namespace snde {
     
     void update_wfm_list()  
     {
-      std::vector<std::shared_ptr<display_channel>> currentwfmlist = display->update(wfmdb,nullptr,true,false);
+      std::vector<std::shared_ptr<display_channel>> currentwfmlist = display->update(nullptr,true,false);
 
       // clear touched flag for all selectors
       for(auto & selector: Selectors) {
@@ -1220,7 +1385,7 @@ namespace snde {
       // iterate over wfm list
       size_t pos=0;
       for (auto & displaychan: currentwfmlist) {
-	std::lock_guard<std::mutex> displaychanlock(displaychan->displaychan_mutex);
+	std::lock_guard<std::mutex> displaychanlock(displaychan->admin);
 
 	auto selector_iter = Selectors.find(displaychan->FullName);
 	if (selector_iter == Selectors.end()) {
@@ -1303,15 +1468,24 @@ namespace snde {
       bool needjoin=false;
 
       if (posmgr->selected_channel) {
-	std::shared_ptr<display_axis> a = display->GetFirstAxis(posmgr->selected_channel->chan_data);
+	std::shared_ptr<mutableinfostore> chan_data;
+	{
+	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+	  chan_data=posmgr->selected_channel->chan_data;
+	}
+	std::shared_ptr<display_axis> a = display->GetFirstAxis(chan_data);
 	
 	
-	std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(posmgr->selected_channel->chan_data);
+	std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
+
 	
-	horizscale = a->unit->scale;
-	horizpixelflag = a->unit->pixelflag;
 	
 	if (a) {
+	  {
+	    std::lock_guard<std::mutex> adminlock(a->unit->admin);
+	    horizscale = a->unit->scale;
+	    horizpixelflag = a->unit->pixelflag;
+	  }
 	  // Gawdawful C++ floating point formatting
 	  //std::stringstream inipos;
 	  //inipos << std::defaultfloat << std::setprecision(6) << a->CenterCoord;
@@ -1320,7 +1494,11 @@ namespace snde {
 	  //horizscalestr << std::defaultfloat << std::setprecision(6) << a->unit->scale;
 	  //fprintf(stderr,"unitprint: %s\n",a->unit->unit.print(false).c_str());
 	  
-	  statusline += a->abbrev+"0=" + PrintWithSIPrefix(a->CenterCoord,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(a->unit->scale,a->unit->unit.print(false),3);
+	  {
+	    std::lock_guard<std::mutex> adminlock(a->admin);
+	    
+	    statusline += a->abbrev+"0=" + PrintWithSIPrefix(a->CenterCoord,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(horizscale,a->unit->unit.print(false),3);
+	  }
 	  if (horizpixelflag) {
 	    statusline += "/px";
 	  } else {
@@ -1330,34 +1508,57 @@ namespace snde {
 	}
 	
 	if (datastore) {
-	  size_t ndim=datastore->dimlen.size();
+	  size_t ndim=0;
+	  {
+	    rwlock_token_set datastore_tokens=empty_rwlock_token_set();
+	    sndegeom->manager->locker->get_locks_read_infostore(datastore_tokens,datastore);
+	    ndim=datastore->dimlen.size();
+	  }
 	  if (ndim > 0) {
 	    if (ndim==1) {
 	      a = display->GetAmplAxis(datastore);
 	      
 	      if (a) {
-		double scalefactor=posmgr->selected_channel->Scale;
+		double scalefactor=0.0;
+		{
+		  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+		  scalefactor=posmgr->selected_channel->Scale;
+		}
+		bool pixelflag=false;
+		{
+		  std::lock_guard<std::mutex> adminlock(a->admin);
+		  pixelflag=a->unit->pixelflag;
+		}
 		if (needjoin) {
 		  statusline += " | ";
-	      }
+		}
 		double vertunitsperdiv=scalefactor;
-		if (a->unit->pixelflag) vertunitsperdiv*=display->pixelsperdiv;
+		if (pixelflag) {		  
+		  std::lock_guard<std::mutex> adminlock(display->admin);
+		  vertunitsperdiv*=display->pixelsperdiv;
+		}
 		
 		//std::stringstream inipos;
 		double inipos;
-		if (posmgr->selected_channel->VertZoomAroundAxis) {
-		  //inipos << std::defaultfloat << std::setprecision(6) << posmgr->selected_channel->Position*vertunitsperdiv;
-		  inipos = posmgr->selected_channel->Position*vertunitsperdiv;
-		} else {
-		  //inipos << std::defaultfloat << std::setprecision(6) << posmgr->selected_channel->VertCenterCoord;
-		  inipos = posmgr->selected_channel->VertCenterCoord;
+		{
+		  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+		  if (posmgr->selected_channel->VertZoomAroundAxis) {
+		    //inipos << std::defaultfloat << std::setprecision(6) << posmgr->selected_channel->Position*vertunitsperdiv;
+		    inipos = posmgr->selected_channel->Position*vertunitsperdiv;
+		  } else {
+		    //inipos << std::defaultfloat << std::setprecision(6) << posmgr->selected_channel->VertCenterCoord;
+		    inipos = posmgr->selected_channel->VertCenterCoord;
+		  }
 		}
 		
-		//std::stringstream vertscalestr;
-		//vertscalestr << std::defaultfloat << std::setprecision(6) << scalefactor;
-		
-		statusline += a->abbrev+"0=" + PrintWithSIPrefix(inipos,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3);
-		//statusline += a->abbrev+"0=" + inipos.str() + " " + vertscalestr.str() + a->unit->unit.print(false);
+		{
+		  std::lock_guard<std::mutex> adminlock(a->unit->admin);
+		  //std::stringstream vertscalestr;
+		  //vertscalestr << std::defaultfloat << std::setprecision(6) << scalefactor;
+		  
+		  statusline += a->abbrev+"0=" + PrintWithSIPrefix(inipos,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3);
+		  //statusline += a->abbrev+"0=" + inipos.str() + " " + vertscalestr.str() + a->unit->unit.print(false);
+		}
 		if (horizpixelflag) {
 		  statusline += "/px";
 		} else {
@@ -1372,26 +1573,42 @@ namespace snde {
 		if (needjoin) {
 		  statusline += " | ";
 		}
-		double scalefactor=a->unit->scale;
-		double vertunitsperdiv=scalefactor;
-		
-		if (a->unit->pixelflag) vertunitsperdiv*=display->pixelsperdiv;
+		double scalefactor;
+		double vertunitsperdiv;
+		bool pixelflag=false;
 
+		{
+		  std::lock_guard<std::mutex> adminlock(a->unit->admin);
+		  scalefactor=a->unit->scale;
+		  vertunitsperdiv=scalefactor;
+		  
+		  pixelflag=a->unit->pixelflag;
+		}
+
+		{
+		  std::lock_guard<std::mutex> adminlock(display->admin);
+		  if (pixelflag) vertunitsperdiv*=display->pixelsperdiv;
+		}
+		
 		//std::stringstream inipos;
 		double inipos;
-		if (posmgr->selected_channel->VertZoomAroundAxis) {
-		  //inipos << std::defaultfloat << std::setprecision(6) << posmgr->selected_channel->Position*vertunitsperdiv;
-		  inipos = posmgr->selected_channel->Position*vertunitsperdiv;
-		} else {
-		  //inipos << std::defaultfloat << std::setprecision(6) << posmgr->selected_channel->VertCenterCoord;
-		  inipos = posmgr->selected_channel->VertCenterCoord;	      
-
+		{
+		  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+		  if (posmgr->selected_channel->VertZoomAroundAxis) {
+		    //inipos << std::defaultfloat << std::setprecision(6) << posmgr->selected_channel->Position*vertunitsperdiv;
+		    inipos = posmgr->selected_channel->Position*vertunitsperdiv;
+		  } else {
+		    //inipos << std::defaultfloat << std::setprecision(6) << posmgr->selected_channel->VertCenterCoord;
+		    inipos = posmgr->selected_channel->VertCenterCoord;	      
+		    
+		  }
 		}
 		
 		//std::stringstream vertscalestr;
 		//vertscalestr << std::defaultfloat << std::setprecision(6) << scalefactor;
 		
 		//statusline += a->abbrev+"0=" + inipos.str() + " " + vertscalestr.str() + a->unit->unit.print(false);
+		std::lock_guard<std::mutex> adminlock(a->admin);
 		statusline += a->abbrev+"0=" + PrintWithSIPrefix(inipos,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3);
 		
 		if (horizpixelflag) {
@@ -1403,16 +1620,26 @@ namespace snde {
 		
 		
 	      }
-	      a=display->GetAmplAxis(posmgr->selected_channel->chan_data);
+
+	      double scalefactor;
+	      std::shared_ptr<mutableinfostore> chan_data;
+	      {
+		std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+		chan_data = posmgr->selected_channel->chan_data;
+		scalefactor=posmgr->selected_channel->Scale;
+	      }
+	      
+	      a=display->GetAmplAxis(chan_data);
+	      
 	      if (a) {
 		if (needjoin) {
 		  statusline += " | ";
 		}
-		double scalefactor=posmgr->selected_channel->Scale;
 		//double intensityunitsperdiv=scalefactor;
 	      
 		//if (a->unit->pixelflag) vertunitsperdiv*=display->pixelsperdiv;
-
+		
+		std::lock_guard<std::mutex> adminlock(a->admin);
 		//statusline += a->abbrev+"0=" + inipos.str() + " " + intscalestr.str() + a->unit->unit.print(false) + "/intensity";
 		statusline += a->abbrev+"0=" + PrintWithSIPrefix(posmgr->selected_channel->Offset,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3) + "/intensity";
 		
@@ -1440,7 +1667,11 @@ namespace snde {
 
 	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(name_selector.second);
 	  if (displaychan) {
-	    displaychan->Enabled = checked;
+	    {
+	      std::lock_guard<std::mutex> adminlock(displaychan->admin);
+	      displaychan->Enabled = checked;
+	    }
+	    displaychan->mark_as_dirty();
 	    OSGWidget->update();
 	  }
 	}
@@ -1451,128 +1682,229 @@ namespace snde {
 
     void Darken(bool checked)
     {
-      if (posmgr->selected_channel && posmgr->selected_channel->chan_data) {
-	
-	std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->chan_data);
-	std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(posmgr->selected_channel->chan_data);
-	if (a && datastore->dimlen.size() > 1) {
-	  posmgr->selected_channel->Offset += posmgr->selected_channel->Scale/8.0;
-	  UpdateViewerStatus();
-	  emit NeedRedraw();
+      if (posmgr->selected_channel) {
+	std::shared_ptr<mutableinfostore> chan_data;
+
+	{
+	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+	  chan_data=posmgr->selected_channel->chan_data;
+	}
+	if (chan_data) {
+	  
+	  std::shared_ptr<display_axis> a=display->GetAmplAxis(chan_data);
+	  std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
+
+	  size_t ndim=0;
+	  if (datastore) {
+	    rwlock_token_set datastore_tokens=empty_rwlock_token_set();
+	    sndegeom->manager->locker->get_locks_read_infostore(datastore_tokens,datastore);
+	    ndim=datastore->dimlen.size();
+	    
+	  }
+	  
+	  if (a && ndim > 1) {
+	    {
+	      std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+	      posmgr->selected_channel->Offset += posmgr->selected_channel->Scale/8.0;
+	    }
+	    posmgr->selected_channel->mark_as_dirty();
+	    UpdateViewerStatus();
+	    emit NeedRedraw();
+	  }
 	}
       }
     }
 
     void ResetIntensity(bool checked)
     {
-      if (posmgr->selected_channel && posmgr->selected_channel->chan_data) {
+      if (posmgr->selected_channel) {
+
+	std::shared_ptr<mutableinfostore> chan_data;
 	
-	std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->chan_data);
-	std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(posmgr->selected_channel->chan_data);
-	if (a && datastore->dimlen.size() > 1) {
-	  posmgr->selected_channel->Offset = 0.0;
-	  // ***!!! Should probably look at intensity bounds for channel instead ***!!!
-	  UpdateViewerStatus();
-	  emit NeedRedraw();
+	{
+	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+	  chan_data=posmgr->selected_channel->chan_data;
 	}
+
+	if (chan_data) {
+	  
+	  std::shared_ptr<display_axis> a=display->GetAmplAxis(chan_data);
+	  std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
+	  size_t ndim=0;
+	  if (datastore) {
+	    rwlock_token_set datastore_tokens=empty_rwlock_token_set();
+	    sndegeom->manager->locker->get_locks_read_infostore(datastore_tokens,datastore);
+	    ndim=datastore->dimlen.size();
+	  }
+	  if (a && ndim > 1) {
+	    {
+	      std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+	      posmgr->selected_channel->Offset = 0.0;
+	    }
+	    posmgr->selected_channel->mark_as_dirty();
+	    // ***!!! Should probably look at intensity bounds for channel instead ***!!!
+	    UpdateViewerStatus();
+	    emit NeedRedraw();
+	  }
+	}
+
       }
-      
     }
     
     void Brighten(bool checked)
     {
-      if (posmgr->selected_channel && posmgr->selected_channel->chan_data) {
+      if (posmgr->selected_channel) {
+	std::shared_ptr<mutableinfostore> chan_data;
 	
-	std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->chan_data);
-	std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(posmgr->selected_channel->chan_data);
-	
-	if (a && datastore->dimlen.size() > 1) {
-	  posmgr->selected_channel->Offset -= posmgr->selected_channel->Scale/8.0;
-	  UpdateViewerStatus();
-	  emit NeedRedraw();
+	{
+	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+	  chan_data=posmgr->selected_channel->chan_data;
+	}
+
+	if (chan_data) {
+	  
+	  std::shared_ptr<display_axis> a=display->GetAmplAxis(chan_data);
+	  std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
+	  
+	  size_t ndim=0;
+	  if (datastore) {
+	    
+	    rwlock_token_set datastore_tokens=empty_rwlock_token_set();
+	    sndegeom->manager->locker->get_locks_read_infostore(datastore_tokens,datastore);
+	    ndim=datastore->dimlen.size();
+	    
+	  }
+	  if (a && ndim > 1) {
+	    {
+	      std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+	      posmgr->selected_channel->Offset -= posmgr->selected_channel->Scale/8.0;
+	    }
+	    posmgr->selected_channel->mark_as_dirty();
+	    UpdateViewerStatus();
+	    emit NeedRedraw();
+	  }
 	}
       }
-      
     }
 
     void LessContrast(bool checked)
     {
-      if (posmgr->selected_channel && posmgr->selected_channel->chan_data) {
-
-	std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(posmgr->selected_channel->chan_data);
-
-	std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->chan_data);
-	if (a && datastore && datastore->dimlen.size() > 1) {
-	  //double contrastpower_floor = floor(log(posmgr->selected_channel->scale)/log(10.0));
-	  double contrastpower_ceil = floor(log(posmgr->selected_channel->Scale)/log(10.0));
-
-	  //double leadingdigit_floor;
-	  //int leadingdigit_flooridx;
+      if (posmgr->selected_channel) {
+	std::shared_ptr<mutableinfostore> chan_data;
+	double Scale;
+	{
+	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+	  chan_data=posmgr->selected_channel->chan_data;
+	  Scale=posmgr->selected_channel->Scale;
+	}
+	
+	if (chan_data) {
 	  
-	  //std::tie(leadingdigit_flooridx,leadingdigit_floor) = round_to_zoom_digit(round(posmgr->selected_channel->scale/pow(10,contrastpower_floor)));
-
-	  // Less contrast -> more scale (i.e. more physical quantity/unit intensity
+	  std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
 	  
-	  double leadingdigit_ceil;
-	  int leadingdigit_ceilidx;
-	  
-	  std::tie(leadingdigit_ceilidx,leadingdigit_ceil) = round_to_zoom_digit(round(posmgr->selected_channel->Scale/pow(10,contrastpower_ceil)));
-
-	  double difference = leadingdigit_ceil*pow(10,contrastpower_ceil) - posmgr->selected_channel->Scale;
-	  if (fabs(difference/posmgr->selected_channel->Scale) < .1) {
-	    // no significant change from the ceil operation
-	    // bump up by one notch
-
-	    const double newleadingdigits[]={2.0,5.0,10.0};
-	    leadingdigit_ceil = newleadingdigits[leadingdigit_ceilidx];
-
+	  std::shared_ptr<display_axis> a=display->GetAmplAxis(chan_data);
+	  size_t ndim=0;
+	  if (datastore) {	    
+	    rwlock_token_set datastore_tokens=empty_rwlock_token_set();
+	    sndegeom->manager->locker->get_locks_read_infostore(datastore_tokens,datastore);
+	    ndim=datastore->dimlen.size();
 	    
 	  }
+	  if (a && datastore && ndim > 1) {
+	    //double contrastpower_floor = floor(log(posmgr->selected_channel->scale)/log(10.0));
+	    double contrastpower_ceil = floor(log(Scale)/log(10.0));
+	    
+	    //double leadingdigit_floor;
+	    //int leadingdigit_flooridx;
+	    
+	    //std::tie(leadingdigit_flooridx,leadingdigit_floor) = round_to_zoom_digit(round(posmgr->selected_channel->scale/pow(10,contrastpower_floor)));
+
+	    // Less contrast -> more scale (i.e. more physical quantity/unit intensity
+	    
+	    double leadingdigit_ceil;
+	    int leadingdigit_ceilidx;
+	    
+	    std::tie(leadingdigit_ceilidx,leadingdigit_ceil) = round_to_zoom_digit(round(Scale/pow(10,contrastpower_ceil)));
+	    
+	    double difference = leadingdigit_ceil*pow(10,contrastpower_ceil) - Scale;
+	    if (fabs(difference/Scale) < .1) {
+	      // no significant change from the ceil operation
+	      // bump up by one notch
+	      
+	      const double newleadingdigits[]={2.0,5.0,10.0};
+	      leadingdigit_ceil = newleadingdigits[leadingdigit_ceilidx];
+	      
+	      
+	    }
+
+	    {
+	      std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+	      posmgr->selected_channel->Scale = leadingdigit_ceil*pow(10,contrastpower_ceil);
+	    }
+	    posmgr->selected_channel->mark_as_dirty();
+	    UpdateViewerStatus();
 	  
-	  posmgr->selected_channel->Scale = leadingdigit_ceil*pow(10,contrastpower_ceil);
-	  UpdateViewerStatus();
-	  
-	  emit NeedRedraw();
+	    emit NeedRedraw();
+	  }
 	}
       }
-      
     }
 
     void MoreContrast(bool checked)
     {
-      if (posmgr->selected_channel && posmgr->selected_channel->chan_data) {
-
-	std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(posmgr->selected_channel->chan_data);
-
-	std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->chan_data);
-	if (a && datastore && datastore->dimlen.size() > 1) {
-	  double contrastpower_floor = floor(log(posmgr->selected_channel->Scale)/log(10.0));
-
-	  double leadingdigit_floor;
-	  int leadingdigit_flooridx;
+      if (posmgr->selected_channel) {
+	std::shared_ptr<mutableinfostore> chan_data;
+	double Scale;
+	{
+	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+	  chan_data=posmgr->selected_channel->chan_data;
+	  Scale=posmgr->selected_channel->Scale;
+	}
+	
+	if (chan_data) {
 	  
-	  std::tie(leadingdigit_flooridx,leadingdigit_floor) = round_to_zoom_digit(round(posmgr->selected_channel->Scale/pow(10,contrastpower_floor)));
-
-	  // More contrast -> less scale (i.e. less physical quantity/unit intensity)
+	  std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
 	  
-
-	  double difference = leadingdigit_floor*pow(10,contrastpower_floor) - posmgr->selected_channel->Scale;
-	  if (fabs(difference/posmgr->selected_channel->Scale) < .1) {
-	    // no significant change from the floor operation
-	    // bump down by one notch
-	    
-	    const double newleadingdigits[]={0.5,1.0,2.0};
-	    leadingdigit_floor = newleadingdigits[leadingdigit_flooridx];
-
+	  std::shared_ptr<display_axis> a=display->GetAmplAxis(chan_data);
+	  size_t ndim=0;
+	  if (datastore) {	    
+	    rwlock_token_set datastore_tokens=empty_rwlock_token_set();
+	    sndegeom->manager->locker->get_locks_read_infostore(datastore_tokens,datastore);
+	    ndim=datastore->dimlen.size();
 	    
 	  }
-	  
-	  posmgr->selected_channel->Scale = leadingdigit_floor*pow(10,contrastpower_floor);
-	  UpdateViewerStatus();
-	  emit NeedRedraw();
+	  if (a && datastore && ndim > 1) {
+	    double contrastpower_floor = floor(log(Scale)/log(10.0));
+	    
+	    double leadingdigit_floor;
+	    int leadingdigit_flooridx;
+	    
+	    std::tie(leadingdigit_flooridx,leadingdigit_floor) = round_to_zoom_digit(round(Scale/pow(10,contrastpower_floor)));
+	    
+	    // More contrast -> less scale (i.e. less physical quantity/unit intensity)
+	    
+	    
+	    double difference = leadingdigit_floor*pow(10,contrastpower_floor) - Scale;
+	    if (fabs(difference/Scale) < .1) {
+	      // no significant change from the floor operation
+	      // bump down by one notch
+	      
+	      const double newleadingdigits[]={0.5,1.0,2.0};
+	      leadingdigit_floor = newleadingdigits[leadingdigit_flooridx];
+	      
+	      
+	    }
+	    
+	    {
+	      std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+	      posmgr->selected_channel->Scale = leadingdigit_floor*pow(10,contrastpower_floor);
+	    }
+	    posmgr->selected_channel->mark_as_dirty();
+	    UpdateViewerStatus();
+	    emit NeedRedraw();
+	  }
 	}
       }
-      
     }
 
   signals:

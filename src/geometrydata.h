@@ -169,7 +169,7 @@ extern "C" {
 
     
 
-    snde_imagedata *imagebuf;
+    //snde_imagedata *imagebuf;
     //allocatorbase *imagebuf_alloc; // really allocator<snde_imagedata>*
 
     snde_coord *zbuffer; /* separately allocated */

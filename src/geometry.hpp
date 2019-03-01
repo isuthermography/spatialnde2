@@ -4,11 +4,13 @@
 
 #include "arraymanager.hpp"
 
+#include "stringtools.hpp"
+
 #include "metadata.hpp"
 
 #include <stdexcept>
 #include <cstring>
-
+#include <cstdlib>
 
 #ifndef SNDE_GEOMETRY_HPP
 #define SNDE_GEOMETRY_HPP
@@ -202,6 +204,8 @@ namespace snde {
       
       manager->add_allocated_array((void **)&geom.uv_boxpolys,sizeof(*geom.uv_boxpolys),0);
 
+      //manager->add_allocated_array((void **)&geom.uv_images,sizeof(*geom.uv_images),0);
+
 
       /***!!! Insert uv patches and images here ***!!! */
       
@@ -230,33 +234,6 @@ namespace snde {
     }
   };
 
-  class uv_images; // forward declaration
-  class uv_image {
-  public:
-    // represents single snde_image
-    // intended as a base class
-    std::shared_ptr<geometry> geom;
-    snde_index firstuvimage;
-    snde_index imageidx;
-
-    uv_image(std::shared_ptr<uv_images> images,
-	     snde_index imageidx); // implementation in geometry.cpp
-
-    uv_image(const uv_image &)=delete; /* copy constructor disabled */
-    uv_image& operator=(const uv_image &)=delete; /* copy assignment disabled */
-
-    virtual snde_image &get_ref_arraylocked()
-    {
-      return geom->geom.uv_images[firstuvimage+imageidx];
-      
-    }
-
-    virtual ~uv_image()
-    {
-      
-    }
-  };
-
   class uv_images {
   public:
     /* a collection of uv images represents the uv-data for a meshedpart or nurbspart, as references to images. 
@@ -266,7 +243,7 @@ namespace snde {
     std::string parameterization_name; 
     snde_index firstuvimage,numuvimages; /*must match the numbers to be put into the snde_partinstance/snde_parameterization */
 
-    std::vector<uv_image *> images; // These pointers shouldn't be shared (otherwise they would be shared pointers) because we are responsible for destroying them
+    std::vector<snde_image *> images; // These pointers shouldn't be shared (otherwise they would be shared pointers) because we are responsible for destroying them
     
     bool destroyed;
 
@@ -289,13 +266,13 @@ namespace snde {
 
     }
 
-    void set_image(uv_image *image)
-    // takes ownership of image
-    {
-      snde_index index=image->imageidx;
-      assert(index < numuvimages);
-      images[index] = image;
-    }
+    //void set_image(snde_image *image)
+    //// copies provided image struct
+    //{
+    //  snde_index index=image->imageidx;
+    //  assert(index < numuvimages);
+    //  images[index] = image;
+    //}
 
     void free()
     {
@@ -340,6 +317,7 @@ namespace snde {
 #define SNDE_UV_GEOM_UV_BOXES (1ull<<10)
 #define SNDE_UV_GEOM_UV_BOXCOORD (1ull<<11)
 #define SNDE_UV_GEOM_UV_BOXPOLYS (1ull<<12)
+  //#define SNDE_UV_GEOM_UV_IMAGES (1ull<<13)
 
 #define SNDE_UV_GEOM_ALL ((1ull<<13)-1)
 
@@ -354,22 +332,38 @@ namespace snde {
 #define SNDE_UV_GEOM_UV_BOXES_RESIZE (SNDE_UV_GEOM_UV_BOXES|SNDE_UV_GEOM_UV_BOXCOORD)
 #define SNDE_UV_GEOM_UV_BOXPOLYS_RESIZE (SNDE_UV_GEOM_UV_BOXPOLYS)
 
+  
 
   
 typedef uint64_t snde_uv_geom_mask_t;
+
+
+  class image_data {
+    // abstract base class for rendering data corresponding to an snde_image
+  public:
+    image_data() {}
+    image_data(const image_data &)=delete; // no copy constructor
+    image_data & operator=(const image_data &)=delete; // no copy assignment
+
+    // get_texture_image returns read-only copy
+    virtual std::shared_ptr<snde_image> get_texture_image() {return nullptr;}
+    
+    virtual ~image_data() {}
+  };
+  
 
   class parameterization {
   public:
     std::string name;
     std::shared_ptr<geometry> geom;
-    snde_index idx; /* index of the parameterization in the geometry uv database */
+    snde_index idx; /* index of the parameterization in the geometry uv database -- we have ownership of this entry */
     //std::map<std::string,std::shared_ptr<uv_patches>> patches;
     bool destroyed;
     
     /* Should the mesheduv manage the snde_image data for the various uv patches? probably... */
 
     parameterization(std::shared_ptr<geometry> geom, std::string name,snde_index idx)
-    /* WARNING: This constructor takes ownership of the mesheduv and 
+    /* WARNING: This constructor takes ownership of the snde_parameterization and 
        subcomponents from the geometry database and frees them when 
        it is destroyed */
     {
@@ -586,27 +580,29 @@ typedef uint64_t snde_uv_geom_mask_t;
 
   
   /* ***!!! Must keep sync'd with geometry.i */
-#define SNDE_COMPONENT_GEOM_PARTS (1ull<<0)
-#define SNDE_COMPONENT_GEOM_TOPOS (1ull<<1)
-#define SNDE_COMPONENT_GEOM_TOPO_INDICES (1ull<<2)
-#define SNDE_COMPONENT_GEOM_TRIS (1ull<<3)
-#define SNDE_COMPONENT_GEOM_REFPOINTS (1ull<<4)
-#define SNDE_COMPONENT_GEOM_MAXRADIUS (1ull<<5)
-#define SNDE_COMPONENT_GEOM_NORMALS (1ull<<6)
-#define SNDE_COMPONENT_GEOM_INPLANEMAT (1ull<<7)
-#define SNDE_COMPONENT_GEOM_EDGES (1ull<<8)
-#define SNDE_COMPONENT_GEOM_VERTICES (1ull<<9)
-#define SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES (1ull<<10)
-#define SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES (1ull<<11)
-#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES (1ull<<12)
-#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST (1ull<<13)
-#define SNDE_COMPONENT_GEOM_BOXES (1ull<<14)
-#define SNDE_COMPONENT_GEOM_BOXCOORD (1ull<<15)
-#define SNDE_COMPONENT_GEOM_BOXPOLYS (1ull<<16)
+#define SNDE_COMPONENT_GEOM_COMPONENT (1ull<<0) // the snde::mutableinfostore and associated snde::component data structure
+#define SNDE_COMPONENT_GEOM_PARTS (1ull<<1)
+#define SNDE_COMPONENT_GEOM_TOPOS (1ull<<2)
+#define SNDE_COMPONENT_GEOM_TOPO_INDICES (1ull<<3)
+#define SNDE_COMPONENT_GEOM_TRIS (1ull<<4)
+#define SNDE_COMPONENT_GEOM_REFPOINTS (1ull<<5)
+#define SNDE_COMPONENT_GEOM_MAXRADIUS (1ull<<6)
+#define SNDE_COMPONENT_GEOM_NORMALS (1ull<<7)
+#define SNDE_COMPONENT_GEOM_INPLANEMAT (1ull<<8)
+#define SNDE_COMPONENT_GEOM_EDGES (1ull<<9)
+#define SNDE_COMPONENT_GEOM_VERTICES (1ull<<10)
+#define SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES (1ull<<11)
+#define SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES (1ull<<12)
+#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES (1ull<<13)
+#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST (1ull<<14)
+#define SNDE_COMPONENT_GEOM_BOXES (1ull<<15)
+#define SNDE_COMPONENT_GEOM_BOXCOORD (1ull<<17)
+#define SNDE_COMPONENT_GEOM_BOXPOLYS (1ull<<17)
 
-#define SNDE_COMPONENT_GEOM_ALL ((1ull<<17)-1)
+#define SNDE_COMPONENT_GEOM_ALL ((1ull<<18)-1)
 
 // Resizing masks -- mark those arrays that resize together
+//#define SNDE_COMPONENT_GEOM_COMPONENT_RESIZE (SNDE_COMPONENT_GEOM_COMPONENT)
 #define SNDE_COMPONENT_GEOM_PARTS_RESIZE (SNDE_COMPONENT_GEOM_PARTS)
 #define SNDE_COMPONENT_GEOM_TOPOS_RESIZE (SNDE_COMPONENT_GEOM_TOPOS)
 #define SNDE_COMPONENT_GEOM_TOPO_INDICES_RESIZE (SNDE_COMPONENT_GEOM_TOPO_INDICES)
@@ -623,6 +619,9 @@ typedef uint64_t snde_component_geom_mask_t;
 
   
   class component : public std::enable_shared_from_this<component> { /* abstract base class for geometric components (assemblies, part) */
+    // NOTE: component generally locked by holding the lock of its
+    // ancestor mutablegeomstore (mutableinfostore)
+    // this lock should be held when calling its methods
 
     // orientation model:
     // Each assembly has orientation
@@ -643,8 +642,8 @@ typedef uint64_t snde_component_geom_mask_t;
 
     //   component();// {}
     
-    virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation, const std::unordered_map<std::string,std::shared_ptr<uv_images>> & parameterization_data)=0;//,std::shared_ptr<std::unordered_map<std::string,metadatum>> metadata)=0;
-
+    virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<component>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data)=0;
+    
     virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_component_geom_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_component_geom_mask_t writemask=0,snde_component_geom_mask_t resizemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */
 
     virtual ~component()
@@ -654,6 +653,11 @@ typedef uint64_t snde_component_geom_mask_t;
       ;
   };
   class part : public component {
+
+    // NOTE: Part generally locked by holding the lock of its
+    // ancestor mutablegeomstore (mutableinfostore)
+    // this lock should be held when calling its methods
+    
     part(const part &)=delete; /* copy constructor disabled */
     part& operator=(const part &)=delete; /* copy assignment disabled */
     
@@ -685,31 +689,38 @@ typedef uint64_t snde_component_geom_mask_t;
       parameterizations[parameterization->name]=parameterization;
     }
     
-    virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation, const std::unordered_map<std::string,std::shared_ptr<uv_images>> & parameterization_data) //,std::shared_ptr<std::unordered_map<std::string,metadatum>> metadata)
+    virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<component>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data) //,std::shared_ptr<std::unordered_map<std::string,metadatum>> metadata)
     {
-      struct snde_partinstance ret;
+      struct snde_partinstance ret=snde_partinstance{ .orientation=orientation,
+						      .partnum = idx,
+						      .firstuvimage=SNDE_INDEX_INVALID,
+						      .uvnum=SNDE_INDEX_INVALID,};
       std::shared_ptr<component> ret_ptr;
 
       ret_ptr = shared_from_this();
 
-      std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> ret_vec;
+      std::vector<std::tuple<snde_partinstance,std::shared_ptr<component>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> ret_vec;
 
-      ret.orientation=orientation;
-      //ret.nurbspartnum=SNDE_INDEX_INVALID;
-      ret.partnum=idx;
 
+      std::vector<std::string> parameterization_data_names;
+      std::string uv_parameterization_channels=metadata->GetMetaDatumStr("uv_parameterization_channels","");
+      // split comma-separated list of parameterization_data_names
       
-      ret.firstuvimage=SNDE_INDEX_INVALID;
-      //ret.numuvimages;SNDE_INDEX_INVALID;
-      ret.uvnum=SNDE_INDEX_INVALID;
-      ret.imgbuf_extra_offset=0;
-
-      if (parameterization_data.find(name) != parameterization_data.end()) {
-	std::shared_ptr<uv_images> param_data=parameterization_data.at(name);
-	ret.uvnum = parameterizations.at(param_data->parameterization_name)->idx;
-
-	ret.firstuvimage = param_data->firstuvimage;
+      char *param_channels_c=strdup(uv_parameterization_channels.c_str());
+      char *saveptr=NULL;
+      for (char *tok=strtok_r(param_channels_c,",",&saveptr);tok;tok=strtok_r(NULL,",",&saveptr)) {
+	parameterization_data_names.push_back(stripstr(tok));
       }
+
+      ::free(param_channels_c); // :: means search in the global namespace for cstdlib free
+      
+      std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>> parameterization_data = get_param_data(std::dynamic_pointer_cast<part>(shared_from_this()),parameterization_data_names);
+      //if (parameterization_data.find(name) != parameterization_data.end()) {
+      //std::shared_ptr<uv_images> param_data=parameterization_data.at(name);
+      //ret.uvnum = parameterizations.at(param_data->parameterization_name)->idx;
+      //
+      //ret.firstuvimage = param_data->firstuvimage;
+      //}
       /*{
 	std::string parameterization_name="";
 	
@@ -751,7 +762,7 @@ typedef uint64_t snde_component_geom_mask_t;
       }*/
       
       //return std::vector<struct snde_partinstance>(1,ret);
-      ret_vec.push_back(std::make_pair(ret,ret_ptr));
+      ret_vec.push_back(std::tuple_cat(std::make_tuple(ret,ret_ptr),parameterization_data));
       return ret_vec;
     }
     
@@ -925,6 +936,10 @@ typedef uint64_t snde_component_geom_mask_t;
     /* NOTE: Unlike other types of component, assemblies ARE copyable/assignable */
     /* (this is because they don't have a representation in the underlying
        geometry database) */
+    
+    // NOTE: assembly generally locked by holding the lock of its
+    // ancestor mutablegeomstore (mutableinfostore)
+    // this lock should be held when calling its methods
   public:
     // NOTE: Name of a part/subassembly inside the assembly
     // may not match global name. This is so an assembly
@@ -951,26 +966,42 @@ typedef uint64_t snde_component_geom_mask_t;
     }
 
 
-    virtual std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> get_instances(snde_orientation3 orientation, const std::unordered_map<std::string,std::shared_ptr<uv_images>> & parameterization_data)  //,std::shared_ptr<std::unordered_map<std::string,metadatum>> metadata)
+    virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<component>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data)
     {
-      std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> instances;
+      std::vector<std::tuple<snde_partinstance,std::shared_ptr<component>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> instances;
       std::unordered_map<std::string,std::shared_ptr<uv_images>> reducedparamdata;
 
-      std::string name_with_dot=name+".";
-      
-      for (auto & name_images : parameterization_data) {
-	if (!strncmp(name_images.first.c_str(),name_with_dot.c_str(),name_with_dot.size())) {
-	  /* this paramdict entry name stats with this assembly name  + '.' */
-	  
-	  /* give same entry to reducedparamdict, but with assembly name and dot stripped */
-	  reducedparamdata[std::string(name_images.first.c_str()+name_with_dot.size())]=name_images.second;
-	}
-      }
-      
       
       snde_orientation3 neworientation=orientation_orientation_multiply(orientation,_orientation);
       for (auto & piece : pieces) {
-	std::vector<std::pair<snde_partinstance,std::shared_ptr<component>>> newpieces=piece.second->get_instances(neworientation,reducedparamdata);
+	std::shared_ptr<immutable_metadata> reduced_metadata=std::make_shared<immutable_metadata>(metadata->metadata); // not immutable while we are constructing it
+      
+	
+	std::unordered_map<std::string,metadatum>::iterator next_name_metadatum;
+
+	std::string name_with_dot=piece.second->name+".";
+	for (auto name_metadatum=reduced_metadata->metadata.begin();name_metadatum != reduced_metadata->metadata.end();name_metadatum=next_name_metadatum) {
+	  next_name_metadatum=name_metadatum;
+	  next_name_metadatum++;
+	  
+	  if (!strncmp(name_metadatum->first.c_str(),name_with_dot.c_str(),name_with_dot.size())) {
+	    /* this metadata entry name starts with this component name  + '.' */
+	    metadatum temp_copy=name_metadatum->second;
+	    reduced_metadata->metadata.erase(name_metadatum);
+	    
+	    // *** I believe since we are erasing before we are adding, a rehash should not be possible here (proscribed by the spec: https://stackoverflow.com/questions/13730470/how-do-i-prevent-rehashing-of-an-stdunordered-map-while-removing-elements) 
+	    // so we are OK and our iterators will remain valid
+	    
+	    /* give same entry to reduced_metadata, but with assembly name and dot stripped */
+	    temp_copy.Name = std::string(temp_copy.Name.c_str()+name_with_dot.size());
+	    reduced_metadata->metadata.emplace(temp_copy.Name,temp_copy);
+	    
+	  }
+	}
+	
+	
+	
+	std::vector<std::tuple<snde_partinstance,std::shared_ptr<component>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>>  newpieces=piece.second->get_instances(neworientation,reduced_metadata,get_param_data);
 	instances.insert(instances.end(),newpieces.begin(),newpieces.end());
       }
       return instances;

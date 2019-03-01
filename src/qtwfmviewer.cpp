@@ -23,7 +23,7 @@ namespace snde {
  
       QTViewer->update_wfm_list();
       QTViewer->rendering_revman->Start_Transaction();
-      QTViewer->update_renderer();
+      QTViewer->update_renderer(); // this eats the events...
       /* !!!*** Need to be able to auto-lock all inputs as 
 	 we start End_Transaction to ensure a consistent state at the end */
       /* IDEA: lock acquisition is already designed to be able to accommodate 
@@ -38,12 +38,16 @@ namespace snde {
       //osgDB::writeNodeFile(*RootNode,"/tmp/qtwfmviewer.osg");
       
       assert(!Camera->getViewMatrix().isNaN());
-      fprintf(stderr,"Render!\n");
+      fprintf(stderr,"Render! empty=%d\n",(int)GraphicsWindow->getEventQueue()->empty());
+      if (!GraphicsWindow->getEventQueue()->empty()) {
+	fprintf(stderr,"About to process events\n");
+      }
       Viewer->frame();
+      fprintf(stderr,"Render complete; empty=%d\n",(int)GraphicsWindow->getEventQueue()->empty());
       
       //unlock_rwlock_token_set(all_locks); // Drop our locks 
       
-      
+      //QOpenGLWidget::paintGL();  // necessary? 
     }
   }
     

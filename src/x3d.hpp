@@ -1299,8 +1299,8 @@ namespace snde {
 	    // .png file
 	    std::string texture_path = pathjoin(stripfilepart(context_fname),*texture_fname);
 	    
-	    texture_wfm = ReadPNG(geom->manager,strippathpart(*texture_fname),*texture_fname);
-	    texture_wfm->metadata.AddMetaDatum(metadatum("parameterization","intrinisc"));
+	    texture_wfm = ReadPNG(geom->manager,strippathpart(*texture_fname),strippathpart(*texture_fname),texture_path);
+	    texture_wfm->metadata.AddMetaDatum(metadatum("uv_parameterization","intrinsic"));
 	    wfmdb->addinfostore(texture_wfm);
 	  }
 	  
@@ -1310,11 +1310,12 @@ namespace snde {
       Eigen::Matrix<double,3,3> TexCoordsToParameterizationCoords=Eigen::Matrix<double,3,3>::Identity();
       
       if (texture_wfm and texture_wfm->dimlen.size() >= 2) {
-	metadata.emplace(std::make_pair<std::string,metadatum>("parameterization_channel",metadatum("parameterization_channel",texture_wfm->name)));
+	// uv_parameterization_channels should be comma-separated list
+	metadata.emplace(std::make_pair<std::string,metadatum>("uv_parameterization_channels",metadatum("uv_parameterization_channels",texture_wfm->fullname)));
 
 	// Use pixel size in given texture_wfm to get scaling for texture coordinates.
 	
-	double IniVal1 = texture_wfm->metadata.GetMetaDatumDbl("IniVal1",texture_wfm->dimlen[0]/2.0);
+	double IniVal1 = texture_wfm->metadata.GetMetaDatumDbl("IniVal1",-texture_wfm->dimlen[0]/2.0);
 	double IniVal2 = texture_wfm->metadata.GetMetaDatumDbl("IniVal2",texture_wfm->dimlen[1]/2.0);
 
 	double Step1 = texture_wfm->metadata.GetMetaDatumDbl("Step1",1.0);
@@ -1327,8 +1328,17 @@ namespace snde {
 	// To get [0,2] element, rule is that texture coordinate 0 maps to IniVal1-Step1/2.0 (For positive Step1) because the left edge of that first element is 1/2 step to the left. 
 	// TCTPC[0,0]*TexU + TCTPC[0,2] = scaled pos
 	// TCTPC[0,0]*0  + TCTCP[0,2] = IniVal1-Step1/2.0
-	TexCoordsToParameterizationCoords(0,2)=IniVal1-Step1/2.0;
 
+	if (Step1 > 0.0) {
+	  TexCoordsToParameterizationCoords(0,2)=IniVal1-Step1/2.0;
+	} else {
+	  // For negative step1, x values start at the right (max value) and
+	  // decrease... so the 0 texcoord point is actually at IniVal1+Step1*dimlen[0]-Step1/2.0
+	  // (Remember, Step2 is negative in that expression!)
+	  TexCoordsToParameterizationCoords(0,2)=IniVal1+Step1*texture_wfm->dimlen[0]-Step1/2.0;
+
+	}
+	
 	// Same rule for Y if step positive
 	if (Step2 > 0.0) {
 	  TexCoordsToParameterizationCoords(1,2)=IniVal2-Step2/2.0;
@@ -1388,9 +1398,9 @@ namespace snde {
 	// Edgelist may need to be big enough to store # of edges*2 +  # of vertices
 	snde_index uv_vertex_edgelist_maxsize=texCoords->point.size()*7;
 	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_vertex_edgelist,uv_vertex_edgelist_maxsize,""));
-	if (texture) {
-	  holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_images,1,""));	  
-	}
+	//if (texture) {
+	//  holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_images,1,""));	  
+	//}
       }
       
       all_locks=lockprocess->finish();
@@ -1431,7 +1441,7 @@ namespace snde {
       snde_index firstuvvertex=SNDE_INDEX_INVALID;
       snde_index first_uv_vertex_edgelist=SNDE_INDEX_INVALID;
       snde_index first_uv_vertex_edgelist_index=SNDE_INDEX_INVALID;
-      snde_index firstuvpatch=SNDE_INDEX_INVALID;
+      //snde_index firstuvpatch=SNDE_INDEX_INVALID;
       std::shared_ptr<parameterization> uvparam;
 
       
@@ -1475,10 +1485,10 @@ namespace snde {
 	/* vertex_edgelist_indices marked with realloc_down() call under uv_vertices below */
 	assert(first_uv_vertex_edgelist_index==firstuvvertex);
       
-	if (texture) {
-	  firstuvpatch = holder->get_alloc((void **)&geom->geom.uv_images,"");
-	  
-	}
+	//if (texture) {
+	//  firstuvpatch = holder->get_alloc((void **)&geom->geom.uv_images,"");
+	//  
+	//}
       }
       
       

@@ -10,14 +10,47 @@
 #define SNDE_WFM_DISPLAY_HPP
 
 namespace snde {
+
+class display_channel; // forward declaration
   
 struct display_unit {
+  display_unit(units unit,
+	       double scale,
+	       bool pixelflag) :
+    unit(unit),
+    scale(scale),
+    pixelflag(pixelflag)
+  {
+
+  }
+  
+  std::mutex admin; // protects scale; other members should be immutable
+  
   units unit;
   double scale; // Units per division (if not pixelflag) or units per pixel (if pixelflag)
   bool pixelflag;
 };
 
 struct display_axis {
+
+  display_axis(std::string axis,
+	       std::string abbrev,
+	       std::shared_ptr<display_unit> unit,
+	       bool has_abbrev,
+	       double CenterCoord,
+	       double DefaultOffset,
+	       double DefaultUnitsPerDiv) :
+    axis(axis),
+    abbrev(abbrev),
+    unit(unit),
+    has_abbrev(has_abbrev),
+    CenterCoord(CenterCoord),
+    DefaultOffset(DefaultOffset),
+    DefaultUnitsPerDiv(DefaultUnitsPerDiv)
+  {
+
+  }
+  std::mutex admin; // protects CenterCoord; other members should be immutable
   std::string axis;
   std::string abbrev;
   std::shared_ptr<display_unit> unit;
@@ -30,11 +63,25 @@ struct display_axis {
   // double MousePosn;
 };
 
+class wfmdisplay_notification_receiver {
+  // abstract base class
+public:
+  wfmdisplay_notification_receiver()
+  {
+    
+  }
+  
+  wfmdisplay_notification_receiver(const wfmdisplay_notification_receiver &)=delete; // no copy constructor
+  wfmdisplay_notification_receiver & operator=(const wfmdisplay_notification_receiver &)=delete; // no copy assignment
+  
+  virtual void mark_as_dirty(std::shared_ptr<display_channel> dirtychan) {} ;
+  virtual ~wfmdisplay_notification_receiver() {} ;
+};
 
-struct display_channel {
+struct display_channel: public std::enable_shared_from_this<display_channel> {
 
   
-  std::string FullName; // full name, including colon (or slash?) separating tree elements
+  std::string FullName; // full name, including slash separating tree elements
   std::shared_ptr<mutableinfostore> chan_data;
   
   float Scale; // vertical axis scaling for 1D wfms; color axis scaling for 2D waveforms; units/pixel if pixelflag is set is set for the axis/units, units/div (or equivalently units/intensity) if pixelflag is not set
@@ -52,9 +99,13 @@ struct display_channel {
   // NeedAxisScales
   size_t ColorMap; // colormap selection
 
-  std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> adjustment_deps; // these trm_dependencies should be triggered when these parameters are changed.
+  //std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> adjustment_deps; // these trm_dependencies should be triggered when these parameters are changed. *** SHOULD BE REPLACED BY revman_wfm_display method
 
-  std::mutex displaychan_mutex; // protects all members, as the display_channel
+  // NOTE: Adjustement deps needs to be cleaned periodically of lost weak pointers!
+  // receivers in adjustment_deps should be called during a transaction! */
+  std::set<std::weak_ptr<wfmdisplay_notification_receiver>,std::owner_less<std::weak_ptr<wfmdisplay_notification_receiver>>> adjustment_deps;
+
+  std::mutex admin; // protects all members, as the display_channel
   // may be accessed from transform threads, not just the GUI thread
 
   
@@ -78,6 +129,51 @@ struct display_channel {
 
   {
 
+  }
+
+
+  void add_adjustment_dep(std::shared_ptr<wfmdisplay_notification_receiver> notifier)
+  {
+    std::lock_guard<std::mutex> dc_lock(admin);
+    adjustment_deps.emplace(notifier);
+
+    // filter out any dead pointers
+    std::set<std::weak_ptr<wfmdisplay_notification_receiver>,std::owner_less<std::weak_ptr<wfmdisplay_notification_receiver>>>::iterator next;
+    for (auto it=adjustment_deps.begin(); it != adjustment_deps.end(); it=next) {
+      next=it;
+      next++;
+      
+      if (it->expired()) {
+	adjustment_deps.erase(it);
+      }
+      
+    }
+    
+  }
+
+  void mark_as_dirty()
+  {
+    std::vector<std::shared_ptr<wfmdisplay_notification_receiver>> tonotify;
+    {
+      std::lock_guard<std::mutex> dc_lock(admin);
+      std::set<std::weak_ptr<wfmdisplay_notification_receiver>,std::owner_less<std::weak_ptr<wfmdisplay_notification_receiver>>>::iterator next;
+      
+      for (auto it=adjustment_deps.begin(); it != adjustment_deps.end(); it=next) {
+	next=it;
+	next++;
+      
+	if (std::shared_ptr<wfmdisplay_notification_receiver> rcvr = it->lock()) {
+	  tonotify.push_back(rcvr);
+	} else {
+	  adjustment_deps.erase(it);
+	  
+	}
+	
+      }
+    }
+    for (auto & notify: tonotify) {
+      notify->mark_as_dirty(shared_from_this());
+    }
   }
 
 };
@@ -175,11 +271,15 @@ public:
   size_t vertical_divisions;
   float borderwidthpixels;
   double pixelsperdiv;
+  std::shared_ptr<mutablewfmdb> wfmdb;
   
+  std::mutex admin;
 
+  
   std::unordered_map<std::string,std::shared_ptr<display_channel>> channel_info;
 
-  display_info(std::shared_ptr<mutablewfmdb> wfmdb)
+  display_info(std::shared_ptr<mutablewfmdb> wfmdb) :
+    wfmdb(wfmdb)
   {
     NextColor=0;
 
@@ -190,55 +290,98 @@ public:
     
     // Insert some basic common units
     
-    UnitList.push_back(std::make_shared<display_unit>(display_unit{units::parseunits("meters"),0.1,false}));
-    UnitList.push_back(std::make_shared<display_unit>(display_unit{units::parseunits("seconds"),0.5,false}));
-    UnitList.push_back(std::make_shared<display_unit>(display_unit{units::parseunits("Hertz"),10e3,false}));
-    UnitList.push_back(std::make_shared<display_unit>(display_unit{units::parseunits("pixels"),1.0,true}));
-    UnitList.push_back(std::make_shared<display_unit>(display_unit{units::parseunits("unitless"),1.0,false}));
-    UnitList.push_back(std::make_shared<display_unit>(display_unit{units::parseunits("meters/second"),1.0,false}));
-    UnitList.push_back(std::make_shared<display_unit>(display_unit{units::parseunits("Kelvin"),50,false}));
-    UnitList.push_back(std::make_shared<display_unit>(display_unit{units::parseunits("Pascals"),50e3,false}));
-    UnitList.push_back(std::make_shared<display_unit>(display_unit{units::parseunits("Volts"),1.0,false}));
-    UnitList.push_back(std::make_shared<display_unit>(display_unit{units::parseunits("Amps"),1.0,false}));
-    UnitList.push_back(std::make_shared<display_unit>(display_unit{units::parseunits("Newtons"),5.0,false}));
-    UnitList.push_back(std::make_shared<display_unit>(display_unit{units::parseunits("Newton-meters"),5.0,false}));
-    UnitList.push_back(std::make_shared<display_unit>(display_unit{units::parseunits("Degrees"),20.0,false}));
-    UnitList.push_back(std::make_shared<display_unit>(display_unit{units::parseunits("Arbitrary"),10.0,false}));
+    UnitList.push_back(std::make_shared<display_unit>(units::parseunits("meters"),0.1,false));
+    UnitList.push_back(std::make_shared<display_unit>(units::parseunits("seconds"),0.5,false));
+    UnitList.push_back(std::make_shared<display_unit>(units::parseunits("Hertz"),10e3,false));
+    UnitList.push_back(std::make_shared<display_unit>(units::parseunits("pixels"),1.0,true));
+    UnitList.push_back(std::make_shared<display_unit>(units::parseunits("unitless"),1.0,false));
+    UnitList.push_back(std::make_shared<display_unit>(units::parseunits("meters/second"),1.0,false));
+    UnitList.push_back(std::make_shared<display_unit>(units::parseunits("Kelvin"),50,false));
+    UnitList.push_back(std::make_shared<display_unit>(units::parseunits("Pascals"),50e3,false));
+    UnitList.push_back(std::make_shared<display_unit>(units::parseunits("Volts"),1.0,false));
+    UnitList.push_back(std::make_shared<display_unit>(units::parseunits("Amps"),1.0,false));
+    UnitList.push_back(std::make_shared<display_unit>(units::parseunits("Newtons"),5.0,false));
+    UnitList.push_back(std::make_shared<display_unit>(units::parseunits("Newton-meters"),5.0,false));
+    UnitList.push_back(std::make_shared<display_unit>(units::parseunits("Degrees"),20.0,false));
+    UnitList.push_back(std::make_shared<display_unit>(units::parseunits("Arbitrary"),10.0,false));
 
     // Define some well-known axes
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"time","t",FindUnit("seconds"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"frequency","f",FindUnit("Hertz"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"X Position","x",FindUnit("meters"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"Y Position","y",FindUnit("meters"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"X Position","x",FindUnit("pixels"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"Y Position","y",FindUnit("pixels"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"U Position","u",FindUnit("meters"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"V Position","v",FindUnit("meters"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"U Position","u",FindUnit("pixels"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"V Position","v",FindUnit("pixels"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"Index","i",FindUnit("unitless"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"Velocity","v",FindUnit("meters/second"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"Temperature","T",FindUnit("Kelvin"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"Pressure","p",FindUnit("Pascals"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"Voltage","v",FindUnit("Volts"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"Current","i",FindUnit("Amps"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"Force","F",FindUnit("Newtons"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"Moment","M",FindUnit("Newton-meters"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"Angle","ang",FindUnit("degrees"),false,0.0,0.0,1.0}));
-    AxisList.push_back(std::make_shared<display_axis>(display_axis{"Intensity","I",FindUnit("arbitrary"),false,0.0,0.0,1.0}));
+    AxisList.push_back(std::make_shared<display_axis>("time","t",FindUnit("seconds"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("frequency","f",FindUnit("Hertz"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("X Position","x",FindUnit("meters"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Y Position","y",FindUnit("meters"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("X Position","x",FindUnit("pixels"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Y Position","y",FindUnit("pixels"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("U Position","u",FindUnit("meters"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("V Position","v",FindUnit("meters"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("U Position","u",FindUnit("pixels"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("V Position","v",FindUnit("pixels"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Index","i",FindUnit("unitless"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Velocity","v",FindUnit("meters/second"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Temperature","T",FindUnit("Kelvin"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Pressure","p",FindUnit("Pascals"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Voltage","v",FindUnit("Volts"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Current","i",FindUnit("Amps"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Force","F",FindUnit("Newtons"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Moment","M",FindUnit("Newton-meters"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Angle","ang",FindUnit("degrees"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Intensity","I",FindUnit("arbitrary"),false,0.0,0.0,1.0));
 
     pixelsperdiv=1.0; // will need to be updated by set_pixelsperdiv
   }
 
+  std::shared_ptr<display_channel> lookup_channel(std::string wfmfullname)
+  {
+    auto iter = channel_info.find(wfmfullname);
+
+    if (iter==channel_info.end()) {
+      // not found in list
+
+      // Does the wfm exist in the wfmdb?
+      std::shared_ptr<mutableinfostore> infostore = wfmdb->lookup(wfmfullname);
+
+      if (infostore) {
+	// create an entry if found in wfmdb
+	return  _add_new_channel(wfmfullname,infostore);
+      } else {
+	// return null if not found in wfmdb
+	return nullptr;
+      }
+    }
+    return iter->second;
+  }
   void set_pixelsperdiv(size_t drawareawidth,size_t drawareaheight)
   {
+    std::lock_guard<std::mutex> adminlock(admin);
     double pixelsperdiv_width = drawareawidth*1.0/horizontal_divisions;
     double pixelsperdiv_height = drawareaheight*1.0/vertical_divisions;
 
     pixelsperdiv = std::min(pixelsperdiv_width,pixelsperdiv_height);
   }
 
-  std::vector<std::shared_ptr<display_channel>> update(std::shared_ptr<mutablewfmdb> wfmdb,std::shared_ptr<mutableinfostore> selected, bool include_disabled,bool include_hidden)
+
+  std::shared_ptr<display_channel> _add_new_channel(std::string fullname,std::shared_ptr<mutableinfostore> info)
+  {
+    
+    
+    size_t _NextColor,NewNextColor;
+    {
+      std::lock_guard<std::mutex> adminlock(admin);
+      _NextColor=NextColor;
+      NewNextColor = (NextColor + 1) % (sizeof(WfmColorTable)/sizeof(WfmColorTable[0]));
+      NextColor=NewNextColor;
+    }
+    
+    // create a new display_channel
+    std::shared_ptr<display_channel> new_display_channel=std::make_shared<display_channel>(fullname,info,1.0,0.0,0.0,false,0.0,1.0,_NextColor,true,0,0,0);
+    
+    
+    std::lock_guard<std::mutex> adminlock(admin);
+    channel_info[fullname]=new_display_channel;
+    return new_display_channel;
+  }
+    
+  std::vector<std::shared_ptr<display_channel>> update(std::shared_ptr<mutableinfostore> selected, bool include_disabled,bool include_hidden)
 
   // if include_disabled is set, disabled channels will be included
   // if selected is not nullptr, it will be moved to the end of the list
@@ -261,40 +404,48 @@ public:
       std::shared_ptr<mutableinfostore> info=*wfmiter;
       std::string fullname=wfmiter.get_full_name();
 
-      // do we have this wfm in our channel_info database? 
-      auto ci_iter = channel_info.find(fullname);
-      if (ci_iter != channel_info.end() && ci_iter->second->chan_data==info) {
-	if (include_disabled || ci_iter->second->Enabled) {
-	  if (selected && info==selected) {
-	    //retval.insert(retval.begin(),ci_iter->second);
-	    assert(!selected_chan);
-	    selected_chan = ci_iter->second;
-	  } else {
-	    retval.push_back(ci_iter->second);
+      // do we have this wfm in our channel_info database?
+      bool found_wfm=false;
+      {
+	std::lock_guard<std::mutex> adminlock(admin);
+	auto ci_iter = channel_info.find(fullname);
+	if (ci_iter != channel_info.end() && ci_iter->second->chan_data==info) {
+	  if (include_disabled || ci_iter->second->Enabled) {
+	    if (selected && info==selected) {
+	      retval.insert(retval.begin(),ci_iter->second);
+	      //assert(!selected_chan);
+	      //selected_chan = ci_iter->second;
+	    } else {
+	      retval.push_back(ci_iter->second);
+	    }
 	  }
+	  found_wfm=true;
 	}
-      } else {
-	// create a new display_channel
-	std::shared_ptr<display_channel> new_display_channel=std::make_shared<display_channel>(fullname,info,1.0,0.0,0.0,false,0.0,1.0,NextColor,true,0,0,0);
-	NextColor = (NextColor + 1) % (sizeof(WfmColorTable)/sizeof(WfmColorTable[0]));
+      }
 
-	channel_info[fullname]=new_display_channel;
+      if (!found_wfm) {
+
+	std::shared_ptr<display_channel> new_display_channel=_add_new_channel(fullname,info);
 	if (include_disabled || new_display_channel->Enabled) {
 	  if (selected && info==selected) {
-	    //retval.insert(retval.begin(),new_display_channel);
-	    assert(!selected_chan);
-	    selected_chan = ci_iter->second;
-	  } else {
+	    retval.insert(retval.begin(),new_display_channel);
+	    //assert(!selected_chan);
+	    //selected_chan = new_display_channel;
+	  }
+	  if (new_display_channel != selected_chan) {
 	    retval.push_back(new_display_channel);
 	  }
+	  
 	}
+
+	
       }
       
     }
 
-    if (selected_chan) {
-      retval.push_back(selected_chan);
-    }
+    //    if (selected_chan) {
+    //  retval.push_back(selected_chan);
+    //}
     
     return retval;
   }
@@ -305,14 +456,15 @@ public:
   {
     units u=units::parseunits(name);
 
+    std::lock_guard<std::mutex> adminlock(admin);	  
     for (auto & uptr: UnitList) {
       if (units::compareunits(uptr->unit,u)==1.0) {
 	return uptr; 
       }
     }
-
+    
     // if we are still executing, we need to create a unit
-    std::shared_ptr<display_unit> uptr=std::make_shared<display_unit>(display_unit{u,1.0,false});
+    std::shared_ptr<display_unit> uptr=std::make_shared<display_unit>(u,1.0,false);
 
     UnitList.push_back(uptr);
 
@@ -324,6 +476,10 @@ public:
   {
     units u=units::parseunits(unitname);
 
+    std::shared_ptr<display_unit> unit=FindUnit(unitname);
+
+    std::lock_guard<std::mutex> adminlock(admin);
+
     for (auto & ax: AxisList) {
       if (axisname==ax->axis && units::compareunits(u,ax->unit->unit)==1.0) {
 	return ax;
@@ -331,7 +487,7 @@ public:
     }
 
     // need to create axis
-    std::shared_ptr<display_axis> ax_ptr=std::make_shared<display_axis>(display_axis{axisname,"",FindUnit(unitname),false,0.0,0.0,1.0});
+    std::shared_ptr<display_axis> ax_ptr=std::make_shared<display_axis>(axisname,"",unit,false,0.0,0.0,1.0);
 
     AxisList.push_back(ax_ptr);
 
@@ -384,8 +540,10 @@ public:
     
     std::shared_ptr<mutabledatastore> datastore;
 
-    datastore=std::dynamic_pointer_cast<mutabledatastore>(c->chan_data);
-
+    {
+      std::lock_guard<std::mutex> adminlock(admin);
+      datastore=std::dynamic_pointer_cast<mutabledatastore>(c->chan_data);
+    }
     if (datastore) {
       size_t ndim=datastore->dimlen.size();
 
@@ -395,6 +553,7 @@ public:
 	//if (pixelflag) {
 	//  c->UnitsPerDiv=scalefactor/pixelsperdiv;
 	//} else {
+	std::lock_guard<std::mutex> adminlock(c->admin);
 	c->Scale=scalefactor;	  
 	//}
 	
@@ -407,6 +566,7 @@ public:
 	//if (pixelflag)
 	//  a->unit->scale=scalefactor/pixelsperdiv;
 	//else
+	std::lock_guard<std::mutex> adminlock(a->unit->admin);
 	a->unit->scale=scalefactor;
 	return;
       } else {
@@ -425,8 +585,10 @@ public:
     
     std::shared_ptr<mutabledatastore> datastore;
 
-    datastore=std::dynamic_pointer_cast<mutabledatastore>(c->chan_data);
-
+    {
+      std::lock_guard<std::mutex> adminlock(admin);
+      datastore=std::dynamic_pointer_cast<mutabledatastore>(c->chan_data);
+    }
     if (datastore) {
       size_t ndim=datastore->dimlen.size();
 
@@ -436,19 +598,26 @@ public:
 	//if (a->unit->pixelflag) {
 	//  scalefactor=c->UnitsPerDiv*pixelsperdiv;
 	///} else {
-	scalefactor=c->Scale;	  
+	{
+	  std::lock_guard<std::mutex> adminlock(c->admin);
+	  scalefactor=c->Scale;
+	}
 	  //}
+	std::lock_guard<std::mutex> adminlock(a->admin);
 	return std::make_tuple(scalefactor,a->unit->pixelflag);
       } else if (ndim==0) {
 	return std::make_tuple(1.0,false);
       } else if (ndim >= 2) {
 	/* image or image array */
-	a=GetSecondAxis(c->chan_data);
+	a=GetSecondAxis(datastore);
 	//if (a->unit->pixelflag)
 	//  scalefactor=a->unit->scale*pixelsperdiv;
 	//else
-	scalefactor=a->unit->scale;
-	return std::make_tuple(scalefactor,a->unit->pixelflag);
+	{
+	  std::lock_guard<std::mutex> adminlock(a->unit->admin);
+	  scalefactor=a->unit->scale;
+	  return std::make_tuple(scalefactor,a->unit->pixelflag);
+	}
       } else {
 	assert(0);
 	return std::make_tuple(0.0,false);
@@ -466,16 +635,25 @@ public:
     double UnitsPerDiv;
     std::shared_ptr<mutabledatastore> datastore;
 
-    datastore=std::dynamic_pointer_cast<mutabledatastore>(c->chan_data);
-
+    {
+      std::lock_guard<std::mutex> adminlock(c->admin);
+      datastore=std::dynamic_pointer_cast<mutabledatastore>(c->chan_data);
+    }
+    
     if (datastore) {
       size_t ndim=datastore->dimlen.size();
 
       /* return the units/div of whatever unit is used on the vertical axis of this channel */
       if (ndim==1) {
 	a = GetAmplAxis(datastore);
-	scalefactor=c->Scale;
+	{
+	  std::lock_guard<std::mutex> adminlock(c->admin);
+	  scalefactor=c->Scale;
+	}
+	
 	UnitsPerDiv=scalefactor;
+	
+	std::lock_guard<std::mutex> adminlock(a->admin);
 	if (a->unit->pixelflag) {
 	  UnitsPerDiv *= pixelsperdiv;
 	} 
@@ -484,12 +662,15 @@ public:
 	return 1.0;
       } else if (ndim >= 2) {
 	/* image or image array */
-	a=GetSecondAxis(c->chan_data);
-	scalefactor=a->unit->scale;
-	UnitsPerDiv=scalefactor;
-	if (a->unit->pixelflag) {
-	  UnitsPerDiv *= pixelsperdiv;
-	} 
+	a=GetSecondAxis(datastore);
+	{
+	  std::lock_guard<std::mutex> adminlock(a->unit->admin);
+	  scalefactor=a->unit->scale;
+	  UnitsPerDiv=scalefactor;
+	  if (a->unit->pixelflag) {
+	    UnitsPerDiv *= pixelsperdiv;
+	  }
+	}
 	return UnitsPerDiv;
       } else {
 	assert(0);
@@ -499,6 +680,8 @@ public:
     return 0.0;
   }
 };
+
+  
 
 }
 #endif // SNDE_WFM_DISPLAY_HPP

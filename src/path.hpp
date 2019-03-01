@@ -53,7 +53,7 @@ namespace snde {
 
   static std::string stripfilepart(std::string path)
   {
-    size_t pathsepidx = path.find_last_of(""+PathSep);
+    size_t pathsepidx = path.find_last_of(std::string("")+PathSep);
 
     if (pathsepidx==std::string::npos) {
       return "";
@@ -63,7 +63,7 @@ namespace snde {
 
   static std::string strippathpart(std::string path)
   {
-    size_t pathsepidx = path.find_last_of(""+PathSep);
+    size_t pathsepidx = path.find_last_of(std::string("")+PathSep);
 
     if (pathsepidx==std::string::npos) {
       return path;

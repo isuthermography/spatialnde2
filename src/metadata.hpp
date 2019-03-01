@@ -13,6 +13,8 @@ namespace snde {
 #define MWS_MDT_UNSIGNED 3
 #define MWS_MDT_NONE 4
 
+#define MWS_UNSIGNED_INVALID (~((uint64_t)0))
+  
 class metadatum {
 public:
   std::string Name;
@@ -83,8 +85,11 @@ public:
     Name(Name),
     md_type(MWS_MDT_UNSIGNED)
   {
-    assert(indexval != SNDE_INDEX_INVALID); // have not (yet) defined an invalid value 
-    unsignedval=indexval;
+    if (indexval==SNDE_INDEX_INVALID) {
+      unsignedval=MWS_UNSIGNED_INVALID;
+    } else {
+      unsignedval=indexval;
+    }
   }
   
 #endif
@@ -97,7 +102,7 @@ public:
     return intval;
   }
 
-  int64_t Unsigned(uint64_t defaultval)
+  uint64_t Unsigned(uint64_t defaultval)
   {
     if (md_type != MWS_MDT_UNSIGNED) {
       return defaultval;
@@ -139,6 +144,9 @@ public:
       if (intval >= 0) return intval;
       else return SNDE_INDEX_INVALID;
     } else if (md_type == MWS_MDT_UNSIGNED) {
+      if (unsignedval == MWS_UNSIGNED_INVALID) {
+	return SNDE_INDEX_INVALID;
+      }
       return unsignedval;
     } else {
       return defaultval;
@@ -147,16 +155,93 @@ public:
   
 };
 
+  class immutable_metadata {
+  public:
+    std::unordered_map<std::string,metadatum> metadata;
+
+    immutable_metadata()
+    {
+      
+    }
+    
+
+    immutable_metadata(const std::unordered_map<std::string,metadatum> &map) :
+      metadata(map)
+    {
+      
+    }
+    
+    
+    int64_t GetMetaDatumInt(std::string Name,int64_t defaultval)
+    {
+      std::unordered_map<std::string,metadatum>::iterator mditer; 
+
+      mditer = metadata.find(Name);
+      if (mditer == metadata.end() || mditer->second.md_type != MWS_MDT_INT) {
+	return defaultval;
+      }
+      return (*mditer).second.Int(defaultval);
+    }
+    
+  uint64_t GetMetaDatumUnsigned(std::string Name,uint64_t defaultval)
+    {
+      std::unordered_map<std::string,metadatum>::iterator mditer; 
+      
+      mditer = metadata.find(Name);
+      if (mditer == metadata.end() || mditer->second.md_type != MWS_MDT_UNSIGNED) {
+	return defaultval;
+      }
+      return (*mditer).second.Unsigned(defaultval);
+    }
+    
+    snde_index GetMetaDatumIdx(std::string Name,snde_index defaultval)
+    // actually stored as unsigned
+    {
+      std::unordered_map<std::string,metadatum>::iterator mditer; 
+      
+      mditer = metadata.find(Name);
+      if (mditer == metadata.end() || mditer->second.md_type != MWS_MDT_UNSIGNED) {
+	return defaultval;
+      }
+      return (*mditer).second.Index(defaultval);
+    }
+    
+  
+    std::string GetMetaDatumStr(std::string Name,std::string defaultval)
+    {
+      std::unordered_map<std::string,metadatum>::iterator mditer; 
+      
+      mditer = metadata.find(Name);
+      if (mditer == metadata.end() || mditer->second.md_type != MWS_MDT_STR) {
+	return defaultval;
+      }
+      return (*mditer).second.Str(defaultval);
+    }
+    
+    double GetMetaDatumDbl(std::string Name,double defaultval)
+    {
+      std::unordered_map<std::string,metadatum>::iterator mditer; 
+      
+      mditer = metadata.find(Name);
+      if (mditer == metadata.end() || mditer->second.md_type != MWS_MDT_DBL) {
+	return defaultval;
+      }
+      return (*mditer).second.Dbl(defaultval);
+    }
+    
+    
+  };
+  
 class wfmmetadata {
 public:
-  std::shared_ptr<std::unordered_map<std::string,metadatum>> _metadata; // c++11 atomic shared pointer to metadata map
-  std::mutex admin; // must be locked during changes to _wfmlist (replacement of C++11 atomic shared_ptr)
+  std::shared_ptr<immutable_metadata> _metadata; // c++11 atomic shared pointer to immutable metadata map
+  std::mutex admin; // must be locked during changes to _metadata (replacement of C++11 atomic shared_ptr)
   
   wfmmetadata()
     
   {
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> new_metadata;
-    new_metadata=std::make_shared<std::unordered_map<std::string,metadatum>>();
+    std::shared_ptr<immutable_metadata> new_metadata;
+    new_metadata=std::make_shared<immutable_metadata>();
     
     _end_atomic_update(new_metadata);
   }
@@ -165,42 +250,52 @@ public:
   // thread-safe copy constructor and copy assignment operators
   wfmmetadata(const wfmmetadata &orig) /* copy constructor  */
   {
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> new_metadata;
-    new_metadata=std::make_shared<std::unordered_map<std::string,metadatum>>(*orig.metadata());
+    std::shared_ptr<immutable_metadata> new_metadata;
+    new_metadata=std::make_shared<immutable_metadata>(*orig.metadata());
 
     _end_atomic_update(new_metadata);    
   }
+
 
   // copy assignment operator
   wfmmetadata& operator=(const wfmmetadata & orig)
   {
     std::lock_guard<std::mutex> adminlock(admin);
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> new_metadata=std::make_shared<std::unordered_map<std::string,metadatum>>(*orig.metadata());
+    std::shared_ptr<immutable_metadata> new_metadata=std::make_shared<immutable_metadata>(*orig.metadata());
     _end_atomic_update(new_metadata);
 
     return *this;
   }
+
+  // constructor from a std::unordered_map<string,metadatum>
+  wfmmetadata(const std::unordered_map<std::string,metadatum> & map)
+  {
+    std::shared_ptr<immutable_metadata> new_metadata=std::make_shared<immutable_metadata>(map);
+    _end_atomic_update(new_metadata);    
+    
+  }
+
   
   // accessor method for metadata map
-  std::shared_ptr<std::unordered_map<std::string,metadatum>> metadata() const
+  std::shared_ptr<immutable_metadata> metadata() const
   {
     // read atomic shared pointer
     return std::atomic_load(&_metadata);
   }
 
-  std::tuple<std::shared_ptr<std::unordered_map<std::string,metadatum>>> _begin_atomic_update()
+  std::tuple<std::shared_ptr<immutable_metadata>> _begin_atomic_update()
   // admin must be locked when calling this function...
   // it returns new copies of the atomically-guarded data
   {
     
     // Make copies of atomically-guarded data 
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> new_metadata=std::make_shared<std::unordered_map<std::string,metadatum>>(*metadata());
+    std::shared_ptr<immutable_metadata> new_metadata=std::make_shared<immutable_metadata>(*metadata());
     
     return std::make_tuple(new_metadata);
 
   }
 
-  void _end_atomic_update(std::shared_ptr<std::unordered_map<std::string,metadatum>> new_metadata)
+  void _end_atomic_update(std::shared_ptr<immutable_metadata> new_metadata)
   {
     std::atomic_store(&_metadata,new_metadata);
   }
@@ -208,49 +303,50 @@ public:
 
   int64_t GetMetaDatumInt(std::string Name,int64_t defaultval)
   {
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> md=metadata();
-    std::unordered_map<std::string,metadatum>::iterator mditer; 
+    std::shared_ptr<immutable_metadata> md=metadata();
 
-    mditer = md->find(Name);
-    if (mditer == md->end() || mditer->second.md_type != MWS_MDT_INT) {
-      return defaultval;
-    }
-    return (*mditer).second.Int(defaultval);
+    return md->GetMetaDatumInt(Name,defaultval);
   }
 
+  uint64_t GetMetaDatumUnsigned(std::string Name,uint64_t defaultval)
+  {
+    std::shared_ptr<immutable_metadata> md=metadata();
+
+    return md->GetMetaDatumUnsigned(Name,defaultval);
+  }
+
+  snde_index GetMetaDatumIdx(std::string Name,snde_index defaultval)
+  // actually stored as unsigned
+  {
+    std::shared_ptr<immutable_metadata> md=metadata();
+
+    return md->GetMetaDatumIdx(Name,defaultval);
+  }
+
+  
   std::string GetMetaDatumStr(std::string Name,std::string defaultval)
   {
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> md=metadata();
-    std::unordered_map<std::string,metadatum>::iterator mditer; 
+    std::shared_ptr<immutable_metadata> md=metadata();
 
-    mditer = md->find(Name);
-    if (mditer == md->end() || mditer->second.md_type != MWS_MDT_STR) {
-      return defaultval;
-    }
-    return (*mditer).second.Str(defaultval);
+    return md->GetMetaDatumStr(Name,defaultval);
   }
 
   double GetMetaDatumDbl(std::string Name,double defaultval)
   {
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> md=metadata();
-    std::unordered_map<std::string,metadatum>::iterator mditer; 
+    std::shared_ptr<immutable_metadata> md=metadata();
 
-    mditer = md->find(Name);
-    if (mditer == md->end() || mditer->second.md_type != MWS_MDT_DBL) {
-      return defaultval;
-    }
-    return (*mditer).second.Dbl(defaultval);
+    return md->GetMetaDatumDbl(Name,defaultval);
   }
 
   void AddMetaDatum(metadatum newdatum)
   // Add or update an entry 
   {
     std::lock_guard<std::mutex> adminlock(admin);
-    std::shared_ptr<std::unordered_map<std::string,metadatum>> new_metadata;
+    std::shared_ptr<immutable_metadata> new_metadata; // not officially immutable until we are done with our update
     
     std::tie(new_metadata) = _begin_atomic_update();
     
-    (*new_metadata)[newdatum.Name]=newdatum;
+    new_metadata->metadata[newdatum.Name]=newdatum;
     
     _end_atomic_update(new_metadata);
     

@@ -284,7 +284,7 @@ namespace snde {
 	  clReleaseMemObject(buffer); /* free old buffer */
 
 	  /* allocate new buffer */
-	  buffer=clCreateBuffer(context,CL_MEM_READ_WRITE,numelem*this->elemsize,*this->arrayptr,&lambdaerrcode_ret);
+	  buffer=clCreateBuffer(context,CL_MEM_READ_WRITE,numelem*this->elemsize,nullptr /* *this->arrayptr */, &lambdaerrcode_ret);
 
 	  if (lambdaerrcode_ret != CL_SUCCESS) {
 	    throw openclerror(lambdaerrcode_ret,"Error expanding buffer to size %d",(long)(numelem*this->elemsize));

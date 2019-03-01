@@ -32,8 +32,8 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
   snde_index partnum = partobj->idx;
   std::vector<trm_arrayregion> inputs_seed;
 
-  std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs;
-  std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs;
+  std::vector<trm_struct_depend> struct_inputs;
+  std::vector<trm_struct_depend> struct_outputs;
 
   inputs_seed.emplace_back(geom->manager,(void **)&geom->geom.parts,partnum,1);
   
@@ -43,6 +43,7 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 					      // input parameters are:
 					      // partnum
 					      [ comp,geom,context,device,queue ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)  {
+						fprintf(stderr,"Normal calculation\n");
 
 						// get inputs: partobj, triangles, edges, vertices
 						snde_part partobj;
@@ -116,10 +117,11 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						//outputchangedregions.emplace_back();
 						//outputchangedregions[0].mark_region(normals_out.start,normals_out.len);
 						
+						fprintf(stderr,"Normal calculation complete; firsttri=%d, numtris=%d\n",partobj.firsttri,partobj.numtris);
 						
 						//return outputchangedregions;
 					      },
-					      [ comp,geom ] (std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
+					      [ comp,geom ] (std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
 						// Regionupdater function
 						// See Function input parameters, above
 						// Extract the first parameter (partobj) only
@@ -150,10 +152,10 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						return new_inputs;
 						
 					      },
-					      metadata_inputs,
+					      struct_inputs,
 					      inputs_seed,
-					      metadata_outputs,
-					      [ comp,geom ](std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<std::shared_ptr<mutableinfostore>> metadata_outputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
+					      struct_outputs,
+					      [ comp,geom ](std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_struct_depend> struct_outputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
 						// update_output_regions()
 
 						std::vector<trm_arrayregion> new_outputs;
@@ -177,7 +179,7 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						
 						return new_outputs;
 					      },
-					      [ comp,geom ](std::vector<std::shared_ptr<mutableinfostore>> metadata_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
+					      [ comp,geom ](std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
 						// cleanup
 						// nothing to do (we don't own the output allocation) 
 					      }

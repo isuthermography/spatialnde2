@@ -10,7 +10,10 @@ infh = open(infilename, "r")
 buf = infh.read()
 infh.close()
 outfh = open(outfilename, "w")
-outfh.write("static const char *%s_%s=" % (os.path.splitext(infilename)[0], os.path.splitext(infilename)[1][1:]))
+
+preproc_symbol = "SNDE_"+os.path.split(outfilename)[1].replace(".","_").upper()
+
+outfh.write("#ifndef %s\n#define %s\nstatic const char *%s_%s=" % (preproc_symbol,preproc_symbol,os.path.splitext(infilename)[0], os.path.splitext(infilename)[1][1:]))
 
 pos = 0
 while pos < len(buf):
@@ -27,4 +30,5 @@ while pos < len(buf):
     pos += chunksz
     pass
 outfh.write("  ;\n")
+outfh.write("#endif // %s\n\n" % (preproc_symbol))
 outfh.close()

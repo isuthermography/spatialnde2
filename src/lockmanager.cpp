@@ -346,6 +346,21 @@ std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_
   }
 }
 
+std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_infostore_mask(std::shared_ptr<mutableinfostore> infostore,uint64_t maskentry,uint64_t readmask,uint64_t writemask)
+{
+  if (writemask & maskentry) {
+    // Lock component for write
+    return get_locks_write_infostore(infostore);
+  } else if (readmask & maskentry) {
+    // lock component for read
+    return get_locks_read_infostore(infostore);
+    
+  } else {
+    return std::make_pair(lockholder_index(),empty_rwlock_token_set());
+  }
+}
+
+
 std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> snde::lockingprocess_threaded::alloc_array_region(std::shared_ptr<arraymanager> manager,void **allocatedptr,snde_index nelem,std::string allocid)
 /* Note: returns write lock tokens for ALL arrays allocated by the allocated array referred to by allocatedptr */
 /* This allocates the entire allocatedptr array for write AND any other arrays that are allocated in parallel. 

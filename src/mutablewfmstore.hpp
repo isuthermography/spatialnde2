@@ -30,6 +30,76 @@ namespace snde {
 class mutableinfostore;
 class mutabledatastore;
 
+
+static inline snde_index total_numelements(std::vector<snde_index> shape) {
+  snde_index numelements=1;
+
+  for (size_t cnt=0; cnt < shape.size();cnt++) {
+    numelements *= shape[cnt];
+  }
+  return numelements;
+}
+
+
+
+class mutableinfostore  {
+  /* NOTE: if you add more mutableinfostore subclasses, may need to add 
+     handlers to OSGData::update() in openscenegraph_data.hpp ! */
+public:
+  // base class
+  std::string leafname;
+  std::string fullname; // including path, from base of wfmdb
+  
+  wfmmetadata metadata;
+  std::shared_ptr<arraymanager> manager;
+
+
+
+  
+  // lock the infostore with manager->locker->get_locks_read_infostore(all_locks,mutableinfostore)
+  // *** MUST FOLLOW LOCKING ORDER DEFINED BY manager->locker. infostore should be locked
+  // PRIOR TO locking data arrays.
+
+  mutableinfostore(std::string leafname,std::string fullname,const wfmmetadata &metadata,std::shared_ptr<arraymanager> manager) :
+    leafname(leafname),
+    fullname(fullname),
+    metadata(metadata),
+    manager(manager)
+  {
+    manager->locker->addinfostore_rawptr(this);
+  }
+
+  // Disable copy constructor and copy assignment operators
+  mutableinfostore(const mutableinfostore &)=delete; /* copy constructor disabled */
+  mutableinfostore& operator=(const mutableinfostore &)=delete; /* assignment disabled */
+
+
+  
+  virtual ~mutableinfostore()
+  {
+    manager->locker->reminfostore_rawptr(this);
+    
+  };
+};
+
+class wfmdirty_notification_receiver { // abstract base class
+public:
+  std::string wfmfullname; // name of the waveform we will notify about
+
+  wfmdirty_notification_receiver(const wfmdirty_notification_receiver &)=delete; // no copy constructor
+  wfmdirty_notification_receiver & operator=(const wfmdirty_notification_receiver &)=delete; // no copy assignment
+  
+  wfmdirty_notification_receiver(std::string wfmfullname) :
+    wfmfullname(wfmfullname)
+  {
+    
+  }
+  
+  virtual void mark_as_dirty(std::shared_ptr<mutableinfostore> infostore)=0;  
+  virtual ~wfmdirty_notification_receiver() {};
+};
+  
+
 class iterablewfmrefs : public std::enable_shared_from_this<iterablewfmrefs> {
 public:
   // This class represents a consistent set of data structures, both immutable,
@@ -176,12 +246,14 @@ public:
   };
   
   
-  std::string name;  
+  std::string leafname;  
+  std::string fullname;  
   std::vector<std::tuple<std::shared_ptr<mutableinfostore>,std::shared_ptr<iterablewfmrefs>>> wfms; // wfms by index... either the mutableinfostore or the iterablewfmrefs should be non-nullptr
-  std::unordered_map<std::string,size_t> indexbyname; // map by name of wfm index
+  std::unordered_map<std::string,size_t> indexbyname; // map by leafname of wfm index
 
   iterablewfmrefs() :
-    name("")
+    leafname(""),
+    fullname("")
   {
     
   }
@@ -233,7 +305,12 @@ public:
     //free(NameCopy);
     auto index_it = indexbyname.find(Name);
     if (index_it != indexbyname.end()) {
-      return std::get<0>(wfms.at(index_it->second));
+
+      std::shared_ptr<mutableinfostore> retval;
+      
+      retval = std::get<0>(wfms.at(index_it->second));
+      assert(retval->leafname==Name);
+      return retval;
     }
 
     size_t SlashPos;
@@ -257,7 +334,10 @@ public:
   {
     auto index_it = indexbyname.find(Name);
     if (index_it != indexbyname.end()) {
-      return std::get<1>(wfms.at(index_it->second));
+      std::shared_ptr<iterablewfmrefs> retval;
+      retval = std::get<1>(wfms.at(index_it->second));
+      assert(retval->leafname==Name);
+      return retval;
     }
 
     size_t SlashPos = Name.find_first_of("/");
@@ -287,65 +367,15 @@ public:
   
 };
 
-static inline snde_index total_numelements(std::vector<snde_index> shape) {
-  snde_index numelements=1;
-
-  for (size_t cnt=0; cnt < shape.size();cnt++) {
-    numelements *= shape[cnt];
-  }
-  return numelements;
-}
-
-
-
-class mutableinfostore  {
-  /* NOTE: if you add more mutableinfostore subclasses, may need to add 
-     handlers to OSGData::update() in openscenegraph_data.hpp ! */
-public:
-  // base class
-  std::string name;
-
-  wfmmetadata metadata;
-  std::shared_ptr<arraymanager> manager;
   
-  // lock the infostore with manager->locker->get_locks_read_infostore(all_locks,mutableinfostore)
-  // *** MUST FOLLOW LOCKING ORDER DEFINED BY manager->locker. infostore should be locked
-  // PRIOR TO locking data arrays.
-
-  mutableinfostore(std::string name,const wfmmetadata &metadata,std::shared_ptr<arraymanager> manager) :
-    name(name),
-    metadata(metadata),
-    manager(manager)
-  {
-    manager->locker->addinfostore_rawptr(this);
-  }
-
-  // Disable copy constructor and copy assignment operators
-  mutableinfostore(const mutableinfostore &)=delete; /* copy constructor disabled */
-  mutableinfostore& operator=(const mutableinfostore &)=delete; /* assignment disabled */
-
-
-  
-  virtual ~mutableinfostore()
-  {
-    manager->locker->reminfostore_rawptr(this);
-    
-  };
-};
-
-class wfmdirty_notification_receiver { // abstract base class
-public: 
-  virtual void mark_as_dirty(std::shared_ptr<mutableinfostore> infostore)=0;  
-  virtual ~wfmdirty_notification_receiver() {};
-};
-  
-
 class mutablewfmdb {
 public:
+
+  
   std::mutex admin; // must be locked during changes to _wfmlist (replacement of C++11 atomic shared_ptr)... BEFORE the mutableinfostore rwlocks and BEFORE the various array data in the locking order. 
   
   std::shared_ptr<iterablewfmrefs> _wfmlist; // an atomic shared pointer to an immutable reference list of mutable waveforms
-  std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> __dirtynotifies; // an atomic shared pointer to an array of notification receivers
+  std::shared_ptr<std::unordered_map<std::string,std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>> __dirtynotifies; // an atomic shared pointer to a map by waveform name of interest of a set of notification receivers
   
   // To iterate over wfmlist,
   // first create a shared_ptr to <iterablewfmrefs> by calling wfmlist(),
@@ -354,7 +384,7 @@ public:
   mutablewfmdb()
   {
     std::shared_ptr<iterablewfmrefs> new_wfmlist=std::make_shared<iterablewfmrefs>();
-    std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> new__dirtynotifies=std::make_shared<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>();
+    std::shared_ptr<std::unordered_map<std::string,std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>> new__dirtynotifies=std::make_shared<std::unordered_map<std::string,std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>>();
       
     _end_atomic_wfmlist_update(new_wfmlist);
     _end_atomic__dirtynotifies_update(new__dirtynotifies);
@@ -366,7 +396,7 @@ public:
     return std::atomic_load(&_wfmlist);
   }
 
-  std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> _dirtynotifies()
+  std::shared_ptr<std::unordered_map<std::string,std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>>  _dirtynotifies()
   {
     return std::atomic_load(&__dirtynotifies);
   }
@@ -383,13 +413,14 @@ public:
 
   }
 
-  virtual std::tuple<std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>> _begin_atomic__dirtynotifies_update()
+  virtual std::tuple<std::shared_ptr<std::unordered_map<std::string,std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>>> _begin_atomic__dirtynotifies_update()
   // admin must be locked when calling this function...
   // it returns new copies of the atomically-guarded data
   {
     
       // Make copies of atomically-guarded data 
-    std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> new__dirtynotifies=std::make_shared<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>(*_dirtynotifies());
+    std::shared_ptr<std::unordered_map<std::string,std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>> new__dirtynotifies=std::make_shared<std::unordered_map<std::string,std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>>(*_dirtynotifies());
+
     
     return std::make_tuple(new__dirtynotifies);
 
@@ -400,7 +431,7 @@ public:
     std::atomic_store(&_wfmlist,new_wfmlist);
   }
 
-  virtual void _end_atomic__dirtynotifies_update(std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> new__dirtynotifies)
+  virtual void _end_atomic__dirtynotifies_update(std::shared_ptr<std::unordered_map<std::string,std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>> new__dirtynotifies)
   {
     std::atomic_store(&__dirtynotifies,new__dirtynotifies);
   }
@@ -413,6 +444,27 @@ public:
     return refs->lookup(Name);
   }
 
+  virtual rwlock_token_set lock_infostores(rwlock_token_set all_locks,std::set<std::string> channels_to_lock,bool write)
+  {
+    std::vector<std::shared_ptr<mutableinfostore>> infostores;
+    std::shared_ptr<lockmanager> locker;
+    
+    for (auto & channame : channels_to_lock) {
+
+
+      std::shared_ptr<mutableinfostore> infostore=lookup(channame);
+      assert(infostore); // ***!!! Should probably throw an exception instead
+      
+      if (!locker) locker=infostore->manager->locker;
+
+      assert(locker==infostore->manager->locker); // all infostores must share same lock manager
+      infostores.push_back(infostore);
+    }
+
+    return locker->lock_infostores(all_locks,infostores,write);
+    
+  }
+  
   virtual void _rebuildnameindex(std::shared_ptr<iterablewfmrefs> new_wfmlist)
   {
     /* ONLY OPERATE ON NEW UNASSIGNED wfmlist */
@@ -425,36 +477,96 @@ public:
       std::tie(infostore,wfmrefs)=new_wfmlist->wfms[pos];
 
       if (infostore) {
-	new_wfmlist->indexbyname.emplace(infostore->name,pos);
+	new_wfmlist->indexbyname.emplace(infostore->leafname,pos);
       } else {
-	new_wfmlist->indexbyname.emplace(wfmrefs->name,pos);
+	new_wfmlist->indexbyname.emplace(wfmrefs->leafname,pos);
       }
 				       
     }
   }
+
+  static std::shared_ptr<iterablewfmrefs> _add_subtree_internal(std::shared_ptr<iterablewfmrefs> new_wfmlist,std::string path,std::string subname)
+  {
+    std::shared_ptr<iterablewfmrefs> new_subtree = std::make_shared<iterablewfmrefs>();
+    new_subtree->leafname = subname;
+    new_subtree->fullname = path + subname;
+
+    return new_subtree;
+  }
   
-  virtual void addinfostore(std::shared_ptr<mutableinfostore> infostore)
+  static int _addinfostore_internal(std::shared_ptr<iterablewfmrefs> new_wfmlist,std::shared_ptr<mutableinfostore> infostore, std::string path,std::string name,bool make_subtrees)
+  // returns non-zero for failure
+  {
+    size_t SlashPos=name.find_first_of("/");
+    if (SlashPos != std::string::npos) {
+      // add to a subtree
+      std::string IterableName=name.substr(0,SlashPos);
+      
+      std::string SubName=name.substr(SlashPos+1);
+      std::shared_ptr<iterablewfmrefs> subtree;
+      subtree = subtree->lookup_subtree(IterableName);
+      if (!subtree && make_subtrees) {
+	subtree = _add_subtree_internal(new_wfmlist,path,SubName);
+      } else if (!subtree) {
+	return 1;
+      }
+      return _addinfostore_internal(subtree,infostore,path+IterableName+"/",SubName,make_subtrees);
+    }
+    size_t num_wfms=new_wfmlist->wfms.size();
+    
+    assert(name==infostore->leafname);
+      
+    new_wfmlist->wfms.push_back(std::make_tuple(infostore,std::shared_ptr<iterablewfmrefs>(nullptr)));
+    new_wfmlist->indexbyname.emplace(infostore->leafname,num_wfms);
+    return 0;
+  }
+  
+  virtual int addinfostore(std::shared_ptr<mutableinfostore> infostore,bool make_subtrees=false)
+  // returns non-zero for failure
   {
     std::lock_guard<std::mutex> adminlock(admin);
-
+    int retval;
+    
     std::shared_ptr<iterablewfmrefs> new_wfmlist;
     
     std::tie(new_wfmlist)=_begin_atomic_wfmlist_update();
     // new_wfmlist is our own private copy so it is for the moment mutable
-    size_t num_wfms=new_wfmlist->wfms.size();
-    new_wfmlist->wfms.push_back(std::make_tuple(infostore,std::shared_ptr<iterablewfmrefs>(nullptr)));
-    new_wfmlist->indexbyname.emplace(infostore->name,num_wfms);
+    retval = _addinfostore_internal(new_wfmlist,infostore,"", infostore->fullname,make_subtrees);
     
-    _end_atomic_wfmlist_update(new_wfmlist);
+    if (!retval) {
+      _end_atomic_wfmlist_update(new_wfmlist);
+    }
+    return retval;
   }
 
-  virtual void add_dirty_notification_receiver(std::weak_ptr<wfmdirty_notification_receiver> rcvr)
+  virtual void add_dirty_notification_receiver(std::shared_ptr<wfmdirty_notification_receiver> rcvr)
   {
     std::lock_guard<std::mutex> adminlock(admin);
-    std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> new__dirtynotifies;
+    std::shared_ptr<std::unordered_map<std::string,std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>> new__dirtynotifies;
     std::tie(new__dirtynotifies) = _begin_atomic__dirtynotifies_update();
+    
 
-    new__dirtynotifies->emplace(rcvr);
+    // wfmfullname member
+    
+    auto it = new__dirtynotifies->find(rcvr->wfmfullname);
+    if (it == new__dirtynotifies->end()) {
+      new__dirtynotifies->emplace(rcvr->wfmfullname,std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>());
+      it = new__dirtynotifies->find(rcvr->wfmfullname);
+    } else {
+      // already exists... filter out any dead pointers
+      std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>::iterator rcvr_it,nextrcvr_it;
+      for (rcvr_it=it->second.begin(); rcvr_it != it->second.end(); rcvr_it=nextrcvr_it) {
+	nextrcvr_it=rcvr_it;
+	nextrcvr_it++;
+	
+	if (rcvr_it->expired()) {
+	  it->second.erase(rcvr_it);
+	}
+	
+      }
+      
+    }
+    it->second.emplace(rcvr);
     
     _end_atomic__dirtynotifies_update(new__dirtynotifies);
     
@@ -463,17 +575,20 @@ public:
   virtual void remove_dirty_notification_receiver(std::weak_ptr<wfmdirty_notification_receiver> rcvr)
   {
     std::lock_guard<std::mutex> adminlock(admin);
-    std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> new__dirtynotifies;
-    std::tie(new__dirtynotifies) = _begin_atomic__dirtynotifies_update();
+    std::shared_ptr<std::unordered_map<std::string,std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>>  new__dirtynotifies;
+    std::shared_ptr<wfmdirty_notification_receiver> rcvr_strong(rcvr);
+    if (rcvr_strong) {
+      std::tie(new__dirtynotifies) = _begin_atomic__dirtynotifies_update();
 
-    auto iter = new__dirtynotifies->find(rcvr);
 
-    assert(iter != new__dirtynotifies->end());
+      auto iter = new__dirtynotifies->find(rcvr_strong->wfmfullname);
+      
+      assert(iter != new__dirtynotifies->end());
+      
+      new__dirtynotifies->erase(iter);
     
-    new__dirtynotifies->erase(iter);
-    
-    _end_atomic__dirtynotifies_update(new__dirtynotifies);
-    
+      _end_atomic__dirtynotifies_update(new__dirtynotifies);
+    }
   }
 
   virtual void mark_as_dirty(std::shared_ptr<mutableinfostore> infostore)
@@ -483,12 +598,15 @@ public:
     // (changes to underlying data repositories are marked as dirty through
     // their corresponding arraymanager)
     
-    std::shared_ptr<std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>> dirtynotifies=_dirtynotifies();
+    std::shared_ptr<std::unordered_map<std::string,std::set<std::weak_ptr<wfmdirty_notification_receiver>,std::owner_less<std::weak_ptr<wfmdirty_notification_receiver>>>>> __dirtynotifies=_dirtynotifies();
 
-    for (auto & dirtynotify : *dirtynotifies) {
-      std::shared_ptr<wfmdirty_notification_receiver> notify=dirtynotify.lock();
-      if (notify) { // pointer still exists
-	notify->mark_as_dirty(infostore); 
+    auto  it = __dirtynotifies->find(infostore->fullname);
+    if (it != __dirtynotifies->end()) {
+      for (auto & dirtynotify : it->second) {
+	std::shared_ptr<wfmdirty_notification_receiver> notify=dirtynotify.lock();
+	if (notify) { // pointer still exists
+	  notify->mark_as_dirty(infostore); 
+	}
       }
     }
   }
@@ -513,8 +631,8 @@ public:
   snde_index image; // address within uv_images field of geometry structure... represents our ownership of this image
 
   
-  mutablegeomstore(std::string name,const wfmmetadata &metadata,std::shared_ptr<geometry> geom,std::shared_ptr<component> comp) : //,std::shared_ptr<paramdictentry> paramdict) :
-    mutableinfostore(name,metadata,geom->manager),
+  mutablegeomstore(std::string leafname,std::string fullname,const wfmmetadata &metadata,std::shared_ptr<geometry> geom,std::shared_ptr<component> comp) : //,std::shared_ptr<paramdictentry> paramdict) :
+    mutableinfostore(leafname,fullname,metadata,geom->manager),
     geom(geom),
     comp(comp)
     //paramdict(paramdict)
@@ -530,8 +648,8 @@ class mutabledatastore: public mutableinfostore {
 public:
   // base class for data element stores. 
 
-  void **basearray;
-  unsigned typenum;
+  void **basearray;  // *basearray is locked by the whole array lock
+  unsigned typenum;  // typenum and elementsize may not be changed after the mutabledatastore is created
   size_t elementsize;
 
   // Exactly one of these (basearray_holder or basearray_owner)
@@ -540,10 +658,13 @@ public:
   // point to basearray_holder. If basearray_owner is non-null
   // then some other class owns it and basearray should point into
   // that class. basearray_owner will keep the owner in memory as
-  // long as this mutabledatastore remains in existance. 
+  // long as this mutabledatastore remains in existance.
+
+  // basearray_holder is locked with the whole array data
   void *basearray_holder;
-  std::shared_ptr<void> basearray_owner;
-  
+  std::shared_ptr<void> basearray_owner; // locked with whole array data and may be used by (implicit) destructor
+
+  // These remaining fields locked with metadata
   snde_index startelement;
   snde_index numelements;
 
@@ -551,7 +672,9 @@ public:
   std::vector<snde_index> strides; // stride for each dimension... see numpy manual for detailed discussion
 
   
-  mutabledatastore(std::string name,const wfmmetadata &metadata,std::shared_ptr<arraymanager> manager,
+  mutabledatastore(std::string leafname,std::string fullname,
+		   const wfmmetadata &metadata,
+		   std::shared_ptr<arraymanager> manager,
 		   void **basearray,unsigned typenum,size_t elementsize,
 		   void *basearray_holder,
 		   std::shared_ptr<void> basearray_owner,  
@@ -559,7 +682,7 @@ public:
 		   snde_index numelements,
 		   std::vector<snde_index> dimlen,
 		   std::vector<snde_index> strides) :
-    mutableinfostore(name,metadata,manager),
+    mutableinfostore(leafname,fullname,metadata,manager),
     basearray(basearray),
     typenum(typenum),
     elementsize(elementsize),
@@ -732,9 +855,9 @@ public:
     
   }
 
-  mutableelementstore(std::string name,const wfmmetadata &metadata,std::shared_ptr<arraymanager> manager,const std::vector<snde_index> &dimlen,const std::vector<snde_index> &strides) :
+  mutableelementstore(std::string leafname,std::string fullname,const wfmmetadata &metadata,std::shared_ptr<arraymanager> manager,const std::vector<snde_index> &dimlen,const std::vector<snde_index> &strides) :
     /* In this case we create a new array of the given size and shape with given strides*/
-    mutabledatastore(name,metadata,manager,
+    mutabledatastore(leafname,fullname,metadata,manager,
 		     &basearray_holder,met_typemap.at(typeid(T)),sizeof(T),
 		     calloc(total_numelements(dimlen),sizeof(T)),
 		     nullptr,

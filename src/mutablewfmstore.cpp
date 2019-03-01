@@ -14,11 +14,11 @@ namespace snde {
       std::tie(sub_infostore,sub_refs) = refs->wfms[pos[index]];
       if (sub_infostore) {
 	assert(index==pos.size()-1);
-	full_name += sub_infostore->name;
+	full_name += sub_infostore->leafname;
 	return full_name;
       } else {
 	assert(index < pos.size()-1);
-	full_name += sub_refs->name + "::";
+	full_name += sub_refs->leafname + "/";
       }
       
       thisrefs=sub_refs; 
