@@ -4,7 +4,7 @@ __kernel void osg_texvertexarray(__global const struct snde_parameterization *uv
 				 __global const snde_triangle *uv_triangles,
 				 __global const snde_edge *uv_edges,
 				 __global const snde_coord2 *uv_vertices,
-				 __global snde_coord *texvertex_arrays)
+				 __global snde_rendercoord *texvertex_arrays)
 // This function extract parameterization (texture) vertices from the winged edge data structure
 //  defined by uv and the triangles, edges, and vertices arrays,
 // and emits them into the texvertex_arrays() location.

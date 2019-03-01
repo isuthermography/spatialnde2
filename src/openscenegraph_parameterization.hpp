@@ -251,7 +251,7 @@ public:
       cache_entry->second.thisptr=entry_ptr;
       cache_entry->second.snde_geom=snde_geom;
       cache_entry->second.param=param;
-      cache_entry->second.TexCoordArray=new snde::OSGArray(snde_geom,(void **)&snde_geom->geom.texvertex_arrays,SNDE_INDEX_INVALID,sizeof(snde_coord),2,0);
+      cache_entry->second.TexCoordArray=new snde::OSGArray(snde_geom,(void **)&snde_geom->geom.texvertex_arrays,SNDE_INDEX_INVALID,sizeof(snde_rendercoord),2,0);
 
       std::vector<trm_arrayregion> initial_inputs;
       initial_inputs.push_back(trm_arrayregion(snde_geom->manager,(void **)&snde_geom->geom.uvs,param->idx,1));

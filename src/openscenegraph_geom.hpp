@@ -158,8 +158,26 @@ class osg_instancecacheentry {
   // OSG doesn't use callbacks and even if it did
   // the OSG lock would have to be held while calling
   // our OSGComponent constructor or Update() method.
-  
+
 public:
+  class geom_userdata: public osg::Referenced {
+    // this class is used to keep a weak reference
+    // to the instancecacheentry from the osg::Geometry UserData field
+    // so we can find our data to handle pick callbacks
+    // assigned during creation in osg_instancecache::lookup()
+  public:
+    std::weak_ptr<osg_instancecacheentry> cacheentry;
+    
+    geom_userdata(std::shared_ptr<osg_instancecacheentry> cacheentry) :
+      cacheentry(cacheentry)
+    {
+      
+    }
+    
+    virtual ~geom_userdata() {}
+  };
+
+  
   snde_partinstance instance; // index of this cache entry
   std::weak_ptr<osg_instancecacheentry> thisptr; /* Store this pointer so we can return it on demand */
   std::shared_ptr<osg_instancecacheentry> persistentptr; /* Store pointer here if we want persistence (otherwise leave as NULL */
@@ -406,6 +424,7 @@ public:
       //entry->second.geode_state_set->setMode(GL_LIGHTING,osg::StateAttribute::ON);
       //entry->second.geode->setStateSet(entry->second.geode_state_set);
       entry->second.geom=new osg::Geometry();
+      entry->second.geom->setUserData(new osg_instancecacheentry::geom_userdata(entry_ptr));
       entry->second.drawarrays=new osg::DrawArrays(osg::PrimitiveSet::TRIANGLES,0,0);
       entry->second.geom->addPrimitiveSet(entry->second.drawarrays);
       entry->second.geom->setDataVariance(osg::Object::DYNAMIC);
@@ -413,12 +432,12 @@ public:
       entry->second.geode->addDrawable(entry->second.geom.get());
       
       //entry->second.isnurbs = (instance.nurbspartnum != SNDE_INDEX_INVALID);
-      entry->second.DataArray = new snde::OSGArray(snde_geom,(void **)&snde_geom->geom.vertex_arrays,SNDE_INDEX_INVALID,sizeof(snde_coord),3,0);
+      entry->second.DataArray = new snde::OSGArray(snde_geom,(void **)&snde_geom->geom.vertex_arrays,SNDE_INDEX_INVALID,sizeof(snde_rendercoord),3,0);
 
       // From the OSG perspective NormalArray is just a bunch of normals.
       // Our NormalArray is counted by vectors (3 coordinates) whereas
       // snde_geom->geom.normals is counted by triangles (9 coordinates).
-      entry->second.NormalArray = new snde::OSGArray(snde_geom,(void **)&snde_geom->geom.normals,SNDE_INDEX_INVALID,sizeof(snde_coord),3,0);
+      entry->second.NormalArray = new snde::OSGArray(snde_geom,(void **)&snde_geom->geom.normals,SNDE_INDEX_INVALID,sizeof(snde_coord),3,0); // note: NormalArray are 64 bit double snde_coords, not 32 bit float snde_rendercoords
 
 
       

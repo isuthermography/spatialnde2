@@ -16,6 +16,7 @@ extern "C" {
 #ifdef __OPENCL_VERSION__
 /* if this is an opencl kernel */
 typedef double snde_coord;
+typedef float snde_rendercoord;
 typedef float snde_imagedata;
 typedef ulong snde_index;
 typedef uint snde_shortindex;
@@ -36,6 +37,7 @@ typedef unsigned int uint32_t;
 
 //#else
 typedef double snde_coord;
+typedef float snde_rendercoord;
 typedef float snde_imagedata;
 typedef uint32_t snde_shortindex;
 typedef unsigned char snde_bool;

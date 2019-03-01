@@ -4,7 +4,7 @@ __kernel void osg_vertexarray(__global const struct snde_part *part,
 			      __global const snde_triangle *part_triangles,
 			      __global const snde_edge *part_edges,
 			      __global const snde_coord3 *part_vertices,
-			      __global snde_coord *vertex_arrays)
+			      __global snde_rendercoord *vertex_arrays)
 // This function extract vertices from the winged edge data structure
 //  defined by meshedpart and the triangles, edges, and vertices arrays,
 // and emits them into the vertex_arrays() location.

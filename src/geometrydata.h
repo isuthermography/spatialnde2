@@ -181,8 +181,8 @@ extern "C" {
     // on-demand for a particular operation.
 
 
-    snde_coord *vertex_arrays; /* transformed vertex array for OpenSceneGraph / OpenGL */
-    snde_coord *texvertex_arrays; /* transformed texture vertex array for OpenSceneGraph / OpenGL */
+    snde_rendercoord *vertex_arrays; /* transformed vertex array for OpenSceneGraph / OpenGL */
+    snde_rendercoord *texvertex_arrays; /* transformed texture vertex array for OpenSceneGraph / OpenGL */
     snde_rgba *texbuffer; // allocated separately
     
     

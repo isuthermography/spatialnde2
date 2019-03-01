@@ -27,6 +27,8 @@
 
 #include "openscenegraph_geom.hpp"
 #include "openscenegraph_data.hpp"
+#include "openscenegraph_renderer.hpp"
+#include "openscenegraph_picker.hpp"
 
 #ifndef SNDE_QTWFMVIEWER_HPP
 #define SNDE_QTWFMVIEWER_HPP
@@ -40,37 +42,36 @@ namespace snde {
 
   class QTWfmViewer; // forward declaration
   
-  class QTWfmRender : public QOpenGLWidget {
+  class QTWfmRender : public QOpenGLWidget, public osg_renderer {
   public:
-    osg::ref_ptr<osgViewer::GraphicsWindowEmbedded> GraphicsWindow;
-    osg::ref_ptr<osgViewer::Viewer> Viewer;
-    osg::ref_ptr<osg::Camera> Camera;
-    osg::ref_ptr<osg::Node> RootNode;
-    osg::ref_ptr<osgGA::TrackballManipulator> Manipulator;
     QTWfmViewer *QTViewer; 
-    bool twodimensional;
+
+    // member variables from osg_renderer:
+    // osg::ref_ptr<osgViewer::GraphicsWindowEmbedded> GraphicsWindow;
+    // osg::ref_ptr<osgViewer::Viewer> Viewer;
+    // osg::ref_ptr<osg::Camera> Camera;
+    // osg::ref_ptr<osg::Node> RootNode;
+    // osg::ref_ptr<osgGA::TrackballManipulator> Manipulator; // manipulator for 3D mode
+    // bool twodimensional;
+
+    // methods from osg_renderer:
+    //void SetRootNode(osg::ref_ptr<osg::Node> RootNode)
+
+    osg::ref_ptr<osg_picker> picker;
     
     
     QTWfmRender(osg::ref_ptr<osg::Node> RootNode, QTWfmViewer *QTViewer,QWidget *parent=0)
       : QOpenGLWidget(parent),
-	GraphicsWindow(new osgViewer::GraphicsWindowEmbedded(x(),y(),width(),height())),
-	Viewer(new osgViewer::Viewer()),
-	Camera(Viewer->getCamera()),
-	QTViewer(QTViewer),
-	RootNode(RootNode),
-	twodimensional(false)
+	osg_renderer(new osgViewer::GraphicsWindowEmbedded(x(),y(),width(),height()),
+		     RootNode,
+		     false),
+	picker(new osg_picker(this)),
+	QTViewer(QTViewer)
     {
       Camera->setViewport(0,0,width(),height());
 
-      // set background color to blueish
-      Camera->setClearColor(osg::Vec4(.1,.1,.3,1.0));
       SetProjectionMatrix();
-      Camera->setGraphicsContext(GraphicsWindow);
 
-      Viewer->setCamera(Camera);
-      Manipulator = new osgGA::TrackballManipulator();
-      Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded);
-      Viewer->setSceneData(RootNode);
       
       setMouseTracking(true); // ???
 
@@ -110,16 +111,6 @@ namespace snde {
 	
       }
     }
-	
-    void SetRootNode(osg::ref_ptr<osg::Node> RootNode)
-    {
-      this->RootNode=RootNode;
-      if (RootNode) {
-	if (Viewer->getSceneData() != RootNode) {
-	  Viewer->setSceneData(RootNode);
-	}
-      }
-    }
 
     
   protected:
@@ -137,7 +128,7 @@ namespace snde {
     virtual void mouseMoveEvent(QMouseEvent *event)
     {
       // translate Qt mouseMoveEvent to OpenSceneGraph
-      GraphicsWindow->getEventQueue()->mouseMotion(event->x(), event->y());// ,event->timestamp()/1000.0);
+      GraphicsWindow->getEventQueue()->mouseMotion(event->x(), event->y()); //,event->timestamp()/1000.0);
 
       // should we only update if a button is pressed??
       fprintf(stderr,"buttons=%llx\n",(unsigned long long)event->buttons());
@@ -168,7 +159,7 @@ namespace snde {
 	
       }
 
-      GraphicsWindow->getEventQueue()->mouseButtonPress(event->x(),event->y(),button,event->timestamp()/1000.0);
+      GraphicsWindow->getEventQueue()->mouseButtonPress(event->x(),event->y(),button); //,event->timestamp()/1000.0);
 
       update();
       
@@ -200,7 +191,7 @@ namespace snde {
 	
       }
 
-      GraphicsWindow->getEventQueue()->mouseButtonRelease(event->x(),event->y(),button,event->timestamp()/1000.0);
+      GraphicsWindow->getEventQueue()->mouseButtonRelease(event->x(),event->y(),button); //,event->timestamp()/1000.0);
 
       update();
       
@@ -214,8 +205,8 @@ namespace snde {
     {
       GraphicsWindow->getEventQueue()->mouseScroll( (event->delta() > 0) ?
 						    osgGA::GUIEventAdapter::SCROLL_UP :
-						    osgGA::GUIEventAdapter::SCROLL_DOWN,
-						    event->timestamp()/1000.0);
+						    osgGA::GUIEventAdapter::SCROLL_DOWN);
+      //event->timestamp()/1000.0);
       
     }
 
@@ -225,20 +216,20 @@ namespace snde {
       if (event->type()==QEvent::TouchBegin || event->type()==QEvent::TouchUpdate || event->type()==QEvent::TouchEnd) {
 	QList<QTouchEvent::TouchPoint> TouchPoints = static_cast<QTouchEvent *>(event)->touchPoints();
 
-	double timestamp=static_cast<QInputEvent *>(event)->timestamp()/1000.0;
+	//double timestamp=static_cast<QInputEvent *>(event)->timestamp()/1000.0;
 	
 	for (auto & TouchPoint: TouchPoints) {
 	  
 	  if (TouchPoint.state()==Qt::TouchPointPressed) {
-	    GraphicsWindow->getEventQueue()->touchBegan(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_BEGAN,TouchPoint.pos().x(),TouchPoint.pos().y(),timestamp);
+	    GraphicsWindow->getEventQueue()->touchBegan(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_BEGAN,TouchPoint.pos().x(),TouchPoint.pos().y(),1); //,timestamp);
 	  } else if (TouchPoint.state()==Qt::TouchPointMoved) {
-	    GraphicsWindow->getEventQueue()->touchMoved(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_MOVED,TouchPoint.pos().x(),TouchPoint.pos().y(),timestamp);
+	    GraphicsWindow->getEventQueue()->touchMoved(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_MOVED,TouchPoint.pos().x(),TouchPoint.pos().y(),1); //,timestamp);
 
 	  } else if (TouchPoint.state()==Qt::TouchPointStationary) {
-	    GraphicsWindow->getEventQueue()->touchMoved(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_STATIONERY,TouchPoint.pos().x(),TouchPoint.pos().y(),timestamp);
+	    GraphicsWindow->getEventQueue()->touchMoved(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_STATIONERY,TouchPoint.pos().x(),TouchPoint.pos().y(),1); //,timestamp);
 
 	  } else if (TouchPoint.state()==Qt::TouchPointReleased) {
-	    GraphicsWindow->getEventQueue()->touchEnded(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_ENDED,TouchPoint.pos().x(),TouchPoint.pos().y(),timestamp);
+	    GraphicsWindow->getEventQueue()->touchEnded(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_ENDED,TouchPoint.pos().x(),TouchPoint.pos().y(),1); //,timestamp);
 	    
 	  }
 	}
