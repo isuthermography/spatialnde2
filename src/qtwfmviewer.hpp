@@ -28,7 +28,7 @@
 #include "openscenegraph_geom.hpp"
 #include "openscenegraph_data.hpp"
 #include "openscenegraph_renderer.hpp"
-#include "openscenegraph_picker.hpp"
+//#include "openscenegraph_picker.hpp"
 
 #ifndef SNDE_QTWFMVIEWER_HPP
 #define SNDE_QTWFMVIEWER_HPP
@@ -57,7 +57,7 @@ namespace snde {
     // methods from osg_renderer:
     //void SetRootNode(osg::ref_ptr<osg::Node> RootNode)
 
-    osg::ref_ptr<osg_picker> picker;
+    //osg::ref_ptr<osg_picker> picker;
     
     
     QTWfmRender(osg::ref_ptr<osg::Node> RootNode, QTWfmViewer *QTViewer,QWidget *parent=0)
@@ -65,7 +65,7 @@ namespace snde {
 	osg_renderer(new osgViewer::GraphicsWindowEmbedded(x(),y(),width(),height()),
 		     RootNode,
 		     false),
-	picker(new osg_picker(this)),
+	//picker(new osg_picker(this)),
 	QTViewer(QTViewer)
     {
       Camera->setViewport(0,0,width(),height());
@@ -1502,7 +1502,7 @@ namespace snde {
 	  size_t ndim=0;
 	  {
 	    rwlock_token_set datastore_tokens=empty_rwlock_token_set();
-	    sndegeom->manager->locker->get_locks_read_infostore(datastore_tokens,datastore);
+	    sndegeom->manager->locker->get_locks_read_lockable(datastore_tokens,datastore);
 	    ndim=datastore->dimlen.size();
 	  }
 	  if (ndim > 0) {
@@ -1688,7 +1688,7 @@ namespace snde {
 	  size_t ndim=0;
 	  if (datastore) {
 	    rwlock_token_set datastore_tokens=empty_rwlock_token_set();
-	    sndegeom->manager->locker->get_locks_read_infostore(datastore_tokens,datastore);
+	    sndegeom->manager->locker->get_locks_read_lockable(datastore_tokens,datastore);
 	    ndim=datastore->dimlen.size();
 	    
 	  }
@@ -1724,7 +1724,7 @@ namespace snde {
 	  size_t ndim=0;
 	  if (datastore) {
 	    rwlock_token_set datastore_tokens=empty_rwlock_token_set();
-	    sndegeom->manager->locker->get_locks_read_infostore(datastore_tokens,datastore);
+	    sndegeom->manager->locker->get_locks_read_lockable(datastore_tokens,datastore);
 	    ndim=datastore->dimlen.size();
 	  }
 	  if (a && ndim > 1) {
@@ -1761,7 +1761,7 @@ namespace snde {
 	  if (datastore) {
 	    
 	    rwlock_token_set datastore_tokens=empty_rwlock_token_set();
-	    sndegeom->manager->locker->get_locks_read_infostore(datastore_tokens,datastore);
+	    sndegeom->manager->locker->get_locks_read_lockable(datastore_tokens,datastore);
 	    ndim=datastore->dimlen.size();
 	    
 	  }
@@ -1797,7 +1797,7 @@ namespace snde {
 	  size_t ndim=0;
 	  if (datastore) {	    
 	    rwlock_token_set datastore_tokens=empty_rwlock_token_set();
-	    sndegeom->manager->locker->get_locks_read_infostore(datastore_tokens,datastore);
+	    sndegeom->manager->locker->get_locks_read_lockable(datastore_tokens,datastore);
 	    ndim=datastore->dimlen.size();
 	    
 	  }
@@ -1860,7 +1860,7 @@ namespace snde {
 	  size_t ndim=0;
 	  if (datastore) {	    
 	    rwlock_token_set datastore_tokens=empty_rwlock_token_set();
-	    sndegeom->manager->locker->get_locks_read_infostore(datastore_tokens,datastore);
+	    sndegeom->manager->locker->get_locks_read_lockable(datastore_tokens,datastore);
 	    ndim=datastore->dimlen.size();
 	    
 	  }

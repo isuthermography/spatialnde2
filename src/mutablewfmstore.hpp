@@ -42,14 +42,15 @@ static inline snde_index total_numelements(std::vector<snde_index> shape) {
 
 
 
-class mutableinfostore  {
+class mutableinfostore : public std::enable_shared_from_this<mutableinfostore>  {
   /* NOTE: if you add more mutableinfostore subclasses, may need to add 
      handlers to OSGData::update() in openscenegraph_data.hpp ! */
 public:
   // base class
   std::string leafname;
   std::string fullname; // including path, from base of wfmdb
-  
+
+  std::shared_ptr<rwlock> lock; // managed by lockmanager
   wfmmetadata metadata;
   std::shared_ptr<arraymanager> manager;
 
@@ -64,20 +65,28 @@ public:
     leafname(leafname),
     fullname(fullname),
     metadata(metadata),
-    manager(manager)
+    manager(manager),
+    lock(std::make_shared<rwlock>())
   {
-    manager->locker->addinfostore_rawptr(this);
+    //manager->locker->addinfostore_rawptr(this);
   }
 
   // Disable copy constructor and copy assignment operators
   mutableinfostore(const mutableinfostore &)=delete; /* copy constructor disabled */
   mutableinfostore& operator=(const mutableinfostore &)=delete; /* assignment disabled */
 
+  virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_INFOSTORE, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
+  {
+    assert(readmask & SNDE_INFOSTORE_INFOSTORE || writemask & SNDE_INFOSTORE_INFOSTORE); // pointless if we aren't doing this
+
+    process->get_locks_lockable_mask(shared_from_this(),SNDE_INFOSTORE_INFOSTORE,readmask,writemask);
+    
+  }
 
   
   virtual ~mutableinfostore()
   {
-    manager->locker->reminfostore_rawptr(this);
+    //manager->locker->reminfostore_rawptr(this);
     
   };
 };
@@ -461,7 +470,7 @@ public:
       infostores.push_back(infostore);
     }
 
-    return locker->lock_infostores(all_locks,infostores,write);
+    return locker->lock_lockables(all_locks,infostores,write);
     
   }
   
@@ -639,7 +648,40 @@ public:
   {
     
   }
-  
+
+
+  virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_INFOSTORE, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
+  {
+    // call superclass to lock the infostore itself
+    mutableinfostore::obtain_lock(process,readmask,writemask,resizemask);
+    
+    rwlock_token_set temporary_object_trees_lock;
+    
+    if (readmask & SNDE_COMPONENT_GEOM_ALL || writemask & SNDE_COMPONENT_GEOM_ALL) {
+      // if ANY geometry component is being locked for read OR write...
+      assert(readmask & SNDE_INFOSTORE_COMPONENTS || writemask & SNDE_INFOSTORE_COMPONENTS); // we have to lock the components in order to lock the geometry
+    }
+
+    if (readmask & SNDE_INFOSTORE_OBJECT_TREES || writemask & SNDE_INFOSTORE_OBJECT_TREES) {
+      process->get_locks_lockable_mask(shared_from_this(),SNDE_INFOSTORE_OBJECT_TREES,readmask,writemask);
+    } else if (readmask & SNDE_INFOSTORE_COMPONENTS || writemask & SNDE_INFOSTORE_COMPONENTS) {
+      // we need at least a temporary object_trees read lock in order to safely explore the components
+
+      temporary_object_trees_lock=process->get_locks_read_lockable_temporary(geom);
+    }
+
+    if (readmask & SNDE_INFOSTORE_COMPONENTS || writemask & SNDE_INFOSTORE_COMPONENTS) {
+
+      // lock all components of this geom despite arbitrary locking order
+      
+      comp->obtain_lock(process,readmask,writemask);
+    }
+    
+    if (readmask & SNDE_COMPONENT_GEOM_ALL || writemask & SNDE_COMPONENT_GEOM_ALL) {
+      comp->obtain_geom_lock(process,readmask,writemask,resizemask);
+    }
+  }
+
 };
 
 

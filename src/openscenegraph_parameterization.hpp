@@ -109,7 +109,7 @@ public:
   }
 
 
-  void obtain_array_locks(std::shared_ptr<lockholder> holder,std::shared_ptr<lockingprocess_threaded> lockprocess,snde_component_geom_mask_t readmask, snde_component_geom_mask_t writemask,snde_component_geom_mask_t resizemask,bool include_texvertex_arrays, bool texvertex_arrays_write, bool texvertex_arrays_entire_array)
+  void obtain_array_locks(std::shared_ptr<lockholder> holder,std::shared_ptr<lockingprocess_threaded> lockprocess,snde_infostore_lock_mask_t readmask, snde_infostore_lock_mask_t writemask,snde_infostore_lock_mask_t resizemask,bool include_texvertex_arrays, bool texvertex_arrays_write, bool texvertex_arrays_entire_array)
   // NOTE: This may be called from any thread!
   // NOTE: This does not lock the mutablegeomstore metadata!
   {
@@ -122,7 +122,7 @@ public:
       if (readmask != 0 || writemask != 0) {
 	lockprocess->spawn( [ param_strong, lockprocess, readmask, writemask, resizemask ]() {
 			      // Obtain lock for our parameterization
-			      param_strong->obtain_lock(lockprocess,SNDE_UV_GEOM_UVS | readmask, writemask,resizemask);
+			      param_strong->obtain_uv_lock(lockprocess,SNDE_UV_GEOM_UVS | readmask, writemask,resizemask);
 			    });
       }
       
@@ -149,7 +149,7 @@ public:
     }
   }
 
-  rwlock_token_set obtain_array_locks(snde_component_geom_mask_t readmask, snde_component_geom_mask_t writemask,snde_component_geom_mask_t resizemask,bool include_texvertex_arrays, bool texvertex_arrays_write, bool texvertex_arrays_entire_array)
+  rwlock_token_set obtain_array_locks(snde_infostore_lock_mask_t readmask, snde_infostore_lock_mask_t writemask,snde_infostore_lock_mask_t resizemask,bool include_texvertex_arrays, bool texvertex_arrays_write, bool texvertex_arrays_entire_array)
   // the geometry object_trees_lock should be held when this is called (but not necessarily by
   // this thread -- just to make sure it can't be changed) 
     

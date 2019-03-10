@@ -11,7 +11,7 @@ import types as pytypes
 %shared_ptr(voidpp_voidpp_multimap_pyiterator)
 
  //%shared_ptr(std::vector<void **>);
-%shared_ptr(std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>>);
+%shared_ptr(std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>>);
 %shared_ptr(std::unordered_map<snde::lockindex_t,void **>);
 //%shared_ptr(std::unordered_map<snde::lockindex_t,std::weak_ptr<snde::mutableinfostore>);
 %shared_ptr(std::unordered_map<snde::lockindex_t,std::shared_ptr<snde::datalock>>);
@@ -133,10 +133,10 @@ public:
 %template(VectorOfRegions) std::vector<snde::rangetracker<snde::markedregion>>;
 %template(lockingposition_generator) std::pair<snde::lockingposition,snde::CountedPyObject>; 
 
-//%template(voidp_posn_map) std::unordered_map<void *,size_t>;
-%template(voidp_posn_map) std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > >;
+//%template(voidpp_posn_map) std::unordered_map<void **,size_t>;
+%template(voidpp_posn_map) std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void *>,std::allocator< std::pair< void **const,snde::lockindex_t > > >;
 
-%extend std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > > {
+%extend std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,snde::lockindex_t > > > {
   bool has_key(ArrayPtr key) {
     if (self->find((void*)key)==self->end()) return false;
     return true;
@@ -147,28 +147,28 @@ public:
 
 // NOTE: This iterator std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > >::iterator   is currently causing a memory leak message.... seems to be a swig bug...
 
-snde::lockindex_t voidp_posn_map_iterator_posn(std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > >::iterator);
+snde::lockindex_t voidpp_posn_map_iterator_posn(std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,snde::lockindex_t > > >::iterator);
 
 %{
-  snde::lockindex_t voidp_posn_map_iterator_posn(std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > >::iterator self) {
+  snde::lockindex_t voidpp_posn_map_iterator_posn(std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,snde::lockindex_t > > >::iterator self) {
     return self->second;
 
 }
 %}
 
-snde::ArrayPtr voidp_posn_map_iterator_ptr(std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > >::iterator);
+snde::ArrayPtr voidpp_posn_map_iterator_ptr(std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,snde::lockindex_t > > >::iterator);
 %{
-  snde::ArrayPtr voidp_posn_map_iterator_ptr(std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > >::iterator self)
+  snde::ArrayPtr voidpp_posn_map_iterator_ptr(std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,snde::lockindex_t > > >::iterator self)
 {
   return (void**)self->first;
 }
 %}
 
 // Workaround for memory leak: Never expose the iterator to Python
-%extend std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > > {
+%extend std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,snde::lockindex_t > > > {
   
   snde::lockindex_t get_ptr_posn(snde::ArrayPtr ptr){
-    std::unordered_map<void *,snde::lockindex_t,std::hash<void *>,std::equal_to<void *>,std::allocator< std::pair< void *const,snde::lockindex_t > > >::iterator it=self->find((void *)ptr);
+    std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,snde::lockindex_t > > >::iterator it=self->find((void **)ptr);
     assert(it != self->end()); /* should diagnose lack of entry prior to calling with has_key() */
     	      
     return it->second;
@@ -234,6 +234,12 @@ voidpp_posn_map_iterator voidpp_posn_map_iterator_fromiterator(std::unordered_ma
 %}
 
 namespace snde{
+  class lockholder_index; // forward declaration
+  class arraymanager; // forward declaration
+  class mutableinfostore; // forward declaration
+  class geometry;
+  class component; // forward declaration
+  class parameterization; // forward declaration
 
 struct arrayregion {
     void **array;
@@ -301,7 +307,7 @@ struct arrayregion {
 
     /* Accessors for atomic shared pointers */
     std::shared_ptr<std::unordered_map<lockindex_t,void **>> _arrays();
-    std::shared_ptr<std::unordered_map<void *,lockindex_t,std::hash<void *>,std::equal_to<void *>>> _arrayidx();
+    std::shared_ptr<std::unordered_map<void **,lockindex_t,std::hash<void **>,std::equal_to<void **>>> _arrayidx();
     std::shared_ptr<std::unordered_map<lockindex_t,std::shared_ptr<datalock>>> _locks();
 
     lockindex_t get_array_idx(void **array);
@@ -319,7 +325,7 @@ struct arrayregion {
     void realloc_down_allocation(void **arrayptr, snde_index addr,snde_index orignelem, snde_index newnelem);
 
 
-    rwlock_token  _get_preexisting_lock_read_lockobj(rwlock_token_set all_locks, lockindex_t arrayidx,std::shared_ptr<rwlock> rwlockobj);
+    rwlock_token  _get_preexisting_lock_read_lockobj(rwlock_token_set all_locks,std::shared_ptr<rwlock> rwlockobj);
     std::pair<rwlock_lockable *,rwlock_token>  _get_preexisting_lock_read_array_region(rwlock_token_set all_locks, lockindex_t arrayidx,snde_index pos,snde_index size);
     std::pair<rwlock_lockable *,rwlock_token>  _get_lock_read_array_region(rwlock_token_set all_locks, lockindex_t arrayidx,snde_index pos,snde_index size);
     rwlock_token_set get_locks_read_array(rwlock_token_set all_locks, void **array);
@@ -329,7 +335,7 @@ struct arrayregion {
     rwlock_token_set get_locks_read_array_region(rwlock_token_set all_locks, void **array,snde_index indexstart,snde_index numelems);
     rwlock_token_set get_locks_read_all(rwlock_token_set all_locks);
     
-    rwlock_token  _get_preexisting_lock_write_lockobj(rwlock_token_set all_locks, lockindex_t arrayidx,std::shared_ptr<rwlock> rwlockobj);
+    rwlock_token  _get_preexisting_lock_write_lockobj(rwlock_token_set all_locks,std::shared_ptr<rwlock> rwlockobj);
     
     std::pair<rwlock_lockable *,rwlock_token>  _get_preexisting_lock_write_array_region(rwlock_token_set all_locks, lockindex_t arrayidx,snde_index indexstart,snde_index numelems);
 
@@ -347,11 +353,21 @@ struct arrayregion {
 
   class lockingposition {
   public:
-    lockindex_t idx; /* index of array we want to lock, or numeric_limits<size_t>.max() */
+    std::weak_ptr<mutableinfostore> infostore;
+    std::weak_ptr<geometry> geom;
+    std::weak_ptr<component> comp;
+    std::weak_ptr<parameterization> param;
+
+    lockindex_t array_idx; // -1 if invalid
+
     snde_index idx_in_array; /* index within array, or SNDE_INDEX_INVALID*/
     bool write; /* are we trying to lock for write? */ 
     lockingposition();
-    lockingposition(lockindex_t idx,snde_index idx_in_array,bool write);
+    lockingposition(lockindex_t array_idx,snde_index idx_in_array,bool write);
+    lockingposition(std::weak_ptr<mutableinfostore> infostore,bool write);
+    lockingposition(std::weak_ptr<geometry> geom,bool write);
+    lockingposition(std::weak_ptr<component> comp,bool write);
+    lockingposition(std::weak_ptr<parameterization> param,bool write);
 
     bool operator<(const lockingposition & other) const;
   };
@@ -710,12 +726,19 @@ namespace snde {
     return self->as_string();
   }
 }
-
+  struct lockholder_index_hash {
+    size_t operator()(const lockholder_index &x) const;
+  };
+  
+  struct voidpp_string_hash {
+    size_t operator()(const std::pair<void **,std::string> &x) const;
+  };
+  
 //%nodefaultctor lockholder;   // Inhibit SWIG's default constructor so we can replace it with our Python __init__ (below)
   class lockholder {
   public:
-    std::unordered_map<lockholder_index,rwlock_token_set> values;
-    std::unordered_map<std::pair<void **,std::string>,snde_index> allocvalues;
+    std::unordered_map<lockholder_index,rwlock_token_set,lockholder_index_hash> values;
+    std::unordered_map<std::pair<void **,std::string>,snde_index,voidpp_string_hash> allocvalues;
     
     
     std::string as_string();
@@ -765,6 +788,87 @@ namespace snde {
 //            self.this = this        
 //    %}
 //}
+
+/* *** Must keep sync'd with lockmanager.hpp */
+
+  /* *** Lock masks for obtain_lock() calls on mutableinfostore,
+     part/assembly/component, and parameterization *** */
+  
+typedef uint64_t snde_infostore_lock_mask_t;
+#define SNDE_INFOSTORE_INFOSTORE (1ull<<0) // the snde::mutableinfostore and metadata ... used solely with get_locks_infostore_mask(...)
+#define SNDE_INFOSTORE_COMPONENTS (1ull<<1) // the snde::components, i.e. parts and assemblies... used solely with get_locks_infostore_mask(...) 
+#define SNDE_INFOSTORE_PARAMETERIZATIONS (1ull<<2) // the snde::parameterizations of the components... used solely with get_locks_infostore_mask(...) 
+
+#define SNDE_INFOSTORE_ALL ((1ull<<2)-(1ull<<0))
+  
+// 
+#define SNDE_COMPONENT_GEOM_PARTS (1ull<<8)
+#define SNDE_COMPONENT_GEOM_TOPOS (1ull<<9)
+#define SNDE_COMPONENT_GEOM_TOPO_INDICES (1ull<<10)
+#define SNDE_COMPONENT_GEOM_TRIS (1ull<<11)
+#define SNDE_COMPONENT_GEOM_REFPOINTS (1ull<<12)
+#define SNDE_COMPONENT_GEOM_MAXRADIUS (1ull<<13)
+#define SNDE_COMPONENT_GEOM_NORMALS (1ull<<14)
+#define SNDE_COMPONENT_GEOM_INPLANEMAT (1ull<<15)
+#define SNDE_COMPONENT_GEOM_EDGES (1ull<<16)
+#define SNDE_COMPONENT_GEOM_VERTICES (1ull<<17)
+#define SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES (1ull<<18)
+#define SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES (1ull<<19)
+#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES (1ull<<20)
+#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST (1ull<<21)
+#define SNDE_COMPONENT_GEOM_BOXES (1ull<<22)
+#define SNDE_COMPONENT_GEOM_BOXCOORD (1ull<<23)
+#define SNDE_COMPONENT_GEOM_BOXPOLYS (1ull<<24)
+
+#define SNDE_COMPONENT_GEOM_ALL ((1ull<<17)-(1ull<<8))
+
+// Resizing masks -- mark those arrays that resize together
+//#define SNDE_COMPONENT_GEOM_COMPONENT_RESIZE (SNDE_COMPONENT_GEOM_COMPONENT)
+#define SNDE_COMPONENT_GEOM_PARTS_RESIZE (SNDE_COMPONENT_GEOM_PARTS)
+#define SNDE_COMPONENT_GEOM_TOPOS_RESIZE (SNDE_COMPONENT_GEOM_TOPOS)
+#define SNDE_COMPONENT_GEOM_TOPO_INDICES_RESIZE (SNDE_COMPONENT_GEOM_TOPO_INDICES)
+#define SNDE_COMPONENT_GEOM_TRIS_RESIZE (SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_REFPOINTS|SNDE_COMPONENT_GEOM_MAXRADIUS|SNDE_COMPONENT_GEOM_NORMALS|SNDE_COMPONENT_GEOM_INPLANEMAT)
+#define SNDE_COMPONENT_GEOM_EDGES_RESIZE (SNDE_COMPONENT_GEOM_EDGES)
+#define SNDE_COMPONENT_GEOM_VERTICES_RESIZE (SNDE_COMPONENT_GEOM_VERTICES|SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES|SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES|SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES)
+#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_RESIZE (SNDE_COMPONENT_GEOM_VERTEX_EDGELIST)
+#define SNDE_COMPONENT_GEOM_BOXES_RESIZE (SNDE_COMPONENT_GEOM_BOXES|SNDE_COMPONENT_GEOM_BOXCOORD)
+#define SNDE_COMPONENT_GEOM_BOXPOLYS_RESIZE (SNDE_COMPONENT_GEOM_BOXPOLYS)
+
+
+#define SNDE_UV_GEOM_UVS (1ull<<32)
+#define SNDE_UV_GEOM_UV_TOPOS (1ull<<33)
+#define SNDE_UV_GEOM_UV_TOPO_INDICES (1ull<<34)
+#define SNDE_UV_GEOM_UV_TRIANGLES (1ull<<35)
+#define SNDE_UV_GEOM_INPLANE2UVCOORDS (1ull<<36)
+#define SNDE_UV_GEOM_UVCOORDS2INPLANE (1ull<<37)
+#define SNDE_UV_GEOM_UV_EDGES (1ull<<38)
+#define SNDE_UV_GEOM_UV_VERTICES (1ull<<39)
+#define SNDE_UV_GEOM_UV_VERTEX_EDGELIST_INDICES (1ull<<40)
+#define SNDE_UV_GEOM_UV_VERTEX_EDGELIST (1ull<<41)
+#define SNDE_UV_GEOM_UV_BOXES (1ull<<42)
+#define SNDE_UV_GEOM_UV_BOXCOORD (1ull<<43)
+#define SNDE_UV_GEOM_UV_BOXPOLYS (1ull<<44)
+  //#define SNDE_UV_GEOM_UV_IMAGES (1ull<<13)
+
+#define SNDE_UV_GEOM_ALL ((1ull<<45)-(1ull<<32))
+
+// Resizing masks -- mark those arrays that resize together
+#define SNDE_UV_GEOM_UVS_RESIZE (SNDE_UV_GEOM_UVS)
+#define SNDE_UV_GEOM_UV_TOPOS_RESIZE (SNDE_UV_GEOM_UV_TOPOS)
+#define SNDE_UV_GEOM_UV_TOPO_INDICES_RESIZE (SNDE_UV_GEOM_UV_TOPO_INDICES)
+#define SNDE_UV_GEOM_UV_TRIANGLES_RESIZE (SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_INPLANE2UVCOORDS|SNDE_UV_GEOM_UVCOORDS2INPLANE)
+#define SNDE_UV_GEOM_UV_EDGES_RESIZE (SNDE_UV_GEOM_UV_EDGES)
+#define SNDE_UV_GEOM_UV_VERTICES_RESIZE (SNDE_UV_GEOM_UV_VERTICES|SNDE_UV_GEOM_UV_VERTEX_EDGELIST_INDICES)
+#define SNDE_UV_GEOM_UV_VERTEX_EDGELIST_RESIZE (SNDE_UV_GEOM_UV_VERTEX_EDGELIST)
+#define SNDE_UV_GEOM_UV_BOXES_RESIZE (SNDE_UV_GEOM_UV_BOXES|SNDE_UV_GEOM_UV_BOXCOORD)
+#define SNDE_UV_GEOM_UV_BOXPOLYS_RESIZE (SNDE_UV_GEOM_UV_BOXPOLYS)
+  
+  
+
+
+
+
+  
 }; // close namespace
 
 //// Also wrap a c++ constructor to compensate for the one we had
@@ -964,7 +1068,7 @@ class lockingprocess_python(lockingprocess_pycpp):
       raise ValueError("Array not found")
     
     #iterator = self.lockmanager._arrayidx.find(fieldaddr)
-    #arrayidx = voidp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
+    #arrayidx = voidpp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
     arrayidx = self.lockmanager._arrayidx().get_ptr_posn(fieldaddr)
 
       
@@ -1008,7 +1112,7 @@ class lockingprocess_python(lockingprocess_pycpp):
       raise ValueError("Array not found")
     
     #iterator = self.lockmanager._arrayidx.find(fieldaddr)
-    #arrayidx = voidp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
+    #arrayidx = voidpp_posn_map_iterator_posn(iterator) # fromiterator(iterator).get_posn()
     arrayidx = self.lockmanager._arrayidx().get_ptr_posn(fieldaddr)
 
       

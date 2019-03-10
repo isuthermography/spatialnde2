@@ -67,7 +67,8 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
 						
 						/* Obtain lock for this component -- in parallel with our write lock on the vertex array, below */
-						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,SNDE_COMPONENT_GEOM_NORMALS); });
+						//lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,SNDE_COMPONENT_GEOM_NORMALS); });
+						comp->obtain_geom_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,SNDE_COMPONENT_GEOM_NORMALS);
 						
 						rwlock_token_set all_locks=lockprocess->finish();
 
@@ -131,7 +132,7 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
 						
 						/* Obtain lock for this component */
-						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS,0); });
+						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_geom_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS,0); });
 						
 						rwlock_token_set all_locks=lockprocess->finish();
 						
@@ -168,7 +169,7 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
 						
 						/* Obtain read lock for the part array for this component  */
-						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS,0); });
+						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_geom_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS,0); });
 						
 						rwlock_token_set all_locks=lockprocess->finish();
 

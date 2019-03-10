@@ -51,6 +51,14 @@ public:
 };
 
 
+  // !!!*** osg_texturecacheentry uses the image_data abstraction
+  // with a method get_texture_image() to be able to get the
+  // image data ... but nothing currently takes advantage of this,
+  // because in openscenegraph_geom.hpp we need to extract the
+  // texturestateset instead.... is the image_data abstraction
+  // really necessary???
+
+  
 class osg_texturecacheentry : public std::enable_shared_from_this<osg_texturecacheentry>, public image_data {
   // The osg_texturecacheentry represents an entry in the osg_instancecache that will
   // automatically remove itself once all references are gone
@@ -189,7 +197,7 @@ public:
     snde_index dimlen1,dimlen2;
     {
       rwlock_token_set datastore_tokens=empty_rwlock_token_set();
-      geom_strong->manager->locker->get_locks_read_infostore(datastore_tokens,datastore);
+      geom_strong->manager->locker->get_locks_read_lockable(datastore_tokens,datastore);
 
       if (datastore->dimlen.size() < 2) return;
       Step1 = datastore->metadata.GetMetaDatumDbl("Step1",1.0);

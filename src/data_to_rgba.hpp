@@ -139,7 +139,7 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 
 	// Use spawn to get the locks, as we don't know where we are in the locking order
 	lockprocess->spawn( [ dep,input,lockprocess,holder ]() {
-			      holder->store(lockprocess->get_locks_read_infostore(input));
+			      holder->store(lockprocess->get_locks_read_lockable(input));
 			      holder->store(lockprocess->get_locks_read_array_region(dep->inputs[0].array,dep->inputs[0].start,dep->inputs[0].len));
 			    });
 	lockprocess->spawn( [ output_array,dep,lockprocess,holder ]() { holder->store(lockprocess->get_locks_write_array_region(output_array,dep->outputs[0].start,dep->outputs[0].len)); });
@@ -286,7 +286,7 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 	
 	// obtain lock for input structure (prior to all arrays in locking order
 	rwlock_token_set all_locks=empty_rwlock_token_set();
-	input->manager->locker->get_locks_read_infostore(all_locks,input);
+	input->manager->locker->get_locks_read_lockable(all_locks,input);
 	
 	//std::lock_guard<rwlock_lockable> inputlock(input->lock->reader);
 	std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();

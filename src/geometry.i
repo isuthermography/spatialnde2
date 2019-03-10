@@ -136,39 +136,6 @@ namespace snde {
   };
 
 
-/* *** Must keep sync'd with geometry.hpp */
-#define SNDE_UV_GEOM_UVS (1ull<<0)
-#define SNDE_UV_GEOM_UV_TOPOS (1ull<<1)
-#define SNDE_UV_GEOM_UV_TOPO_INDICES (1ull<<2)
-#define SNDE_UV_GEOM_UV_TRIANGLES (1ull<<3)
-#define SNDE_UV_GEOM_INPLANE2UVCOORDS (1ull<<4)
-#define SNDE_UV_GEOM_UVCOORDS2INPLANE (1ull<<5)
-#define SNDE_UV_GEOM_UV_EDGES (1ull<<6)
-#define SNDE_UV_GEOM_UV_VERTICES (1ull<<7)
-#define SNDE_UV_GEOM_UV_VERTEX_EDGELIST_INDICES (1ull<<8)
-#define SNDE_UV_GEOM_UV_VERTEX_EDGELIST (1ull<<9)
-#define SNDE_UV_GEOM_UV_BOXES (1ull<<10)
-#define SNDE_UV_GEOM_UV_BOXCOORD (1ull<<11)
-#define SNDE_UV_GEOM_UV_BOXPOLYS (1ull<<12)
-  //#define SNDE_UV_GEOM_UV_IMAGES (1ull<<13)
-
-#define SNDE_UV_GEOM_ALL ((1ull<<13)-1)
-
-// Resizing masks -- mark those arrays that resize together
-#define SNDE_UV_GEOM_UVS_RESIZE (SNDE_UV_GEOM_UVS)
-#define SNDE_UV_GEOM_UV_TOPOS_RESIZE (SNDE_UV_GEOM_UV_TOPOS)
-#define SNDE_UV_GEOM_UV_TOPO_INDICES_RESIZE (SNDE_UV_GEOM_UV_TOPO_INDICES)
-#define SNDE_UV_GEOM_UV_TRIANGLES_RESIZE (SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_INPLANE2UVCOORDS|SNDE_UV_GEOM_UVCOORDS2INPLANE)
-#define SNDE_UV_GEOM_UV_EDGES_RESIZE (SNDE_UV_GEOM_UV_EDGES)
-#define SNDE_UV_GEOM_UV_VERTICES_RESIZE (SNDE_UV_GEOM_UV_VERTICES|SNDE_UV_GEOM_UV_VERTEX_EDGELIST_INDICES)
-#define SNDE_UV_GEOM_UV_VERTEX_EDGELIST_RESIZE (SNDE_UV_GEOM_UV_VERTEX_EDGELIST)
-#define SNDE_UV_GEOM_UV_BOXES_RESIZE (SNDE_UV_GEOM_UV_BOXES|SNDE_UV_GEOM_UV_BOXCOORD)
-#define SNDE_UV_GEOM_UV_BOXPOLYS_RESIZE (SNDE_UV_GEOM_UV_BOXPOLYS)
-
-  
-typedef uint64_t snde_uv_geom_mask_t;
-
-
   class parameterization {
   public:
 
@@ -178,7 +145,7 @@ typedef uint64_t snde_uv_geom_mask_t;
 
     parameterization(std::shared_ptr<geometry> geom, std::string name,snde_index parameterizationnum);
 
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_uv_geom_mask_t readmask=SNDE_UV_GEOM_ALL, snde_uv_geom_mask_t writemask=0, snde_uv_geom_mask_t resizemask=0);
+    virtual void obtain_uv_lock(std::shared_ptr<lockingprocess> process, snde_infostore_lock_mask_t readmask=SNDE_UV_GEOM_ALL, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0);
     void free();
 
 
@@ -206,40 +173,6 @@ typedef uint64_t snde_uv_geom_mask_t;
 
 
 
-/* ***!!! Must keep sync'd with geometry.hpp */
-#define SNDE_COMPONENT_GEOM_COMPONENT (1ull<<0) // the snde::mutableinfostore and associated snde::component data structure
-#define SNDE_COMPONENT_GEOM_PARTS (1ull<<1)
-#define SNDE_COMPONENT_GEOM_TOPOS (1ull<<2)
-#define SNDE_COMPONENT_GEOM_TOPO_INDICES (1ull<<3)
-#define SNDE_COMPONENT_GEOM_TRIS (1ull<<4)
-#define SNDE_COMPONENT_GEOM_REFPOINTS (1ull<<5)
-#define SNDE_COMPONENT_GEOM_MAXRADIUS (1ull<<6)
-#define SNDE_COMPONENT_GEOM_NORMALS (1ull<<7)
-#define SNDE_COMPONENT_GEOM_INPLANEMAT (1ull<<8)
-#define SNDE_COMPONENT_GEOM_EDGES (1ull<<9)
-#define SNDE_COMPONENT_GEOM_VERTICES (1ull<<10)
-#define SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES (1ull<<11)
-#define SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES (1ull<<12)
-#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES (1ull<<13)
-#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST (1ull<<14)
-#define SNDE_COMPONENT_GEOM_BOXES (1ull<<15)
-#define SNDE_COMPONENT_GEOM_BOXCOORD (1ull<<17)
-#define SNDE_COMPONENT_GEOM_BOXPOLYS (1ull<<17)
-
-#define SNDE_COMPONENT_GEOM_ALL ((1ull<<18)-1)
-
-// Resizing masks -- mark those arrays that resize together
-#define SNDE_COMPONENT_GEOM_COMPONENT_RESIZE (SNDE_COMPONENT_GEOM_COMPONENT)
-#define SNDE_COMPONENT_GEOM_PARTS_RESIZE (SNDE_COMPONENT_GEOM_PARTS)
-#define SNDE_COMPONENT_GEOM_TRIS_RESIZE (SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_REFPOINTS|SNDE_COMPONENT_GEOM_MAXRADIUS|SNDE_COMPONENT_GEOM_NORMALS|SNDE_COMPONENT_GEOM_INPLANEMAT)
-#define SNDE_COMPONENT_GEOM_EDGES_RESIZE (SNDE_COMPONENT_GEOM_EDGES)
-#define SNDE_COMPONENT_GEOM_VERTICES_RESIZE (SNDE_COMPONENT_GEOM_VERTICES|SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES|SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES|SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES)
-#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_RESIZE (SNDE_COMPONENT_GEOM_VERTEX_EDGELIST)
-#define SNDE_COMPONENT_GEOM_BOXES_RESIZE (SNDE_COMPONENT_GEOM_BOXES|SNDE_COMPONENT_GEOM_BOXCOORD)
-#define SNDE_COMPONENT_GEOM_BOXPOLYS_RESIZE (SNDE_COMPONENT_GEOM_BOXPOLYS)
-
-
-typedef uint64_t snde_component_geom_mask_t;
 
  class component { /* abstract base class for geometric components (assemblies, nurbspart, part) */
   public:
@@ -251,9 +184,13 @@ typedef uint64_t snde_component_geom_mask_t;
    //
    // TYPE type;
 
-   virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<component>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<snde::part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data)=0;
+   virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<snde::part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data)=0;
+    
+    virtual void obtain_geom_lock(std::shared_ptr<lockingprocess> process, snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_infostore_lock_mask_t writemask=0,snde_infostore_lock_mask_t resizemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */
 
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_component_geom_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_component_geom_mask_t writemask=0,snde_component_geom_mask_t resizemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */
+    virtual void _explore_component(std::set<std::shared_ptr<component>,std::owner_less<std::shared_ptr<component>>> &component_set)=0; /* readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits */
+
+    virtual void obtain_lock(std::shared_ptr<lockingprocess> process,snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS,snde_infostore_lock_mask_t writemask=0)=0;
 
     virtual ~component();
   };
@@ -333,7 +270,6 @@ typedef uint64_t snde_component_geom_mask_t;
     std::shared_ptr<geometry> geom;
     snde_index idx;
     std::map<std::string,std::shared_ptr<parameterization>> parameterizations;
-    bool need_normals; // set if this part was loaded/created without normals being assigned, and therefore still needs normals
     bool destroyed;
  
     
@@ -341,11 +277,11 @@ typedef uint64_t snde_component_geom_mask_t;
 
     void addparameterization(std::shared_ptr<parameterization> uv_parameterization);
     
-    virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<component>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<snde::part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data)=0;
+    virtual void obtain_lock(std::shared_ptr<lockingprocess> process,snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS,snde_infostore_lock_mask_t writemask=0); /* readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits */
     
+    virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data);    
 
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_component_geom_mask_t readmask=SNDE_COMPONENT_GEOM_ALL, snde_component_geom_mask_t writemask=0, snde_component_geom_mask_t resizemask=0);
-
+ 
     void free(); /* You must be certain that nothing could be using this part's database entries prior to free() */
 
     ~part();
@@ -365,9 +301,10 @@ typedef uint64_t snde_component_geom_mask_t;
 
     virtual snde_orientation3 orientation(void);
 
-    virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<component>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<snde::part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data)=0;
+    virtual void obtain_lock(std::shared_ptr<lockingprocess> process,snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS,snde_infostore_lock_mask_t writemask=0); /* readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits */
+    virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data);
+    static std::tuple<std::shared_ptr<assembly>,std::unordered_map<std::string,snde::metadatum>> from_partlist(std::string name,std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,snde::metadatum>>>> parts);
 
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_component_geom_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_component_geom_mask_t writemask=0,snde_component_geom_mask_t resizemask=0);
     
     virtual ~assembly();
 

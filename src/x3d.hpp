@@ -1881,7 +1881,7 @@ namespace snde {
       std::string partname = std::string("x3d")+std::to_string(shapecnt);
       std::shared_ptr<part> curpart=std::make_shared<part>(geom,partname,firstpart);
       
-      curpart->need_normals=!(bool)normal;
+      //curpart->need_normals=!(bool)normal;
       part_obj_metadata->push_back(std::make_pair(curpart,metadata));
       
       metadata.clear(); // =nullptr;

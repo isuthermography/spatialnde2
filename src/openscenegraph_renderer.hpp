@@ -52,6 +52,18 @@ namespace snde {
       }
     }
 
+    /* NOTE: to actually render, do any geometry updates, 
+       then call Viewer->frame() */
+    /* NOTE: to adjust size, first send event, then 
+       change viewport:
+
+    GraphicsWindow->getEventQueue()->windowResize(x(),y(),width,height);
+    GraphicsWindow->resized(x(),y(),width,height);
+    Camera->setViewport(0,0,width,height);
+    SetProjectionMatrix();
+
+    */
+       
     
   };
 
