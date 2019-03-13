@@ -575,6 +575,13 @@ namespace snde {
     // ... apply element by element from inside out, the quaternion, then an offset, to a point in the part space
     // to get a point in the world space
   public:
+
+    class notifier {
+    public:
+      virtual void modified(std::shared_ptr<component> comp)=0;
+      
+    };
+    
     std::string name; // used for parameter paths ... form: assemblyname.assemblyname.partname.parameter as paramdict key
     //typedef enum {
     //  subassembly=0,
@@ -586,7 +593,8 @@ namespace snde {
 
     //   component();// {}
     std::shared_ptr<rwlock> lock; // managed by lockmanager
-
+    std::set<std::weak_ptr<notifier>,std::owner_less<std::weak_ptr<notifier>>> notifiers; 
+    
     
     virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data)=0;
     
@@ -595,6 +603,24 @@ namespace snde {
     virtual void _explore_component(std::set<std::shared_ptr<component>,std::owner_less<std::shared_ptr<component>>> &component_set)=0; /* readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits */
 
     virtual void obtain_lock(std::shared_ptr<lockingprocess> process,snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS,snde_infostore_lock_mask_t writemask=0)=0;
+    virtual void modified()
+    {
+      // call this method to indicate that the component was modified
+
+      for (auto notifier_obj: notifiers) {
+	std::shared_ptr<notifier> notifier_obj_strong=notifier_obj.lock();
+	if (notifier_obj_strong) {
+	  notifier_obj_strong->modified(shared_from_this());
+	}
+      }
+    }
+
+    virtual void add_notifier(std::shared_ptr<notifier> notify)
+    {
+      notifiers.emplace(notify);
+      
+    }
+    
     virtual ~component()
 #if !defined(_MSC_VER) || _MSC_VER > 1800 // except for MSVC2013 and earlier
     noexcept(false)

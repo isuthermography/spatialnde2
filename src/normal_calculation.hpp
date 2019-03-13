@@ -1,3 +1,7 @@
+// ***!!!! Should modify revision manager to better use common code
+// to determine inputs, determine output regions, and perform locking. 
+
+
 #include "revision_manager.hpp"
 
 #include "geometry_types.h"
@@ -7,6 +11,8 @@
 #include "openclcachemanager.hpp"
 #include "opencl_utils.hpp"
 
+
+#include "revman_geometry.hpp"
 
 #ifndef SNDE_NORMAL_CALCULATION_HPP
 #define SNDE_NORMAL_CALCULATION_HPP
@@ -30,12 +36,13 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
   assert(partobj);
   
   snde_index partnum = partobj->idx;
-  std::vector<trm_arrayregion> inputs_seed;
+  //std::vector<trm_arrayregion> inputs_seed;
 
   std::vector<trm_struct_depend> struct_inputs;
   std::vector<trm_struct_depend> struct_outputs;
 
-  inputs_seed.emplace_back(geom->manager,(void **)&geom->geom.parts,partnum,1);
+  struct_inputs.emplace_back(geom_dependency(revman,comp));
+  //inputs_seed.emplace_back(geom->manager,(void **)&geom->geom.parts,partnum,1);
   
   
   return revman->add_dependency_during_update(
@@ -122,60 +129,73 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
 						
 						//return outputchangedregions;
 					      },
-					      [ comp,geom ] (std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
+					      [ geom ] (std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
 						// Regionupdater function
 						// See Function input parameters, above
-						// Extract the first parameter (partobj) only
-						
-						// Perform locking
-						std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
-						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
-						
-						/* Obtain lock for this component */
-						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_geom_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS,0); });
-						
-						rwlock_token_set all_locks=lockprocess->finish();
-						
-						
-						// Note: We would really rather this
-						// be a reference but there is no good way to do that until C++17
-						// See: https://stackoverflow.com/questions/39103792/initializing-multiple-references-with-stdtie
-						snde_part partobj;
-						      
-						// Construct the regions based on the part
-						std::tie(partobj) = extract_regions<singleton<snde_part>>(std::vector<trm_arrayregion>(inputs.begin(),inputs.begin()+1));
-						
+						// Extract the first parameter only
+
 						std::vector<trm_arrayregion> new_inputs;
-						new_inputs.push_back(inputs[0]);
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.triangles,partobj.firsttri,partobj.numtris);
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.edges,partobj.firstedge,partobj.numedges);
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.vertices,partobj.firstvertex,partobj.numvertices);
+						
+						std::shared_ptr<component> comp=get_geom_dependency(struct_inputs[0]);
+
+						if (comp) {
+						  // Perform locking
+						  std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
+						  std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
+
+						  /* Obtain lock for this component and its geometry */
+						  comp->obtain_lock(lockprocess);
+						  comp->obtain_geom_lock(lockprocess,SNDE_COMPONENT_GEOM_PARTS);
+						  
+						  
+						  rwlock_token_set all_locks=lockprocess->finish();
+
+						  std::shared_ptr<part> partobj = std::dynamic_pointer_cast<part>(comp);
+						
+						  //// Note: We would really rather this
+						  //// be a reference but there is no good way to do that until C++17
+						  //// See: https://stackoverflow.com/questions/39103792/initializing-multiple-references-with-stdtie
+						  //snde_part partobj;
+						      
+						  //// Construct the regions based on the part
+						  //std::tie(partobj) = extract_regions<singleton<snde_part>>(std::vector<trm_arrayregion>(inputs.begin(),inputs.begin()+1));
+						
+						  //new_inputs.push_back(inputs[0]);
+						  new_inputs.emplace_back(geom->manager,(void **)&geom->geom.parts,partobj->idx,1);
+						  snde_part &partstruct = geom->geom.parts[partobj->idx];
+						  new_inputs.emplace_back(geom->manager,(void **)&geom->geom.triangles,partstruct.firsttri,partstruct.numtris);
+						  new_inputs.emplace_back(geom->manager,(void **)&geom->geom.edges,partstruct.firstedge,partstruct.numedges);
+						  new_inputs.emplace_back(geom->manager,(void **)&geom->geom.vertices,partstruct.firstvertex,partstruct.numvertices);
+						}
 						return new_inputs;
 						
 					      },
 					      struct_inputs,
-					      inputs_seed,
+					      std::vector<trm_arrayregion>(),
 					      struct_outputs,
-					      [ comp,geom ](std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_struct_depend> struct_outputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
+					      [ geom ](std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_struct_depend> struct_outputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
 						// update_output_regions()
 
 						std::vector<trm_arrayregion> new_outputs;
 
-						snde_part partobj;
-						trm_arrayregion tri_region;
+						//snde_part partobj;
+						//trm_arrayregion tri_region;
 						
-						// Perform locking
-						std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
-						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
+						//// Perform locking
+						//std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
+						//std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
 						
-						/* Obtain read lock for the part array for this component  */
-						lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_geom_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS,0); });
+						///* Obtain read lock for the part array for this component  */
+						//lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_geom_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS,0); });
 						
-						rwlock_token_set all_locks=lockprocess->finish();
+						//rwlock_token_set all_locks=lockprocess->finish();
 
-						std::tie(partobj,tri_region) = extract_regions<singleton<snde_part>,rawregion>(std::vector<trm_arrayregion>(inputs.begin(),inputs.begin()+1+1));
-						assert(tri_region.array==(void**)&geom->geom.triangles);
-						new_outputs.emplace_back(geom->manager,(void**)&geom->geom.normals,tri_region.start,tri_region.len);
+						// outputs come from triangles: inputs[1]
+						
+						//std::tie(partobj,tri_region) = extract_regions<singleton<snde_part>,rawregion>(std::vector<trm_arrayregion>(inputs.begin(),inputs.begin()+1+1));
+						//assert(tri_region.array==(void**)&geom->geom.triangles);
+						new_outputs.emplace_back(geom->manager,(void **)&geom->geom.normals,inputs[1].start,inputs[1].len);
+						//new_outputs.emplace_back(geom->manager,(void**)&geom->geom.normals,tri_region.start,tri_region.len);
 						
 						
 						return new_outputs;

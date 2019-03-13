@@ -2,28 +2,40 @@
 #define SNDE_GEOMETRY_FUNCTIONS_HPP
 
 namespace snde {
-  
-  class geometry_function {
-  public: 
 
+  /* **** is the geometry_function class really needed? */
+  class geometry_function {
+  public:
+    
+    geometry_function(const geometry_function &)=delete; /* copy constructor disabled */
+    geometry_function& operator=(const geometry_function &)=delete; /* copy assignment disabled */
+    
+    std::shared_ptr<trm_dependency> function;
+
+
+    ~geometry_function()
+    {
+      
+    }
   };
 
-  std::shared_ptr<trm_dependency> get_normals(std::shared_ptr<part>)
+  std::shared_ptr<geometry_function> normals_function(std::shared_ptr<part>)
   {
-
+    assert(!part->normals);
+    
   }
 
-  std::shared_ptr<trm_dependency> get_inplanemat(std::shared_ptr<part>)
-  {
-
-  }
-
-  std::shared_ptr<trm_dependency> get_curvature(std::shared_ptr<part>)
+  std::shared_ptr<geometry_function> inplanemat_function(std::shared_ptr<part>)
   {
     
   }
 
-  std::shared_ptr<trm_dependency> get_boxes(std::shared_ptr<part>)
+  std::shared_ptr<geometry_function> curvature_function(std::shared_ptr<part>)
+  {
+    
+  }
+
+  std::shared_ptr<geometry_function> boxes_function(std::shared_ptr<part>)
   {
     
   }
