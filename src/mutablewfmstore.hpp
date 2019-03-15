@@ -651,6 +651,9 @@ public:
 
 
   virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_INFOSTORE, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
+
+  /* ***!!!!! Please note: this does NOT lock the parameterization or any texture channels, or the 
+     vertexarrays or texvertexarrays, or rgba data !!!*** */
   {
     // call superclass to lock the infostore itself
     mutableinfostore::obtain_lock(process,readmask,writemask,resizemask);

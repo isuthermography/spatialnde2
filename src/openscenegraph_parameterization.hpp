@@ -1,6 +1,8 @@
 #include <vector>
 #include <memory>
 
+#include "revman_parameterization.hpp"
+
 #ifndef SNDE_OPENSCENEGRAPH_PARAMETERIZATION_HPP
 #define SNDE_OPENSCENEGRAPH_PARAMETERIZATION_HPP
 
@@ -252,11 +254,19 @@ public:
       cache_entry->second.snde_geom=snde_geom;
       cache_entry->second.param=param;
       cache_entry->second.TexCoordArray=new snde::OSGArray(snde_geom,(void **)&snde_geom->geom.texvertex_arrays,SNDE_INDEX_INVALID,sizeof(snde_rendercoord),2,0);
-
-      std::vector<trm_arrayregion> initial_inputs;
-      initial_inputs.push_back(trm_arrayregion(snde_geom->manager,(void **)&snde_geom->geom.uvs,param->idx,1));
+      
+      std::weak_ptr<osg_paramcacheentry> entry_ptr_weak(entry_ptr);
+      
+      std::vector<trm_struct_depend> struct_inputs;
+      struct_inputs.emplace_back(parameterization_dependency(rendering_revman,param));
+      
+      //std::vector<trm_arrayregion> initial_inputs;
+      //initial_inputs.push_back(trm_arrayregion(snde_geom->manager,(void **)&snde_geom->geom.uvs,param->idx,1));
       cache_entry->second.texvertex_function=
 	rendering_revman->add_dependency_during_update(
+						       struct_inputs,
+						       std::vector<trm_arrayregion>(), // inputs
+						       std::vector<trm_struct_depend>(), // struct_outputs
 						       // Function
 						       // input parameters are:
 						       // part
@@ -264,130 +274,83 @@ public:
 						       // edges, based on part.firstedge and part.numedges
 						       // vertices, based on part.firstvertex and part.numvertices
 						       
-						       [ entry_ptr,param, shared_cache ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions) {
+						       [ entry_ptr_weak,shared_cache ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions) {
 							 
-							 // get inputs: param, uv_triangles, uv_edges, uv_vertices,
-						      
-							 // get output location from outputs
-							 trm_arrayregion texvertex_array_out;
-							 std::tie(texvertex_array_out) = extract_regions<rawregion>(dep->outputs);
-							 assert((entry_ptr->TexCoordArray->elemsize==4 && (void**)entry_ptr->TexCoordArray->_ptr._float_ptr == (void **)&shared_cache->snde_geom->geom.texvertex_arrays && texvertex_array_out.array==(void **)&shared_cache->snde_geom->geom.texvertex_arrays) || (entry_ptr->TexCoordArray->elemsize==8 && (void**)entry_ptr->TexCoordArray->_ptr._double_ptr == (void **)&shared_cache->snde_geom->geom.texvertex_arrays) && texvertex_array_out.array==(void **)&shared_cache->snde_geom->geom.texvertex_arrays);
-							 //// texvertex_array_out.start is counted in snde_coords, whereas
-							 //// TexCoordArray is counted in vectors, so need to divide by 2
-						   
-							 //entry_ptr->TexCoordArray->offset = vertex_array_out.start;
-							 //assert(vertex_array_out.len % 2 == 0);
-							 //entry_ptr->TexCoordArray->nvec = vertex_array_out.len/2; // vertex_array_out.len is in number of coordinates; DataArray is counted in vectors
-							 
-							 
-							 // Perform locking
-							 rwlock_token_set all_locks=entry_ptr->obtain_array_locks(SNDE_UV_GEOM_UVS|SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_UV_EDGES|SNDE_UV_GEOM_UV_VERTICES,0,0,true,true,false);
-							 //fprintf(stderr,"texvertexarray locked for write\n");
-							 //fflush (stderr);
-						      
-							 entry_ptr->TexCoordArray->offset = texvertex_array_out.start;
-							 entry_ptr->TexCoordArray->nvec = shared_cache->snde_geom->geom.uvs[param->idx].numuvtris*3; // DataArray is counted in terms of (x,y,z) vectors, so three sets of coordinates per triangle
-							 assert(entry_ptr->TexCoordArray->nvec == texvertex_array_out.len/2);
-							 // Should probably convert write lock to read lock and spawn this stuff off, maybe in a different thread (?) (WHY???) 						      
-							 texvertexarray_from_uv_vertexarrayslocked(shared_cache->snde_geom,all_locks,dep->inputs[0].start,texvertex_array_out.start,texvertex_array_out.len,shared_cache->context,shared_cache->device,shared_cache->queue);
-							 
-							 
-							 //entry_ptr->geom->setTexCoordArray(entry_ptr->TexCoordArray); /* tell OSG this is dirty ... (now handled by openscenegraph_geom cacheentry_function )*/
-						      
-							 
-							 // ***!!! Should we express as tuple, then do tuple->vector conversion?
-							 // ***!!! Can we extract the changed regions from the lower level notifications
-							 // i.e. the cache_manager's mark_as_dirty() and/or mark_as_gpu_modified()???
-							 
-							 //std::vector<rangetracker<markedregion>> outputchangedregions;
-							 
-							 //outputchangedregions.emplace_back();
-							 //outputchangedregions[0].mark_region(vertex_array_out.start,vertex_array_out.len);
-							 //return outputchangedregions;
-						       },
-						       [ shared_cache, entry_ptr ] (std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
-							 // Regionupdater function
-							 // See Function input parameters, above
-							 // Extract the first parameter (part) only
-							 
-							 // Perform locking
-							 rwlock_token_set all_locks=entry_ptr->obtain_array_locks(SNDE_UV_GEOM_UVS,0,0,false,false,false);
-							 
-							 
-							 // Note: We would really rather this
-							 // be a reference but there is no good way to do that until C++17
-							 // See: https://stackoverflow.com/questions/39103792/initializing-multiple-references-with-stdtie
-							 snde_parameterization uv;
-						      
-							 // Construct the regions based on the part
-							 std::tie(uv) = extract_regions<singleton<snde_parameterization>>(std::vector<trm_arrayregion>(inputs.begin(),inputs.begin()+1));
-						      
-							 std::vector<trm_arrayregion> new_inputs;
-							 new_inputs.push_back(inputs[0]);
-							 new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.uv_triangles,uv.firstuvtri,uv.numuvtris);
-							 new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.uv_edges,uv.firstuvedge,uv.numuvedges);
-							 new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.uv_vertices,uv.firstuvvertex,uv.numuvvertices);
-							 return new_inputs;
-							 
-						       },
-						       std::vector<trm_struct_depend>(), // struct_inputs
-						       initial_inputs, // inputs
-						       std::vector<trm_struct_depend>(), // struct_outputs
-						       [ shared_cache,entry_ptr ](std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_struct_depend> struct_outputs, std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
-							 // update_output_regions()
-							 
-							 rwlock_token_set all_locks=entry_ptr->obtain_array_locks(SNDE_UV_GEOM_UVS,0,0,true,true,true); // Must lock entire vertex_arrays here because we may need to reallocate it. Also when calling this we don't necessarily know the correct positioning. 
-							 
-									       
-							 // Inputs: part
-							 //         triangles
-							 //         edges
-							 //         vertices
-							 // Outputs: vertex_arrays
-							 snde_index numtris=0;
-							 
-							 if (inputs[0].len > 0) {
-							   assert(inputs[0].len==1); // sizeof(snde_parameterization));
-							   numtris=((struct snde_parameterization *)(*inputs[0].array))[inputs[0].start].numuvtris;
+							 std::shared_ptr<osg_paramcacheentry> entry_ptr = entry_ptr_weak.lock();
+							 std::shared_ptr<parameterization> param=get_parameterization_dependency(dep->struct_inputs[0]);
+
+							 if (!entry_ptr || !param) {
+							   // invalid inputs
+							   // update inputs and outputs vectors to be empty as appropriate
+							   
+							   std::vector<trm_arrayregion> new_inputs;
+							   dep->update_inputs(new_inputs);
+							   
+							   if (actions & STDA_IDENTIFYOUTPUTS) {
+							     std::vector<trm_arrayregion> new_outputs;
+							     dep->update_outputs(new_outputs);
+							   }
+							   return;
+							   
 							 }
-							 snde_index neededsize=numtris*6; // 6 vertex coords per triangle
-							 
-							 assert(outputs.size() <= 1);
-							 if (outputs.size()==1) {
-							   // already have an allocation 
-							   //allocationinfo allocinfo = manager->allocators()->at((void**)&shared_cache->snde_geom->geom.vertex_arrays);
-							   //snde_index alloclen = allocinfo.alloc->get_length(outputs[0].start);
-							
-							   snde_index alloclen = shared_cache->snde_geom->manager->get_length((void **)&shared_cache->snde_geom->geom.texvertex_arrays,outputs[0].start);
-							   if (alloclen < neededsize) {
-							     // too small... free this allocation... we will allocate new space below
-							     //allocinfo->free(outputs[0].start);
-							     shared_cache->snde_geom->manager->free((void **)&shared_cache->snde_geom->geom.texvertex_arrays,outputs[0].start);
-							     outputs.erase(outputs.begin());
-							   } else {
-							     outputs[0].len=neededsize; // expand to needed size. 
+
+							 std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
+							 std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(shared_cache->snde_geom->manager->locker); // new locking process
+
+							 // lock the parameterization for read
+							 param->obtain_lock(lockprocess);
+
+							 // lock the UV data as needed
+							 if (actions & STDA_EXECUTE) {
+							   
+							   param->obtain_uv_lock(lockprocess,SNDE_UV_GEOM_UVS|SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_UV_EDGES|SNDE_UV_GEOM_UV_VERTICES);
+							 } else {
+							   param->obtain_uv_lock(lockprocess,SNDE_UV_GEOM_UVS);
+							   
+							 }
+
+							 snde_parameterization &uvstruct = shared_cache->snde_geom->geom.uvs[param->idx];
+							 if (actions & STDA_IDENTIFYOUTPUTS) {
+							   holder->store_alloc(dep->realloc_output_if_needed(lockprocess,shared_cache->snde_geom->manager,0,(void **)&shared_cache->snde_geom->geom.texvertex_arrays,uvstruct.numuvtris*6,"texvertex_arrays"));
+							   
+							 }
+							 rwlock_token_set all_locks=lockprocess->finish();
+
+							 // inputs are: parameterization, uv_triangles,
+							 // uv_edges, and uv_vertices
+							 std::vector<trm_arrayregion> new_inputs;
+							 new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.uvs,param->idx,1);
+							 new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.uv_triangles,uvstruct.firstuvtri,uvstruct.numuvtris);
+							 new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.uv_edges,uvstruct.firstuvedge,uvstruct.numuvedges);
+							 new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.uv_vertices,uvstruct.firstuvvertex,uvstruct.numuvvertices);
+							 dep->update_inputs(new_inputs);
+
+							 if (actions & STDA_IDENTIFYOUTPUTS) {
+							   snde_index neededsize=uvstruct.numuvtris*6; // 6 vertex coords per triangle
+							   std::vector<trm_arrayregion> new_outputs;
+							   dep->add_output_to_array(new_outputs,shared_cache->snde_geom->manager,holder,0,(void **)&shared_cache->snde_geom->geom.texvertex_arrays,"texvertex_arrays");
+							   dep->update_outputs(new_outputs);
+
+							   assert(new_outputs.at(0).array==(void **)&shared_cache->snde_geom->geom.texvertex_arrays);
+							   fprintf(stderr,"texvertex array=0x%llx; start=%d; len=%d\n",(unsigned long long)((void *)&shared_cache->snde_geom->geom.texvertex_arrays),(int)new_outputs.at(0).start,(int)new_outputs.at(0).len);
+							   
+							   if (actions & STDA_EXECUTE) {
+							     // function code
+							     
+							     entry_ptr->TexCoordArray->offset = dep->outputs[0].start;
+							     entry_ptr->TexCoordArray->nvec = uvstruct.numuvtris*3; // DataArray is counted in terms of (x,y,z) vectors, so three sets of coordinates per triangle
+							     assert(entry_ptr->TexCoordArray->nvec == dep->outputs[0].len/2);
+							     // Should probably convert write lock to read lock and spawn this stuff off, maybe in a different thread (?) (WHY???) 						      
+							     texvertexarray_from_uv_vertexarrayslocked(shared_cache->snde_geom,all_locks,dep->inputs[0].start,dep->outputs[0].start,dep->outputs[0].len,shared_cache->context,shared_cache->device,shared_cache->queue);
+							     
 							   }
 							 }
-							 
-							 if (outputs.size() < 1) {										     //allocationinfo allocinfo = manager->allocators()->at(&shared_cache->snde_geom->geom.vertex_arrays);
-							   std::vector<std::pair<std::shared_ptr<alloc_voidpp>,rwlock_token_set>> allocation_vector;
-							   // ***!!! Should we allocate extra space here for additional output? 
-							   snde_index start;
-							   std::tie(start,allocation_vector)=shared_cache->snde_geom->manager->alloc_arraylocked(all_locks,(void **)&shared_cache->snde_geom->geom.texvertex_arrays,neededsize); 
-							   assert(allocation_vector.size()==1); // vertex_array shouldn't have any follower arrays
-							   
-							   
-							   outputs.push_back(trm_arrayregion(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.texvertex_arrays,start,neededsize));
-							 }
-							 
-							 
-							 return outputs;
-						    },
-						       [ shared_cache ](std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
-							 if (outputs.size()==1) {
-							   shared_cache->snde_geom->manager->free((void **)&shared_cache->snde_geom->geom.texvertex_arrays,outputs[0].start);
-							   
-							 }
+						       },
+						       [ ] (trm_dependency  *dep)  {
+							 // cleanup function
+							 std::vector<trm_arrayregion> new_outputs;
+							 dep->free_output(new_outputs,0);
+							 dep->update_outputs(new_outputs);
 							 
 						       });
       

@@ -36,175 +36,143 @@ static inline std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr
   assert(partobj);
   
   snde_index partnum = partobj->idx;
-  //std::vector<trm_arrayregion> inputs_seed;
 
   std::vector<trm_struct_depend> struct_inputs;
-  std::vector<trm_struct_depend> struct_outputs;
 
   struct_inputs.emplace_back(geom_dependency(revman,comp));
   //inputs_seed.emplace_back(geom->manager,(void **)&geom->geom.parts,partnum,1);
   
   
   return revman->add_dependency_during_update(
+					      struct_inputs,
+					      std::vector<trm_arrayregion>(), // inputs
+					      std::vector<trm_struct_depend>(), // struct_outputs
 					      // Function
 					      // input parameters are:
 					      // partnum
-					      [ comp,geom,context,device,queue ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)  {
-						fprintf(stderr,"Normal calculation\n");
+					      [ geom,context,device,queue ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
+						// actions is STDA_IDENTIFY_INPUTS or
+						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS or
+						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS|STDA_EXECUTE
 
-						// get inputs: partobj, triangles, edges, vertices
-						snde_part partobj;
-						trm_arrayregion triangles, edges, vertices;
+						std::shared_ptr<component> comp=get_geom_dependency(dep->struct_inputs[0]);
+						std::shared_ptr<part> partobj = std::dynamic_pointer_cast<part>(comp);
 						
-						//fprintf(stderr,"Normal calculation\n");
-						std::tie(partobj,triangles,edges,vertices) = extract_regions<singleton<snde_part>,rawregion,rawregion,rawregion>(dep->inputs);
+						if (!comp || !partobj) {
+						  // component no longer exists... clear out inputs and outputs (if applicable)
+						  std::vector<trm_arrayregion> new_inputs;
+						  
+						  dep->update_inputs(new_inputs);
+						  
+						  if (actions & STDA_IDENTIFYOUTPUTS) {
+						    
+						    std::vector<trm_arrayregion> new_outputs;
+						    dep->update_outputs(new_outputs);
+						  }
+						
+						
 
-						
-						//!!!meshedp.firsttri,meshedp.numtris
-						
-						
-						// get output location from outputs
-						trm_arrayregion normals_out;
-						std::tie(normals_out) = extract_regions<rawregion>(dep->outputs);
-
-						cl_kernel normal_kern = normalcalc_opencl_program.get_kernel(context,device);
-
+						  return;
+						}
 						// Perform locking
-						std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
+						
 						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
 						
-						/* Obtain lock for this component -- in parallel with our write lock on the vertex array, below */
-						//lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,SNDE_COMPONENT_GEOM_NORMALS); });
-						comp->obtain_geom_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,SNDE_COMPONENT_GEOM_NORMALS);
+						/* Obtain lock for this component and its geometry */
+						comp->obtain_lock(lockprocess);
+						
+						if (actions & STDA_EXECUTE) {
+						  
+						  comp->obtain_geom_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,SNDE_COMPONENT_GEOM_NORMALS);
+						  
+						} else {
+						  
+						  comp->obtain_geom_lock(lockprocess,SNDE_COMPONENT_GEOM_PARTS);
+						}
 						
 						rwlock_token_set all_locks=lockprocess->finish();
-
 						
 						
-						OpenCLBuffers Buffers(context,device,all_locks);
+						    
+						    
 						
-						// specify the arguments to the kernel, by argument number.
-						// The third parameter is the array element to be passed
-						// (actually comes from the OpenCL cache)
-						
-						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,0,(void **)&geom->geom.parts,dep->inputs[0].start,1,false);
-						
-						
-						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,1,(void **)&geom->geom.triangles,partobj.firsttri,partobj.numtris,false);
-						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,2,(void **)&geom->geom.edges,partobj.firstedge,partobj.numedges,false);
-						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,3,(void **)&geom->geom.vertices,partobj.firstvertex,partobj.numvertices,false);
-						Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,4,(void **)&geom->geom.normals,partobj.firsttri,partobj.numtris,true,true);
-						
-						size_t worksize=partobj.numtris;
-						cl_event kernel_complete=NULL;
-						
-						// Enqueue the kernel 
-						cl_int err=clEnqueueNDRangeKernel(queue,normal_kern,1,NULL,&worksize,NULL,Buffers.NumFillEvents(),Buffers.FillEvents_untracked(),&kernel_complete);
-						if (err != CL_SUCCESS) {
-						  throw openclerror(err,"Error enqueueing kernel");
-						}
-						clFlush(queue); /* trigger execution */
-
-						/*** Need to mark as dirty; Need to Release Buffers once kernel is complete ****/
-						Buffers.SubBufferDirty((void **)&geom->geom.normals,partobj.firsttri,partobj.numtris);
-						
-						
-						Buffers.RemBuffers(kernel_complete,kernel_complete,true); /* wait for completion */
-						// Actually, we SHOULD wait for completion.
-						// (Are there unnecessary locks we can release first?)
-						//clWaitForEvents(1,&kernel_complete);
-
-						clReleaseEvent(kernel_complete);
-						// Release our reference to kernel, allowing it to be free'd
-						clReleaseKernel(normal_kern); 
-						// ***!!! Should we express as tuple, then do tuple->vector conversion?
-						// ***!!! Can we extract the changed regions from the lower level notifications
-						// i.e. the cache_manager's mark_as_dirty() and/or mark_as_gpu_modified()???
-						//std::vector<rangetracker<markedregion>> outputchangedregions;
-
-						//outputchangedregions.emplace_back();
-						//outputchangedregions[0].mark_region(normals_out.start,normals_out.len);
-						
-						fprintf(stderr,"Normal calculation complete; firsttri=%d, numtris=%d\n",partobj.firsttri,partobj.numtris);
-						
-						//return outputchangedregions;
-					      },
-					      [ geom ] (std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs) -> std::vector<trm_arrayregion> {
-						// Regionupdater function
-						// See Function input parameters, above
-						// Extract the first parameter only
-
+						// build up-to-date vector of new inputs
 						std::vector<trm_arrayregion> new_inputs;
 						
-						std::shared_ptr<component> comp=get_geom_dependency(struct_inputs[0]);
-
-						if (comp) {
-						  // Perform locking
-						  std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
-						  std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
-
-						  /* Obtain lock for this component and its geometry */
-						  comp->obtain_lock(lockprocess);
-						  comp->obtain_geom_lock(lockprocess,SNDE_COMPONENT_GEOM_PARTS);
-						  
-						  
-						  rwlock_token_set all_locks=lockprocess->finish();
-
-						  std::shared_ptr<part> partobj = std::dynamic_pointer_cast<part>(comp);
 						
-						  //// Note: We would really rather this
-						  //// be a reference but there is no good way to do that until C++17
-						  //// See: https://stackoverflow.com/questions/39103792/initializing-multiple-references-with-stdtie
-						  //snde_part partobj;
-						      
-						  //// Construct the regions based on the part
-						  //std::tie(partobj) = extract_regions<singleton<snde_part>>(std::vector<trm_arrayregion>(inputs.begin(),inputs.begin()+1));
+						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.parts,partobj->idx,1);
+						snde_part &partstruct = geom->geom.parts[partobj->idx];
+						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.triangles,partstruct.firsttri,partstruct.numtris);
+						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.edges,partstruct.firstedge,partstruct.numedges);
+						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.vertices,partstruct.firstvertex,partstruct.numvertices);
 						
-						  //new_inputs.push_back(inputs[0]);
-						  new_inputs.emplace_back(geom->manager,(void **)&geom->geom.parts,partobj->idx,1);
-						  snde_part &partstruct = geom->geom.parts[partobj->idx];
-						  new_inputs.emplace_back(geom->manager,(void **)&geom->geom.triangles,partstruct.firsttri,partstruct.numtris);
-						  new_inputs.emplace_back(geom->manager,(void **)&geom->geom.edges,partstruct.firstedge,partstruct.numedges);
-						  new_inputs.emplace_back(geom->manager,(void **)&geom->geom.vertices,partstruct.firstvertex,partstruct.numvertices);
+						dep->update_inputs(new_inputs);
+						
+						if (actions & STDA_IDENTIFYOUTPUTS) {
+						  
+						  std::vector<trm_arrayregion> new_outputs;
+						  
+						  // we don't allocate our outputs (pre-allocated via triangles)
+						  new_outputs.emplace_back(geom->manager,(void **)&geom->geom.normals,partstruct.firsttri,partstruct.numtris);
+						  
+						  dep->update_outputs(new_outputs);
+						  
+						  if (actions & STDA_EXECUTE) {
+							
+						    fprintf(stderr,"Normal calculation\n");
+							
+						    cl_kernel normal_kern = normalcalc_opencl_program.get_kernel(context,device);
+						    
+						    OpenCLBuffers Buffers(context,device,all_locks);
+						    
+						    // specify the arguments to the kernel, by argument number.
+						    // The third parameter is the array element to be passed
+						    // (actually comes from the OpenCL cache)
+						    
+						    Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,0,(void **)&geom->geom.parts,partobj->idx,1,false);
+						    
+						    
+						    Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,1,(void **)&geom->geom.triangles,partstruct.firsttri,partstruct.numtris,false);
+						    Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,2,(void **)&geom->geom.edges,partstruct.firstedge,partstruct.numedges,false);
+						    Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,3,(void **)&geom->geom.vertices,partstruct.firstvertex,partstruct.numvertices,false);
+						    Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,4,(void **)&geom->geom.normals,partstruct.firsttri,partstruct.numtris,true,true);
+						    
+						    size_t worksize=partstruct.numtris;
+						    cl_event kernel_complete=NULL;
+						    
+						    // Enqueue the kernel 
+						    cl_int err=clEnqueueNDRangeKernel(queue,normal_kern,1,NULL,&worksize,NULL,Buffers.NumFillEvents(),Buffers.FillEvents_untracked(),&kernel_complete);
+						    if (err != CL_SUCCESS) {
+						      throw openclerror(err,"Error enqueueing kernel");
+						    }
+						    clFlush(queue); /* trigger execution */
+						    
+						    /*** Need to mark as dirty; Need to Release Buffers once kernel is complete ****/
+						    Buffers.SubBufferDirty((void **)&geom->geom.normals,partstruct.firsttri,partstruct.numtris);
+							
+						    
+						    Buffers.RemBuffers(kernel_complete,kernel_complete,true); /* wait for completion */
+						    
+						    clReleaseEvent(kernel_complete);
+						    // Release our reference to kernel, allowing it to be free'd
+						    clReleaseKernel(normal_kern); 
+						    
+						    fprintf(stderr,"Normal calculation complete; firsttri=%d, numtris=%d\n",partstruct.firsttri,partstruct.numtris);
+						    
+						    
+						    
+						  }
+						  
 						}
-						return new_inputs;
-						
 					      },
-					      struct_inputs,
-					      std::vector<trm_arrayregion>(),
-					      struct_outputs,
-					      [ geom ](std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_struct_depend> struct_outputs,std::vector<trm_arrayregion> outputs) -> std::vector<trm_arrayregion> {  //, rwlock_token_set all_locks) {
-						// update_output_regions()
+					      [ ] (trm_dependency *dep)  {
+						// cleanup function
+					      
+						  // our output space comes with part triangles, so
+						  // nothing to do!
+					      });
+						
 
-						std::vector<trm_arrayregion> new_outputs;
-
-						//snde_part partobj;
-						//trm_arrayregion tri_region;
-						
-						//// Perform locking
-						//std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
-						//std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
-						
-						///* Obtain read lock for the part array for this component  */
-						//lockprocess->spawn( [ comp, lockprocess ]() { comp->obtain_geom_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS,0); });
-						
-						//rwlock_token_set all_locks=lockprocess->finish();
-
-						// outputs come from triangles: inputs[1]
-						
-						//std::tie(partobj,tri_region) = extract_regions<singleton<snde_part>,rawregion>(std::vector<trm_arrayregion>(inputs.begin(),inputs.begin()+1+1));
-						//assert(tri_region.array==(void**)&geom->geom.triangles);
-						new_outputs.emplace_back(geom->manager,(void **)&geom->geom.normals,inputs[1].start,inputs[1].len);
-						//new_outputs.emplace_back(geom->manager,(void**)&geom->geom.normals,tri_region.start,tri_region.len);
-						
-						
-						return new_outputs;
-					      },
-					      [ comp,geom ](std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs) {
-						// cleanup
-						// nothing to do (we don't own the output allocation) 
-					      }
-					      );
   
 }
 

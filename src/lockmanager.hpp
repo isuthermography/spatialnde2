@@ -1299,6 +1299,11 @@ namespace snde {
     }
 
   };
+
+  class lockingprocess_thread {
+  public:
+    virtual ~lockingprocess_thread() {};
+  };
   
 
   class lockingprocess {
@@ -1332,9 +1337,10 @@ namespace snde {
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<mutableinfostore> infostore,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<geometry> geom,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<component> comp,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<parameterization> param,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
 
     virtual std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> alloc_array_region(std::shared_ptr<arraymanager> manager,void **allocatedptr,snde_index nelem,std::string allocid)=0;
-    virtual void spawn(std::function<void(void)> f)=0;
+    virtual std::shared_ptr<lockingprocess_thread> spawn(std::function<void(void)> f)=0;
 
     virtual ~lockingprocess()=0;
 
@@ -1599,6 +1605,20 @@ namespace snde {
   /* ***!!! Should create alternate implementation based on boost stackful coroutines ***!!! */
   /* ***!!! Should create alternate implementation based on C++ resumable functions proposal  */
 
+  class lockingprocess_threaded_thread: public lockingprocess_thread {
+  public:
+    std::thread *thread; // Does not own thread. thread will be cleaned up when the locking process finish() is called. thread should be valid until then
+
+    lockingprocess_threaded_thread(std::thread *thread) :
+      thread(thread)
+    {
+      
+    }
+
+    ~lockingprocess_threaded_thread() {}
+  };
+  
+
   class lockingprocess_threaded: public lockingprocess {
     /* lockingprocess is a tool for performing multiple locking
        for multiple objects while satisfying the required
@@ -1697,10 +1717,11 @@ namespace snde {
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<mutableinfostore> infostore,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<geometry> geom,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<component> comp,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<parameterization> param,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
 
     virtual std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> alloc_array_region(std::shared_ptr<arraymanager> manager,void **allocatedptr,snde_index nelem,std::string allocid);
 
-    virtual void spawn(std::function<void(void)> f);
+    virtual std::shared_ptr<lockingprocess_thread> spawn(std::function<void(void)> f);
       
 
     virtual rwlock_token_set finish();
@@ -1799,15 +1820,15 @@ namespace snde {
   class lockholder {
   public:
     std::unordered_map<lockholder_index,rwlock_token_set,lockholder_index_hash> values;
-    std::unordered_map<std::pair<void **,std::string>,snde_index,voidpp_string_hash> allocvalues;
-
+    std::unordered_map<std::pair<void **,std::string>,std::pair<snde_index,snde_index>,voidpp_string_hash> allocvalues;
+    //                           ^ arrayptr ^ name               ^addr       ^nelem
     std::string as_string() {
       std::string ret="";
 
       ret+=ssprintf("snde::lockholder at 0x%lx with  %d allocations and %d locks\n",(unsigned long)this,(int)allocvalues.size(),(int)values.size());
       ret+=ssprintf("---------------------------------------------------------------------------\n");
       for (auto & array_startidx : allocvalues) {
-	ret+=ssprintf("allocation for array 0x%lx allocid=\"%s\" startidx=%lu\n",(unsigned long)array_startidx.first.first,array_startidx.first.second.c_str(),(unsigned long)array_startidx.second);
+	ret+=ssprintf("allocation for array 0x%lx allocid=\"%s\" startidx=%lu\n",(unsigned long)array_startidx.first.first,array_startidx.first.second.c_str(),(unsigned long)array_startidx.second.first);
       }
       for (auto & idx_tokens : values) {
 	ret+=ssprintf("locks for array 0x%lx write=%s startidx=%lu numelem=%lu\n",(unsigned long)idx_tokens.first.array,idx_tokens.first.write ? "true": "false",(unsigned long)idx_tokens.first.startidx,(unsigned long)idx_tokens.first.numelem);
@@ -1854,7 +1875,7 @@ namespace snde {
     {
       
       values[lockholder_index(array,write,startidx,numelem)]=tokens;
-      allocvalues[std::make_pair(array,allocid)]=startidx;
+      allocvalues[std::make_pair(array,allocid)]=std::make_pair(startidx,numelem);
     }
     void store_alloc(lockholder_index idx,rwlock_token_set tokens,std::string allocid)
     {
@@ -1913,24 +1934,34 @@ namespace snde {
     }
 
 
-    rwlock_token_set get_alloc_lock(void **array,snde_index numelem,std::string allocid)
+    rwlock_token_set get_alloc_lock(void **array,std::string allocid)
     {
-      std::unordered_map<std::pair<void **,std::string>,snde_index,voidpp_string_hash>::iterator allocvalue=allocvalues.find(std::make_pair(array,allocid));
+      std::unordered_map<std::pair<void **,std::string>,std::pair<snde_index,snde_index>,voidpp_string_hash>::iterator allocvalue=allocvalues.find(std::make_pair(array,allocid));
       if (allocvalue==allocvalues.end()) {
 	
 	throw std::runtime_error("Specified array allocation and ID not found in lockholder. Are the array pointer and ID correct?");
       }
-      return get(array,true,allocvalue->second,numelem);
+      return get(array,true,allocvalue->second.first,allocvalue->second.second);
     }
 
     snde_index get_alloc(void **array,std::string allocid)
     {
-      std::unordered_map<std::pair<void **,std::string>,snde_index,voidpp_string_hash>::iterator allocvalue=allocvalues.find(std::make_pair(array,allocid));
+      std::unordered_map<std::pair<void **,std::string>,std::pair<snde_index,snde_index>,voidpp_string_hash>::iterator allocvalue=allocvalues.find(std::make_pair(array,allocid));
       if (allocvalue==allocvalues.end()) {
 	throw std::runtime_error("Specified array allocation and ID not found in lockholder. Are the array pointer and ID correct?");
       }
-      return allocvalue->second;
+      return allocvalue->second.first;
     }
+
+    snde_index get_alloc_len(void **array,std::string allocid)
+    {
+      std::unordered_map<std::pair<void **,std::string>,std::pair<snde_index,snde_index>,voidpp_string_hash>::iterator allocvalue=allocvalues.find(std::make_pair(array,allocid));
+      if (allocvalue==allocvalues.end()) {
+	throw std::runtime_error("Specified array allocation and ID not found in lockholder. Are the array pointer and ID correct?");
+      }
+      return allocvalue->second.second;
+    }
+
     //rwlock_token_set operator[](void ** array)
     //{
     //  return values.at(array);      
@@ -1951,7 +1982,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
 #define SNDE_INFOSTORE_COMPONENTS (1ull<<2) // the snde::components, i.e. parts and assemblies... used solely with get_locks_lockable_mask(...) 
 #define SNDE_INFOSTORE_PARAMETERIZATIONS (1ull<<3) // the snde::parameterizations of the components... used solely with get_locks_lockable_mask(...) 
 
-#define SNDE_INFOSTORE_ALL ((1ull<<2)-(1ull<<0))
+#define SNDE_INFOSTORE_ALL ((1ull<<4)-(1ull<<0))
   
 // 
 #define SNDE_COMPONENT_GEOM_PARTS (1ull<<8)
@@ -1972,7 +2003,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
 #define SNDE_COMPONENT_GEOM_BOXCOORD (1ull<<23)
 #define SNDE_COMPONENT_GEOM_BOXPOLYS (1ull<<24)
 
-#define SNDE_COMPONENT_GEOM_ALL ((1ull<<17)-(1ull<<8))
+#define SNDE_COMPONENT_GEOM_ALL ((1ull<<25)-(1ull<<8))
 
 // Resizing masks -- mark those arrays that resize together
 //#define SNDE_COMPONENT_GEOM_COMPONENT_RESIZE (SNDE_COMPONENT_GEOM_COMPONENT)

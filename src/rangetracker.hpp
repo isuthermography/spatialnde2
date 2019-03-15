@@ -306,7 +306,7 @@ namespace snde {
 	  {
 	    iterator secondpiecenext=secondpieceiterator;
 	    secondpiecenext++;
-	    if (secondpiecenext != trackedregions.end()) {
+	    if (secondpiecenext != trackedregions.end() && secondpiecenext->second->regionstart==secondpieceiterator->second->regionend) {
 	      if (secondpieceiterator->second->attempt_merge(*secondpiecenext->second)) {
 		/* if merge succeeded, remove second piecenext */
 		trackedregions.erase(secondpiecenext->first);

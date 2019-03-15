@@ -157,6 +157,16 @@ public:
 };
 
 
+//  #defines for trm_dependency function actions
+#define STDA_IDENTIFYINPUTS (1<<0)
+#define STDA_IDENTIFYOUTPUTS (1<<1)
+#define STDA_EXECUTE (1<<2)
+
+  // When the dependency function is called, it is
+  // with STDA_IDENTIFYINPUTS or
+  // STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS
+  // or STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS|STDA_EXECUTE
+  // or STDA_CLEANUPOUTPUTS
   
   class trm_arrayregion {
   public:
@@ -207,6 +217,29 @@ public:
     }
   };
 
+
+static void trm_lock_arrayregions(std::shared_ptr<lockingprocess> lockprocess,const std::vector<trm_arrayregion> &to_lock,bool write=false)
+{
+  // lock the given array regions, following the locking order
+
+  // Install the regions in an ordered map, ordered by locking position
+  std::map<lockingposition,trm_arrayregion> ordered_regions;
+
+  for (auto & region: to_lock) {
+    lockindex_t arrayidx = region.manager->locker->_arrayidx()->at(region.array);
+    ordered_regions.emplace(lockingposition(arrayidx,region.start,write),region);
+  }
+
+  // now preform locking
+  for (auto & lockingposition_region: ordered_regions) {
+    if (write) {
+      lockprocess->get_locks_write_array_region(lockingposition_region.second.array,lockingposition_region.second.start,lockingposition_region.second.len);
+    } else {
+      lockprocess->get_locks_read_array_region(lockingposition_region.second.array,lockingposition_region.second.start,lockingposition_region.second.len);
+
+    }
+  }
+}
 
   // singleton class is a marker for extract_regions, to indicate that only a single element is expected, and to extract a reference rather than a gsl::span...
     template <typename T>
@@ -347,17 +380,15 @@ public:
   class trm_dependency : public std::enable_shared_from_this<trm_dependency> { /* dependency of one memory region on another */
   public:
     std::weak_ptr<trm> revman;
-    std::function<void(snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)> function; /* returns updated output region array */
-    /* if function is NULL, that means that this is an input, i.e. one of the input arrays that is locked for 
-       write and that we will be responding to changes from */
-    
-    std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> &struct_inputs,std::vector<trm_arrayregion> &inputs)> regionupdater; /* to be called when an input changes... returns updated input region array. Should try to return quickly. Arrays can be locked following the locking order, and only for read. */
 
-    std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> &struct_inputs,std::vector<trm_arrayregion> &inputs,std::vector<trm_struct_depend> &struct_outputs,std::vector<trm_arrayregion> &outputs)> update_output_regions;
 
-    std::function<void(std::vector<trm_struct_depend> &struct_inputs,std::vector<trm_arrayregion> &inputs,std::vector<trm_arrayregion> &outputs)> cleanup;
+    std::function<void(snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)> function;
     
-    std::vector<rangetracker<markedregion>> inputchangedregion; // rangetracker for changed zones, for each input 
+
+    std::function<void(trm_dependency *dep)> cleanup;
+
+    std::set<trm_struct_depend_key> inputchangedstructs;
+    std::vector<rangetracker<markedregion>> inputchangedregions; // rangetracker for changed zones, for each input 
     std::vector<trm_struct_depend> struct_inputs;
     std::vector<trm_arrayregion> inputs;
     std::vector<trm_struct_depend> struct_outputs;
@@ -377,23 +408,19 @@ public:
     
 
     trm_dependency(std::shared_ptr<trm> revman,
-		   std::function<void(snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)> function,
-		   std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> &struct_inputs,std::vector<trm_arrayregion> &inputs)> regionupdater,
-		   std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> &struct_inputs,std::vector<trm_arrayregion> &inputs,std::vector<trm_struct_depend> &struct_outputs,std::vector<trm_arrayregion> &outputs)> update_output_regions,
-		   std::function<void(std::vector<trm_struct_depend> &struct_inputs,std::vector<trm_arrayregion> &inputs,std::vector<trm_arrayregion> &outputs)> cleanup,
 		   std::vector<trm_struct_depend> struct_inputs,
 		   std::vector<trm_arrayregion> inputs,
 		   std::vector<trm_struct_depend> struct_outputs,
-		   std::vector<trm_arrayregion> outputs) :
+		   std::vector<trm_arrayregion> outputs,
+		   std::function<void(snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)> function,
+		   std::function<void(trm_dependency *dep)> cleanup) :
       revman(revman),
-      function(function),
-      regionupdater(regionupdater),
-      update_output_regions(update_output_regions),
-      cleanup(cleanup),
       struct_inputs(struct_inputs),
       inputs(inputs),
       struct_outputs(struct_outputs),
       outputs(outputs),
+      function(function),
+      cleanup(cleanup),
       force_full_rebuild(true),
       implicit_trm_trmdependency_output(std::make_pair<trm_struct_depend_key,std::shared_ptr<snde::trm_struct_depend_notifier>>(trm_struct_depend_key(nullptr),std::shared_ptr<snde::trm_struct_depend_notifier>(nullptr)))
     {
@@ -405,6 +432,145 @@ public:
     trm_dependency& operator=(const trm_dependency &)=delete; // copy assignment disabled
     
     ~trm_dependency(); // destructor in .cpp file to avoid circular class dependency
+
+
+    bool update_struct_inputs(const std::vector<trm_struct_depend> &new_struct_inputs)
+    {
+      // returns true if inputs are updated
+
+      if (new_struct_inputs.size() != struct_inputs.size()) {
+	struct_inputs = new_struct_inputs; 
+	return true; 
+      }
+      for (size_t cnt=0; cnt < new_struct_inputs.size();cnt++) {
+	// we are evaluating (struct_inputs[cnt].first != new_struct_inputs[cnt].first)
+	// but we do this with operator< because that is what is defined
+	// by trm_struct_depend_key 
+	if (struct_inputs[cnt].first < new_struct_inputs[cnt].first || new_struct_inputs[cnt].first < struct_inputs[cnt].first) {
+	  struct_inputs = new_struct_inputs; 
+	  return true; 
+	  
+	}
+      }
+      return false;
+    }
+
+    bool update_struct_outputs(const std::vector<trm_struct_depend> &new_struct_outputs)
+    {
+      // returns true if inputs are updated
+
+
+      if (new_struct_outputs.size() != struct_outputs.size()) {
+	struct_outputs = new_struct_outputs; 
+	return true; 
+      }
+      for (size_t cnt=0; cnt < new_struct_outputs.size();cnt++) {
+	// we are evaluating (struct_outputs[cnt].first != new_struct_outputs[cnt].first)
+	// but we do this with operator< because that is what is defined
+	// by trm_struct_depend_key 
+	if (struct_outputs[cnt].first < new_struct_outputs[cnt].first || new_struct_outputs[cnt].first < struct_outputs[cnt].first) {
+	  struct_outputs = new_struct_outputs; 
+	  return true; 
+	  
+	}
+      }
+      return false;
+    }
+
+    
+    bool update_inputs(const std::vector<trm_arrayregion> &new_inputs)
+    {
+      // returns true if inputs are updated
+      if (new_inputs != inputs) {
+	inputs = new_inputs;
+	return true; 
+      }
+      return false;
+    }
+    
+    bool update_outputs(const std::vector<trm_arrayregion> &new_outputs)
+    {
+      // returns true if inputs are updated
+      if (new_outputs != outputs) {
+	outputs = new_outputs;
+	return true; 
+      }
+      return false;
+    }
+
+    std::tuple<lockholder_index,rwlock_token_set,std::string> realloc_output_if_needed(std::shared_ptr<lockingprocess> process,std::shared_ptr<arraymanager> manager,size_t outnum,void **output_array,snde_index numelements,std::string name)
+    /* Reallocate output <outnum> of this dependency from the given array, with size of numelements, 
+       unless the output is already set to a suitable allocation. Lock the output either way. 
+       Return the lock in the lock holder under the specified name. 
+
+       If the address in the lockholder matches the address already in the output array, 
+       then the output array has not changed. If it is different, then the old array needs to 
+       be freed and the output completely regenerated. 
+
+    */
+    {
+      std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> arrayregions;
+     
+      if (outputs.size() <= outnum || outputs.at(outnum).array != output_array || outputs[outnum].len < numelements) {
+	arrayregions = process->alloc_array_region(manager,output_array,numelements,name);
+
+	return arrayregions.at(0); // assumes that parallel allocations from other arrays don't matter or are handled separately
+      }
+    
+      lockholder_index idx;
+      rwlock_token_set tokens;
+      std::tie(idx,tokens)=process->get_locks_write_array_region(output_array,outputs[outnum].start,outputs[outnum].len);
+      if (outputs[outnum].len > numelements)  {
+	manager->realloc_down(output_array,outputs[outnum].start,outputs[outnum].len, numelements);
+      }
+
+      return std::make_tuple(idx,tokens,name);
+    }
+
+    void add_output_to_array(std::vector<trm_arrayregion> &new_outputs,std::shared_ptr<arraymanager> manager,std::shared_ptr<lockholder> holder,size_t outnum,void **output_array,std::string output_name)
+    // be sure to call update_outputs() after new_outputs is filled up!
+    {
+      assert(new_outputs.size()==outnum); // should be adding on to the end
+      
+      
+      snde_index idx = holder->get_alloc(output_array,output_name);
+      snde_index len = holder->get_alloc_len(output_array,output_name);
+
+      
+      if (outnum >= outputs.size()) {
+	// not already in outputs array
+	new_outputs.emplace_back(manager,output_array,idx,len);	
+      } else {
+	// already in outputs array... does it match?
+	if (outputs.at(outnum).array != output_array || outputs.at(outnum).start != idx) {
+	  // mismatch... must free old array
+	  manager->free(outputs.at(outnum).array,outputs.at(outnum).start);
+	}
+	
+	new_outputs.emplace_back(manager,output_array,idx,len);	
+	
+      }
+      
+    }
+
+    void free_output(std::vector<trm_arrayregion> &new_outputs,size_t outnum)
+    // for use during SDTA_CLEANUP for an output allocated by add_output_to_array()
+    // be sure to call update_outputs() after new_outputs is filled up!
+    {
+      assert(new_outputs.size()==outnum); // should be adding on to the end
+      if (outnum >= outputs.size()) { // not currently in outputs; nothing to do
+	new_outputs.emplace_back(nullptr,nullptr,SNDE_INDEX_INVALID,0);
+	
+      } else {
+	if (outputs.at(outnum).array && outputs.at(outnum).start != SNDE_INDEX_INVALID) {
+	  // mismatch... must free old array
+	  outputs.at(outnum).manager->free(outputs.at(outnum).array,outputs.at(outnum).start);
+	}
+	new_outputs.emplace_back(nullptr,nullptr,SNDE_INDEX_INVALID,0);
+
+      }
+    }
+    
   };
 
 
@@ -469,6 +635,15 @@ public:
   virtual ~trm_trmdependency_notifier() {}
 };
 
+static std::shared_ptr<trm_dependency> get_trmdependency(const trm_struct_depend &depend)
+{
+  // may return nullptr if dependency doesn't exist anymore
+  std::shared_ptr<trm_trmdependency_notifier> notifier = std::dynamic_pointer_cast<trm_trmdependency_notifier>(depend.second);
+  assert(notifier);
+  
+  return notifier->get_dependent_on();
+
+}
 
 static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::shared_ptr<trm_dependency> dependent_on)
 {
@@ -602,6 +777,10 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
     /* locked by dependency_table_lock; modified_struct_db is a database of which structures we are 
        dependent on that  have been modified during (or before?) this transaction. Should be
        cleared at end of transaction */
+
+    /* ***!!!!!! Needs to be redone: instead keep a table of dependencies which care about each
+       region, or each structure and directly update the changed state of the corresponding dependencies!!!*** */
+    
     //std::set<std::weak_ptr<mutableinfostore>,std::owner_less<std::weak_ptr<mutableinfostore>>> modified_metadata_db;
     //std::set<std::string> modified_metadata_db;
     std::set<trm_struct_depend_key> modified_struct_db;
@@ -697,43 +876,32 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
 
 		    // remove from unexecuted_needs_regionupdater
 		    unexecuted_needs_regionupdater.erase(job_ptr);
-		    if (job_ptr->regionupdater) {
-		      //std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>>::iterator ex_ru_iter;
-		      //bool added_to_ex_ru=false;
-		      
-		      //std::tie(ex_ru_iter,added_to_ex_ru)=
-		      executing_regionupdater.emplace(job_ptr);
-		      
-		      //assert(added_to_ex_ru); // dependency is allowed to be in exactly one set at a time
-
-		      // note parallel code in add_dependency_during_update 
-		      
-		      std::vector<trm_arrayregion> newinputs;
-		      std::vector<trm_arrayregion> newoutputs;
-		      bool inputs_changed=false;
-
-		      
-		      dep_tbl.unlock();		
-		      newinputs = job_ptr->regionupdater(job_ptr->struct_inputs,job_ptr->inputs);
-		      dep_tbl.lock();
-		      
-		      if (!(newinputs == job_ptr->inputs)) { /* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */
-			inputs_changed=true;
-			_ensure_input_cachemanagers_registered(newinputs);
-			job_ptr->inputs=newinputs;
-		      }
-		      
-		      dep_tbl.unlock();		
-		      newoutputs = job_ptr->update_output_regions(job_ptr->struct_inputs,job_ptr->inputs,job_ptr->struct_outputs,job_ptr->outputs);
-		      dep_tbl.lock();		
-		      
-		      if (inputs_changed || !(newoutputs == job_ptr->outputs)) {
-			/* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */			
-						
-			_rebuild_depgraph_node_edges(job_ptr); 
-		      } 
-		      executing_regionupdater.erase(job_ptr); //ex_ru_iter);
+		    executing_regionupdater.emplace(job_ptr);
+		    
+		    // note parallel code in add_dependency_during_update 
+		    
+		    std::vector<trm_arrayregion> oldinputs=job_ptr->inputs;
+		    std::vector<trm_arrayregion> oldoutputs=job_ptr->outputs;
+		    bool inputs_changed=false;
+		    
+		    
+		    dep_tbl.unlock();		
+		    job_ptr->function(0,job_ptr,std::set<trm_struct_depend_key>(),std::vector<rangetracker<markedregion>>(),STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS); 
+		    dep_tbl.lock();
+		    
+		    if (!(oldinputs == job_ptr->inputs)) { /* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */
+		      inputs_changed=true;
+		      _ensure_input_cachemanagers_registered(job_ptr->inputs);
 		    }
+		    
+		    
+		    if (inputs_changed || !(oldoutputs == job_ptr->outputs)) {
+		      /* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */			
+		      
+		      _rebuild_depgraph_node_edges(job_ptr); 
+		    } 
+		    executing_regionupdater.erase(job_ptr); //ex_ru_iter);
+		    
 
 		    unexecuted_regionupdated.emplace(job_ptr);
 		    if (state != TRMS_REGIONUPDATE) {
@@ -759,10 +927,12 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
 		    std::shared_ptr<trm_dependency> job_ptr = job->lock();
 		    
 		    //std::vector<std::vector<trm_arrayregion>> inputchangedregions;
+		    
 		    if (job_ptr) {
+		      
 		      // Fill inputchangedregions with empty trackers if it is too small 
-		      for (size_t inpcnt=job_ptr->inputchangedregion.size();inpcnt < job_ptr->inputs.size();inpcnt++) {
-			job_ptr->inputchangedregion.emplace_back(); 
+		      for (size_t inpcnt=job_ptr->inputchangedregions.size();inpcnt < job_ptr->inputs.size();inpcnt++) {
+			job_ptr->inputchangedregions.emplace_back(); 
 		      }
 
 		      
@@ -771,20 +941,20 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
 			changedcnt=1;
 			size_t inputcnt=0;
 			for (auto & input: job_ptr->inputs) {
-			  job_ptr->inputchangedregion[inputcnt].mark_region(0,SNDE_INDEX_INVALID);
+			  job_ptr->inputchangedregions[inputcnt].mark_region(0,SNDE_INDEX_INVALID);
 			  changedcnt++;
 			  inputcnt++;
 			}
 		      } else {
 			size_t inputcnt=0;
 			for (auto & input: job_ptr->inputs) {
-			  //std::vector<trm_arrayregion> inputchangedregion=_modified_regions(input);
-			  _merge_modified_regions(job_ptr->inputchangedregion[inputcnt],input);
+			  //std::vector<trm_arrayregion> inputchangedregions=_modified_regions(input);
+			  _merge_modified_regions(job_ptr->inputchangedregions[inputcnt],input);
 			  //inputchangedregions.push_back(inputchangedregion);
 			  
-			  job_ptr->inputchangedregion[inputcnt].merge_adjacent_regions();
+			  job_ptr->inputchangedregions[inputcnt].merge_adjacent_regions();
 			  
-			  changedcnt += job_ptr->inputchangedregion[inputcnt].size(); /* count of changed regions in this input */
+			  changedcnt += job_ptr->inputchangedregions[inputcnt].size(); /* count of changed regions in this input */
 			  
 			  inputcnt++;
 			}
@@ -803,40 +973,45 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
 			
 			unexecuted_no_deps.erase(job);
 			executing.insert(job_ptr);
-			std::vector<trm_arrayregion> newinputs;
-			std::vector<trm_arrayregion> newoutputs;
+			std::vector<trm_arrayregion> oldinputs=job_ptr->inputs;
+			std::vector<trm_arrayregion> oldoutputs=job_ptr->outputs;
 			bool inputs_changed=false;
 			bool outputs_changed=false;
+
+			// clear out inputchangedregions and inputchangedstructs BEFORE calling function
+			// so that we can accumulate any changes that might occur in the background
+			// during our call, and therefore reexecute appropriately
+			std::set<trm_struct_depend_key> inputchangedstructs(std::move(job_ptr->inputchangedstructs));
+			std::vector<rangetracker<markedregion>> inputchangedregions(std::move(job_ptr->inputchangedregions));
 			
-			// call regionupdater first...
+			job_ptr->inputchangedregions.clear();
+			job_ptr->inputchangedstructs.clear();
+			
+			for (size_t inpcnt=0;inpcnt < job_ptr->inputs.size();inpcnt++) {
+			  job_ptr->inputchangedregions.emplace_back(); 
+			}
+
+
+			
+			// call function with all flags set
 			dep_tbl.unlock();		
-			newinputs = job_ptr->regionupdater(job_ptr->struct_inputs,job_ptr->inputs);
-			dep_tbl.lock();
+			job_ptr->function(0,job_ptr,inputchangedstructs,inputchangedregions,STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS|STDA_EXECUTE);
 			
-			if (!(newinputs == job_ptr->inputs)) { /* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */
-			  inputs_changed=true;
-			  _ensure_input_cachemanagers_registered(newinputs);
-			  job_ptr->inputs=newinputs;
-			}
-			
-			// now call update output regions 
-			dep_tbl.unlock();
-			newoutputs=job_ptr->update_output_regions(job_ptr->struct_inputs,job_ptr->inputs,job_ptr->struct_outputs,job_ptr->outputs);
-			dep_tbl.lock();
-			
-			if (!(newoutputs == job_ptr->outputs)) { /* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */
-			  outputs_changed=true;
-			  job_ptr->outputs=newoutputs;
-
-			}
-
-			// now execute!
-			dep_tbl.unlock();
-			job_ptr->function(this->currevision,job_ptr,job_ptr->inputchangedregion);
-
 			// notify that we have dirtied our implicit output
+			
 			job_ptr->implicit_trm_trmdependency_output.second->trm_notify();
 			dep_tbl.lock();
+			
+			if (!(oldinputs == job_ptr->inputs)) { /* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */
+			  inputs_changed=true;
+			  _ensure_input_cachemanagers_registered(job_ptr->inputs);
+			}
+			
+			if (!(oldoutputs == job_ptr->outputs)) { /* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */
+			  outputs_changed=true;
+			  
+			}
+
 			
 			if (outputs_changed) {			  
 			  _rebuild_depgraph_node_edges(job_ptr); 
@@ -1247,24 +1422,22 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
       
     }
     
-    std::shared_ptr<trm_dependency>  add_dependency(std::function<void(snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)> function,
-						    std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs)> regionupdater,
+    std::shared_ptr<trm_dependency>  add_dependency(
 						    std::vector<trm_struct_depend> struct_inputs,
 						    std::vector<trm_arrayregion> inputs, // inputs array does not need to be complete; will be passed immediately to regionupdater() -- so this need only be a valid seed. 
 						    //std::vector<trm_arrayregion> outputs)
 						    std::vector<trm_struct_depend> struct_outputs,
-						    std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> struct_inputs, std::vector<trm_arrayregion> inputs,std::vector<trm_struct_depend> struct_outputs,std::vector<trm_arrayregion> outputs)> update_output_regions,
-						    std::function<void(std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> cleanup) // cleanup() should not generally do any locking but just free regions. 
+						    
+						    std::function<void(snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)> function,
+						    std::function<void(trm_dependency *dep)> cleanup) // cleanup() should not generally do any locking but just free regions. 
     {
       /* Add a dependency outside StartTransaction()...EndTransaction()... First execution opportunity will be at next call to EndTransaction() */
       /* acquire necessary read lock to allow modifying dependency tree */
       std::lock_guard<rwlock_lockable> ourlock(transaction_update_lock->reader);
-      return add_dependency_during_update(function,
-					  regionupdater,
-					  struct_inputs,
+      return add_dependency_during_update(struct_inputs,
 					  inputs,
 					  struct_outputs,
-					  update_output_regions,
+					  function,
 					  cleanup);
     }
 
@@ -1349,7 +1522,7 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
       
       for (auto & dependency: unexecuted) {
 
-	std::shared_ptr<trm_dependency> dep_strong(dependency);
+	std::shared_ptr<trm_dependency> dep_strong=dependency.lock();
 	if (dep_strong) {
 	  _output_deps_into_unexecwithdeps(dep_strong,false);
 	}
@@ -1424,28 +1597,25 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
     
     /* add_dependency_during_update may only be called during a transaction */
     /* MUST HOLD WRITE LOCK for all output_arrays specified... may reallocate these arrays! */
-    std::shared_ptr<trm_dependency> add_dependency_during_update(std::function<void(snde_index newversion,std::shared_ptr<trm_dependency> dep,std::vector<rangetracker<markedregion>> &inputchangedregions)> function,
-								 std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs)> regionupdater,
-								 std::vector<trm_struct_depend> struct_inputs,
+    std::shared_ptr<trm_dependency> add_dependency_during_update(std::vector<trm_struct_depend> struct_inputs,
 								 std::vector<trm_arrayregion> inputs, // inputs array does not need to be complete; will be passed immediately to regionupdater() -- so this need only be a valid seed.
 								 std::vector<trm_struct_depend> struct_outputs,
 								 //std::vector<trm_arrayregion> outputs)
-								 std::function<std::vector<trm_arrayregion>(std::vector<trm_struct_depend> struct_inputs,std::vector<trm_arrayregion> inputs,std::vector<trm_struct_depend> struct_outputs,std::vector<trm_arrayregion> outputs)> update_output_regions,
-								 std::function<void(std::vector<trm_struct_depend> struct_inputs, std::vector<trm_arrayregion> inputs,std::vector<trm_arrayregion> outputs)> cleanup) // cleanup() should not generally do any locking but just free regions. 
+								 std::function<void(snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)> function,
+								 std::function<void(trm_dependency *dep)> cleanup) // cleanup() should not generally do any locking but just free regions. 
     /* May only be called while holding transaction_update_lock, either as a reader(maybe?) or as a writer */
     {
-
-      /* Construct inputs */
-      inputs=regionupdater(struct_inputs,inputs);
+      
+      std::vector<trm_arrayregion> outputs; // start with blank output array
+      
+      std::shared_ptr<trm_dependency> dependency=std::make_shared<trm_dependency>(shared_from_this(),struct_inputs,inputs,struct_outputs,outputs,function,cleanup);
+      
+      /* Update inputs/outputs */
       _ensure_input_cachemanagers_registered(inputs);
       
-      /* construct empty output regions */
-      std::vector<trm_arrayregion> outputs; // start with blank output array
-      //outputs=update_output_regions(inputs,outputs);
       
-      std::shared_ptr<trm_dependency> dependency=std::make_shared<trm_dependency>(shared_from_this(),function,regionupdater,update_output_regions,cleanup,struct_inputs,inputs,struct_outputs,outputs);
       dependency->weak_this = dependency; // couldn't be set in constructor because you can't call shared_form_this() in constructor, but it is needed in the destructor and can't be created there either(!)
-
+      
       std::unique_lock<std::recursive_mutex> dep_tbl(dependency_table_lock);
       
       /*  Check input and output dependencies; 
@@ -1467,39 +1637,37 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
       _rebuild_depgraph_node_edges(dependency);
       
       // Now run the regionupdater and update_output_regions methods..... Have to release the locks, run them
-      // like they would be in the sub-threads. (note parallel code in subtread 
+      // like they would be in the sub-threads. (note parallel code in subthread)
       executing_regionupdater.emplace(dependency);
-
+      
       		      
-      std::vector<trm_arrayregion> newinputs;
-      std::vector<trm_arrayregion> newoutputs;
+      std::vector<trm_arrayregion> oldinputs=dependency->inputs;
+      std::vector<trm_arrayregion> oldoutputs=dependency->outputs;
       bool inputs_changed=false;
       
       dep_tbl.unlock();		
-      newinputs = dependency->regionupdater(dependency->struct_inputs,dependency->inputs);
+      dependency->function(0,dependency,std::set<trm_struct_depend_key>(),std::vector<rangetracker<markedregion>>(),STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS); 
       dep_tbl.lock();
       
-      if (!(newinputs == dependency->inputs)) { /* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */
+      if (!(oldinputs == dependency->inputs)) { /* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */
 	inputs_changed=true;
-	_ensure_input_cachemanagers_registered(newinputs);
-	dependency->inputs=newinputs;
+	_ensure_input_cachemanagers_registered(dependency->inputs);
       }
       
-      dep_tbl.unlock();		
-      newoutputs = dependency->update_output_regions(dependency->struct_inputs,dependency->inputs,dependency->struct_outputs,dependency->outputs);
-      dep_tbl.lock();		
-      
-      if (inputs_changed || !(newoutputs == dependency->outputs)) {
+      if (inputs_changed || !(oldoutputs == dependency->outputs)) {
 	/* NOTE: Do not change to != because operator== is properly overloaded but operator!= is not (!) */			
 	
 	_rebuild_depgraph_node_edges(dependency); 
       } 
       executing_regionupdater.erase(dependency); //ex_ru_iter);
       
+      for (size_t inpcnt=0;inpcnt < dependency->inputs.size();inpcnt++) {
+	dependency->inputchangedregions.emplace_back(); 
+      }
       
       
       if (state==TRMS_DEPENDENCY || state==TRMS_REGIONUPDATE) {
-	unexecuted_needs_regionupdater.insert(dependency);
+	unexecuted_regionupdated.insert(dependency);
 	if (state==TRMS_DEPENDENCY) {
 	  _figure_out_unexecuted_deps();
 	}
@@ -1572,22 +1740,19 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
       ourlock.swap(transaction_update_writelock_holder);
       
       
-      for (auto & dependency : dependencies) {
-	// Clear out inputchangedregions
-	std::shared_ptr<trm_dependency> dep_strong=dependency.lock();
-	if (dep_strong) {
-	  dep_strong->inputchangedregion.empty();
+      //      for (auto & dependency : dependencies) {
+      //// Clear out inputchangedregions (NOW DONE IMMEDIATELY AFTER EXECUTION)
+      //std::shared_ptr<trm_dependency> dep_strong=dependency.lock();
+      //if (dep_strong) {
+	  //dep_strong->inputchangedregions.clear();
 	
 	  //for (auto & icr : dependency->inputchangedregion) {
 	  //  icr.clear_all();
 	  //}
 	  
 	// Fill inputchangedregions with empty trackers according to number of inputs
-	  for (size_t inpcnt=0;inpcnt < dep_strong->inputs.size();inpcnt++) {
-	    dep_strong->inputchangedregion.emplace_back(); 
-	  }
-	}
-      }
+      //}
+      /// }
       
     }
 
@@ -1633,6 +1798,8 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
     void _mark_region_as_modified(const trm_arrayregion &modified)
     {
       /* dependency_table_lock must be locked when this function is called */
+
+      fprintf(stderr,"_mark_region_as_modified(array=0x%llx; start=%d; len=%d\n",(unsigned long long)((void *)modified.array),(int)modified.start,(int)modified.len);
       auto dbregion = modified_db.find(modified.array);
 
       if (dbregion==modified_db.end()) {

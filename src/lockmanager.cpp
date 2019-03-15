@@ -541,6 +541,31 @@ std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_
 }
 
 
+
+
+std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_lockable_mask(std::shared_ptr<parameterization> param,uint64_t maskentry,uint64_t readmask,uint64_t writemask)
+{
+  if (writemask & maskentry) {
+    // Lock component for write
+    if (maskentry==SNDE_INFOSTORE_PARAMETERIZATIONS) {
+      return get_locks_write_lockable(param);
+    } else {
+      assert(0); // Invalid maskentry for this function
+    }
+  } else if (readmask & maskentry) {
+    // lock component for read
+    if (maskentry==SNDE_INFOSTORE_PARAMETERIZATIONS) {
+      return get_locks_read_lockable(param);
+      
+    } else {    
+      assert(0); // Invalid maskentry for this function
+    }
+  } else {
+    return std::make_pair(lockholder_index(),empty_rwlock_token_set());
+  }
+}
+
+
 std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> snde::lockingprocess_threaded::alloc_array_region(std::shared_ptr<arraymanager> manager,void **allocatedptr,snde_index nelem,std::string allocid)
 /* Note: returns write lock tokens for ALL arrays allocated by the allocated array referred to by allocatedptr */
 /* This allocates the entire allocatedptr array for write AND any other arrays that are allocated in parallel. 
@@ -588,7 +613,7 @@ std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> snde::loc
   return retval;
 }
 
-void snde::lockingprocess_threaded::spawn(std::function<void(void)> f)
+std::shared_ptr<lockingprocess_thread> snde::lockingprocess_threaded::spawn(std::function<void(void)> f)
 {
   /* Since we must be the running thread in order to take
      this call, take the lock from _executor_lock */
@@ -655,6 +680,7 @@ void snde::lockingprocess_threaded::spawn(std::function<void(void)> f)
   lock.swap(_executor_lock);
   postunlock(prelockstate);
   /* return and continue executing */
+  return std::make_shared<lockingprocess_threaded_thread>(newthread);
 }
 
 

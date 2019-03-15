@@ -43,9 +43,9 @@ void x3d_viewer_display()
     
     //std::lock_guard<std::mutex> object_trees_lock(geom->object_trees_lock);
 
-    std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
+    //std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
     std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
-    OSGComp->LockVertexArraysTextures(holder,lockprocess);
+    OSGComp->LockVertexArraysTextures(lockprocess);
     rwlock_token_set all_locks=lockprocess->finish();
     
 
@@ -291,7 +291,7 @@ int main(int argc, char **argv)
     //std::lock_guard<std::mutex> object_trees_lock(geom->object_trees_lock);
     std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
     std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
-    OSGComp->LockVertexArraysTextures(holder,lockprocess);
+    OSGComp->LockVertexArraysTextures(lockprocess);
 
     rwlock_token_set all_locks=lockprocess->finish();
 

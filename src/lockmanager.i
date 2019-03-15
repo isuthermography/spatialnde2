@@ -7,6 +7,7 @@ import types as pytypes
 
 %shared_ptr(snde::lockmanager);
 %shared_ptr(snde::lockholder);
+%shared_ptr(snde::lockingprocess_thread);
 %shared_ptr(std::vector<snde::rangetracker<snde::markedregion>>);
 %shared_ptr(voidpp_voidpp_multimap_pyiterator)
 
@@ -350,6 +351,10 @@ struct arrayregion {
 
   };
 
+  class lockingprocess_thread {
+  public:
+    virtual ~lockingprocess_thread() {};
+  };
 
   class lockingposition {
   public:
@@ -392,7 +397,7 @@ struct arrayregion {
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array(void **array,bool write);
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array_mask(void **array,uint64_t maskentry,uint64_t resizemaskentry,uint64_t readmask,uint64_t writemask,uint64_t resizemask,snde_index indexstart,snde_index numelems);
 
-    virtual void spawn(std::function<void(void)> f);
+    virtual std::shared_ptr<lockingprocess_thread> spawn(std::function<void(void)> f);
 
     virtual ~lockingprocess();
 
@@ -420,9 +425,9 @@ namespace snde {
 
 
     //  virtual std::tuple<rwlock_token_set,std::shared_ptr<std::vector<rangetracker<markedregion>>>,std::shared_ptr<std::vector<rangetracker<markedregion>>>> finish();
-    virtual void spawn(std::function<void(void)> f)
+    virtual std::shared_ptr<lockingprocess_thread> spawn(std::function<void(void)> f)
     {
-
+      return nullptr;
     }
 
     virtual ~lockingprocess_pycpp()
@@ -457,7 +462,7 @@ namespace snde {
 
 
     //  virtual std::tuple<rwlock_token_set,std::shared_ptr<std::vector<rangetracker<markedregion>>>,std::shared_ptr<std::vector<rangetracker<markedregion>>>> finish();
-    virtual void spawn(std::function<void(void)> f);
+    virtual std::shared_ptr<lockingprocess_thread> spawn(std::function<void(void)> f);
 
     virtual ~lockingprocess_pycpp();
   };
@@ -530,7 +535,7 @@ class lockingprocess_threaded_python: public lockingprocess_threaded {
 
     //virtual std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> alloc_array_region(std::shared_ptr<arraymanager> manager,void **allocatedptr,snde_index nelem,std::string allocid);
 
-    virtual void spawn(std::function<void(void)> spawn_func);
+    virtual std::shared_ptr<lockingprocess_thread> spawn(std::function<void(void)> spawn_func);
       
     virtual rwlock_token_set finish();
     virtual ~lockingprocess_threaded_python();
@@ -738,7 +743,7 @@ namespace snde {
   class lockholder {
   public:
     std::unordered_map<lockholder_index,rwlock_token_set,lockholder_index_hash> values;
-    std::unordered_map<std::pair<void **,std::string>,snde_index,voidpp_string_hash> allocvalues;
+    std::unordered_map<std::pair<void **,std::string>,std::pair<snde_index,snde_index>,voidpp_string_hash> allocvalues;
     
     
     std::string as_string();
@@ -756,7 +761,7 @@ namespace snde {
 
 
     rwlock_token_set get(void **array,bool write,snde_index indexstart,snde_index numelem);
-    rwlock_token_set get_alloc_lock(void **array,snde_index numelem,std::string allocid);
+    rwlock_token_set get_alloc_lock(void **array,std::string allocid);
     snde_index get_alloc(void **array,std::string allocid);
   };
   

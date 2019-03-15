@@ -100,6 +100,14 @@ static trm_struct_depend wfm_dependency(std::shared_ptr<trm> revman, std::shared
 }
 
 
+static std::tuple<std::shared_ptr<mutablewfmdb>, std::shared_ptr<mutableinfostore>> get_wfm_dependency(const trm_struct_depend &depend)
+{
+  std::shared_ptr<mutablewfmdb> wfmdb = std::dynamic_pointer_cast<trm_mutablewfm_key>(depend.first.keyimpl)->wfmdb.lock();
+  std::shared_ptr<mutableinfostore> input=wfmdb->lookup(std::dynamic_pointer_cast<trm_mutablewfm_key>(depend.first.keyimpl)->wfmfullname);
+
+  return std::make_tuple(wfmdb,input);
+}
+  
 }
 #endif // SNDE_REVMAN_WFMSTORE_HPP
 

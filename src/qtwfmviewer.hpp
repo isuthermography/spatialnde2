@@ -1363,6 +1363,17 @@ namespace snde {
 	update_data_renderer(currentwfmlist);
       }
     }
+
+    void lock_renderer(std::shared_ptr<lockingprocess_threaded> lockprocess)
+    {
+      if (OSGWidget->twodimensional) {
+	// datarenderer
+	DataRenderer->LockGraphics(lockprocess);
+      } else {
+	// geomrenderer
+	GeomRenderer->LockVertexArraysTextures(lockprocess);
+      }
+    }
     
     void update_wfm_list()  
     {

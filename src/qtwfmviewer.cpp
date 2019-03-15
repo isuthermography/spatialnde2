@@ -42,7 +42,15 @@ namespace snde {
       if (!GraphicsWindow->getEventQueue()->empty()) {
 	fprintf(stderr,"About to process events\n");
       }
-      Viewer->frame();
+
+      {
+	std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(QTViewer->sndegeom->manager->locker); // new locking process
+	//OSGComp->LockVertexArraysTextures(holder,lockprocess);
+	QTViewer->lock_renderer(lockprocess);
+	rwlock_token_set all_locks=lockprocess->finish();
+	
+	Viewer->frame();
+      }
       fprintf(stderr,"Render complete; empty=%d\n",(int)GraphicsWindow->getEventQueue()->empty());
       
       //unlock_rwlock_token_set(all_locks); // Drop our locks 

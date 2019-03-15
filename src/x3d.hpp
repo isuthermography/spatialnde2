@@ -1382,6 +1382,7 @@ namespace snde {
       snde_index vertex_edgelist_maxsize=coords->point.size()*7;
       holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.vertex_edgelist,vertex_edgelist_maxsize,""));
 
+      snde_index uv_vertex_edgelist_maxsize=0;
       // allocate for parameterization
       if (texCoords) {
 	assert(coordIndex.size()==texCoordIndex.size());
@@ -1396,7 +1397,7 @@ namespace snde {
 	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_edges,3*texCoordIndex.size(),""));
 	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_vertices,texCoords->point.size(),""));
 	// Edgelist may need to be big enough to store # of edges*2 +  # of vertices
-	snde_index uv_vertex_edgelist_maxsize=texCoords->point.size()*7;
+	uv_vertex_edgelist_maxsize=texCoords->point.size()*7;
 	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_vertex_edgelist,uv_vertex_edgelist_maxsize,""));
 	//if (texture) {
 	//  holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_images,1,""));	  
@@ -2271,7 +2272,7 @@ namespace snde {
 	
 	geom->geom.uvs[firstuv].first_uv_vertex_edgelist=first_uv_vertex_edgelist;
 	geom->geom.uvs[firstuv].num_uv_vertex_edgelist=next_uv_vertex_edgelist_pos;
-	geom->manager->realloc_down((void **)&geom->geom.uv_vertex_edgelist,first_uv_vertex_edgelist,vertex_edgelist_maxsize,next_uv_vertex_edgelist_pos);
+	geom->manager->realloc_down((void **)&geom->geom.uv_vertex_edgelist,first_uv_vertex_edgelist,uv_vertex_edgelist_maxsize,next_uv_vertex_edgelist_pos);
 
 	// Mark that we have modified uv_vertex_edgelist with the CPU
 	geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.uv_vertex_edgelist,first_uv_vertex_edgelist,next_uv_vertex_edgelist_pos);     

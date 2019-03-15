@@ -18,18 +18,6 @@
 #define SNDE_OPENSCENEGRAPH_DATA_HPP
 
 namespace snde {
-class osg_datacachebase; // forward reference
-
-
-class osg_datacacheptr: public osg::Referenced {
-public:
-  osg_datacachebase *ptr;
-  osg_datacacheptr(osg_datacachebase *ptr) :
-    ptr(ptr)
-  {
-    
-  }
-};
   
 class osg_datacachebase  { // base class for datacache entries
 public:
@@ -39,7 +27,6 @@ public:
   osg_datacachebase()
   {
     group=new osg::Group();
-    group->setUserData(new osg_datacacheptr(this));
     touched=true;
   }
   
@@ -763,7 +750,30 @@ public:
     size_t layer_index=0;
 
 
+    // Update graticule matrix
+    // transform from the 5/div scaling of the graticule, onto the screen
+    // placing it at a z distance of layerindex
+    double horizontal_padding = (drawareawidth-display->horizontal_divisions*display->pixelsperdiv)/2.0;
+    double vertical_padding = (drawareaheight-display->vertical_divisions*display->pixelsperdiv)/2.0;
+    
 
+    GraticuleTransform->setMatrix(osg::Matrixd(display->pixelsperdiv/5.0,0,0,0,
+					       0,display->pixelsperdiv/5.0,0,0,
+					       0,0,1,0,
+					       horizontal_padding+display->pixelsperdiv*display->horizontal_divisions/2.0-0.5,vertical_padding+display->pixelsperdiv*display->vertical_divisions/2.0-0.5,-1.0*layer_index,1)); // ***!!! are -0.5's and negative sign in front of layer_index correct?  .... fix here and in transformmtx, above. 
+    
+    // Check for graticule in our group
+    if (child_num >= getNumChildren() || getChild(child_num)!=GraticuleTransform) {
+      // graticule missing or out-of-place
+      if (containsNode(GraticuleTransform)) {
+	removeChild(GraticuleTransform);
+      }
+      insertChild(child_num,GraticuleTransform);
+    } 
+    child_num++; // Graticule child/layer got added either way
+    layer_index++;
+
+ 
 
     // iterate over cache, setting touched flag
     for (auto & cacheentry : imagecache->cache) {
@@ -800,29 +810,6 @@ public:
       
     }
 
-    // Update graticule matrix
-    // transform from the 5/div scaling of the graticule, onto the screen
-    // placing it at a z distance of layerindex
-    double horizontal_padding = (drawareawidth-display->horizontal_divisions*display->pixelsperdiv)/2.0;
-    double vertical_padding = (drawareaheight-display->vertical_divisions*display->pixelsperdiv)/2.0;
-    
-
-    GraticuleTransform->setMatrix(osg::Matrixd(display->pixelsperdiv/5.0,0,0,0,
-					       0,display->pixelsperdiv/5.0,0,0,
-					       0,0,1,0,
-					       horizontal_padding+display->pixelsperdiv*display->horizontal_divisions/2.0-0.5,vertical_padding+display->pixelsperdiv*display->vertical_divisions/2.0-0.5,-1.0*layer_index,1)); // ***!!! are -0.5's and negative sign in front of layer_index correct?  .... fix here and in transformmtx, above. 
-    
-    // Check for graticule in our group
-    if (child_num >= getNumChildren() || getChild(child_num)!=GraticuleTransform) {
-      // graticule missing or out-of-place
-      if (containsNode(GraticuleTransform)) {
-	removeChild(GraticuleTransform);
-      }
-      insertChild(child_num,GraticuleTransform);
-    } 
-    child_num++; // Graticule child/layer got added either way
-    layer_index++;
-
     
     // remove any remaining children...
     while (child_num < getNumChildren()) {
@@ -841,27 +828,6 @@ public:
       }
 
     }
-  }
-
-  void LockGraphics(std::shared_ptr<lockingprocess_threaded> lockprocess)
-  {
-    // the children of this group are mostly the group members of osg_dataimagecacheentries
-    unsigned childnum;
-
-    std::vector<trm_arrayregion> to_lock;
-
-    for (childnum=0;childnum < getNumChildren();childnum++) {
-      osg::Referenced *userdata = getChild(childnum)->getUserData();
-
-      if (userdata) {
-	osg_dataimagecacheentry *cacheentry = dynamic_cast<osg_dataimagecacheentry *>(userdata);
-	if (cacheentry) {
-	  to_lock.push_back(cacheentry->rgba_dep->outputs.at(0));
-	}
-      }
-    }
-    trm_lock_arrayregions(lockprocess,to_lock);
-
   }
   
 };

@@ -624,7 +624,7 @@ namespace snde {
 
     void _realloc_down(snde_index addr, snde_index orignelem, snde_index newnelem)
     /* Shrink an allocation to the newly specified size. You must 
-       have a write lock on the allocation, but not the entire array */
+       have a write lock on the allocation, but not necessarily the entire array */
     {
       snde_index chunkaddr;
 
@@ -633,9 +633,11 @@ namespace snde {
 
       assert(orignelem >= newnelem);
       
+      
+
+
       snde_index origchunks = (orignelem+_allocchunksize-1)/_allocchunksize;
       snde_index newchunks = (newnelem+_allocchunksize-1)/_allocchunksize;
-      if (newchunks==origchunks) return;
 
 
       assert(addr != SNDE_INDEX_INVALID);
@@ -645,6 +647,15 @@ namespace snde {
       
       std::lock_guard<std::mutex> lock(allocatormutex); // Lock the allocator mutex 
 
+      {
+	std::shared_ptr<allocation> alloc = allocations_unmerged.get_region(addr/_allocchunksize);
+	assert(alloc->nelem == orignelem);
+	
+	if (newchunks==origchunks) {
+	  alloc->nelem = newnelem;
+	  return;
+	}
+      }
       chunkaddr=addr/_allocchunksize;
 
       

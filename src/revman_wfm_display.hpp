@@ -105,6 +105,20 @@ static trm_struct_depend display_channel_dependency(std::shared_ptr<trm> revman,
   return std::make_pair(notifier->key,notifier);
 }
 
+
+static std::shared_ptr<display_channel> get_display_channel_dependency(const trm_struct_depend &depend)
+{
+  std::shared_ptr<trm_wfmdisplay_notifier> notifier=std::dynamic_pointer_cast<trm_wfmdisplay_notifier>(depend.second);
+  assert(notifier);
+
+  std::shared_ptr<trm_wfmdisplay_key> our_key;
+  our_key=std::dynamic_pointer_cast<trm_wfmdisplay_key>(notifier->key.keyimpl);
+  assert(our_key);
+
+  return our_key->displaychan;
+
+}
+  
 }
 
 #endif // SNDE_REVMAN_WFM_DISPLAY_HPP

@@ -330,13 +330,22 @@ namespace snde {
   };
   
 
-  class parameterization {
+  class parameterization : public std::enable_shared_from_this<parameterization> {
   public:
+    
+    class notifier {
+    public:
+      virtual void modified(std::shared_ptr<parameterization> param)=0;
+      
+    };
+
     std::string name;
     std::shared_ptr<geometry> geom;
     snde_index idx; /* index of the parameterization in the geometry uv database -- we have ownership of this entry */
     //std::map<std::string,std::shared_ptr<uv_patches>> patches;
     std::shared_ptr<rwlock> lock; // managed by lockmanager
+    
+    std::set<std::weak_ptr<notifier>,std::owner_less<std::weak_ptr<notifier>>> notifiers; 
 
     bool destroyed;
     
@@ -365,7 +374,24 @@ namespace snde {
     //  patches.emplace(std::pair<std::string,std::shared_ptr<uv_patches>>(to_add->name,to_add));
     //}
 
-
+    virtual void add_notifier(std::shared_ptr<notifier> notify)
+    {
+      notifiers.emplace(notify);
+      
+    }
+    
+    virtual void obtain_lock(std::shared_ptr<lockingprocess> process,snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_PARAMETERIZATIONS,snde_infostore_lock_mask_t writemask=0) /* readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits */
+    {
+      // lock this parameterization
+      // Assumes this is either the only parameterization being locked or the caller is taking care of the locking order
+      
+      std::shared_ptr<parameterization> our_ptr=shared_from_this();
+      
+      
+      process->get_locks_lockable_mask(our_ptr,SNDE_INFOSTORE_PARAMETERIZATIONS,readmask,writemask);
+      
+    }
+    
 
     virtual void obtain_uv_lock(std::shared_ptr<lockingprocess> process, snde_infostore_lock_mask_t readmask=SNDE_UV_GEOM_ALL, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
     {
@@ -684,7 +710,7 @@ namespace snde {
     {
       // attempt to obtain set of component pointers
       // including this component and all sub-components.
-      // assumes the caller has at least a temporary readlock or writelock to SNDE_INFOSTORE_OBJECT_TREES
+      // the obtain_lock on an assembly assumes the caller has at least a temporary readlock or writelock to SNDE_INFOSTORE_OBJECT_TREES, but that is not required to call obtain_lock() on a part. 
       // Assumes this is either the only component being locked or the caller is taking care of the locking order
       
       std::shared_ptr<component> our_ptr=shared_from_this();
@@ -791,7 +817,7 @@ namespace snde {
       /* NOTE: Parallel Python implementation obtain_lock_pycpp 
 	 must be maintained in geometry.i */
 
-      assert(readmask & SNDE_COMPONENT_GEOM_PARTS); // Cannot do remainder of locking without read access to part
+      assert(readmask & SNDE_COMPONENT_GEOM_PARTS || writemask & SNDE_COMPONENT_GEOM_PARTS); // Cannot do remainder of locking without read access to part
 
       if (idx != SNDE_INDEX_INVALID) {
 	process->get_locks_array_mask((void **)&geom->geom.parts,SNDE_COMPONENT_GEOM_PARTS,SNDE_COMPONENT_GEOM_PARTS_RESIZE,readmask,writemask,resizemask,idx,1);
