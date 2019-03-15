@@ -111,62 +111,6 @@ public:
   }
 
 
-  void obtain_array_locks(std::shared_ptr<lockholder> holder,std::shared_ptr<lockingprocess_threaded> lockprocess,snde_infostore_lock_mask_t readmask, snde_infostore_lock_mask_t writemask,snde_infostore_lock_mask_t resizemask,bool include_texvertex_arrays, bool texvertex_arrays_write, bool texvertex_arrays_entire_array)
-  // NOTE: This may be called from any thread!
-  // NOTE: This does not lock the mutablegeomstore metadata!
-  {
-    std::shared_ptr<geometry> snde_geom_strong(snde_geom);
-    std::shared_ptr<parameterization> param_strong(param);
-
-    if (snde_geom_strong && param_strong) {
-    
-      /* Obtain lock for this component -- in parallel with our write lock on the vertex array, below */
-      if (readmask != 0 || writemask != 0) {
-	lockprocess->spawn( [ param_strong, lockprocess, readmask, writemask, resizemask ]() {
-			      // Obtain lock for our parameterization
-			      param_strong->obtain_uv_lock(lockprocess,SNDE_UV_GEOM_UVS | readmask, writemask,resizemask);
-			    });
-      }
-      
-      if (include_texvertex_arrays && texvertex_arrays_write && !texvertex_arrays_entire_array) {
-	/* Obtain write lock on vertex array output */
-	rwlock_token_set texvertex_arrays_lock;
-	lockholder_index texvertex_arrays_info;
-	std::tie(texvertex_arrays_info,texvertex_arrays_lock) = lockprocess->get_locks_write_array_region((void **)&snde_geom_strong->geom.texvertex_arrays,texvertex_function->outputs[0].start,texvertex_function->outputs[0].len);//DataArray->offset,DataArray->nvec*3);
-      } else if (include_texvertex_arrays && !texvertex_arrays_entire_array) {
-	/* Obtain read lock on vertex array output */
-	rwlock_token_set texvertex_arrays_lock;
-	lockholder_index texvertex_arrays_info;
-	std::tie(texvertex_arrays_info,texvertex_arrays_lock) = lockprocess->get_locks_read_array_region((void **)&snde_geom_strong->geom.texvertex_arrays,texvertex_function->outputs[0].start,texvertex_function->outputs[0].len);//,DataArray->offset,DataArray->nvec*3);
-	
-      } else if (include_texvertex_arrays && texvertex_arrays_write && !texvertex_arrays_entire_array) {
-	rwlock_token_set texvertex_arrays_lock;
-	lockholder_index texvertex_arrays_info;
-	std::tie(texvertex_arrays_info,texvertex_arrays_lock) = lockprocess->get_locks_write_array((void **)&snde_geom_strong->geom.texvertex_arrays);      
-      } else if (include_texvertex_arrays && !texvertex_arrays_entire_array) {
-	rwlock_token_set texvertex_arrays_lock;
-	lockholder_index texvertex_arrays_info;
-	std::tie(texvertex_arrays_info,texvertex_arrays_lock) = lockprocess->get_locks_read_array((void **)&snde_geom_strong->geom.texvertex_arrays);      
-      }
-    }
-  }
-
-  rwlock_token_set obtain_array_locks(snde_infostore_lock_mask_t readmask, snde_infostore_lock_mask_t writemask,snde_infostore_lock_mask_t resizemask,bool include_texvertex_arrays, bool texvertex_arrays_write, bool texvertex_arrays_entire_array)
-  // the geometry object_trees_lock should be held when this is called (but not necessarily by
-  // this thread -- just to make sure it can't be changed) 
-    
-  // Locking the object_trees_lock should be taken care of by whoever is starting the transaction
-  {
-    std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
-    std::shared_ptr<geometry> snde_geom_strong(snde_geom);
-    std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(snde_geom_strong->manager->locker); // new locking process
-    
-    obtain_array_locks(holder,lockprocess,readmask,writemask,resizemask,include_texvertex_arrays,texvertex_arrays_write,texvertex_arrays_entire_array);
-        
-    rwlock_token_set all_locks=lockprocess->finish();
-
-    return all_locks; // !!!*** Should we also return vertex_arrays_lock and/or _info? 
-  }
   
   std::shared_ptr<osg_paramcacheentry> lock()
   {

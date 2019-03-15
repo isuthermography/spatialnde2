@@ -242,75 +242,6 @@ public:
   osg_instancecacheentry(const osg_instancecacheentry &)=delete; /* copy constructor disabled */
   osg_instancecacheentry & operator=(const osg_instancecacheentry &)=delete; /* copy assignment disabled */
 
-  //bool obsolete()
-  //{
-    /* returns true if vertex_start_index and  numvertices obsolete */
-
-    /* ***!!!! Need to implement version map of the various arrays and search if there has been an update ***!!!! */
-
-  //  return true;
-
-  //}
-
-  // !!!*** Add locking method, function method, region updater method!
-
-  void obtain_array_locks(std::shared_ptr<lockingprocess_threaded> lockprocess, std::shared_ptr<mutablegeomstore> comp,snde_infostore_lock_mask_t readmask, snde_infostore_lock_mask_t writemask,snde_infostore_lock_mask_t resizemask) //,bool include_vertex_arrays, bool vertex_arrays_write, bool vertex_arrays_entire_array)
-  // NOTE: This may be called from any thread!
-  {
-    std::shared_ptr<geometry> snde_geom_strong(snde_geom);
-    
-    /* Obtain lock for this component -- in parallel with our write lock on the vertex array, below */
-    if (readmask != 0 || writemask != 0) {
-      //lockprocess->spawn( [ comp, lockprocess, readmask, writemask, resizemask ]() {
-      comp->obtain_lock(lockprocess,readmask,writemask,resizemask);
-			    //// first, get the lock on our mutableinfostore (comp) 
-			    //lockprocess->get_locks_lockable_mask(comp,SNDE_INFOSTORE_INFOSTORE,readmask|SNDE_INFOSTORE_INFOSTORE,writemask);
-			    //
-			    // ALSO NEEDS OBJECT_TREES_LOCK (at least temporarily
-			    //// ... and the associated snde::component structure comp->comp
-			    //lockprocess->get_locks_lockable_mask(comp->comp,SNDE_INFOSTORE_COMPONENTS,readmask|SNDE_INFOSTORE_COMPONENTS,writemask);
-			    //// Now obtain lock for everything under that
-			    //comp->comp->obtain_geom_lock(lockprocess,SNDE_COMPONENT_GEOM_PARTS | readmask, writemask,resizemask);
-			    //		  });
-    }
-    
-    //if (include_vertex_arrays && vertex_arrays_write && !vertex_arrays_entire_array) {
-    //  /* Obtain write lock on vertex array output */
-    //  rwlock_token_set vertex_arrays_lock;
-    //  lockholder_index vertex_arrays_info;
-    //  std::tie(vertex_arrays_info,vertex_arrays_lock) = lockprocess->get_locks_write_array_region((void **)&snde_geom_strong->geom.vertex_arrays,vertex_function->outputs[0].start,vertex_function->outputs[0].len);//DataArray->offset,DataArray->nvec*3);
-    //} else if (include_vertex_arrays && !vertex_arrays_entire_array) {
-    //  /* Obtain read lock on vertex array output */
-    //  rwlock_token_set vertex_arrays_lock;
-    //  lockholder_index vertex_arrays_info;
-    //  std::tie(vertex_arrays_info,vertex_arrays_lock) = lockprocess->get_locks_read_array_region((void **)&snde_geom_strong->geom.vertex_arrays,vertex_function->outputs[0].start,vertex_function->outputs[0].len);//,DataArray->offset,DataArray->nvec*3);
-    //
-    //} else if (include_vertex_arrays && vertex_arrays_write && !vertex_arrays_entire_array) {
-    //  rwlock_token_set vertex_arrays_lock;
-    //  lockholder_index vertex_arrays_info;
-    //  std::tie(vertex_arrays_info,vertex_arrays_lock) = lockprocess->get_locks_write_array((void **)&snde_geom_strong->geom.vertex_arrays);      
-    //} else if (include_vertex_arrays && !vertex_arrays_entire_array) {
-    //  rwlock_token_set vertex_arrays_lock;
-    //  lockholder_index vertex_arrays_info;
-    //  std::tie(vertex_arrays_info,vertex_arrays_lock) = lockprocess->get_locks_read_array((void **)&snde_geom_strong->geom.vertex_arrays);      
-    //}
-    
-  }
-
-  //  rwlock_token_set obtain_array_locks(std::shared_ptr<mutablegeomstore> comp,snde_infostore_lock_mask_t readmask, snde_infostore_lock_mask_t writemask,snde_infostore_lock_mask_t resizemask,bool include_vertex_arrays, bool vertex_arrays_write, bool vertex_arrays_entire_array)   
-  //{
-  //  //std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
-  //  std::shared_ptr<geometry> snde_geom_strong(snde_geom);
-  //  std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(snde_geom_strong->manager->locker); // new locking process
-  //  
-  //  obtain_array_locks(lockprocess,comp,readmask,writemask,resizemask,include_vertex_arrays,vertex_arrays_write,vertex_arrays_entire_array);
-  //      
-  //  rwlock_token_set all_locks=lockprocess->finish();
-  //
-  //  return all_locks; // !!!*** Should we also return vertex_arrays_lock and/or _info? 
-  //}
-
-  //void update_vertex_arrays(std::shared_ptr<osg_instancecacheentry> entry_ptr);
 
   
   ~osg_instancecacheentry()
@@ -1108,9 +1039,6 @@ public:
   /* This locks the generated vertex arrays and normals (for OSG) and generated textures (for OSG) for read */
   /* Should have just done an Update() so that cacheentries is up-to-date */
   {
-    //for (auto & cacheentry: cacheentries) {
-    //  lockprocess->spawn( [ cacheentry, holder, lockprocess, this]() { cacheentry->obtain_array_locks(holder,lockprocess,comp,SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_NORMALS, 0, 0,true, false, false); });
-    //}
 
     comp->obtain_lock(lockprocess,SNDE_INFOSTORE_INFOSTORE|SNDE_INFOSTORE_COMPONENTS|SNDE_COMPONENT_GEOM_PARTS); //|SNDE_COMPONENT_GEOM_NORMALS,
     
