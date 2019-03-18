@@ -310,6 +310,13 @@ public:
 					cacheentrystrong->image->dirty();
 					fprintf(stderr,"Texture RGBA generated\n");
 				      }
+				    },
+				    [ cacheentryweak ] (void) { //cleanup
+				      std::shared_ptr<osg_texturecacheentry> cacheentrystrong=cacheentryweak.lock();
+				      if (cacheentrystrong) {
+					cacheentrystrong->image->setImage(0,0,1,GL_RGBA,GL_RGBA,GL_UNSIGNED_BYTE,nullptr,osg::Image::AllocationMode::NO_DELETE);
+					
+				      }
 				    });
       
     }

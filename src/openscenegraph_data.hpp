@@ -668,7 +668,15 @@ public:
 
 						    cacheentrystrong->image->dirty();
 						  }
+						},
+						[ cacheentryweak ] (void) { //cleanup
+						  std::shared_ptr<osg_dataimagecacheentry> cacheentrystrong=cacheentryweak.lock();
+						  if (cacheentrystrong) {
+						    cacheentrystrong->image->setImage(0,0,1,GL_RGBA,GL_RGBA,GL_UNSIGNED_BYTE,nullptr,osg::Image::AllocationMode::NO_DELETE);
+						    
+						  }
 						});
+      
       imagecache->cache.emplace(displaychan,cacheentry);
     }
     cacheentry->transform->setMatrix(transformmtx);

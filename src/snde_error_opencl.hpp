@@ -80,7 +80,7 @@ namespace snde {
     cl_int _clerrnum;
 
     template<typename ... Args>
-    openclerror(cl_int clerrnum,std::string fmt, Args && ... args) : std::runtime_error(ssprintf("OpenCL runtime error %d (%s): %s",clerrnum,openclerrorstring[clerrnum].c_str(),cssprintf(fmt,std::forward<Args>(args) ...))) { /* cssprintf will leak memory, but that's OK because this is an error and should only happen once  */
+    openclerror(cl_int clerrnum,std::string fmt, Args && ... args) : std::runtime_error(ssprintf("OpenCL runtime error %d (%s): %s",clerrnum,openclerrorstring.at(clerrnum).c_str(),cssprintf(fmt,std::forward<Args>(args) ...))) { /* cssprintf will leak memory, but that's OK because this is an error and should only happen once  */
       //std::string foo=openclerrorstring[clerrnum];
       //std::string bar=openclerrorstring.at(clerrnum);
       //std::string fubar=openclerrorstring.at(-37);

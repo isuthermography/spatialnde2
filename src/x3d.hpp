@@ -1568,7 +1568,7 @@ namespace snde {
       
       std::unordered_map<std::pair<snde_index,snde_index>,snde_index,x3d_hash<std::pair<snde_index,snde_index>>,x3d_equal_to<std::pair<snde_index,snde_index>>> edgenum_byvertices;
       snde_index next_edgenum=0;
-      snde_trinormals normals;
+      snde_trivertnormals normals;
 
 
       snde_index numtris = coordIndex.size()/coordindex_step;
@@ -1739,9 +1739,11 @@ namespace snde {
 	
 	/* continue working on this triangle */
 
-	// Assign normals
+	// Assign normals (just vertnormals... we always calculate trinormals ourselves because
+	// that matters for more than just rendering!
+	// (actually vertnormals will get overwritten too)
 	if (normal) {
-	  geom->geom.normals[firsttri+trinum]=normals;
+	  geom->geom.vertnormals[firsttri+trinum]=normals;
 	}
 	if (coordindex_step==4) {
 	  /* indexedfaceset. This must really be a triangle hence it should have a -1 index next */
@@ -2044,6 +2046,8 @@ namespace snde {
 		geom->geom.uv_edges[firstuvedge+next_uv_edgenum].vertex[1]=vertex[(edgecnt+1) % 3];
 		geom->geom.uv_edges[firstuvedge+next_uv_edgenum].tri_a=trinum;
 		geom->geom.uv_edges[firstuvedge+next_uv_edgenum].tri_b=SNDE_INDEX_INVALID;
+		geom->geom.uv_edges[firstuvedge+next_uv_edgenum].tri_b_prev_edge=SNDE_INDEX_INVALID;
+		geom->geom.uv_edges[firstuvedge+next_uv_edgenum].tri_b_next_edge=SNDE_INDEX_INVALID;
 		
 		geom->geom.uv_edges[firstuvedge+next_uv_edgenum].tri_a_prev_edge=prev_edgenum;
 		if (prev_edgenum==SNDE_INDEX_INVALID) {
@@ -2202,6 +2206,32 @@ namespace snde {
 	      // CCW
 	      snde_index edgecheck;
 	      for (edgecheck=1; edgecheck < vertexnum_uv_edges.second.size();edgecheck++) {
+		/*
+		// valgrind debugging
+		{
+		  snde_index prev_edge_a=geom->geom.uv_edges[firstuvedge+last_uvedge].tri_a_prev_edge;
+
+		  snde_index vue_edgecheck=vertexnum_uv_edges.second.at(edgecheck);
+		  bool pass=false;
+		  bool pass2=false;
+		  
+		  if (prev_edge_a == vue_edgecheck) {
+		    pass=true;
+		  } else {
+		    snde_index prev_edge_b=geom->geom.uv_edges[firstuvedge+last_uvedge].tri_b_prev_edge;
+		    pass2=prev_edge_b; //==vue_edgecheck;
+		  }
+		  if (pass2) {
+		    snde_index next_edge_a=geom->geom.uv_edges[firstuvedge+vertexnum_uv_edges.second.at(edgecheck)].tri_a_next_edge;
+		    if (next_edge_a != last_uvedge) {
+		      snde_index next_edge_b=geom->geom.uv_edges[firstuvedge+vertexnum_uv_edges.second.at(edgecheck)].tri_b_next_edge;
+		      if (next_edge_b == last_uvedge) {
+			fprintf(stderr,"vgfoo!\n");
+		      }
+		    }
+		  }
+		}
+		*/
 		if ((geom->geom.uv_edges[firstuvedge+last_uvedge].tri_a_prev_edge==vertexnum_uv_edges.second.at(edgecheck) || geom->geom.uv_edges[firstuvedge+last_uvedge].tri_b_prev_edge==vertexnum_uv_edges.second.at(edgecheck)) && (geom->geom.uv_edges[firstuvedge+vertexnum_uv_edges.second.at(edgecheck)].tri_a_next_edge==last_uvedge || geom->geom.uv_edges[firstuvedge+vertexnum_uv_edges.second.at(edgecheck)].tri_b_next_edge==last_uvedge)) {
 		  // edgecheck works!
 		  newvec.push_back(vertexnum_uv_edges.second.at(edgecheck));

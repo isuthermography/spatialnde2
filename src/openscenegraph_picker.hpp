@@ -178,7 +178,8 @@ namespace snde {
 
 
 		      // lock part and (if present) parameterizatoin
-		      
+		      // ***WARNING*** part->obtain_geom_lock NOT CURRENTLY CAPABLE OF LOCKING PARAMETERIZATION
+		      // LOCK THESE VIA THE param_ptr instead!!!
 		      // OK not to spawn here because the parameterization geom fields are later in the locking order than the part fields
 		      // (or we could use the cacheentry's obtain_array_locks() method...)
 

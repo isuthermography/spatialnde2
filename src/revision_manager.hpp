@@ -53,6 +53,12 @@ namespace snde {
      ***!!! Should be modified to support functions that are only executed on-demand...
 i.e. a transaction that does nothing but mark demands on some outputs.... Those outputs
 are otherwise never generated, even if their input changes ***!!!
+
+***!!! Should be modified to identify implicit struct dependencies when evaluating the 
+dependency graph
+
+***!!! Should rework to accommodate arrays that are changed outside a transaction
+
   */
 
   // forward declaration

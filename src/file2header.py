@@ -13,7 +13,7 @@ outfh = open(outfilename, "w")
 
 preproc_symbol = "SNDE_"+os.path.split(outfilename)[1].replace(".","_").upper()
 
-outfh.write("#ifndef %s\n#define %s\nstatic const char *%s_%s=" % (preproc_symbol,preproc_symbol,os.path.splitext(infilename)[0], os.path.splitext(infilename)[1][1:]))
+outfh.write("#ifndef %s\n#define %s\nstatic const char *%s_%s=" % (preproc_symbol,preproc_symbol,os.path.split(os.path.splitext(infilename)[0])[1], os.path.splitext(infilename)[1][1:]))
 
 pos = 0
 while pos < len(buf):

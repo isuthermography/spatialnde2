@@ -119,12 +119,6 @@ public:
     
   ~osg_paramcacheentry()
   {
-    std::shared_ptr<geometry> geom=snde_geom.lock();
-    if (geom && TexCoordArray && TexCoordArray->offset != SNDE_INDEX_INVALID) {
-      geom->manager->free((void **)&geom->geom.vertex_arrays,TexCoordArray->offset);
-      TexCoordArray->offset=SNDE_INDEX_INVALID;
-      TexCoordArray->nvec=0;
-    }
   }
   
 };
@@ -290,12 +284,21 @@ public:
 							   }
 							 }
 						       },
-						       [ ] (trm_dependency  *dep)  {
+						       [ entry_ptr_weak ] (trm_dependency  *dep)  {
 							 // cleanup function
+
+							 std::shared_ptr<osg_paramcacheentry> entry_ptr = entry_ptr_weak.lock();
+							 if (entry_ptr && entry_ptr->TexCoordArray) {
+							   entry_ptr->TexCoordArray->nvec=0;
+							   entry_ptr->TexCoordArray->offset=SNDE_INDEX_INVALID;
+							 }
+
+							 // free our outputs
 							 std::vector<trm_arrayregion> new_outputs;
 							 dep->free_output(new_outputs,0);
 							 dep->update_outputs(new_outputs);
-							 
+
+
 						       });
       
       

@@ -166,8 +166,8 @@ typedef struct {
 } snde_indexrange;
   
 typedef struct {
-  snde_coord3 vertnorms[3]; // vertex follow the order of vertices, counterclockwise as seen from the outside. The first vertex is the vertex from edges[0] that is NOT shared by the next_edge 
-} snde_trinormals;
+  snde_coord3 vertnorms[3]; // vertex follow the order of vertices, counterclockwise as seen from the outside. The first vertex is the vertex from edges[0] that is NOT shared by the next_edge
+} snde_trivertnormals;
 
 typedef struct {
   snde_index subbox[8];
@@ -196,12 +196,12 @@ typedef struct {
 } snde_axis32;
 
 
-typedef struct {
-  snde_coord cols[3];
-} snde_row3;
+  //typedef struct {
+  //snde_coord cols[3];
+  //} snde_row3;
 
 typedef struct {
-  snde_row3 row[2];
+  snde_coord3 row[2];
 } snde_mat23;
 
 
@@ -396,7 +396,6 @@ struct snde_part {
   snde_index firstbox,numboxes;  /* also applies to boxcoord */
   snde_index firstboxpoly,numboxpolys; /* NOTE: Boxes are in part coordinates, not world coordinates */
   snde_index firstboxnurbssurface,numboxnurbssurfaces; /* nurbs equivalent of boxpolys */
-  snde_index firstboxcoord,numboxcoords; /* NOTE: Boxes are in part coordinates, and need to be transformed */
   
   snde_bool solid;
   snde_bool has_triangledata; // Have we stored/updated refpoints, maxradius, normal, inplanemat

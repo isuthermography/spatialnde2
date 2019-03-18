@@ -58,7 +58,8 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 							      cl_context context,
 							      cl_device_id device,
 							      cl_command_queue queue,
-							      std::function<void(std::shared_ptr<lockholder> input_and_array_locks,rwlock_token_set all_locks,trm_arrayregion input,trm_arrayregion output,snde_rgba **imagearray,snde_index start,size_t xsize,size_t ysize,snde_coord2 inival,snde_coord2 step)> callback) // OK for callback to explicitly unlock locks, as it is the last thing called. 
+							      std::function<void(std::shared_ptr<lockholder> input_and_array_locks,rwlock_token_set all_locks,trm_arrayregion input,trm_arrayregion output,snde_rgba **imagearray,snde_index start,size_t xsize,size_t ysize,snde_coord2 inival,snde_coord2 step)> callback, // OK for callback to explicitly unlock locks, as it is the last thing called.
+							      std::function<void(void)> cleanup)
   {
     
     std::shared_ptr<trm_dependency> retval;
@@ -298,8 +299,11 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 						    
 						  }
 						},
-						[ ] (trm_dependency *dep)  {
-						  // cleanup function						  
+						[ cleanup ] (trm_dependency *dep)  {
+						  // cleanup function
+						  cleanup();
+
+						  // free our outputs
 						  std::vector<trm_arrayregion> new_outputs;
 						  dep->free_output(new_outputs,0);
 						  dep->update_outputs(new_outputs);

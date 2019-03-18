@@ -18,9 +18,10 @@ namespace snde {
     std::shared_ptr<trm> revman_strong=revman.lock();
     
     cleanup(this);
-    
-    revman_strong->_erase_dep_from_tree(weak_this,input_dependencies,output_dependencies);
-    
+
+    if (revman_strong) {
+      revman_strong->_erase_dep_from_tree(weak_this,input_dependencies,output_dependencies);
+    }
    
   }
 }

@@ -49,6 +49,26 @@ static std::string GetCLDeviceString(cl_device_id device,cl_device_info param_na
   return retval;
 }
 
+  // my_tokenize: like strtok_r, but allows empty tokens
+  char *my_tokenize(char *buf,int c,char **SavePtr)
+  {
+    if (!buf) {
+      buf=*SavePtr; 
+    }
+    if (!buf) return nullptr;
+
+    for (size_t pos=0;buf[pos];pos++) {
+      if (buf[pos]==c) {
+	buf[pos]=0;
+	*SavePtr=&buf[pos+1];
+	return buf;
+      }
+    }
+    *SavePtr=nullptr;
+    return nullptr; 
+  }
+
+  
 /* query should be of the same structure used for OpenCV: 
    <Platform or Vendor>:<CPU or GPU or ACCELERATOR>:<Device name or number> */
 std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string query,bool need_doubleprec,void (*pfn_notify)(const char *errinfo,const void *private_info, size_t cb, void *user_data),void *user_data)
@@ -70,11 +90,11 @@ std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string q
   std::unordered_map<cl_device_id,std::tuple<cl_platform_id,int,size_t>> ratings; /* int is rating, size_t is summarypos */
   
   
-  Platform=strtok_r(buf,":",&SavePtr);
+  Platform=my_tokenize(buf,':',&SavePtr);
   if (Platform) {
-    Type=strtok_r(NULL,":",&SavePtr);
+    Type=my_tokenize(NULL,':',&SavePtr);
     if (Type) {
-      Device=strtok_r(NULL,":",&SavePtr);      
+      Device=my_tokenize(NULL,':',&SavePtr);      
     }
   }
 
@@ -83,7 +103,7 @@ std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string q
   cl_uint num_platforms=0;
   cl_device_id *devices;
   cl_uint num_devices;
-  int rating=0,platform_rating,type_rating,device_rating;
+  int rating=0,platform_rating,type_rating,device_rating,doubleprec_rating;
   int maxrating=-1;
   
   platforms=(cl_platform_id *)calloc(1,MAX_PLATFORMS*sizeof(cl_platform_id));
@@ -104,6 +124,7 @@ std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string q
       std::string PlatName=GetCLPlatformString(platforms[platformnum],CL_PLATFORM_NAME);
       std::string PlatVend=GetCLPlatformString(platforms[platformnum],CL_PLATFORM_VENDOR);
       if (Platform && strlen(Platform)) {
+	//fprintf(stderr,"Platform=\"%s\"\n",Platform);
 	platform_rating=-1;
 
 	if (!strcmp(Platform,PlatName.c_str())) {
@@ -166,10 +187,15 @@ std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string q
 
       /* check for 64 bit floating point support */
       std::string DevExt=GetCLDeviceString(devices[devicenum],CL_DEVICE_EXTENSIONS);
-      if (need_doubleprec && DevExt.find("cl_khr_fp64") == std::string::npos) {
-	/* require device to support double precision */
-	continue; 
-      }
+      bool has_doubleprec = (DevExt.find("cl_khr_fp64") != std::string::npos);
+      
+      //fprintf(stderr,"Platform: %s (rating %d); Device: %s (rating %d, type_rating %d) has_doubleprec=%d\n",PlatName.c_str(),platform_rating,DevName.c_str(),device_rating,type_rating,(int)has_doubleprec);
+
+
+      doubleprec_rating=0;
+      if (need_doubleprec && !has_doubleprec) {
+	doubleprec_rating=-1;
+      } 
 
       
       
@@ -189,11 +215,17 @@ std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string q
       summary.append(std::to_string(devicenum));
       summary.append(")");
 
+      if (has_doubleprec) {
+	summary.append(" (supports double precision)");
+      } else {
+	summary.append(" (does not support double precision)");
+      }
+      
       size_t insertpos=summary.size();
 
       summary.append("\n");
 
-      if (platform_rating >= 0 && type_rating >= 0 && device_rating >= 0) {
+      if (platform_rating >= 0 && type_rating >= 0 && device_rating >= 0 && doubleprec_rating >= 0) {
 	rating=platform_rating+type_rating+device_rating;
 
 	ratings[devices[devicenum]] = std::make_tuple(platforms[platformnum],rating,insertpos);
@@ -212,7 +244,7 @@ std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string q
   free(buf);
   buf=NULL;
   
-  cl_device_id device;
+  cl_device_id device=nullptr;
   cl_platform_id platform;
   size_t insertpos;
   
@@ -236,7 +268,10 @@ std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string q
       break;
     }
   }
-
+  if (!device) {
+    summary.append("\nFailed to identify OpenCL device satisfiying specified requirements\n");
+  }
+	
   free(platforms);
   free(devices);
   
@@ -281,7 +316,7 @@ std::tuple<cl_program, std::string> get_opencl_program(cl_context context, cl_de
     
     if (clerror != CL_SUCCESS) {
       /* build error */
-      throw openclerror(clerror,"Error building OpenCL program:\n"+build_log_str);
+      throw openclerror(clerror,"Error building OpenCL program: %s\n",build_log_str.c_str());
     }
     
     return std::make_tuple(program,build_log_str);

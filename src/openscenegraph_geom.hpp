@@ -27,6 +27,8 @@
 
 #include "mutablewfmstore.hpp"
 
+#include "revman_geometry.hpp"
+
 #include "openscenegraph_array.hpp"
 #include "openscenegraph_texture.hpp"
 #include "openscenegraph_parameterization.hpp"
@@ -190,7 +192,7 @@ public:
   //bool isnurbs;
   osg::ref_ptr<snde::OSGArray> DataArray;
   osg::ref_ptr<snde::OSGArray> NormalArray;
-  std::shared_ptr<trm_dependency> normal_function;
+  //std::shared_ptr<trm_dependency> normal_function; // now stored within part object
   std::shared_ptr<trm_dependency> vertex_function; /* revision_manager function that renders winged edge structure into vertices */
   std::shared_ptr<trm_dependency> cacheentry_function; /* revision_manager function that pulls vertex, normal, and texture arrays into the osg::Geometry object */
   std::weak_ptr<part> part_ptr;
@@ -297,6 +299,8 @@ public:
   std::shared_ptr<osg_instancecacheentry> lookup(std::shared_ptr<trm> revman,const snde_partinstance &instance,std::shared_ptr<mutablegeomstore> info,std::shared_ptr<part> part_ptr,std::shared_ptr<parameterization> param) //std::shared_ptr<geometry> geom,std::shared_ptr<lockholder> holder,rwlock_token_set all_locks,snde_partinstance &instance,cl_context context, cl_device device, cl_command_queue queue,snde_index thisversion)
 
   // NOTE: May be called while locks held on the mutablegeomstore "info"
+
+  // must be called during a transaction
   {
 
     std::unique_lock<std::mutex> adminlock(admin);
@@ -355,7 +359,7 @@ public:
       // From the OSG perspective NormalArray is just a bunch of normals.
       // Our NormalArray is counted by vectors (3 coordinates) whereas
       // snde_geom->geom.normals is counted by triangles (9 coordinates).
-      entry->second.NormalArray = new snde::OSGArray(snde_geom,(void **)&snde_geom->geom.normals,SNDE_INDEX_INVALID,sizeof(snde_coord),3,0); // note: NormalArray are 64 bit double snde_coords, not 32 bit float snde_rendercoords
+      entry->second.NormalArray = new snde::OSGArray(snde_geom,(void **)&snde_geom->geom.vertnormals,SNDE_INDEX_INVALID,sizeof(snde_coord),3,0); // note: NormalArray are 64 bit double snde_coords, not 32 bit float snde_rendercoords
 
 
       
@@ -365,8 +369,11 @@ public:
 
       entry->second.part_ptr = part_ptr;
       entry->second.info = info;
-      
-      entry->second.normal_function = normal_calculation(snde_geom,revman,part_ptr,context,device,queue);
+
+      part_ptr->request_normals(revman,context,device,queue);
+      part_ptr->request_inplanemats(revman,context,device,queue);
+      part_ptr->request_boxes(revman,context,device,queue);
+      //      entry->second.normal_function = normal_calculation(snde_geom,revman,part_ptr,context,device,queue);
 
 
       
@@ -509,13 +516,19 @@ public:
 						  }
 						}
 					      },
-					      [ ] (trm_dependency *dep)  {
-						// cleanup function
+					      [ entry_ptr_weak ] (trm_dependency *dep)  {
+						// cleanup function						
+						std::shared_ptr<osg_instancecacheentry> entry_ptr = entry_ptr_weak.lock();
+
+						if (entry_ptr && entry_ptr->DataArray) {
+						  entry_ptr->DataArray->nvec=0;
+						  entry_ptr->DataArray->offset=SNDE_INDEX_INVALID;
+						}
+
+						// free our outputs
 						std::vector<trm_arrayregion> new_outputs;
 						dep->free_output(new_outputs,0);
 						dep->update_outputs(new_outputs);
-						
-						
 						
 					      });
       
@@ -527,8 +540,9 @@ public:
 
       trm_struct_depend vertex_array_depend=entry->second.vertex_function->implicit_trm_trmdependency_output;
 
-      trm_struct_depend normal_output_depend = entry->second.normal_function->implicit_trm_trmdependency_output; 
- 
+      //trm_struct_depend normal_output_depend = entry->second.normal_function->implicit_trm_trmdependency_output;
+      trm_struct_depend normal_output_depend = part_ptr->normal_function->implicit_trm_trmdependency_output; 
+      
       std::vector<trm_struct_depend> cacheentry_struct_inputs;
       cacheentry_struct_inputs.push_back(vertex_array_depend);
       cacheentry_struct_inputs.push_back(normal_output_depend);
@@ -1036,11 +1050,11 @@ public:
   }
 
   void LockVertexArraysTextures(std::shared_ptr<lockingprocess_threaded> lockprocess)
-  /* This locks the generated vertex arrays and normals (for OSG) and generated textures (for OSG) for read */
+  /* This locks the generated vertex arrays and vertnormals (for OSG) and generated textures (for OSG) for read */
   /* Should have just done an Update() so that cacheentries is up-to-date */
   {
 
-    comp->obtain_lock(lockprocess,SNDE_INFOSTORE_INFOSTORE|SNDE_INFOSTORE_COMPONENTS|SNDE_COMPONENT_GEOM_PARTS); //|SNDE_COMPONENT_GEOM_NORMALS,
+    comp->obtain_lock(lockprocess,SNDE_INFOSTORE_INFOSTORE|SNDE_INFOSTORE_COMPONENTS|SNDE_COMPONENT_GEOM_PARTS); //|SNDE_COMPONENT_GEOM_VERTNORMALS,
     
     std::vector<trm_arrayregion> to_lock;
 
@@ -1050,13 +1064,13 @@ public:
       auto & instance_part_param_datamap = instances.at(instcnt);
       
       //snde_partinstance &instance=std::get<0>(instance_part_param_datamap);
-      //std::shared_ptr<part> part_ptr=std::get<1>(instance_part_param_datamap);
+      std::shared_ptr<part> part_ptr=std::get<1>(instance_part_param_datamap);
       //std::shared_ptr<parameterization> param=std::get<2>(instance_part_param_datamap);
       //std::map<snde_index,std::shared_ptr<image_data>> &datamap = std::get<3>(instance_part_param_datamap);
 
       std::shared_ptr<osg_instancecacheentry> cache_entry = cacheentries.at(instcnt); //cache->lookup(revman,instance,comp,part_ptr,param);
       
-      to_lock.push_back(cache_entry->normal_function->outputs.at(0));
+      to_lock.push_back(part_ptr->normal_function->outputs.at(0)); // normal function outputs[0] is vertnormals
       to_lock.push_back(cache_entry->vertex_function->outputs.at(0));
 
       to_lock.push_back(paramcacheentries.at(instcnt)->texvertex_function->outputs.at(0));

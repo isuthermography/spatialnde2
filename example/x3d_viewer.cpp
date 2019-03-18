@@ -201,7 +201,7 @@ int main(int argc, char **argv)
   
   geomcache=std::make_shared<osg_instancecache>(geom,paramcache,context,device,queue);
 
-  std::vector<std::shared_ptr<trm_dependency>> normal_calcs;
+  //std::vector<std::shared_ptr<trm_dependency>> normal_calcs;
 
   std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>> parts;
   

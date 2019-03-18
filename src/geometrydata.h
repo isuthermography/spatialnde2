@@ -25,8 +25,9 @@ extern "C" {
     snde_triangle *triangles; // allocated separately
     snde_coord3 *refpoints; // allocated with triangles  NOTE: Refpoints are in part coordinates, not world coordinates
     snde_coord *maxradius; // allocated with triangles
-    snde_trinormals *normals; // allocated with triangles, but are per vertex so three normals/triangle NOTE: Normals are in part coordinates, not world coordinates.  
-    snde_mat23 *inplanemat; // allocated with triangles
+    snde_trivertnormals *vertnormals; // allocated with triangles, but are per vertex so three normals/triangle NOTE: Normals are in part coordinates, not world coordinates.
+    snde_coord3 *trinormals; // allocated with triangles, one normal/triangle NOTE: Normals are in part coordinates, not world coordinates.
+    snde_mat23 *inplanemats; // allocated with triangles
 
     snde_edge *edges; // allocated separately
 

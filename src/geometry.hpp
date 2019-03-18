@@ -2,6 +2,11 @@
 #include "geometry_types.h"
 #include "geometrydata.h"
 
+#include "revision_manager.hpp"
+#include "normal_calculation.hpp"
+#include "inplanemat_calculation.hpp"
+#include "boxes_calculation.hpp"
+
 #include "arraymanager.hpp"
 
 #include "stringtools.hpp"
@@ -161,8 +166,9 @@ namespace snde {
       manager->add_allocated_array((void **)&geom.triangles,sizeof(*geom.triangles),0);
       manager->add_follower_array((void **)&geom.triangles,(void **)&geom.refpoints,sizeof(*geom.refpoints));
       manager->add_follower_array((void **)&geom.triangles,(void **)&geom.maxradius,sizeof(*geom.maxradius));
-      manager->add_follower_array((void **)&geom.triangles,(void **)&geom.normals,sizeof(*geom.normals));
-      manager->add_follower_array((void **)&geom.triangles,(void **)&geom.inplanemat,sizeof(*geom.inplanemat));
+      manager->add_follower_array((void **)&geom.triangles,(void **)&geom.vertnormals,sizeof(*geom.vertnormals));
+      manager->add_follower_array((void **)&geom.triangles,(void **)&geom.trinormals,sizeof(*geom.trinormals));
+      manager->add_follower_array((void **)&geom.triangles,(void **)&geom.inplanemats,sizeof(*geom.inplanemats));
 
       manager->add_allocated_array((void **)&geom.edges,sizeof(*geom.edges),0);
 
@@ -667,11 +673,11 @@ namespace snde {
     snde_index idx; // index in the parts geometrydata array
     std::map<std::string,std::shared_ptr<parameterization>> parameterizations; /* NOTE: is a string (URI?) really the proper way to index parameterizations? ... may want to change this */
     
-    std::shared_ptr<geometry_function> normals;
-    std::shared_ptr<geometry_function> inplanemat;
-    std::shared_ptr<geometry_function> curvature;
+    std::shared_ptr<trm_dependency> normal_function;
+    std::shared_ptr<trm_dependency> inplanemat_function;
+    std::shared_ptr<trm_dependency> curvature_function;
 
-    std::shared_ptr<geometry_function> boxes;
+    std::shared_ptr<trm_dependency> boxes_function;
 
     
     //bool need_normals; // set if this part was loaded/created without normals being assigned, and therefore still needs normals
@@ -692,6 +698,34 @@ namespace snde {
       this->name=name;
       this->idx=idx;
       this->destroyed=false;
+    }
+
+    std::shared_ptr<trm_dependency> request_normals(std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
+    {
+      // must be called during a transaction!
+      if (!normal_function) {
+	normal_function = normal_calculation(geom,revman,std::dynamic_pointer_cast<part>(shared_from_this()),context,device,queue);
+      }
+      return normal_function;
+    }
+    
+    
+    std::shared_ptr<trm_dependency> request_inplanemats(std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
+    {
+      // must be called during a transaction!
+      if (!inplanemat_function) {
+	inplanemat_function = inplanemat_calculation(geom,revman,std::dynamic_pointer_cast<part>(shared_from_this()),context,device,queue);
+      }
+      return inplanemat_function;
+    }
+
+    std::shared_ptr<trm_dependency> request_boxes(std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
+    {
+      // must be called during a transaction!
+      if (!boxes_function) {
+	boxes_function = boxes_calculation(geom,revman,std::dynamic_pointer_cast<part>(shared_from_this()),context,device,queue);
+      }
+      return boxes_function;
     }
 
     virtual void _explore_component(std::set<std::shared_ptr<component>,std::owner_less<std::shared_ptr<component>>> &component_set)
@@ -840,12 +874,16 @@ namespace snde {
 	    process->get_locks_array_mask((void **)&geom->geom.maxradius,SNDE_COMPONENT_GEOM_MAXRADIUS,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,geom->geom.parts[idx].firsttri,geom->geom.parts[idx].numtris);
 	  }
 	  
-	  if (geom->geom.normals) {
-	    process->get_locks_array_mask((void **)&geom->geom.normals,SNDE_COMPONENT_GEOM_NORMALS,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,geom->geom.parts[idx].firsttri,geom->geom.parts[idx].numtris);
+	  if (geom->geom.vertnormals) {
+	    process->get_locks_array_mask((void **)&geom->geom.vertnormals,SNDE_COMPONENT_GEOM_VERTNORMALS,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,geom->geom.parts[idx].firsttri,geom->geom.parts[idx].numtris);
 	  }
 	  
-	  if (geom->geom.inplanemat) {
-	    process->get_locks_array_mask((void **)&geom->geom.inplanemat,SNDE_COMPONENT_GEOM_INPLANEMAT,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,geom->geom.parts[idx].firsttri,geom->geom.parts[idx].numtris);
+	  if (geom->geom.trinormals) {
+	    process->get_locks_array_mask((void **)&geom->geom.trinormals,SNDE_COMPONENT_GEOM_TRINORMALS,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,geom->geom.parts[idx].firsttri,geom->geom.parts[idx].numtris);
+	  }
+	  
+	  if (geom->geom.inplanemats) {
+	    process->get_locks_array_mask((void **)&geom->geom.inplanemats,SNDE_COMPONENT_GEOM_INPLANEMATS,SNDE_COMPONENT_GEOM_TRIS_RESIZE,readmask,writemask,resizemask,geom->geom.parts[idx].firsttri,geom->geom.parts[idx].numtris);
 	  }
 	}
       

@@ -39,7 +39,7 @@ endif()
 
 ## Application is C++11 (now 14)
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -Wno-ignored-attributes)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-ignored-attributes") # -fstack-protector-all")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
 
 # Remove optimizations when using gcc and debugging
@@ -126,7 +126,7 @@ IF (OpenCL_FOUND)
 
     add_definitions(-DSNDE_OPENCL)
     # Build OpenCL support into library
-    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/opencl_utils.cpp src/openclcachemanager.cpp src/data_to_rgba.cpp )
+    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/opencl_utils.cpp src/openclcachemanager.cpp src/data_to_rgba.cpp src/inplanemat_calculation.cpp src/boxes_calculation.cpp)
     IF (PythonInterp_FOUND) 
       set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} src/normal_calculation.cpp)
       IF (OpenSceneGraph_FOUND)
@@ -228,20 +228,26 @@ ENDIF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
 
 
 IF (PythonInterp_FOUND)
-    set(PYTHONGENHEADERS ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
-    add_custom_command(OUTPUT ${PYTHONGENHEADERS}
-            COMMAND ${PYTHON_EXECUTABLE} file2header.py geometry_types.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h
-            COMMAND ${PYTHON_EXECUTABLE} file2header.py vecops.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h
-            COMMAND ${PYTHON_EXECUTABLE} file2header.py testkernel.c ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
-            COMMAND ${PYTHON_EXECUTABLE} file2header.py osg_vertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h
-            COMMAND ${PYTHON_EXECUTABLE} file2header.py osg_texvertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h
-            COMMAND ${PYTHON_EXECUTABLE} file2header.py normal_calc.c ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h
-            COMMAND ${PYTHON_EXECUTABLE} file2header.py colormap.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h
-            COMMAND ${PYTHON_EXECUTABLE} file2header.py scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h
-            COMMAND ${PYTHON_EXECUTABLE} file2header.py dummy_scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h
-            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/src
-            DEPENDS src/file2header.py src/geometry_types.h src/vecops.h src/testkernel.c src/osg_vertexarray.c src/normal_calc.c )
-    add_custom_target(OpenCL_Headers DEPENDS ${PYTHONGENHEADERS})
+    set(PYTHONGENHEADERS src/snde_types.h src/geometry_types.h src/geometry_ops.h src/testkernel.c src/osg_vertexarray.c src/osg_texvertexarray.c src/normal_calc.c src/colormap.h src/scale_colormap.c src/dummy_scale_colormap.c )
+  
+    set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
+
+    add_custom_command(OUTPUT ${PYTHONGENERATEDHEADERS}
+            DEPENDS ${PYTHONGENHEADERS}
+            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/snde_types.h ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h
+            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/geometry_types.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h
+            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/geometry_ops.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h
+            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/vecops.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h
+            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/testkernel.c ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
+            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/osg_vertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h
+            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/osg_texvertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h
+            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/normal_calc.c ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h
+            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/colormap.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h
+            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h
+            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/dummy_scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+	    )
+    add_custom_target(OpenCL_Headers DEPENDS ${PYTHONGENERATEDHEADERS})
 ENDIF (PythonInterp_FOUND)
 
 IF (OpenCL_FOUND AND PythonInterp_FOUND)
@@ -402,7 +408,7 @@ install(FILES
 install(FILES
         ${SPATIALNDE2_CPP_HEADERS}
         ${SPATIALNDE2_C_HEADERS}
-        ${PYTHONGENHEADERS}
+        ${PYTHONGENERATEDHEADERS}
         DESTINATION ${APP_INSTALL_DIR}/include)
 
 # SWIG
@@ -442,7 +448,7 @@ install(TARGETS
 install(FILES
         ${SPATIALNDE2_CPP_HEADERS}
         ${SPATIALNDE2_C_HEADERS}
-        ${PYTHONGENHEADERS}
+        ${PYTHONGENERATEDHEADERS}
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 endif()
 
