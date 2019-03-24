@@ -1336,7 +1336,7 @@ namespace snde {
       if (!GeomRenderer  || (GeomRenderer && GeomRenderer->comp != geomstore)) {
 	// component mismatch: Need new GeomRenderer
 	fprintf(stderr,"New OSGComponent()\n");
-	GeomRenderer=new OSGComponent(sndegeom,geomcache,paramcache,texcache,wfmdb,rendering_revman,geomstore,geomstore->metadata.metadata(),display);
+	GeomRenderer=new OSGComponent(sndegeom,geomcache,paramcache,texcache,wfmdb,rendering_revman,geomstore,display);
       }
       OSGWidget->SetTwoDimensional(false);
       OSGWidget->SetRootNode(GeomRenderer);

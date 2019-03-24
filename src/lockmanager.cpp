@@ -29,6 +29,29 @@ void snde::rwlock_lockable::unlock() {
 }
 
 
+rwlock_token_set lockmanager::lock_infostores(rwlock_token_set all_locks,std::shared_ptr<mutablewfmdb> wfmdb,std::set<std::string> channels_to_lock,bool write)
+{
+  std::vector<std::shared_ptr<mutableinfostore>> infostores;
+  
+  for (auto & channame : channels_to_lock) {
+    
+    
+    std::shared_ptr<mutableinfostore> infostore=wfmdb->lookup(channame);
+    assert(infostore); // ***!!! Should probably throw an exception instead
+    
+    
+    assert(infostore->manager->locker.get()==this); // all infostores must share same lock manager
+    infostores.push_back(infostore);
+  }
+  
+  return lock_lockables(all_locks,infostores,write);
+  
+}
+
+    
+
+
+
 //snde::lockingprocess::lockingprocess()
 //{
 //
@@ -683,6 +706,25 @@ std::shared_ptr<lockingprocess_thread> snde::lockingprocess_threaded::spawn(std:
   return std::make_shared<lockingprocess_threaded_thread>(newthread);
 }
 
+rwlock_token_set snde::lockingprocess_threaded::lock_infostores(std::shared_ptr<mutablewfmdb> wfmdb,std::set<std::string> channels_to_lock,bool write)
+{
+  std::vector<std::shared_ptr<mutableinfostore>> infostores;
+  
+  for (auto & channame : channels_to_lock) {
+    
+    
+    std::shared_ptr<mutableinfostore> infostore=wfmdb->lookup(channame);
+    assert(infostore); // ***!!! Should probably throw an exception instead
+    
+    
+    //assert(infostore->manager->locker.get()==this); // all infostores must share same lock manager
+    infostores.push_back(infostore);
+
+  }
+
+  
+  return lock_lockables<mutableinfostore>(infostores,write);
+}
 
 rwlock_token_set snde::lockingprocess_threaded::finish()
 {

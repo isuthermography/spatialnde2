@@ -453,26 +453,6 @@ public:
     return refs->lookup(Name);
   }
 
-  virtual rwlock_token_set lock_infostores(rwlock_token_set all_locks,std::set<std::string> channels_to_lock,bool write)
-  {
-    std::vector<std::shared_ptr<mutableinfostore>> infostores;
-    std::shared_ptr<lockmanager> locker;
-    
-    for (auto & channame : channels_to_lock) {
-
-
-      std::shared_ptr<mutableinfostore> infostore=lookup(channame);
-      assert(infostore); // ***!!! Should probably throw an exception instead
-      
-      if (!locker) locker=infostore->manager->locker;
-
-      assert(locker==infostore->manager->locker); // all infostores must share same lock manager
-      infostores.push_back(infostore);
-    }
-
-    return locker->lock_lockables(all_locks,infostores,write);
-    
-  }
   
   virtual void _rebuildnameindex(std::shared_ptr<iterablewfmrefs> new_wfmlist)
   {

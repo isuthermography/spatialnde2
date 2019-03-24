@@ -250,7 +250,7 @@ int main(int argc, char **argv)
     
     std::shared_ptr<display_info> display = std::make_shared<display_info>(wfmdb);
     
-    OSGComp=new snde::OSGComponent(geom,geomcache,paramcache,texcache,wfmdb,revision_manager,LoadedX3D,LoadedX3D->metadata.metadata(),display); // OSGComp must be created during a transaction...
+    OSGComp=new snde::OSGComponent(geom,geomcache,paramcache,texcache,wfmdb,revision_manager,LoadedX3D,display); // OSGComp must be created during a transaction...
 
     
     revnum=revision_manager->End_Transaction();

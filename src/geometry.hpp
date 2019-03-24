@@ -1043,7 +1043,7 @@ namespace snde {
 
     virtual void _explore_component(std::set<std::shared_ptr<component>,std::owner_less<std::shared_ptr<component>>> &component_set)
     {
-      // should be holding SNDE_INFOSTORE_GEOM_TREES as at least read in order to do the _explore()
+      // should be holding SNDE_INFOSTORE_OBJECT_TREES as at least read in order to do the _explore()
       std::shared_ptr<component> our_ptr=shared_from_this();
       
       if (component_set.find(our_ptr)==component_set.end()) {

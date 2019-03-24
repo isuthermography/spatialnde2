@@ -77,6 +77,7 @@ namespace snde {
   
   class arraymanager; // forward declaration
   class mutableinfostore; // forward declaration
+  class mutablewfmdb;
   class geometry;
   class component; // forward declaration
   class parameterization; // forward declaration
@@ -1298,6 +1299,9 @@ namespace snde {
       return new_locks;
     }
 
+  
+    virtual rwlock_token_set lock_infostores(rwlock_token_set all_locks,std::shared_ptr<mutablewfmdb> wfmdb,std::set<std::string> channels_to_lock,bool write); // code in lockmanager.cpp   
+    
   };
 
   class lockingprocess_thread {
@@ -1341,8 +1345,41 @@ namespace snde {
 
     virtual std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> alloc_array_region(std::shared_ptr<arraymanager> manager,void **allocatedptr,snde_index nelem,std::string allocid)=0;
     virtual std::shared_ptr<lockingprocess_thread> spawn(std::function<void(void)> f)=0;
+    virtual rwlock_token_set lock_infostores(std::shared_ptr<mutablewfmdb> wfmdb,std::set<std::string> channels_to_lock,bool write)=0;
 
     virtual ~lockingprocess()=0;
+
+
+    // NON-VIRTUAL templates:
+    template <class T>
+    rwlock_token_set lock_lockables(std::vector<std::shared_ptr<T>> lockables,bool write)
+    {
+      // sort lockables of the same type into proper locking order and uniqueify them
+      // by putting them into a set
+      //auto arrayidx = _arrayidx();
+      rwlock_token_set new_locks=empty_rwlock_token_set();
+
+      std::set<std::shared_ptr<T>,std::owner_less<std::shared_ptr<T>>> lockables_set(lockables.begin(),lockables.end());
+
+      // now that we have the order figured out, perform the locking.
+      
+      for (auto & lockable: lockables_set) {
+	if (write) {
+	  lockholder_index index;
+	  rwlock_token_set lockable_locks;
+	  std::tie(index,lockable_locks)=get_locks_write_lockable(lockable);
+	  merge_into_rwlock_token_set(new_locks,lockable_locks);
+	} else {
+	  lockholder_index index;
+	  rwlock_token_set lockable_locks;
+	  std::tie(index,lockable_locks)=get_locks_read_lockable(lockable);
+	  merge_into_rwlock_token_set(new_locks,lockable_locks);
+	  
+	}
+      }
+      return new_locks;
+    }
+
 
     
   };
@@ -1723,6 +1760,7 @@ namespace snde {
 
     virtual std::shared_ptr<lockingprocess_thread> spawn(std::function<void(void)> f);
       
+    virtual rwlock_token_set lock_infostores(std::shared_ptr<mutablewfmdb> wfmdb,std::set<std::string> channels_to_lock,bool write);
 
     virtual rwlock_token_set finish();
     virtual ~lockingprocess_threaded();

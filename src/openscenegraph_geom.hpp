@@ -29,6 +29,8 @@
 
 #include "revman_geometry.hpp"
 
+#include "geometry_scene.hpp"
+
 #include "openscenegraph_array.hpp"
 #include "openscenegraph_texture.hpp"
 #include "openscenegraph_parameterization.hpp"
@@ -704,7 +706,7 @@ public:
   std::shared_ptr<mutablegeomstore> comp;
   
   // elements of this group will be osg::MatrixTransform objects containing the osg::Geodes of the cache entries.
-  std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> instances; // instances from last update... numbered identically to Group.  ... The component indexes the 3D geometry, the parameterization indexes the 2D surface parameterization of that geometry, and the image_data provides the parameterized 2D data 
+  geometry_scene scene; // contains instances from last update... numbered identically to Group. 
   std::vector<std::shared_ptr<osg_instancecacheentry>> cacheentries;
   std::vector<std::shared_ptr<osg_paramcacheentry>> paramcacheentries;
   std::vector<std::map<snde_index,std::shared_ptr<osg_texturecacheentry>>> texcacheentries;
@@ -729,7 +731,7 @@ public:
      the main TRM mutex. NEW SOLUTION: Now we release the main TRM mutex while we call it immediately
  
 */
-  OSGComponent(std::shared_ptr<snde::geometry> snde_geom,std::shared_ptr<osg_instancecache> cache,std::shared_ptr<osg_parameterizationcache> paramcache,std::shared_ptr<osg_texturecache> texcache,std::shared_ptr<mutablewfmdb> wfmdb,std::shared_ptr<trm> rendering_revman,std::shared_ptr<mutablegeomstore> comp,std::shared_ptr<immutable_metadata> metadata,std::shared_ptr<display_info> dispinfo) :
+  OSGComponent(std::shared_ptr<snde::geometry> snde_geom,std::shared_ptr<osg_instancecache> cache,std::shared_ptr<osg_parameterizationcache> paramcache,std::shared_ptr<osg_texturecache> texcache,std::shared_ptr<mutablewfmdb> wfmdb,std::shared_ptr<trm> rendering_revman,std::shared_ptr<mutablegeomstore> comp,std::shared_ptr<display_info> dispinfo) :
     snde_geom(snde_geom),
     cache(cache),
     paramcache(paramcache),
@@ -752,134 +754,43 @@ public:
 
     //rwlock_token_set all_locks=lockprocess->finish();
 
-    Update(metadata,dispinfo);
+    Update(dispinfo);
     
     
   }
 
-  void Update(std::shared_ptr<immutable_metadata> metadata,std::shared_ptr<display_info> dispinfo)
+  void Update(std::shared_ptr<display_info> dispinfo)
   // must be called with the component UN-locked. !!!*** NOTE: x3d-viewer must have locking call removed***!!!
   {
-    std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>>  oldinstances; // instances from last update... numbered identically to Group.
+    geometry_scene oldscene; // instances from last update... numbered identically to Group.
     std::vector<std::shared_ptr<osg_instancecacheentry>> oldcacheentries;
     std::vector<std::shared_ptr<osg_paramcacheentry>> oldparamcacheentries;
     std::vector<std::map<snde_index,std::shared_ptr<osg_texturecacheentry>>> oldtexcacheentries;
 
-    oldinstances=instances;
+    oldscene=scene;
     oldcacheentries=cacheentries;
     oldparamcacheentries=paramcacheentries;
     oldtexcacheentries=texcacheentries;
     
     //auto emptyparamdict = std::make_shared<std::unordered_map<std::string,paramdictentry>>();
 
-
-    std::set<std::string> channels_to_lock;  // use std::set instead of std::unordered_set so we can compare them with operator==()
-    std::set<std::string> new_channels_to_lock;
-
-    new_channels_to_lock.emplace(comp->fullname);
+    scene = geometry_scene::lock_scene(snde_geom->manager->locker, wfmdb,[ this  ] () -> std::tuple<std::shared_ptr<component>,std::shared_ptr<immutable_metadata>,std::set<std::string>> {
+	// lambda for identifying what to lock 
+	std::set<std::string> chan_names;
+	std::shared_ptr<immutable_metadata> metadata=comp->metadata.metadata();
+	chan_names.emplace(comp->fullname);
+	
+	return std::make_tuple(comp->comp,metadata,chan_names);
+      },
+      [ this, dispinfo ](std::shared_ptr<mutabledatastore> paramdata, std::string wfmfullname) -> std::shared_ptr<image_data> {
+	// get_image_data() lambda
+	
+	std::shared_ptr<osg_texturecacheentry> texinfo = texcache->lookup(paramdata,dispinfo->lookup_channel(wfmfullname)); // look up texture data
+	
+	return std::static_pointer_cast<image_data>(texinfo);
+      },
+      oldscene.channels_locked);
     
-    // repeatedly try to get instance data until channels_to_lock and new_channels_to_lock converge
-    // with all the right channels' metadata locked
-    while (!(channels_to_lock==new_channels_to_lock)) {
-
-      channels_to_lock=new_channels_to_lock;
-      
-      new_channels_to_lock.clear();
-      new_channels_to_lock.emplace(comp->fullname);
-      
-      {
-	rwlock_token_set all_locks=empty_rwlock_token_set();
-
-	// read lock on all these infostores
-	// ***!!! We should probably handle the exception where
-	// one of these channels_to_lock has just disappeared!
-	wfmdb->lock_infostores(all_locks,channels_to_lock,false);
-	//// lock access to comp mutablegeomstore
-	//rwlock_token_set all_locks=empty_rwlock_token_set();
-	//get_locks_read_infostore(all_locks,std::static_pointer_cast<mutableinfostore>(comp));
-	
-	
-	// OK. we seem to have a problem here. The geometry channel has metadata specifying the channel
-	// that holds its parameterization (texture) image.
-	// it's the parameterization image channel that identifies (by name) which parameterization is in use
-	// we need a uv_images object for each instance to represent the texture data that is pulled from/created in the cache.
-	
-	// so this probably needs to be modified to pass some kind of callback for creating the uv_image(s) structures. 
-	
-	//instances = comp->comp->get_instances(snde_null_orientation3(),std::unordered_map<std::string,std::shared_ptr<uv_images>>());
-	instances = comp->comp->get_instances(snde_null_orientation3(),metadata,[ this, &new_channels_to_lock, dispinfo ] (std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names) -> std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>> {
-
-	    std::map<snde_index,std::shared_ptr<image_data>> images_out;
-	    
-	    
-	    // NOTE: Parameterization_data_names is unordered... need to get the face number(s) from the uv_parameterization_facenum metadata
-	    std::shared_ptr<parameterization> use_param;
-	    
-	    for (auto & wfmname: parameterization_data_names) {	  
-	      std::shared_ptr<mutableinfostore> paraminfo = wfmdb->lookup(wfmname);
-
-	      new_channels_to_lock.emplace(std::string(wfmname));
-	      
-	      if (!paraminfo) {
-		continue;
-	      }
-	      std::shared_ptr<mutabledatastore> paramdata=std::dynamic_pointer_cast<mutabledatastore>(paraminfo);
-	      if (!paramdata) {
-		// must be a data channel
-		continue;
-	      }
-	      
-	      // look up parameterization
-	      std::string parameterization_name = paramdata->metadata.GetMetaDatumStr("uv_parameterization","intrinsic");
-	      
-	      std::map<std::string,std::shared_ptr<parameterization>>::iterator gotparam=partdata->parameterizations.find(parameterization_name);
-	      if (gotparam == partdata->parameterizations.end()) {
-		fprintf(stderr,"OSGComponent::Update(): Unknown parameterization %s specified in channel %s\n",parameterization_name,paramdata->fullname);
-		continue; 
-	      }
-	      if (!use_param) {
-		use_param=gotparam->second;
-	      } else {
-		if (gotparam->second != use_param) {
-		  fprintf(stderr,"OSGComponent::Update(): Warning: inconsistent parameterizations specified (including %s) in channel %s\n",parameterization_name,paramdata->fullname);
-		  continue; 
-		}
-	      }
-	      
-	    
-	      std::shared_ptr<osg_texturecacheentry> texinfo = texcache->lookup(paramdata,dispinfo->lookup_channel(wfmname)); // look up texture data
-	      //std::shared_ptr<snde_image> teximage = texinfo->get_texture_image();
-	      
-	      // ***!!!! Should really accept a comma separated array of facenums here. right now we have it hotwired so that
-	      // if uv_parameterization_facenum is unset it will be interpreted as matching every face OK!
-	      std::string parameterization_facenums_str = paramdata->metadata.GetMetaDatumStr("uv_parameterization_facenums","");
-	      if (parameterization_facenums_str=="") {
-		// interpret blank as all.. use SNDE_INDEX_INVALID as index
-		images_out.emplace(SNDE_INDEX_INVALID,std::static_pointer_cast<image_data>(texinfo));
-	      } else {
-		char *parameterization_facenums_tokenized=strdup(parameterization_facenums_str.c_str());
-		char *saveptr=NULL;
-		
-		for (char *tok=strtok_r(parameterization_facenums_tokenized,",",&saveptr);tok;tok=strtok_r(NULL,",",&saveptr)) {
-		  snde_index parameterization_facenum = strtoul(stripstr(tok).c_str(),NULL,10);
-		  images_out.emplace(parameterization_facenum,std::static_pointer_cast<image_data>(texinfo));
-		  
-		}
-		free(parameterization_facenums_tokenized);
-		
-		
-	      }
-	      
-	      // ***!!!!! NOT CURRENTLY DOING ANYTHING WITH teximage
-
-	      
-	    }
-	    //std::vector<std::tuple<std::shared_ptr<image_data>,std::shared_ptr<snde_image>>> images_outvec;
-	    return std::make_tuple(use_param,images_out);
-	  });
-      }
-
-    }
     
     cacheentries.clear();
 
@@ -896,7 +807,7 @@ public:
       
     
     size_t pos=0;
-    for (auto & instance_part_param_imagemap: instances) {
+    for (auto & instance_part_param_imagemap: scene.instances) {
       bool newcacheentry=false;
       bool newtexcacheentry=false;
       bool newparamcacheentry=false;
@@ -911,7 +822,7 @@ public:
       
       
       std::map<snde_index,std::shared_ptr<image_data>> & imagemap = std::get<3>(instance_part_param_imagemap); // since it's a std::map we can use equality operator... 
-      if (pos < oldinstances.size() && std::get<3>(oldinstances[pos])==imagemap) {
+      if (pos < oldscene.instances.size() && std::get<3>(oldscene.instances[pos])==imagemap) {
 	// same imagemap as before
 	texcacheentry = oldtexcacheentries[pos];
 	texcacheentries.push_back(oldtexcacheentries[pos]);
@@ -932,7 +843,7 @@ public:
       }
       
 
-      if (pos < oldinstances.size() && std::get<2>(oldinstances[pos])==std::get<2>(instance_part_param_imagemap)) {
+      if (pos < oldscene.instances.size() && std::get<2>(oldscene.instances[pos])==std::get<2>(instance_part_param_imagemap)) {
 	// if we have this parameterization verbatim in our old array 
 	paramcacheentry=oldparamcacheentries[pos];
 	paramcacheentries.push_back(oldparamcacheentries[pos]);
@@ -951,7 +862,7 @@ public:
 	fprintf(stderr,"Got no parameterization\n");
       }
       
-      if (pos < oldinstances.size() && osg_snde_partinstance_equal()(std::get<0>(oldinstances[pos]),std::get<0>(instance_part_param_imagemap))) {
+      if (pos < oldscene.instances.size() && osg_snde_partinstance_equal()(std::get<0>(oldscene.instances[pos]),std::get<0>(instance_part_param_imagemap))) {
 	// if we have this partinstance verbatim in our old array (note that
 	// equality will be satisified even if orientations are different)
 	cacheentry=oldcacheentries[pos];
@@ -1047,6 +958,9 @@ public:
       
     }
 
+    // for now we fully drop our locks after doing the update
+    scene.drop_locks();
+    
   }
 
   void LockVertexArraysTextures(std::shared_ptr<lockingprocess_threaded> lockprocess)
@@ -1060,8 +974,8 @@ public:
 
     
     //for (auto & instance_part_param_datamap: instances) {
-    for (size_t instcnt=0;instcnt < instances.size();instcnt++) {
-      auto & instance_part_param_datamap = instances.at(instcnt);
+    for (size_t instcnt=0;instcnt < scene.instances.size();instcnt++) {
+      auto & instance_part_param_datamap = scene.instances.at(instcnt);
       
       //snde_partinstance &instance=std::get<0>(instance_part_param_datamap);
       std::shared_ptr<part> part_ptr=std::get<1>(instance_part_param_datamap);
