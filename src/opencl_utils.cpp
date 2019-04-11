@@ -124,7 +124,7 @@ std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string q
       std::string PlatName=GetCLPlatformString(platforms[platformnum],CL_PLATFORM_NAME);
       std::string PlatVend=GetCLPlatformString(platforms[platformnum],CL_PLATFORM_VENDOR);
       if (Platform && strlen(Platform)) {
-	//fprintf(stderr,"Platform=\"%s\"\n",Platform);
+	fprintf(stderr,"Platform=\"%s\"\n",Platform);
 	platform_rating=-1;
 
 	if (!strcmp(Platform,PlatName.c_str())) {
@@ -189,7 +189,7 @@ std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string q
       std::string DevExt=GetCLDeviceString(devices[devicenum],CL_DEVICE_EXTENSIONS);
       bool has_doubleprec = (DevExt.find("cl_khr_fp64") != std::string::npos);
       
-      //fprintf(stderr,"Platform: %s (rating %d); Device: %s (rating %d, type_rating %d) has_doubleprec=%d\n",PlatName.c_str(),platform_rating,DevName.c_str(),device_rating,type_rating,(int)has_doubleprec);
+      fprintf(stderr,"Platform: %s (rating %d); Device: %s (rating %d, type_rating %d) has_doubleprec=%d\n",PlatName.c_str(),platform_rating,DevName.c_str(),device_rating,type_rating,(int)has_doubleprec);
 
 
       doubleprec_rating=0;

@@ -1,7 +1,9 @@
 #ifndef __OPENCL_VERSION__
 // if this is not an OpenCL kernel
 #include <assert.h>
+#include <stdint.h>
 #endif
+
 
 #ifndef SNDE_GEOMETRY_TYPES
 #define SNDE_GEOMETRY_TYPES
@@ -202,7 +204,7 @@ typedef struct {
 
 typedef struct {
   snde_coord3 row[2];
-} snde_mat23;
+} snde_cmat23;
 
 
 
@@ -234,7 +236,7 @@ struct snde_nurbsuv {
 
   
   snde_index firstuvbox, numuvboxes;
-  snde_index firstuvboxpoly,numuvboxpoly;
+  snde_index firstuvboxpoly,numuvboxpolys;
 
 };
 
@@ -431,7 +433,7 @@ struct snde_parameterization {
   
   // Boxes for identifying which triangle and face is at a particular (u,v)
   snde_index firstuvbox, numuvboxes; /* the first numuvpatches boxes correspond to the outer boxes for each patch */
-  snde_index firstuvboxpoly,numuvboxpoly;
+  snde_index firstuvboxpoly,numuvboxpolys;
   snde_index firstuvboxcoord,numuvboxcoords; 
 };
   

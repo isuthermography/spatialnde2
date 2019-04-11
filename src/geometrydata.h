@@ -27,7 +27,7 @@ extern "C" {
     snde_coord *maxradius; // allocated with triangles
     snde_trivertnormals *vertnormals; // allocated with triangles, but are per vertex so three normals/triangle NOTE: Normals are in part coordinates, not world coordinates.
     snde_coord3 *trinormals; // allocated with triangles, one normal/triangle NOTE: Normals are in part coordinates, not world coordinates.
-    snde_mat23 *inplanemats; // allocated with triangles
+    snde_cmat23 *inplanemats; // allocated with triangles
 
     snde_edge *edges; // allocated separately
 
@@ -96,8 +96,10 @@ extern "C" {
     snde_index  *uv_topo_indices; /* allocated separately */
 
     snde_triangle *uv_triangles; /* allocated separately */
-    snde_mat23 *inplane2uvcoords;  /* allocated with uv_triangles */
-    snde_mat23 *uvcoords2inplane; /* allocated with uv_triangles */
+    snde_cmat23 *inplane2uvcoords;  /* allocated with uv_triangles ... multiply this by (x,y,1), where (x,y) are in inplanemat coordinates, to get u,v coordinates */  
+    snde_cmat23 *uvcoords2inplane; /* allocated with uv_triangles ...  multiply this by (u,v,1) to get inplanemat coordinates */
+    // (inplane2uvcoords and uvcoords2inplane together are sometimes referred to as "projinfo") 
+    
     //snde_index *uv_patch_index; // uv_patch_index is indexed by and allocated with uv_triangle, like uv_vertexidx, and indicates which patch of uv space for this mesheduv the triangle vertices correspond to  
     
     snde_edge *uv_edges; /* allocated separately */

@@ -169,21 +169,21 @@ namespace snde {
 		//std::shared_ptr<snde_image> teximage = texinfo->get_texture_image();
 		
 		// ***!!!! Should really accept a comma separated array of facenums here. right now we have it hotwired so that
-		// if uv_parameterization_facenum is unset it will be interpreted as matching every face OK!
-		std::string parameterization_facenums_str = paramdata->metadata.GetMetaDatumStr("uv_parameterization_facenums","");
-		if (parameterization_facenums_str=="") {
-		  // interpret blank as all.. use SNDE_INDEX_INVALID as index
-		  images_out.emplace(SNDE_INDEX_INVALID,texinfo);
+		// if uv_parameterization_imagenum is unset it will be interpreted as matching every face OK!
+		std::string parameterization_imagenums_str = paramdata->metadata.GetMetaDatumStr("uv_parameterization_imagenums","");
+		if (parameterization_imagenums_str=="") {
+		  // interpret blank as 0
+		  images_out.emplace(0,texinfo);
 		} else {
-		  char *parameterization_facenums_tokenized=strdup(parameterization_facenums_str.c_str());
+		  char *parameterization_imagenums_tokenized=strdup(parameterization_imagenums_str.c_str());
 		  char *saveptr=NULL;
 		  
-		  for (char *tok=strtok_r(parameterization_facenums_tokenized,",",&saveptr);tok;tok=strtok_r(NULL,",",&saveptr)) {
-		    snde_index parameterization_facenum = strtoul(stripstr(tok).c_str(),NULL,10);
-		  images_out.emplace(parameterization_facenum,texinfo);
+		  for (char *tok=strtok_r(parameterization_imagenums_tokenized,",",&saveptr);tok;tok=strtok_r(NULL,",",&saveptr)) {
+		    snde_index parameterization_imagenum = strtoul(stripstr(tok).c_str(),NULL,10);
+		    images_out.emplace(parameterization_imagenum,texinfo);
 		  
 		  }
-		  free(parameterization_facenums_tokenized);
+		  free(parameterization_imagenums_tokenized);
 		  
 		  
 		}

@@ -1,5 +1,7 @@
+
 #ifndef SNDE_OPENSCENEGRAPH_RENDERER_HPP
 #define SNDE_OPENSCENEGRAPH_RENDERER_HPP
+
 
 namespace snde {
   class osg_renderer {
@@ -9,6 +11,7 @@ namespace snde {
     osg::ref_ptr<osg::Camera> Camera;
     osg::ref_ptr<osg::Node> RootNode;
     osg::ref_ptr<osgGA::TrackballManipulator> Manipulator; // manipulator for 3D mode
+
 
     bool twodimensional;
     
@@ -27,6 +30,11 @@ namespace snde {
       // set background color to blueish
       Camera->setClearColor(osg::Vec4(.1,.1,.3,1.0));
 
+      // need to enable culling so that linesegmentintersector (openscenegraph_picker)
+      // behavior matches camera behavior
+      // (is this efficient?)
+      Camera->setComputeNearFarMode( osg::CullSettings::COMPUTE_NEAR_FAR_USING_PRIMITIVES );
+      Camera->setCullingMode(osg::CullSettings::ENABLE_ALL_CULLING);
       //Viewer->setCamera(Camera);
 
       Manipulator = new osgGA::TrackballManipulator();
@@ -63,9 +71,19 @@ namespace snde {
     SetProjectionMatrix();
 
     */
-       
+
+
+
+
+    virtual void ClearPickedOrientation()
+    {
+      // notification from picker to clear any marked orientation
+      // probably needs to be reimplemented by derived classes
+    }
+    
     
   };
+
 
 }
 

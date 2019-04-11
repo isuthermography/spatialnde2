@@ -1,3 +1,9 @@
+#ifndef __OPENCL_VERSION__
+#include <errno.h>
+#include <stddef.h>
+#include <math.h>
+#endif
+
 #ifndef SNDE_VECOPS_H
 #define SNDE_VECOPS_H
 
@@ -51,8 +57,37 @@ static VECOPS_INLINE snde_coord my_infnan(int error) /* be sure to disable SIGFP
 
 
 
-static VECOPS_INLINE void multmat23vec(snde_coord *mat,snde_coord *vec,snde_coord *out)
+static VECOPS_INLINE void multcmat23coord(snde_cmat23 cmat,snde_coord3 vec,snde_coord2 *out)
+/* Multiply 2x3 matrix by 3-coord, giving 2-vector */
+// cmat stored row-major (C-style)
+{
+  int outel,sumidx;
+
+  for (outel=0;outel < 2; outel++) {
+    out->coord[outel]=0.0;
+    for (sumidx=0;sumidx < 3; sumidx++) {
+      out->coord[outel] = out->coord[outel] + cmat.row[outel].coord[sumidx]*vec.coord[sumidx];
+    }
+  }
+}
+
+static VECOPS_INLINE void multcmat23transposecoord(snde_cmat23 cmat,snde_coord2 vec,snde_coord3 *out)
+/* Multiply transpose of 2x3 matrix by 2-coord, giving 3-vector */
+// cmat stored row-major (C-style)
+{
+  int outel,sumidx;
+
+  for (outel=0;outel < 3; outel++) {
+    out->coord[outel]=0.0;
+    for (sumidx=0;sumidx < 2; sumidx++) {
+      out->coord[outel] = out->coord[outel] + cmat.row[sumidx].coord[outel]*vec.coord[sumidx];
+    }
+  }
+}
+
+static VECOPS_INLINE void multcmat23vec(snde_coord *mat,snde_coord *vec,snde_coord *out)
 /* Multiply 2x3 matrix by 3-vector, giving 2-vector */
+// cmat stored row-major (C-style)
 {
   int outel,sumidx;
 
@@ -64,8 +99,10 @@ static VECOPS_INLINE void multmat23vec(snde_coord *mat,snde_coord *vec,snde_coor
   }
 }
 
-static VECOPS_INLINE void multvecmat23(snde_coord *vec,snde_coord *mat,snde_coord *out)
+
+static VECOPS_INLINE void multveccmat23(snde_coord *vec,snde_coord *mat,snde_coord *out)
 /* Multiply 2-vector by 2x3 matrix giving 3-vector  */
+// cmat stored row-major (C-style)
 {
   int outel,sumidx;
 
@@ -77,7 +114,8 @@ static VECOPS_INLINE void multvecmat23(snde_coord *vec,snde_coord *mat,snde_coor
   }
 }
 
-static VECOPS_INLINE void multmatvec4(snde_coord *mat,snde_coord *vec,snde_coord *out)
+static VECOPS_INLINE void multcmatvec4(snde_coord *mat,snde_coord *vec,snde_coord *out)
+// mat stored row-major (C-style)
 {
   int outel,sumidx;
 
@@ -89,7 +127,8 @@ static VECOPS_INLINE void multmatvec4(snde_coord *mat,snde_coord *vec,snde_coord
   }
 }
 
-static VECOPS_INLINE void multmatvec3(snde_coord *mat,snde_coord *vec,snde_coord *out)
+static VECOPS_INLINE void multcmatvec3(snde_coord *mat,snde_coord *vec,snde_coord *out)
+// cmat stored row-major (C-style)
 {
   int outel,sumidx;
 
@@ -102,6 +141,7 @@ static VECOPS_INLINE void multmatvec3(snde_coord *mat,snde_coord *vec,snde_coord
 }
 
 static VECOPS_INLINE void multmatvec2(snde_coord *mat,snde_coord *vec,snde_coord *out)
+// cmat stored row-major (C-style)
 {
   int outel,sumidx;
 
@@ -508,5 +548,106 @@ static VECOPS_INLINE void mean2coord3(snde_coord3 vec1,snde_coord3 vec2,snde_coo
     out->coord[cnt]=(vec1.coord[cnt]+vec2.coord[cnt])/2.0;
   }
 }
+
+static VECOPS_INLINE void fmatrixsolve(snde_coord *A,snde_coord *b,size_t n,size_t nsolve,size_t *pivots)
+// solves A*x=b, where A is n*n, b is n*nsolve, and x is n*1
+// must provide a n-length vector of size_t "pivots" that this routine uses for intermediate storage.
+// *** NOTE: *** This routine will overwrite the contents of A and b... stores the
+// result in b. 
+// NOTE: A and b should be stored column major (Fortran style)
+{
+  size_t row,rsrch,col,succ_row,pred_row,rowcnt;
+  snde_coord bestpivot,leading_val;
+  size_t old_pivots_row;
+  size_t solvecnt;
+  snde_coord first_el,pred_val;
+  int swapped;
+  size_t swappedentry;
+  
+  // initialize blank pivots
+  for (row=0; row < n; row++) {
+    pivots[row]=row;
+  }
+
+  for (row=0; row < n; row++) {
+    // find largest magnitude row
+    old_pivots_row=pivots[row];
+    bestpivot=fabs(A[pivots[row] + row*n]);  // pull out this diagonal etnry to start
+    swapped=FALSE;
+    for (rsrch=row+1; rsrch < n; rsrch++) {
+      if (fabs(A[pivots[rsrch] + row*n]) > bestpivot) {
+	bestpivot=fabs(A[pivots[rsrch] + row*n]);
+	pivots[row]=pivots[rsrch];
+	swappedentry=rsrch;
+	swapped=TRUE;
+      }
+    }
+    if (swapped) {
+      pivots[swappedentry]=old_pivots_row; // complete swap
+    }
+    // Divide this row by its first element
+    first_el = A[pivots[row] + row*n];
+    A[pivots[row] + row*n]=1.0f;
+    for (col=row+1;col < n; col++) {
+      A[pivots[row] + col*n] /= first_el; 
+    }
+    for (solvecnt=0; solvecnt < nsolve; solvecnt++) {
+      b[pivots[row]  + solvecnt*n] /= first_el;
+    }
+    
+    // subtract a multiple of this row from all succeeding rows
+    for (succ_row = row+1; succ_row < n; succ_row++) {
+      leading_val = A[pivots[succ_row] + row*n];
+      A[pivots[succ_row] + row*n]=0.0f;
+      for (col=row+1; col < n; col++) {
+	A[pivots[succ_row] + col*n] -= leading_val*A[pivots[row] + col*n];
+      }
+      for (solvecnt=0; solvecnt < nsolve; solvecnt++) {
+	b[pivots[succ_row] + solvecnt*n] -= leading_val*b[pivots[row] + solvecnt*n];
+      }
+    }
+  }
+
+  // OK; now A should be upper-triangular
+  // Now iterate through the back-substitution. 
+  for (rowcnt=0; rowcnt < n; rowcnt++) { // 
+    row=n-1-rowcnt;
+
+    // subtract a multiple of this row
+    // from all preceding rows
+
+    for (pred_row=0; pred_row < row; pred_row++) {
+      pred_val = A[pivots[pred_row] + row*n];
+      A[pivots[pred_row] + row*n]=0.0f;
+
+      // this loop is unnecessary because the row must be zero in the remaining columns
+      //for (col=row+1; col < n; col++) {
+      //  A[pivots[pred_row] + col*n] -= pred_val * A[pivots[row] + col*n];
+      //}
+      for (solvecnt=0; solvecnt < nsolve; solvecnt++) {
+	b[pivots[pred_row] + solvecnt*n] -= pred_val * b[pivots[row] + solvecnt*n];
+      }
+    }
+  }
+
+  // ... solved! A should be the identity matrix and Answer should be stored in b...
+  // But we need to reorder the rows to undo the pivot
+
+  // go through each column of the answer,
+  // moving it to the first column of A,
+  // then copying it back in the correct order
+  for (col=0; col < nsolve; col++) {
+    for (row=0; row < n; row++) {
+      A[row]=b[row + col*n];
+    }
+
+    for (row=0; row < n; row++) {
+      b[row + col*n]=A[pivots[row]];
+    }
+    
+  }
+  
+}
+
 
 #endif // SNDE_VECOPS_H

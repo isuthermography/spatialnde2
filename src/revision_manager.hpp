@@ -440,69 +440,13 @@ static void trm_lock_arrayregions(std::shared_ptr<lockingprocess> lockprocess,co
     ~trm_dependency(); // destructor in .cpp file to avoid circular class dependency
 
 
-    bool update_struct_inputs(const std::vector<trm_struct_depend> &new_struct_inputs)
-    {
-      // returns true if inputs are updated
+    bool update_struct_inputs(const std::vector<trm_struct_depend> &new_struct_inputs);
 
-      if (new_struct_inputs.size() != struct_inputs.size()) {
-	struct_inputs = new_struct_inputs; 
-	return true; 
-      }
-      for (size_t cnt=0; cnt < new_struct_inputs.size();cnt++) {
-	// we are evaluating (struct_inputs[cnt].first != new_struct_inputs[cnt].first)
-	// but we do this with operator< because that is what is defined
-	// by trm_struct_depend_key 
-	if (struct_inputs[cnt].first < new_struct_inputs[cnt].first || new_struct_inputs[cnt].first < struct_inputs[cnt].first) {
-	  struct_inputs = new_struct_inputs; 
-	  return true; 
-	  
-	}
-      }
-      return false;
-    }
-
-    bool update_struct_outputs(const std::vector<trm_struct_depend> &new_struct_outputs)
-    {
-      // returns true if inputs are updated
-
-
-      if (new_struct_outputs.size() != struct_outputs.size()) {
-	struct_outputs = new_struct_outputs; 
-	return true; 
-      }
-      for (size_t cnt=0; cnt < new_struct_outputs.size();cnt++) {
-	// we are evaluating (struct_outputs[cnt].first != new_struct_outputs[cnt].first)
-	// but we do this with operator< because that is what is defined
-	// by trm_struct_depend_key 
-	if (struct_outputs[cnt].first < new_struct_outputs[cnt].first || new_struct_outputs[cnt].first < struct_outputs[cnt].first) {
-	  struct_outputs = new_struct_outputs; 
-	  return true; 
-	  
-	}
-      }
-      return false;
-    }
+    bool update_struct_outputs(const std::vector<trm_struct_depend> &new_struct_outputs);
 
     
-    bool update_inputs(const std::vector<trm_arrayregion> &new_inputs)
-    {
-      // returns true if inputs are updated
-      if (new_inputs != inputs) {
-	inputs = new_inputs;
-	return true; 
-      }
-      return false;
-    }
-    
-    bool update_outputs(const std::vector<trm_arrayregion> &new_outputs)
-    {
-      // returns true if inputs are updated
-      if (new_outputs != outputs) {
-	outputs = new_outputs;
-	return true; 
-      }
-      return false;
-    }
+    bool update_inputs(const std::vector<trm_arrayregion> &new_inputs);
+    bool update_outputs(const std::vector<trm_arrayregion> &new_outputs);
 
     std::tuple<lockholder_index,rwlock_token_set,std::string> realloc_output_if_needed(std::shared_ptr<lockingprocess> process,std::shared_ptr<arraymanager> manager,size_t outnum,void **output_array,snde_index numelements,std::string name)
     /* Reallocate output <outnum> of this dependency from the given array, with size of numelements, 
@@ -1690,7 +1634,7 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
 
     void _output_deps_into_unexecwithdeps(std::shared_ptr<trm_dependency> dependency,bool is_an_output_dependency)
     /* Iterate recursively over dependency and its output dependencies of <dependency> moving them 
-       from the unexecuted or no_need_to_execute list (if present) into the unexecuted_with_deps set if they have dependencies */
+       from the unexecuted or no_need_to_execute list (if present) into the unexecuted_with_deps set if they have dependencies... The dependency_table lock should be hld while calling this... */
     {
       // If this is already an output dependency we are processing, then
       // we have to move it into unexecuted_with_deps.

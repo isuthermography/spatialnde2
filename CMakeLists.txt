@@ -104,7 +104,7 @@ find_package(PNG)
 
 # OpenSceneGraph (osg) dependencies
 find_package(OpenThreads)
-find_package(OpenSceneGraph REQUIRED osg osgViewer osgGA osgDB)
+find_package(OpenSceneGraph REQUIRED osg osgViewer osgGA osgDB osgUtil)
 
 
 find_package(GLUT)
@@ -126,7 +126,7 @@ IF (OpenCL_FOUND)
 
     add_definitions(-DSNDE_OPENCL)
     # Build OpenCL support into library
-    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/opencl_utils.cpp src/openclcachemanager.cpp src/data_to_rgba.cpp src/inplanemat_calculation.cpp src/boxes_calculation.cpp)
+    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/opencl_utils.cpp src/openclcachemanager.cpp src/data_to_rgba.cpp src/inplanemat_calculation.cpp src/projinfo_calculation.cpp src/boxes_calculation.cpp)
     IF (PythonInterp_FOUND) 
       set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} src/normal_calculation.cpp)
       IF (OpenSceneGraph_FOUND)
@@ -215,6 +215,10 @@ add_executable(thread_test
         test/thread_test.cpp)
 target_link_libraries(thread_test spatialnde2 ${SPATIALNDE2_LIBS})
 
+add_executable(matrixsolve_test
+        test/matrixsolve_test.cpp)
+target_link_libraries(matrixsolve_test spatialnde2 ${SPATIALNDE2_LIBS})
+
 IF (Eigen3_FOUND)
     add_executable(transform_eval_test
             test/transform_eval_test.cpp)
@@ -228,9 +232,9 @@ ENDIF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
 
 
 IF (PythonInterp_FOUND)
-    set(PYTHONGENHEADERS src/snde_types.h src/geometry_types.h src/geometry_ops.h src/testkernel.c src/osg_vertexarray.c src/osg_texvertexarray.c src/normal_calc.c src/colormap.h src/scale_colormap.c src/dummy_scale_colormap.c )
+    set(PYTHONGENHEADERS src/snde_types.h src/geometry_types.h src/geometry_ops.h src/testkernel.c src/osg_vertexarray.c src/osg_texvertexarray.c src/normal_calc.c src/projinfo_calc.c src/colormap.h src/scale_colormap.c src/dummy_scale_colormap.c )
   
-    set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
+    set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
 
     add_custom_command(OUTPUT ${PYTHONGENERATEDHEADERS}
             DEPENDS ${PYTHONGENHEADERS}
@@ -242,6 +246,7 @@ IF (PythonInterp_FOUND)
             COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/osg_vertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h
             COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/osg_texvertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h
             COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/normal_calc.c ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h
+            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/projinfo_calc.c ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h
             COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/colormap.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h
             COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h
             COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/dummy_scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h

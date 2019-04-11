@@ -8,7 +8,10 @@
 #include <osg/Geode>
 #include <osg/Group>
 #include <osg/Geometry>
+#include <osg/Shape>
+#include <osg/ShapeDrawable>
 #include <osg/MatrixTransform>
+#include <osg/ValueObject>
 #include <osgViewer/Viewer>
 
 #include "revision_manager.hpp"
@@ -42,7 +45,8 @@
 namespace snde {
 
 extern opencl_program vertexarray_opencl_program;
-
+class OSGComponent; // forward reference
+class osg_instancecacheentry; // forward reference  
 
 static snde_index vertexarray_from_instance_vertexarrayslocked(std::shared_ptr<geometry> geom,rwlock_token_set all_locks,snde_index partnum,snde_index outaddr,snde_index outlen,cl_context context,cl_device_id device,cl_command_queue queue)
 /* Should already have read locks on the part referenced by instance via obtain_lock() and the entire vertexarray locked for write */
@@ -140,6 +144,56 @@ struct osg_snde_partinstance_equal
 };
 
 
+  class geom_userdata : public osg::Object {
+  // this class is used to keep a weak reference
+  // to the instancecacheentry from the osg::Geometry UserData field
+  // so we can find our data to handle pick callbacks
+  // assigned during creation in osg_instancecache::lookup()
+public:
+  osg::observer_ptr<OSGComponent> comp;
+  std::weak_ptr<osg_instancecacheentry> cacheentry;
+  std::map<snde_index,std::weak_ptr<osg_texturecacheentry>> texcacheentry;
+  osg::observer_ptr<osg::MatrixTransform> instance_transform;
+
+  geom_userdata() : osg::Object()
+  {
+    
+  }
+  
+  geom_userdata(osg::observer_ptr<OSGComponent> comp,std::shared_ptr<osg_instancecacheentry> cacheentry,const std::map<snde_index,std::shared_ptr<osg_texturecacheentry>> &texcacheentry,osg::observer_ptr<osg::MatrixTransform> instance_transform) :
+    osg::Object(),
+    comp(comp),
+    cacheentry(cacheentry),
+    instance_transform(instance_transform)
+  {
+    for (auto & index_sharedtexcacheentry: texcacheentry) {
+      this->texcacheentry.emplace(index_sharedtexcacheentry.first,std::weak_ptr<osg_texturecacheentry>(index_sharedtexcacheentry.second));
+    }
+  }
+    
+  virtual Object *clone(const osg::CopyOp & deep) const
+  {
+    return dynamic_cast<Object *>(new geom_userdata(*this));
+  }
+    
+  virtual Object *cloneType() const
+  {
+    return dynamic_cast<Object *>(new geom_userdata());
+  }
+
+  virtual const char *libraryName() const
+  {
+    return "snde";
+  }
+
+  virtual const char *className() const
+  {
+    return "geom_userdata";
+  }
+
+  
+};
+
 
 
 class osg_instancecacheentry {
@@ -164,23 +218,6 @@ class osg_instancecacheentry {
   // our OSGComponent constructor or Update() method.
 
 public:
-  class geom_userdata: public osg::Referenced {
-    // this class is used to keep a weak reference
-    // to the instancecacheentry from the osg::Geometry UserData field
-    // so we can find our data to handle pick callbacks
-    // assigned during creation in osg_instancecache::lookup()
-  public:
-    std::weak_ptr<osg_instancecacheentry> cacheentry;
-    
-    geom_userdata(std::shared_ptr<osg_instancecacheentry> cacheentry) :
-      cacheentry(cacheentry)
-    {
-      
-    }
-    
-    virtual ~geom_userdata() {}
-  };
-
   
   snde_partinstance instance; // index of this cache entry
   std::weak_ptr<osg_instancecacheentry> thisptr; /* Store this pointer so we can return it on demand */
@@ -348,7 +385,7 @@ public:
       //entry->second.geode_state_set->setMode(GL_LIGHTING,osg::StateAttribute::ON);
       //entry->second.geode->setStateSet(entry->second.geode_state_set);
       entry->second.geom=new osg::Geometry();
-      entry->second.geom->setUserData(new osg_instancecacheentry::geom_userdata(entry_ptr));
+      //entry->second.geom->setUserData(new osg_instancecacheentry::geom_userdata(entry_ptr));
       entry->second.drawarrays=new osg::DrawArrays(osg::PrimitiveSet::TRIANGLES,0,0);
       entry->second.geom->addPrimitiveSet(entry->second.drawarrays);
       entry->second.geom->setDataVariance(osg::Object::DYNAMIC);
@@ -537,6 +574,10 @@ public:
       
       if (param) {
 	entry->second.param_cache_entry=param_cache->lookup(revman,param);
+
+	// request parameterization boxes
+	param->request_boxes(revman,context,device,queue);
+	param->request_projinfo(part_ptr,revman,context,device,queue); 
       }
       
 
@@ -640,10 +681,13 @@ public:
 						    entry_ptr->geom->setNormalArray(entry_ptr->NormalArray, osg::Array::BIND_PER_VERTEX); /* Normals might be dirty too... */
 						    if (dep->inputs.size() > 2) {
 						      
+						      // ***!!! Note: TexCoordArray->offset and nvec
+						      // also set in openscenegraph_parameterization.hpp. This
+						      // is redundant and should probably be cleaned up
 						      entry_ptr->param_cache_entry->TexCoordArray->offset = dep->inputs.at(2).start; //= shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].firsttri*9; // offset counted in terms of floating point numbers
-						      entry_ptr->param_cache_entry->TexCoordArray->nvec = dep->inputs.at(2).len/3; // shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].numtris*3;
-						      if (numtris != entry_ptr->param_cache_entry->TexCoordArray->nvec/2) {
-							fprintf(stderr,"TexCoordArray size mismatch: %llu vs. %llu\n",(unsigned long long)numtris,(unsigned long long)entry_ptr->NormalArray->nvec/2);
+						      entry_ptr->param_cache_entry->TexCoordArray->nvec = dep->inputs.at(2).len/2; // shared_cache->snde_geom->geom.parts[entry_ptr->instance.partnum].numtris*3;
+						      if (numtris != entry_ptr->param_cache_entry->TexCoordArray->nvec/3) {
+							fprintf(stderr,"TexCoordArray size mismatch: %llu vs. %llu\n",(unsigned long long)numtris,(unsigned long long)entry_ptr->NormalArray->nvec/3);
 							return;
 						      }
 						      
@@ -704,6 +748,7 @@ public:
   std::shared_ptr<mutablewfmdb> wfmdb;
   std::shared_ptr<trm> rendering_revman;
   std::shared_ptr<mutablegeomstore> comp;
+  osg::ref_ptr<osg::MatrixTransform> PickerCoordAxes; 
   
   // elements of this group will be osg::MatrixTransform objects containing the osg::Geodes of the cache entries.
   geometry_scene scene; // contains instances from last update... numbered identically to Group. 
@@ -711,7 +756,9 @@ public:
   std::vector<std::shared_ptr<osg_paramcacheentry>> paramcacheentries;
   std::vector<std::map<snde_index,std::shared_ptr<osg_texturecacheentry>>> texcacheentries;
 
-  std::vector<osg::ref_ptr<osg::MatrixTransform>> transforms;
+  std::vector<osg::ref_ptr<osg::MatrixTransform>> transforms; // transforms is the list of transforms for the various instances. The transform contains the group, as well as any PickedOrientation
+  std::vector<osg::ref_ptr<osg::Group>> groups; // Each group contains the relevant cache entry and contains state settings for the rendering. Also has a UserDataContainer attached.
+  
 
   /* Constructor: Build an OSGComponent from a snde::component 
  ***!!! May only be called within a transaction (per rendering_revman) 
@@ -754,6 +801,8 @@ public:
 
     //rwlock_token_set all_locks=lockprocess->finish();
 
+    SetPickerCoordAxes();
+      
     Update(dispinfo);
     
     
@@ -761,6 +810,11 @@ public:
 
   void Update(std::shared_ptr<display_info> dispinfo)
   // must be called with the component UN-locked. !!!*** NOTE: x3d-viewer must have locking call removed***!!!
+  // When used from a GUI, must only be called from the main GUI thread
+  // as the OSG getuservalue functions aren't threadsafe
+  // and may be used within the picker callback
+  // (Same constraint does NOT apply to constructor, as on construction
+  // all this stuff is new and couldn't be referenced by the callback)
   {
     geometry_scene oldscene; // instances from last update... numbered identically to Group.
     std::vector<std::shared_ptr<osg_instancecacheentry>> oldcacheentries;
@@ -812,6 +866,7 @@ public:
       bool newtexcacheentry=false;
       bool newparamcacheentry=false;
       bool newxform=false;
+      bool newgroup=false;
 
       std::shared_ptr<osg_instancecacheentry> cacheentry;
       std::shared_ptr<osg_paramcacheentry> paramcacheentry;
@@ -829,8 +884,8 @@ public:
       } else {
 	// Not present or mismatch in old array... build from imagemap (texture cache lookup was above, inside where we called get_instances())
 	texcacheentry.clear();
-	for (auto & facenum__imagedata: imagemap) {
-	  texcacheentry.emplace(facenum__imagedata.first,std::dynamic_pointer_cast<osg_texturecacheentry>(facenum__imagedata.second));
+	for (auto & imagenum__imagedata: imagemap) {
+	  texcacheentry.emplace(imagenum__imagedata.first,std::dynamic_pointer_cast<osg_texturecacheentry>(imagenum__imagedata.second));
 	}
 	texcacheentries.push_back(texcacheentry);
 	newtexcacheentry=true;
@@ -900,20 +955,48 @@ public:
       }
       xform->setMatrix(translate*rotate);
 
-      if (texcacheentry.size() > 1) {
-	snde_index multiple_face_entries=false;
-	std::shared_ptr<osg_texturecacheentry> firstface = texcacheentry.begin()->second;
+      osg::ref_ptr<osg::Group> group;
 
-	for (auto & texcachefaceentry: texcacheentry) {
-	  if (texcachefaceentry.second != firstface) {
-	    assert(0); // Ability to merge textures from multiple sources not yet implemented!
+      if (pos < groups.size()) {
+	group=groups[pos];	
+      } else {
+	group = new osg::Group();
+	groups.push_back(group);
+	newgroup=true;
+      }
+      
+      // remove any preexisting cachedata field from the group
+      osg::UserDataContainer *cont=group->getOrCreateUserDataContainer();
+      unsigned int objindex;
+      // ***!!!!! NOTE: setUserObject() and friends do not appear
+      // to be thread-safe. Therefore this code can only
+      // reasonably called in the single GUI thread
+      
+      if (cont && ((objindex=cont->getUserObjectIndex("snde_osg_geom_cachedata",0) < cont->getNumUserObjects()))) { // (note intentional assignment within if condition)
+	cont->removeUserObject(objindex);
+	
+      }
+      osg::ref_ptr<geom_userdata> instance_cachedata = new geom_userdata(osg::observer_ptr<OSGComponent>(this),cacheentry,texcacheentry,osg::observer_ptr<osg::MatrixTransform>(xform));
+      instance_cachedata->setName("snde_osg_geom_cachedata");
+      cont->addUserObject(instance_cachedata.get());
+      
+      if (texcacheentry.size() > 1) {
+	snde_index multiple_image_entries=false;
+	std::shared_ptr<osg_texturecacheentry> firstimage = texcacheentry.begin()->second;
+
+	for (auto & texcacheimageentry: texcacheentry) {
+	  if (texcacheimageentry.second != firstimage) {
+	    // !!!*** To support multiple texture images within a single part, could merge textures
+	    // into a single larger texture and/or use multitexture support (up to 16 texture units on modern hardware).
+	    
+	    assert(0); // Ability to merge textures from multiple sources into a single atlas or use multitexturing not yet implemented! (multitexturing problematic because of no good way to tell each triangle which texture to use (maybe by programming shader)
 	  }
 	}	
       }
 
       if (texcacheentry.size() >= 1) {
-	// single face
-	std::shared_ptr<osg_texturecacheentry> face = texcacheentry.begin()->second;
+	// single parameterization image
+	std::shared_ptr<osg_texturecacheentry> paramimage = texcacheentry.begin()->second;
 
 	// the texture_state_set enables texturing and the loaded texture.
 	// we apply it to the TextureTransform node. It will get merged
@@ -921,7 +1004,7 @@ public:
 	// for rendering (see http://www.bricoworks.com/articles/stateset/stateset.html
 	// for more information on how stateset info flows through the scenegraph and
 	// drawables)
-	xform->setStateSet(face->texture_state_set); 
+	group->setStateSet(paramimage->texture_state_set); 
 
       }
       
@@ -930,16 +1013,21 @@ public:
       //assert(instance_comp.first.nurbspartnum == SNDE_INDEX_INVALID);
       assert(std::get<0>(instance_part_param_imagemap).partnum != SNDE_INDEX_INVALID);
 
-      if (newcacheentry && newxform) {
-	xform->addChild(cacheentry->geode);
+      if (newxform && newgroup && newcacheentry) {
 	this->addChild(xform);
-      } else if (newcacheentry && !newxform) {
-	xform->removeChild(oldcacheentries[pos]->geode);
-	xform->addChild(cacheentry->geode);	
-      } else if (!newcacheentry && newxform) {
+	xform->addChild(group);
+	group->addChild(cacheentry->geode);
+      } else if (newxform && newgroup && !newcacheentry) {
 	assert(0); // shouldn't be possible
+      } else if (newxform &&  !newgroup) {
+	assert(0); // shouldn't be possible
+      } else if (!newxform &&  newgroup) {
+	assert(0); // shouldn't be possible
+      } else if (!newxform &&  !newgroup && newcacheentry ) {
+	group->removeChild(oldcacheentries[pos]->geode);
+	group->addChild(cacheentry->geode);	
       } else {
-	assert(!newcacheentry && !newxform);
+	assert(!newxform && !newgroup && !newcacheentry);
 	/* everything already in place */
       }
       
@@ -958,11 +1046,102 @@ public:
       
     }
 
+    /* if there are more groups than needed, remove the excess ones */
+    if (groups.size() > pos) {
+      size_t targetsize = pos;
+      // remove excess groups
+      while (pos < groups.size()) {
+	this->removeChild(groups[pos]);
+	pos++;
+      }
+      groups.resize(targetsize);
+      
+    }
+
+    
     // for now we fully drop our locks after doing the update
     scene.drop_locks();
     
   }
 
+  void SetPickedOrientation(osg::ref_ptr<osg::MatrixTransform> PickedObjTransform,osg::Matrixd orientation)
+  {
+    // sent directly by picker based on UserObject of cache entry
+    ClearPickedOrientation();
+    
+    PickerCoordAxes->setMatrix(orientation); // orientation is relative to underlying part, not relative to world frame. 
+    PickedObjTransform->addChild(PickerCoordAxes);
+  }
+
+  void ClearPickedOrientation()
+  {
+    // sent via osg_renderer implementation (e.g. qtwfmviewer)
+    for (size_t pos=0;pos < transforms.size();pos++) {
+      transforms[pos]->removeChild(PickerCoordAxes);
+      
+    }
+  }
+  
+  void SetPickerCoordAxes()
+  {
+    double cylradius=0.1;
+    double cyllength=0.8; // out of 1.0 total length
+    double coneheight=1.0-cyllength;
+    double coneradius=0.2;
+    
+    
+    osg::ref_ptr<osg::TessellationHints> Hints = new osg::TessellationHints();
+    Hints->setDetailRatio(0.5);
+    
+    PickerCoordAxes = new osg::MatrixTransform();
+    osg::ref_ptr<osg::Geode> CoordAxesGeode = new osg::Geode();
+    osg::ref_ptr<osg::StateSet> CoordAxesStateSet = CoordAxesGeode->getOrCreateStateSet();
+    PickerCoordAxes->addChild(CoordAxesGeode);
+    
+    osg::ref_ptr<osg::Cylinder> RedCyl=new osg::Cylinder(osg::Vec3(cyllength/2.0,0.0,0.0),cylradius,cyllength);
+    // Cylinder by default is in +z axis; we want +x axis;
+    // so we rotate around +y axis
+    RedCyl->setRotation(osg::Quat(M_PI/2.0,osg::Vec3(0.0,1.0,0.0)));
+    osg::ref_ptr<osg::ShapeDrawable> RedCylinder = new osg::ShapeDrawable(RedCyl,Hints);
+    RedCylinder->setColor(osg::Vec4(1.0,0.0,0.0,1.0));
+    CoordAxesGeode->addDrawable(RedCylinder);
+    
+    osg::ref_ptr<osg::Cone> RedCon=new osg::Cone(osg::Vec3(cyllength+0.25*coneheight,0.0,0.0),coneradius,coneheight);
+    RedCon->setRotation(osg::Quat(M_PI/2.0,osg::Vec3(0.0,1.0,0.0)));
+    osg::ref_ptr<osg::ShapeDrawable> RedCone = new osg::ShapeDrawable(RedCon,Hints);
+    RedCone->setColor(osg::Vec4(1.0,0.0,0.0,1.0));
+    CoordAxesGeode->addDrawable(RedCone);
+    
+    osg::ref_ptr<osg::Cylinder> GreenCyl = new osg::Cylinder(osg::Vec3(0.0,cyllength/2.0,0.0),cylradius,cyllength);
+    // Cylinder by default is in +z axis; we want +y axis;
+    // so we rotate around -x axis
+    GreenCyl->setRotation(osg::Quat(M_PI/2.0,osg::Vec3(-1.0,0.0,0.0)));
+    osg::ref_ptr<osg::ShapeDrawable> GreenCylinder = new osg::ShapeDrawable(GreenCyl,Hints);
+    GreenCylinder->setColor(osg::Vec4(0.0,1.0,0.0,1.0));
+    CoordAxesGeode->addDrawable(GreenCylinder);
+    
+    osg::ref_ptr<osg::Cone> GreenCon = new osg::Cone(osg::Vec3(0.0,cyllength+0.25*coneheight,0.0),coneradius,coneheight);
+    GreenCon->setRotation(osg::Quat(M_PI/2.0,osg::Vec3(-1.0,0.0,0.0)));
+    osg::ref_ptr<osg::ShapeDrawable> GreenCone = new osg::ShapeDrawable(GreenCon,Hints);
+    GreenCone->setColor(osg::Vec4(0.0,1.0,0.0,1.0));
+    CoordAxesGeode->addDrawable(GreenCone);
+    
+    osg::ref_ptr<osg::Cylinder> BlueCyl = new osg::Cylinder(osg::Vec3(0.0,0.0,cyllength/2.0),cylradius,cyllength);
+    osg::ref_ptr<osg::ShapeDrawable> BlueCylinder = new osg::ShapeDrawable(BlueCyl,Hints);
+    // Cylinder by default is in +z axis; no need to rotate!
+    BlueCylinder->setColor(osg::Vec4(0.0,0.0,1.0,1.0));
+    CoordAxesGeode->addDrawable(BlueCylinder);
+    
+    osg::ref_ptr<osg::Cone> BlueCon = new osg::Cone(osg::Vec3(0.0,0.0,cyllength+0.25*coneheight),coneradius,coneheight);
+    osg::ref_ptr<osg::ShapeDrawable> BlueCone = new osg::ShapeDrawable(BlueCon,Hints);
+    // Cylinder by default is in +z axis; no need to rotate!
+    BlueCone->setColor(osg::Vec4(0.0,0.0,1.0,1.0));
+    CoordAxesGeode->addDrawable(BlueCone);
+    
+    
+  }
+  
+  
   void LockVertexArraysTextures(std::shared_ptr<lockingprocess_threaded> lockprocess)
   /* This locks the generated vertex arrays and vertnormals (for OSG) and generated textures (for OSG) for read */
   /* Should have just done an Update() so that cacheentries is up-to-date */
@@ -987,7 +1166,9 @@ public:
       to_lock.push_back(part_ptr->normal_function->outputs.at(0)); // normal function outputs[0] is vertnormals
       to_lock.push_back(cache_entry->vertex_function->outputs.at(0));
 
-      to_lock.push_back(paramcacheentries.at(instcnt)->texvertex_function->outputs.at(0));
+      if (paramcacheentries.at(instcnt)) {
+	to_lock.push_back(paramcacheentries.at(instcnt)->texvertex_function->outputs.at(0));
+      }
 
       for (auto& facenum__texcacheentry: texcacheentries.at(instcnt)) { 
 	to_lock.push_back(facenum__texcacheentry.second->rgba_dep->outputs.at(0));

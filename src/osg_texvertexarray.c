@@ -74,9 +74,12 @@ __kernel void osg_texvertexarray(__global const struct snde_parameterization *uv
     texvertex_arrays[vapos+2*edgecnt]=thisvert.coord[0];
     texvertex_arrays[vapos+2*edgecnt+1]=thisvert.coord[1];
     //texvertex_arrays[vapos+3*edgecnt+2]=thisvert.coord[2];
-    
-    //printf("vertex: (%lf,%lf,%lf)\n",(double)thisvert.coord[0],(double)thisvert.coord[1],(double)thisvert.coord[2]);
 
+
+    //if (trianglenum==47759) {
+    //  printf("triangle 47759 vertex: (%lf,%lf)\n",(double)thisvert.coord[0],(double)thisvert.coord[1]); // ,(double)thisvert.coord[2]);
+    //}
+    
     thisedge=nextedge;
     edgecnt++;
   }

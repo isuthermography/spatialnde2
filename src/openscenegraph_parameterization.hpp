@@ -80,6 +80,11 @@ static snde_index texvertexarray_from_uv_vertexarrayslocked(std::shared_ptr<geom
 
   // Release our reference to kernel, allowing it to be free'd
   clReleaseKernel(texvertexarray_kern);
+
+  //if (uv.numuvtris > 47759) {
+  //  fprintf(stderr,"Triangle 47759 first vertex: (%f,%f)\n",geom->geom.texvertex_arrays[outaddr + 47759*6],geom->geom.texvertex_arrays[outaddr + 47759*6 + 1]);
+  //}
+  
   
   return outaddr; 
 }
@@ -275,8 +280,11 @@ public:
 							   if (actions & STDA_EXECUTE) {
 							     // function code
 							     
+							     // ***!!! Note: TexCoordArray->offset and nvec
+							     // also set in openscenegraph_geom.hpp. This
+							     // is redundant and should probably be cleaned up
 							     entry_ptr->TexCoordArray->offset = dep->outputs[0].start;
-							     entry_ptr->TexCoordArray->nvec = uvstruct.numuvtris*3; // DataArray is counted in terms of (x,y,z) vectors, so three sets of coordinates per triangle
+							     entry_ptr->TexCoordArray->nvec = uvstruct.numuvtris*3; // DataArray is counted in terms of (x,y) vectors, so three sets of coordinates per triangle
 							     assert(entry_ptr->TexCoordArray->nvec == dep->outputs[0].len/2);
 							     // Should probably convert write lock to read lock and spawn this stuff off, maybe in a different thread (?) (WHY???) 						      
 							     texvertexarray_from_uv_vertexarrayslocked(shared_cache->snde_geom,all_locks,dep->inputs[0].start,dep->outputs[0].start,dep->outputs[0].len,shared_cache->context,shared_cache->device,shared_cache->queue);

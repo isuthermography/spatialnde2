@@ -3,6 +3,34 @@
 #include "qtwfmviewer.hpp"
 
 namespace snde {
+  QTWfmRender::QTWfmRender(osg::ref_ptr<osg::Node> RootNode, QTWfmViewer *QTViewer,QWidget *parent)
+      : QOpenGLWidget(parent),
+	osg_renderer(new osgViewer::GraphicsWindowEmbedded(x(),y(),width(),height()),
+		     RootNode,
+		     false),
+	picker(new osg_picker(this,QTViewer->display)),
+	QTViewer(QTViewer)
+    {
+      Camera->setViewport(0,0,width(),height());
+
+      SetProjectionMatrix();
+
+      
+      setMouseTracking(true); // ???
+
+      setAttribute(Qt::WA_AcceptTouchEvents,true);
+      //Viewer->addEventHandler(picker); // adding now handled by osg_picker constructor...
+ 
+      Viewer->realize();
+    }
+  
+  /* virtual */ void QTWfmRender::ClearPickedOrientation() // in qtwfmviewer.cpp
+  {
+    // notification from picker to clear any marked orientation
+    if (QTViewer->GeomRenderer) {
+      QTViewer->GeomRenderer->ClearPickedOrientation();
+    }
+  }
   
   /* virtual */ void QTWfmRender::paintGL()
   {

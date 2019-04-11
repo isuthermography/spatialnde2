@@ -63,6 +63,7 @@ struct display_axis {
   // double MousePosn;
 };
 
+
 class wfmdisplay_notification_receiver {
   // abstract base class
 public:
@@ -188,8 +189,8 @@ struct display_posn {
   std::shared_ptr<display_axis> Vert;
   double VertPosn;  // position on Vert axis
   
-  std::shared_ptr<display_axis> Intensity;
-  double IntensityPosn;  // recorded intensity at this position
+  //std::shared_ptr<display_axis> Intensity;
+  //double IntensityPosn;  // recorded intensity at this position
   
 };
 
@@ -271,6 +272,8 @@ public:
   size_t vertical_divisions;
   float borderwidthpixels;
   double pixelsperdiv;
+  display_posn selected_posn; 
+  
   std::shared_ptr<mutablewfmdb> wfmdb;
   
   std::mutex admin;
@@ -279,7 +282,8 @@ public:
   std::unordered_map<std::string,std::shared_ptr<display_channel>> channel_info;
 
   display_info(std::shared_ptr<mutablewfmdb> wfmdb) :
-    wfmdb(wfmdb)
+    wfmdb(wfmdb),
+    selected_posn(display_posn{.HorizPosn=0.0})
   {
     NextColor=0;
 
@@ -330,13 +334,28 @@ public:
     pixelsperdiv=1.0; // will need to be updated by set_pixelsperdiv
   }
 
+  void set_selected_posn(const display_posn &markerposn)
+  {
+    std::lock_guard<std::mutex> adminlock(admin);
+
+    selected_posn = markerposn;
+  }
+
+  display_posn get_selected_posn()
+  {
+    std::lock_guard<std::mutex> adminlock(admin);
+
+    return selected_posn;
+  }
+  
   std::shared_ptr<display_channel> lookup_channel(std::string wfmfullname)
   {
+    std::unique_lock<std::mutex> adminlock(admin);
     auto iter = channel_info.find(wfmfullname);
 
     if (iter==channel_info.end()) {
       // not found in list
-
+      admin.unlock();
       // Does the wfm exist in the wfmdb?
       std::shared_ptr<mutableinfostore> infostore = wfmdb->lookup(wfmfullname);
 
@@ -384,8 +403,8 @@ public:
   std::vector<std::shared_ptr<display_channel>> update(std::shared_ptr<mutableinfostore> selected, bool include_disabled,bool include_hidden)
 
   // if include_disabled is set, disabled channels will be included
-  // if selected is not nullptr, it will be moved to the end of the list
-  // to be rendered on top (last)
+  // if selected is not nullptr, it will be moved to the front of the list
+  // to be rendered on top 
     
   // STILL NEED TO IMPLEMENT THE FOLLOWING: 
   // if include_hidden is set, hidden channels will be included

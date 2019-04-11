@@ -87,7 +87,8 @@ public:
   osg::ref_ptr<osg::PixelBufferObject> image_pbo;
   std::shared_ptr<trm_dependency> rgba_dep;
 
-  std::mutex texture_image_lock;
+  std::mutex texture_image_lock; // texture_image should probably be moved to be part of the geometry array data and its
+  //index part of the image_data superclass. Then it can be locked like other data structures 
   std::shared_ptr<snde_image> texture_image;
   
   /* Should texture_transform be part of instancecache? 

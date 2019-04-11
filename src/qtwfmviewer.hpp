@@ -28,7 +28,7 @@
 #include "openscenegraph_geom.hpp"
 #include "openscenegraph_data.hpp"
 #include "openscenegraph_renderer.hpp"
-//#include "openscenegraph_picker.hpp"
+#include "openscenegraph_picker.hpp"
 
 #ifndef SNDE_QTWFMVIEWER_HPP
 #define SNDE_QTWFMVIEWER_HPP
@@ -57,29 +57,12 @@ namespace snde {
     // methods from osg_renderer:
     //void SetRootNode(osg::ref_ptr<osg::Node> RootNode)
 
-    //osg::ref_ptr<osg_picker> picker;
+    osg::ref_ptr<osg_picker> picker;
     
     
-    QTWfmRender(osg::ref_ptr<osg::Node> RootNode, QTWfmViewer *QTViewer,QWidget *parent=0)
-      : QOpenGLWidget(parent),
-	osg_renderer(new osgViewer::GraphicsWindowEmbedded(x(),y(),width(),height()),
-		     RootNode,
-		     false),
-	//picker(new osg_picker(this)),
-	QTViewer(QTViewer)
-    {
-      Camera->setViewport(0,0,width(),height());
+    QTWfmRender(osg::ref_ptr<osg::Node> RootNode, QTWfmViewer *QTViewer,QWidget *parent=0); // Note: Constructor body moved to qtwfmviewer.cpp because of reference to QTViewer->display
 
-      SetProjectionMatrix();
-
-      
-      setMouseTracking(true); // ???
-
-      setAttribute(Qt::WA_AcceptTouchEvents,true);
-
-      Viewer->realize();
-    }
-
+    
     void update()
     {
       //fprintf(stderr,"QOpenGLWidget update()\n");
@@ -107,10 +90,12 @@ namespace snde {
 	Camera->setProjectionMatrixAsOrtho(0,static_cast<double>(width()),0,static_cast<double>(height()),-10.0,1000.0);
 	
       } else {
-	Camera->setProjectionMatrixAsPerspective(30.0,static_cast<float>(this->width())/static_cast<float>(this->height()),0.5,1000.0);
+	Camera->setProjectionMatrixAsPerspective(30.0,static_cast<float>(this->width())/static_cast<float>(this->height()),0.1,1000.0);
 	
       }
     }
+
+  virtual void ClearPickedOrientation(); // in qtwfmviewer.cpp
 
     
   protected:
@@ -130,6 +115,9 @@ namespace snde {
       // translate Qt mouseMoveEvent to OpenSceneGraph
       GraphicsWindow->getEventQueue()->mouseMotion(event->x(), event->y()); //,event->timestamp()/1000.0);
 
+      // for some reason drags with the middle mouse button pressed
+      // get the buttons field filtered out (?)
+      
       // should we only update if a button is pressed??
       fprintf(stderr,"buttons=%llx\n",(unsigned long long)event->buttons());
       if (event->buttons()) {
@@ -1114,6 +1102,8 @@ namespace snde {
       QGridLayout *viewerGridLayout = DesignerTree->findChild<QGridLayout*>("viewerGridLayout");
       // we want to add our QOpenGLWidget to the 1,0 entry of the QGridLayout
 
+      display = std::make_shared<display_info>(wfmdb);
+
       OSGWidget=new QTWfmRender(nullptr,this,viewerGridLayout->parentWidget());
       viewerGridLayout->addWidget(OSGWidget,1,0);
       
@@ -1122,7 +1112,6 @@ namespace snde {
       WfmListScrollAreaContent->setLayout(WfmListScrollAreaLayout);
 
       
-      display = std::make_shared<display_info>(wfmdb);
       //setWindowTitle(tr("QTWfmViewer"));
 
       ViewerStatus=DesignerTree->findChild<QLineEdit *>("ViewerStatus");
@@ -1323,7 +1312,7 @@ namespace snde {
 	DataRenderer=new OSGData(display,rendering_revman);
       }
       display->set_pixelsperdiv(OSGWidget->width(),OSGWidget->height());
-      DataRenderer->update(sndegeom,wfmdb,currentwfmlist,OSGWidget->width(),OSGWidget->height(),context,device,queue);
+      DataRenderer->update(sndegeom,wfmdb,selected,currentwfmlist,OSGWidget->width(),OSGWidget->height(),context,device,queue);
       OSGWidget->SetTwoDimensional(true);
       OSGWidget->SetRootNode(DataRenderer);
     }

@@ -17,7 +17,7 @@ __kernel void normalcalc(__global const struct snde_part *part,
   
 
   /* traverse edges of this triangle and extract vertex coordinates -> triverts*/
-  get_we_triverts(part_triangles,trianglenum,part_edges,part_vertices,triverts);
+  get_we_triverts_3d(part_triangles,trianglenum,part_edges,part_vertices,triverts);
 
   /* got vertex coordinates in triverts */
 

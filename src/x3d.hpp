@@ -1466,7 +1466,7 @@ namespace snde {
 						       .firstuvbox=SNDE_INDEX_INVALID,
 						       .numuvboxes=SNDE_INDEX_INVALID,
 						       .firstuvboxpoly=SNDE_INDEX_INVALID,
-						       .numuvboxpoly=SNDE_INDEX_INVALID,
+						       .numuvboxpolys=SNDE_INDEX_INVALID,
 						       .firstuvboxcoord=SNDE_INDEX_INVALID,
 						       .numuvboxcoords=SNDE_INDEX_INVALID
 	};
@@ -2319,7 +2319,7 @@ namespace snde {
 	geom->geom.uvs[firstuv].firstuvbox=SNDE_INDEX_INVALID;
 	geom->geom.uvs[firstuv].numuvboxes=SNDE_INDEX_INVALID;
 	geom->geom.uvs[firstuv].firstuvboxpoly=SNDE_INDEX_INVALID;
-	geom->geom.uvs[firstuv].numuvboxpoly=SNDE_INDEX_INVALID;
+	geom->geom.uvs[firstuv].numuvboxpolys=SNDE_INDEX_INVALID;
 	geom->geom.uvs[firstuv].firstuvboxcoord=SNDE_INDEX_INVALID;
 	geom->geom.uvs[firstuv].numuvboxcoords=SNDE_INDEX_INVALID;
 

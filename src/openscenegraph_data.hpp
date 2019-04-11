@@ -200,6 +200,7 @@ public:
   std::shared_ptr<osg_datacache<osg_dataimagecacheentry>> imagecache;
   std::shared_ptr<display_info> display;
   std::shared_ptr<trm> rendering_revman; // on-demand revision manager used for rendering
+  osg::ref_ptr<osg::MatrixTransform> PickerCrossHairs;
 
   osg::ref_ptr<osg::MatrixTransform> GraticuleTransform; // entire graticule hangs off of this!
   //osg::ref_ptr<osg::Geode> GraticuleGeode;
@@ -314,7 +315,111 @@ public:
     
     GraticuleThinGeom->setVertexArray(ThinGridLineCoords);
     GraticuleThickGeom->setVertexArray(ThickGridLineCoords);
+    SetPickerCrossHairs();
+
   }
+
+  std::tuple<double,double> GetPadding(size_t drawareawidth,size_t drawareaheight)
+  {
+    double horizontal_padding = (drawareawidth-display->horizontal_divisions*display->pixelsperdiv)/2.0;
+    double vertical_padding = (drawareaheight-display->vertical_divisions*display->pixelsperdiv)/2.0;
+
+    return std::make_tuple(horizontal_padding,vertical_padding);
+  }
+  
+
+  std::tuple<double,double> GetScalefactors(std::shared_ptr<mutabledatastore> datastore)
+  {
+    double horizscalefactor,vertscalefactor;
+    
+    std::shared_ptr<display_axis> a = display->GetFirstAxis(datastore);
+    std::shared_ptr<display_axis> b = display->GetSecondAxis(datastore);
+
+    std::shared_ptr<display_unit> u = a->unit;
+    std::shared_ptr<display_unit> v = b->unit;
+    
+
+    {
+      std::lock_guard<std::mutex> adminlock(u->admin);
+      if (u->pixelflag) {
+	horizscalefactor=u->scale*display->pixelsperdiv;
+	//fprintf(stderr,"%f units/pixel\n",u->scale);
+      }
+      else {
+	horizscalefactor=u->scale;
+      //fprintf(stderr,"%f units/div",horizscalefactor);
+      }
+    }
+
+    
+    {
+      std::lock_guard<std::mutex> adminlock(v->admin);
+      if (v->pixelflag)
+	vertscalefactor=v->scale*display->pixelsperdiv;
+      else
+	vertscalefactor=v->scale;
+    }
+
+    return std::make_tuple(horizscalefactor,vertscalefactor);
+  }
+  
+  osg::Matrixd GetChannelTransform(std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index)
+  {
+
+
+    double horizontal_padding;
+    double vertical_padding;
+
+    double horizscalefactor,vertscalefactor;
+    
+    std::tie(horizontal_padding,vertical_padding) = GetPadding(drawareawidth,drawareaheight);
+    
+    std::shared_ptr<display_axis> a = display->GetFirstAxis(datastore);
+    std::shared_ptr<display_axis> b = display->GetSecondAxis(datastore);
+
+    // we assume a drawing area that goes from (-0.5,-0.5) in the lower-left corner
+    // to (drawareawidth-0.5,drawareaheight-0.5) in the upper-right.
+
+    // pixel centers are at (0,0)..(drawareawidth-1,drawareaheight-1)
+
+    double xcenter;
+    
+    {
+      std::lock_guard<std::mutex> adminlock(a->admin);
+      xcenter=a->CenterCoord; /* in units */
+    }
+    //fprintf(stderr,"Got Centercoord=%f\n",xcenter);
+
+    double ycenter;
+    double VertUnitsPerDiv=display->GetVertUnitsPerDiv(displaychan);
+    
+    {
+      std::lock_guard<std::mutex> adminlock(displaychan->admin);
+      
+      if (displaychan->VertZoomAroundAxis) {
+	ycenter=-displaychan->Position*VertUnitsPerDiv;/**pixelsperdiv*scalefactor;*/ /* in units */
+      } else {
+	ycenter=displaychan->VertCenterCoord;/**pixelsperdiv*scalefactor;*/ /* in units */
+      }
+    }
+
+    std::tie(horizscalefactor,vertscalefactor)=GetScalefactors(datastore);
+
+
+    
+    
+    // NOTE: transform includes z shift (away from viewer) of layer_index
+    // OSG transformation matrices are transposed (!)
+    //fprintf(stderr,"-xcenter/horizscalefactor = %f\n",-xcenter/horizscalefactor);
+    osg::Matrixd transformmtx(display->pixelsperdiv/horizscalefactor,0,0,0, 
+			      0,display->pixelsperdiv/vertscalefactor,0,0,
+			      0,0,1,0,
+			      -xcenter*display->pixelsperdiv/horizscalefactor+horizontal_padding+display->pixelsperdiv*display->horizontal_divisions/2.0-0.5,-ycenter*display->pixelsperdiv/vertscalefactor+vertical_padding+display->pixelsperdiv*display->vertical_divisions/2.0-0.5,-1.0*layer_index,1);// ***!!! are -0.5's and negative sign in front of layer_index correct?  .... fix here and in GraticuleTransform->setMatrix
+
+    return transformmtx;
+  }
+    
+  
 
   std::shared_ptr<osg_datacachebase> update_datastore_image(std::shared_ptr<geometry> geom,std::shared_ptr<mutablewfmdb> wfmdb, std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index,cl_context context, cl_device_id device, cl_command_queue queue)
   /****!!! Can only be called during a rendering_revman transaction (but 
@@ -341,6 +446,9 @@ public:
 	    &IniValW,&StepSzW,&dimlen4);
 
     assert(ndim <= 4);
+
+    // Note: all of this axis data not used yet... but it will
+    // need to be for labels, etc. 
     
     if (ndim==4) {
       if (displaychan->DisplaySeq >= dimlen4) {
@@ -392,67 +500,13 @@ public:
       }
     }
 
-
-    {
-      std::lock_guard<std::mutex> adminlock(u->admin);
-      if (u->pixelflag) {
-	horizscalefactor=u->scale*display->pixelsperdiv;
-	//fprintf(stderr,"%f units/pixel\n",u->scale);
-      }
-      else {
-	horizscalefactor=u->scale;
-      //fprintf(stderr,"%f units/div",horizscalefactor);
-      }
-    }
+    std::tie(horizscalefactor,vertscalefactor)=GetScalefactors(datastore);
 
     
-    {
-      std::lock_guard<std::mutex> adminlock(v->admin);
-      if (v->pixelflag)
-	vertscalefactor=v->scale*display->pixelsperdiv;
-      else
-	vertscalefactor=v->scale;
-    }
-    
-    // we assume a drawing area that goes from (-0.5,-0.5) in the lower-left corner
-    // to (drawareawidth-0.5,drawareaheight-0.5) in the upper-right.
 
-    // pixel centers are at (0,0)..(drawareawidth-1,drawareaheight-1)
-
-    double xcenter;
-      
-    {
-      std::lock_guard<std::mutex> adminlock(a->admin);
-      xcenter=a->CenterCoord; /* in units */
-    }
-    //fprintf(stderr,"Got Centercoord=%f\n",xcenter);
-
-    double ycenter;
-    double VertUnitsPerDiv=display->GetVertUnitsPerDiv(displaychan);
-
-    {
-      std::lock_guard<std::mutex> adminlock(displaychan->admin);
-      
-      if (displaychan->VertZoomAroundAxis) {
-	ycenter=-displaychan->Position*VertUnitsPerDiv;/**pixelsperdiv*scalefactor;*/ /* in units */
-      } else {
-	ycenter=displaychan->VertCenterCoord;/**pixelsperdiv*scalefactor;*/ /* in units */
-      }
-    }
+    osg::Matrixd transformmtx = GetChannelTransform(datastore,displaychan,drawareawidth,drawareaheight,layer_index);
 
     
-    double horizontal_padding = (drawareawidth-display->horizontal_divisions*display->pixelsperdiv)/2.0;
-    double vertical_padding = (drawareaheight-display->vertical_divisions*display->pixelsperdiv)/2.0;
-    
-
-    // NOTE: transform includes z shift (away from viewer) of layer_index
-    // OSG transformation matrices are transposed (!)
-    //fprintf(stderr,"-xcenter/horizscalefactor = %f\n",-xcenter/horizscalefactor);
-    osg::Matrixd transformmtx(display->pixelsperdiv/horizscalefactor,0,0,0, 
-			      0,display->pixelsperdiv/vertscalefactor,0,0,
-			      0,0,1,0,
-			      -xcenter*display->pixelsperdiv/horizscalefactor+horizontal_padding+display->pixelsperdiv*display->horizontal_divisions/2.0-0.5,-ycenter*display->pixelsperdiv/vertscalefactor+vertical_padding+display->pixelsperdiv*display->vertical_divisions/2.0-0.5,-1.0*layer_index,1);// ***!!! are -0.5's and negative sign in front of layer_index correct?  .... fix here and in GraticuleTransform->setMatrix
-
     if (StepSzX > 0) {
       borderbox_xleft = std::max(IniValX-StepSzX*0.5-display->borderwidthpixels*horizscalefactor/display->pixelsperdiv/2.0,
 				   (display->borderwidthpixels/2.0-0.5 - transformmtx(3,0))/transformmtx(0,0));
@@ -761,7 +815,7 @@ public:
   
   // update operates on a flattened list (from display_info::update()) instead of wfmdb directly!
   // displaychans list should generally not include disabled waveforms 
-  void update(std::shared_ptr<geometry> geom,std::shared_ptr<mutablewfmdb> wfmdb,const std::vector<std::shared_ptr<display_channel>> & displaychans,size_t drawareawidth,size_t drawareaheight,cl_context context,cl_device_id device,cl_command_queue queue)
+  void update(std::shared_ptr<geometry> geom,std::shared_ptr<mutablewfmdb> wfmdb,std::shared_ptr<mutableinfostore> selected,const std::vector<std::shared_ptr<display_channel>> & displaychans,size_t drawareawidth,size_t drawareaheight,cl_context context,cl_device_id device,cl_command_queue queue)
   // geom needed because that is the current location for the texture RGBA... it also references the array manager and lock manager ....
   /****!!! Can only be called during a rendering_revman transaction (but 
        nothing should be locked) */ 
@@ -771,7 +825,51 @@ public:
     size_t layer_index=0;
 
 
-
+    // Insert selected cross hairs first, if present
+    display_posn selected_posn=display->get_selected_posn();
+    if (selected && display->GetFirstAxis(selected)==selected_posn.Horiz &&
+	display->GetSecondAxis(selected)==selected_posn.Vert) {
+      
+      
+      std::shared_ptr<mutabledatastore> selected_datastore=std::dynamic_pointer_cast<mutabledatastore>(selected);
+      
+      
+      if (selected_datastore) {
+	double horizscalefactor, vertscalefactor;
+	
+	std::tie(horizscalefactor,vertscalefactor)=GetScalefactors(selected_datastore);
+	std::shared_ptr<display_channel> displaychan = display->lookup_channel(selected->fullname);
+	
+	osg::Matrixd channeltransform = GetChannelTransform(selected_datastore,displaychan,drawareawidth,drawareaheight,layer_index);
+	osg::Matrixd PickerTransform(1.0,0.0,0.0,0.0,
+				     0.0,1.0,0.0,0.0,
+				     0.0,0.0,1.0,0.0,
+				     channeltransform(3,0)+display->pixelsperdiv/horizscalefactor*selected_posn.HorizPosn,
+				     channeltransform(3,1)+display->pixelsperdiv/vertscalefactor*selected_posn.VertPosn,
+				     channeltransform(3,2),
+				     1.0);
+	
+	fprintf(stderr,"Rendering crosshairs at (%f,%f)\n",channeltransform(3,0)+display->pixelsperdiv/horizscalefactor*selected_posn.HorizPosn,
+		channeltransform(3,1)+display->pixelsperdiv/vertscalefactor*selected_posn.VertPosn);
+	
+	
+	PickerCrossHairs->setMatrix(PickerTransform);
+	
+	if (child_num >= getNumChildren() || getChild(child_num)!=PickerCrossHairs) {
+	  // picker cross hairs missing or out-of-place
+	  if (containsNode(PickerCrossHairs)) {
+	    removeChild(PickerCrossHairs);
+	  }
+	  insertChild(child_num,PickerCrossHairs);
+	}
+	
+	child_num++; // Graticule child/layer got added either way
+	layer_index++;
+      }
+    }
+    
+    
+    
 
     // iterate over cache, setting touched flag
     for (auto & cacheentry : imagecache->cache) {
@@ -811,8 +909,10 @@ public:
     // Update graticule matrix
     // transform from the 5/div scaling of the graticule, onto the screen
     // placing it at a z distance of layerindex
-    double horizontal_padding = (drawareawidth-display->horizontal_divisions*display->pixelsperdiv)/2.0;
-    double vertical_padding = (drawareaheight-display->vertical_divisions*display->pixelsperdiv)/2.0;
+    double horizontal_padding;
+    double vertical_padding;
+    
+    std::tie(horizontal_padding,vertical_padding) = GetPadding(drawareawidth,drawareaheight);
     
 
     GraticuleTransform->setMatrix(osg::Matrixd(display->pixelsperdiv/5.0,0,0,0,
@@ -830,6 +930,7 @@ public:
     } 
     child_num++; // Graticule child/layer got added either way
     layer_index++;
+
 
     
     // remove any remaining children...
@@ -871,7 +972,40 @@ public:
     trm_lock_arrayregions(lockprocess,to_lock);
 
   }
-  
+
+  void SetPickerCrossHairs()
+  {
+    
+    PickerCrossHairs = new osg::MatrixTransform();
+    osg::ref_ptr<osg::Geode> CrossHairsGeode = new osg::Geode();
+    osg::ref_ptr<osg::Geometry> CrossHairsGeom = new osg::Geometry();
+    osg::ref_ptr<osg::StateSet> CrossHairsStateSet = CrossHairsGeode->getOrCreateStateSet();
+    PickerCrossHairs->addChild(CrossHairsGeode);
+    CrossHairsGeode->addDrawable(CrossHairsGeom);
+    CrossHairsStateSet->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
+    osg::ref_ptr<osg::LineWidth> CrossHairsLineWidth=new osg::LineWidth();
+    CrossHairsLineWidth->setWidth(4);
+    CrossHairsStateSet->setAttributeAndModes(CrossHairsLineWidth,osg::StateAttribute::ON);
+    CrossHairsGeom->setStateSet(CrossHairsStateSet);
+    osg::ref_ptr<osg::Vec4Array> CrossHairsColorArray=new osg::Vec4Array();
+    CrossHairsColorArray->push_back(osg::Vec4(1.0,1.0,1.0,1.0)); // R, G, B, A
+    CrossHairsGeom->setColorArray(CrossHairsColorArray,osg::Array::BIND_OVERALL);
+    CrossHairsGeom->setColorBinding(osg::Geometry::BIND_OVERALL);
+    
+    
+    osg::ref_ptr<osg::Vec3Array> CrossHairsLinesCoords=new osg::Vec3Array();
+    CrossHairsLinesCoords->push_back(osg::Vec3(-10.0,-10.0,0.0));
+    CrossHairsLinesCoords->push_back(osg::Vec3(10.0,10.0,0.0));
+    CrossHairsLinesCoords->push_back(osg::Vec3(-10.0,10.0,0.0));
+    CrossHairsLinesCoords->push_back(osg::Vec3(10.0,-10.0,0.0));
+    
+    osg::ref_ptr<osg::DrawArrays> CrossHairsLines = new osg::DrawArrays(osg::PrimitiveSet::LINES,0,CrossHairsLinesCoords->size());
+    
+    CrossHairsGeom->addPrimitiveSet(CrossHairsLines);
+    CrossHairsGeom->setVertexArray(CrossHairsLinesCoords);
+    
+  }
+
 };
 
 }

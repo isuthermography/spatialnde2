@@ -168,10 +168,10 @@ std::shared_ptr<trm_dependency> inplanemat_calculation(std::shared_ptr<geometry>
 						    
 						    for (snde_index cnt=0; cnt < partstruct.numtris;cnt++) {
 						      snde_coord3 tri_vertices[3];
-						      get_we_triverts(&geom->geom.triangles[partstruct.firsttri],cnt,
-								      &geom->geom.edges[partstruct.firstedge],
-								      &geom->geom.vertices[partstruct.firstvertex],
-								      tri_vertices);
+						      get_we_triverts_3d(&geom->geom.triangles[partstruct.firsttri],cnt,
+									 &geom->geom.edges[partstruct.firstedge],
+									 &geom->geom.vertices[partstruct.firstvertex],
+									 tri_vertices);
 						      // The Eigen::Map points to the underlying data in tri_vertices
 						      Eigen::Map<Eigen::Matrix<snde_coord,3,3,Eigen::ColMajor>> coords(tri_vertices[0].coord); // vertex coords, indexes: axis (x,y, or z) index by vertex index
 						      
@@ -232,10 +232,10 @@ std::shared_ptr<trm_dependency> inplanemat_calculation(std::shared_ptr<geometry>
 						      inplanemat.row(1)=U.col(ycolindex);
 						      geom->geom.inplanemats[partstruct.firsttri+cnt].row[0].coord[0]=inplanemat(0,0);  
 						      geom->geom.inplanemats[partstruct.firsttri+cnt].row[0].coord[1]=inplanemat(0,1);  
-						      geom->geom.inplanemats[partstruct.firsttri+cnt].row[0].coord[2]=inplanemat(0,1);  
+						      geom->geom.inplanemats[partstruct.firsttri+cnt].row[0].coord[2]=inplanemat(0,2);  
 						      geom->geom.inplanemats[partstruct.firsttri+cnt].row[1].coord[0]=inplanemat(1,0);  
 						      geom->geom.inplanemats[partstruct.firsttri+cnt].row[1].coord[1]=inplanemat(1,1);  
-						      geom->geom.inplanemats[partstruct.firsttri+cnt].row[1].coord[2]=inplanemat(1,1);  
+						      geom->geom.inplanemats[partstruct.firsttri+cnt].row[1].coord[2]=inplanemat(1,2);  
 						      
 						    }
 						    

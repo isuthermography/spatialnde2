@@ -6,6 +6,7 @@
 #include "normal_calculation.hpp"
 #include "inplanemat_calculation.hpp"
 #include "boxes_calculation.hpp"
+#include "projinfo_calculation.hpp"
 
 #include "arraymanager.hpp"
 
@@ -338,7 +339,8 @@ namespace snde {
 
   class parameterization : public std::enable_shared_from_this<parameterization> {
   public:
-    
+    // NOTE: A parameterization cannot be shared among multiple parts,
+    // because the meaning is dependent on the part geometry (see projinfo dependence on 3D geometry)
     class notifier {
     public:
       virtual void modified(std::shared_ptr<parameterization> param)=0;
@@ -352,6 +354,9 @@ namespace snde {
     std::shared_ptr<rwlock> lock; // managed by lockmanager
     
     std::set<std::weak_ptr<notifier>,std::owner_less<std::weak_ptr<notifier>>> notifiers; 
+
+    std::shared_ptr<trm_dependency> boxes_function;
+    std::shared_ptr<trm_dependency> projinfo_function;
 
     bool destroyed;
     
@@ -380,6 +385,29 @@ namespace snde {
     //  patches.emplace(std::pair<std::string,std::shared_ptr<uv_patches>>(to_add->name,to_add));
     //}
 
+    std::shared_ptr<trm_dependency> request_boxes(std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
+    {
+      // must be called during a transaction!
+      if (!boxes_function) {
+	boxes_function = boxes_calculation_2d(geom,revman,shared_from_this(),context,device,queue);
+      }
+      return boxes_function;
+    }
+
+
+    std::shared_ptr<trm_dependency> request_projinfo(std::shared_ptr<part> partobj,std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
+    {
+      // partobj must be the (unique!) part that this parameterization corresponds to. It need not be locked. 
+      
+      // must be called during a transaction!
+      if (!projinfo_function) {
+	projinfo_function = projinfo_calculation(geom,revman,partobj,shared_from_this(),context,device,queue);
+      }
+      return projinfo_function;
+    }
+
+
+    
     virtual void add_notifier(std::shared_ptr<notifier> notify)
     {
       notifiers.emplace(notify);
@@ -409,7 +437,7 @@ namespace snde {
       */
 
       /* NOTE: Locking order here must follow order in geometry constructor (above) */
-      assert(readmask & SNDE_UV_GEOM_UVS); // Cannot do remainder of locking with out read access to uvs
+      assert(readmask & SNDE_UV_GEOM_UVS || writemask & SNDE_UV_GEOM_UVS); // Cannot do remainder of locking with out read access to uvs
       
       if (idx != SNDE_INDEX_INVALID) {
 	process->get_locks_array_mask((void**)&geom->geom.uvs,SNDE_UV_GEOM_UVS,SNDE_UV_GEOM_UVS_RESIZE,readmask,writemask,resizemask,idx,1);
@@ -451,7 +479,7 @@ namespace snde {
 	  process->get_locks_array_mask((void **)&geom->geom.uv_boxcoord,SNDE_UV_GEOM_UV_BOXCOORD,SNDE_UV_GEOM_UV_BOXES_RESIZE,readmask,writemask,resizemask,geom->geom.uvs[idx].firstuvbox,geom->geom.uvs[idx].numuvboxes);	  
 	}
 	if (geom->geom.uvs[idx].firstuvboxpoly != SNDE_INDEX_INVALID) {
-	  process->get_locks_array_mask((void **)&geom->geom.uv_boxpolys,SNDE_UV_GEOM_UV_BOXPOLYS,SNDE_UV_GEOM_UV_BOXPOLYS_RESIZE,readmask,writemask,resizemask,geom->geom.uvs[idx].firstuvboxpoly,geom->geom.uvs[idx].numuvboxpoly);	  
+	  process->get_locks_array_mask((void **)&geom->geom.uv_boxpolys,SNDE_UV_GEOM_UV_BOXPOLYS,SNDE_UV_GEOM_UV_BOXPOLYS_RESIZE,readmask,writemask,resizemask,geom->geom.uvs[idx].firstuvboxpoly,geom->geom.uvs[idx].numuvboxpolys);	  
 	}
       }
     }
@@ -501,7 +529,7 @@ namespace snde {
 	}
 
 	if (geom->geom.uvs[idx].firstuvboxpoly != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.uv_boxpolys,geom->geom.uvs[idx].firstuvboxpoly); //,geom->geom.mesheduv->numuvboxpoly);
+	  geom->manager->free((void **)&geom->geom.uv_boxpolys,geom->geom.uvs[idx].firstuvboxpoly); //,geom->geom.mesheduv->numuvboxpolys);
 	  geom->geom.uvs[idx].firstuvboxpoly = SNDE_INDEX_INVALID;	    
 	}
 
@@ -723,7 +751,7 @@ namespace snde {
     {
       // must be called during a transaction!
       if (!boxes_function) {
-	boxes_function = boxes_calculation(geom,revman,std::dynamic_pointer_cast<part>(shared_from_this()),context,device,queue);
+	boxes_function = boxes_calculation_3d(geom,revman,std::dynamic_pointer_cast<part>(shared_from_this()),context,device,queue);
       }
       return boxes_function;
     }

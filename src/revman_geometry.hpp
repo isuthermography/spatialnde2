@@ -108,6 +108,10 @@ static std::shared_ptr<component> get_geom_dependency(const trm_struct_depend &d
   return our_key->comp.lock();
 }
 
+
+
+
+  
 }
 #endif // SNDE_REVMAN_WFMSTORE_HPP
 
