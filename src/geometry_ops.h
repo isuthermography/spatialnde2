@@ -30,6 +30,48 @@ static inline void tricentroid3(snde_coord3 *verts, snde_coord3 *centroid_out)
   
 }
 
+static inline void polycentroid3(snde_coord3 *verts, uint32_t numvertices, snde_coord3 *centroid_out)
+{
+  size_t vertcnt,axcnt;
+
+  for (axcnt=0; axcnt < 3; axcnt++) {
+    centroid_out->coord[axcnt]=0.0f;
+  }
+  
+  for (vertcnt=0; vertcnt < numvertices; vertcnt++) {
+    for (axcnt=0; axcnt < 3; axcnt++) {
+      centroid_out->coord[axcnt] += verts[vertcnt].coord[axcnt];
+    }
+  }
+  for (axcnt=0; axcnt < 3; axcnt++) {
+    centroid_out->coord[axcnt] /= numvertices;
+  }
+  
+}
+
+
+  static inline snde_coord polymaxradius_sq3(snde_coord3 *verts, uint32_t numvertices,snde_coord3 refpoint)
+// evaluate max(radius squared) of radii of verts measured from refpoint
+{
+  size_t vertcnt,axcnt;
+
+  snde_coord max_sq=0.0;
+  snde_coord val;
+  
+  for (vertcnt=0; vertcnt < numvertices; vertcnt++) {
+    val=0.0;
+    for (axcnt=0; axcnt < 3; axcnt++) {
+      val += pow(verts[vertcnt].coord[axcnt] - refpoint.coord[axcnt],2.0f);
+    }
+
+    if (val > max_sq) {
+      max_sq=val;
+    }
+  }
+
+  return max_sq;
+}
+
 
   
 static inline void get_we_triverts_3d(OCL_GLOBAL_CONTEXT const snde_triangle *part_triangles, snde_index trianglenum,OCL_GLOBAL_CONTEXT const snde_edge *part_edges, OCL_GLOBAL_CONTEXT const snde_coord3 *part_vertices,snde_coord3 *tri_vertices)
@@ -80,6 +122,23 @@ static inline void get_we_triverts_3d(OCL_GLOBAL_CONTEXT const snde_triangle *pa
 
 }
 
+
+  static inline void get_we_trivert_3d(OCL_GLOBAL_CONTEXT const snde_triangle *part_triangles, snde_index trianglenum,OCL_GLOBAL_CONTEXT const snde_edge *part_edges, OCL_GLOBAL_CONTEXT const snde_coord3 *part_vertices,snde_coord3 *tri_vertex)
+  // returns a vertex from the given triangle
+{
+  snde_index thisedge;
+  snde_coord3 thisvert;
+
+  //edgecnt=0;
+
+  
+  thisedge=part_triangles[trianglenum].edges[0];
+  *tri_vertex=part_vertices[part_edges[thisedge].vertex[0]];
+
+}
+
+
+  
 static inline void get_we_tricentroid_3d(OCL_GLOBAL_CONTEXT const snde_triangle *part_triangles, snde_index trianglenum,OCL_GLOBAL_CONTEXT const snde_edge *part_edges, OCL_GLOBAL_CONTEXT const snde_coord3 *part_vertices,snde_coord3 *tricentroid)
 {
   snde_coord3 tri_vertices[3];

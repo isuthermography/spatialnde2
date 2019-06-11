@@ -7,6 +7,7 @@
 #include "inplanemat_calculation.hpp"
 #include "boxes_calculation.hpp"
 #include "projinfo_calculation.hpp"
+#include "quaternion.h"
 
 #include "arraymanager.hpp"
 
@@ -42,94 +43,6 @@ namespace snde {
   /* *** Where to store landmarks ***/
   /* Where to store frames? ***/
 
-  static inline snde_coord4 quaternion_normalize(snde_coord4 unnormalized)
-  /* returns the components of a normalized quaternion */
-  {
-    double norm;
-    snde_coord4 ret;
-    
-    norm=sqrt(pow(unnormalized.coord[0],2) + pow(unnormalized.coord[1],2) + pow(unnormalized.coord[2],2)+pow(unnormalized.coord[3],2));
-
-    ret.coord[0]=unnormalized.coord[0]/norm;
-    ret.coord[1]=unnormalized.coord[1]/norm;
-    ret.coord[2]=unnormalized.coord[2]/norm;
-    ret.coord[3]=unnormalized.coord[3]/norm;
-
-    return ret;
-  }
-  
-  static inline snde_coord4 quaternion_product(snde_coord4 quat1, snde_coord4 quat2)
-  {
-    /* quaternion coordinates are i, j, k, real part */
-    snde_coord4 unnormalized;
-    unnormalized.coord[0]=quat1.coord[3]*quat2.coord[0] + quat1.coord[0]*quat2.coord[3] + quat1.coord[1]*quat2.coord[2] - quat1.coord[2]*quat2.coord[1];
-    unnormalized.coord[1]=quat1.coord[3]*quat2.coord[1] + quat1.coord[1]*quat2.coord[3] - quat1.coord[0]*quat2.coord[2] + quat1.coord[2]*quat2.coord[0];
-    unnormalized.coord[2]=quat1.coord[3]*quat2.coord[2] + quat1.coord[2]*quat2.coord[3] + quat1.coord[0]*quat2.coord[1] - quat1.coord[1]*quat2.coord[0];
-    unnormalized.coord[3]=quat1.coord[3]*quat2.coord[3] - quat1.coord[0]*quat2.coord[0] - quat1.coord[1]*quat2.coord[1] - quat1.coord[2]*quat2.coord[2];
-    
-    return quaternion_normalize(unnormalized);
-  }
-
-  static inline snde_coord3 vector3_plus_vector3(snde_coord3 a,snde_coord3 b)
-  {
-    snde_coord3 retval;
-
-    retval.coord[0]=a.coord[0]+b.coord[0];
-    retval.coord[1]=a.coord[1]+b.coord[1];
-    retval.coord[2]=a.coord[2]+b.coord[2];
-
-    return retval;
-  }
-
-  static inline snde_coord3 quaternion_times_vector(snde_coord4 quat,snde_coord3 vec)
-  /* assumes quat is normalized, stored as 'i,j,k,w' components */
-  {
-    snde_coord matrix[9];
-
-    /* first row */
-    matrix[0]=pow(quat.coord[0],2)-pow(quat.coord[1],2)-pow(quat.coord[2],2)+pow(quat.coord[3],2);
-    matrix[1]=2.0*(quat.coord[0]*quat.coord[1] - quat.coord[3]*quat.coord[2]);
-    matrix[2]=2.0*(quat.coord[0]*quat.coord[2] + quat.coord[3]*quat.coord[1]);
-    /* second row */
-    matrix[3]=2.0*(quat.coord[0]*quat.coord[1] + quat.coord[3]*quat.coord[2]);
-    matrix[4]=-pow(quat.coord[0],2) + pow(quat.coord[1],2) - pow(quat.coord[2],2) + pow(quat.coord[3],2);
-    matrix[5]=2.0*(quat.coord[1]*quat.coord[2] - quat.coord[3]*quat.coord[0]);
-    /* third row */
-    matrix[6]=2.0*(quat.coord[0]*quat.coord[2] - quat.coord[3]*quat.coord[1]);
-    matrix[7]=2.0*(quat.coord[1]*quat.coord[2] + quat.coord[3]*quat.coord[0]);
-    matrix[8]=-pow(quat.coord[0],2) - pow(quat.coord[1],2) + pow(quat.coord[2],2) + pow(quat.coord[3],2);
-
-    snde_coord3 retval;
-    unsigned rowcnt,colcnt;
-    
-    for (rowcnt=0;rowcnt < 3; rowcnt++) {
-      retval.coord[rowcnt]=0;
-      for (colcnt=0;colcnt < 3; colcnt++) {
-	retval.coord[rowcnt] += matrix[rowcnt*3 + colcnt] * vec.coord[colcnt];
-      }
-    }
-    return retval;
-  }
-
-  static inline snde_orientation3 orientation_orientation_multiply(snde_orientation3 left,snde_orientation3 right)
-  {
-      /* orientation_orientation_multiply must consider both quaternion and offset **/
-      /* for vector v, quat rotation is q1vq1' */
-      /* for point p, q1pq1' + o1  */
-      /* for vector v double rotation is q2q1vq1'q2' ... where q2=left, q1=right */
-      /* for point p  q2(q1pq1' + o1)q2' + o2 */
-      /*             = q2q1pq1'q2' + q2o1q2' + o2 */
-      /* so given q2, q1,   and o2, o1
-	 product quaternion is q2q1
-         product offset is q2o1q2' + o2 */
-
-    snde_orientation3 retval; 
-
-    retval.quat=quaternion_product(left.quat,right.quat);
-    retval.offset = vector3_plus_vector3(quaternion_times_vector(left.quat,right.offset),left.offset);
-    
-    return retval;
-  }
 
   class component; // Forward declaration
   class assembly; // Forward declaration
@@ -1047,26 +960,26 @@ namespace snde {
     // may not match global name. This is so an assembly
     // can include multiple copies of a part, but they
     // can still have unique names
-    std::map<std::string,std::shared_ptr<component>> pieces;
-    snde_orientation3 _orientation; /* orientation of this part/assembly relative to its parent */
+    std::map<std::string,std::tuple<snde_orientation3,std::shared_ptr<component>>> pieces;
+    //snde_orientation3 _orientation; /* orientation of this part/assembly relative to its parent */
 
     /* NOTE: May want to add cache of 
        openscenegraph group nodes representing 
        this assembly  */ 
 
-    assembly(std::string name,snde_orientation3 orientation)
+    assembly(std::string name)
     {
       this->name=name;
       this->lock=std::make_shared<rwlock>();
       //this->type=subassembly;
-      this->_orientation=orientation;
+      //this->_orientation=orientation;
       
     }
-
-    virtual snde_orientation3 orientation(void)
-    {
-      return _orientation;
-    }
+    
+    //virtual snde_orientation3 orientation(void)
+    //{
+    //  return _orientation;
+    //}
 
 
     virtual void _explore_component(std::set<std::shared_ptr<component>,std::owner_less<std::shared_ptr<component>>> &component_set)
@@ -1079,7 +992,7 @@ namespace snde {
 
 	for (auto & piece: pieces) {
 	  // let our sub-components add themselves
-	  piece.second->_explore_component(component_set);
+	  std::get<1>(piece.second)->_explore_component(component_set);
 	  
 	}
 
@@ -1114,14 +1027,13 @@ namespace snde {
       std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> instances;
 
       
-      snde_orientation3 neworientation=orientation_orientation_multiply(orientation,_orientation);
       for (auto & piece : pieces) {
 	std::shared_ptr<immutable_metadata> reduced_metadata=std::make_shared<immutable_metadata>(metadata->metadata); // not immutable while we are constructing it
       
 	
 	std::unordered_map<std::string,metadatum>::iterator next_name_metadatum;
 
-	std::string name_with_dot=piece.second->name+".";
+	std::string name_with_dot=std::get<1>(piece.second)->name+".";
 	for (auto name_metadatum=reduced_metadata->metadata.begin();name_metadatum != reduced_metadata->metadata.end();name_metadatum=next_name_metadatum) {
 	  next_name_metadatum=name_metadatum;
 	  next_name_metadatum++;
@@ -1141,10 +1053,13 @@ namespace snde {
 	  }
 	}
 	
+
+	// multiply externally given orientation by orientation of this piece
+	snde_orientation3 neworientation;
+	orientation_orientation_multiply(orientation,std::get<0>(piece.second),&neworientation);
 	
-	
-	std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>>  newpieces=piece.second->get_instances(neworientation,reduced_metadata,get_param_data);
-	instances.insert(instances.end(),newpieces.begin(),newpieces.end());
+	std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>>  newinstances=std::get<1>(piece.second)->get_instances(neworientation,reduced_metadata,get_param_data);
+	instances.insert(instances.end(),newinstances.begin(),newinstances.end());
       }
       return instances;
     }
@@ -1162,7 +1077,7 @@ namespace snde {
 	 readlocks on the object trees lock while this is executing!
       */
       for (auto piece=pieces.begin();piece != pieces.end(); piece++) {
-	std::shared_ptr<component> pieceptr=piece->second;
+	std::shared_ptr<component> pieceptr=std::get<1>(piece->second);
 	process->spawn([ pieceptr,process,readmask,writemask,resizemask ]() { pieceptr->obtain_geom_lock(process,readmask,writemask,resizemask); } );
 	
       }
@@ -1176,8 +1091,10 @@ namespace snde {
 
     static std::tuple<std::shared_ptr<assembly>,std::unordered_map<std::string,metadatum>> from_partlist(std::string name,std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>> parts)
     {
+      snde_orientation3 null_orientation;
+      snde_null_orientation3(&null_orientation);
       
-      std::shared_ptr<assembly> assem=std::make_shared<assembly>(name,snde_null_orientation3());
+      std::shared_ptr<assembly> assem=std::make_shared<assembly>(name);
 
       /* ***!!!! Should we make sure that part names are unique? */
       std::unordered_map<std::string,metadatum> metadata;
@@ -1198,7 +1115,8 @@ namespace snde {
 	  
 	  metadata.emplace(newmd.Name,newmd);
 	}
-	assem->pieces.emplace(partname,std::static_pointer_cast<component>((*parts)[cnt].first));
+	// ***!!! Should provide a way to give the partlist members different orientations
+	assem->pieces.emplace(partname,std::make_tuple(null_orientation,std::static_pointer_cast<component>((*parts)[cnt].first)));
       }
       
       return std::make_tuple(assem,metadata);

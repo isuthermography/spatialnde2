@@ -1,11 +1,14 @@
+#ifndef SNDE_VECOPS_H
+#define SNDE_VECOPS_H
+
 #ifndef __OPENCL_VERSION__
 #include <errno.h>
 #include <stddef.h>
 #include <math.h>
+
+#include "snde_types.h"
 #endif
 
-#ifndef SNDE_VECOPS_H
-#define SNDE_VECOPS_H
 
 #ifdef _MSC_VER
 #define VECOPS_INLINE  __inline
@@ -100,19 +103,19 @@ static VECOPS_INLINE void multcmat23vec(snde_coord *mat,snde_coord *vec,snde_coo
 }
 
 
-static VECOPS_INLINE void multveccmat23(snde_coord *vec,snde_coord *mat,snde_coord *out)
+//static VECOPS_INLINE void multveccmat23(snde_coord *vec,snde_coord *mat,snde_coord *out)
 /* Multiply 2-vector by 2x3 matrix giving 3-vector  */
 // cmat stored row-major (C-style)
-{
-  int outel,sumidx;
-
-  for (outel=0;outel < 3; outel++) {
-    out[outel]=0.0;
-    for (sumidx=0;sumidx < 2; sumidx++) {
-      out[outel] = out[outel] + mat[ sumidx*3 + outel]*vec[sumidx];
-    }
-  }
-}
+//{
+//  int outel,sumidx;
+//
+//  for (outel=0;outel < 3; outel++) {
+//    out[outel]=0.0;
+//    for (sumidx=0;sumidx < 2; sumidx++) {
+//      out[outel] = out[outel] + mat[ sumidx*3 + outel]*vec[sumidx];
+//    }
+//  }
+//}
 
 static VECOPS_INLINE void multcmatvec4(snde_coord *mat,snde_coord *vec,snde_coord *out)
 // mat stored row-major (C-style)
@@ -210,9 +213,19 @@ static VECOPS_INLINE void scalevec3(snde_coord coeff,snde_coord *vec1,snde_coord
 }
 
 static VECOPS_INLINE void scalecoord3(snde_coord coeff,snde_coord3 vec1,snde_coord3 *out)
+// For 3D non-projective coordinates only!!!
 {
   size_t cnt;
   for (cnt=0;cnt < 3; cnt++) {
+    out->coord[cnt]=coeff*vec1.coord[cnt];
+  }
+}
+
+static VECOPS_INLINE void scalecoord4(snde_coord coeff,snde_coord4 vec1,snde_coord4 *out)
+// if vec1 is 3D written in 4D projective space, it must be a vector not a position!
+{
+  size_t cnt;
+  for (cnt=0;cnt < 4; cnt++) {
     out->coord[cnt]=coeff*vec1.coord[cnt];
   }
 }
@@ -237,6 +250,8 @@ static VECOPS_INLINE void scalecoord2(snde_coord coeff,snde_coord2 vec1,snde_coo
 
 
 static VECOPS_INLINE void subvecvec3(snde_coord *vec1,snde_coord *vec2,snde_coord *out)
+// NOTE: if vec1 and vec2 are 2D coordinates in a 3D projective space,
+// then vec2 must be a vector, not a position
 {
   int outidx;
 
@@ -246,7 +261,33 @@ static VECOPS_INLINE void subvecvec3(snde_coord *vec1,snde_coord *vec2,snde_coor
   }
 }
 
+static VECOPS_INLINE void addcoordcoord3(snde_coord3 vec1,snde_coord3 vec2,snde_coord3 *out)
+// NOTE: if vec1 and vec2 are 2D coordinates in a 3D projective space,
+// then at least one of them must be a vector, not a position
+{
+  int outidx;
+
+  for (outidx=0;outidx < 3; outidx++) {
+    out->coord[outidx] = vec1.coord[outidx] + vec2.coord[outidx];
+    
+  }
+}
+
+static VECOPS_INLINE void addcoordcoord4proj(snde_coord4 vec1,snde_coord4 vec2,snde_coord4 *out)
+// 3d coords in 4d projective space only
+{
+  int outidx;
+
+  for (outidx=0;outidx < 4; outidx++) {
+    out->coord[outidx] = vec1.coord[outidx] + vec2.coord[outidx];
+    
+  }
+}
+
+
 static VECOPS_INLINE void subcoordcoord3(snde_coord3 vec1,snde_coord3 vec2,snde_coord3 *out)
+// NOTE: if vec1 and vec2 are 2D coordinates in a 3D projective space,
+// then at least one of them must be a vector, not a position
 {
   int outidx;
 
@@ -255,6 +296,8 @@ static VECOPS_INLINE void subcoordcoord3(snde_coord3 vec1,snde_coord3 vec2,snde_
     
   }
 }
+
+
 
 static VECOPS_INLINE void subvecvec2(snde_coord *vec1,snde_coord *vec2,snde_coord *out)
 {
@@ -287,6 +330,8 @@ static VECOPS_INLINE void addvecscaledvec3(snde_coord *vec1,snde_coord coeff, sn
 }
 
 static VECOPS_INLINE void addcoordscaledcoord3(snde_coord3 vec1,snde_coord coeff, snde_coord3 vec2,snde_coord3 *out)
+// NOTE: if vec1 and vec2 are 2D coordinates in a 3D projective space,
+// then vec2 must be a vector, not a position
 {
   int outidx;
 
@@ -343,8 +388,18 @@ static VECOPS_INLINE snde_coord normvec3(snde_coord *vec)
   return factor;
 }
 
-static VECOPS_INLINE snde_coord normcoord3(snde_coord3 vec)
+
+static VECOPS_INLINE snde_coord normsqcoord3(snde_coord3 vec)
 /* returns vector norm */
+{
+  snde_coord factor;
+
+  factor=(vec.coord[0]*vec.coord[0]+vec.coord[1]*vec.coord[1]+vec.coord[2]*vec.coord[2]);
+  return factor;
+}
+
+static VECOPS_INLINE snde_coord normcoord3(snde_coord3 vec)
+/* returns vector norm (3d non-projective coordinates) */
 {
   snde_coord factor;
 
@@ -364,7 +419,7 @@ static VECOPS_INLINE void normalizevec3(snde_coord *vec)
 }
 
 static VECOPS_INLINE void normalizecoord3(snde_coord3 *vec)
-/* in-place vector normalization */
+/* in-place vector normalization (3d non-projective coordinates) */
 {
   snde_coord factor;
 

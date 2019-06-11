@@ -663,6 +663,10 @@ public:
     if (readmask & SNDE_COMPONENT_GEOM_ALL || writemask & SNDE_COMPONENT_GEOM_ALL) {
       comp->obtain_geom_lock(process,readmask,writemask,resizemask);
     }
+
+    //if (readmask & )
+    //  param_ptr->obtain_uv_lock(lockprocess,SNDE_UV_GEOM_UVS|SNDE_UV_GEOM_INPLANE2UVCOORDS|SNDE_UV_GEOM_UVCOORDS2INPLANE);
+
   }
 
 };

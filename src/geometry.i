@@ -88,12 +88,6 @@ namespace snde {
   class immutable_metadata; // forward reference
   class image_data;
   
-  static inline snde_coord4 quaternion_normalize(snde_coord4 unnormalized);
-  static inline snde_coord4 quaternion_product(snde_coord4 quat1, snde_coord4 quat2);
-  static inline snde_coord3 vector3_plus_vector3(snde_coord3 a,snde_coord3 b);
-  static inline snde_coord3 quaternion_times_vector(snde_coord4 quat,snde_coord3 vec);
-  static inline snde_orientation3 orientation_orientation_multiply(snde_orientation3 left,snde_orientation3 right);
-
 
 
   class geometry {
@@ -294,12 +288,10 @@ namespace snde {
     /* (this is because they don't have a representation in the underlying
        geometry database) */
   public:    
-      //std::map<std::string,std::shared_ptr<component>> pieces;
-    snde_orientation3 _orientation; /* orientation of this part/assembly relative to its parent */
+      //std::map<std::string,std::tuple<snde_orientation3,std::shared_ptr<component>>> pieces;
 
     assembly(std::string name,snde_orientation3 orientation);
 
-    virtual snde_orientation3 orientation(void);
 
     virtual void obtain_lock(std::shared_ptr<lockingprocess> process,snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS,snde_infostore_lock_mask_t writemask=0); /* readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits */
     virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data);

@@ -121,7 +121,10 @@ namespace snde {
 	all_locks = lockprocess->finish();
 
 	if (comp) {
-	  instances = comp->get_instances(snde_null_orientation3(),metadata,[ &new_channels_to_lock, wfmdb, get_image_data ] (std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names) -> std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>> {
+	  snde_orientation3 null_orientation;
+	  snde_null_orientation3(&null_orientation);
+	  
+	  instances = comp->get_instances(null_orientation,metadata,[ &new_channels_to_lock, wfmdb, get_image_data ] (std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names) -> std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>> {
 	      
 	      std::map<snde_index,std::shared_ptr<image_data>> images_out;
 	      

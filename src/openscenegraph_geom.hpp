@@ -257,9 +257,9 @@ public:
     instance{
 	     .orientation={
 			   .offset={
-				    .coord={0.0,0.0,0.0},
+				    .coord={0.0,0.0,0.0,0.0},
 				    },
-			   .pad1=0.0,
+			   //.pad1=0.0,
 			   .quat={
 				  .coord={0.0,0.0,0.0,0.0},
 				  },

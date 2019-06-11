@@ -1,13 +1,20 @@
-#ifndef __OPENCL_VERSION__
-// if this is not an OpenCL kernel
-#include <assert.h>
-#include <stdint.h>
-#endif
 
 
 #ifndef SNDE_GEOMETRY_TYPES
 #define SNDE_GEOMETRY_TYPES
 
+#ifndef __OPENCL_VERSION__
+// if this is not an OpenCL kernel
+#include <assert.h>
+#include <stdint.h>
+#include <string.h>
+#endif
+
+#if (defined(_MSC_VER) && !defined(__cplusplus))
+#define GEOTYPES_INLINE  __inline
+#else
+#define GEOTYPES_INLINE  inline
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,6 +33,27 @@ typedef long snde_ioffset;
 typedef unsigned char snde_bool;
 typedef unsigned char uint8_t;
 typedef unsigned int uint32_t;
+ 
+  typedef union {
+    unsigned int intval;
+    float floatval;
+  } snde_atomicimagedata;
+  // OpenCL explicitly supports union-based type aliasing
+  
+  static GEOTYPES_INLINE void atomicpixel_accumulate(volatile __global snde_atomicimagedata *dest,snde_imagedata toaccum) {
+    snde_atomicimagedata current,expected, next;
+
+    current.floatval = dest->floatval;
+    do {
+      expected.floatval = current.floatval;
+      next.floatval = expected.floatval + toaccum;
+
+      current.intval = atomic_cmpxchg((volatile __global unsigned int *)&dest->intval,
+				      expected.intval,
+				      next.intval);
+      
+    } while (current.intval != expected.intval);
+  }
   
 #else
   //#if 0 && defined(SNDE_OPENCL)
@@ -41,6 +69,163 @@ typedef unsigned int uint32_t;
 typedef double snde_coord;
 typedef float snde_rendercoord;
 typedef float snde_imagedata;
+
+#if (defined(__STDC_VERSION__) && (__STDC_VERSION__>= 201112L) && !defined(__STDC_NO_ATOMICS__)) || (defined(__cplusplus) && defined(__clang__))
+  // Use C11 atomics when supported under C and also under C++ with clang
+  // (can add other compilers that support C11 atomics under C++ as well)
+typedef _Atomic uint32_t snde_atomicimagedata;
+
+
+static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata *var,float toadd)
+{
+  // Use of a union like this is legal in C11, even under the strictest
+  // aliasing rules
+  union {
+    uint32_t intval;
+    float32_t floatval;
+    char workbuf[4];
+  } oldvalue,newvalue; // ,workvalue;
+
+  //  pthread_mutex_lock(&accumulatemutex);
+
+  
+  //oldvalue.floatval=atomicpixel_load(var);
+  oldvalue.intval=atomic_load_explicit(var,memory_order_acquire);//,memory_order_consume);
+  
+  do {
+    //memcpy(workvalue.workbuf,&oldvalue.intval,4);
+    newvalue.floatval=oldvalue.floatval+toadd;
+    //workvalue.floatval+=toadd;
+    //memcpy(&newvalue.intval,&workvalue.workbuf,4);
+  } while (!atomic_compare_exchange_strong_explicit(var,&oldvalue.intval,newvalue.intval,memory_order_seq_cst,memory_order_acquire)); //,memory_order_consume));
+
+
+  //  pthread_mutex_unlock(&accumulatemutex);
+
+}
+  
+#else
+#if defined(__GNUC__) || defined(__ATOMIC_ACQUIRE)
+  // Gcc has its own atomics extensions that will work under c++
+  // This should catch GCC and any other compiler that implements it based on
+  // the __ATOMIC_AQUIRE symbol
+  
+typedef uint32_t snde_atomicimagedata;
+
+
+static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata *var,float toadd)
+{
+  // Use of chars vs. other types is legal even under the strictest
+  // aliasing rules
+  
+  union {
+    float floatval;
+    char workbuf[4];
+  } oldfloatvalue,newfloatvalue; // ,workvalue;
+  
+  union {
+    uint32_t intval;
+    char workbuf[4];
+  } oldvalue,newvalue; // ,workvalue;
+
+  //  pthread_mutex_lock(&accumulatemutex);
+
+
+  oldvalue.intval=__atomic_load_n(var,__ATOMIC_ACQUIRE);//,memory_order_consume);
+  
+  do {
+    
+    memcpy(&oldfloatvalue.workbuf[0],&oldvalue.workbuf[0],sizeof(float));
+    newfloatvalue.floatval=oldfloatvalue.floatval+toadd;
+    memcpy(&newvalue.workbuf[0],&newfloatvalue.workbuf[0],sizeof(float));
+
+    
+  } while (!__atomic_compare_exchange_n(var,&oldvalue.intval,newvalue.intval,0,__ATOMIC_SEQ_CST,__ATOMIC_ACQUIRE)); //,memory_order_consume));
+
+
+  //  pthread_mutex_unlock(&accumulatemutex);
+
+}
+
+  
+#else
+#ifdef WIN32
+  #include <winnt.h>
+typedef LONG snde_atomicimagedata;
+
+static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata *var,float toadd)
+{
+  // Use of chars vs. other types is legal even under the strictest
+  // aliasing rules
+  
+  union {
+    float floatval;
+    char workbuf[4];
+  } oldfloatvalue,newfloatvalue; 
+  
+  union {
+    LONG intval;
+    char workbuf[4];
+  } current,expected,next;
+
+  //  pthread_mutex_lock(&accumulatemutex);
+
+  // the Interlocked functions don't seem to have a simple read,
+  // so we use compare exchange as a read by setting next and
+  // expected to the same value, which is a no-op in all cases
+  
+  current.intval = InterlockedCompareExchange(var,0,0);
+  
+  do {
+
+    expected.intval = current.intval;
+    memcpy(&oldfloatvalue.workbuf[0],&expected.workbuf[0],sizeof(float));
+    newfloatvalue.floatval=oldfloatvalue.floatval+toadd;
+    memcpy(&next.workbuf[0],&newfloatvalue.workbuf[0],sizeof(float));
+
+    current.intval = InterlockedCompareExchange(var,next.intval,expected.intval);
+    
+  } while (current.intval != expected.intval);
+  
+  //  pthread_mutex_unlock(&accumulatemutex);
+
+}
+
+  
+#else
+  
+#ifdef __cplusplus
+  // worst-case drop down to a single C++11 mutex: Note that this is per compilation unit,
+  // so synchronization aross modules is not ensured!
+
+#warning No atomic support available from C++ compiler; Dropping down to std::mutex (may be very slow)
+#include <mutex>
+
+  
+typedef float snde_atomicimagedata;
+static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata *var,float toadd)
+{
+  static std::mutex accumulatormutex;
+
+  std::lock_guard<std::mutex> accumulatorlock;
+  
+  *var += toadd; 
+}
+  
+  
+#else
+#warning No atomic support available from compiler; projection pixel corruption is possible!
+typedef float snde_atomicimagedata;
+static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata *var,float toadd)
+{
+  *var += toadd; 
+}
+  
+#endif
+#endif
+#endif
+#endif
+  
 typedef uint32_t snde_shortindex;
 typedef unsigned char snde_bool;
 
@@ -56,6 +241,8 @@ typedef unsigned char snde_bool;
   typedef long long snde_ioffset;
 #endif
 
+#define M_PI_SNDE_COORD M_PI // change to M_PI_F if you change snde_coord to float
+
   
   //#endif /* 0 && SNDE_OPENCL*/
 #endif /* __OPENCL_VERSION__ */
@@ -66,7 +253,7 @@ typedef unsigned char snde_bool;
 #define SNDE_DIRECTION_CCW 0 // counterclockwise
 #define SNDE_DIRECTION_CW 1 // clockwise
   
-static inline int snde_direction_flip(int direction)
+static GEOTYPES_INLINE int snde_direction_flip(int direction)
 {
   if (direction==SNDE_DIRECTION_CCW) {
     return SNDE_DIRECTION_CW;
@@ -93,8 +280,8 @@ typedef struct {
 } snde_coord2;
 
 typedef struct {
-  snde_coord3 offset;
-  snde_coord pad1;
+  /* for point p, orientation represents q p q' + o  */
+  snde_coord4 offset; // 4th coordinate of offset always zero
   snde_coord4 quat; // normalized quaternion ... represented as , i (x) component, j (y) component, k (z) component, real (w) component
 } snde_orientation3;
 
@@ -122,11 +309,6 @@ typedef struct {
 #endif
 } snde_rgba;
   
-static inline snde_orientation3 snde_null_orientation3()
-{
-  snde_orientation3 null_orientation = { { 0.0, 0.0, 0.0 }, 0.0, {0.0, 0.0, 0.0, 1.0} }; /* unit (null) quaternion */
-  return null_orientation;
-}
   
 typedef struct {
   // i.e. rotate point coordinates (rhs) by angle,
@@ -159,7 +341,7 @@ typedef struct {
 
 typedef struct {
   snde_index edges[3];
-  snde_index face; // topological face (3D or 2D depending on whether this is part of triangles or uv_triangles) this triangle is part of (index, relative to first_topo) 
+  snde_index face; // topological face (3D or 2D depending on whether this is part of triangles or uv_triangles) this triangle is part of (index, relative to first_topo for a 3D face; relative to 0 for a 2D face) 
 } snde_triangle; // NOTE if this triangle does not exist, is invalid, etc, then face should be set to SNDE_INDEX_INVALID
   
 typedef struct {
