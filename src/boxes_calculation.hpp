@@ -22,7 +22,7 @@ namespace snde {
 
 
 
-  std::shared_ptr<trm_dependency> boxes_calculation_2d(std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<parameterization> param,cl_context context,cl_device_id device,cl_command_queue queue);
+  std::shared_ptr<trm_dependency> boxes_calculation_2d(std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<parameterization> param,snde_index patchnum,cl_context context,cl_device_id device,cl_command_queue queue);
 
 
 

@@ -1388,6 +1388,9 @@ namespace snde {
 	assert(coordIndex.size()==texCoordIndex.size());
 	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uvs,1,""));
 
+	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_patches,1,""));
+	
+	
 	// we don't know the size of uv_topos and uv_topo_indices we will need, so lock the entire array for write
 	// ... this is OK because uv_topos and uv_topo_indices don't have any follower arrays
 	holder->store(lockprocess->get_locks_write_array((void **)&geom->geom.uv_topos));
@@ -1462,16 +1465,25 @@ namespace snde {
 						       .numuvvertices=SNDE_INDEX_INVALID,
 						       .first_uv_vertex_edgelist=SNDE_INDEX_INVALID,
 						       .num_uv_vertex_edgelist=SNDE_INDEX_INVALID,
+						       .firstuvpatch=SNDE_INDEX_INVALID,
 						       .numuvimages=1,
-						       .firstuvbox=SNDE_INDEX_INVALID,
-						       .numuvboxes=SNDE_INDEX_INVALID,
-						       .firstuvboxpoly=SNDE_INDEX_INVALID,
-						       .numuvboxpolys=SNDE_INDEX_INVALID,
-						       .firstuvboxcoord=SNDE_INDEX_INVALID,
-						       .numuvboxcoords=SNDE_INDEX_INVALID
+						       //.firstuvbox=SNDE_INDEX_INVALID,
+						       //.numuvboxes=SNDE_INDEX_INVALID,
+						       //.firstuvboxpoly=SNDE_INDEX_INVALID,
+						       //.numuvboxpolys=SNDE_INDEX_INVALID,
+						       //.firstuvboxcoord=SNDE_INDEX_INVALID,
+						       //.numuvboxcoords=SNDE_INDEX_INVALID
 	};
-						      
 	
+	geom->geom.uvs[firstuv].firstuvpatch = holder->get_alloc((void **)&geom->geom.uv_patches,"");
+	geom->geom.uv_patches[geom->geom.uvs[firstuv].firstuvpatch]=snde_parameterization_patch{
+												.firstuvbox=SNDE_INDEX_INVALID,
+												.numuvboxes=0,
+												.firstuvboxpoly=SNDE_INDEX_INVALID,
+												.numuvboxpolys=0,
+												//.firstuvboxcoord=SNDE_INDEX_INVALID,
+												//.numuvboxcoords=0
+	};
 	
 	firstuvtri = holder->get_alloc((void **)&geom->geom.uv_triangles,"");
 	
@@ -2278,7 +2290,7 @@ namespace snde {
 	// Iterate over vertices again to build vertex_edgelist
 	snde_index vertexcnt;
 	snde_index next_uv_vertex_edgelist_pos=0;
-	for (vertexcnt=0; vertexcnt < num_vertices; vertexcnt++) {
+	for (vertexcnt=0; vertexcnt < num_uv_vertices; vertexcnt++) {
 	  std::vector<snde_index> & edges = uv_edges_by_vertex.at(vertexcnt);
 
 	  //for (snde_index edgeprintcnt=0;edgeprintcnt < edges.size();edgeprintcnt++) {
@@ -2320,8 +2332,8 @@ namespace snde {
 	geom->geom.uvs[firstuv].numuvboxes=SNDE_INDEX_INVALID;
 	geom->geom.uvs[firstuv].firstuvboxpoly=SNDE_INDEX_INVALID;
 	geom->geom.uvs[firstuv].numuvboxpolys=SNDE_INDEX_INVALID;
-	geom->geom.uvs[firstuv].firstuvboxcoord=SNDE_INDEX_INVALID;
-	geom->geom.uvs[firstuv].numuvboxcoords=SNDE_INDEX_INVALID;
+	//geom->geom.uvs[firstuv].firstuvboxcoord=SNDE_INDEX_INVALID;
+	//geom->geom.uvs[firstuv].numuvboxcoords=SNDE_INDEX_INVALID;
 
 	//// Assign physical size of texture space
 	//geom->geom.uvs[firstuv].tex_startcorner.coord[0]=teximage_data.startcorner.coord[0];
@@ -2333,7 +2345,7 @@ namespace snde {
 
 
 	
-	uvparam=std::make_shared<parameterization>(geom,"intrinsic",firstuv);
+	uvparam=std::make_shared<parameterization>(geom,"intrinsic",firstuv,1);  // currently only implement numuvimages==1
 	/* add this parameterization to our part */
 	
 	curpart->addparameterization(uvparam);

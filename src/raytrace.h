@@ -403,11 +403,11 @@ static RAYTRACE_INLINE int find_ray_first_part_intersection_nonrecursive(snde_in
 									 OCL_GLOBAL_CONTEXT snde_index *part_boxpolys,
 									 snde_coord4 raystartproj,
 									 snde_coord4 rayvecproj,
-									 snde_coord *zdist_out,
-									 snde_index *instnum_out, // which instance we found, or SNDE_INDEX_INVALID for no intersection
-									 snde_index *boundarynum_out, // which boundary number for the instance's part
-									 snde_index *facenum_out, // which topological face? 
-									 snde_index *trinum_out, // which triangle number for the instances's part
+									 OCL_GLOBAL_CONTEXT snde_coord *zdist_out,
+									 OCL_GLOBAL_CONTEXT snde_index *instnum_out, // which instance we found, or SNDE_INDEX_INVALID for no intersection
+									 OCL_GLOBAL_CONTEXT snde_index *boundarynum_out, // which boundary number for the instance's part
+									 OCL_GLOBAL_CONTEXT snde_index *facenum_out, // which topological face? 
+									 OCL_GLOBAL_CONTEXT snde_index *trinum_out, // which triangle number for the instances's part
 									 int trace)
 // DOES NOT INITIALIZE zdist_out... pre-initialize this to Infinity!
 /* returns nonzero if at least one nearer intersection was found */
@@ -537,11 +537,11 @@ static RAYTRACE_INLINE void raytrace_find_first_intersection(snde_coord4 raystar
 							     OCL_GLOBAL_CONTEXT snde_box3 *boxes,
 							     OCL_GLOBAL_CONTEXT snde_boxcoord3 *boxcoord,
 							     OCL_GLOBAL_CONTEXT snde_index *boxpolys,
-							     snde_coord *zdist_out,
-							     snde_index *instnum_out, // which instance we found, or SNDE_INDEX_INVALID for no intersection
-							     snde_index *boundarynum_out, // which boundary number for the instance's part
-							     snde_index *facenum_out, // which face number for the instance's part
-							     snde_index *trinum_out, // which triangle number for the instances's part
+							     OCL_GLOBAL_CONTEXT snde_coord *zdist_out,
+							     OCL_GLOBAL_CONTEXT snde_index *instnum_out, // which instance we found, or SNDE_INDEX_INVALID for no intersection
+							     OCL_GLOBAL_CONTEXT snde_index *boundarynum_out, // which boundary number for the instance's part
+							     OCL_GLOBAL_CONTEXT snde_index *facenum_out, // which face number for the instance's part
+							     OCL_GLOBAL_CONTEXT snde_index *trinum_out, // which triangle number for the instances's part
 							     int trace)
 {
   snde_index instancecnt;
@@ -835,7 +835,6 @@ void raytrace_find_intersect_uv_deriv(snde_coord4 raystartproj,snde_coord4 rayve
 }
 
 
-
 static RAYTRACE_INLINE
 void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
 			  snde_coord3 uvcoords,snde_coord3 uvcoords_deriv_a, snde_coord3 uvcoords_deriv_b,
@@ -988,6 +987,409 @@ void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
 
 }
 
+struct rayintersection_properties {
+  // these are defined for each pixel of the image being projected
+
+  // outputs of zbuffer calculation function
+  snde_coord zdist;  // z distance
+  snde_index instnum; // which instance number?
+  snde_index boundarynum; // which boundary number of the instance
+  snde_index facenum; // which face number of the instance boundary
+  snde_index trinum;  // which triangle number of the instance boundary face
+  snde_imagedata angleofincidence;
+  snde_imagedata angleofincidence_weighting;
+  snde_imagedata ray_intersect_deriv_a_cam_z;
+  snde_imagedata ray_intersect_deriv_b_cam_z;
+  snde_coord2 uvcoords;
+  snde_index uvfacenum;
+  snde_coord2 uvcoords_deriv_a;
+  snde_coord2 uvcoords_deriv_b;
+
+
+  // inputs of raytrace_camera_projection: above (specifically including uvcoords and uvcoords derivs)
+  // plus:
+  snde_imagedata pixelweighting;
+};
+
+
+
+static RAYTRACE_INLINE void raytrace_camera_projection(OCL_GLOBAL_CONTEXT snde_imagedata *pixelbuf,
+						       OCL_GLOBAL_CONTEXT snde_partinstance *instances,
+						       OCL_GLOBAL_CONTEXT snde_image *projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
+						       OCL_GLOBAL_CONTEXT struct rayintersection_properties *imagedata_intersectprops, // Array of structures, one per pixel
+						       volatile OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_projection_arrays,
+						       OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_weighting_arrays,
+						       volatile OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_validity_arrays,
+						       snde_coord min_radius_uv_pixels,snde_coord min_radius_src_pixels,snde_coord bandwidth_fraction);
+
+  
+{
+
+#ifdef RAYTRACE_USE_OPENMP
+#pragma omp parallel default(shared) private(bcnt)
+#endif
+  {
+#ifdef RAYTRACE_USE_OPENMP
+#pragma omp for
+#endif
+    for (bcnt=0;bcnt < src_nb*;bcnt++) {
+      
+      snde_index acnt;
+      
+      
+      for (acnt=0; acnt < src_na; acnt++) {
+
+  
+	pixelval = pixelbuf[acnt + bcnt*src_na];
+	project_to_uv_arrays(pixelval,imagedata_intersectprops[acnt + bcnt*src_na].pixelweighting,
+			     imagedata_intersectprops[acnt + bcnt*src_na].uvcoords,
+			     imagedata_intersectprops[acnt + bcnt*src_na].uvcoords_deriv_a,
+			     imagedata_intersectprops[acnt + bcnt*src_na].uvcoords_deriv_b,
+			     &projectionarray_info[instances[imagedata_intersectprops[acnt + bcnt*src_na]].firstuvimage],
+			     uvdata_projection_arrays,
+			     uvdata_weighting_arrays,
+			     uvdata_validity_arrays,
+			     min_radius_uv_pixels,min_radius_src_pixels,bandwidth_fraction);
+      }
+    }
+  }
+}
+
+
+#ifdef __OPENCL_VERSION__
+// For an OpenCL kernel
+static RAYTRACE_INLINE void raytrace_camera_projection_opencl(OCL_GLOBAL_CONTEXT snde_imagedata *pixelbuf,
+							      OCL_GLOBAL_CONTEXT snde_partinstance *instances,
+							      OCL_GLOBAL_CONTEXT snde_image *projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
+							      OCL_GLOBAL_CONTEXT struct rayintersection_properties *imagedata_intersectprops, // Array of structures, one per pixel
+							      volatile OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_projection_arrays,
+							      OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_weighting_arrays,
+							      volatile OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_validity_arrays,
+							      snde_coord min_radius_uv_pixels,snde_coord min_radius_src_pixels,snde_coord bandwidth_fraction);
+
+  
+{
+  snde_index aindex = get_global_id(0);
+  snde_index bindex = get_global_id(1);
+  pixelval = pixelbuf[aindex + bindex*src_na];
+  project_to_uv_arrays(pixelval,imagedata_intersectprops[aindex + bindex*src_na].pixelweighting,
+		       imagedata_intersectprops[aindex + bindex*src_na].uvcoords,
+		       imagedata_intersectprops[aindex + bindex*src_na].uvcoords_deriv_a,
+		       imagedata_intersectprops[aindex + bindex*src_na].uvcoords_deriv_b,
+		       &projectionarray_info[instances[imagedata_intersectprops[aindex + bindex*src_na]].firstuvimage],
+		       uvdata_projection_arrays,
+		       uvdata_weighting_arrays,
+		       uvdata_validity_arrays,
+		       min_radius_uv_pixels,min_radius_src_pixels,bandwidth_fraction);
+}
+
+
+static RAYTRACE_INLINE void raytrace_evaluate_focalpointwrl(snde_orientation3 camcoords_to_wrlcoords,snde_coord4 *focalpointwrl)
+{
+  snde_coord4 focalpointcam={.coord={0.0,0.0,0.0,1.0}};
+
+  // calculation of focalpointobj: Coordinates of focal point in world coordinates
+  orientation_apply_position(camcoords_to_wrlcoords,focalpointcam,focalpointwrl);
+  
+}
+
+static RAYTRACE_INLINE void raytrace_evaluate_wrlcoords_to_camcoords(snde_orientation3 camcoords_to_wrlcoords,snde_orientation3 *wrlcoord_to_camcoords)
+{
+  orientation_inverse(camcoords_to_wrlcoords,wrlcoords_to_camcoords);
+  
+}
+
+static RAYTRACE_INLINE
+void raytrace_camera_evaluate_zdist(
+				    snde_cmat23 cam_mtx,
+				    snde_coord4 focalpointwrl;
+				    snde_orientation3 camcoords_to_wrlcoords,
+				    snde_orientation3 wrlcoords_to_camcoords,
+				    snde_index aindex,snde_index bindex, // index of the particular pixel ray we are interested in
+				      
+				    OCL_GLOBAL_CONTEXT snde_partinstance *instances,
+				    snde_index num_instances,
+				    OCL_GLOBAL_CONTEXT snde_part *parts,
+				    OCL_GLOBAL_CONTEXT snde_triangle *triangles,
+				    OCL_GLOBAL_CONTEXT snde_cmat23 *inplanemats,
+				    OCL_GLOBAL_CONTEXT snde_edge *edges,
+				    OCL_GLOBAL_CONTEXT snde_coord3 *vertices,
+				    OCL_GLOBAL_CONTEXT snde_box3 *boxes,
+				    OCL_GLOBAL_CONTEXT snde_boxcoord3 *boxcoord,
+				    OCL_GLOBAL_CONTEXT snde_index *boxpolys,
+				    OCL_GLOBAL_CONTEXT snde_parameterizations *uvs,
+				    OCL_GLOBAL_CONTEXT snde_cmat23 *inplane2uvcoords,
+				    OCL_GLOBAL_CONTEXT snde_image *projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
+				    OCL_GLOBAL_CONTEXT struct rayintersection_properties *imagedata_intersectprops; // JUST the structure for this pixel... we don't index it
+				    //OCL_GLOBAL_CONTEXT snde_coord *imagedata_zbuffer,
+				    //OCL_GLOBAL_CONTEXT snde_index *imagedata_instnum,
+				    //OCL_GLOBAL_CONTEXT snde_index *imagedata_facenum,
+				    //OCL_GLOBAL_CONTEXT snde_index *imagedata_trinum,
+				    //OCL_GLOBAL_CONTEXT snde_imagedata *imagedata_angleofincidence,
+				    //OCL_GLOBAL_CONTEXT snde_imagedata *imagedata_angleofincidence_weighting,
+				    //OCL_GLOBAL_CONTEXT snde_imagedata *imagedata_ray_intersect_deriv_a_cam_z,
+				    //OCL_GLOBAL_CONTEXT snde_imagedata *imagedata_ray_intersect_deriv_b_cam_z,
+				    //OCL_GLOBAL_CONTEXT snde_coord *imagedata_uvcoords,
+				    //OCL_GLOBAL_CONTEXT snde_index *imagedata_uvfacenum,
+				    //OCL_GLOBAL_CONTEXT snde_coord *imagedata_uvcoords_deriv_a,
+				    //OCL_GLOBAL_CONTEXT snde_coord *imagedata_uvcoords_deriv_b,
+				    OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_angleofincidence_weighting,
+				    OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_angleofincidence_weighting_validity)
+{
+
+  float32_t NaNval;
+  NaNval=my_infnan(0);
+
+  snde_coord4 rayvecwrl; // rayvec in object coordinates (projective)
+
+
+  int trace=FALSE;
+  snde_index firstidx;
+
+  // Go through this source image pixel,
+  // find the first surface intersection mark the z-buffer
+  // and surface ID. This will give us a map
+  // of the source image for each pixel, which surface
+  // it maps onto.
+    
+  camera_rayvec_wrl(cam_mtx,aindex,bindex,camcoords_to_wrlcoords,&rayvecwrl);
+  
+  
+  raytrace_find_first_intersection(focalpointwrl,rayvecwrl,
+				   instances,
+				   num_instances,
+				   parts,
+				   topos,
+				   //snde_index *topo_indices,
+				   triangles,
+				   trinormals,
+				   inplanemats,
+				   edges,
+				   vertices,
+				   boxes,
+				   boxcoord,
+				   boxpolys,
+				   &imagedata_intersectprops->zdist,
+				   &imagedata_intersectprops->instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
+				   &imagedata_intersectprops->boundarynum, // which boundary number for the instance's part
+				   &imagedata_intersectprops->facenum, // which face number for the instance's part
+				   &imagedata_intersectprops->trinum, // which triangle number for the instances's part
+				   trace);
+  
+  /* Next phase: evaluate derivatives, etc. */
+  {
+    snde_coord zdist;
+    snde_index instnum,trinum,paramnum,uv_facenum;
+    
+    
+    snde_coord4 rayvecderiv_a;
+    snde_coord4 ray_intersect_deriv_a;
+    snde_coord4 ray_intersect_deriv_a_cam;
+    snde_coord4 ray_intersect_deriv_b;
+    snde_coord4 ray_intersect_deriv_b_cam;
+    
+    snde_coord angle_of_incidence,angle_of_incidence_factor;
+    snde_coord2 intersectpoint_uvcoords;
+    snde_coord3 intersectderiv_uvproj_a;
+    snde_coord3 intersectderiv_uvproj_b;
+    
+    zdist=imagedata_intersectprops->zdist;
+    instnum=imagedata_intersectprops->instnum;
+    trinum=imagedata_intersectprops->trinum;
+    paramnum = instances[instnum].uvnum;
+
+    camera_rayvec_deriv_a_wrl(cam_mtx,aindex,bindex,camcoords_to_wrlcoords,&rayvecderiv_a);
+    camera_rayvec_deriv_b_wrl(cam_mtx,aindex,bindex,camcoords_to_wrlcoords,&rayvecderiv_b);
+
+    raytrace_find_intersection_rayvec_derivative(focalpointwrl,rayvecwrl
+						 rayvecderiv_a,
+						 instances,
+						 parts,
+						 triangles,
+						 trinormals,
+						 edges,
+						 vertices,
+						 zdist,
+						 instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
+						 trinum, // which triangle number for the instances's part
+						 &ray_intersect_deriv_a);
+    
+    
+    raytrace_find_intersection_rayvec_derivative(focalpointwrl,rayvecwrl
+						 rayvecderiv_b,
+						 instances,
+						 parts,
+						 triangles,
+						 trinormals,
+						 edges,
+						 vertices,
+						 zdist,
+						 instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
+						 trinum, // which triangle number for the instances's part
+						 &ray_intersect_deriv_b);
+    
+    if (!isinf(zdist)) { 
+      
+      //if (imagedata_ray_intersect_deriv_a_cam_z) {
+      // derivative with respect to a in camera coordinates
+      orientation_apply_vector(wrlcoords_to_camcoords,ray_intersect_deriv_a,&ray_intersect_deriv_a_cam);
+      
+      // export z-derivative with respect to a in camera coordinates
+      imagedata_intersectprops->ray_intersect_deriv_a_cam_z=ray_intersect_deriv_a_cam[2];
+      //}
+      
+      //if (imagedata_ray_intersect_deriv_b_cam_z) {
+      // derivative with respect to b in camera coordinates
+      orientation_apply_vector(wrlcoords_to_camcoords,ray_intersect_deriv_b,&ray_intersect_deriv_b_cam);
+      // export z-derivative with respect to b in camera coordinates
+      imagedata_intersectprops->ray_intersect_deriv_b_cam_z=ray_intersect_deriv_b_cam[2];
+      //}
+      
+      
+      //if (imagedata_angleofincidence || imagedata_angleofincidence_weighting || uvdata_angleofincidence_weighting) {
+      angle_of_incidence = raytrace_get_angle_of_incidence(focalpointwrl,rayvecwrl,
+							   instances,
+							   parts,
+							   trinormals,
+							   instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
+							   trinum); // which triangle number for the instances's part
+      
+      //if (imagedata_angleofincidence) {
+      imagedata_intersectprops->angleofincidence = angle_of_incidence;
+      //}
+      
+      // Ignore anything at extreme angles of incidence
+      if (angle_of_incidence > 3.0f*M_PI_SNDE_COORD/8.0f) {
+	angle_of_incidence_factor=0.0f;
+      } else {  
+	// Define factor by which we de-emphasize data at larger angles of incidence
+	angle_of_incidence_factor = cos(angle_of_incidence * (M_PI_SNDE_COORD/2.0f)/(3.0f*M_PI_SNDE_COORD/8.0f));	    
+      }
+      
+      //if (imagedata_angleofincidence_weighting) {
+      imagedata_intersectprops->angleofincidence_weighting = angle_of_incidence_factor;
+      //  }
+      //}
+      
+      
+      
+      //if (imagedata_uvcoords || imagedata_uvfacenum  || imagedata_uvcoords_deriv_a || imagedata_uvcoords_deriv_b || projectionarrayinfo) {
+      raytrace_find_intersect_uv(focalpointwrl,rayvecwrl,
+				 instances,
+				 parts,
+				 triangles,
+				 inplanemats,
+				 edges,
+				 vertices,
+				 uvs,
+				 //uv_triangles,
+				 inplane2uvcoords,
+				 zdist,
+				 instnum,
+				 &intersectpoint_uvcoords,
+				 &uv_facenum);
+      
+      //if (imagedata_uvcoords) {
+      imagedata_intersectprops->uvcoords.coord[0]=intersectpoint_uvcoords.coord[0]; // Store u coordinate
+      imagedata_intersectprops->uvcoords.coord[1]=intersectpoint_uvcoords.coord[1];  // store v coordinate
+      //}
+      
+      //if (imagedata_uvfacenum) {
+      imagedata_intersectprops->uvfacenum=uv_facenum;
+      //}
+      
+      raytrace_find_intersect_uv_deriv(focalpointwrl,rayvecwrl,
+				       ray_intersect_deriv_a, // from raytrace_find_intersection_raypos_derivative
+				       instances,
+				       parts,
+				       inplanemats,
+				       uvs,
+				       inplane2uvcoords,
+				       zdist,
+				       instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
+				       trinum, // which triangle number for the instances's part
+				       &intersectderiv_uvproj_a); // intersection point in projective uv coords
+      
+      //if (imagedata_uvcoords_deriv_a) {
+      
+      imagedata_intersectprops->uvcoords_deriv_a.coord[0] = intersectderiv_uvproj_a.coord[0];
+      imagedata_intersectprops->uvcoords_deriv_a.coord[1] = intersectderiv_uvproj_a.coord[1];
+      //  }
+      
+      raytrace_find_intersect_uv_deriv(focalpointwrl,rayvecwrl,
+				       ray_intersect_deriv_b, // from raytrace_find_intersection_raypos_derivative
+				       instances,
+				       parts,
+				       inplanemats,
+				       uvs,
+				       inplane2uvcoords,
+				       zdist,
+				       instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
+				       trinum, // which triangle number for the instances's part
+				       intersectderiv_uvproj_b); // intersection point in projective uv coords
+      
+      
+      //if (imagedata_uvcoords_deriv_b) {
+      
+      
+      imagedata_intersectprops->uvcoords_deriv_b.coord[0] = intersectderiv_uvproj_b.coord[0];
+      imagedata_intersectprops->uvcoords_deriv_b.coord[1] = intersectderiv_uvproj_b.coord[1];
+      
+      //}
+      //}
+      
+      
+      if (projectionarrayinfo && uvdata_angleofincidence_weighting && uvdata_angleofincidence_weighting_validity) {
+	/* if buffer to store angle_of_incidence_factor in uv coordinate frame is provided... */
+	/* use project_to_uv_arrays() to map out projection validity region */
+	/* we provide angle_of_incidence_factor as the pixel value
+	   so that imgbuf ends up with the sum of projection weighting * angle of incidence factor 
+	   whereas validitybuf ends up with the sum of the angle of incidence factors */
+	snde_index face_topo_idx,imgbufoffset;
+	face_topo_idx=uvs[paramnum].first_uv_topo+uvs[paramnum].firstuvface+uvfacenum;
+	
+	imgbufoffset = projectionarray_info[instances[instnum].firstuvimage + uv_topos[face_topo_idx].face.imagenum].imgbufoffset;
+	
+	
+	project_to_uv_arrays(angle_of_incidence_factor,1.0f,
+			     intersectpoint_uvcoords,intersectderiv_uvproj_a,intersectderiv_uvproj_b,
+			     projectionarray_info[instances[instnum].firstuvimage + uv_topos[face_topo_idx].face.imagenum],
+			     uvdata_angleofincidence_weighting+imgbufoffset,NULL,uvdata_angleofincidence_weighting_validity+imgbufoffset,
+			     MIN_RADIUS_UV_PIXELS,MIN_RADIUS_SRC_PIXELS,BANDWIDTH_FRACTION);
+      }
+      
+    } else {
+      // zdist == inf, i.e. no intersection. Other outputs should be NaN
+      //if (imagedata_ray_intersect_deriv_a_cam_z)
+      imagedata_intersectprops->ray_intersect_deriv_a_cam_z=NaNval;
+      //if (imagedata_ray_intersect_deriv_b_cam_z)
+      imagedata_intersectprops->ray_intersect_deriv_b_cam_z=NaNval;
+      //if (imagedata_angleofincidence)
+      imagedata_intersectprops->angleofincidence=NaNval;
+      //if (imagedata_angleofincidence_weighting)
+      imagedata_intersectprops->angleofincidence_weighting=NaNval;
+      //if (imagedata_uvcoords) {
+      imagedata_intersectprops->uvcoords.coord[0]=NaNval;
+      imagedata_intersectprops->uvcoords.coord[1]=NaNval;
+      //}
+      //if (imagedata_uvfacenum)
+      imagedata_intersectprops->uvfacenum=SNDE_INDEX_INVALID;
+      
+      //if (imagedata_uvcoords_deriv_a) {
+      imagedata_intersectprops->uvcoords_deriv_a.coord[0] = NaNval;
+      imagedata_intersectprops->uvcoords_deriv_a.coord[1] = NaNval;
+      //}
+      
+      //if (imagedata_uvcoords_deriv_b) {
+      imagedata_intersectprops->uvcoords_deriv_b.coord[0] = NaNval;
+      imagedata_intersectprops->uvcoords_deriv_b.coord[1] = NaNval;
+      //}
+    }
+    
+  }
+  
+  
+}
 
 static RAYTRACE_INLINE
 void raytrace_camera_evaluate_zbuffer(
@@ -1001,26 +1403,17 @@ void raytrace_camera_evaluate_zbuffer(
 				      OCL_GLOBAL_CONTEXT snde_cmat23 *inplanemats,
 				      OCL_GLOBAL_CONTEXT snde_edge *edges,
 				      OCL_GLOBAL_CONTEXT snde_coord3 *vertices,
+				      OCL_GLOBAL_CONTEXT snde_box3 *boxes,
+				      OCL_GLOBAL_CONTEXT snde_boxcoord3 *boxcoord,
+				      OCL_GLOBAL_CONTEXT snde_index *boxpolys,
 				      OCL_GLOBAL_CONTEXT snde_parameterizations *uvs,
 				      OCL_GLOBAL_CONTEXT snde_cmat23 *inplane2uvcoords,
 				      OCL_GLOBAL_CONTEXT snde_image *projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
-				      OCL_GLOBAL_CONTEXT snde_coord *imagedata_zbuffer,
-				      OCL_GLOBAL_CONTEXT snde_index *imagedata_instnum,
-				      OCL_GLOBAL_CONTEXT snde_index *imagedata_facenum,
-				      OCL_GLOBAL_CONTEXT snde_index *imagedata_trinum,
-				      OCL_GLOBAL_CONTEXT snde_imagedata *imagedata_angleofincidence,
-				      OCL_GLOBAL_CONTEXT snde_imagedata *imagedata_angleofincidence_weighting,
-				      OCL_GLOBAL_CONTEXT snde_imagedata *imagedata_ray_intersect_deriv_a_cam_z,
-				      OCL_GLOBAL_CONTEXT snde_imagedata *imagedata_ray_intersect_deriv_b_cam_z,
-				      OCL_GLOBAL_CONTEXT snde_coord *imagedata_uvcoords,
-				      OCL_GLOBAL_CONTEXT snde_index *imagedata_uvfacenum,
-				      OCL_GLOBAL_CONTEXT snde_coord *imagedata_uvcoords_deriv_a,
-				      OCL_GLOBAL_CONTEXT snde_coord *imagedata_uvcoords_deriv_b,
+				      OCL_GLOBAL_CONTEXT struct rayintersection_properties *imagedata_intersectprops;
 				      OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_angleofincidence_weighting,
 				      OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_angleofincidence_weighting_validity)
 {
   int64_t bcnt;  // must be signed (e.g. not size_t) for MSVC compatibility
-  snde_coord4 focalpointcam={.coord={0.0,0.0,0.0,1.0}};
   snde_coord4 focalpointwrl;
   snde_orientation3 wrlcoords_to_camcoords;
 
@@ -1028,11 +1421,10 @@ void raytrace_camera_evaluate_zbuffer(
   NaNval=my_infnan(0);
     
 
-  // calculation of focalpointobj: Coordinates of focal point in world coordinates
-  orientation_apply_position(camcoords_to_wrlcoords,focalpoint_cam,&focalpointwrl);
-
-
-  orientation_inverse(camcoords_to_wrlcoords,&wrlcoords_to_camcoords);
+  raytrace_evaluate_focalpointwrl(camcoords_to_wrlcoords,&focalpointwrl);
+  raytrace_evaluate_wrlcoords_to_camcoords(camcoords_to_wrlcoords,&wrlcoords_to_camcoords);
+  
+  
   
 #ifdef RAYTRACE_USE_OPENMP
 #pragma omp parallel default(shared) private(bcnt) // ,src_ny,numsurfaces)
@@ -1055,7 +1447,7 @@ void raytrace_camera_evaluate_zbuffer(
       //bcnt=instancebcnt % src_nb; 
       //instancecnt=instancebcnt / src_nb; 
 
-      for (xcnt=0; xcnt < src_nx; xcnt++) {
+      for (acnt=0; acnt < src_na; acnt++) {
 	// Go through each source image pixel,
 	// project it through to surface. If it
 	// intersects closer, mark the z-buffer
@@ -1066,242 +1458,93 @@ void raytrace_camera_evaluate_zbuffer(
 	// NOTE: These are recalculated later in project_image... formulas should be THE SAME!!!
 
 	
-	camera_rayvec_wrl(cam_mtx,acnt,bcnt,camcoords_to_wrlcoords,&rayvecwrl);
-	
-	raytrace_find_first_intersection(focalpointwrl,rayvecwrl,
-					 instances,
-					 num_instances,
-					 parts,
-					 topos,
-					 //snde_index *topo_indices,
-					 triangles,
-					 trinormals,
-					 inplanemats,
-					 edges,
-					 vertices,
-					 boxes,
-					 boxcoord,
-					 boxpolys,
-					 imagedata_zbuffer[acnt + bcnt*src_na],
-					 imagedata_instnum[acnt + bcnt*src_na], // which instance we found, or SNDE_INDEX_INVALID for no intersection
-					 imagedata_boundarynum[acnt + bcnt*src_na], // which boundary number for the instance's part
-					 imagedata_facenum[acnt+bcnt*src_na], // which face number for the instance's part
-					 imagedata_trinum[acnt+bcnt*src_na], // which triangle number for the instances's part
-					 trace);
 
-	/* Next phase: evaluate derivatives, etc. */
-	{
-	  snde_coord zdist;
-	  snde_index instnum,trinum,paramnum,uv_facenum;
+	//camera_rayvec_wrl(cam_mtx,acnt,bcnt,camcoords_to_wrlcoords,&rayvecwrl);
 
 
-	  snde_coord4 rayvecderiv_a;
-	  snde_coord4 ray_intersect_deriv_a;
-	  snde_coord4 ray_intersect_deriv_a_cam;
-	  snde_coord4 ray_intersect_deriv_b;
-	  snde_coord4 ray_intersect_deriv_b_cam;
-
-	  snde_coord angle_of_incidence,angle_of_incidence_factor;
-	  snde_coord2 intersectpoint_uvcoords;
-	  snde_coord3 intersectderiv_uvproj_a;
-	  snde_coord3 intersectderiv_uvproj_b;
-
-	  zdist=imagedata_zbuffer[acnt + bcnt*src_na];
-	  instnum=imagedata_instnum[acnt + bcnt*src_na];
-	  trinum=imagedata_trinum[acnt + bcnt*src_na];
-	  paramnum = instances[instnum].uvnum;
-
-	  camera_rayvec_deriv_a_wrl(cam_mtx,acnt,bcnt,camcoords_to_wrlcoords,&rayvecderiv_a);
-	  camera_rayvec_deriv_b_wrl(cam_mtx,acnt,bcnt,camcoords_to_wrlcoords,&rayvecderiv_b);
-
-	  raytrace_find_intersection_rayvec_derivative(focalpointwrl,rayvecwrl
-						       rayvecderiv_a,
-						       instances,
-						       parts,
-						       triangles,
-						       trinormals,
-						       edges,
-						       vertices,
-						       zdist,
-						       instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
-						       trinum, // which triangle number for the instances's part
-						       &ray_intersect_deriv_a);
-
-
-	  raytrace_find_intersection_rayvec_derivative(focalpointwrl,rayvecwrl
-						       rayvecderiv_b,
-						       instances,
-						       parts,
-						       triangles,
-						       trinormals,
-						       edges,
-						       vertices,
-						       zdist,
-						       instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
-						       trinum, // which triangle number for the instances's part
-						       &ray_intersect_deriv_b);
-
-	  if (!isinf(zdist)) { 
-	    
-	    if (imagedata_ray_intersect_deriv_a_cam_z) {
-	      // derivative with respect to a in camera coordinates
-	      orientation_apply_vector(wrlcoords_to_camcoords,ray_intersect_deriv_a,&ray_intersect_deriv_a_cam);
-	      
-	      // export z-derivative with respect to a in camera coordinates
-	      imagedata_ray_intersect_deriv_a_cam_z[acnt  + bcnt*src_na]=ray_intersect_deriv_a_cam[2];
-	    }
-	    
-	    if (imagedata_ray_intersect_deriv_b_cam_z) {
-	      // derivative with respect to b in camera coordinates
-	      orientation_apply_vector(wrlcoords_to_camcoords,ray_intersect_deriv_b,&ray_intersect_deriv_b_cam);
-	      // export z-derivative with respect to b in camera coordinates
-	      imagedata_ray_intersect_deriv_b_cam_z[acnt  + bcnt*src_na]=ray_intersect_deriv_b_cam[2];
-	    }
-	    
-	    
-	    if (imagedata_angleofincidence || imagedata_angleofincidence_weighting || uvdata_angleofincidence_weighting) {
-	      angle_of_incidence = raytrace_get_angle_of_incidence(focalpointwrl,rayvecwrl,
-								   instances,
-								   parts,
-								   trinormals,
-								   instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
-								   trinum); // which triangle number for the instances's part
-	      
-	      if (imagedata_angleofincidence) {
-		imagedata_angleofincidence[acnt + bcnt*src_na] = angle_of_incidence;
-	      }
-
-	      // Ignore anything at extreme angles of incidence
-	      if (angle_of_incidence > 3.0f*M_PI_SNDE_COORD/8.0f) {
-		angle_of_incidence_factor=0.0f;
-	      } else {  
-		// Define factor by which we de-emphasize data at larger angles of incidence
-		angle_of_incidence_factor = cos(angle_of_incidence * (M_PI_SNDE_COORD/2.0f)/(3.0f*M_PI_SNDE_COORD/8.0f));	    
-	      }
-	      
-	      if (imagedata_angleofincidence_weighting) {
-		imagedata_angleofincidence_weighting[acnt + bcnt*src_na] = angle_of_incidence_factor;
-	      }
-	    }
-	    
-	    
-	    
-	    if (imagedata_uvcoords || imagedata_uvfacenum  || imagedata_uvcoords_deriv_a || imagedata_uvcoords_deriv_b || projectionarrayinfo) {
-	      raytrace_find_intersect_uv(focalpointwrl,rayvecwrl,
-					 instances,
-					 parts,
-					 triangles,
-					 inplanemats,
-					 edges,
-					 vertices,
-					 uvs,
-					 uv_triangles,
-					 inplane2uvcoords,
-					 zdist,
-					 instnum,
-					 &intersectpoint_uvcoords,
-					 &uv_facenum);
-
-	      if (imagedata_uvcoords) {
-		imagedata_uvcoords[acnt*2 + bcnt*2*src_na]=intersectpoint_uvcoords.coord[0]; // Store u coordinate
-		imagedata_uvcoords[1+acnt*2 + bcnt*2*src_na]=intersectpoint_uvcoords.coord[1];  // store v coordinate
-	      }
-
-	      if (imagedata_uvfacenum) {
-		imagedata_uvfacenum[acnt + bcnt*src_na]=uv_facenum;
-	      }
-	      
-	      raytrace_find_intersect_uv_deriv(focalpointwrl,rayvecwrl,
-					       ray_intersect_deriv_a, // from raytrace_find_intersection_raypos_derivative
-					       instances,
-					       parts,
-					       inplanemats,
-					       uvs,
-					       inplane2uvcoords,
-					       zdist,
-					       instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
-					       trinum, // which triangle number for the instances's part
-					       &intersectderiv_uvproj_a); // intersection point in projective uv coords
-	      
-	      if (imagedata_uvcoords_deriv_a) {
-		
-		imagedata_uvcoords_deriv_a[acnt*2 + bcnt*2*src_na] = intersectderiv_uvproj_a.coord[0];
-		imagedata_uvcoords_deriv_a[1+acnt*2 + bcnt*2*src_na] = intersectderiv_uvproj_a.coord[1];
-	      }
-	      
-	      raytrace_find_intersect_uv_deriv(focalpointwrl,rayvecwrl,
-					       ray_intersect_deriv_b, // from raytrace_find_intersection_raypos_derivative
-					       instances,
-					       parts,
-					       inplanemats,
-					       uvs,
-					       inplane2uvcoords,
-					       zdist,
-					       instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
-					       trinum, // which triangle number for the instances's part
-					       intersectderiv_uvproj_b); // intersection point in projective uv coords
-	      
-	      
-	      if (imagedata_uvcoords_deriv_b) {
-		
-		
-		imagedata_uvcoords_deriv_b[acnt*2 + bcnt*2*src_na] = intersectderiv_uvproj_b.coord[0];
-		imagedata_uvcoords_deriv_b[1+acnt*2 + bcnt*2*src_na] = intersectderiv_uvproj_b.coord[1];
-		
-	      }
-	    }
-	    
-	  
-	    if (projectionarrayinfo && uvdata_angleofincidence_weighting && uvdata_angleofincidence_weighting_validity) {
-	      /* if buffer to store angle_of_incidence_factor in uv coordinate frame is provided... */
-	      /* use project_to_uv_arrays() to map out projection validity region */
-	      /* we provide angle_of_incidence_factor as the pixel value
-		 so that imgbuf ends up with the sum of projection weighting * angle of incidence factor 
-		 whereas validitybuf ends up with the sum of the angle of incidence factors */
-	      snde_index face_topo_idx,imgbufoffset;
-	      face_topo_idx=uvs[paramnum].first_uv_topo+uvs[paramnum].firstuvface+uvfacenum;
-	      
-	      imgbufoffset = projectionarray_info[instances[instnum].firstuvimage + uv_topos[face_topo_idx].face.imagenum].imgbufoffset;
-	      
-	     
-	      project_to_uv_arrays(angle_of_incidence_factor,1.0f,
-				   intersectpoint_uvcoords,intersectderiv_uvproj_a,intersectderiv_uvproj_b,
-				   projectionarray_info[instances[instnum].firstuvimage + uv_topos[face_topo_idx].face.imagenum],
-				   uvdata_angleofincidence_weighting+imgbufoffset,NULL,uvdata_angleofincidence_weighting_validity+imgbufoffset,
-				   MIN_RADIUS_UV_PIXELS,MIN_RADIUS_SRC_PIXELS,BANDWIDTH_FRACTION);
-	    }
-
-	  } else {
-	    // zdist == inf, i.e. no intersection. Other outputs should be NaN
-	    if (imagedata_ray_intersect_deriv_a_cam_z) imagedata_ray_intersect_deriv_a_cam_z[acnt  + bcnt*src_na]=NaNval;
-	    if (imagedata_ray_intersect_deriv_b_cam_z) imagedata_ray_intersect_deriv_b_cam_z[acnt  + bcnt*src_na]=NaNval;
-	    if (imagedata_angleofincidence) imagedata_angleofincidence[acnt + bcnt*src_na]=NaNval;
-	    if (imagedata_angleofincidence_weighting) imagedata_angleofincidence_weighting[acnt + bcnt*src_na]=NaNval;
-	    if (imagedata_uvcoords) {
-	      imagedata_uvcoords[acnt*2 + bcnt*2*src_na]=NaNval;
-	      imagedata_uvcoords[1+acnt*2 + bcnt*2*src_na]=NaNval;
-	    }
-	    if (imagedata_uvfacenum) imagedata_uvfacenum[acnt + bcnt*src_na]=NaNval;
-
-	    if (imagedata_uvcoords_deriv_a) {
-	      imagedata_uvcoords_deriv_a[acnt*2 + bcnt*2*src_na] = NaNval;
-	      imagedata_uvcoords_deriv_a[1+acnt*2 + bcnt*2*src_na] = NaNval;
-	    }
-
-	    if (imagedata_uvcoords_deriv_b) {
-	      imagedata_uvcoords_deriv_b[acnt*2 + bcnt*2*src_na] = NaNval;
-	      imagedata_uvcoords_deriv_b[1+acnt*2 + bcnt*2*src_na] = NaNval;
-	    }
-	  }
-	  
-	}
-	
+	raytrace_camera_evaluate_zdist(cam_mtx,
+				       focalpointwrl;
+				       camcoords_to_wrlcoords,
+				       wrlcoords_to_camcoords,
+				       acnt,bcnt, // index of the particular pixel ray we are interested in
+				       instances,
+				       num_instances,
+				       parts,
+				       triangles,
+				       inplanemats,
+				       edges,
+				       vertices,
+				       boxes,
+				       boxcoord,
+				       boxpolys,
+				       uvs,
+				       inplane2uvcoords,
+				       projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
+				       &imagedata_intersectprops[acnt + bcnt*src_na], // JUST the structure for this pixel... we don't index it
+				       uvdata_angleofincidence_weighting,
+				       uvdata_angleofincidence_weighting_validity);
       }
     }
   }
+}
+
+
+#ifdef __OPENCL_VERSION__
+// For an OpenCL kernel
+
+__kernel void raytrace_camera_evaluate_zbuffer_opencl(
+							   snde_cmat23 cam_mtx,
+							   snde_orientation3 camcoords_to_wrlcoords,
+							   snde_orientation3 wrlcoords_to_camcoords,
+							   snde_index src_na, snde_index src_nb, // assume rays start at origin of camcoords, projected by cam_mtx with pixel coordinates 0..na and 0..nb. Use Fortran ordering for image array
+							   OCL_GLOBAL_CONTEXT snde_partinstance *instances,
+							   snde_index num_instances,
+							   OCL_GLOBAL_CONTEXT snde_part *parts,
+							   OCL_GLOBAL_CONTEXT snde_triangle *triangles,
+							   OCL_GLOBAL_CONTEXT snde_cmat23 *inplanemats,
+							   OCL_GLOBAL_CONTEXT snde_edge *edges,
+							   OCL_GLOBAL_CONTEXT snde_coord3 *vertices,
+							   OCL_GLOBAL_CONTEXT snde_box3 *boxes,
+							   OCL_GLOBAL_CONTEXT snde_boxcoord3 *boxcoord,
+							   OCL_GLOBAL_CONTEXT snde_index *boxpolys,
+							   OCL_GLOBAL_CONTEXT snde_parameterizations *uvs,
+							   OCL_GLOBAL_CONTEXT snde_cmat23 *inplane2uvcoords,
+							   OCL_GLOBAL_CONTEXT snde_image *projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
+							   OCL_GLOBAL_CONTEXT struct rayintersection_properties *imagedata_intersectprops,
+							   OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_angleofincidence_weighting,
+							   OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_angleofincidence_weighting_validity)
+{
+
+  snde_index aindex = get_global_id(0);
+  snde_index bindex = get_global_id(1);
   
+  raytrace_camera_evaluate_zdist(cam_mtx,
+				 focalpointwrl;
+				 camcoords_to_wrlcoords,
+				 wrlcoords_to_camcoords,
+				 aindex,bindex, // index of the particular pixel ray we are interested in
+				 instances,
+				 num_instances,
+				 parts,
+				 triangles,
+				 inplanemats,
+				 edges,
+				 vertices,
+				 boxes,
+				 boxcoord,
+				 boxpolys,
+				 uvs,
+				 inplane2uvcoords,
+				 projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
+				 &imagedata_intersectprops[aindex + bindex*src_na], // JUST the structure for this pixel... we don't index it
+				 uvdata_angleofincidence_weighting,
+				 uvdata_angleofincidence_weighting_validity);
   
 }
 
 
+#endif
+
 #endif // SNDE_RAYTRACE_H
+
+

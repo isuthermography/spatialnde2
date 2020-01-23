@@ -229,7 +229,9 @@ namespace snde {
     // The shared_ptr around _arrays
     // is atomic, so it may be freely read through the accessor
     std::shared_ptr<std::deque<struct arrayinfo>> _arrays; // atomic shared_ptr 
-    
+
+    // alignment requirement
+    allocator_alignment our_alignment;
     
     /* Freelist structure ... 
     */
@@ -239,7 +241,7 @@ namespace snde {
     
     snde_index _allocchunksize; // size of chunks we allocate, in numbers of elements
   
-    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem)
+    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes)
     {
       // must hold writelock on array
 
@@ -259,13 +261,16 @@ namespace snde {
 
       if (alignment) {
 	// satisfy alignment requirement on _allocchunksize
-	allocator_alignment our_alignment=*alignment;
-	our_alignment.add_requirement(_allocchunksize*elemsize);
-	_allocchunksize = our_alignment.get_alignment()/elemsize;
-	
-      } else {
-	_allocchunksize=1;
+	our_alignment = *alignment;
       }
+      our_alignment.add_requirement(_allocchunksize*elemsize);
+
+      for (auto && follower_elemsize: follower_elemsizes) {
+	our_alignment.add_requirement(follower_elemsize);
+      }
+      
+      _allocchunksize = our_alignment.get_alignment()/elemsize;
+      
       // _totalnchunks = totalnelem / _allocchunksize  but round up. 
       _totalnchunks = (totalnelem + _allocchunksize-1)/_allocchunksize;
       

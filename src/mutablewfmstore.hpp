@@ -617,7 +617,7 @@ public:
   std::shared_ptr<geometry> geom;
   std::shared_ptr<component> comp;
   //std::shared_ptr<paramdictentry> paramdict;
-  snde_index image; // address within uv_images field of geometry structure... represents our ownership of this image
+  //snde_index image; // address within uv_images field of geometry structure... represents our ownership of this image
 
   
   mutablegeomstore(std::string leafname,std::string fullname,const wfmmetadata &metadata,std::shared_ptr<geometry> geom,std::shared_ptr<component> comp) : //,std::shared_ptr<paramdictentry> paramdict) :

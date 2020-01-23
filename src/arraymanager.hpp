@@ -197,7 +197,7 @@ namespace snde {
     }
 
     
-    virtual void add_allocated_array(void **arrayptr,size_t elemsize,snde_index totalnelem)
+    virtual void add_allocated_array(void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes = std::set<snde_index>())
     {
       //std::lock_guard<std::mutex> adminlock(admin);
 
@@ -217,7 +217,7 @@ namespace snde {
 	//allocators[arrayptr]=std::make_shared<allocator>(_memalloc,locker,arrayptr,elemsize,totalnelem);
 	
 	
-	(*new_allocators)[arrayptr]=allocationinfo{std::make_shared<allocator>(_memalloc,locker,alignment_requirements,arrayptr,elemsize,0),elemsize,totalnelem,0};
+	(*new_allocators)[arrayptr]=allocationinfo{std::make_shared<allocator>(_memalloc,locker,alignment_requirements,arrayptr,elemsize,0,follower_elemsizes),elemsize,totalnelem,0};
 	
 	(*new_allocation_arrays)[arrayptr]=arrayptr;
 	new_arrays_managed_by_allocator->emplace(std::make_pair(arrayptr,arrayptr));
@@ -244,9 +244,12 @@ namespace snde {
 	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator)
 	  = _begin_atomic_update();
 	
-	std::shared_ptr<allocator> alloc=(*new_allocators)[allocatedptr].alloc;
+	std::shared_ptr<allocator> alloc=(*new_allocators).at(allocatedptr).alloc;
 	// Make sure arrayptr not already managed
 	assert(new_allocators->find(arrayptr)==new_allocators->end());
+
+	// Make sure alignment requirements were previously registered when we did add_allocated_array()
+	assert(alloc->our_alignment.find(elemsize) != alloc->our_alignment.end());
 	
 	//alloc->add_other_array(arrayptr,elemsize);
 	(*new_allocators)[arrayptr]=allocationinfo{alloc,elemsize,0,alloc->add_other_array(arrayptr,elemsize)};

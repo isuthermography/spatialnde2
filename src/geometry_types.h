@@ -589,6 +589,15 @@ struct snde_part {
   // formerly 81 bytes total  
 };
 
+
+struct snde_parameterization_patch {
+  // Boxes for identifying which triangle and face is at a particular (u,v)
+  snde_index firstuvbox, numuvboxes; /* the first numuvpatches boxes correspond to the outer boxes for each patch */
+  //snde_index firstuvboxcoord,numuvboxcoords; uv boxcoords allocated with uv boxes
+  snde_index firstuvboxpoly,numuvboxpolys;
+
+}
+
 struct snde_parameterization {
   // specific to a part;
   snde_index first_uv_topo;
@@ -610,13 +619,9 @@ struct snde_parameterization {
   snde_index firstuvvertex,numuvvertices; /* vertices in mesheduv may not line up with edges in object */
   snde_index first_uv_vertex_edgelist,num_uv_vertex_edgelist; // vertex edges for a particular vertex are listed in in CCW order
 
-  snde_index numuvimages; /* "images" are regions in uv space that the vertices are represented in. There can be multiple images pointed to by the different patches.  Indexes  go from zero to numuvimage. They will need to be added to the firstuvimage of the snde_partinstance. Note that if numuvimages > 1, the parameterization is not directly renderable and needs a processing step prior to rendering to combine the uv images into a single parameterization space */
-
-  
-  // Boxes for identifying which triangle and face is at a particular (u,v)
-  snde_index firstuvbox, numuvboxes; /* the first numuvpatches boxes correspond to the outer boxes for each patch */
-  snde_index firstuvboxpoly,numuvboxpolys;
-  snde_index firstuvboxcoord,numuvboxcoords; 
+  snde_index firstuvpatch; // index into array of snde_parameterization_patch... number of elements used is numuvimages
+  snde_index numuvimages; /* "images" are regions in uv space that the vertices are represented in. There can be multiple images pointed to by the different patches.  Indexes  go from zero to numuvimage. They will need to be added to the firstuvimage of the snde_partinstance. Note that if numuvimages > 1, the parameterization is not directly renderable and needs a processing step prior to rendering to combine the uv images into a single parameterization space. NOTE: this parameter (numuvimages) is not permitted to be changed once created (create an entirely new snde_parameterization) */
+    
 };
   
 

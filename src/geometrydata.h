@@ -91,6 +91,7 @@ extern "C" {
 
     // Meshed parameterizations
     snde_parameterization *uvs; /* array of uv parameterizations */
+    snde_parameterization_patch *uv_patches;
     
     union snde_topological *uv_topos; /* allocated separately */
     snde_index  *uv_topo_indices; /* allocated separately */
@@ -156,7 +157,7 @@ extern "C" {
 
     
 
-    snde_image *uv_images; /* allocated separately */
+    //snde_image *uv_images; /* allocated separately */
     //allocatorbase *uv_images_alloc; // really allocator<snde_image> *    
     
     // Generally can only operate with a single uv_image at a time... Shouldn't
@@ -172,11 +173,12 @@ extern "C" {
 
     
 
-    //snde_imagedata *imagebuf;
+    snde_imagedata *imagebuf; // temporary image buffer used for projecting data into
     //allocatorbase *imagebuf_alloc; // really allocator<snde_imagedata>*
 
     snde_coord *zbuffer; /* separately allocated */
-
+    snde_coord *weightingbuf; /* separately allocated */
+    snde_coord *validitybuf; /* separately allocated */
     
     
     // Suggest uv_patches_override and second buffer array

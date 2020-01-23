@@ -76,8 +76,16 @@ namespace snde {
 
       
 
+      std::set<snde_index> triangles_elemsizes;
 
-      manager->add_allocated_array((void **)&geom.triangles,sizeof(*geom.triangles),0);
+      triangles_elemsizes.add(sizeof(*geom.triangles));
+      triangles_elemsizes.add(sizeof(*geom.refpoints));
+      triangles_elemsizes.add(sizeof(*geom.maxradius));
+      triangles_elemsizes.add(sizeof(*geom.vertnormals));
+      triangles_elemsizes.add(sizeof(*geom.trinormals));
+      triangles_elemsizes.add(sizeof(*geom.inplanemats));
+
+      manager->add_allocated_array((void **)&geom.triangles,sizeof(*geom.triangles),0,triangles_elemsizes);
       manager->add_follower_array((void **)&geom.triangles,(void **)&geom.refpoints,sizeof(*geom.refpoints));
       manager->add_follower_array((void **)&geom.triangles,(void **)&geom.maxradius,sizeof(*geom.maxradius));
       manager->add_follower_array((void **)&geom.triangles,(void **)&geom.vertnormals,sizeof(*geom.vertnormals));
@@ -87,7 +95,13 @@ namespace snde {
       manager->add_allocated_array((void **)&geom.edges,sizeof(*geom.edges),0);
 
 
-      manager->add_allocated_array((void **)&geom.vertices,sizeof(*geom.vertices),0);
+      std::set<snde_index> vertices_elemsizes;
+      vertices_elemsizes.add(sizeof(*geom.vertices));
+      vertices_elemsizes.add(sizeof(*geom.principal_curvatures));
+      vertices_elemsizes.add(sizeof(*geom.curvature_tangent_axes));
+      vertices_elemsizes.add(sizeof(*geom.vertex_edgelist_indices));
+      manager->add_allocated_array((void **)&geom.vertices,sizeof(*geom.vertices),0,vertices_elemsizes);
+      
       manager->add_follower_array((void **)&geom.vertices,(void **)&geom.principal_curvatures,sizeof(*geom.principal_curvatures));
       manager->add_follower_array((void **)&geom.vertices,(void **)&geom.curvature_tangent_axes,sizeof(*geom.curvature_tangent_axes));
 
@@ -95,7 +109,12 @@ namespace snde {
       manager->add_allocated_array((void **)&geom.vertex_edgelist,sizeof(*geom.vertex_edgelist),0);
       
 
-      manager->add_allocated_array((void **)&geom.boxes,sizeof(*geom.boxes),0);
+      
+      std::set<snde_index> boxes_elemsizes;
+      boxes_elemsizes.add(sizeof(*geom.boxes));
+      boxes_elemsizes.add(sizeof(*geom.boxcoord));
+      
+      manager->add_allocated_array((void **)&geom.boxes,sizeof(*geom.boxes),0,boxes_elemsizes);
       manager->add_follower_array((void **)&geom.boxes,(void **)&geom.boxcoord,sizeof(*geom.boxcoord));
       
       manager->add_allocated_array((void **)&geom.boxpolys,sizeof(*geom.boxpolys),0);
@@ -104,27 +123,40 @@ namespace snde {
       
       /* parameterization */
       manager->add_allocated_array((void **)&geom.uvs,sizeof(*geom.uvs),0);
+      manager->add_allocated_array((void **)&geom.uv_patches,sizeof(*geom.uv_patches),0);
       manager->add_allocated_array((void **)&geom.uv_topos,sizeof(*geom.uv_topos),0);
       manager->add_allocated_array((void **)&geom.uv_topo_indices,sizeof(*geom.uv_topo_indices),0);
       
-      manager->add_allocated_array((void **)&geom.uv_triangles,sizeof(*geom.uv_triangles),0);
+      std::set<snde_index> uv_triangles_elemsizes;
+
+      uv_triangles_elemsizes.add(sizeof(*geom.uv_triangles));
+      uv_triangles_elemsizes.add(sizeof(*geom.inplane2uvcoords));
+      uv_triangles_elemsizes.add(sizeof(*geom.uvcoords2inplane));
+
+      manager->add_allocated_array((void **)&geom.uv_triangles,sizeof(*geom.uv_triangles),0,uv_triangles_elemsizes);
       manager->add_follower_array((void **)&geom.uv_triangles,(void **)&geom.inplane2uvcoords,sizeof(*geom.inplane2uvcoords));
       manager->add_follower_array((void **)&geom.uv_triangles,(void **)&geom.uvcoords2inplane,sizeof(*geom.uvcoords2inplane));
       //manager->add_follower_array((void **)&geom.uv_triangles,(void **)&geom.uv_patch_index,sizeof(*geom.uv_patch_index));
 
       manager->add_allocated_array((void **)&geom.uv_edges,sizeof(*geom.uv_edges),0);
 
+      std::set<snde_index> uv_vertices_elemsizes;
 
-      manager->add_allocated_array((void **)&geom.uv_vertices,sizeof(*geom.uv_vertices),0);
+      uv_vertices_elemsizes.add(sizeof(*geom.uv_vertices));
+      uv_vertices_elemsizes.add(sizeof(*geom.uv_vertex_edgelist_indices));
+      manager->add_allocated_array((void **)&geom.uv_vertices,sizeof(*geom.uv_vertices),0,uv_vertices_elemsizes);
       manager->add_follower_array((void **)&geom.uv_vertices,(void **)&geom.uv_vertex_edgelist_indices,sizeof(*geom.uv_vertex_edgelist_indices));
 
       manager->add_allocated_array((void **)&geom.uv_vertex_edgelist,sizeof(*geom.uv_vertex_edgelist),0);
 
 
       // ***!!! insert NURBS here !!!***
-      
-      manager->add_allocated_array((void **)&geom.uv_boxes,sizeof(*geom.uv_boxes),0);
-      manager->add_follower_array((void **)&geom.uv_boxes,(void **)&geom.uv_boxcoord,sizeof(*geom.boxcoord));
+
+      std::set<snde_index> uv_boxes_elemsizes;
+      uv_boxes_elemsizes.add(sizeof(*geom.uv_boxes));
+      uv_boxes_elemsizes.add(sizeof(*geom.uv_boxcoord));
+      manager->add_allocated_array((void **)&geom.uv_boxes,sizeof(*geom.uv_boxes),0,uv_boxes_elemsizes);
+      manager->add_follower_array((void **)&geom.uv_boxes,(void **)&geom.uv_boxcoord,sizeof(*geom.uv_boxcoord));
       
       manager->add_allocated_array((void **)&geom.uv_boxpolys,sizeof(*geom.uv_boxpolys),0);
 
@@ -224,7 +256,7 @@ namespace snde {
 #endif
     {
       if (!destroyed) {
-	throw std::runtime_error("Should call free() method of uv_patches object before it goes out of scope and the destructor is called");
+	throw std::runtime_error("Should call free() method of uv_images object before it goes out of scope and the destructor is called");
       }
     }
 
@@ -234,8 +266,8 @@ namespace snde {
   
 
 
-  // note image_data abstraction may be unnecessary... see comment
-  // in openscenegraph_texture.hpp !!!***
+  // image_data abstraction is used both for rendering (to get texture) and
+  // for image projection (to get projection buffer)
   class image_data {
     // abstract base class for rendering data corresponding to an snde_image
   public:
@@ -248,6 +280,32 @@ namespace snde {
     
     virtual ~image_data() {}
   };
+
+
+  class parameterization_patch: public std::enable_shared_from_this<parameterization_patch> {
+  public:
+    snde_index patchnum;
+    std::shared_ptr<trm_dependency> boxes_function;
+    std::shared_ptr<trm_dependency> projinfo_function;
+
+    parameterization_patch(snde_index patchnum) :
+      patchnum(patchnum)
+    {
+      
+    }
+    
+    std::shared_ptr<trm_dependency> request_boxes(std::shared_ptr<parameterization> param,std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
+    {
+      // must be called during a transaction!
+      if (!boxes_function) {
+	boxes_function = boxes_calculation_2d(geom,revman,param,patchnum,context,device,queue);
+      }
+      return boxes_function;
+    }
+
+
+    
+  }
   
 
   class parameterization : public std::enable_shared_from_this<parameterization> {
@@ -263,19 +321,19 @@ namespace snde {
     std::string name;
     std::shared_ptr<geometry> geom;
     snde_index idx; /* index of the parameterization in the geometry uv database -- we have ownership of this entry */
-    //std::map<std::string,std::shared_ptr<uv_patches>> patches;
+    snde_index numuvimages; // number of uv image "patches" IMMUTABLE AND MUST MATCH snde_parameterization DATA STRUCTURE
+    std::vector<std::shared_ptr<parameterization_patch>> patches;
+    
     std::shared_ptr<rwlock> lock; // managed by lockmanager
     
     std::set<std::weak_ptr<notifier>,std::owner_less<std::weak_ptr<notifier>>> notifiers; 
-
-    std::shared_ptr<trm_dependency> boxes_function;
-    std::shared_ptr<trm_dependency> projinfo_function;
+    
 
     bool destroyed;
     
     /* Should the mesheduv manage the snde_image data for the various uv patches? probably... */
 
-    parameterization(std::shared_ptr<geometry> geom, std::string name,snde_index idx)
+    parameterization(std::shared_ptr<geometry> geom, std::string name,snde_index idx,snde_index numuvimages)
     /* WARNING: This constructor takes ownership of the snde_parameterization and 
        subcomponents from the geometry database and frees them when 
        it is destroyed */
@@ -283,8 +341,13 @@ namespace snde {
       this->geom=geom;
       this->name=name;
       this->idx=idx;
+      this->numuvimages=numuvimages;
       this->lock=std::make_shared<rwlock>();
       destroyed=false;
+
+      for (cnt=0; cnt < numuvimages; cnt++) {
+	patches.push_back(std::make_shared<parameterization_patch>(cnt));
+      }
     }
 
     //std::shared_ptr<uv_patches> find_patches(std::string name)
@@ -298,13 +361,15 @@ namespace snde {
     //  patches.emplace(std::pair<std::string,std::shared_ptr<uv_patches>>(to_add->name,to_add));
     //}
 
-    std::shared_ptr<trm_dependency> request_boxes(std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
+    std::vector<std::shared_ptr<trm_dependency>> request_boxes(std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
     {
       // must be called during a transaction!
-      if (!boxes_function) {
-	boxes_function = boxes_calculation_2d(geom,revman,shared_from_this(),context,device,queue);
+      std::vector<std::shared_ptr<trm_dependency>> ret;
+      
+      for (size_t cnt=0;cnt < patches.size();cnt++) {
+	ret.push_back(patches.at(cnt)->request_boxes(shared_from_this(),cnt,revman,context,device,queue));
       }
-      return boxes_function;
+      return ret;
     }
 
 
@@ -355,6 +420,10 @@ namespace snde {
       if (idx != SNDE_INDEX_INVALID) {
 	process->get_locks_array_mask((void**)&geom->geom.uvs,SNDE_UV_GEOM_UVS,SNDE_UV_GEOM_UVS_RESIZE,readmask,writemask,resizemask,idx,1);
 	
+	if (geom->geom.uvs[idx].firstuvpatch != SNDE_INDEX_INVALID) {
+	  process->get_locks_array_mask((void **)&geom->geom.uv_patches,SNDE_UV_GEOM_UV_PATCHES,SNDE_UV_GEOM_UV_PATCHES_RESIZE,readmask,writemask,resizemask,geom->geom.uvs[idx].firstuvpatch,geom->geom.uvs[idx].numuvimages);
+	}
+
 	if (geom->geom.uvs[idx].first_uv_topo != SNDE_INDEX_INVALID) {
 	  process->get_locks_array_mask((void **)&geom->geom.uv_topos,SNDE_UV_GEOM_UV_TOPOS,SNDE_UV_GEOM_UV_TOPOS_RESIZE,readmask,writemask,resizemask,geom->geom.uvs[idx].first_uv_topo,geom->geom.uvs[idx].num_uv_topos);
 	}
@@ -386,13 +455,22 @@ namespace snde {
 	  process->get_locks_array_mask((void **)&geom->geom.uv_vertex_edgelist,SNDE_UV_GEOM_UV_VERTEX_EDGELIST,SNDE_UV_GEOM_UV_VERTEX_EDGELIST_RESIZE,readmask,writemask,resizemask,geom->geom.uvs[idx].first_uv_vertex_edgelist,geom->geom.uvs[idx].num_uv_vertex_edgelist);
 	}
 
-	// UV boxes 
-	if (geom->geom.uvs[idx].firstuvbox != SNDE_INDEX_INVALID) {
-	  process->get_locks_array_mask((void **)&geom->geom.uv_boxes,SNDE_UV_GEOM_UV_BOXES,SNDE_UV_GEOM_UV_BOXES_RESIZE,readmask,writemask,resizemask,geom->geom.uvs[idx].firstuvbox,geom->geom.uvs[idx].numuvboxes);	  
-	  process->get_locks_array_mask((void **)&geom->geom.uv_boxcoord,SNDE_UV_GEOM_UV_BOXCOORD,SNDE_UV_GEOM_UV_BOXES_RESIZE,readmask,writemask,resizemask,geom->geom.uvs[idx].firstuvbox,geom->geom.uvs[idx].numuvboxes);	  
-	}
-	if (geom->geom.uvs[idx].firstuvboxpoly != SNDE_INDEX_INVALID) {
-	  process->get_locks_array_mask((void **)&geom->geom.uv_boxpolys,SNDE_UV_GEOM_UV_BOXPOLYS,SNDE_UV_GEOM_UV_BOXPOLYS_RESIZE,readmask,writemask,resizemask,geom->geom.uvs[idx].firstuvboxpoly,geom->geom.uvs[idx].numuvboxpolys);	  
+	// UV boxes
+	if (readmask & SNDE_UV_GEOM_UV_BOXES || readmask & SNDE_UV_GEOM_UV_BOXCOORD || readmask & SNDE_UV_GEOM_UV_BOXPOLYS ||
+	    writemask & SNDE_UV_GEOM_UV_BOXES || writemask & SNDE_UV_GEOM_UV_BOXCOORD || writemask & SNDE_UV_GEOM_UV_BOXPOLYS) {
+
+	  assert(readmask & SNDE_UV_GEOM_UV_PATCHES || writemask & SNDE_UV_GEOM_UV_PATCHES);
+	  assert(geom->geom.uvs[idx].firstuvpatch != SNDE_INDEX_INVALID);
+	  
+	  for (patchnum=0; patchnum < geom->geom.uvs[idx].numuvimages;patchnum++) {
+	    if (geom->geom.uv_patches[geom->geom.uvs[idx].firstuvpatch+patchnum].firstuvbox != SNDE_INDEX_INVALID) {
+	      process->get_locks_array_mask((void **)&geom->geom.uv_boxes,SNDE_UV_GEOM_UV_BOXES,SNDE_UV_GEOM_UV_BOXES_RESIZE,readmask,writemask,resizemask,geom->geom.uv_patches[geom->geom.uvs[idx].firstuvpatch+patchnum].firstuvbox,geom->geom.uv_patches[geom->geom.uvs[idx].firstuvpatch+patchnum].numuvboxes);	  
+	      process->get_locks_array_mask((void **)&geom->geom.uv_boxcoord,SNDE_UV_GEOM_UV_BOXCOORD,SNDE_UV_GEOM_UV_BOXES_RESIZE,readmask,writemask,resizemask,geom->geom.uv_patches[geom->geom.uvs[idx].firstuvpatch+patchnum].firstuvbox,geom->geom.uv_patches[geom->geom.uvs[idx].firstuvpatch+patchnum].numuvboxes);	  
+	    }
+	    if (geom->geom.uv_patches[geom->geom.uvs[idx].firstuvpatch+patchnum].firstuvboxpoly != SNDE_INDEX_INVALID) {
+	      process->get_locks_array_mask((void **)&geom->geom.uv_boxpolys,SNDE_UV_GEOM_UV_BOXPOLYS,SNDE_UV_GEOM_UV_BOXPOLYS_RESIZE,readmask,writemask,resizemask,geom->geom.uv_patches[geom->geom.uvs[idx].firstuvpatch+patchnum].firstuvboxpoly,geom->geom.uv_patches[geom->geom.uvs[idx].firstuvpatch+patchnum].numuvboxpolys);	  
+	    }
+	  }
 	}
       }
     }
@@ -436,22 +514,34 @@ namespace snde {
 	  
 	}
 
-	if (geom->geom.uvs[idx].firstuvbox != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.uv_boxes,geom->geom.uvs[idx].firstuvbox); //,geom->geom.mesheduv->numuvboxes);
-	  geom->geom.uvs[idx].firstuvbox = SNDE_INDEX_INVALID; 
+	if (geom->geom.uvs[idx].firstuvpatch != SNDE_INDEX_INVALID) {
+
+	  
+	  for (patchnum=0; patchnum < geom->geom.uvs[idx].numuvimages;patchnum++) {
+	    snde_index patchidx = geom->geom.uvs[idx].firstuvpatch + patchnum;
+	    
+	    if (geom->geom.uv_patches[patchidx].firstuvbox != SNDE_INDEX_INVALID) {
+	      geom->manager->free((void **)&geom->geom.uv_boxes,geom->geom.uv_patches[patchidx].firstuvbox); //,geom->geom.mesheduv->numuvboxes);
+	      geom->geom.uv_patches[patchidx].firstuvbox = SNDE_INDEX_INVALID; 
+	    }
+	    
+	    if (geom->geom.uv_patches[patchidx].firstuvboxpoly != SNDE_INDEX_INVALID) {
+	      geom->manager->free((void **)&geom->geom.uv_boxpolys,geom->geom.uv_patches[patchidx].firstuvboxpoly); //,geom->geom.mesheduv->numuvboxpolys);
+	      geom->geom.uv_patches[patchidx].firstuvboxpoly = SNDE_INDEX_INVALID;	    
+	    }
+	    
+	    
+	    if (geom->geom.uv_patches[patchidx].firstuvboxcoord != SNDE_INDEX_INVALID) {
+	      geom->manager->free((void **)&geom->geom.uv_boxcoord,geom->geom.uv_patches[patchidx].firstuvboxcoord); //,geom->geom.mesheduv->numuvboxcoords);
+	      geom->geom.uv_patches[patchidx].firstuvboxcoord = SNDE_INDEX_INVALID;	    
+	    }
+
+	  }
+	  
+	  geom->manager->free((void **)&geom->geom.uv_patches,geom->geom.uvs[idx].firstuvpatch); //,geom->geom.mesheduv->numuvtris);
+	  geom->geom.uvs[idx].firstuvpatch = SNDE_INDEX_INVALID;	    
 	}
 
-	if (geom->geom.uvs[idx].firstuvboxpoly != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.uv_boxpolys,geom->geom.uvs[idx].firstuvboxpoly); //,geom->geom.mesheduv->numuvboxpolys);
-	  geom->geom.uvs[idx].firstuvboxpoly = SNDE_INDEX_INVALID;	    
-	}
-
-
-	if (geom->geom.uvs[idx].firstuvboxcoord != SNDE_INDEX_INVALID) {
-	  geom->manager->free((void **)&geom->geom.uv_boxcoord,geom->geom.uvs[idx].firstuvboxcoord); //,geom->geom.mesheduv->numuvboxcoords);
-	  geom->geom.uvs[idx].firstuvboxcoord = SNDE_INDEX_INVALID;	    
-	}
-	
 	
 	geom->manager->free((void **)&geom->geom.uvs,idx);// ,1);
 	idx=SNDE_INDEX_INVALID;

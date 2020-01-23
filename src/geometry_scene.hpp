@@ -40,7 +40,7 @@ namespace snde {
     static geometry_scene lock_scene(std::shared_ptr<lockmanager> locker,
 				     std::shared_ptr<mutablewfmdb> wfmdb,
 				     std::function<std::tuple<std::shared_ptr<component>,std::shared_ptr<immutable_metadata>,std::set<std::string>>()> get_component_metadata_and_extra_channels,
-				     std::function<std::shared_ptr<image_data>(std::shared_ptr<mutabledatastore>,std::string)> get_image_data,
+				     std::function<std::shared_ptr<image_data>(std::shared_ptr<mutabledatastore>,std::string)> get_image_data, // return pointers to image_data structures that will be included in the instances member of the returned geometry scene. The actual content of these image_data structures does not need to be ready. 
 				     const std::set<std::string> &last_channels_to_lock=std::set<std::string>())
     // There's a bit of weirdness here because of the locking order:
     //  * The locking order of the channels in the wfmdb is arbitrary and
@@ -63,7 +63,10 @@ namespace snde {
     //
     // Note also that this locks a single component. If you need multiple components, create
     // a private assembly that contains them. 
-      
+    //
+    // This locks the wfmdb entries and channels, but NOT the underlying data. The underlying
+    // data (geometrydata.h) is later in the locking order than the wfmdb entries and channels,
+    // so it can still be locked after this returns. 
     {
 
       std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> instances; // The part indexes the 3D geometry, the parameterization indexes the 2D surface parameterization of that geometry, and the image_data provides the parameterized 2D data 

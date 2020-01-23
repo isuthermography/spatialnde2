@@ -172,10 +172,10 @@ public:
     return std::make_shared<snde_image>(*texture_image); 
   }
 
-  std::shared_ptr<osg_texturecacheentry> lock()
-  {
-    return shared_from_this();
-  }
+  //std::shared_ptr<osg_texturecacheentry> lock()
+  //{
+  //  return shared_from_this();
+  //}
 
   void Update()
   {
@@ -208,8 +208,7 @@ public:
       dimlen2 = datastore->dimlen[1];
 
       IniVal1 = datastore->metadata.GetMetaDatumDbl("IniVal1",-Step1*dimlen1/2.0);
-      IniVal2 = datastore->metadata.GetMetaDatumDbl("IniVal2",-Step2*dimlen2/2.0);
-
+      IniVal2 = datastore->metadata.GetMetaDatumDbl("IniVal2",Step2*dimlen2/2.0); 
     }
 
     
