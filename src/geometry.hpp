@@ -78,12 +78,12 @@ namespace snde {
 
       std::set<snde_index> triangles_elemsizes;
 
-      triangles_elemsizes.add(sizeof(*geom.triangles));
-      triangles_elemsizes.add(sizeof(*geom.refpoints));
-      triangles_elemsizes.add(sizeof(*geom.maxradius));
-      triangles_elemsizes.add(sizeof(*geom.vertnormals));
-      triangles_elemsizes.add(sizeof(*geom.trinormals));
-      triangles_elemsizes.add(sizeof(*geom.inplanemats));
+      triangles_elemsizes.insert(sizeof(*geom.triangles));
+      triangles_elemsizes.insert(sizeof(*geom.refpoints));
+      triangles_elemsizes.insert(sizeof(*geom.maxradius));
+      triangles_elemsizes.insert(sizeof(*geom.vertnormals));
+      triangles_elemsizes.insert(sizeof(*geom.trinormals));
+      triangles_elemsizes.insert(sizeof(*geom.inplanemats));
 
       manager->add_allocated_array((void **)&geom.triangles,sizeof(*geom.triangles),0,triangles_elemsizes);
       manager->add_follower_array((void **)&geom.triangles,(void **)&geom.refpoints,sizeof(*geom.refpoints));
@@ -96,10 +96,10 @@ namespace snde {
 
 
       std::set<snde_index> vertices_elemsizes;
-      vertices_elemsizes.add(sizeof(*geom.vertices));
-      vertices_elemsizes.add(sizeof(*geom.principal_curvatures));
-      vertices_elemsizes.add(sizeof(*geom.curvature_tangent_axes));
-      vertices_elemsizes.add(sizeof(*geom.vertex_edgelist_indices));
+      vertices_elemsizes.insert(sizeof(*geom.vertices));
+      vertices_elemsizes.insert(sizeof(*geom.principal_curvatures));
+      vertices_elemsizes.insert(sizeof(*geom.curvature_tangent_axes));
+      vertices_elemsizes.insert(sizeof(*geom.vertex_edgelist_indices));
       manager->add_allocated_array((void **)&geom.vertices,sizeof(*geom.vertices),0,vertices_elemsizes);
       
       manager->add_follower_array((void **)&geom.vertices,(void **)&geom.principal_curvatures,sizeof(*geom.principal_curvatures));
@@ -111,8 +111,8 @@ namespace snde {
 
       
       std::set<snde_index> boxes_elemsizes;
-      boxes_elemsizes.add(sizeof(*geom.boxes));
-      boxes_elemsizes.add(sizeof(*geom.boxcoord));
+      boxes_elemsizes.insert(sizeof(*geom.boxes));
+      boxes_elemsizes.insert(sizeof(*geom.boxcoord));
       
       manager->add_allocated_array((void **)&geom.boxes,sizeof(*geom.boxes),0,boxes_elemsizes);
       manager->add_follower_array((void **)&geom.boxes,(void **)&geom.boxcoord,sizeof(*geom.boxcoord));
@@ -129,9 +129,9 @@ namespace snde {
       
       std::set<snde_index> uv_triangles_elemsizes;
 
-      uv_triangles_elemsizes.add(sizeof(*geom.uv_triangles));
-      uv_triangles_elemsizes.add(sizeof(*geom.inplane2uvcoords));
-      uv_triangles_elemsizes.add(sizeof(*geom.uvcoords2inplane));
+      uv_triangles_elemsizes.insert(sizeof(*geom.uv_triangles));
+      uv_triangles_elemsizes.insert(sizeof(*geom.inplane2uvcoords));
+      uv_triangles_elemsizes.insert(sizeof(*geom.uvcoords2inplane));
 
       manager->add_allocated_array((void **)&geom.uv_triangles,sizeof(*geom.uv_triangles),0,uv_triangles_elemsizes);
       manager->add_follower_array((void **)&geom.uv_triangles,(void **)&geom.inplane2uvcoords,sizeof(*geom.inplane2uvcoords));
@@ -142,8 +142,8 @@ namespace snde {
 
       std::set<snde_index> uv_vertices_elemsizes;
 
-      uv_vertices_elemsizes.add(sizeof(*geom.uv_vertices));
-      uv_vertices_elemsizes.add(sizeof(*geom.uv_vertex_edgelist_indices));
+      uv_vertices_elemsizes.insert(sizeof(*geom.uv_vertices));
+      uv_vertices_elemsizes.insert(sizeof(*geom.uv_vertex_edgelist_indices));
       manager->add_allocated_array((void **)&geom.uv_vertices,sizeof(*geom.uv_vertices),0,uv_vertices_elemsizes);
       manager->add_follower_array((void **)&geom.uv_vertices,(void **)&geom.uv_vertex_edgelist_indices,sizeof(*geom.uv_vertex_edgelist_indices));
 
@@ -153,8 +153,8 @@ namespace snde {
       // ***!!! insert NURBS here !!!***
 
       std::set<snde_index> uv_boxes_elemsizes;
-      uv_boxes_elemsizes.add(sizeof(*geom.uv_boxes));
-      uv_boxes_elemsizes.add(sizeof(*geom.uv_boxcoord));
+      uv_boxes_elemsizes.insert(sizeof(*geom.uv_boxes));
+      uv_boxes_elemsizes.insert(sizeof(*geom.uv_boxcoord));
       manager->add_allocated_array((void **)&geom.uv_boxes,sizeof(*geom.uv_boxes),0,uv_boxes_elemsizes);
       manager->add_follower_array((void **)&geom.uv_boxes,(void **)&geom.uv_boxcoord,sizeof(*geom.uv_boxcoord));
       
@@ -244,7 +244,7 @@ namespace snde {
 	images[cnt]=nullptr;
       }
       if (firstuvimage != SNDE_INDEX_INVALID) {
-	geom->manager->free((void **)&geom->geom.uv_images,firstuvimage); //,numuvpatches);
+	//geom->manager->free((void **)&geom->geom.uv_images,firstuvimage); //,numuvpatches);
 	firstuvimage=SNDE_INDEX_INVALID;	
       }
       destroyed=true;
@@ -294,7 +294,7 @@ namespace snde {
       
     }
     
-    std::shared_ptr<trm_dependency> request_boxes(std::shared_ptr<parameterization> param,std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
+    std::shared_ptr<trm_dependency> request_boxes(std::shared_ptr<geometry> geom,std::shared_ptr<parameterization> param,std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
     {
       // must be called during a transaction!
       if (!boxes_function) {
@@ -305,7 +305,7 @@ namespace snde {
 
 
     
-  }
+  };
   
 
   class parameterization : public std::enable_shared_from_this<parameterization> {
@@ -325,6 +325,8 @@ namespace snde {
     std::vector<std::shared_ptr<parameterization_patch>> patches;
     
     std::shared_ptr<rwlock> lock; // managed by lockmanager
+
+    std::shared_ptr<trm_dependency> projinfo_function; // TRM dependency that calculates projection info for this parameterization... null until request_projinfo() called. 
     
     std::set<std::weak_ptr<notifier>,std::owner_less<std::weak_ptr<notifier>>> notifiers; 
     
@@ -345,7 +347,7 @@ namespace snde {
       this->lock=std::make_shared<rwlock>();
       destroyed=false;
 
-      for (cnt=0; cnt < numuvimages; cnt++) {
+      for (unsigned cnt=0; cnt < numuvimages; cnt++) {
 	patches.push_back(std::make_shared<parameterization_patch>(cnt));
       }
     }
@@ -367,7 +369,7 @@ namespace snde {
       std::vector<std::shared_ptr<trm_dependency>> ret;
       
       for (size_t cnt=0;cnt < patches.size();cnt++) {
-	ret.push_back(patches.at(cnt)->request_boxes(shared_from_this(),cnt,revman,context,device,queue));
+	ret.push_back(patches.at(cnt)->request_boxes(geom,shared_from_this(),revman,context,device,queue));
       }
       return ret;
     }
@@ -414,6 +416,8 @@ namespace snde {
 	 following the locking order. 
       */
 
+      snde_index patchnum;
+      
       /* NOTE: Locking order here must follow order in geometry constructor (above) */
       assert(readmask & SNDE_UV_GEOM_UVS || writemask & SNDE_UV_GEOM_UVS); // Cannot do remainder of locking with out read access to uvs
       
@@ -478,6 +482,7 @@ namespace snde {
     void free()
     {
       /* Free our entries in the geometry database */
+      snde_index patchnum;
 
       if (idx != SNDE_INDEX_INVALID) {
 	if (geom->geom.uvs[idx].first_uv_topo != SNDE_INDEX_INVALID) {
@@ -531,10 +536,10 @@ namespace snde {
 	    }
 	    
 	    
-	    if (geom->geom.uv_patches[patchidx].firstuvboxcoord != SNDE_INDEX_INVALID) {
-	      geom->manager->free((void **)&geom->geom.uv_boxcoord,geom->geom.uv_patches[patchidx].firstuvboxcoord); //,geom->geom.mesheduv->numuvboxcoords);
-	      geom->geom.uv_patches[patchidx].firstuvboxcoord = SNDE_INDEX_INVALID;	    
-	    }
+	    //if (geom->geom.uv_patches[patchidx].firstuvboxcoord != SNDE_INDEX_INVALID) {
+	    //  geom->manager->free((void **)&geom->geom.uv_boxcoord,geom->geom.uv_patches[patchidx].firstuvboxcoord); //,geom->geom.mesheduv->numuvboxcoords);
+	    //  geom->geom.uv_patches[patchidx].firstuvboxcoord = SNDE_INDEX_INVALID;	    
+	    //}
 
 	  }
 	  

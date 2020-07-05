@@ -2328,10 +2328,12 @@ namespace snde {
 
       
 	
-	geom->geom.uvs[firstuv].firstuvbox=SNDE_INDEX_INVALID;
-	geom->geom.uvs[firstuv].numuvboxes=SNDE_INDEX_INVALID;
-	geom->geom.uvs[firstuv].firstuvboxpoly=SNDE_INDEX_INVALID;
-	geom->geom.uvs[firstuv].numuvboxpolys=SNDE_INDEX_INVALID;
+	//geom->geom.uvs[firstuv].firstuvbox=SNDE_INDEX_INVALID;
+	//geom->geom.uvs[firstuv].numuvboxes=SNDE_INDEX_INVALID;
+	//geom->geom.uvs[firstuv].firstuvpatch=SNDE_INDEX_INVALID;
+	//geom->geom.uvs[firstuv].numuvimages=SNDE_INDEX_INVALID;
+	//geom->geom.uvs[firstuv].firstuvboxpoly=SNDE_INDEX_INVALID;
+	//geom->geom.uvs[firstuv].numuvboxpolys=SNDE_INDEX_INVALID;
 	//geom->geom.uvs[firstuv].firstuvboxcoord=SNDE_INDEX_INVALID;
 	//geom->geom.uvs[firstuv].numuvboxcoords=SNDE_INDEX_INVALID;
 

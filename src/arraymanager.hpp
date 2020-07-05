@@ -249,7 +249,7 @@ namespace snde {
 	assert(new_allocators->find(arrayptr)==new_allocators->end());
 
 	// Make sure alignment requirements were previously registered when we did add_allocated_array()
-	assert(alloc->our_alignment.find(elemsize) != alloc->our_alignment.end());
+	assert(std::find(std::begin(alloc->our_alignment.address_alignment),std::end(alloc->our_alignment.address_alignment),elemsize) != std::end(alloc->our_alignment.address_alignment));
 	
 	//alloc->add_other_array(arrayptr,elemsize);
 	(*new_allocators)[arrayptr]=allocationinfo{alloc,elemsize,0,alloc->add_other_array(arrayptr,elemsize)};

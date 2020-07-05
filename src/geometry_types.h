@@ -596,7 +596,7 @@ struct snde_parameterization_patch {
   //snde_index firstuvboxcoord,numuvboxcoords; uv boxcoords allocated with uv boxes
   snde_index firstuvboxpoly,numuvboxpolys;
 
-}
+};
 
 struct snde_parameterization {
   // specific to a part;

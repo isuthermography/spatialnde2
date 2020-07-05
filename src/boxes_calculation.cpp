@@ -788,23 +788,26 @@ std::shared_ptr<trm_dependency> boxes_calculation_2d(std::shared_ptr<geometry> g
 						
 						dep->update_inputs(new_inputs);
 						
-						for (snde_index patchnum=0;patchnum < geom->geom.uvs[param->idx].numuvimages;patchnum++) {
-						  if (actions & STDA_EXECUTE) { // would be conditional on IDENTIFYOUTPUTS but we can't identif outputs without executing
+						
+						if (actions & STDA_EXECUTE) { // would be conditional on IDENTIFYOUTPUTS but we can't identify outputs without executing
+						  std::vector<trm_arrayregion> new_outputs;
+						  for (snde_index patchnum=0;patchnum < geom->geom.uvs[param->idx].numuvimages;patchnum++) {
 						    
-						    std::vector<trm_arrayregion> new_outputs;
 						    // output patchnum*3+0: uv_boxes
 						    dep->add_output_to_array(new_outputs,geom->manager,holder,patchnum*3+0,(void **)&geom->geom.uv_boxes,"uv_boxes");
 						    // output patchnum*3+1: uv_boxcoord (allocated with uv_boxes)
 						    new_outputs.emplace_back(geom->manager,(void **)&geom->geom.uv_boxcoord,
 									     holder->get_alloc((void **)&geom->geom.uv_boxes,"uv_boxes"+std::to_string(patchnum)),
 									     holder->get_alloc_len((void **)&geom->geom.uv_boxes,"uv_boxes"+std::to_string(patchnum)));
-						    
+						      
 						    // output patchnum*3+2: boxpolys (separate allocation)
 						    dep->add_output_to_array(new_outputs,geom->manager,holder,patchnum*3+2,(void **)&geom->geom.uv_boxpolys,"uv_boxpolys");
 						  }
-						}
-						dep->update_outputs(new_outputs);
 						  
+						  dep->update_outputs(new_outputs);
+						}
+
+						
 						if (actions & STDA_EXECUTE) {
 						  
 						  // Nothing to do here but copy the output, since we have already

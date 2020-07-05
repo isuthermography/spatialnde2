@@ -172,10 +172,10 @@ public:
     return std::make_shared<snde_image>(*texture_image); 
   }
 
-  //std::shared_ptr<osg_texturecacheentry> lock()
-  //{
-  //  return shared_from_this();
-  //}
+  std::shared_ptr<osg_texturecacheentry> lock()
+  {
+    return shared_from_this();
+  }
 
   void Update()
   {

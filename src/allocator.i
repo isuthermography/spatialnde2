@@ -104,7 +104,7 @@ namespace snde {
     rangetracker<allocation> allocations_unmerged;
     snde_index _allocchunksize; // size of chunks we allocate, in numbers of elements
   
-    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem);
+    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes);
 
     allocator(const allocator &)=delete; /* copy constructor disabled */
     allocator& operator=(const allocator &)=delete; /* assignment disabled */

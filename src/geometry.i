@@ -137,7 +137,7 @@ namespace snde {
     std::string name;
     snde_index idx;
 
-    parameterization(std::shared_ptr<geometry> geom, std::string name,snde_index parameterizationnum);
+    parameterization(std::shared_ptr<geometry> geom, std::string name,snde_index idx,snde_index numuvimages);
 
     virtual void obtain_uv_lock(std::shared_ptr<lockingprocess> process, snde_infostore_lock_mask_t readmask=SNDE_UV_GEOM_ALL, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0);
     void free();
