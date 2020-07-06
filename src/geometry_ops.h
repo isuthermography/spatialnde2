@@ -61,7 +61,7 @@ static inline void polycentroid3(snde_coord3 *verts, uint32_t numvertices, snde_
   for (vertcnt=0; vertcnt < numvertices; vertcnt++) {
     val=0.0;
     for (axcnt=0; axcnt < 3; axcnt++) {
-      val += pow(verts[vertcnt].coord[axcnt] - refpoint.coord[axcnt],2.0f);
+      val += pow(verts[vertcnt].coord[axcnt] - refpoint.coord[axcnt],2.0);
     }
 
     if (val > max_sq) {
@@ -302,7 +302,7 @@ static inline int point_in_polygon_2d_c(snde_coord2 *vertices_rel_point,snde_ind
 #ifndef __OPENCL_VERSION__
     fprintf(stderr,"spatialnde.geometry.point_in_polygon_2d() Got weird winding number of %le; assuming inaccurate calculation on polygon edge\n",(double)windingnum);
 #else
-    printf("spatialnde.geometry.point_in_polygon_2d() Got weird winding number of %le; assuming inaccurate calculation on polygon edge\n",(double)windingnum);
+    printf("spatialnde.geometry.point_in_polygon_2d() Got weird winding number of %e; assuming inaccurate calculation on polygon edge\n",windingnum);
 #endif
     
     // Could also be self intersecting polygon 

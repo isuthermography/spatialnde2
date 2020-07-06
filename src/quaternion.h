@@ -32,16 +32,24 @@ static QUATERNION_INLINE void quaternion_normalize(snde_coord4 unnormalized,snde
   }
   
 static QUATERNION_INLINE void quaternion_product(snde_coord4 quat1, snde_coord4 quat2,snde_coord4 *product)
-  {
+{
     /* quaternion coordinates are i, j, k, real part */
-    snde_coord4 unnormalized;
-    unnormalized.coord[0]=quat1.coord[3]*quat2.coord[0] + quat1.coord[0]*quat2.coord[3] + quat1.coord[1]*quat2.coord[2] - quat1.coord[2]*quat2.coord[1];
-    unnormalized.coord[1]=quat1.coord[3]*quat2.coord[1] + quat1.coord[1]*quat2.coord[3] - quat1.coord[0]*quat2.coord[2] + quat1.coord[2]*quat2.coord[0];
-    unnormalized.coord[2]=quat1.coord[3]*quat2.coord[2] + quat1.coord[2]*quat2.coord[3] + quat1.coord[0]*quat2.coord[1] - quat1.coord[1]*quat2.coord[0];
-    unnormalized.coord[3]=quat1.coord[3]*quat2.coord[3] - quat1.coord[0]*quat2.coord[0] - quat1.coord[1]*quat2.coord[1] - quat1.coord[2]*quat2.coord[2];
+  product->coord[0]=quat1.coord[3]*quat2.coord[0] + quat1.coord[0]*quat2.coord[3] + quat1.coord[1]*quat2.coord[2] - quat1.coord[2]*quat2.coord[1];
+  product->coord[1]=quat1.coord[3]*quat2.coord[1] + quat1.coord[1]*quat2.coord[3] - quat1.coord[0]*quat2.coord[2] + quat1.coord[2]*quat2.coord[0];
+  product->coord[2]=quat1.coord[3]*quat2.coord[2] + quat1.coord[2]*quat2.coord[3] + quat1.coord[0]*quat2.coord[1] - quat1.coord[1]*quat2.coord[0];
+  product->coord[3]=quat1.coord[3]*quat2.coord[3] - quat1.coord[0]*quat2.coord[0] - quat1.coord[1]*quat2.coord[1] - quat1.coord[2]*quat2.coord[2];
+  
+}
 
-    quaternion_normalize(unnormalized,product);
-  }
+
+static QUATERNION_INLINE void quaternion_product_normalized(snde_coord4 quat1, snde_coord4 quat2,snde_coord4 *product)
+{
+  snde_coord4 unnormalized;
+
+  quaternion_product(quat1,quat2,&unnormalized);
+  
+  quaternion_normalize(unnormalized,product);
+}
 
 static QUATERNION_INLINE void quaternion_inverse(snde_coord4 quat, snde_coord4 *inverse)
   {
@@ -155,7 +163,7 @@ static QUATERNION_INLINE void orientation_orientation_multiply(snde_orientation3
          product offset is q2o1q2' + o2 */
     snde_coord4 rotated_right_offset;
 
-    quaternion_product(left.quat,right.quat,&product->quat);
+    quaternion_product_normalized(left.quat,right.quat,&product->quat);
     
     quaternion_apply_vector(left.quat,right.offset,&rotated_right_offset);
     addcoordcoord4proj(rotated_right_offset,left.offset,&product->offset);
