@@ -750,6 +750,10 @@ std::shared_ptr<trm_dependency> boxes_calculation_2d(std::shared_ptr<geometry> g
 						  //std::vector<std::array<snde_index,6>> boxlist;
 						  //std::vector<std::pair<snde_coord2,snde_coord2>> boxcoordlist;
 						  //std::vector<snde_index> boxpolylist;
+						  boxlists.emplace_back();
+						  boxcoordlists.emplace_back();
+						  boxpolylists.emplace_back();
+						  
 						  std::vector<std::array<snde_index,6>> &boxlist = boxlists.at(patchnum);
 						  std::vector<std::pair<snde_coord2,snde_coord2>> &boxcoordlist = boxcoordlists.at(patchnum);
 						  std::vector<snde_index> &boxpolylist = boxpolylists.at(patchnum);
@@ -794,14 +798,14 @@ std::shared_ptr<trm_dependency> boxes_calculation_2d(std::shared_ptr<geometry> g
 						  for (snde_index patchnum=0;patchnum < geom->geom.uvs[param->idx].numuvimages;patchnum++) {
 						    
 						    // output patchnum*3+0: uv_boxes
-						    dep->add_output_to_array(new_outputs,geom->manager,holder,patchnum*3+0,(void **)&geom->geom.uv_boxes,"uv_boxes");
+						    dep->add_output_to_array(new_outputs,geom->manager,holder,patchnum*3+0,(void **)&geom->geom.uv_boxes,"uv_boxes"+std::to_string(patchnum));
 						    // output patchnum*3+1: uv_boxcoord (allocated with uv_boxes)
 						    new_outputs.emplace_back(geom->manager,(void **)&geom->geom.uv_boxcoord,
 									     holder->get_alloc((void **)&geom->geom.uv_boxes,"uv_boxes"+std::to_string(patchnum)),
 									     holder->get_alloc_len((void **)&geom->geom.uv_boxes,"uv_boxes"+std::to_string(patchnum)));
 						      
 						    // output patchnum*3+2: boxpolys (separate allocation)
-						    dep->add_output_to_array(new_outputs,geom->manager,holder,patchnum*3+2,(void **)&geom->geom.uv_boxpolys,"uv_boxpolys");
+						    dep->add_output_to_array(new_outputs,geom->manager,holder,patchnum*3+2,(void **)&geom->geom.uv_boxpolys,"uv_boxpolys"+std::to_string(patchnum));
 						  }
 						  
 						  dep->update_outputs(new_outputs);

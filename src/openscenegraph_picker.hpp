@@ -90,7 +90,8 @@ namespace snde {
 		    std::shared_ptr<mutablegeomstore> info=cacheentry->info.lock();
 		    std::shared_ptr<geometry> geom = cacheentry->snde_geom.lock();
 		    
-		    std::shared_ptr<parameterization> param_ptr = cacheentry->param_cache_entry->param.lock(); // may be nullptr if no parameterization!
+		    std::shared_ptr<parameterization> param_ptr;
+		    if (cacheentry->param_cache_entry) cacheentry->param_cache_entry->param.lock(); // may be nullptr if no parameterization!
 		    if (info && part_ptr && geom) {
 		      
 		      
