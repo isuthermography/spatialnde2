@@ -29,6 +29,10 @@ namespace snde {
    
   */
 
+  std::map<unsigned,unsigned> prime_factorization(unsigned number);
+
+  unsigned multiply_factors(std::map<unsigned,unsigned> factors);
+  
   class allocator_alignment {
   public:
     std::vector<unsigned> address_alignment; /* required address alignments, in bytes */
@@ -45,64 +49,37 @@ namespace snde {
     unsigned get_alignment()
     {
       // alignment is least common multiple of the various elements of address_alignment
-      std::vector<std::vector<unsigned>> factors;
-      std::vector<std::vector<std::pair<unsigned,unsigned>>> factors_powers; 
+      //std::vector<std::vector<unsigned>> factors;
+      std::vector<std::map<unsigned,unsigned>> factors_powers; 
 
       std::unordered_map<unsigned,unsigned> factors_maxpowers;
-      
+
+      //fprintf(stderr,"get_alignment():\n");
       // evaluate prime factorization
       for (unsigned reqnum=0;reqnum < address_alignment.size();reqnum++) {
 
 	unsigned alignment = address_alignment[reqnum];
 
-	unsigned divisor=2;
-	unsigned power=0;
-	unsigned maxpower=0;
 
-	factors.emplace_back();
-	factors_powers.emplace_back();
-	
-	while (alignment >= 2) {
-	  /* evaluate possible factors up to sqrt(value), 
-	     dividing them out as we find them */
-	  if ((alignment % divisor)==0 ) {
-	    factors[reqnum].push_back(divisor);
-	    power++;
-	    alignment = alignment / divisor;
-	  } else {
-	    if (power > 0) {
-	      factors_powers[reqnum].push_back(std::make_pair(divisor,power));
-	      maxpower=0;
-	      if (factors_maxpowers.find(divisor) != factors_maxpowers.end()) {
-		maxpower=factors_maxpowers.at(divisor);		
-	      }
-	      if (power > maxpower) {
-		factors_maxpowers[divisor]=power;
-	      }
-	    }
-	    power=0;
-	    divisor++;
-	    unsigned limit=(unsigned)(1.0+sqrt(alignment));
-	    if (divisor > limit) {
-	      divisor = alignment; // remaining value must be last prime factor
-	    }
-	    
-	  }
-	  
-	}
-	if (power > 0) {
-	  factors_powers[reqnum].push_back(std::make_pair(divisor,power));
-	  
-	  maxpower=0;
+	//fprintf(stderr," alignment requirement: %d\n",alignment);
+
+	//factors.emplace_back();
+	factors_powers.emplace_back(prime_factorization(alignment));
+
+
+	// adjust stored maximum power for each divisor
+	for (auto && factor_power: *(factors_powers.end()-1)) {
+	  // adjust factors_maxpowers entry if power is greater than this
+	  unsigned maxpower=0;
+	  unsigned divisor=factor_power.first;
+	  unsigned power=factor_power.second;
 	  if (factors_maxpowers.find(divisor) != factors_maxpowers.end()) {
 	    maxpower=factors_maxpowers.at(divisor);		
 	  }
 	  if (power > maxpower) {
 	    factors_maxpowers[divisor]=power;
 	  }
-	  
 	}
-	
 	
       }
       /* Ok. Should have sorted prime factorization of all 
@@ -117,6 +94,7 @@ namespace snde {
 	  result=result*factor_maxpower.first;
 	}
       }
+      //fprintf(stderr,"alignment result: %d\n",result);
       return result;
     }
   };
@@ -231,7 +209,8 @@ namespace snde {
     std::shared_ptr<std::deque<struct arrayinfo>> _arrays; // atomic shared_ptr 
 
     // alignment requirement
-    allocator_alignment our_alignment;
+    allocator_alignment our_alignment; // requirements from our element size and GPU alignment requirements
+    allocator_alignment sub_alignment; // like our_alignment but in terms of elements, not bytes!
     
     /* Freelist structure ... 
     */
@@ -264,13 +243,67 @@ namespace snde {
 	our_alignment = *alignment;
       }
       our_alignment.add_requirement(_allocchunksize*elemsize);
+      
+      //for (auto && follower_elemsize: follower_elemsizes) {
+      //our_alignment.add_requirement(follower_elemsize);
+      //}
+      
+      unsigned initial_allocchunksize = our_alignment.get_alignment()/elemsize;
 
-      for (auto && follower_elemsize: follower_elemsizes) {
-	our_alignment.add_requirement(follower_elemsize);
+      // identify prime factors of preexisting alignment requirements
+      // present in elemsize, and create sub_alignment with those
+      // factors divided out (if present)
+      std::map<unsigned,unsigned> elemsizeprimefactors = prime_factorization(elemsize);
+
+      
+      sub_alignment = our_alignment; // copy our_alignment
+
+      // now divide factors from elemsize out of sub_alignment
+      for (snde_index align_idx=0;align_idx < sub_alignment.address_alignment.size();align_idx++) {
+	std::map<unsigned,unsigned> alignprimefactors = prime_factorization(sub_alignment.address_alignment.at(align_idx));
+
+	for (auto && primefactor_power: elemsizeprimefactors) {
+	  auto alignfactorref = alignprimefactors.find(primefactor_power.first);
+	  if (alignfactorref != alignprimefactors.end()) {
+	    // found this factor; reduce it appropriately.
+	    if (alignfactorref->second <= primefactor_power.second) {
+	      alignfactorref->second=0;
+	    } else {
+	      alignfactorref->second -= primefactor_power.second;
+	    }
+	  }
+	}
+
+	sub_alignment.address_alignment.at(align_idx) = multiply_factors(alignprimefactors);
+	
       }
       
-      _allocchunksize = our_alignment.get_alignment()/elemsize;
+      // now add in follower element size requirements, likewise
+      // with elemsize factors divided out
+      for (auto && follower_elemsize: follower_elemsizes) {
+	std::map<unsigned,unsigned> followerprimefactors = prime_factorization(follower_elemsize);
+	//fprintf(stderr,"follower elemsize: %d\n",(int)follower_elemsize);
+
+	// now remove elemsize factors from followerprimefactors
+	for (auto && primefactor_power: elemsizeprimefactors) {
+	  auto followerfactorref = followerprimefactors.find(primefactor_power.first);
+	  if (followerfactorref != followerprimefactors.end()) {
+	    // found this factor; reduce it appropriately.
+	    if (followerfactorref->second <= primefactor_power.second) {
+	      followerfactorref->second=0;
+	    } else {
+	      followerfactorref->second -= primefactor_power.second;
+	    }
+	  }
+	}
+	
+	sub_alignment.add_requirement(multiply_factors(followerprimefactors));
+	
+      }
       
+      _allocchunksize = initial_allocchunksize*sub_alignment.get_alignment();
+            
+				    
       // _totalnchunks = totalnelem / _allocchunksize  but round up. 
       _totalnchunks = (totalnelem + _allocchunksize-1)/_allocchunksize;
       
@@ -483,6 +516,7 @@ namespace snde {
 	}
 	
       }
+      //fprintf(stderr,"_alloc return %d (_allocchunksize=%d)\n",retpos,_allocchunksize);
       return retpos;
     }
     
