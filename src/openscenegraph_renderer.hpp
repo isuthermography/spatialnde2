@@ -4,10 +4,22 @@
 
 
 namespace snde {
+  class osgViewerCompat34: public osgViewer::Viewer {
+    // derived version of osgViewer::Viewer that gives compat34GetRequestContinousUpdate()
+    // alternative to osg v3.6 getRequestContinousUpdate()
+  public:
+    bool compat34GetRequestContinousUpdate()
+    {
+      return _requestContinousUpdate;
+    }
+  };
+
+  
   class osg_renderer {
   public:
     osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow;
-    osg::ref_ptr<osgViewer::Viewer> Viewer;
+    //osg::ref_ptr<osgViewer::Viewer> Viewer;
+    osg::ref_ptr<osgViewerCompat34> Viewer;
     osg::ref_ptr<osg::Camera> Camera;
     osg::ref_ptr<osg::Node> RootNode;
     osg::ref_ptr<osgGA::TrackballManipulator> Manipulator; // manipulator for 3D mode
@@ -19,7 +31,8 @@ namespace snde {
 		 osg::ref_ptr<osg::Node> RootNode,
 		 bool twodimensional) :
       GraphicsWindow(GraphicsWindow),
-      Viewer(new osgViewer::Viewer()),
+      //Viewer(new osgViewer::Viewer()),
+      Viewer(new osgViewerCompat34()),
       Camera(Viewer->getCamera()),
       RootNode(RootNode),
       twodimensional(twodimensional)
@@ -40,7 +53,8 @@ namespace snde {
       Manipulator = new osgGA::TrackballManipulator();
       Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded);
       Viewer->setSceneData(RootNode);
-
+      Viewer->setCameraManipulator(Manipulator);
+      
       // Caller should set camera viewport,
       // implement SetProjectionMatrix(),
       // SetTwoDimensional()

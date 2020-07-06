@@ -17,6 +17,7 @@
 #include <QLayout>
 #include <QVBoxLayout>
 #include <QtUiTools/QUiLoader>
+#include <QTimer>
 
 #include <osg/Array>
 #include <osgViewer/Viewer>
@@ -41,11 +42,26 @@ namespace snde {
   // and http://forum.openscenegraph.org/viewtopic.php?t=15097 "OSG 3.2.1 and Qt5 Widget integration"
 
   class QTWfmViewer; // forward declaration
-  
+  class QTWfmRender; // forward declaration
+
+  /*
+  class QTWfmGraphicsWindow: public osgViewer::GraphicsWindowEmbedded {
+  public:
+    QTWfmRender *Renderer;
+    
+    QTWfmGraphicsWindow(int x,int y,int width,int height,QTWfmRender *Renderer); 
+
+    virtual void requestRedraw();
+
+    virtual void requestContinuousUpdate(bool needed=true);
+
+  };
+  */
   class QTWfmRender : public QOpenGLWidget, public osg_renderer {
   public:
     QTWfmViewer *QTViewer; 
-
+    QTimer *AnimTimer; 
+    
     // member variables from osg_renderer:
     // osg::ref_ptr<osgViewer::GraphicsWindowEmbedded> GraphicsWindow;
     // osg::ref_ptr<osgViewer::Viewer> Viewer;
@@ -65,8 +81,10 @@ namespace snde {
     
     void update()
     {
-      //fprintf(stderr,"QOpenGLWidget update()\n");
+      fprintf(stderr,"QOpenGLWidget update()\n");
+      fprintf(stderr,"Manipulator animating: %d\n",(int)Manipulator->isAnimating());
       QOpenGLWidget::update();
+
     }
     
     void SetTwoDimensional(bool twod)
@@ -493,19 +511,22 @@ namespace snde {
     std::tuple<double,bool> GetVertScale()
     {
       double vertscale=0.0;
-      {
+      bool success=false;
+      bool vertpixelflag=false;
+      if (selected_channel) {
+	std::tie(success,vertscale,vertpixelflag) = display->GetVertScale(selected_channel);
+	
+      }
+
+      if (!success) {
 	std::lock_guard<std::mutex> adminlock(display->admin);
 
 	vertscale = 2.0/display->vertical_divisions;
+	vertpixelflag=false;
       }
-      bool vertpixelflag=false;
      
-     if (selected_channel) {
-       return display->GetVertScale(selected_channel);
-       
-     }
-     
-     return std::make_tuple(vertscale,vertpixelflag);
+      
+      return std::make_tuple(vertscale,vertpixelflag);
     }
 
     void SetHorizScale(double horizscale,bool horizpixelflag)

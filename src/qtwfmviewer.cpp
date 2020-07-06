@@ -3,6 +3,36 @@
 #include "qtwfmviewer.hpp"
 
 namespace snde {
+  /*
+  QTWfmGraphicsWindow::QTWfmGraphicsWindow(int x,int y,int width,int height,QTWfmRender *Renderer) :
+      osgViewer::GraphicsWindowEmbedded(x,y,width,height),Renderer(Renderer)
+    {
+      
+    }
+
+  void QTWfmGraphicsWindow::requestRedraw()
+  {
+    Renderer->update();
+  }
+
+  void QTWfmGraphicsWindow::requestContinuousUpdate(bool needed)
+  {
+    if (needed && Renderer->AnimTimer) {
+      if (!Renderer->AnimTimer->isActive()) {
+	Renderer->AnimTimer->start();
+	fprintf(stderr,"Starting animation timer!\n");
+      }
+    } else {
+      fprintf(stderr,"Manipulator not animating\n");
+      if (Renderer->AnimTimer && Renderer->AnimTimer->isActive()) {
+	Renderer->AnimTimer->stop();
+      }
+      
+    }
+    
+  }
+  */
+  
   QTWfmRender::QTWfmRender(osg::ref_ptr<osg::Node> RootNode, QTWfmViewer *QTViewer,QWidget *parent)
       : QOpenGLWidget(parent),
 	osg_renderer(new osgViewer::GraphicsWindowEmbedded(x(),y(),width(),height()),
@@ -11,6 +41,9 @@ namespace snde {
 	picker(new osg_picker(this,QTViewer->display)),
 	QTViewer(QTViewer)
     {
+      AnimTimer = new QTimer(this);
+      AnimTimer->setInterval(16); // 16 ms ~ 60 Hz
+      
       Camera->setViewport(0,0,width(),height());
 
       SetProjectionMatrix();
@@ -22,6 +55,7 @@ namespace snde {
       //Viewer->addEventHandler(picker); // adding now handled by osg_picker constructor...
  
       Viewer->realize();
+      QObject::connect(AnimTimer,SIGNAL(timeout()),this,SLOT(update()));
     }
   
   /* virtual */ void QTWfmRender::ClearPickedOrientation() // in qtwfmviewer.cpp
@@ -79,6 +113,24 @@ namespace snde {
 	
 	Viewer->frame();
       }
+
+      if (Viewer->compat34GetRequestContinousUpdate()) {//(Viewer->getRequestContinousUpdate()) { // Manipulator->isAnimating doesn't work for some reason(?)
+      // ideally we should implement for OpenSceneGraph the GUIActionAdapter
+      // class, passing that somehow to the osg View, and handling the
+      // requestContinousUpdate() call instead of checking manipulator
+      // animation directly.. 
+	if (!AnimTimer->isActive()) {
+	  AnimTimer->start();
+	  fprintf(stderr,"Starting animation timer!\n");
+	}
+      } else {
+	fprintf(stderr,"Manipulator not animating\n");
+	if (AnimTimer->isActive()) {
+	  AnimTimer->stop();
+	}
+
+      }
+
       fprintf(stderr,"Render complete; empty=%d\n",(int)GraphicsWindow->getEventQueue()->empty());
       
       //unlock_rwlock_token_set(all_locks); // Drop our locks 

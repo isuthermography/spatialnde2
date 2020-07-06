@@ -597,10 +597,12 @@ public:
     }
   }
 
-  std::tuple<double,bool> GetVertScale(std::shared_ptr<display_channel> c)
+  std::tuple<bool,double,bool> GetVertScale(std::shared_ptr<display_channel> c)
+  // returns (success,scalefactor,pixelflag)
   {
     std::shared_ptr<display_axis> a;
     double scalefactor;
+    bool success=false;
     
     std::shared_ptr<mutabledatastore> datastore;
 
@@ -623,9 +625,10 @@ public:
 	}
 	  //}
 	std::lock_guard<std::mutex> adminlock(a->admin);
-	return std::make_tuple(scalefactor,a->unit->pixelflag);
+	return std::make_tuple(true,scalefactor,a->unit->pixelflag);
       } else if (ndim==0) {
-	return std::make_tuple(1.0,false);
+	//return std::make_tuple(true,1.0,false);
+	return std::make_tuple(false,0.0,false);
       } else if (ndim >= 2) {
 	/* image or image array */
 	a=GetSecondAxis(datastore);
@@ -635,14 +638,14 @@ public:
 	{
 	  std::lock_guard<std::mutex> adminlock(a->unit->admin);
 	  scalefactor=a->unit->scale;
-	  return std::make_tuple(scalefactor,a->unit->pixelflag);
+	  return std::make_tuple(true,scalefactor,a->unit->pixelflag);
 	}
       } else {
 	assert(0);
-	return std::make_tuple(0.0,false);
+	return std::make_tuple(false,0.0,false);
       }
     }
-    return std::make_tuple(0.0,false);    
+    return std::make_tuple(false,0.0,false);    
   }
 
 
