@@ -80,7 +80,7 @@ endif()
 
 
 
-set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/geometry.cpp src/revision_manager.cpp src/mutablewfmstore.cpp )
+set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/infostore_or_component.cpp src/geometry.cpp src/revision_manager.cpp src/mutablewfmstore.cpp )
 
 #add_definitions(-Dprivate=public)
 #add_definitions(-Dprotected=public)
@@ -125,6 +125,7 @@ IF (OpenCL_FOUND)
     include_directories(${OpenCL_INCLUDE_DIR})
 
     add_definitions(-DSNDE_OPENCL)
+    add_definitions(-DCL_TARGET_OPENCL_VERSION=120)
     # Build OpenCL support into library
     set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/opencl_utils.cpp src/openclcachemanager.cpp src/data_to_rgba.cpp src/inplanemat_calculation.cpp src/projinfo_calculation.cpp src/boxes_calculation.cpp)
     IF (PythonInterp_FOUND) 
@@ -305,7 +306,7 @@ IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
 	message(STATUS ${PYTHON_LIBRARIES})
 	include(${SWIG_USE_FILE})
 	# BUG: If python version >= 3 need -py3 -DPY_VERSION_HEX=0x03060000 additional flags to SWIG command
-	set(CMAKE_SWIG_FLAGS "-DSNDE_LOCKMANAGER_COROUTINES_THREADED")
+	set(CMAKE_SWIG_FLAGS "-threads" "-DSNDE_LOCKMANAGER_COROUTINES_THREADED")
 	IF (LibXml2_FOUND AND Eigen3_FOUND)
 	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_X3D)
 	ENDIF()

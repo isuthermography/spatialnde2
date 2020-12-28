@@ -6,7 +6,7 @@
 %pythonbegin %{
 import sys
 %}
-
+ 
 
 // Workaround for swig to understand what size_t aliases
 #ifdef SIZEOF_SIZE_T_IS_8
@@ -112,6 +112,7 @@ typedef unsigned long size_t;
 %include "arraymanager.i"
 %include "pywrapper.i"
 %include "lockmanager.i"
+%include "infostore_or_component.i"
 %include "geometrydata.i"
 %include "geometry.i"
 

@@ -199,12 +199,12 @@ int main(int argc, char **argv)
 
   std::shared_ptr<osg_parameterizationcache> paramcache=std::make_shared<osg_parameterizationcache>(geom,context,device,queue);
   
-  geomcache=std::make_shared<osg_instancecache>(geom,paramcache,context,device,queue);
+  geomcache=std::make_shared<osg_instancecache>(geom,wfmdb,paramcache,context,device,queue);
 
   //std::vector<std::shared_ptr<trm_dependency>> normal_calcs;
 
-  std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>> parts;
   
+  std::shared_ptr<std::vector<std::shared_ptr<mutableinfostore>>> part_infostores;
   {
     revision_manager->Start_Transaction();
     
@@ -215,7 +215,7 @@ int main(int argc, char **argv)
 													 };
     
     
-    parts = x3d_load_geometry(geom,argv[1],wfmdb,false,true); // !!!*** Try enable vertex reindexing !!!***
+    part_infostores = x3d_load_geometry(geom,argv[1],wfmdb,"/",false,true); // !!!*** Try enable vertex reindexing !!!***
 
     revision_manager->End_Transaction();
   }
@@ -228,18 +228,17 @@ int main(int argc, char **argv)
     //  partname="LoadedX3D"+partcnt;
     //  geom->object_trees.insert(std::make_pair(partname,parts[partcnt]));    
     //}
-    std::shared_ptr<assembly> assem;
-    std::unordered_map<std::string,metadatum> md;
-    std::tie(assem,md)=assembly::from_partlist("LoadedX3D",parts);
+    std::shared_ptr<mutablegeomstore> assem_infostore;
+    assem_infostore=mutablegeomstore::from_partlist(wfmdb,"/",geom,"LoadedX3D",part_infostores);
 
     
     
     //geom->object_trees.insert(std::make_pair("LoadedX3D",assem));
     revision_manager->Start_Transaction();
 
-    std::shared_ptr<mutablegeomstore> LoadedX3D = std::make_shared<mutablegeomstore>("LoadedX3D","LoadedX3D",wfmmetadata(md),geom,assem);
+    //std::shared_ptr<mutablegeomstore> LoadedX3D = std::make_shared<mutablegeomstore>("LoadedX3D","/LoadedX3D",wfmmetadata(md),geom,assem);
 
-    wfmdb->addinfostore(LoadedX3D);
+    wfmdb->addinfostore(assem_infostore);
     
     //for (auto & part_md : *parts) {
     //  // add normal calculation for each part from the .x3d file
@@ -250,7 +249,7 @@ int main(int argc, char **argv)
     
     std::shared_ptr<display_info> display = std::make_shared<display_info>(wfmdb);
     
-    OSGComp=new snde::OSGComponent(geom,geomcache,paramcache,texcache,wfmdb,revision_manager,LoadedX3D,display); // OSGComp must be created during a transaction...
+    OSGComp=new snde::OSGComponent(geom,geomcache,paramcache,texcache,wfmdb,revision_manager,assem_infostore->fullname,display); // OSGComp must be created during a transaction...
 
     
     revnum=revision_manager->End_Transaction();

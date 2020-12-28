@@ -499,7 +499,7 @@ namespace snde {
      bool horizpixelflag=false;
      
      if (selected_channel) {
-       std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->chan_data);
+       std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->FullName());
        std::lock_guard<std::mutex> axislock(a->unit->admin);
        horizscale = a->unit->scale;
        horizpixelflag = a->unit->pixelflag;
@@ -533,7 +533,7 @@ namespace snde {
     {
       //fprintf(stderr,"SetHorizScale %.2g\n",horizscale);
       if (selected_channel) {
-	std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->chan_data);
+	std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->FullName());
 	{
 	  std::lock_guard<std::mutex> adminlock(a->unit->admin);
 	  a->unit->scale = horizscale;
@@ -620,7 +620,7 @@ namespace snde {
       double horizunitsperdiv = (RightEdge-LeftEdge)/display->horizontal_divisions;
 
       if (selected_channel) {
-	std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->chan_data);
+	std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->FullName());
 
 	{
 	  std::lock_guard<std::mutex> adminlock(a->unit->admin);
@@ -673,7 +673,12 @@ namespace snde {
       double LeftEdgeWfm,RightEdgeWfm,horizunitsperdiv;
       double BottomEdgeWfm,TopEdgeWfm,vertunitsperdiv;
 
-      if (!selected_channel || !selected_channel->chan_data || std::dynamic_pointer_cast<mutablegeomstore>(selected_channel->chan_data)) return; // none of this matters for 3D rendering
+      if (!selected_channel) return; 
+      
+      std::shared_ptr<mutableinfostore> chan_data;
+      chan_data = display->wfmdb->lookup(selected_channel->FullName());
+
+      if (!chan_data || std::dynamic_pointer_cast<mutablegeomstore>(chan_data)) return; // none of this matters for 3D rendering
 
       std::tie(LeftEdgeWfm,RightEdgeWfm,horizunitsperdiv)=GetHorizEdges();
       std::tie(BottomEdgeWfm,TopEdgeWfm,vertunitsperdiv)=GetVertEdges();
@@ -755,12 +760,10 @@ namespace snde {
       
       std::shared_ptr<display_axis> a = nullptr;
       if (selected_channel) {
-	std::shared_ptr<mutableinfostore> chan_data;
 	{
 	  std::lock_guard<std::mutex> adminlock(selected_channel->admin);
-	  chan_data=selected_channel->chan_data;
 	}
-	a = display->GetFirstAxis(chan_data);
+	a = display->GetFirstAxis(selected_channel->FullName());
 	{
 	  std::lock_guard<std::mutex> adminlock(a->unit->admin);
 	  horizunitsperdiv = a->unit->scale;
@@ -1062,7 +1065,7 @@ namespace snde {
     QTWfmRender *OSGWidget;
     std::shared_ptr<mutablewfmdb> wfmdb;
     std::shared_ptr<display_info> display;
-    std::shared_ptr<mutableinfostore> selected;
+    std::string selected; // name of selected channel
     std::shared_ptr<snde::geometry> sndegeom;
     std::shared_ptr<trm> rendering_revman;
 
@@ -1100,7 +1103,7 @@ namespace snde {
       texcache=std::make_shared<osg_texturecache>(sndegeom,rendering_revman,wfmdb,context,device,queue);
       paramcache=std::make_shared<osg_parameterizationcache>(sndegeom,context,device,queue);
       
-      geomcache = std::make_shared<osg_instancecache>(sndegeom,paramcache,context,device,queue);
+      geomcache = std::make_shared<osg_instancecache>(sndegeom,wfmdb,paramcache,context,device,queue);
       
       QFile file(":/qtwfmviewer.ui");
       file.open(QFile::ReadOnly);
@@ -1295,7 +1298,7 @@ namespace snde {
       if (ci_iter != display->channel_info.end()) {
 	auto & displaychan = ci_iter->second;
 	
-	if (displaychan->FullName==Selector->Name) {
+	if (displaychan->FullName()==Selector->Name) {
 	  //auto selector_iter = Selectors.find(displaychan->FullName);
 	  //if (selector_iter != Selectors.end() && selector_iter->second==Selector) {
 	  return displaychan;
@@ -1316,7 +1319,7 @@ namespace snde {
       //for (auto wfmiter=wfmlist->begin();wfmiter != wfmlist->end();wfmiter++) {
       //std::shared_ptr<mutableinfostore> infostore=*wfmiter;
       posmgr->set_selected(displaychan);
-      selected = displaychan->chan_data;
+      selected = displaychan->FullName();
       //}
       
       deselect_other_selectors(Selector);
@@ -1338,15 +1341,17 @@ namespace snde {
       OSGWidget->SetRootNode(DataRenderer);
     }
 
-    void update_geom_renderer(std::shared_ptr<display_channel> geomchan,std::shared_ptr<mutablegeomstore> geomstore,const std::vector<std::shared_ptr<display_channel>> &currentwfmlist)
+    void update_geom_renderer(std::shared_ptr<display_channel> geomchan,std::string wfmname /*std::shared_ptr<mutablegeomstore> geomstore*/,const std::vector<std::shared_ptr<display_channel>> &currentwfmlist)
     // Must be called inside a transaction!
     {
-      DataRenderer->clearcache(); // empty out data renderer
+      if (DataRenderer) {
+	DataRenderer->clearcache(); // empty out data renderer
+      }
       
-      if (!GeomRenderer  || (GeomRenderer && GeomRenderer->comp != geomstore)) {
+      if (!GeomRenderer  || (GeomRenderer && GeomRenderer->wfmname != wfmname)) {
 	// component mismatch: Need new GeomRenderer
 	fprintf(stderr,"New OSGComponent()\n");
-	GeomRenderer=new OSGComponent(sndegeom,geomcache,paramcache,texcache,wfmdb,rendering_revman,geomstore,display);
+	GeomRenderer=new OSGComponent(sndegeom,geomcache,paramcache,texcache,wfmdb,rendering_revman,wfmname /*geomstore*/,display);
       }
       OSGWidget->SetTwoDimensional(false);
       OSGWidget->SetRootNode(GeomRenderer);
@@ -1361,14 +1366,17 @@ namespace snde {
       std::shared_ptr<mutablegeomstore> geom;
       
       for (size_t pos=0;pos < currentwfmlist.size();pos++) {
-	if (currentwfmlist[pos]->chan_data && std::dynamic_pointer_cast<mutablegeomstore>(currentwfmlist[pos]->chan_data)) {
-	  geom=std::dynamic_pointer_cast<mutablegeomstore>(currentwfmlist[pos]->chan_data);
+	std::shared_ptr<mutableinfostore> chan_data;
+	chan_data = display->wfmdb->lookup(currentwfmlist[pos]->FullName());
+	
+	if (chan_data && std::dynamic_pointer_cast<mutablegeomstore>(chan_data)) {
+	  geom=std::dynamic_pointer_cast<mutablegeomstore>(chan_data);
 	  geomchan=currentwfmlist[pos];
 	}
       }
-
+      
       if (geom) {
-	update_geom_renderer(geomchan,geom,currentwfmlist);
+	update_geom_renderer(geomchan,geomchan->FullName(),currentwfmlist);
       } else {
 	update_data_renderer(currentwfmlist);
       }
@@ -1387,7 +1395,7 @@ namespace snde {
     
     void update_wfm_list()  
     {
-      std::vector<std::shared_ptr<display_channel>> currentwfmlist = display->update(nullptr,true,false);
+      std::vector<std::shared_ptr<display_channel>> currentwfmlist = display->update("",true,false);
 
       // clear touched flag for all selectors
       for(auto & selector: Selectors) {
@@ -1399,19 +1407,19 @@ namespace snde {
       for (auto & displaychan: currentwfmlist) {
 	std::lock_guard<std::mutex> displaychanlock(displaychan->admin);
 
-	auto selector_iter = Selectors.find(displaychan->FullName);
+	auto selector_iter = Selectors.find(displaychan->FullName());
 	if (selector_iter == Selectors.end()) {
 	  // create a new selector
-	  QTWfmSelector *NewSel = new QTWfmSelector(this,displaychan->FullName,WfmColorTable[displaychan->ColorIdx],WfmListScrollAreaContent);
+	  QTWfmSelector *NewSel = new QTWfmSelector(this,displaychan->FullName(),WfmColorTable[displaychan->ColorIdx],WfmListScrollAreaContent);
 	  WfmListScrollAreaLayout->insertWidget(pos,NewSel);
-	  Selectors[displaychan->FullName]=NewSel;
+	  Selectors[displaychan->FullName()]=NewSel;
 	  QObject::connect(NewSel->RadioButton,SIGNAL(clicked(bool)),
 			   this,SLOT(SelectorClicked(bool)));
 	  //QObject::connect(NewSel->RadioButton,SIGNAL(toggled(bool)),
 	  //this,SLOT(SelectorClicked(bool)));
 	}
       
-	QTWfmSelector *Sel = Selectors[displaychan->FullName];
+	QTWfmSelector *Sel = Selectors[displaychan->FullName()];
 	Sel->touched_during_update=true;
 	
 	if (WfmListScrollAreaLayout->indexOf(Sel) != pos) {
@@ -1481,13 +1489,9 @@ namespace snde {
 
       if (posmgr->selected_channel) {
 	std::shared_ptr<mutableinfostore> chan_data;
-	{
-	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
-	  chan_data=posmgr->selected_channel->chan_data;
-	}
-	std::shared_ptr<display_axis> a = display->GetFirstAxis(chan_data);
-	
-	
+	chan_data = wfmdb->lookup(posmgr->selected_channel->FullName());
+
+	std::shared_ptr<display_axis> a = display->GetFirstAxis(posmgr->selected_channel->FullName());	
 	std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
 
 	
@@ -1528,7 +1532,7 @@ namespace snde {
 	  }
 	  if (ndim > 0) {
 	    if (ndim==1) {
-	      a = display->GetAmplAxis(datastore);
+	      a = display->GetAmplAxis(posmgr->selected_channel->FullName());
 	      
 	      if (a) {
 		double scalefactor=0.0;
@@ -1580,7 +1584,7 @@ namespace snde {
 	      }
 	    } else {
 	      // ndim > 1
-	      a=display->GetSecondAxis(posmgr->selected_channel->chan_data);
+	      a=display->GetSecondAxis(posmgr->selected_channel->FullName());
 	      if (a) {
 		if (needjoin) {
 		  statusline += " | ";
@@ -1634,14 +1638,14 @@ namespace snde {
 	      }
 
 	      double scalefactor;
-	      std::shared_ptr<mutableinfostore> chan_data;
+	      //std::shared_ptr<mutableinfostore> chan_data;
 	      {
 		std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
-		chan_data = posmgr->selected_channel->chan_data;
+		//chan_data = posmgr->selected_channel->chan_data;
 		scalefactor=posmgr->selected_channel->Scale;
 	      }
 	      
-	      a=display->GetAmplAxis(chan_data);
+	      a=display->GetAmplAxis(posmgr->selected_channel->FullName());
 	      
 	      if (a) {
 		if (needjoin) {
@@ -1696,14 +1700,15 @@ namespace snde {
     {
       if (posmgr->selected_channel) {
 	std::shared_ptr<mutableinfostore> chan_data;
+	chan_data = wfmdb->lookup(posmgr->selected_channel->FullName());
 
-	{
-	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
-	  chan_data=posmgr->selected_channel->chan_data;
-	}
+	//{
+	//  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+	//  chan_data=posmgr->selected_channel->chan_data;
+	//}
 	if (chan_data) {
 	  
-	  std::shared_ptr<display_axis> a=display->GetAmplAxis(chan_data);
+	  std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->FullName());
 	  std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
 
 	  size_t ndim=0;
@@ -1733,14 +1738,11 @@ namespace snde {
 
 	std::shared_ptr<mutableinfostore> chan_data;
 	
-	{
-	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
-	  chan_data=posmgr->selected_channel->chan_data;
-	}
+	chan_data = wfmdb->lookup(posmgr->selected_channel->FullName());
 
 	if (chan_data) {
 	  
-	  std::shared_ptr<display_axis> a=display->GetAmplAxis(chan_data);
+	  std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->FullName());
 	  std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
 	  size_t ndim=0;
 	  if (datastore) {
@@ -1767,15 +1769,12 @@ namespace snde {
     {
       if (posmgr->selected_channel) {
 	std::shared_ptr<mutableinfostore> chan_data;
+	chan_data = wfmdb->lookup(posmgr->selected_channel->FullName());
 	
-	{
-	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
-	  chan_data=posmgr->selected_channel->chan_data;
-	}
 
 	if (chan_data) {
 	  
-	  std::shared_ptr<display_axis> a=display->GetAmplAxis(chan_data);
+	  std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->FullName());
 	  std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
 	  
 	  size_t ndim=0;
@@ -1803,10 +1802,10 @@ namespace snde {
     {
       if (posmgr->selected_channel) {
 	std::shared_ptr<mutableinfostore> chan_data;
+	chan_data = wfmdb->lookup(posmgr->selected_channel->FullName());
 	double Scale;
 	{
 	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
-	  chan_data=posmgr->selected_channel->chan_data;
 	  Scale=posmgr->selected_channel->Scale;
 	}
 	
@@ -1814,7 +1813,7 @@ namespace snde {
 	  
 	  std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
 	  
-	  std::shared_ptr<display_axis> a=display->GetAmplAxis(chan_data);
+	  std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->FullName());
 	  size_t ndim=0;
 	  if (datastore) {	    
 	    rwlock_token_set datastore_tokens=empty_rwlock_token_set();
@@ -1866,10 +1865,10 @@ namespace snde {
     {
       if (posmgr->selected_channel) {
 	std::shared_ptr<mutableinfostore> chan_data;
+	chan_data = wfmdb->lookup(posmgr->selected_channel->FullName());
 	double Scale;
 	{
 	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
-	  chan_data=posmgr->selected_channel->chan_data;
 	  Scale=posmgr->selected_channel->Scale;
 	}
 	
@@ -1877,7 +1876,7 @@ namespace snde {
 	  
 	  std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
 	  
-	  std::shared_ptr<display_axis> a=display->GetAmplAxis(chan_data);
+	  std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->FullName());
 	  size_t ndim=0;
 	  if (datastore) {	    
 	    rwlock_token_set datastore_tokens=empty_rwlock_token_set();

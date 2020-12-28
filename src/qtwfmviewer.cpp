@@ -187,7 +187,10 @@ namespace snde {
 	case Qt::Key_Down:
 	  if (event->type()==QEvent::KeyPress) {
 	    if (Viewer->posmgr->selected_channel) {
-	      std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(Viewer->posmgr->selected_channel->chan_data);
+	      std::shared_ptr<mutableinfostore> chan_data;
+	      chan_data = Viewer->wfmdb->lookup(Viewer->posmgr->selected_channel->FullName());
+
+	      std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
 	      if (datastore) {
 		if (datastore->dimlen.size() > 1) {
 		  // image data... decrease contrast instead
@@ -204,7 +207,10 @@ namespace snde {
 	  if (event->type()==QEvent::KeyPress) {
 
 	    if (Viewer->posmgr->selected_channel) {
-	      std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(Viewer->posmgr->selected_channel->chan_data);
+	      std::shared_ptr<mutableinfostore> chan_data;
+	      chan_data = Viewer->wfmdb->lookup(Viewer->posmgr->selected_channel->FullName());
+
+	      std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
 	      if (datastore) {
 		if (datastore->dimlen.size() > 1) {
 		  // image data... increase contrast instead

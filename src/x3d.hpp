@@ -1195,7 +1195,7 @@ namespace snde {
 
 
   
-  std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>> x3d_load_geometry(std::shared_ptr<geometry> geom,std::vector<std::shared_ptr<x3d_shape>> shapes,std::shared_ptr<mutablewfmdb> wfmdb,std::string context_fname,bool reindex_vertices,bool reindex_tex_vertices)
+ std::shared_ptr<std::vector<std::shared_ptr<mutableinfostore>>> x3d_load_geometry(std::shared_ptr<geometry> geom,std::vector<std::shared_ptr<x3d_shape>> shapes,std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,std::string context_fname,bool reindex_vertices,bool reindex_tex_vertices)
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
@@ -1217,8 +1217,8 @@ namespace snde {
     
   {
     
-    
-    std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>> part_obj_metadata=std::make_shared<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>>();
+    std::shared_ptr<std::vector<std::shared_ptr<mutableinfostore>>> parts_parameterizations=std::make_shared<std::vector<std::shared_ptr<mutableinfostore>>>();
+    //std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>> part_obj_metadata=std::make_shared<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>>();
 
     size_t shapecnt=0;
     for (auto & shape: shapes) {
@@ -1300,6 +1300,8 @@ namespace snde {
 	    std::string texture_path = pathjoin(stripfilepart(context_fname),*texture_fname);
 	    
 	    texture_wfm = ReadPNG(geom->manager,strippathpart(*texture_fname),strippathpart(*texture_fname),texture_path);
+	    fprintf(stderr,"x3d: adding uv_parameterization metadata\n");
+
 	    texture_wfm->metadata.AddMetaDatum(metadatum("uv_parameterization","intrinsic"));
 	    wfmdb->addinfostore(texture_wfm);
 	  }
@@ -1310,8 +1312,9 @@ namespace snde {
       Eigen::Matrix<double,3,3> TexCoordsToParameterizationCoords=Eigen::Matrix<double,3,3>::Identity();
       
       if (texture_wfm and texture_wfm->dimlen.size() >= 2) {
-	// uv_parameterization_channels should be comma-separated list
-	metadata.emplace(std::make_pair<std::string,metadatum>("uv_parameterization_channels",metadatum("uv_parameterization_channels",texture_wfm->fullname)));
+	// uv_imagedata_channels should be comma-separated list
+	fprintf(stderr,"x3d: adding uv_imagedata_channels metadata\n");
+	metadata.emplace(std::make_pair<std::string,metadatum>("uv_imagedata_channels",metadatum("uv_imagedata_channels",texture_wfm->fullname)));
 
 	// Use pixel size in given texture_wfm to get scaling for texture coordinates.
 	
@@ -1893,13 +1896,17 @@ namespace snde {
       /* create part object and add to the vector we will return, now that 
 	 data structures are complete*/
       /* !!!*** Should have real algorithm for determining name, not just use "x3d" ***!!! */
+      std::shared_ptr<part> curpart=std::make_shared<part>(geom,firstpart);
+
       std::string partname = std::string("x3d")+std::to_string(shapecnt);
-      std::shared_ptr<part> curpart=std::make_shared<part>(geom,partname,firstpart);
+      std::string fullname = wfmdb_path_join(wfmdb_context,partname);
+      std::shared_ptr<mutablegeomstore> curinfostore = std::make_shared<mutablegeomstore>(partname,fullname,metadata,geom,curpart);
+      parts_parameterizations->emplace_back(curinfostore);
       
       //curpart->need_normals=!(bool)normal;
-      part_obj_metadata->push_back(std::make_pair(curpart,metadata));
+      //part_obj_metadata->push_back(std::make_pair(curpart,metadata));
       
-      metadata.clear(); // =nullptr;
+      //metadata.clear(); // =nullptr;
       
       // Mark that we have made changes to parts and triangles
       geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.parts,firstpart,1);
@@ -2347,11 +2354,15 @@ namespace snde {
 
 
 	
-	uvparam=std::make_shared<parameterization>(geom,"intrinsic",firstuv,1);  // currently only implement numuvimages==1
+	uvparam=std::make_shared<parameterization>(geom,firstuv,1);  // currently only implement numuvimages==1
 	/* add this parameterization to our part */
 	
-	curpart->addparameterization(uvparam);
+	std::shared_ptr<mutableparameterizationstore> curparamstore = curpart->addparameterization(wfmdb,wfmdb_context,uvparam,"intrinsic",wfmmetadata());
+	wfmdb->addinfostore(curinfostore); // add the (now pretty well complete) part to the waveform database
 
+	parts_parameterizations->emplace_back(curparamstore);
+
+	
 	// Mark that we have modified mesheduv and uv_triangles with the CPU
 	geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.uvs,firstuv,1);
 	geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.uv_triangles,firstuvtri,numtris);
@@ -2397,11 +2408,11 @@ namespace snde {
        imagetexture URL. The snde_image structure will be allocated but blank 
        (imgbufoffset==SNDE_INDEX_INVALID). No image buffer space is allocated */
     
-    return part_obj_metadata;
+    return parts_parameterizations;
   }
 
 
-  std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>> x3d_load_geometry(std::shared_ptr<geometry> geom,std::string filename,std::shared_ptr<mutablewfmdb> wfmdb,bool reindex_vertices,bool reindex_tex_vertices)
+  std::shared_ptr<std::vector<std::shared_ptr<mutableinfostore>>> x3d_load_geometry(std::shared_ptr<geometry> geom,std::string filename,std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,bool reindex_vertices,bool reindex_tex_vertices)
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
@@ -2413,7 +2424,7 @@ namespace snde {
   {
     std::vector<std::shared_ptr<x3d_shape>> shapes=x3d_loader::shapes_from_file(filename.c_str());
     
-    return x3d_load_geometry(geom,shapes,wfmdb,filename,reindex_vertices,reindex_tex_vertices);
+    return x3d_load_geometry(geom,shapes,wfmdb,wfmdb_context,filename,reindex_vertices,reindex_tex_vertices);
     
   }
 

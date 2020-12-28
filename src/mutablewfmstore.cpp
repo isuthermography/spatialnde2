@@ -6,7 +6,7 @@ namespace snde {
   {
     size_t index;
     std::shared_ptr<iterablewfmrefs> thisrefs=refs; 
-    std::string full_name="";
+    std::string full_name="/";
     
     for (index=0; index < pos.size();index++) {
       std::shared_ptr<mutableinfostore> sub_infostore;

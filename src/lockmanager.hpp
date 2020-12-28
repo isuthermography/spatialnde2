@@ -21,8 +21,30 @@
 #include "rangetracker.hpp"
 
 /* general locking api information:
+ * High level locking order:  (THESE UPDATES NOT YET IMPLEMENTED; SEE class lockingposition)!!!
+ 1 TRM transaction_update_lock -- not managed by lockmanager
 
- * Locking can be done at various levels of granularity:  All arrays
+Used to have object_trees lock. Problem is that with objects both part of a tree and in the wfmdb
+this has to include wfmdb entries. 
+Solution: atomic lists that can be traversed, sort the results, lock, then verify and retry if needed
+
+ 2 Waveforms/Geometric component tree C++ structures (ordered by shared_ptr std::owner_less)
+    ... AND PARAMETERIZATIONS AND UV's
+    * Parameterizations are named by the metadata entry "uv_parameterization"
+    * UV projection data are named by the comma-separated metadata entry uv_parameterization_channel
+    * Challenge: If you add or modify a waveform/geom. component, must provide locks and references to
+      everything that component references in the tree, directly or indirectly, and pass those
+      to the wfmdb when you update it. 
+      **** THESE ARE LOCKED BY A PROCESS WHEREBY WE EXPLORE THE GRAPH USING ATOMIC ACCESSES (_explore_component) 
+           (Must be prior to any lockprocess spawn()s as the unlocking process is incompatible with spawn() )
+	   Then create an ordered list and lock, then re-explore, and retry locking if the ordered list has changed.
+ 3 Data arrays
+   * Ordered by position in geometry data structure relative to others in that structure
+   *** THESE ARE LOCKED Following the Locking order via spawn() if necessary 
+ 4 TRM dependency_table_lock -- not managed by lockmanager
+
+
+ * Data array locking can be done at various levels of granularity:  All arrays
 (get_locks_..._all()), multiple arrays (get_locks_..._arrays()), individual arrays (get_locks_..._array()),
 individual regions of individual arrays (get_locks_..._array_region),
 or multiple regions of multiple arrays (get_locks_..._arrays_region).
@@ -76,11 +98,99 @@ namespace snde {
   //typedef voidp_size_map::iterator voidp_size_map_iterator;
   
   class arraymanager; // forward declaration
-  class mutableinfostore; // forward declaration
+  //class mutableinfostore; // forward declaration
   class mutablewfmdb;
   class geometry;
-  class component; // forward declaration
-  class parameterization; // forward declaration
+  class lockable_infostore_or_component; // forward declaration
+  //class component; // forward declaration
+  //class parameterization; // forward declaration
+  class lockingposition;
+
+
+
+
+/* *** Must keep sync'd with lockmanager.i */
+
+  /* *** Lock masks for obtain_lock() calls on mutableinfostore,
+     part/assembly/component, and parameterization *** */
+  
+typedef uint64_t snde_infostore_lock_mask_t;
+#define SNDE_INFOSTORE_INFOSTORES (1ull<<0) // the snde::mutableinfostore and metadata ... used solely with get_locks_lockable_mask(...)
+  //#define SNDE_INFOSTORE_OBJECT_TREES (1ull<<1)
+#define SNDE_INFOSTORE_COMPONENTS (1ull<<1) // the snde::components, i.e. parts and assemblies... used solely with get_locks_lockable_mask(...) 
+#define SNDE_INFOSTORE_PARAMETERIZATIONS (1ull<<2) // the snde::parameterizations of the components... used solely with get_locks_lockable_mask(...) 
+
+#define SNDE_INFOSTORE_ALL ((1ull<<3)-(1ull<<0))
+  
+// 
+#define SNDE_COMPONENT_GEOM_PARTS (1ull<<8)
+#define SNDE_COMPONENT_GEOM_TOPOS (1ull<<9)
+#define SNDE_COMPONENT_GEOM_TOPO_INDICES (1ull<<10)
+#define SNDE_COMPONENT_GEOM_TRIS (1ull<<11)
+#define SNDE_COMPONENT_GEOM_REFPOINTS (1ull<<12)
+#define SNDE_COMPONENT_GEOM_MAXRADIUS (1ull<<13)
+#define SNDE_COMPONENT_GEOM_VERTNORMALS (1ull<<14)
+#define SNDE_COMPONENT_GEOM_TRINORMALS (1ull<<15)
+#define SNDE_COMPONENT_GEOM_INPLANEMATS (1ull<<16)
+#define SNDE_COMPONENT_GEOM_EDGES (1ull<<17)
+#define SNDE_COMPONENT_GEOM_VERTICES (1ull<<18)
+#define SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES (1ull<<19)
+#define SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES (1ull<<20)
+#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES (1ull<<21)
+#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST (1ull<<22)
+#define SNDE_COMPONENT_GEOM_BOXES (1ull<<23)
+#define SNDE_COMPONENT_GEOM_BOXCOORD (1ull<<24)
+#define SNDE_COMPONENT_GEOM_BOXPOLYS (1ull<<25)
+
+#define SNDE_COMPONENT_GEOM_ALL ((1ull<<26)-(1ull<<8))
+
+// Resizing masks -- mark those arrays that resize together
+//#define SNDE_COMPONENT_GEOM_COMPONENT_RESIZE (SNDE_COMPONENT_GEOM_COMPONENT)
+#define SNDE_COMPONENT_GEOM_PARTS_RESIZE (SNDE_COMPONENT_GEOM_PARTS)
+#define SNDE_COMPONENT_GEOM_TOPOS_RESIZE (SNDE_COMPONENT_GEOM_TOPOS)
+#define SNDE_COMPONENT_GEOM_TOPO_INDICES_RESIZE (SNDE_COMPONENT_GEOM_TOPO_INDICES)
+#define SNDE_COMPONENT_GEOM_TRIS_RESIZE (SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_REFPOINTS|SNDE_COMPONENT_GEOM_MAXRADIUS|SNDE_COMPONENT_GEOM_VERTNORMALS|SNDE_COMPONENT_GEOM_TRINORMALS|SNDE_COMPONENT_GEOM_INPLANEMATS)
+#define SNDE_COMPONENT_GEOM_EDGES_RESIZE (SNDE_COMPONENT_GEOM_EDGES)
+#define SNDE_COMPONENT_GEOM_VERTICES_RESIZE (SNDE_COMPONENT_GEOM_VERTICES|SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES|SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES|SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES)
+#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_RESIZE (SNDE_COMPONENT_GEOM_VERTEX_EDGELIST)
+#define SNDE_COMPONENT_GEOM_BOXES_RESIZE (SNDE_COMPONENT_GEOM_BOXES|SNDE_COMPONENT_GEOM_BOXCOORD)
+#define SNDE_COMPONENT_GEOM_BOXPOLYS_RESIZE (SNDE_COMPONENT_GEOM_BOXPOLYS)
+
+
+#define SNDE_UV_GEOM_UVS (1ull<<32)
+#define SNDE_UV_GEOM_UV_PATCHES (1ull<<33)
+#define SNDE_UV_GEOM_UV_TOPOS (1ull<<34)
+#define SNDE_UV_GEOM_UV_TOPO_INDICES (1ull<<35)
+#define SNDE_UV_GEOM_UV_TRIANGLES (1ull<<36)
+#define SNDE_UV_GEOM_INPLANE2UVCOORDS (1ull<<37)
+#define SNDE_UV_GEOM_UVCOORDS2INPLANE (1ull<<38)
+#define SNDE_UV_GEOM_UV_EDGES (1ull<<39)
+#define SNDE_UV_GEOM_UV_VERTICES (1ull<<40)
+#define SNDE_UV_GEOM_UV_VERTEX_EDGELIST_INDICES (1ull<<41)
+#define SNDE_UV_GEOM_UV_VERTEX_EDGELIST (1ull<<42)
+#define SNDE_UV_GEOM_UV_BOXES (1ull<<43)
+#define SNDE_UV_GEOM_UV_BOXCOORD (1ull<<44)
+#define SNDE_UV_GEOM_UV_BOXPOLYS (1ull<<45)
+  //#define SNDE_UV_GEOM_UV_IMAGES (1ull<<13)
+
+#define SNDE_UV_GEOM_ALL ((1ull<<46)-(1ull<<32))
+
+// Resizing masks -- mark those arrays that resize together
+#define SNDE_UV_GEOM_UVS_RESIZE (SNDE_UV_GEOM_UVS)
+#define SNDE_UV_GEOM_UV_PATCHES_RESIZE (SNDE_UV_GEOM_UV_PATCHES)
+#define SNDE_UV_GEOM_UV_TOPOS_RESIZE (SNDE_UV_GEOM_UV_TOPOS)
+#define SNDE_UV_GEOM_UV_TOPO_INDICES_RESIZE (SNDE_UV_GEOM_UV_TOPO_INDICES)
+#define SNDE_UV_GEOM_UV_TRIANGLES_RESIZE (SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_INPLANE2UVCOORDS|SNDE_UV_GEOM_UVCOORDS2INPLANE)
+#define SNDE_UV_GEOM_UV_EDGES_RESIZE (SNDE_UV_GEOM_UV_EDGES)
+#define SNDE_UV_GEOM_UV_VERTICES_RESIZE (SNDE_UV_GEOM_UV_VERTICES|SNDE_UV_GEOM_UV_VERTEX_EDGELIST_INDICES)
+#define SNDE_UV_GEOM_UV_VERTEX_EDGELIST_RESIZE (SNDE_UV_GEOM_UV_VERTEX_EDGELIST)
+#define SNDE_UV_GEOM_UV_BOXES_RESIZE (SNDE_UV_GEOM_UV_BOXES|SNDE_UV_GEOM_UV_BOXCOORD)
+#define SNDE_UV_GEOM_UV_BOXPOLYS_RESIZE (SNDE_UV_GEOM_UV_BOXPOLYS)
+  
+  
+
+
+  
   
   struct arrayregion {
     void **array;
@@ -198,7 +308,7 @@ namespace snde {
        are implicitly locked by locking the primary
        array for that allocator
 
-       The locking order is determined by the reverse of the (order of the
+       The locking order is determined by the order of the
        calls to addarray() which should generally match
        the order of the arrays in your structure that holds them).
 
@@ -224,7 +334,7 @@ namespace snde {
        when doing this (or already hold the locks, if you just
        want another lock token for a particular array or region)
        The locking order convention for regions is that later regions
-       must be locked prior to earlier regions.
+       must be locked after  earlier regions.
        (Please note that the current version does not actually implement
        region-level granularity)
 
@@ -318,7 +428,7 @@ namespace snde {
 
 
     /* Thoughts:
-       The default lock order is last to first, because later defined
+       The default lock order is first to lass, because earlier defined
        structures (e.g. parts) will generally be higher level...
        so as you traverse, you can lock the part database, figure out
        which vertices, lock those, and perhaps narrow or release your
@@ -1300,15 +1410,16 @@ namespace snde {
     }
 
   
-    virtual rwlock_token_set lock_infostores(rwlock_token_set all_locks,std::shared_ptr<mutablewfmdb> wfmdb,std::set<std::string> channels_to_lock,bool write); // code in lockmanager.cpp   
+    //virtual rwlock_token_set lock_infostores(rwlock_token_set all_locks,std::shared_ptr<mutablewfmdb> wfmdb,std::set<std::string> channels_to_lock,bool write); // moved to mutablewfmstore.hpp
     
   };
 
+  
   class lockingprocess_thread {
   public:
     virtual ~lockingprocess_thread() {};
   };
-  
+
 
   class lockingprocess {
       /* lockingprocess is a tool for performing multiple locking
@@ -1322,30 +1433,40 @@ namespace snde {
     //lockingprocess(const lockingprocess &)=delete; /* copy constructor disabled */
     //lockingprocess& operator=(const lockingprocess &)=delete; /* copy assignment disabled */
 
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_lockable(std::shared_ptr<mutableinfostore> infostore)=0;
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_lockable(std::shared_ptr<geometry> geom)=0;
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_lockable(std::shared_ptr<component> comp)=0;
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_lockable(std::shared_ptr<parameterization> param)=0;
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_lockable(std::shared_ptr<mutableinfostore> infostore)=0;
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_lockable(std::shared_ptr<geometry> geom)=0;
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_lockable(std::shared_ptr<component> comp)=0;
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_lockable(std::shared_ptr<parameterization> param)=0;
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_lockable(std::shared_ptr<lockable_infostore_or_component> lic)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_array(void **array)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems)=0;
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_lockable(std::shared_ptr<mutableinfostore> infostore)=0;
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_lockable(std::shared_ptr<geometry> geom)=0;
-    virtual rwlock_token_set get_locks_read_lockable_temporary(std::shared_ptr<geometry> geom)=0;
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_lockable(std::shared_ptr<component> comp)=0;
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_lockable(std::shared_ptr<parameterization> param)=0;
+    virtual rwlock_token_set begin_temporary_locking(lockingposition startpos)=0; /* WARNING: Temporary locking only supported prior to all spawns!!! */
+    virtual rwlock_token_set get_locks_read_lockable_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic)=0;
+    virtual rwlock_token_set get_locks_write_lockable_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic)=0;
+    virtual rwlock_token_set get_locks_lockable_mask_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
+    virtual void abort_temporary_locking(rwlock_token_set temporary_lock_pool)=0; /* WARNING: Temporary locking only supported prior to all spawns!!! */
+    virtual rwlock_token_set finish_temporary_locking(lockingposition endpos,rwlock_token_set locks)=0; /* WARNING: Temporary locking only supported prior to all spawns!!! */
+
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_lockable(std::shared_ptr<mutableinfostore> infostore)=0;
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_lockable(std::shared_ptr<geometry> geom)=0;
+    //virtual rwlock_token_set get_locks_read_lockable_temporary(std::shared_ptr<geometry> geom)=0;
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_lockable(std::shared_ptr<component> comp)=0;
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_lockable(std::shared_ptr<parameterization> param)=0;
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_lockable(std::shared_ptr<lockable_infostore_or_component> lic)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array(void **array)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array_region(void **array,bool write,snde_index indexstart,snde_index numelems)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array(void **array,bool write)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array_mask(void **array,uint64_t maskentry,uint64_t resizemaskentry,uint64_t readmask,uint64_t writemask,uint64_t resizemask,snde_index indexstart,snde_index numelems)=0;
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<mutableinfostore> infostore,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<geometry> geom,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<component> comp,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<parameterization> param,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
-
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<mutableinfostore> infostore,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<geometry> geom,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<component> comp,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<parameterization> param,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<lockable_infostore_or_component> lic,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
+    
     virtual std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> alloc_array_region(std::shared_ptr<arraymanager> manager,void **allocatedptr,snde_index nelem,std::string allocid)=0;
     virtual std::shared_ptr<lockingprocess_thread> spawn(std::function<void(void)> f)=0;
-    virtual rwlock_token_set lock_infostores(std::shared_ptr<mutablewfmdb> wfmdb,std::set<std::string> channels_to_lock,bool write)=0;
+    //virtual rwlock_token_set lock_infostores(std::shared_ptr<mutablewfmdb> wfmdb,std::set<std::string> channels_to_lock,bool write)=0; // moved to mutablewfmstore.hpp
 
     virtual ~lockingprocess()=0;
 
@@ -1386,21 +1507,21 @@ namespace snde {
 
 
 
-    class lockingposition {
-    public:
+  class lockingposition {
+  public:
       // !!!*** For the moment this assumes all infostores
       // are in the same
 
       // only one of infostore, comp, param, and array_idx may be valid.
-      // locking order goes: all infostores (ordered by weak_ptr owner)
-      // // all components (ordered by weak_ptr owner
-      // all parameterizations (ordered by weak_ptr owner
+      // locking order goes: lic, including all infostores or components, ordered by std::owner_less on their weak pointers
       // all arrays (with sub-ordering of array segments
       bool initial_position; // if true this is the blank initial position in the locking order
-      std::weak_ptr<mutableinfostore> infostore;
-      std::weak_ptr<geometry> geom;
-      std::weak_ptr<component> comp;
-      std::weak_ptr<parameterization> param;
+      bool between_infostores_and_arrays; // if true this is the blank position between infostores and arrays
+    //std::weak_ptr<mutableinfostore> infostore;
+    //std::weak_ptr<geometry> geom;
+    //std::weak_ptr<component> comp;
+    //std::weak_ptr<parameterization> param;
+      std::weak_ptr<lockable_infostore_or_component> lic;
       lockindex_t array_idx; // -1 if invalid
       
       snde_index idx_in_array; /* index within array, or SNDE_INDEX_INVALID*/
@@ -1410,24 +1531,40 @@ namespace snde {
       lockingposition() :
 	// blank lockingposition counts as before everything else
 	initial_position(true),
+	between_infostores_and_arrays(false),
 	array_idx(-1),
 	idx_in_array(SNDE_INDEX_INVALID),
 	write(false)
       {
 	
       }
-      
-      
-      lockingposition(lockindex_t array_idx,snde_index idx_in_array,bool write) :
+
+    static lockingposition lockingposition_before_lic() 
+	// since lic's are first in the order currently, we just return a blank lockingposition
+    {
+      return lockingposition();
+    }
+
+    static lockingposition lockingposition_before_arrays() 
+    {
+      lockingposition pos = lockingposition();
+      pos.between_infostores_and_arrays=true;
+      return pos;
+    }
+
+    
+    
+    lockingposition(lockindex_t array_idx,snde_index idx_in_array,bool write) :
 	initial_position(false),
+	between_infostores_and_arrays(false),
 	array_idx(array_idx),
 	idx_in_array(idx_in_array),
 	write(write)
       {
 	
       }
-
-      lockingposition(std::weak_ptr<mutableinfostore> infostore,bool write) :
+    
+    /* lockingposition(std::weak_ptr<mutableinfostore> infostore,bool write) :
 	initial_position(false),
 	infostore(infostore),
 	array_idx(-1),
@@ -1441,7 +1578,8 @@ namespace snde {
 	assert(infostore.owner_before(invalid_infostore) || invalid_infostore.owner_before(infostore)); // we should compare not-equal to the invalid_infostore
 	
       }
-
+    */
+    /*
       lockingposition(std::weak_ptr<geometry> geom,bool write) :
 	initial_position(false),
 	geom(geom),
@@ -1451,13 +1589,14 @@ namespace snde {
 
       {
 
-	std::weak_ptr<geometry> invalid_geom;
+	//std::weak_ptr<geometry> invalid_geom;
 
 	assert(geom.owner_before(invalid_geom) || invalid_geom.owner_before(geom)); // we should compare not-equal to the invalid_geom
 	
       }
+    */
 
-      lockingposition(std::weak_ptr<component> comp,bool write) :
+    /* lockingposition(std::weak_ptr<component> comp,bool write) :
 	initial_position(false),
 	comp(comp),
 	array_idx(-1),
@@ -1471,8 +1610,8 @@ namespace snde {
 	
 	
       }
-
-
+    */
+    /*
       lockingposition(std::weak_ptr<parameterization> param,bool write) :
 	initial_position(false),
 	param(param),
@@ -1487,6 +1626,24 @@ namespace snde {
 	
 
       }
+    */
+
+    lockingposition(std::weak_ptr<lockable_infostore_or_component> lic,bool write) :
+	initial_position(false),
+	between_infostores_and_arrays(false),
+	lic(lic),
+	array_idx(-1),
+	idx_in_array(SNDE_INDEX_INVALID),
+	write(write)
+
+      {
+
+	std::weak_ptr<lockable_infostore_or_component> invalid_lic;
+
+	assert(lic.owner_before(invalid_lic) || invalid_lic.owner_before(lic)); // we should compare not-equal to the invalid_infostore
+	
+      }
+    
 
       bool operator<(const lockingposition & other) const {
 	// handle initial position case
@@ -1504,6 +1661,7 @@ namespace snde {
 
 	// from this point on, neither we nor other are in the initial position
 	
+	/*
 	{
 	  bool our_infostore_valid=false;
 	  bool other_infostore_valid=false;
@@ -1530,9 +1688,10 @@ namespace snde {
 	    return infostore.owner_before(other.infostore);
 	  }
 	}
-	
+	*/
 	// neither infostore is set... fall back to comparing geom
-	{
+	/*
+	  {
 	  bool our_geom_valid=false;
 	  bool other_geom_valid=false;
 	  std::weak_ptr<geometry> invalid_geom;
@@ -1558,7 +1717,8 @@ namespace snde {
 	    return geom.owner_before(other.geom);
 	  }
 	}
-
+	*/
+	/*
 	// neither geom is set... fall back to comparing component
 	{
 	  bool our_comp_valid=false;
@@ -1586,8 +1746,9 @@ namespace snde {
 	    return comp.owner_before(other.comp);
 	  }
 	}
+	*/
 	// neither component is set... fall back to comparing parameterization
-
+	/*
 	{
 	  bool our_param_valid=false;
 	  bool other_param_valid=false;
@@ -1614,8 +1775,52 @@ namespace snde {
 	    return param.owner_before(other.param);
 	  }
 	}
+	*/
+	// neither parameterization is set... fall back to comparing lockable_infostore_or_component
 
-	// neither parameterization is set... fall back to comparing arrays
+	{
+	  bool our_lic_valid=false;
+	  bool other_lic_valid=false;
+	  std::weak_ptr<lockable_infostore_or_component> invalid_lic;
+	  
+	  if (lic.owner_before(invalid_lic) || invalid_lic.owner_before(lic)) {
+	    // compares not equal to invalid_infostore... must be valid!
+	    our_lic_valid=true;
+	  }
+	  
+	  if (other.lic.owner_before(invalid_lic) || invalid_lic.owner_before(other.lic)) {
+	    // compares not equal to invalid_infostore... must be valid!
+	    other_lic_valid=true;
+	  }
+	  
+	  if (our_lic_valid && !other_lic_valid) {
+	    return true; 
+	  }
+	  if (!our_lic_valid && other_lic_valid) {
+	    return false; 
+	  }
+	  
+	  if (our_lic_valid && other_lic_valid) {
+	    return lic.owner_before(other.lic);
+	  }
+	}
+	// neither lockable_infostore_or_component is set... fall back to comparing arrays
+
+	// handle between_infostores_and_arrays case
+	{
+	  if (between_infostores_and_arrays && !other.between_infostores_and_arrays) {
+	    return true; 
+	  }
+	  if (between_infostores_and_arrays && other.between_infostores_and_arrays) {
+	    return false;
+	  }
+	  if (other.between_infostores_and_arrays && !between_infostores_and_arrays) {
+	    return false; 
+	  }
+	}
+
+
+	
 	
 	assert(array_idx >= 0);
 	assert(other.array_idx >= 0);
@@ -1634,6 +1839,8 @@ namespace snde {
         return false;
       }
     };
+
+
 
 
 
@@ -1725,24 +1932,34 @@ namespace snde {
     
     virtual void postunlock(void *prelockstate);
 
-    virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_lockable(std::shared_ptr<mutableinfostore> infostore);
-    virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_lockable(std::shared_ptr<geometry> geom);
+    //virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_lockable(std::shared_ptr<mutableinfostore> infostore);
+    //virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_lockable(std::shared_ptr<geometry> geom);
 
-    virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_lockable(std::shared_ptr<component> comp);
+    //virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_lockable(std::shared_ptr<component> comp);
 
-    virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_lockable(std::shared_ptr<parameterization> param);
+    //virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_lockable(std::shared_ptr<parameterization> param);
+    virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_lockable(std::shared_ptr<lockable_infostore_or_component> lic);
 
 
     virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_array(void **array);
 
     virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems);
 
+    virtual rwlock_token_set begin_temporary_locking(lockingposition startpos); /* WARNING: Temporary locking only supported prior to all spawns!!! */
+    virtual rwlock_token_set get_locks_read_lockable_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic);
+    virtual rwlock_token_set get_locks_write_lockable_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic);
+    virtual rwlock_token_set get_locks_lockable_mask_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
+    virtual void abort_temporary_locking(rwlock_token_set temporary_lock_pool); /* WARNING: Temporary locking only supported prior to all spawns!!! */
+    virtual rwlock_token_set finish_temporary_locking(lockingposition endpos,rwlock_token_set locks); /* WARNING: Temporary locking only supported prior to all spawns!!! */
 
-    virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_read_lockable(std::shared_ptr<mutableinfostore> infostore);
-    virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_read_lockable(std::shared_ptr<geometry> geom);
-    virtual rwlock_token_set get_locks_read_lockable_temporary(std::shared_ptr<geometry> geom);
-    virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_read_lockable(std::shared_ptr<component> comp);
-    virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_read_lockable(std::shared_ptr<parameterization> param);
+
+    //virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_read_lockable(std::shared_ptr<mutableinfostore> infostore);
+    //virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_read_lockable(std::shared_ptr<geometry> geom);
+    //virtual rwlock_token_set get_locks_read_lockable_temporary(std::shared_ptr<geometry> geom);
+    //virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_read_lockable(std::shared_ptr<component> comp);
+    //virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_read_lockable(std::shared_ptr<parameterization> param);
+    virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_read_lockable(std::shared_ptr<lockable_infostore_or_component> lic);
+
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array(void **array);
 
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems);
@@ -1751,16 +1968,17 @@ namespace snde {
 
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array(void **array,bool write);
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array_mask(void **array,uint64_t maskentry,uint64_t resizemaskentry,uint64_t readmask,uint64_t writemask,uint64_t resizemask,snde_index indexstart,snde_index numelems);
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<mutableinfostore> infostore,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<geometry> geom,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<component> comp,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
-    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<parameterization> param,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<mutableinfostore> infostore,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<geometry> geom,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<component> comp,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
+    //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<parameterization> param,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
+    virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<lockable_infostore_or_component> lic,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
 
     virtual std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> alloc_array_region(std::shared_ptr<arraymanager> manager,void **allocatedptr,snde_index nelem,std::string allocid);
 
     virtual std::shared_ptr<lockingprocess_thread> spawn(std::function<void(void)> f);
       
-    virtual rwlock_token_set lock_infostores(std::shared_ptr<mutablewfmdb> wfmdb,std::set<std::string> channels_to_lock,bool write);
+    //virtual rwlock_token_set lock_infostores(std::shared_ptr<mutablewfmdb> wfmdb,std::set<std::string> channels_to_lock,bool write); // moved to mutablewfmstore.hpp
 
     virtual rwlock_token_set finish();
     virtual ~lockingprocess_threaded();
@@ -1770,7 +1988,7 @@ namespace snde {
 
 #endif
 
-}
+  }
 
 
 
@@ -1782,38 +2000,53 @@ namespace snde {
 
     // Not permitted to actually use infostore, comp, or param
     // pointers, as they may have expired. 
-    mutableinfostore *infostore;
-    geometry *geom;
-    component *comp;
-    parameterization *param;
+    //mutableinfostore *infostore;
+    //geometry *geom;
+    //component *comp;
+    //parameterization *param;
+    lockable_infostore_or_component *lic;
     void **array;
     bool write;
     snde_index startidx;
     snde_index numelem;
 
     lockholder_index() :
-      infostore(nullptr), geom(nullptr), comp(nullptr), param(nullptr),array(nullptr), write(false), startidx(SNDE_INDEX_INVALID), numelem(SNDE_INDEX_INVALID)
+      //infostore(nullptr),
+      //geom(nullptr),
+      //comp(nullptr),
+      //param(nullptr),
+      lic(nullptr),
+      array(nullptr), write(false), startidx(SNDE_INDEX_INVALID), numelem(SNDE_INDEX_INVALID)
     {
 
     }
     
     lockholder_index(void **_array,bool _write, snde_index _startidx,snde_index _numelem) :
-      infostore(nullptr), geom(nullptr), comp(nullptr), param(nullptr), array(_array), write(_write), startidx(_startidx), numelem(_numelem)
+      //infostore(nullptr),
+      //geom(nullptr),
+      //comp(nullptr), //
+      //param(nullptr),
+      lic(nullptr),
+      array(_array), write(_write), startidx(_startidx), numelem(_numelem)
     {
 
     }
     
+    /*
     lockholder_index(mutableinfostore *_infostore,bool _write) :
       infostore(_infostore), geom(nullptr), comp(nullptr), param(nullptr), array(nullptr), write(_write), startidx(0), numelem(SNDE_INDEX_INVALID)
     {
 
     }
-    lockholder_index(geometry *_geom,bool _write) :
+    */
+    /*
+      lockholder_index(geometry *_geom,bool _write) :
       infostore(nullptr), geom(_geom), comp(nullptr), param(nullptr), array(nullptr), write(_write), startidx(0), numelem(SNDE_INDEX_INVALID)
     {
 
     }
-
+    */
+    /*
     lockholder_index(component *comp,bool _write) :
       infostore(nullptr), geom(nullptr), comp(comp), param(nullptr), array(nullptr), write(_write), startidx(0), numelem(SNDE_INDEX_INVALID)
     {
@@ -1825,11 +2058,21 @@ namespace snde {
     {
 
     }
+    */
+    
+    lockholder_index(lockable_infostore_or_component *_lic,bool _write) :
+      //infostore(_infostore),
+      //geom(nullptr),
+      //comp(nullptr), param(nullptr),
+      lic(nullptr), array(nullptr), write(_write), startidx(0), numelem(SNDE_INDEX_INVALID)
+    {
 
+    }
+    
     // equality operator for std::unordered_map
     bool operator==(const lockholder_index b) const
     {
-      return b.infostore==infostore && b.geom==geom && b.comp==comp && b.param==param && b.array==array && b.write==write && b.startidx==startidx && b.numelem==numelem;
+      return /*b.infostore==infostore && */ /* b.geom==geom && */ /* b.comp==comp && b.param==param && */ b.lic==lic && b.array==array && b.write==write && b.startidx==startidx && b.numelem==numelem;
     }
   };
 
@@ -1838,7 +2081,7 @@ namespace snde {
   struct lockholder_index_hash {
     size_t operator()(const lockholder_index &x) const
     {
-      return std::hash<void *>{}((void *)x.infostore)+std::hash<void *>{}((void *)x.geom)+std::hash<void *>{}((void *)x.comp)+std::hash<void *>{}((void *)x.param)+std::hash<void *>{}((void *)x.array) + std::hash<bool>{}(x.write) + std::hash<snde_index>{}(x.startidx) + std::hash<snde_index>{}(x.numelem);
+      return /*std::hash<void *>{}((void *)x.infostore)+std::hash<void *>{}((void *)x.geom)+std::hash<void *>{}((void *)x.comp)+std::hash<void *>{}((void *)x.param)*/ std::hash<void *>{}((void *)x.lic)+std::hash<void *>{}((void *)x.array) + std::hash<bool>{}(x.write) + std::hash<snde_index>{}(x.startidx) + std::hash<snde_index>{}(x.numelem);
     }
   };
   
@@ -2006,87 +2249,6 @@ namespace snde {
     //}
 
   };
-  
-
-
-/* *** Must keep sync'd with lockmanager.i */
-
-  /* *** Lock masks for obtain_lock() calls on mutableinfostore,
-     part/assembly/component, and parameterization *** */
-  
-typedef uint64_t snde_infostore_lock_mask_t;
-#define SNDE_INFOSTORE_INFOSTORE (1ull<<0) // the snde::mutableinfostore and metadata ... used solely with get_locks_lockable_mask(...)
-#define SNDE_INFOSTORE_OBJECT_TREES (1ull<<1)
-#define SNDE_INFOSTORE_COMPONENTS (1ull<<2) // the snde::components, i.e. parts and assemblies... used solely with get_locks_lockable_mask(...) 
-#define SNDE_INFOSTORE_PARAMETERIZATIONS (1ull<<3) // the snde::parameterizations of the components... used solely with get_locks_lockable_mask(...) 
-
-#define SNDE_INFOSTORE_ALL ((1ull<<4)-(1ull<<0))
-  
-// 
-#define SNDE_COMPONENT_GEOM_PARTS (1ull<<8)
-#define SNDE_COMPONENT_GEOM_TOPOS (1ull<<9)
-#define SNDE_COMPONENT_GEOM_TOPO_INDICES (1ull<<10)
-#define SNDE_COMPONENT_GEOM_TRIS (1ull<<11)
-#define SNDE_COMPONENT_GEOM_REFPOINTS (1ull<<12)
-#define SNDE_COMPONENT_GEOM_MAXRADIUS (1ull<<13)
-#define SNDE_COMPONENT_GEOM_VERTNORMALS (1ull<<14)
-#define SNDE_COMPONENT_GEOM_TRINORMALS (1ull<<15)
-#define SNDE_COMPONENT_GEOM_INPLANEMATS (1ull<<16)
-#define SNDE_COMPONENT_GEOM_EDGES (1ull<<17)
-#define SNDE_COMPONENT_GEOM_VERTICES (1ull<<18)
-#define SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES (1ull<<19)
-#define SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES (1ull<<20)
-#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES (1ull<<21)
-#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST (1ull<<22)
-#define SNDE_COMPONENT_GEOM_BOXES (1ull<<23)
-#define SNDE_COMPONENT_GEOM_BOXCOORD (1ull<<24)
-#define SNDE_COMPONENT_GEOM_BOXPOLYS (1ull<<25)
-
-#define SNDE_COMPONENT_GEOM_ALL ((1ull<<26)-(1ull<<8))
-
-// Resizing masks -- mark those arrays that resize together
-//#define SNDE_COMPONENT_GEOM_COMPONENT_RESIZE (SNDE_COMPONENT_GEOM_COMPONENT)
-#define SNDE_COMPONENT_GEOM_PARTS_RESIZE (SNDE_COMPONENT_GEOM_PARTS)
-#define SNDE_COMPONENT_GEOM_TOPOS_RESIZE (SNDE_COMPONENT_GEOM_TOPOS)
-#define SNDE_COMPONENT_GEOM_TOPO_INDICES_RESIZE (SNDE_COMPONENT_GEOM_TOPO_INDICES)
-#define SNDE_COMPONENT_GEOM_TRIS_RESIZE (SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_REFPOINTS|SNDE_COMPONENT_GEOM_MAXRADIUS|SNDE_COMPONENT_GEOM_VERTNORMALS|SNDE_COMPONENT_GEOM_TRINORMALS|SNDE_COMPONENT_GEOM_INPLANEMATS)
-#define SNDE_COMPONENT_GEOM_EDGES_RESIZE (SNDE_COMPONENT_GEOM_EDGES)
-#define SNDE_COMPONENT_GEOM_VERTICES_RESIZE (SNDE_COMPONENT_GEOM_VERTICES|SNDE_COMPONENT_GEOM_PRINCIPAL_CURVATURES|SNDE_COMPONENT_GEOM_CURVATURE_TANGENT_AXES|SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_INDICES)
-#define SNDE_COMPONENT_GEOM_VERTEX_EDGELIST_RESIZE (SNDE_COMPONENT_GEOM_VERTEX_EDGELIST)
-#define SNDE_COMPONENT_GEOM_BOXES_RESIZE (SNDE_COMPONENT_GEOM_BOXES|SNDE_COMPONENT_GEOM_BOXCOORD)
-#define SNDE_COMPONENT_GEOM_BOXPOLYS_RESIZE (SNDE_COMPONENT_GEOM_BOXPOLYS)
-
-
-#define SNDE_UV_GEOM_UVS (1ull<<32)
-#define SNDE_UV_GEOM_UV_PATCHES (1ull<<33)
-#define SNDE_UV_GEOM_UV_TOPOS (1ull<<34)
-#define SNDE_UV_GEOM_UV_TOPO_INDICES (1ull<<35)
-#define SNDE_UV_GEOM_UV_TRIANGLES (1ull<<36)
-#define SNDE_UV_GEOM_INPLANE2UVCOORDS (1ull<<37)
-#define SNDE_UV_GEOM_UVCOORDS2INPLANE (1ull<<38)
-#define SNDE_UV_GEOM_UV_EDGES (1ull<<39)
-#define SNDE_UV_GEOM_UV_VERTICES (1ull<<40)
-#define SNDE_UV_GEOM_UV_VERTEX_EDGELIST_INDICES (1ull<<41)
-#define SNDE_UV_GEOM_UV_VERTEX_EDGELIST (1ull<<42)
-#define SNDE_UV_GEOM_UV_BOXES (1ull<<43)
-#define SNDE_UV_GEOM_UV_BOXCOORD (1ull<<44)
-#define SNDE_UV_GEOM_UV_BOXPOLYS (1ull<<45)
-  //#define SNDE_UV_GEOM_UV_IMAGES (1ull<<13)
-
-#define SNDE_UV_GEOM_ALL ((1ull<<46)-(1ull<<32))
-
-// Resizing masks -- mark those arrays that resize together
-#define SNDE_UV_GEOM_UVS_RESIZE (SNDE_UV_GEOM_UVS)
-#define SNDE_UV_GEOM_UV_PATCHES_RESIZE (SNDE_UV_GEOM_UV_PATCHES)
-#define SNDE_UV_GEOM_UV_TOPOS_RESIZE (SNDE_UV_GEOM_UV_TOPOS)
-#define SNDE_UV_GEOM_UV_TOPO_INDICES_RESIZE (SNDE_UV_GEOM_UV_TOPO_INDICES)
-#define SNDE_UV_GEOM_UV_TRIANGLES_RESIZE (SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_INPLANE2UVCOORDS|SNDE_UV_GEOM_UVCOORDS2INPLANE)
-#define SNDE_UV_GEOM_UV_EDGES_RESIZE (SNDE_UV_GEOM_UV_EDGES)
-#define SNDE_UV_GEOM_UV_VERTICES_RESIZE (SNDE_UV_GEOM_UV_VERTICES|SNDE_UV_GEOM_UV_VERTEX_EDGELIST_INDICES)
-#define SNDE_UV_GEOM_UV_VERTEX_EDGELIST_RESIZE (SNDE_UV_GEOM_UV_VERTEX_EDGELIST)
-#define SNDE_UV_GEOM_UV_BOXES_RESIZE (SNDE_UV_GEOM_UV_BOXES|SNDE_UV_GEOM_UV_BOXCOORD)
-#define SNDE_UV_GEOM_UV_BOXPOLYS_RESIZE (SNDE_UV_GEOM_UV_BOXPOLYS)
-  
   
 
 

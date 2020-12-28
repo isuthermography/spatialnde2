@@ -237,11 +237,13 @@ voidpp_posn_map_iterator voidpp_posn_map_iterator_fromiterator(std::unordered_ma
 namespace snde{
   class lockholder_index; // forward declaration
   class arraymanager; // forward declaration
-  class mutableinfostore; // forward declaration
+  class mutablewfmdb; // forward declaration
   class geometry;
-  class component; // forward declaration
-  class parameterization; // forward declaration
-
+  class lockable_infostore_or_component;
+  //class component; // forward declaration
+  //class parameterization; // forward declaration
+  class lockingposition;
+  
 struct arrayregion {
     void **array;
     snde_index indexstart;
@@ -358,22 +360,21 @@ struct arrayregion {
 
   class lockingposition {
   public:
-    std::weak_ptr<mutableinfostore> infostore;
-    std::weak_ptr<geometry> geom;
-    std::weak_ptr<component> comp;
-    std::weak_ptr<parameterization> param;
+      bool initial_position; // if true this is the blank initial position in the locking order
+      bool between_infostores_and_arrays; // if true this is the blank position between infostores and arrays
 
+      std::weak_ptr<lockable_infostore_or_component> lic;
     lockindex_t array_idx; // -1 if invalid
 
     snde_index idx_in_array; /* index within array, or SNDE_INDEX_INVALID*/
     bool write; /* are we trying to lock for write? */ 
     lockingposition();
-    lockingposition(lockindex_t array_idx,snde_index idx_in_array,bool write);
-    lockingposition(std::weak_ptr<mutableinfostore> infostore,bool write);
-    lockingposition(std::weak_ptr<geometry> geom,bool write);
-    lockingposition(std::weak_ptr<component> comp,bool write);
-    lockingposition(std::weak_ptr<parameterization> param,bool write);
+    static lockingposition lockingposition_before_lic();
+    static lockingposition lockingposition_before_arrays();
 
+
+    lockingposition(lockindex_t array_idx,snde_index idx_in_array,bool write);
+    lockingposition(std::weak_ptr<lockable_infostore_or_component> lic,bool write);
     bool operator<(const lockingposition & other) const;
   };
 
@@ -800,11 +801,11 @@ namespace snde {
      part/assembly/component, and parameterization *** */
   
 typedef uint64_t snde_infostore_lock_mask_t;
-#define SNDE_INFOSTORE_INFOSTORE (1ull<<0) // the snde::mutableinfostore and metadata ... used solely with get_locks_infostore_mask(...)
+#define SNDE_INFOSTORE_INFOSTORES (1ull<<0) // the snde::mutableinfostore and metadata ... used solely with get_locks_infostore_mask(...)
 #define SNDE_INFOSTORE_COMPONENTS (1ull<<1) // the snde::components, i.e. parts and assemblies... used solely with get_locks_infostore_mask(...) 
 #define SNDE_INFOSTORE_PARAMETERIZATIONS (1ull<<2) // the snde::parameterizations of the components... used solely with get_locks_infostore_mask(...) 
 
-#define SNDE_INFOSTORE_ALL ((1ull<<2)-(1ull<<0))
+#define SNDE_INFOSTORE_ALL ((1ull<<3)-(1ull<<0))
   
 // 
 #define SNDE_COMPONENT_GEOM_PARTS (1ull<<8)

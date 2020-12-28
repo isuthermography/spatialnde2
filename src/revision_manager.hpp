@@ -7,9 +7,16 @@
 
    ***!!! Need some way to auto-lock output at the end of transaction ***!!!   
 
+   ***!!! SHOULD IMPLEMENT PLANNED TRANSACTIONS -- where only specified arrays 
+can be directly modified. This way, multiple transactions can run in parallel 
+provided only the last one will be locked. 
+
+
    ***!!! SHOULD IMPLEMENT SPECIFYING ON-DEMAND ARRAYS so that
    functions which only generate stuff in on-demand arrays get 
    postponed until output is needed 
+
+
 
    *** Should implement lock "keys" whereby the revision manager acquires the keys, 
    and then only lockers with access to the keys are are allowed to lock the arrays. 
@@ -706,7 +713,11 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
 
     /* *** IDEA: Should add category that allows lazy evaluation. Then if we ask to read it, it will 
        trigger the calculation... How does this interact with locking order?  Any ask to read after new
-       version is defined must wait for new version. */
+       version is defined must wait for new version.
+       
+       ... alternative concept: Output can be 'disabled' if nobody cares about it. 
+
+    */
     
     std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> unsorted; /* not yet idenfified into one of the other categories */
     std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> no_need_to_execute; /* no (initial) need to execute, but may still be dependent on something */
@@ -1546,7 +1557,7 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
     //}
     
     /* add_dependency_during_update may only be called during a transaction */
-    /* MUST HOLD WRITE LOCK for all output_arrays specified... may reallocate these arrays! */
+    /* PROBABLY OBSOLETE: MUST HOLD WRITE LOCK for all output_arrays specified... may reallocate these arrays! */
     std::shared_ptr<trm_dependency> add_dependency_during_update(std::vector<trm_struct_depend> struct_inputs,
 								 std::vector<trm_arrayregion> inputs, // inputs array does not need to be complete; will be passed immediately to regionupdater() -- so this need only be a valid seed.
 								 std::vector<trm_struct_depend> struct_outputs,

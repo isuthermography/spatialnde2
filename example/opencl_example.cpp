@@ -265,7 +265,7 @@ int main(int argc, char *argv[])
     
     // Store which part address for later use
     // Represent the above triangle as a "meshedpart"
-    Part=std::make_shared<part>(geom,"tri",holder->get_alloc((void **)&geom->geom.parts,""));
+    Part=std::make_shared<part>(geom,holder->get_alloc((void **)&geom->geom.parts,""));
     
     // Unlock now that we have written
     // (if we wanted we could use from the GPU under this same lock
@@ -285,11 +285,17 @@ int main(int argc, char *argv[])
     
     std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(manager->locker); // new locking process
     
-    Part->obtain_lock(lockprocess,SNDE_COMPONENT_GEOM_ALL,0); // 0 indicates flags for which arrays we want write locks (none in this case)
+    obtain_graph_lock(lockprocess,
+		      Part,
+		      std::vector<std::string>(), // no extra channels
+		      std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(), // no extra components
+		      nullptr,"/",
+		      SNDE_COMPONENT_GEOM_ALL,
+		      0); // 0 indicates flags for which arrays we want write locks (none in this case)
     all_locks=lockprocess->finish();
     
     // now we can access (read only) the data from the cpu
-    struct snde_part *parts=geom->geom.parts+Part->idx;
+    struct snde_part *parts=geom->geom.parts+Part->idx();
     
     
     
@@ -310,7 +316,7 @@ int main(int argc, char *argv[])
     // specify the arguments to the kernel, by argument number.
     // The third parameter is the array element to be passed
     // (actually comes from the OpenCL cache)
-    Buffers.AddSubBufferAsKernelArg(manager,kernel,0,(void **)&geom->geom.parts,Part->idx,1,false);
+    Buffers.AddSubBufferAsKernelArg(manager,kernel,0,(void **)&geom->geom.parts,Part->idx(),1,false);
     Buffers.AddSubBufferAsKernelArg(manager,kernel,1,(void **)&geom->geom.triangles,parts[0].firsttri,parts[0].numtris,false);
     Buffers.AddSubBufferAsKernelArg(manager,kernel,2,(void **)&geom->geom.edges,parts[0].firstedge,parts[0].numedges,false);
     Buffers.AddSubBufferAsKernelArg(manager,kernel,3,(void **)&geom->geom.vertices,parts[0].firstvertex,parts[0].numvertices,false);

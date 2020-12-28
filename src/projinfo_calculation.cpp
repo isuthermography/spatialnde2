@@ -28,7 +28,9 @@ namespace snde {
   opencl_program projinfo_opencl_program("projinfo_calc", { snde_types_h, geometry_types_h, vecops_h, geometry_ops_h, projinfo_calc_c });
 
 
-  std::shared_ptr<trm_dependency> projinfo_calculation(std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<snde::part> partobj,std::shared_ptr<snde::parameterization> param,cl_context context,cl_device_id device,cl_command_queue queue)
+  /* projinfo fundamentally connects the 3D vertex geometry with the 2D parameterization;
+     as such, it is fundamentally dependent on both. */
+  std::shared_ptr<trm_dependency> projinfo_calculation(std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,std::string wfmname,std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<snde::part> partobj,std::shared_ptr<snde::parameterization> param,cl_context context,cl_device_id device,cl_command_queue queue)
 {
   
 
@@ -41,6 +43,7 @@ namespace snde {
 
   std::vector<trm_struct_depend> struct_inputs;
 
+  /* ***!!! Document the dependencies on the mutable[geom/parameterization]stores here? ***!!! */
   struct_inputs.emplace_back(geom_dependency(revman,partobj));
   struct_inputs.emplace_back(parameterization_dependency(revman,param));
   //inputs_seed.emplace_back(geom->manager,(void **)&geom->geom.parts,partnum,1);
@@ -53,7 +56,7 @@ namespace snde {
 					      // Function
 					      // struct input parameters are:
 					      // partobj, param
-					      [ geom,context,device,queue ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
+					      [ geom,context,device,queue,wfmdb,wfmdb_context,wfmname ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
 						// actions is STDA_IDENTIFY_INPUTS or
 						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS or
 						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS|STDA_EXECUTE
@@ -80,22 +83,35 @@ namespace snde {
 						}
 						// Perform locking
 						
+						fprintf(stderr,"Begin projinfo calculation locking for %s\n",wfmname.c_str());
+						
 						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
+
+						snde_orientation3 null_orientation;
+						snde_null_orientation3(&null_orientation);
+
 						
-						/* Obtain lock for this component and its geometry */
-						partobj->obtain_lock(lockprocess); // components precede parameterizations in locking order
-						param->obtain_lock(lockprocess);
+						/* Obtain lock for this component and parameterization and its geometry */
+						std::vector<std::tuple<snde_orientation3,std::shared_ptr<lockable_infostore_or_component>>> pointer_roots;
+						pointer_roots.emplace_back(std::make_tuple(null_orientation,partobj)); // partobj is one root
+						pointer_roots.emplace_back(std::make_tuple(null_orientation,param)); // parameterization is other root
 						
-						if (actions & STDA_EXECUTE) {
-						  
-						  partobj->obtain_geom_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES|SNDE_COMPONENT_GEOM_INPLANEMATS);
-						  param->obtain_uv_lock(lockprocess, SNDE_UV_GEOM_UVS|SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_UV_EDGES|SNDE_UV_GEOM_UV_VERTICES,SNDE_UV_GEOM_INPLANE2UVCOORDS|SNDE_UV_GEOM_UVCOORDS2INPLANE);
-						  
-						} else {
-						  
-						  partobj->obtain_geom_lock(lockprocess,SNDE_COMPONENT_GEOM_PARTS);  
-						  param->obtain_uv_lock(lockprocess,SNDE_UV_GEOM_UVS);
-						}
+						
+						
+						obtain_graph_lock_instances_multiple(lockprocess,
+								  std::vector<std::tuple<snde_orientation3,std::string>>(),
+ 							          pointer_roots,
+								  std::vector<std::string>(), // no extra_channels
+								  std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
+								  nullptr, // no metadata
+										     [  ] (std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names) -> std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>> {
+										   return std::make_tuple(std::shared_ptr<parameterization>(),std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>());
+										     },
+
+								  nullptr,"",//wfmdb,wfmdb_context -- not needed because we have provided both roots directly 
+								  SNDE_INFOSTORE_COMPONENTS|SNDE_INFOSTORE_PARAMETERIZATIONS|SNDE_COMPONENT_GEOM_PARTS|SNDE_UV_GEOM_UVS|((actions & STDA_EXECUTE) ? (SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES|SNDE_COMPONENT_GEOM_INPLANEMATS|SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_UV_EDGES|SNDE_UV_GEOM_UV_VERTICES) : 0),
+								  (actions & STDA_EXECUTE) ? (SNDE_UV_GEOM_INPLANE2UVCOORDS|SNDE_UV_GEOM_UVCOORDS2INPLANE) : 0);
+						
 						
 						rwlock_token_set all_locks=lockprocess->finish();
 						
@@ -107,8 +123,8 @@ namespace snde {
 						std::vector<trm_arrayregion> new_inputs;
 						
 						
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.parts,partobj->idx,1);
-						snde_part &partstruct = geom->geom.parts[partobj->idx];
+						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.parts,partobj->idx(),1);
+						snde_part &partstruct = geom->geom.parts[partobj->idx()];
 						
 						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.uvs,param->idx,1);
 						snde_parameterization &paramstruct = geom->geom.uvs[param->idx];
@@ -146,7 +162,7 @@ namespace snde {
 						    // The third parameter is the array element to be passed
 						    // (actually comes from the OpenCL cache)
 						    
-						    //Buffers.AddSubBufferAsKernelArg(geom->manager,projinfo_kern,0,(void **)&geom->geom.parts,partobj->idx,1,false);
+						    //Buffers.AddSubBufferAsKernelArg(geom->manager,projinfo_kern,0,(void **)&geom->geom.parts,partobj->idx(),1,false);
 						    //Buffers.AddSubBufferAsKernelArg(geom->manager,projinfo_kern,0,(void **)&geom->geom.uvs,param->idx,1,false);
 						    
 						    

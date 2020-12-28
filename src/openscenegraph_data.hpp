@@ -328,12 +328,12 @@ public:
   }
   
 
-  std::tuple<double,double> GetScalefactors(std::shared_ptr<mutabledatastore> datastore)
+  std::tuple<double,double> GetScalefactors(std::string wfmname)
   {
     double horizscalefactor,vertscalefactor;
     
-    std::shared_ptr<display_axis> a = display->GetFirstAxis(datastore);
-    std::shared_ptr<display_axis> b = display->GetSecondAxis(datastore);
+    std::shared_ptr<display_axis> a = display->GetFirstAxis(wfmname);
+    std::shared_ptr<display_axis> b = display->GetSecondAxis(wfmname);
 
     std::shared_ptr<display_unit> u = a->unit;
     std::shared_ptr<display_unit> v = b->unit;
@@ -363,7 +363,7 @@ public:
     return std::make_tuple(horizscalefactor,vertscalefactor);
   }
   
-  osg::Matrixd GetChannelTransform(std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index)
+  osg::Matrixd GetChannelTransform(std::string wfmname,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index)
   {
 
 
@@ -374,8 +374,8 @@ public:
     
     std::tie(horizontal_padding,vertical_padding) = GetPadding(drawareawidth,drawareaheight);
     
-    std::shared_ptr<display_axis> a = display->GetFirstAxis(datastore);
-    std::shared_ptr<display_axis> b = display->GetSecondAxis(datastore);
+    std::shared_ptr<display_axis> a = display->GetFirstAxis(wfmname);
+    std::shared_ptr<display_axis> b = display->GetSecondAxis(wfmname);
 
     // we assume a drawing area that goes from (-0.5,-0.5) in the lower-left corner
     // to (drawareawidth-0.5,drawareaheight-0.5) in the upper-right.
@@ -403,7 +403,7 @@ public:
       }
     }
 
-    std::tie(horizscalefactor,vertscalefactor)=GetScalefactors(datastore);
+    std::tie(horizscalefactor,vertscalefactor)=GetScalefactors(wfmname);
 
 
     
@@ -467,15 +467,15 @@ public:
     }
     assert(ndim >= 2);
     
-    std::shared_ptr<display_axis> a = display->GetFirstAxis(datastore);
-    std::shared_ptr<display_axis> b = display->GetSecondAxis(datastore);
+    std::shared_ptr<display_axis> a = display->GetFirstAxis(displaychan->FullName());
+    std::shared_ptr<display_axis> b = display->GetSecondAxis(displaychan->FullName());
 
     std::shared_ptr<display_unit> u = a->unit;
     std::shared_ptr<display_unit> v = b->unit;
     
     
     if (ndim >= 3) {
-      third_axis=display->GetThirdAxis(datastore);
+      third_axis=display->GetThirdAxis(displaychan->FullName());
       third_unit=third_axis->unit;
 
       {
@@ -488,7 +488,7 @@ public:
     }
     
     if (ndim >= 4) {
-      fourth_axis=display->GetFourthAxis(datastore);
+      fourth_axis=display->GetFourthAxis(displaychan->FullName());
       fourth_unit=fourth_axis->unit;
 
       {
@@ -500,11 +500,11 @@ public:
       }
     }
 
-    std::tie(horizscalefactor,vertscalefactor)=GetScalefactors(datastore);
+    std::tie(horizscalefactor,vertscalefactor)=GetScalefactors(displaychan->FullName());
 
     
 
-    osg::Matrixd transformmtx = GetChannelTransform(datastore,displaychan,drawareawidth,drawareaheight,layer_index);
+    osg::Matrixd transformmtx = GetChannelTransform(displaychan->FullName(),displaychan,drawareawidth,drawareaheight,layer_index);
 
     
     if (StepSzX > 0) {
@@ -759,7 +759,7 @@ public:
 
       
     /* Figure out type of rendering... */
-    std::shared_ptr<display_axis> axis=display->GetFirstAxis(datastore);
+    std::shared_ptr<display_axis> axis=display->GetFirstAxis(displaychan->FullName());
     
     {
       std::lock_guard<std::mutex> adminlock(axis->unit->admin);
@@ -815,7 +815,7 @@ public:
   
   // update operates on a flattened list (from display_info::update()) instead of wfmdb directly!
   // displaychans list should generally not include disabled waveforms 
-  void update(std::shared_ptr<geometry> geom,std::shared_ptr<mutablewfmdb> wfmdb,std::shared_ptr<mutableinfostore> selected,const std::vector<std::shared_ptr<display_channel>> & displaychans,size_t drawareawidth,size_t drawareaheight,cl_context context,cl_device_id device,cl_command_queue queue)
+  void update(std::shared_ptr<geometry> geom,std::shared_ptr<mutablewfmdb> wfmdb,std::string selected,const std::vector<std::shared_ptr<display_channel>> & displaychans,size_t drawareawidth,size_t drawareaheight,cl_context context,cl_device_id device,cl_command_queue queue)
   // geom needed because that is the current location for the texture RGBA... it also references the array manager and lock manager ....
   /****!!! Can only be called during a rendering_revman transaction (but 
        nothing should be locked) */ 
@@ -827,20 +827,20 @@ public:
 
     // Insert selected cross hairs first, if present
     display_posn selected_posn=display->get_selected_posn();
-    if (selected && display->GetFirstAxis(selected)==selected_posn.Horiz &&
+    if (selected.size() > 0 && display->GetFirstAxis(selected)==selected_posn.Horiz &&
 	display->GetSecondAxis(selected)==selected_posn.Vert) {
       
       
-      std::shared_ptr<mutabledatastore> selected_datastore=std::dynamic_pointer_cast<mutabledatastore>(selected);
+      std::shared_ptr<mutabledatastore> selected_datastore=std::dynamic_pointer_cast<mutabledatastore>(wfmdb->lookup(selected));
       
       
       if (selected_datastore) {
 	double horizscalefactor, vertscalefactor;
 	
-	std::tie(horizscalefactor,vertscalefactor)=GetScalefactors(selected_datastore);
-	std::shared_ptr<display_channel> displaychan = display->lookup_channel(selected->fullname);
+	std::tie(horizscalefactor,vertscalefactor)=GetScalefactors(selected);
+	std::shared_ptr<display_channel> displaychan = display->lookup_channel(selected);
 	
-	osg::Matrixd channeltransform = GetChannelTransform(selected_datastore,displaychan,drawareawidth,drawareaheight,layer_index);
+	osg::Matrixd channeltransform = GetChannelTransform(selected,displaychan,drawareawidth,drawareaheight,layer_index);
 	osg::Matrixd PickerTransform(1.0,0.0,0.0,0.0,
 				     0.0,1.0,0.0,0.0,
 				     0.0,0.0,1.0,0.0,
@@ -884,8 +884,9 @@ public:
     std::shared_ptr<osg_datacachebase> cacheentry; 
     for (auto & displaychan : displaychans) {
       //if std::type_index(typeid(*(*displaychan)->chan_data))==std::type_index(typeid())
-      if (instanceof<mutabledatastore>(*displaychan->chan_data)) {
-	cacheentry = update_datastore(geom,wfmdb,std::dynamic_pointer_cast<mutabledatastore>(displaychan->chan_data),displaychan,drawareawidth,drawareaheight,layer_index,context,device,queue);
+      std::shared_ptr<mutableinfostore> chan_data = wfmdb->lookup(displaychan->FullName());
+      if (chan_data && instanceof<mutabledatastore>(*chan_data)) {
+	cacheentry = update_datastore(geom,wfmdb,std::dynamic_pointer_cast<mutabledatastore>(chan_data),displaychan,drawareawidth,drawareaheight,layer_index,context,device,queue);
 	cacheentry->touched=true; 
 	if (child_num >= getNumChildren() || getChild(child_num)!=cacheentry->group.get()) {
 	  // not in correct position in our osg::Group (superclass)
@@ -896,11 +897,11 @@ public:
 	  
 	}
 	child_num++;
-      } else if (instanceof<mutablegeomstore>(*displaychan->chan_data)) {
+      } else if (chan_data && instanceof<mutablegeomstore>(*chan_data)) {
 	
 	// geomstores handled separately by openscenegraph_geom.hpp...
-      } else {
-	fprintf(stderr,"Warning: Unknown mutableinfostore subclass %s is not renderable.\n",typeid(*displaychan->chan_data).name());
+      } else if (chan_data) {
+	fprintf(stderr,"Warning: Unknown mutableinfostore subclass %s is not renderable.\n",typeid(*chan_data).name());
       }
       layer_index++;
       

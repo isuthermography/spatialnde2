@@ -82,8 +82,8 @@ public:
 struct display_channel: public std::enable_shared_from_this<display_channel> {
 
   
-  std::string FullName; // full name, including slash separating tree elements
-  std::shared_ptr<mutableinfostore> chan_data;
+  std::shared_ptr<std::string> _FullName; // Atomic shared pointer pointing to full name, including slash separating tree elements
+  //std::shared_ptr<mutableinfostore> chan_data;
   
   float Scale; // vertical axis scaling for 1D wfms; color axis scaling for 2D waveforms; units/pixel if pixelflag is set is set for the axis/units, units/div (or equivalently units/intensity) if pixelflag is not set
   float Position; // vertical offset on display, in divisions. To get in units, multiply by GetVertUnitsPerDiv(Chan) USED ONLY IF VertZoomAroundAxis is true
@@ -110,12 +110,12 @@ struct display_channel: public std::enable_shared_from_this<display_channel> {
   // may be accessed from transform threads, not just the GUI thread
 
   
-  display_channel(std::string FullName,std::shared_ptr<mutableinfostore> chan_data,
+  display_channel(std::string FullName,//std::shared_ptr<mutableinfostore> chan_data,
 		  float Scale,float Position,float VertCenterCoord,bool VertZoomAroundAxis,float Offset,float Alpha,
 		  size_t ColorIdx,bool Enabled, size_t DisplayFrame,size_t DisplaySeq,
 		  size_t ColorMap) :
-    FullName(FullName),
-    chan_data(chan_data),
+    _FullName(std::make_shared<std::string>(FullName)),
+    //chan_data(chan_data),
     Scale(Scale),
     Position(Position),
     VertCenterCoord(VertCenterCoord),
@@ -132,7 +132,18 @@ struct display_channel: public std::enable_shared_from_this<display_channel> {
 
   }
 
+  inline std::string FullName()
+  {
+    std::shared_ptr<std::string> NamePtr=atomic_load(&_FullName);
 
+    return *NamePtr; 
+  }
+
+  void UpdateFullName(std::string new_FullName)
+  {
+    std::shared_ptr<std::string> New_NamePtr = std::make_shared<std::string>(new_FullName);
+    std::atomic_store(&_FullName,New_NamePtr);
+  }
   void add_adjustment_dep(std::shared_ptr<wfmdisplay_notification_receiver> notifier)
   {
     std::lock_guard<std::mutex> dc_lock(admin);
@@ -392,7 +403,7 @@ public:
     }
     
     // create a new display_channel
-    std::shared_ptr<display_channel> new_display_channel=std::make_shared<display_channel>(fullname,info,1.0,0.0,0.0,false,0.0,1.0,_NextColor,true,0,0,0);
+    std::shared_ptr<display_channel> new_display_channel=std::make_shared<display_channel>(fullname,/*info, */  1.0,0.0,0.0,false,0.0,1.0,_NextColor,true,0,0,0);
     
     
     std::lock_guard<std::mutex> adminlock(admin);
@@ -400,10 +411,10 @@ public:
     return new_display_channel;
   }
     
-  std::vector<std::shared_ptr<display_channel>> update(std::shared_ptr<mutableinfostore> selected, bool include_disabled,bool include_hidden)
+  std::vector<std::shared_ptr<display_channel>> update(std::string selected, bool include_disabled,bool include_hidden)
 
   // if include_disabled is set, disabled channels will be included
-  // if selected is not nullptr, it will be moved to the front of the list
+  // if selected is not the empty string, it will be moved to the front of the list
   // to be rendered on top 
     
   // STILL NEED TO IMPLEMENT THE FOLLOWING: 
@@ -428,9 +439,9 @@ public:
       {
 	std::lock_guard<std::mutex> adminlock(admin);
 	auto ci_iter = channel_info.find(fullname);
-	if (ci_iter != channel_info.end() && ci_iter->second->chan_data==info) {
+	if (ci_iter != channel_info.end() /* && ci_iter->second->chan_data==info*/) {
 	  if (include_disabled || ci_iter->second->Enabled) {
-	    if (selected && info==selected) {
+	    if (selected.size() > 0 && info==wfmdb->lookup(selected)) {
 	      retval.insert(retval.begin(),ci_iter->second);
 	      //assert(!selected_chan);
 	      //selected_chan = ci_iter->second;
@@ -446,7 +457,7 @@ public:
 
 	std::shared_ptr<display_channel> new_display_channel=_add_new_channel(fullname,info);
 	if (include_disabled || new_display_channel->Enabled) {
-	  if (selected && info==selected) {
+	  if (selected.size() > 0 && info==wfmdb->lookup(selected)) {
 	    retval.insert(retval.begin(),new_display_channel);
 	    //assert(!selected_chan);
 	    //selected_chan = new_display_channel;
@@ -513,40 +524,60 @@ public:
     return ax_ptr;
   }
 
-  std::shared_ptr<display_axis> GetFirstAxis(std::shared_ptr<mutableinfostore> wfm)
+  std::shared_ptr<display_axis> GetFirstAxis(std::string fullname /*std::shared_ptr<mutableinfostore> wfm */)
   {
+    std::shared_ptr<mutableinfostore> wfm;
+    wfm = wfmdb->lookup(fullname);
+    if (!wfm) return FindAxis("Time","seconds");
+    
     std::string AxisName = wfm->metadata.GetMetaDatumStr("Coord1","Time");
     std::string UnitName = wfm->metadata.GetMetaDatumStr("Units1","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
 
-  std::shared_ptr<display_axis> GetSecondAxis(std::shared_ptr<mutableinfostore> wfm)
+  std::shared_ptr<display_axis> GetSecondAxis(std::string fullname)
   {
+    std::shared_ptr<mutableinfostore> wfm;
+    wfm = wfmdb->lookup(fullname);
+    if (!wfm) return FindAxis("Time","seconds");
+
     std::string AxisName = wfm->metadata.GetMetaDatumStr("Coord2","Time");
     std::string UnitName = wfm->metadata.GetMetaDatumStr("Units2","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
 
-  std::shared_ptr<display_axis> GetThirdAxis(std::shared_ptr<mutableinfostore> wfm)
+  std::shared_ptr<display_axis> GetThirdAxis(std::string fullname)
   {
+    std::shared_ptr<mutableinfostore> wfm;
+    wfm = wfmdb->lookup(fullname);
+    if (!wfm) return FindAxis("Time","seconds");
+
     std::string AxisName = wfm->metadata.GetMetaDatumStr("Coord3","Time");
     std::string UnitName = wfm->metadata.GetMetaDatumStr("Units3","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
 
-  std::shared_ptr<display_axis> GetFourthAxis(std::shared_ptr<mutableinfostore> wfm)
+  std::shared_ptr<display_axis> GetFourthAxis(std::string fullname)
   {
+    std::shared_ptr<mutableinfostore> wfm;
+    wfm = wfmdb->lookup(fullname);
+    if (!wfm) return FindAxis("Time","seconds");
+
     std::string AxisName = wfm->metadata.GetMetaDatumStr("Coord4","Time");
     std::string UnitName = wfm->metadata.GetMetaDatumStr("Units4","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
 
-  std::shared_ptr<display_axis> GetAmplAxis(std::shared_ptr<mutableinfostore> wfm)
+  std::shared_ptr<display_axis> GetAmplAxis(std::string fullname)
   {
+    std::shared_ptr<mutableinfostore> wfm;
+    wfm = wfmdb->lookup(fullname);
+    if (!wfm) return FindAxis("Voltage","Volts");
+
     std::string AxisName = wfm->metadata.GetMetaDatumStr("AmplCoord","Voltage");
     std::string UnitName = wfm->metadata.GetMetaDatumStr("AmplUnits","Volts");
 
@@ -557,18 +588,22 @@ public:
   {
     std::shared_ptr<display_axis> a;
     
+    std::shared_ptr<mutableinfostore> chan_data;
+    chan_data = wfmdb->lookup(c->FullName());
+    if (!chan_data) return;
+    
     std::shared_ptr<mutabledatastore> datastore;
-
+    
     {
       std::lock_guard<std::mutex> adminlock(admin);
-      datastore=std::dynamic_pointer_cast<mutabledatastore>(c->chan_data);
+      datastore=std::dynamic_pointer_cast<mutabledatastore>(/* c-> */ chan_data);
     }
     if (datastore) {
       size_t ndim=datastore->dimlen.size();
 
       /*  set the scaling of whatever unit is used on the vertical axis of this channel */
       if (ndim==1) {
-	a = GetAmplAxis(datastore);
+	a = GetAmplAxis(c->FullName());
 	//if (pixelflag) {
 	//  c->UnitsPerDiv=scalefactor/pixelsperdiv;
 	//} else {
@@ -581,7 +616,7 @@ public:
 	return;
       } else if (ndim >= 2) {
 	/* image or image array */
-	a=GetSecondAxis(c->chan_data);
+	a=GetSecondAxis(c->FullName());
 	//if (pixelflag)
 	//  a->unit->scale=scalefactor/pixelsperdiv;
 	//else
@@ -603,19 +638,23 @@ public:
     std::shared_ptr<display_axis> a;
     double scalefactor;
     bool success=false;
-    
+
+    std::shared_ptr<mutableinfostore> chan_data;
+    chan_data = wfmdb->lookup(c->FullName());
+    if (!chan_data) return std::make_tuple(false,0.0,false);    ;
+
     std::shared_ptr<mutabledatastore> datastore;
 
     {
       std::lock_guard<std::mutex> adminlock(admin);
-      datastore=std::dynamic_pointer_cast<mutabledatastore>(c->chan_data);
+      datastore=std::dynamic_pointer_cast<mutabledatastore>(/*c->*/ chan_data);
     }
     if (datastore) {
       size_t ndim=datastore->dimlen.size();
 
       /* return the units/div of whatever unit is used on the vertical axis of this channel */
       if (ndim==1) {
-	a = GetAmplAxis(datastore);
+	a = GetAmplAxis(c->FullName());
 	//if (a->unit->pixelflag) {
 	//  scalefactor=c->UnitsPerDiv*pixelsperdiv;
 	///} else {
@@ -631,7 +670,7 @@ public:
 	return std::make_tuple(false,0.0,false);
       } else if (ndim >= 2) {
 	/* image or image array */
-	a=GetSecondAxis(datastore);
+	a=GetSecondAxis(c->FullName());
 	//if (a->unit->pixelflag)
 	//  scalefactor=a->unit->scale*pixelsperdiv;
 	//else
@@ -657,9 +696,14 @@ public:
     double UnitsPerDiv;
     std::shared_ptr<mutabledatastore> datastore;
 
+    std::shared_ptr<mutableinfostore> chan_data;
+    chan_data = wfmdb->lookup(c->FullName());
+    if (!chan_data) return 0.0;
+
+    
     {
       std::lock_guard<std::mutex> adminlock(c->admin);
-      datastore=std::dynamic_pointer_cast<mutabledatastore>(c->chan_data);
+      datastore=std::dynamic_pointer_cast<mutabledatastore>(/*c->*/chan_data);
     }
     
     if (datastore) {
@@ -667,7 +711,7 @@ public:
 
       /* return the units/div of whatever unit is used on the vertical axis of this channel */
       if (ndim==1) {
-	a = GetAmplAxis(datastore);
+	a = GetAmplAxis(c->FullName());
 	{
 	  std::lock_guard<std::mutex> adminlock(c->admin);
 	  scalefactor=c->Scale;
@@ -684,7 +728,7 @@ public:
 	return 1.0;
       } else if (ndim >= 2) {
 	/* image or image array */
-	a=GetSecondAxis(datastore);
+	a=GetSecondAxis(c->FullName());
 	{
 	  std::lock_guard<std::mutex> adminlock(a->unit->admin);
 	  scalefactor=a->unit->scale;

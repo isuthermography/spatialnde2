@@ -231,6 +231,32 @@ public:
     
     
   };
+
+  static std::shared_ptr<immutable_metadata> MergeMetadata(std::shared_ptr<immutable_metadata> baseline_md,std::shared_ptr<immutable_metadata> override_md)
+  {
+    std::shared_ptr<immutable_metadata> retval=std::make_shared<immutable_metadata>();
+
+    if (!baseline_md) {
+      baseline_md = std::make_shared<immutable_metadata>();
+    }
+
+    if (!override_md) {
+      override_md = std::make_shared<immutable_metadata>();
+    }
+    
+    for (auto & mdname_mdvalue: baseline_md->metadata) {
+      
+      if (override_md->metadata.find(mdname_mdvalue.first)==override_md->metadata.end()) {
+	retval->metadata.emplace(mdname_mdvalue);
+      }
+    }
+
+    for (auto & mdname_mdvalue: override_md->metadata) {
+      retval->metadata.emplace(mdname_mdvalue);
+    }
+
+    return retval;
+  }
   
 class wfmmetadata {
 public:

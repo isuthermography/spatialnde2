@@ -67,20 +67,25 @@ namespace snde {
     }
   };
   
-  std::shared_ptr<trm_dependency> imageprojection(std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<mutablegeomstore> comp,std::shared_ptr<mutabledatastore> to_project,snde_cmat23 cam_mtx, snde_orientation3 camcoords_to_wrlcoords, cl_context context,cl_device_id device,cl_command_queue queue)
+  std::shared_ptr<trm_dependency> imageprojection(std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<mutablegeomstore> comp,std::shared_ptr<mutabledatastore> to_project,snde_cmat23 cam_mtx, std::shared_ptr<mutableelementstore<snde_orientation3>> camcoords_to_wrlcoords, cl_context context,cl_device_id device,cl_command_queue queue)
 {
+  // *** SHOULDN'T camcoords_to_wrlcoords BE A MUTABLE DATASTORE OR STRUCT DEPENDENCY SO THE PROJECTION CAN BE UPDATED AS THE POSE CHANGES? 
+  
   /* projection destinations are in the wfmdb, but also need to output weights channel! */
   /* *** Should we have a prefix or suffix parameter that will be attached to the channel names? */
 
 
 
   std::vector<trm_struct_depend> struct_inputs;
-  struct_inputs.emplace_back(wfm_dependency(revman,wfmdb,comp->wfmfullname));
+  struct_inputs.emplace_back(wfm_dependency(revman,wfmdb,comp->wfmfullname)); // struct depend #0: component
+  struct_inputs.emplace_back(wfm_dependency(revman,wfmdb,to_project->wfmfullname)); // struct depend #1: to_project
+  struct_inputs.emplace_back(wfm_dependency(revman,wfmdb,camcoords_to_wrlcoords->wfmfullname)); // struct depend #2: camcoords_to_wrlcoords
+
   /// really we should probably specify dependence on the full geometry underlying our
   // component geom store comp....
 			     
-  struct_inputs.emplace_back(geom_dependency(revman,partobj));
-  struct_inputs.emplace_back(parameterization_dependency(revman,param));
+  struct_inputs.emplace_back(geom_dependency(revman,partobj));  // struct depend #3..n?
+  struct_inputs.emplace_back(parameterization_dependency(revman,param)); // struct depend #n+1..m?
   //inputs_seed.emplace_back(geom->manager,(void **)&geom->geom.parts,partnum,1);
 
 
@@ -106,14 +111,23 @@ namespace snde {
 						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS|STDA_EXECUTE
 
 						std::shared_ptr<mutablewfmdb> wfmdb;
-						std::shared_ptr<mutableinfostore> comp;
+						std::shared_ptr<mutableinfostore> comp,to_project,camcoords_to_wrlcoords;
 						std::tie(wfmdb,comp)=get_wfm_dependency(dep->struct_inputs[0]);
 						
-						if (!wfmdb || !comp) {
-						  // parameterization no longer exists... clear out inputs and outputs (if applicable)
-						  std::vector<trm_arrayregion> new_inputs;
+						std::tie(wfmdb,to_project)=get_wfm_dependency(dep->struct_inputs[1]);
+						std::tie(wfmdb,camcoords_to_wrlcoords)=get_wfm_dependency(dep->struct_inputs[2]);
+
+						if (!wfmdb || !comp || !to_project || !camcoords_to_wrlcoords) {
+						  // some inputs no longer exist... clear out inputs and outputs (if applicable)
+						  std::vector<trm_arrayregion> new_inputs;						  
+						  std::vector<trm_struct_depend> new_struct_inputs;
+
+						  // keep first 3 struct inputs: component, to_project, and camcoords_to_wrlcoords
+						  std::copy(dep->struct_inputs.begin(),dep->struct_inputs.begin()+3,std::back_inserter(new_struct_inputs));
 						  
 						  dep->update_inputs(new_inputs);
+						  dep->update_struct_inputs(new_struct_inputs);
+
 						  
 						  if (actions & STDA_IDENTIFYOUTPUTS) {
 						    
@@ -125,18 +139,28 @@ namespace snde {
 
 						  return;
 						}
+						
 						// Perform locking
-
+						
+						
+						std::set<std::string> extra_component_names;
+						extra_component_names.emplace(to_project);						
+						extra_component_names.emplace(camcoord_to_wrlcoords);
+						
+						
 						geometry_scene improj_scene = geometry_scene::lock_scene(locker,
 													 wfmdb,
-													 // get_component_metadata_and_extra_channels()
-													 [ comp,to_project ] () -> std::tuple<std::shared_ptr<component>,std::shared_ptr<immutable_metadata>,std::set<std::string>> {
-													   std::set<std::string> wfmnames;
-													   wfmnames.emplace(comp->fullname);
-													   wfmnames.emplace(to_project->fullname);
-													   
-													   return std::make_tuple(comp->comp,comp->metadata.metadata(),wfmnames);													  
-													 },
+													 wfmdb_context,
+													 comp,
+													 extra_component_names,
+													 //[ comp,to_project,camcoords_to_wrlcoords ] () -> std::tuple<std::shared_ptr<component>,std::shared_ptr<immutable_metadata>,std::set<std::string>> {
+													 //  std::set<std::string> wfmnames;
+													 //  wfmnames.emplace(comp->fullname);
+													 //  wfmnames.emplace(to_project->fullname);
+													 //  wfmnames.emplace(camcoords_to_wrlcoords->fullname);
+													 //
+													 //  return std::make_tuple(comp->comp,comp->metadata.metadata(),wfmnames);													  
+													 //},
 													 // get_image_data()
 													 [ image_data_array ] (std::shared_ptr<mutabledatastore> datawfm,std::string datawfmname) -> std::shared_ptr<image_data> {
 													   // This returns new or pre-existing image_data entries that will go in the instances field of improj_scene
@@ -184,10 +208,8 @@ namespace snde {
 													   // its input as changed without triggering
 													   // another call. 
 													   
-													 },
-													 *last_channels_to_lock);
+													 });
 
-						*last_channels_to_lock = improj_scene->channels_locked;
 						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker,improj_scene->scene_lock); // new locking process, building on scene locks
 						std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
 
@@ -371,6 +393,8 @@ namespace snde {
 
 						// For now, keep it simple and just to z buffer evaluation and image projection
 
+
+						// "comp" revision id should be PART OF THE CACHE KEY 
 						if (actions & STDA_EXECUTE) {
 						  
 						  snde_orientation3 wrlcoords_to_camcoords;
@@ -381,21 +405,21 @@ namespace snde {
 						  OpenCLBuffers Buffers(context,device,all_locks);
 
 
-						  // z buffer input #0: cam_mtx
+						  // z buffer input #0: cam_mtx  // PART OF THE CACHE KEY
 						  clSetKernelArg(z_buffer_kern,0,sizeof(cam_mtx),&cam_mtx); 
 
-						  // z buffer inputs #1-2: camcoords_to_wrlcoords and inverse
+						  // z buffer inputs #1-2: camcoords_to_wrlcoords and inverse ... PART OF THE CACHE KEY
 						  clSetKernelArg(z_buffer_kern,1,sizeof(camcoords_to_wrlcoords),&camcoords_to_wrlcoords);
 						  raytrace_evaluate_wrlcoords_to_camcoords(camcoords_to_wrlcoords,&wrlcoord_to_camcoords);
 						  clSetKernelArg(z_buffer_kern,2,sizeof(wrlcoords_to_camcoords),&wrlcoords_to_camcoords);
 
-						  // z buffer inputs #3-4: src_na and src_nb
+						  // z buffer inputs #3-4: src_na and src_nb... PART OF THE CACHE KEY
 						  snde_index src_na = to_project->dimlen.at(0);
 						  snde_index src_nb = to_project->dimlen.at(1);
 						  clSetKernelArg(z_buffer_kern,3,sizeof(src_na),&src_na);
 						  clSetKernelArg(z_buffer_kern,4,sizeof(src_nb),&src_nb);
 
-						  // z buffer input 5: instances
+						  // z buffer input 5: instances... PART OF THE CACHE KEY
 						  std::vector<snde_partinstance> instancesarray;
 						  for (snde_index instcnt=0;instcnt < improj_scene->instances.size();instcnt++) {
 						    instancesarray.emplace_back(std::get<0>(improj_scene->instances.at(instcnt)));
@@ -407,14 +431,14 @@ namespace snde {
 						  
 						  clSetKernelArg(z_buffer_kern,5,sizeof(instancesbuf),&instancesbuf);
 
-						  // z buffer arg #6: num_instances
+						  // z buffer arg #6: num_instances 
 						  snde_index num_instances = improj_scene->instances.size();
 						  clSetKernelArg(z_buffer_kern,6,sizeof(num_instances),&num_instances);
 						  
 						  
 						  // ***!!! Need to remember to destroy the instancesbuf
 						  
-						  // z_buffer arg #7: part objects
+						  // z_buffer arg #7: part objects... PART OF THE CACHE KEY...
 						  Buffers.AddBufferAsKernelArg(geom->manager,z_buffer_kern,7,(void **)&geom->geom.parts,false);
 
 						  // inputs 8-11: 3D geometry inputs (triangles,inplanemats,edges,vertices)						  

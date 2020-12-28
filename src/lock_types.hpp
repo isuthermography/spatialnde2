@@ -82,8 +82,8 @@ namespace snde {
 
       std::condition_variable cond;
 
-      if (writelockcount > 0) {
-	/* add us to end of queue if locked for writing */
+      if (writelockcount > 0 || !threadqueue.empty()) {
+	/* add us to end of queue if locked for writing or there is a writer in the queue */
 	threadqueue.push_back(&cond);
 	_wait_for_top_of_queue(&cond,&adminlock);
       }

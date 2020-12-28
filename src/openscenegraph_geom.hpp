@@ -235,7 +235,7 @@ public:
   std::shared_ptr<trm_dependency> vertex_function; /* revision_manager function that renders winged edge structure into vertices */
   std::shared_ptr<trm_dependency> cacheentry_function; /* revision_manager function that pulls vertex, normal, and texture arrays into the osg::Geometry object */
   std::weak_ptr<part> part_ptr;
-  std::weak_ptr<mutablegeomstore> info;
+  //std::weak_ptr<mutablegeomstore> info;
 
   std::shared_ptr<osg_paramcacheentry> param_cache_entry;
   
@@ -270,8 +270,9 @@ public:
 	     //.imgbuf_extra_offset=0,
   }
   
-  {
+  {    
     this->snde_geom=snde_geom;
+    
     geode=NULL;
     //geode_state_set=NULL;
     geom=NULL;
@@ -313,6 +314,7 @@ public:
   // snde_geom, context, device, and queue shall be constant
   // after creation so can be freely read from any thread context
   std::shared_ptr<geometry> snde_geom;
+  std::weak_ptr<mutablewfmdb> snde_wfmdb;
   std::shared_ptr<osg_parameterizationcache> param_cache;
   cl_context context;
   cl_device_id device;
@@ -321,11 +323,13 @@ public:
   std::mutex admin; // serialize references to instance_map because that could be used from any thread that drops the last reference to an instancecacheentry... Need to think thread-safety of the instancecache through more carefully 
   
   osg_instancecache(std::shared_ptr<geometry> snde_geom,
+		    std::shared_ptr<mutablewfmdb> snde_wfmdb,
 		    std::shared_ptr<osg_parameterizationcache> param_cache,
 		    cl_context context,
 		    cl_device_id device,
 		    cl_command_queue queue) :
     snde_geom(snde_geom),
+    snde_wfmdb(snde_wfmdb),
     param_cache(param_cache),
     context(context),
     device(device),
@@ -335,13 +339,15 @@ public:
   }
 
   
-  std::shared_ptr<osg_instancecacheentry> lookup(std::shared_ptr<trm> revman,const snde_partinstance &instance,std::shared_ptr<mutablegeomstore> info,std::shared_ptr<part> part_ptr,std::shared_ptr<parameterization> param) //std::shared_ptr<geometry> geom,std::shared_ptr<lockholder> holder,rwlock_token_set all_locks,snde_partinstance &instance,cl_context context, cl_device device, cl_command_queue queue,snde_index thisversion)
+  std::shared_ptr<osg_instancecacheentry> lookup(std::shared_ptr<trm> revman,const snde_partinstance &instance,std::string wfmname /* std::shared_ptr<mutablegeomstore> info*/,std::shared_ptr<part> part_ptr,std::shared_ptr<parameterization> param) //std::shared_ptr<geometry> geom,std::shared_ptr<lockholder> holder,rwlock_token_set all_locks,snde_partinstance &instance,cl_context context, cl_device device, cl_command_queue queue,snde_index thisversion)
 
-  // NOTE: May be called while locks held on the mutablegeomstore "info"
+  // NOTE: May be called while locks held on the mutablegeomstore "info" (REALLY?... NEED TO INVESTIGATE WITH NEW LOCKING MODEL!)
 
   // must be called during a transaction
   {
-
+    std::shared_ptr<mutablewfmdb> wfmdb_strong = snde_wfmdb.lock();
+    if (!wfmdb_strong) return nullptr; 
+    
     std::unique_lock<std::mutex> adminlock(admin);
     
     auto instance_iter = instance_map.find(instance);
@@ -364,7 +370,7 @@ public:
 
       
       std::shared_ptr<osg_instancecacheentry> entry_ptr(&(entry->second),
-							[ shared_cache ](osg_instancecacheentry *ent) { /* custom deleter... this is a parameter to the shared_ptr constructor, ... the osg_instancecachentry was created in emplace(), above.  */ 
+							[ shared_cache, wfmdb_strong ](osg_instancecacheentry *ent) { /* custom deleter... this is a parameter to the shared_ptr constructor, ... the osg_instancecachentry was created in emplace(), above.  */ 
 							  std::unordered_map<snde_partinstance,osg_instancecacheentry,osg_snde_partinstance_hash,osg_snde_partinstance_equal>::iterator foundent;
 
 							  std::lock_guard<std::mutex> adminlock(shared_cache->admin);
@@ -376,7 +382,7 @@ public:
 							  shared_cache->instance_map.erase(foundent); /* remove the element */ 
 							  
 							} );
-      // Note: Currently holding adminlock
+      // Note: Currently holding adminlock for the instance cache
       entry->second.instance=instance;
       entry->second.thisptr = entry_ptr; /* stored as a weak_ptr so we can recall it on lookup but it doesn't count as a reference */
       entry->second.geode=new osg::Geode();
@@ -407,7 +413,7 @@ public:
       inputs_seed.emplace_back(snde_geom->manager,(void **)&snde_geom->geom.parts,instance.partnum,1);
 
       entry->second.part_ptr = part_ptr;
-      entry->second.info = info;
+      //entry->second.info = info;
 
       part_ptr->request_normals(revman,context,device,queue);
       part_ptr->request_inplanemats(revman,context,device,queue);
@@ -420,9 +426,14 @@ public:
 
       std::vector<trm_struct_depend> struct_inputs;
 
+      // ***NOTE***: We really don't need the struct dependency, except currently our only
+      // process for locking the arrays is via obtain_graph_lock() on the structure
       struct_inputs.emplace_back(geom_dependency(revman,part_ptr));
       
-      
+      // Note: Currently holding adminlock for the instance cache
+      // isn't the locking triggered by add_dependency_during_update potentially a locking order violation???
+      // Probably not: It's OK for our instance cache adminlock to be prior to the dependency_table_lock
+      // in trm, provided we are consistent about it. 
       entry->second.vertex_function
 	=revman->add_dependency_during_update(
 					      struct_inputs,
@@ -434,7 +445,7 @@ public:
 					      // triangles, based on part.firsttri and part.numtris
 					      // edges, based on part.firstedge and part.numedges
 					      // vertices, based on part.firstvertex and part.numvertices
-					      [ entry_ptr_weak,info,shared_cache ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
+					      [ entry_ptr_weak,shared_cache,wfmdb_strong ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
 
 						// actions is STDA_IDENTIFY_INPUTS or
 						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS or
@@ -469,15 +480,16 @@ public:
 						// component lock->geom lock-> vertex arrays lock
 						std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
 						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(shared_cache->snde_geom->manager->locker); // new locking process
+
+						obtain_graph_lock(lockprocess,comp,
+								  std::vector<std::string>(),
+								  std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
+								  nullptr,"", // Perhaps(?) Should provide meaningful context ... but irrelevant because only locking infostore components. 
+								  SNDE_INFOSTORE_COMPONENTS|SNDE_COMPONENT_GEOM_PARTS|((actions & STDA_EXECUTE) ? (SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES):0),
+								  0);
 						
-						comp->obtain_lock(lockprocess);
-						if (actions & STDA_EXECUTE) {
-						  comp->obtain_geom_lock(lockprocess,SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,0,0);
-						} else {
-						  comp->obtain_geom_lock(lockprocess,SNDE_COMPONENT_GEOM_PARTS,0,0);
-						}
 						
-						snde_part &partstruct = shared_cache->snde_geom->geom.parts[partobj->idx];
+						snde_part &partstruct = shared_cache->snde_geom->geom.parts[partobj->idx()];
 						
 						
 						if (actions & STDA_IDENTIFYOUTPUTS) {
@@ -494,7 +506,7 @@ public:
 						// update inputs vector
 						std::vector<trm_arrayregion> new_inputs;
 						
-						new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.parts,partobj->idx,1);
+						new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.parts,partobj->idx(),1);
 						new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.triangles,partstruct.firsttri,partstruct.numtris);
 						new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.edges,partstruct.firstedge,partstruct.numedges);
 						new_inputs.emplace_back(shared_cache->snde_geom->manager,(void **)&shared_cache->snde_geom->geom.vertices,partstruct.firstvertex,partstruct.numvertices);
@@ -575,9 +587,11 @@ public:
       if (param) {
 	entry->second.param_cache_entry=param_cache->lookup(revman,param);
 
-	// request parameterization boxes
-	param->request_boxes(revman,context,device,queue);
-	param->request_projinfo(part_ptr,revman,context,device,queue); 
+	// request parameterization boxes... dependent solely on the parameterization
+	param->request_boxes(wfmdb_strong,wfmdb_path_context(wfmname),wfmname,revman,context,device,queue);
+
+	// request projection info... co-dependent on part and parameterization
+	param->request_projinfo(wfmdb_strong,wfmdb_path_context(wfmname),wfmname,part_ptr,revman,context,device,queue); 
       }
       
 
@@ -747,7 +761,8 @@ public:
   std::shared_ptr<osg_parameterizationcache> paramcache;
   std::shared_ptr<mutablewfmdb> wfmdb;
   std::shared_ptr<trm> rendering_revman;
-  std::shared_ptr<mutablegeomstore> comp;
+  std::string wfmname;
+  //std::shared_ptr<mutablegeomstore> comp;
   osg::ref_ptr<osg::MatrixTransform> PickerCoordAxes; 
   
   // elements of this group will be osg::MatrixTransform objects containing the osg::Geodes of the cache entries.
@@ -778,14 +793,23 @@ public:
      the main TRM mutex. NEW SOLUTION: Now we release the main TRM mutex while we call it immediately
  
 */
-  OSGComponent(std::shared_ptr<snde::geometry> snde_geom,std::shared_ptr<osg_instancecache> cache,std::shared_ptr<osg_parameterizationcache> paramcache,std::shared_ptr<osg_texturecache> texcache,std::shared_ptr<mutablewfmdb> wfmdb,std::shared_ptr<trm> rendering_revman,std::shared_ptr<mutablegeomstore> comp,std::shared_ptr<display_info> dispinfo) :
+  OSGComponent(std::shared_ptr<snde::geometry> snde_geom,
+	       std::shared_ptr<osg_instancecache> cache,
+	       std::shared_ptr<osg_parameterizationcache> paramcache,
+	       std::shared_ptr<osg_texturecache> texcache,
+	       std::shared_ptr<mutablewfmdb> wfmdb,
+	       std::shared_ptr<trm> rendering_revman,
+	       std::string wfmname,
+	       //std::shared_ptr<mutablegeomstore> comp,
+	       std::shared_ptr<display_info> dispinfo) :
     snde_geom(snde_geom),
     cache(cache),
     paramcache(paramcache),
     texcache(texcache),
     wfmdb(wfmdb),
-    rendering_revman(rendering_revman),    
-    comp(comp)
+    rendering_revman(rendering_revman),
+    wfmname(wfmname)
+    //comp(comp)
   {
 
     //std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
@@ -828,22 +852,17 @@ public:
     
     //auto emptyparamdict = std::make_shared<std::unordered_map<std::string,paramdictentry>>();
 
-    scene = geometry_scene::lock_scene(snde_geom->manager->locker, wfmdb,[ this  ] () -> std::tuple<std::shared_ptr<component>,std::shared_ptr<immutable_metadata>,std::set<std::string>> {
-	// lambda for identifying what to lock 
-	std::set<std::string> chan_names;
-	std::shared_ptr<immutable_metadata> metadata=comp->metadata.metadata();
-	chan_names.emplace(comp->fullname);
-	
-	return std::make_tuple(comp->comp,metadata,chan_names);
-      },
-      [ this, dispinfo ](std::shared_ptr<mutabledatastore> paramdata, std::string wfmfullname) -> std::shared_ptr<image_data> {
-	// get_image_data() lambda
-	
-	std::shared_ptr<osg_texturecacheentry> texinfo = texcache->lookup(paramdata,dispinfo->lookup_channel(wfmfullname)); // look up texture data
-	
-	return std::static_pointer_cast<image_data>(texinfo);
-      },
-      oldscene.channels_locked);
+    std::string wfmdb_context = wfmdb_path_context(wfmname);
+    scene = geometry_scene::lock_scene(snde_geom->manager->locker, wfmdb,wfmdb_context,
+				       wfmname,
+				       std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
+				       [ this, dispinfo ](std::shared_ptr<mutabledatastore> paramdata, std::string wfmfullname) -> std::shared_ptr<image_data> {
+					 // get_image_data() lambda
+					 
+					 std::shared_ptr<osg_texturecacheentry> texinfo = texcache->lookup(paramdata,dispinfo->lookup_channel(wfmfullname)); // look up texture data
+					 
+					 return std::static_pointer_cast<image_data>(texinfo);
+				       });
     
     
     cacheentries.clear();
@@ -876,7 +895,7 @@ public:
       std::map<snde_index,std::shared_ptr<osg_texturecacheentry>> texcacheentry;
       
       
-      std::map<snde_index,std::shared_ptr<image_data>> & imagemap = std::get<3>(instance_part_param_imagemap); // since it's a std::map we can use equality operator... 
+      std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>> & imagemap = std::get<3>(instance_part_param_imagemap); // since it's a std::map we can use equality operator... 
       if (pos < oldscene.instances.size() && std::get<3>(oldscene.instances[pos])==imagemap) {
 	// same imagemap as before
 	texcacheentry = oldtexcacheentries[pos];
@@ -884,8 +903,17 @@ public:
       } else {
 	// Not present or mismatch in old array... build from imagemap (texture cache lookup was above, inside where we called get_instances())
 	texcacheentry.clear();
-	for (auto & imagenum__imagedata: imagemap) {
-	  texcacheentry.emplace(imagenum__imagedata.first,std::dynamic_pointer_cast<osg_texturecacheentry>(imagenum__imagedata.second));
+	for (auto & imagenum__datastore_imagedata: imagemap) {
+
+	  snde_index imagenum;
+	  std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>> datastore_imagedata;
+	  std::shared_ptr<mutabledatastore> datastore;
+	  std::shared_ptr<image_data> imagedata;
+	  
+	  std::tie(imagenum,datastore_imagedata) = imagenum__datastore_imagedata;
+	  std::tie(datastore,imagedata) = datastore_imagedata;
+	  // ***!!! (Anything useful to do here with datastore????) 
+	  texcacheentry.emplace(imagenum,std::dynamic_pointer_cast<osg_texturecacheentry>(imagedata));
 	}
 	texcacheentries.push_back(texcacheentry);
 	newtexcacheentry=true;
@@ -924,7 +952,7 @@ public:
 	cacheentries.push_back(oldcacheentries[pos]);
       } else {
 	// Not present or mismatch in old array... perform lookup
-	cacheentry = cache->lookup(rendering_revman,std::get<0>(instance_part_param_imagemap),comp,std::get<1>(instance_part_param_imagemap),std::get<2>(instance_part_param_imagemap));
+	cacheentry = cache->lookup(rendering_revman,std::get<0>(instance_part_param_imagemap),wfmname,std::get<1>(instance_part_param_imagemap),std::get<2>(instance_part_param_imagemap));
 	assert(paramcacheentry==cacheentry->param_cache_entry);
 	
 	cacheentries.push_back(cacheentry);
@@ -1141,13 +1169,20 @@ public:
     
   }
   
-  
+
   void LockVertexArraysTextures(std::shared_ptr<lockingprocess_threaded> lockprocess)
   /* This locks the generated vertex arrays and vertnormals (for OSG) and generated textures (for OSG) for read */
   /* Should have just done an Update() so that cacheentries is up-to-date */
   {
 
-    comp->obtain_lock(lockprocess,SNDE_INFOSTORE_INFOSTORE|SNDE_INFOSTORE_COMPONENTS|SNDE_COMPONENT_GEOM_PARTS); //|SNDE_COMPONENT_GEOM_VERTNORMALS,
+    //comp->obtain_lock(lockprocess,SNDE_INFOSTORE_INFOSTORE|SNDE_INFOSTORE_COMPONENTS|SNDE_COMPONENT_GEOM_PARTS); //|SNDE_COMPONENT_GEOM_VERTNORMALS,
+
+    obtain_graph_lock(lockprocess,wfmname,
+		      std::vector<std::string>(),
+		      std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
+		      wfmdb,wfmdb_path_context(wfmname), 
+		      SNDE_INFOSTORE_COMPONENTS|SNDE_COMPONENT_GEOM_PARTS,
+		      0);
     
     std::vector<trm_arrayregion> to_lock;
 

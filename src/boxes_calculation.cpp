@@ -287,7 +287,7 @@ std::shared_ptr<trm_dependency> boxes_calculation_3d(std::shared_ptr<geometry> g
 
   assert(partobj);
   
-  snde_index partnum = partobj->idx;
+  //snde_index partnum = partobj->idx;
 
   std::vector<trm_struct_depend> struct_inputs;
 
@@ -331,24 +331,20 @@ std::shared_ptr<trm_dependency> boxes_calculation_3d(std::shared_ptr<geometry> g
 						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
 						
 						/* Obtain lock for this component and its geometry */
-						comp->obtain_lock(lockprocess);
-						
-						if (actions & STDA_EXECUTE) {
-						  
-						  comp->obtain_geom_lock(lockprocess,
-									 SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES|SNDE_COMPONENT_GEOM_TRINORMALS,
-									 SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_BOXES|SNDE_COMPONENT_GEOM_BOXCOORD|SNDE_COMPONENT_GEOM_BOXPOLYS);
-						  
-						} else {
-						  
-						  comp->obtain_geom_lock(lockprocess,SNDE_COMPONENT_GEOM_PARTS);
-						}
+						//comp->obtain_lock(lockprocess);
+						obtain_graph_lock(lockprocess,comp,
+								  std::vector<std::string>(),
+								  std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
+								  nullptr,"", // wfmdb and context only relevant for components which might have children we want to access (this only operates on parts, which can only have parameterizations, which we're not asking fore)
+								  SNDE_INFOSTORE_COMPONENTS|SNDE_COMPONENT_GEOM_PARTS|((actions & STDA_EXECUTE) ? (SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES|SNDE_COMPONENT_GEOM_TRINORMALS) : 0),
+								  (actions & STDA_EXECUTE) ? (SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_BOXES|SNDE_COMPONENT_GEOM_BOXCOORD|SNDE_COMPONENT_GEOM_BOXPOLYS):0);
+
 
 						std::vector<std::array<snde_index,10>> boxlist;
 						std::vector<std::pair<snde_coord3,snde_coord3>> boxcoordlist;
 						std::vector<snde_index> boxpolylist;
 						
-						snde_part &partstruct = geom->geom.parts[partobj->idx];
+						snde_part &partstruct = geom->geom.parts[partobj->idx()];
 
 						if (actions & STDA_EXECUTE) {
 						  // Perform execution while still obtaining locks
@@ -370,7 +366,7 @@ std::shared_ptr<trm_dependency> boxes_calculation_3d(std::shared_ptr<geometry> g
 						std::vector<trm_arrayregion> new_inputs;
 						
 						
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.parts,partobj->idx,1);
+						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.parts,partobj->idx(),1);
 						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.triangles,partstruct.firsttri,partstruct.numtris);
 						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.edges,partstruct.firstedge,partstruct.numedges);
 						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.vertices,partstruct.firstvertex,partstruct.numvertices);
@@ -668,7 +664,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   
 
   
-std::shared_ptr<trm_dependency> boxes_calculation_2d(std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<snde::parameterization> param,snde_index patchnum,cl_context context,cl_device_id device,cl_command_queue queue)
+std::shared_ptr<trm_dependency> boxes_calculation_2d(std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,std::string wfmname,std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<snde::parameterization> param,snde_index patchnum,cl_context context,cl_device_id device,cl_command_queue queue)
 {
 
   // ***!!! NOTE: This calculation does not assign its output location until it actually executes.
@@ -697,7 +693,7 @@ std::shared_ptr<trm_dependency> boxes_calculation_2d(std::shared_ptr<geometry> g
 					      // Function
 					      // input parameters are:
 					      // paramnum
-					      [ geom,context,device,queue ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
+					      [ geom,context,device,queue,wfmdb,wfmdb_context ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
 						// actions is STDA_IDENTIFY_INPUTS or
 						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS or
 						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS|STDA_EXECUTE
@@ -725,18 +721,13 @@ std::shared_ptr<trm_dependency> boxes_calculation_2d(std::shared_ptr<geometry> g
 						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
 						
 						/* Obtain lock for this component and its geometry */
-						param->obtain_lock(lockprocess);
+						obtain_graph_lock(lockprocess,param,
+								  std::vector<std::string>(),
+								  std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
+								  wfmdb,wfmdb_context, 
+								  SNDE_INFOSTORE_PARAMETERIZATIONS|SNDE_UV_GEOM_UVS|((actions & STDA_EXECUTE) ? (SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_UV_EDGES|SNDE_UV_GEOM_UV_VERTICES) : 0),
+								  (actions & STDA_EXECUTE) ? (SNDE_UV_GEOM_UV_PATCHES|SNDE_UV_GEOM_UV_BOXES|SNDE_UV_GEOM_UV_BOXCOORD|SNDE_UV_GEOM_UV_BOXPOLYS) : 0);
 						
-						if (actions & STDA_EXECUTE) {
-						  
-						  param->obtain_uv_lock(lockprocess,
-									SNDE_UV_GEOM_UVS,SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_UV_EDGES|SNDE_UV_GEOM_UV_VERTICES,
-									SNDE_UV_GEOM_UV_PATCHES|SNDE_UV_GEOM_UV_BOXES|SNDE_UV_GEOM_UV_BOXCOORD|SNDE_UV_GEOM_UV_BOXPOLYS);
-						  
-						} else {
-						  
-						  param->obtain_uv_lock(lockprocess,SNDE_UV_GEOM_UVS);
-						}
 
 
 						snde_parameterization &paramstruct = geom->geom.uvs[param->idx];

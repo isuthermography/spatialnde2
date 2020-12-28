@@ -5,11 +5,13 @@
 #include "geometry_types.h"
 #include "lockmanager.hpp"
 #include "arraymanager.hpp"
-#include "geometry.hpp"
-#include "mutablewfmstore.hpp"
+#include "infostore_or_component.hpp"
+//#include "geometry.hpp"
+//##include "mutablewfmstore.hpp"
 
 
 using namespace snde;
+
 
 // These are defined here to avoid forward reference problems. 
 void snde::rwlock_lockable::lock() {
@@ -29,24 +31,6 @@ void snde::rwlock_lockable::unlock() {
 }
 
 
-rwlock_token_set lockmanager::lock_infostores(rwlock_token_set all_locks,std::shared_ptr<mutablewfmdb> wfmdb,std::set<std::string> channels_to_lock,bool write)
-{
-  std::vector<std::shared_ptr<mutableinfostore>> infostores;
-  
-  for (auto & channame : channels_to_lock) {
-    
-    
-    std::shared_ptr<mutableinfostore> infostore=wfmdb->lookup(channame);
-    assert(infostore); // ***!!! Should probably throw an exception instead
-    
-    
-    assert(infostore->manager->locker.get()==this); // all infostores must share same lock manager
-    infostores.push_back(infostore);
-  }
-  
-  return lock_lockables(all_locks,infostores,write);
-  
-}
 
     
 
@@ -62,6 +46,7 @@ snde::lockingprocess::~lockingprocess()
 {
 
 }
+
 
 
 
@@ -195,6 +180,7 @@ void snde::lockingprocess_threaded::postunlock(void *prelockstate)
 
 }
 
+/*
 std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_write_lockable(std::shared_ptr<mutableinfostore> infostore)
 {
   rwlock_token_set newset;
@@ -212,8 +198,8 @@ std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get
   
   return std::make_pair(lockholder_index(infostore.get(),true),newset);
 }
-
-
+*/
+/*
 std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_write_lockable(std::shared_ptr<geometry> geom)
 {
   rwlock_token_set newset;
@@ -232,7 +218,9 @@ std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get
   return std::make_pair(lockholder_index(geom.get(),true),newset);
 }
 
+*/
 
+/*
 std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_write_lockable(std::shared_ptr<component> comp)
 {
   rwlock_token_set newset;
@@ -250,8 +238,9 @@ std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get
   
   return std::make_pair(lockholder_index(comp.get(),true),newset);
 }
+*/
 
-
+/*
 std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_write_lockable(std::shared_ptr<parameterization> param)
 {
   rwlock_token_set newset;
@@ -269,7 +258,26 @@ std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get
   
   return std::make_pair(lockholder_index(param.get(),true),newset);
 }
+*/
 
+
+std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_write_lockable(std::shared_ptr<lockable_infostore_or_component> lic)
+{
+  rwlock_token_set newset;
+  bool preexisting_only;
+  
+  preexisting_only=_barrier(lockingposition(lic,true));
+  if (preexisting_only) {
+    newset = _lockmanager->get_preexisting_locks_write_lockable(all_tokens,lic);
+  } else {
+    newset = _lockmanager->get_locks_write_lockable(all_tokens,lic);
+  }
+  merge_into_rwlock_token_set(used_tokens,newset);
+  
+  //(*arraywriteregions)[_lockmanager->_arrayidx[array]].mark_all(SNDE_INDEX_INVALID);
+  
+  return std::make_pair(lockholder_index(lic.get(),true),newset);
+}
 
 
 std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_write_array(void **array)
@@ -318,6 +326,74 @@ std::pair<lockholder_index,rwlock_token_set> snde::lockingprocess_threaded::get_
 }
 
 
+rwlock_token_set snde::lockingprocess_threaded::begin_temporary_locking(lockingposition startpos)/* WARNING: Temporary locking only supported prior to all spawns!!! */
+// returns temporary_lock_pool
+{
+  bool preexisting_only = _barrier(startpos);
+  assert(!preexisting_only);  // we must be able to lock new stuff
+
+  // we should be holding the executor lock, so OK to mess with stuff
+  assert(_threadarray.size()==0); // no threads allowed if we are temporary locking.
+
+  return empty_rwlock_token_set();
+}
+
+rwlock_token_set snde::lockingprocess_threaded::get_locks_read_lockable_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic)
+{
+  rwlock_token_set newset = _lockmanager->get_locks_read_lockable(temporary_lock_pool,lic);
+
+  return newset;
+}
+
+rwlock_token_set snde::lockingprocess_threaded::get_locks_write_lockable_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic)
+{
+  rwlock_token_set newset = _lockmanager->get_locks_write_lockable(temporary_lock_pool,lic);
+
+  return newset;
+}
+
+rwlock_token_set snde::lockingprocess_threaded::get_locks_lockable_mask_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic,uint64_t maskentry,uint64_t readmask,uint64_t writemask)
+{
+  if (writemask & maskentry) {
+    // Lock component for write
+    if (maskentry==lic->lic_mask) {
+      return get_locks_write_lockable_temporary(temporary_lock_pool,lic);
+    } else {
+      assert(0); // Invalid maskentry for this function
+    }
+  } else if (readmask & maskentry) {
+    // lock component for read
+    if (maskentry==lic->lic_mask) {
+      return get_locks_read_lockable_temporary(temporary_lock_pool,lic);
+    } else {    
+      assert(0); // Invalid maskentry for this function
+    }
+  } else {
+    return empty_rwlock_token_set();
+  }
+
+}
+
+void snde::lockingprocess_threaded::abort_temporary_locking(rwlock_token_set temporary_lock_pool) /* WARNING: Temporary locking only supported prior to all spawns!!! */
+// aborts and releases given locks 
+
+{
+  unlock_rwlock_token_set(temporary_lock_pool);
+  
+}
+
+rwlock_token_set snde::lockingprocess_threaded::finish_temporary_locking(lockingposition endpos,rwlock_token_set temporary_lock_pool) /* WARNING: Temporary locking only supported prior to all spawns!!! */
+{
+
+  merge_into_rwlock_token_set(all_tokens,temporary_lock_pool);
+  merge_into_rwlock_token_set(used_tokens,temporary_lock_pool);
+  lastlockingposition=endpos;
+  return temporary_lock_pool;
+}
+
+
+
+/*
 std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_read_lockable(std::shared_ptr<mutableinfostore> infostore)
 {
   rwlock_token_set newset;
@@ -335,7 +411,9 @@ std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get
   
   return std::make_pair(lockholder_index(infostore.get(),false),newset);
 }
+*/
 
+/*
 std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_read_lockable(std::shared_ptr<geometry> geom)
 {
   rwlock_token_set newset;
@@ -353,8 +431,8 @@ std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get
   
   return std::make_pair(lockholder_index(geom.get(),false),newset);
 }
-
-
+*/
+/*
 rwlock_token_set snde::lockingprocess_threaded::get_locks_read_lockable_temporary(std::shared_ptr<geometry> geom)
 // ***!!!! Need to add temporary set to all_locks **!!!!
 {
@@ -372,7 +450,8 @@ rwlock_token_set snde::lockingprocess_threaded::get_locks_read_lockable_temporar
 
   return newset; 
 }
-
+*/
+/*
 std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_read_lockable(std::shared_ptr<component> comp)
 {
   rwlock_token_set newset;
@@ -390,7 +469,9 @@ std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get
   
   return std::make_pair(lockholder_index(comp.get(),false),newset);
 }
+*/
 
+/*
 std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_read_lockable(std::shared_ptr<parameterization> param)
 {
   rwlock_token_set newset;
@@ -407,6 +488,27 @@ std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get
   //(*arraywriteregions)[_lockmanager->_arrayidx[array]].mark_all(SNDE_INDEX_INVALID);
   
   return std::make_pair(lockholder_index(param.get(),false),newset);
+}
+*/
+
+
+
+std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_read_lockable(std::shared_ptr<lockable_infostore_or_component> lic)
+{
+  rwlock_token_set newset;
+  bool preexisting_only;
+  
+  preexisting_only=_barrier(lockingposition(lic,false));
+  if (preexisting_only) {
+    newset = _lockmanager->get_preexisting_locks_read_lockable(all_tokens,lic);
+  } else {
+    newset = _lockmanager->get_locks_read_lockable(all_tokens,lic);
+  }
+  merge_into_rwlock_token_set(used_tokens,newset);
+  
+  //(*arraywriteregions)[_lockmanager->_arrayidx[array]].mark_all(SNDE_INDEX_INVALID);
+  
+  return std::make_pair(lockholder_index(lic.get(),false),newset);
 }
 
 
@@ -498,6 +600,7 @@ std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_
   }
 }
 
+/*
 std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_lockable_mask(std::shared_ptr<mutableinfostore> infostore,uint64_t maskentry,uint64_t readmask,uint64_t writemask)
 {
   if (writemask & maskentry) {
@@ -518,7 +621,10 @@ std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_
     return std::make_pair(lockholder_index(),empty_rwlock_token_set());
   }
 }
+*/
 
+
+/*
 std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_lockable_mask(std::shared_ptr<geometry> geom,uint64_t maskentry,uint64_t readmask,uint64_t writemask)
 {
   if (writemask & maskentry) {
@@ -540,7 +646,8 @@ std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_
     return std::make_pair(lockholder_index(),empty_rwlock_token_set());
   }
 }
-
+*/
+/*
 std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_lockable_mask(std::shared_ptr<component> comp,uint64_t maskentry,uint64_t readmask,uint64_t writemask)
 {
   if (writemask & maskentry) {
@@ -562,10 +669,11 @@ std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_
     return std::make_pair(lockholder_index(),empty_rwlock_token_set());
   }
 }
+*/
 
 
 
-
+/*
 std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_lockable_mask(std::shared_ptr<parameterization> param,uint64_t maskentry,uint64_t readmask,uint64_t writemask)
 {
   if (writemask & maskentry) {
@@ -587,6 +695,31 @@ std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_
     return std::make_pair(lockholder_index(),empty_rwlock_token_set());
   }
 }
+*/
+
+
+
+std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_lockable_mask(std::shared_ptr<lockable_infostore_or_component> lic,uint64_t maskentry,uint64_t readmask,uint64_t writemask)
+{
+  if (writemask & maskentry) {
+    // Lock component for write
+    if (maskentry==lic->lic_mask) { 
+      return get_locks_write_lockable(lic);
+    } else {
+      assert(0); // Invalid maskentry for this function
+    }
+  } else if (readmask & maskentry) {
+    // lock component for read
+    if (maskentry==lic->lic_mask) {
+      return get_locks_read_lockable(lic);
+    } else {    
+      assert(0); // Invalid maskentry for this function
+    }
+  } else {
+    return std::make_pair(lockholder_index(),empty_rwlock_token_set());
+  }
+}
+
 
 
 std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> snde::lockingprocess_threaded::alloc_array_region(std::shared_ptr<arraymanager> manager,void **allocatedptr,snde_index nelem,std::string allocid)
@@ -706,25 +839,6 @@ std::shared_ptr<lockingprocess_thread> snde::lockingprocess_threaded::spawn(std:
   return std::make_shared<lockingprocess_threaded_thread>(newthread);
 }
 
-rwlock_token_set snde::lockingprocess_threaded::lock_infostores(std::shared_ptr<mutablewfmdb> wfmdb,std::set<std::string> channels_to_lock,bool write)
-{
-  std::vector<std::shared_ptr<mutableinfostore>> infostores;
-  
-  for (auto & channame : channels_to_lock) {
-    
-    
-    std::shared_ptr<mutableinfostore> infostore=wfmdb->lookup(channame);
-    assert(infostore); // ***!!! Should probably throw an exception instead
-    
-    
-    //assert(infostore->manager->locker.get()==this); // all infostores must share same lock manager
-    infostores.push_back(infostore);
-
-  }
-
-  
-  return lock_lockables<mutableinfostore>(infostores,write);
-}
 
 rwlock_token_set snde::lockingprocess_threaded::finish()
 {

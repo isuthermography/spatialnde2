@@ -85,9 +85,18 @@ import ctypes
 
 namespace snde {
 
+  class component; // Forward declaration
+  class assembly; // Forward declaration
+  class part; // Forward declaration
+  class geometry_function; // Forward declaration
+  // class nurbspart; // Forward declaration
+  class mutableinfostore;
+  class mutabledatastore;
+  class mutableparameterizationstore;
+  class mutablewfmdb;
+
   class immutable_metadata; // forward reference
   class image_data;
-  
 
 
   class geometry {
@@ -134,12 +143,12 @@ namespace snde {
   public:
 
     std::shared_ptr<geometry> geom;
-    std::string name;
+    //std::string name;
     snde_index idx;
 
-    parameterization(std::shared_ptr<geometry> geom, std::string name,snde_index idx,snde_index numuvimages);
+    parameterization(std::shared_ptr<geometry> geom, snde_index idx,snde_index numuvimages);
 
-    virtual void obtain_uv_lock(std::shared_ptr<lockingprocess> process, snde_infostore_lock_mask_t readmask=SNDE_UV_GEOM_ALL, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0);
+    virtual void obtain_uv_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist=nullptr,std::string wfmdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_UV_GEOM_ALL, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0);
     void free();
 
 
@@ -168,7 +177,8 @@ namespace snde {
 
 
 
- class component { /* abstract base class for geometric components (assemblies, nurbspart, part) */
+%nodefaultctor component; // component is abstract so it shouldn't have default constructor created
+  class component : public lockable_infostore_or_component { /* abstract base class for geometric components (assemblies, nurbspart, part) */
   public:
    //typedef enum {
    //   subassembly=0,
@@ -177,18 +187,21 @@ namespace snde {
    //} TYPE;
    //
    // TYPE type;
-
-   virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<snde::part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data)=0;
+   
+   // virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data)=0;
     
-    virtual void obtain_geom_lock(std::shared_ptr<lockingprocess> process, snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_infostore_lock_mask_t writemask=0,snde_infostore_lock_mask_t resizemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */
+   //virtual void obtain_geom_lock(std::shared_ptr<lockingprocess> process, snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_infostore_lock_mask_t writemask=0,snde_infostore_lock_mask_t resizemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */
 
-    virtual void _explore_component(std::set<std::shared_ptr<component>,std::owner_less<std::shared_ptr<component>>> &component_set)=0; /* readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits */
+   //virtual void _explore_component(std::set<std::shared_ptr<component>,std::owner_less<std::shared_ptr<component>>> &component_set)=0; /* readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits */
 
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process,snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS,snde_infostore_lock_mask_t writemask=0)=0;
+   // virtual void obtain_lock(std::shared_ptr<lockingprocess> process,snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS,snde_infostore_lock_mask_t writemask=0)=0;
 
     virtual ~component();
   };
-  
+
+
+ 
+ 
 
   %extend part {
     %pythoncode %{
@@ -255,27 +268,23 @@ namespace snde {
         pass  
       
 %}
-  }
+ }
   class part : public component {
     part(const part &)=delete; /* copy constructor disabled */
     part& operator=(const part &)=delete; /* copy assignment disabled */
     
   public:
     std::shared_ptr<geometry> geom;
-    snde_index idx;
-    std::map<std::string,std::shared_ptr<parameterization>> parameterizations;
+    snde_index idx();
     bool destroyed;
  
     
-    part(std::shared_ptr<geometry> geom,std::string name,snde_index idx);
+    part(std::shared_ptr<geometry> geom,snde_index idx);
 
-    void addparameterization(std::shared_ptr<parameterization> uv_parameterization);
-    
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process,snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS,snde_infostore_lock_mask_t writemask=0); /* readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits */
-    
-    virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data);    
+    std::shared_ptr<const std::set<std::string>> parameterizations();
 
- 
+    //virtual std::shared_ptr<mutableparameterizationstore> addparameterization(std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,std::shared_ptr<snde::parameterization> parameterization,std::string name,const wfmmetadata &metadata);
+    
     void free(); /* You must be certain that nothing could be using this part's database entries prior to free() */
 
     ~part();
@@ -290,12 +299,12 @@ namespace snde {
   public:    
       //std::map<std::string,std::tuple<snde_orientation3,std::shared_ptr<component>>> pieces;
 
-    assembly(std::string name,snde_orientation3 orientation);
+    assembly();
 
 
-    virtual void obtain_lock(std::shared_ptr<lockingprocess> process,snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS,snde_infostore_lock_mask_t writemask=0); /* readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits */
-    virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data);
-    static std::tuple<std::shared_ptr<assembly>,std::unordered_map<std::string,snde::metadatum>> from_partlist(std::string name,std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,snde::metadatum>>>> parts);
+    //virtual void obtain_lock(std::shared_ptr<lockingprocess> process,snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS,snde_infostore_lock_mask_t writemask=0); /* readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits */
+    //virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data);
+    static std::shared_ptr<assembly> from_partlist(std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,std::shared_ptr<std::vector<std::string>> partnames);
 
     
     virtual ~assembly();

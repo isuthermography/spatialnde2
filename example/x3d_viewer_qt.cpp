@@ -95,9 +95,10 @@ int main(int argc, char **argv)
   }
   
 
-  std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>> parts;
+  //std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>> parts;
+  std::shared_ptr<std::vector<std::shared_ptr<mutableinfostore>>> part_infostores;
   revision_manager->Start_Transaction();
-  parts = x3d_load_geometry(geom,argv[1],wfmdb,false,true); // !!!*** Try enable vertex reindexing !!!***
+  part_infostores = x3d_load_geometry(geom,argv[1],wfmdb,"/",false,true); // !!!*** Try enable vertex reindexing !!!***
   revision_manager->End_Transaction();
 
 
@@ -106,7 +107,7 @@ int main(int argc, char **argv)
 
   std::shared_ptr<osg_parameterizationcache> paramcache=std::make_shared<osg_parameterizationcache>(geom,context,device,queue);
   
-  geomcache=std::make_shared<osg_instancecache>(geom,paramcache,context,device,queue);
+  geomcache=std::make_shared<osg_instancecache>(geom,wfmdb,paramcache,context,device,queue);
 
 
   
@@ -119,18 +120,17 @@ int main(int argc, char **argv)
 
   
   {
-    std::shared_ptr<assembly> assem;
-    std::unordered_map<std::string,metadatum> md;
-    std::tie(assem,md)=assembly::from_partlist("LoadedX3D",parts);
-
+    std::shared_ptr<mutablegeomstore> assem_infostore;
+    assem_infostore=mutablegeomstore::from_partlist(wfmdb,"/",geom,"LoadedX3D",part_infostores);
+    
     
     
     //geom->object_trees.insert(std::make_pair("LoadedX3D",assem));
     revision_manager->Start_Transaction();
     
-    std::shared_ptr<mutablegeomstore> LoadedX3D = std::make_shared<mutablegeomstore>("LoadedX3D","LoadedX3D",wfmmetadata(md),geom,assem);
+    //std::shared_ptr<mutablegeomstore> LoadedX3D = std::make_shared<mutablegeomstore>("LoadedX3D","/LoadedX3D",wfmmetadata(md),geom,assem);
     
-    wfmdb->addinfostore(LoadedX3D);
+    wfmdb->addinfostore(assem_infostore);
     
     //for (auto & part_md : *parts) {
     //  // add normal calculation for each part from the .x3d file
@@ -141,8 +141,8 @@ int main(int argc, char **argv)
     
     
     osg::ref_ptr<snde::OSGComponent> OSGComp;
-
-    OSGComp=new snde::OSGComponent(geom,geomcache,paramcache,texcache,wfmdb,revision_manager,LoadedX3D,Viewer->display); // OSGComp must be created during a transaction...
+    // ***!!!!! (is OSGComp used? I don't think so)
+    //OSGComp=new snde::OSGComponent(geom,geomcache,paramcache,texcache,wfmdb,revision_manager,LoadedX3D->fullname,Viewer->display); // OSGComp must be created during a transaction...
 
     
     revnum=revision_manager->End_Transaction();

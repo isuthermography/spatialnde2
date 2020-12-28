@@ -7,6 +7,7 @@
 
 #include <CL/opencl.h>
 
+#include "utils.hpp"
 #include "opencl_utils.hpp"
 
 #define MAX_DEVICES 1000
@@ -49,25 +50,6 @@ static std::string GetCLDeviceString(cl_device_id device,cl_device_info param_na
   return retval;
 }
 
-  // my_tokenize: like strtok_r, but allows empty tokens
-  char *my_tokenize(char *buf,int c,char **SavePtr)
-  {
-    if (!buf) {
-      buf=*SavePtr; 
-    }
-    if (!buf) return nullptr;
-
-    for (size_t pos=0;buf[pos];pos++) {
-      if (buf[pos]==c) {
-	buf[pos]=0;
-	*SavePtr=&buf[pos+1];
-	return buf;
-      }
-    }
-    *SavePtr=nullptr;
-    return nullptr; 
-  }
-
   
 /* query should be of the same structure used for OpenCV: 
    <Platform or Vendor>:<CPU or GPU or ACCELERATOR>:<Device name or number> */
@@ -90,11 +72,11 @@ std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string q
   std::unordered_map<cl_device_id,std::tuple<cl_platform_id,int,size_t>> ratings; /* int is rating, size_t is summarypos */
   
   
-  Platform=my_tokenize(buf,':',&SavePtr);
+  Platform=c_tokenize(buf,':',&SavePtr);
   if (Platform) {
-    Type=my_tokenize(NULL,':',&SavePtr);
+    Type=c_tokenize(NULL,':',&SavePtr);
     if (Type) {
-      Device=my_tokenize(NULL,':',&SavePtr);      
+      Device=c_tokenize(NULL,':',&SavePtr);      
     }
   }
 

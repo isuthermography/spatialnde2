@@ -12,7 +12,9 @@
 #include "geometry_types.h"
 #include "arraymanager.hpp"
 #include "metadata.hpp"
+#include "lockmanager.hpp"
 #include "geometry.hpp"
+#include "wfmdb_paths.hpp"
 
 
 #ifndef SNDE_MUTABLEWFMSTORE_HPP
@@ -42,7 +44,7 @@ static inline snde_index total_numelements(std::vector<snde_index> shape) {
 
 
 
-class mutableinfostore : public std::enable_shared_from_this<mutableinfostore>  {
+class mutableinfostore : public lockable_infostore_or_component  {
   /* NOTE: if you add more mutableinfostore subclasses, may need to add 
      handlers to OSGData::update() in openscenegraph_data.hpp ! */
 public:
@@ -57,11 +59,12 @@ public:
 
 
   
-  // lock the infostore with manager->locker->get_locks_read_infostore(all_locks,mutableinfostore)
-  // *** MUST FOLLOW LOCKING ORDER DEFINED BY manager->locker. infostore should be locked
+  // lock the infostore with manager->locker->lock_infostores()
+  // *** MUST FOLLOW LOCKING ORDER DEFINED BY manager->locker. infostores should be locked
   // PRIOR TO locking data arrays.
 
   mutableinfostore(std::string leafname,std::string fullname,const wfmmetadata &metadata,std::shared_ptr<arraymanager> manager) :
+    lockable_infostore_or_component(SNDE_INFOSTORE_INFOSTORES),
     leafname(leafname),
     fullname(fullname),
     metadata(metadata),
@@ -75,14 +78,42 @@ public:
   mutableinfostore(const mutableinfostore &)=delete; /* copy constructor disabled */
   mutableinfostore& operator=(const mutableinfostore &)=delete; /* assignment disabled */
 
-  virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_INFOSTORE, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
+
+  virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>>
+  explore_component_get_instances(std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>> &component_set,
+				  std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::string wfmdb_context,
+				  snde_orientation3 orientation,
+				  std::shared_ptr<immutable_metadata> metadata,
+				  std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata)
+  {
+    std::shared_ptr<lockable_infostore_or_component> our_ptr=shared_from_this();
+    component_set.emplace(our_ptr);
+    
+    return std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>>();
+
+  }
+
+  virtual void obtain_geom_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist=nullptr,std::string wfmdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_infostore_lock_mask_t writemask=0,snde_infostore_lock_mask_t resizemask=0)
+  {
+    // mutablewfmstores don't have geometry -- well mutablegeomstores do, indirectly, but they
+    // would have this called explicitly on the member geometry
+  }
+  virtual void obtain_uv_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist=nullptr,std::string wfmdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_infostore_lock_mask_t writemask=0,snde_infostore_lock_mask_t resizemask=0)
+  {
+    // mutablewfmstores don't have geometry -- well mutablegeomstores do, indirectly, but they
+    // would have this called explicitly on the member geometry
+
+  }
+  
+  
+  /*  virtual void obtain_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<mutablewfmdb> wfmdb=null, std::string wfmdb_context="", snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_INFOSTORE, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
   {
     assert(readmask & SNDE_INFOSTORE_INFOSTORE || writemask & SNDE_INFOSTORE_INFOSTORE); // pointless if we aren't doing this
 
     process->get_locks_lockable_mask(shared_from_this(),SNDE_INFOSTORE_INFOSTORE,readmask,writemask);
     
   }
-
+  */
   
   virtual ~mutableinfostore()
   {
@@ -312,6 +343,12 @@ public:
     //  
     //}
     //free(NameCopy);
+    /**** !!!! Should enforce absolute lookups ***!!! (but we can only do that easily on wfmdb directly...)  */
+    if (Name.at(0)=='/') { // skip leading slash
+      Name=Name.substr(1);
+    }
+
+    
     auto index_it = indexbyname.find(Name);
     if (index_it != indexbyname.end()) {
 
@@ -335,7 +372,7 @@ public:
       return subtree->lookup(SubName);
     }
     
-    return nullptr; 
+    return std::shared_ptr<mutableinfostore>(); // return empty pointer
 
   }
 
@@ -359,7 +396,7 @@ public:
       return subtree->lookup_subtree(SubName);
     }
     
-    return nullptr; 
+    return std::shared_ptr<iterablewfmrefs>(); // return empty pointer
     
   }
 
@@ -493,11 +530,18 @@ public:
       
       std::string SubName=name.substr(SlashPos+1);
       std::shared_ptr<iterablewfmrefs> subtree;
-      subtree = subtree->lookup_subtree(IterableName);
-      if (!subtree && make_subtrees) {
-	subtree = _add_subtree_internal(new_wfmlist,path,SubName);
-      } else if (!subtree) {
-	return 1;
+      if (SlashPos==0) {
+	// absolute reference to root
+	assert(path=="");  // references to root from subtrees not currently supported
+	return _addinfostore_internal(new_wfmlist,infostore,"/",SubName,make_subtrees);
+
+      } else {
+	subtree = subtree->lookup_subtree(IterableName);
+	if (!subtree && make_subtrees) {
+	  subtree = _add_subtree_internal(new_wfmlist,path,SubName);
+	} else if (!subtree) {
+	  return 1;
+	}
       }
       return _addinfostore_internal(subtree,infostore,path+IterableName+"/",SubName,make_subtrees);
     }
@@ -599,6 +643,49 @@ public:
       }
     }
   }
+
+
+  rwlock_token_set lock_infostores(std::shared_ptr<lockmanager> lmanager,rwlock_token_set all_locks,std::shared_ptr<mutablewfmdb> wfmdb,std::set<std::string> channels_to_lock,bool write)
+{
+  std::vector<std::shared_ptr<mutableinfostore>> infostores;
+  
+  for (auto & channame : channels_to_lock) {
+    
+    
+    std::shared_ptr<mutableinfostore> infostore=lookup(channame);
+    assert(infostore); // ***!!! Should probably throw an exception instead
+    
+    
+    assert(infostore->manager->locker==lmanager); // all infostores must share same lock manager
+    infostores.push_back(infostore);
+  }
+  
+  return lmanager->lock_lockables(all_locks,infostores,write);
+  
+}
+
+
+  rwlock_token_set lock_infostores(std::shared_ptr<lockingprocess> process, std::set<std::string> channels_to_lock,bool write)
+  {
+    std::vector<std::shared_ptr<mutableinfostore>> infostores;
+  
+    for (auto & channame : channels_to_lock) {
+      
+      
+      std::shared_ptr<mutableinfostore> infostore=lookup(channame);
+      assert(infostore); // ***!!! Should probably throw an exception instead
+      
+      
+      //assert(infostore->manager->locker.get()==this); // all infostores must share same lock manager
+      infostores.push_back(infostore);
+      
+    }
+    
+    
+    return process->lock_lockables<mutableinfostore>(infostores,write);
+  }
+  
+  
 };
 
 
@@ -614,8 +701,9 @@ public:
 class mutablegeomstore: public mutableinfostore
 {
 public:
-  std::shared_ptr<geometry> geom;
-  std::shared_ptr<component> comp;
+  std::shared_ptr<geometry> geom;  // must not be changed after initialization
+  std::shared_ptr<component> _comp; // atomic shared pointer
+  
   //std::shared_ptr<paramdictentry> paramdict;
   //snde_index image; // address within uv_images field of geometry structure... represents our ownership of this image
 
@@ -623,20 +711,87 @@ public:
   mutablegeomstore(std::string leafname,std::string fullname,const wfmmetadata &metadata,std::shared_ptr<geometry> geom,std::shared_ptr<component> comp) : //,std::shared_ptr<paramdictentry> paramdict) :
     mutableinfostore(leafname,fullname,metadata,geom->manager),
     geom(geom),
-    comp(comp)
+    _comp(comp)
     //paramdict(paramdict)
   {
     
   }
 
+  
+  std::shared_ptr<component> comp()
+  {
+    return std::atomic_load(&_comp);
+  }
 
-  virtual void obtain_lock(std::shared_ptr<lockingprocess> process, snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_INFOSTORE, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
+  // mutableparameterizationstore should be locked when calling this function 
+  virtual void update_comp(std::shared_ptr<component> new_comp)
+  {
+    std::atomic_store(&_comp,new_comp);
+  }
+  
 
-  /* ***!!!!! Please note: this does NOT lock the parameterization or any texture channels, or the 
-     vertexarrays or texvertexarrays, or rgba data !!!*** */
+  virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>>
+  explore_component_get_instances(std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>> &component_set,
+				  std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::string wfmdb_context,
+				  snde_orientation3 orientation,
+				  std::shared_ptr<immutable_metadata> metadata,
+				  std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata)
+  {
+    std::shared_ptr<mutablegeomstore> our_ptr=std::dynamic_pointer_cast<mutablegeomstore>(shared_from_this());
+    component_set.emplace(our_ptr);
+
+
+    std::shared_ptr<immutable_metadata> merged_metadata = MergeMetadata(our_ptr->metadata.metadata(),metadata);
+    
+    std::shared_ptr<component> cur_comp=comp();
+    if (cur_comp) {
+      return cur_comp->explore_component_get_instances(component_set,wfmdb_wfmlist,wfmdb_context,orientation,
+						       merged_metadata,get_uv_imagedata);
+    }
+    else {
+      return std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>>();
+    }
+    
+  }
+
+  static std::shared_ptr<mutablegeomstore> from_partlist(std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,std::shared_ptr<geometry> geom,std::string assemname,std::shared_ptr<std::vector<std::string>> partnames)
+  // NOTE: Does not add the new assembly mutablegeomstore to wfmdb -- you need to call wfmdb->addinfostore()
+  // on the returned pointer 
+  {
+    std::shared_ptr<assembly> newassem = assembly::from_partlist(wfmdb,wfmdb_context,partnames);
+
+    return std::make_shared<mutablegeomstore>(assemname,wfmdb_path_join(wfmdb_context,assemname),wfmmetadata(),geom,newassem);
+  }
+
+  static std::shared_ptr<mutablegeomstore> from_partlist(std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,std::shared_ptr<geometry> geom,std::string assemname, std::shared_ptr<std::vector<std::shared_ptr<mutableinfostore>>> partlist)
+  // NOTE: Does not add the new assembly mutablegeomstore to wfmdb -- you need to call wfmdb->addinfostore()
+  // on the returned pointer
+  // NOTE: Filters out any parameterizations or uv_imagedata in partlist, as they aren't part of the assembly --
+  // they are included implicitly
+  // so long as there is uv_imagedata referencing them
+  {
+    std::shared_ptr<std::vector<std::string>> partnames=std::make_shared<std::vector<std::string>>();
+
+    for (auto & infostore: *partlist) {
+
+      if (std::dynamic_pointer_cast<mutablegeomstore>(infostore)) {
+	// must be a mutablegeomstore, i.e. referencing a component, to be part of the assembly
+	partnames->emplace_back(*wfmdb_relative_path_to(wfmdb_context,infostore->fullname));
+      }
+    }
+    
+    std::shared_ptr<assembly> newassem = assembly::from_partlist(wfmdb,wfmdb_context,partnames);
+
+    return std::make_shared<mutablegeomstore>(assemname,wfmdb_path_join(wfmdb_context,assemname),wfmmetadata(),geom,newassem);
+  }
+
+  /*  virtual void obtain_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<mutablewfmdb> wfmdb=null, std::string wfmdb_context="",snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_INFOSTORE, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
+
+  // ***!!!!! Please note: this does NOT lock the parameterization or any texture channels, or the 
+ //    vertexarrays or texvertexarrays, or rgba data !!!*** 
   {
     // call superclass to lock the infostore itself
-    mutableinfostore::obtain_lock(process,readmask,writemask,resizemask);
+    mutableinfostore::obtain_lock(process,wfmdb,wfmdb_context,readmask,writemask,resizemask);
     
     rwlock_token_set temporary_object_trees_lock;
     
@@ -657,7 +812,7 @@ public:
 
       // lock all components of this geom despite arbitrary locking order
       
-      comp->obtain_lock(process,readmask,writemask);
+      comp->obtain_lock(process,wfmdb,wfmdb_context,readmask & (~SNDE_COMPONENT_GEOM_ALL),writemask & (~SNDE_COMPONENT_GEOM_ALL));
     }
     
     if (readmask & SNDE_COMPONENT_GEOM_ALL || writemask & SNDE_COMPONENT_GEOM_ALL) {
@@ -667,10 +822,69 @@ public:
     //if (readmask & )
     //  param_ptr->obtain_uv_lock(lockprocess,SNDE_UV_GEOM_UVS|SNDE_UV_GEOM_INPLANE2UVCOORDS|SNDE_UV_GEOM_UVCOORDS2INPLANE);
 
-  }
+    */ 
 
 };
 
+
+
+class mutableparameterizationstore: public mutableinfostore
+{
+public:
+  std::shared_ptr<geometry> geom;
+  std::shared_ptr<parameterization> _param;  // atomic shared pointer
+  //std::shared_ptr<paramdictentry> paramdict;
+  //snde_index image; // address within uv_images field of geometry structure... represents our ownership of this image
+
+  
+  mutableparameterizationstore(std::string leafname,std::string fullname,const wfmmetadata &metadata,std::shared_ptr<geometry> geom,std::shared_ptr<parameterization> param) : //,std::shared_ptr<paramdictentry> paramdict) :
+    mutableinfostore(leafname,fullname,metadata,geom->manager),
+    geom(geom),
+    _param(param)
+    //paramdict(paramdict)
+  {
+    
+  }
+
+
+  std::shared_ptr<parameterization> param()
+  {
+    return std::atomic_load(&_param);
+  }
+
+  // mutableparameterizationstore should be locked when calling this function 
+  virtual void update_param(std::shared_ptr<parameterization> new_param)
+  {
+    std::atomic_store(&_param,new_param);
+  }
+  
+  virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>>
+  explore_component_get_instances(std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>> &component_set,
+				  std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::string wfmdb_context,
+				  snde_orientation3 orientation,
+				  std::shared_ptr<immutable_metadata> metadata,
+				  std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata)
+  {
+    std::shared_ptr<mutableparameterizationstore> our_ptr=std::dynamic_pointer_cast<mutableparameterizationstore>(shared_from_this());
+    component_set.emplace(our_ptr);
+
+    std::shared_ptr<parameterization> param_ptr = param();  
+    std::shared_ptr<immutable_metadata> merged_metadata = MergeMetadata(our_ptr->metadata.metadata(),metadata);
+
+    if (param_ptr) {
+      return param_ptr->explore_component_get_instances(component_set,wfmdb_wfmlist,wfmdb_context,orientation,
+							merged_metadata,get_uv_imagedata);
+    }
+    else {
+      return std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>>();
+    }
+    
+  }
+
+
+};
+
+  
 
   
 class mutabledatastore: public mutableinfostore {
@@ -731,6 +945,41 @@ public:
   mutabledatastore& operator=(const mutabledatastore &)=delete; /* assignment disabled */
 
   virtual double element_double(snde_index idx)=0; // WARNING: array should generally be locked for read when calling this function!
+
+  virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>>
+  explore_component_get_instances(std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>> &component_set,
+				  std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::string wfmdb_context,
+				  snde_orientation3 orientation,
+				  std::shared_ptr<immutable_metadata> metadata,
+				  std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata)
+  {
+    std::shared_ptr<mutabledatastore> our_ptr=std::dynamic_pointer_cast<mutabledatastore>(shared_from_this());
+    component_set.emplace(our_ptr);
+
+    // datastores may have uv_parameterization metadata specifying which parameterization to use... in which case
+    // that parameterization needs to be explored
+    std::shared_ptr<immutable_metadata> merged_metadata = MergeMetadata(our_ptr->metadata.metadata(),metadata);
+
+    std::string uv_parameterization=merged_metadata->GetMetaDatumStr("uv_parameterization","");
+    std::shared_ptr<lockable_infostore_or_component> parameterization_ioc;
+    std::shared_ptr<mutableparameterizationstore> parameterization_infostore;
+
+    fprintf(stderr,"mutabledatastore::explore_component_get_instances: uv_parameterization=\"%s\"\n",uv_parameterization.c_str());
+    
+    if (uv_parameterization.size() > 0
+	&& (parameterization_ioc=wfmdb_wfmlist->lookup(wfmdb_path_join(wfmdb_context,uv_parameterization)))
+	&& (parameterization_infostore=std::dynamic_pointer_cast<mutableparameterizationstore>(parameterization_ioc))) {
+
+      fprintf(stderr,"mutabledatastore::explore_component_get_instances: exploring uv_parameterization\n");
+      
+      return parameterization_infostore->explore_component_get_instances(component_set,wfmdb_wfmlist,wfmdb_context,orientation,
+									 merged_metadata,get_uv_imagedata);
+    }
+    else {
+      return std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>>();
+    }
+  }
+
   
   void *void_dataptr()
   {

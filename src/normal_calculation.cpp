@@ -37,7 +37,7 @@ std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr<geometry> geo
 
   assert(partobj);
   
-  snde_index partnum = partobj->idx;
+  //snde_index partnum = partobj->idx();
 
   std::vector<trm_struct_depend> struct_inputs;
 
@@ -81,16 +81,14 @@ std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr<geometry> geo
 						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
 						
 						/* Obtain lock for this component and its geometry */
-						comp->obtain_lock(lockprocess);
+						//comp->obtain_lock(lockprocess);
+						obtain_graph_lock(lockprocess,comp,
+								  std::vector<std::string>(),
+								  std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
+								  nullptr,"", // wfmdb and context only relevant for components which might have children we want to access (this only operates on parts, which can only have parameterizations, which we're not asking fore)
+								  SNDE_INFOSTORE_COMPONENTS|SNDE_COMPONENT_GEOM_PARTS|((actions & STDA_EXECUTE) ? (SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES) : 0),
+								  (actions & STDA_EXECUTE) ? (SNDE_COMPONENT_GEOM_VERTNORMALS|SNDE_COMPONENT_GEOM_TRINORMALS):0);
 						
-						if (actions & STDA_EXECUTE) {
-						  
-						  comp->obtain_geom_lock(lockprocess, SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES,SNDE_COMPONENT_GEOM_VERTNORMALS|SNDE_COMPONENT_GEOM_TRINORMALS);
-						  
-						} else {
-						  
-						  comp->obtain_geom_lock(lockprocess,SNDE_COMPONENT_GEOM_PARTS);
-						}
 						
 						rwlock_token_set all_locks=lockprocess->finish();
 						
@@ -102,8 +100,8 @@ std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr<geometry> geo
 						std::vector<trm_arrayregion> new_inputs;
 						
 						
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.parts,partobj->idx,1);
-						snde_part &partstruct = geom->geom.parts[partobj->idx];
+						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.parts,partobj->idx(),1);
+						snde_part &partstruct = geom->geom.parts[partobj->idx()];
 						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.triangles,partstruct.firsttri,partstruct.numtris);
 						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.edges,partstruct.firstedge,partstruct.numedges);
 						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.vertices,partstruct.firstvertex,partstruct.numvertices);
@@ -135,7 +133,7 @@ std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr<geometry> geo
 						    // The third parameter is the array element to be passed
 						    // (actually comes from the OpenCL cache)
 						    
-						    Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,0,(void **)&geom->geom.parts,partobj->idx,1,false);
+						    Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,0,(void **)&geom->geom.parts,partobj->idx(),1,false);
 						    
 						    
 						    Buffers.AddSubBufferAsKernelArg(geom->manager,normal_kern,1,(void **)&geom->geom.triangles,partstruct.firsttri,partstruct.numtris,false);

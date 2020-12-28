@@ -241,16 +241,22 @@ public:
 							 std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(shared_cache->snde_geom->manager->locker); // new locking process
 
 							 // lock the parameterization for read
-							 param->obtain_lock(lockprocess);
+							 obtain_graph_lock(lockprocess,param,
+									   std::vector<std::string>(),
+									   std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
+									   nullptr,"", // wfmdb and context only relevant for components which might have children we want to access
+									   SNDE_INFOSTORE_PARAMETERIZATIONS|SNDE_UV_GEOM_UVS|((actions & STDA_EXECUTE) ? (SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_UV_EDGES|SNDE_UV_GEOM_UV_VERTICES):0),
+									   0);
+							 //param->obtain_lock(lockprocess);
 
 							 // lock the UV data as needed
-							 if (actions & STDA_EXECUTE) {
+							 //if (actions & STDA_EXECUTE) {
 							   
-							   param->obtain_uv_lock(lockprocess,SNDE_UV_GEOM_UVS|SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_UV_EDGES|SNDE_UV_GEOM_UV_VERTICES);
-							 } else {
-							   param->obtain_uv_lock(lockprocess,SNDE_UV_GEOM_UVS);
-							   
-							 }
+							 //  param->obtain_uv_lock(lockprocess,SNDE_UV_GEOM_UVS|SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_UV_EDGES|SNDE_UV_GEOM_UV_VERTICES);
+							 //} else {
+							 //  param->obtain_uv_lock(lockprocess,SNDE_UV_GEOM_UVS);
+							 //  
+							 //}
 
 							 snde_parameterization &uvstruct = shared_cache->snde_geom->geom.uvs[param->idx];
 							 if (actions & STDA_IDENTIFYOUTPUTS) {
