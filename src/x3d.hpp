@@ -2357,11 +2357,10 @@ namespace snde {
 	uvparam=std::make_shared<parameterization>(geom,firstuv,1);  // currently only implement numuvimages==1
 	/* add this parameterization to our part */
 	
-	std::shared_ptr<mutableparameterizationstore> curparamstore = curpart->addparameterization(wfmdb,wfmdb_context,uvparam,"intrinsic",wfmmetadata());
+	std::shared_ptr<mutableparameterizationstore> curparamstore = curpart->addparameterization(wfmdb,wfmdb_context,uvparam,"intrinsic",wfmmetadata()); // addparameterization adds it to wfmdb automatically
 	wfmdb->addinfostore(curinfostore); // add the (now pretty well complete) part to the waveform database
 
 	parts_parameterizations->emplace_back(curparamstore);
-
 	
 	// Mark that we have modified mesheduv and uv_triangles with the CPU
 	geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.uvs,firstuv,1);
