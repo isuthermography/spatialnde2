@@ -2,6 +2,11 @@
 #include <osgGA/GUIEventHandler>
 #include <osg/ValueObject>
 
+/*
+#include <osg/io_utils>
+#include <iostream>
+*/
+
 #include "snde_types.h"
 #include "geometry_types.h"
 #include "vecops.h"
@@ -217,11 +222,21 @@ namespace snde {
 			  
 			  multcmat23coord(geom->geom.uvcoords2inplane[paramref.firstuvtri+trinum],u_vector_uv_coords,&u_vector_inplane_coords);
 			  multcmat23coord(geom->geom.uvcoords2inplane[paramref.firstuvtri+trinum],v_vector_uv_coords,&v_vector_inplane_coords);
+
+			  /*
+			  fprintf(stderr,"trinum=%d\n",(int)trinum);
+			  fprintf(stderr,"u_vector_inplane_coords={%f,%f}\n",u_vector_inplane_coords.coord[0],u_vector_inplane_coords.coord[1]);
+			  fprintf(stderr,"v_vector_inplane_coords={%f,%f}\n",v_vector_inplane_coords.coord[0],v_vector_inplane_coords.coord[1]);
+			  */
 			  
 			  // multiply u and v vectors in inplane coords by inplanemat transpose to get (x,y,z) coords
 			  snde_coord3 u_vector_xyz_coords,v_vector_xyz_coords;
 			  multcmat23transposecoord(geom->geom.inplanemats[partref.firsttri+trinum],u_vector_inplane_coords,&u_vector_xyz_coords);
 			  multcmat23transposecoord(geom->geom.inplanemats[partref.firsttri+trinum],v_vector_inplane_coords,&v_vector_xyz_coords);
+			  /*
+			  fprintf(stderr,"u_vector_xyz_coords={%f,%f,%f}\n",u_vector_xyz_coords.coord[0],u_vector_xyz_coords.coord[1],u_vector_xyz_coords.coord[2]);
+			  fprintf(stderr,"v_vector_xyz_coords={%f,%f,%f}\n",v_vector_xyz_coords.coord[0],v_vector_xyz_coords.coord[1],v_vector_xyz_coords.coord[2]);
+			  */
 		      
 			  // convert to unit vectors
 			  normalizecoord3(&u_vector_xyz_coords);
@@ -243,7 +258,11 @@ namespace snde {
 					      w_vector_xyz_coords.coord[0],w_vector_xyz_coords.coord[1],w_vector_xyz_coords.coord[2],0.0, // third column: w vector
 					      0.0,0.0,0.0,1.0); // fourth column: no offset  (handled by Translate)
 			  osg::Matrixd Scale = osg::Matrixd::scale(refsize,refsize,refsize);
-			  
+			  /*
+			  std::cout << "Rotate:";
+			  std::cout << Rotate;
+			  std::cout << "\n";
+			  */
 		      
 			  osg::ref_ptr<OSGComponent> OSGComp;
 			  instance_cachedata->comp.lock(OSGComp);
