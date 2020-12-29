@@ -48,7 +48,7 @@ __kernel void normalcalc(__global const struct snde_part *part,
     normalizevec3(W.coord);
 
     if (normvec3(N.coord) < min_cross_product) {
-      printf("Normal calculation: Triangle %u edges too parallel\n",(unsigned)trianglenum);
+      printf("Normal calculation: Triangle 0x%x edges too parallel\n",(unsigned)trianglenum);
     }
     
   }
