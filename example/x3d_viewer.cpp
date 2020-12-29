@@ -140,6 +140,13 @@ int main(int argc, char **argv)
     exit(1);
   }
 
+  // The OpenCL device specification has the format:
+  // <Platform or Vendor>:<CPU or GPU or ACCELERATOR>:<Device name or number>
+  // double precision support is required. 
+  
+  // You can get the relevant platform/vendor/device identifiers using the "clinfo" program
+  // Any parameter specifically specified becomes a requirement. Just specifying
+  // "::" will prefer a GPU 
   std::tie(context,device,clmsgs) = get_opencl_context("::",true,NULL,NULL);
 
   fprintf(stderr,"%s",clmsgs.c_str());
