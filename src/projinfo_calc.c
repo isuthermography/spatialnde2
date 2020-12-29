@@ -144,7 +144,7 @@ __kernel void projinfo_calc(// __global const struct snde_part *part,
 
   }
   // Solve TexXformMtx*x = TexCoordVec... x will overwrite TexCoordVec
-  fmatrixsolve(TexXformMtx,TexCoordVec,6,1,TexXformMtx_pivots);
+  fmatrixsolve(TexXformMtx,TexCoordVec,6,1,TexXformMtx_pivots,trianglenum==0);
 
   inplane2uvcoords[trianglenum].row[0].coord[0]=TexCoordVec[0]; // A11
   inplane2uvcoords[trianglenum].row[0].coord[1]=TexCoordVec[1]; // A12
@@ -173,7 +173,7 @@ __kernel void projinfo_calc(// __global const struct snde_part *part,
   Amatinv[1]=0.0f;
   Amatinv[2]=0.0f;
   Amatinv[3]=1.0f;
-  fmatrixsolve(Amat,Amatinv,2,2,Amat_pivots);
+  fmatrixsolve(Amat,Amatinv,2,2,Amat_pivots,trianglenum==0);
 
   // extract 2x2 matrix on left of uvcoords2inplane
   uvcoords2inplane[trianglenum].row[0].coord[0]=Amatinv[0]; //Amatinv11
