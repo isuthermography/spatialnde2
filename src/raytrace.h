@@ -855,7 +855,8 @@ void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
 
   //CvMat *jacobian,*jacinv;
   snde_coord jacobian[4],jacinv[4],detinv;
-
+  size_t jacobian_pivots[2];
+  
   snde_coord weightingfactor;
     
   size_t xcnt,ycnt;
@@ -883,7 +884,7 @@ void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
   jacinv[1]=0.0;
   jacinv[2]=0.0;
   javinv[3]=1.0;
-  fmatrixsolve(jacobian,jacinv,2,2); // ***!!! NOTE: fmatrixsolve destroys jacobian!
+  fmatrixsolve(jacobian,jacinv,2,2,jacobian_pivots,0); // ***!!! NOTE: fmatrixsolve destroys jacobian!
 
   // jacinv stored row-major, eats (u,v) direction for lunch, gives (a,b) direction
 
