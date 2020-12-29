@@ -604,7 +604,31 @@ static VECOPS_INLINE void mean2coord3(snde_coord3 vec1,snde_coord3 vec2,snde_coo
   }
 }
 
-static VECOPS_INLINE void fmatrixsolve(snde_coord *A,snde_coord *b,size_t n,size_t nsolve,size_t *pivots)
+static VECOPS_INLINE void fmatrixsolve_print(snde_coord *A, snde_coord *b, size_t n, size_t nsolve,size_t *pivots)
+{
+  // print A and b
+  int printrow,printcol;
+  printf("A:\n");
+  for (printrow=0; printrow < n; printrow++) {
+    for (printcol=0;printcol < n; printcol++) {
+      printf("%10f  ",A[pivots[printrow] + printcol*n]);
+    }
+    printf("\n");
+  }
+  printf("b:\n");
+  for (printrow=0; printrow < n; printrow++) {
+    for (printcol=0;printcol < nsolve; printcol++) {
+      printf("%10f  ",b[pivots[printrow] + printcol*n]);
+    }
+    printf("\n");
+  }
+  
+  printf("\n\n");
+}
+
+
+
+static VECOPS_INLINE void fmatrixsolve(snde_coord *A,snde_coord *b,size_t n,size_t nsolve,size_t *pivots,int printflag)
 // solves A*x=b, where A is n*n, b is n*nsolve, and x is n*1
 // must provide a n-length vector of size_t "pivots" that this routine uses for intermediate storage.
 // *** NOTE: *** This routine will overwrite the contents of A and b... stores the
@@ -621,9 +645,14 @@ static VECOPS_INLINE void fmatrixsolve(snde_coord *A,snde_coord *b,size_t n,size
   
   // initialize blank pivots
   for (row=0; row < n; row++) {
-    pivots[row]=row;
+    pivots[row]=row; // pivots[row] is the index of which physical row we should go to for conceptual row #row
+                     // in the L, U triangular decomposition.
   }
 
+  if (printflag) {
+    //fmatrixsolve_print(A, b, n, nsolve,pivots);
+  }
+  
   for (row=0; row < n; row++) {
     // find largest magnitude row
     old_pivots_row=pivots[row];
@@ -652,6 +681,8 @@ static VECOPS_INLINE void fmatrixsolve(snde_coord *A,snde_coord *b,size_t n,size
     
     // subtract a multiple of this row from all succeeding rows
     for (succ_row = row+1; succ_row < n; succ_row++) {
+
+      
       leading_val = A[pivots[succ_row] + row*n];
       A[pivots[succ_row] + row*n]=0.0f;
       for (col=row+1; col < n; col++) {
@@ -661,7 +692,13 @@ static VECOPS_INLINE void fmatrixsolve(snde_coord *A,snde_coord *b,size_t n,size
 	b[pivots[succ_row] + solvecnt*n] -= leading_val*b[pivots[row] + solvecnt*n];
       }
     }
+    
+    if (printflag) {
+      //fmatrixsolve_print(A, b, n, nsolve,pivots);
+    }
   }
+
+  
 
   // OK; now A should be upper-triangular
   // Now iterate through the back-substitution. 
@@ -683,8 +720,16 @@ static VECOPS_INLINE void fmatrixsolve(snde_coord *A,snde_coord *b,size_t n,size
 	b[pivots[pred_row] + solvecnt*n] -= pred_val * b[pivots[row] + solvecnt*n];
       }
     }
+
+    if (printflag) {
+      //fmatrixsolve_print(A, b, n, nsolve,pivots);
+      //printf("Not printing the matrix!\n");
+    }
+
   }
 
+  
+  
   // ... solved! A should be the identity matrix and Answer should be stored in b...
   // But we need to reorder the rows to undo the pivot
 
