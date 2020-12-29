@@ -220,6 +220,11 @@ add_executable(matrixsolve_test
         test/matrixsolve_test.cpp)
 target_link_libraries(matrixsolve_test spatialnde2 ${SPATIALNDE2_LIBS})
 
+IF (OpenCL_FOUND)
+  add_executable(opencl_calc_test test/opencl_calc_test.cpp)
+  target_link_libraries(opencl_calc_test spatialnde2 ${SPATIALNDE2_LIBS} ${OpenCL_LIBRARIES} ${PNG_LIBRARIES} ${LIBXML2_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
+ENDIF (OpenCL_FOUND)
+
 IF (Eigen3_FOUND)
     add_executable(transform_eval_test
             test/transform_eval_test.cpp)
@@ -233,12 +238,14 @@ ENDIF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
 
 
 IF (PythonInterp_FOUND)
-    set(PYTHONGENHEADERS src/snde_types.h src/geometry_types.h src/geometry_ops.h src/testkernel.c src/osg_vertexarray.c src/osg_texvertexarray.c src/normal_calc.c src/projinfo_calc.c src/colormap.h src/scale_colormap.c src/dummy_scale_colormap.c )
+    set(PYTHONGENHEADERS src/snde_types.h src/geometry_types.h src/geometry_ops.h src/vecops.h src/testkernel.c src/osg_vertexarray.c src/osg_texvertexarray.c src/normal_calc.c src/projinfo_calc.c src/colormap.h src/scale_colormap.c src/dummy_scale_colormap.c )
   
-    set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
+    set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
 
     add_custom_command(OUTPUT ${PYTHONGENERATEDHEADERS}
             DEPENDS ${PYTHONGENHEADERS}
+            # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
+
             COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/snde_types.h ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h
             COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/geometry_types.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h
             COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/geometry_ops.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h
