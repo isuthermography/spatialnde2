@@ -225,6 +225,11 @@ std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string q
 
   free(buf);
   buf=NULL;
+
+  if (!ratings.size()) {
+    fprintf(stderr,"No available OpenCL devices matched the given criteria (all rating categories >= 0)\n");
+    exit(1);
+  }
   
   cl_device_id device=nullptr;
   cl_platform_id platform;
@@ -322,7 +327,9 @@ void add_opencl_alignment_requirement(std::shared_ptr<allocator_alignment> align
   cl_int err;
   err=clGetDeviceInfo(device,CL_DEVICE_MEM_BASE_ADDR_ALIGN,sizeof(align_value),&align_value,NULL);
   if (err != CL_SUCCESS || !align_value) {
-    throw openclerror(err,"Error obtaining OpenCL device alignment requirements");
+    //throw openclerror(err,"Error obtaining OpenCL device alignment requirements");
+    fprintf(stderr,"WARNING: Error obtaining OpenCL device alignment requirements... assuming 256 bits\n");
+    align_value=256; 
   }
   if (align_value % 8) {
     throw openclerror(err,"OpenCL device memory alignment is not a multiple of 8 bits");
