@@ -18,9 +18,99 @@ provided only the last one will be locked.
 
 
 
-   *** Should implement lock "keys" whereby the revision manager acquires the keys, 
+   *** Should (probably not) implement lock "keys" whereby the revision manager acquires the keys, 
    and then only lockers with access to the keys are are allowed to lock the arrays. 
    Others have to wait...   ... acts as a prior lock in the locking order... 
+
+
+
+New design concept requirements:
+   * Dependency graph for mutable zones
+   * Immutable zones with revisions can also exist in dependency graph
+   * Immutable waveforms also 
+   * Waveform headers/metadata can also exist in dependency graph
+   CANCELLED: 
+      * Planned transactions: Pre-specify what will be changed, what will be 
+        accessed, what (if-any) output is locked at the end of the transaction
+      * Output can (conceptually) be locked because a dependency implicitly owns its 
+        outputs so nothing else should be able to modify the outputs unless/until 
+        another transaction is started. So these requested outputs become 
+        part of the planned transaction graph. 
+
+        A planned transaction can proceed in parallel with other transactions if it
+        is orthogonal to the other transactions. 
+    * Track rectangular bounding box for changes through from initiated transaction to completion. 
+    * Need library to perform intersections on bounding boxes. 
+    * Need to tag waveforms with their changed box since prior revision (metadata?)
+    * Some math functions are marked to be automatically re-run in the viewer
+      (live only) and probably don't have any data saved -- like ProcExpr/ProcRGBA -- Can we define helper math functions that assist with viewing the data? -- i.e. math function for background subtraction that evaluates the background average; then a viewing assist? -- Can geometry math such as normals and boxes fit into this framework? 
+      * Tag ProcExpr/ProcRGBA/rendering math functions as "local only"
+      * Any particular allocation space can only have "local only" or 
+        non-"local only" mutable data but not both
+	* Local only functions will usually generate mutable output in-place
+        * Need a way to lock them once mutable output generated, to enable render before they are overwritten by next rev. 
+    * Execution graph: 
+      * Mutable waveforms and immutable waveforms with self-dependency or ability to do partial recalc (possibly pure immutable waveforms that can be bypassed with no input changes as well) all have a dependency on their prior revision
+      * Exception for mutable waveforms that are only mutable to decrease copying when only a sub-rectangle is changed. 
+      * How to handle graphics arrays that aren't actually waveforms? 
+      * Mutable waveforms have implicit dependency on all dependencies of their prior revision (this prevents mutable waveform calculation of new revision from occuring before previous revision)
+      * Keep graph of everything pending
+        * With new revision, build new graph and then splice/graft it on to 
+          current graph, or just add entries piecemeal (probably former; we 
+          need to start on the left side, which may not otherwise be clear
+	* But externally provided waveforms may pop into being piecemeal 
+          as they become ("Ready").  
+    * Everything immediately executable goes onto work queues
+      * Different work queues for different types of jobs (what if a particular
+        job can be performed by multiple dispatch options?)
+      * Dedicated work queue for particular function guarantees it will always 
+        run in the same process context and therefore be able to cache 
+        intermediate results that may need to be reused. 
+    * Work queues dispatch jobs to destinations, with numbers of threads 
+      bounded by resource managers. Multiple dispatchers may use the same
+      resources (CPU cores from a (possibly limited affinity pool))
+      * Tell each job how many cores/GPUs it should use (based on a declared parallel capability). 
+    * Job prioritization according to (a) global revision number (older 
+      revisions higher priority), (b) number of (immediate? downstream?)
+      dependencies within its global revision revision. 
+    * Some waveforms are on-demand -- only generated if desired
+    * Any waveform with a mandatory self-dependency (including all 
+      mutable waveforms) cannot be on-demand. 
+    * READY character of a global revision is dependent on waveforms of interest: Just mandatory waveforms or additional optional waveforms? so when asking for READY you need to be specific. Some waveforms (local only) not available remotely 
+  * Math parser to implement expression logic and implicit intermediates? 
+    (pygram-generated?)
+ 
+Rethink identification of inputs and outputs e.g. SDTA_IDENTIFYINPUTS. What are the actual use cases and what do we really need? 
+* Need to be able to propagate proposed input changes to corresponding output changes;
+  ... But exact location of intermediates doesn't really matter in most cases ... Can we define a proxy for such situations?
+  ... May not be able to calculate exact size until execution anyway
+* Two classes of inputs: Inputs that may be messed with externally and inputs which are the outputs of revision_manager 
+  functions. The latter can be represented by proxies rather than worrying about addresses and locations. 
+* But we do, when all is said and done, have to be able to provide output addresses. 
+
+* When an output moves location, do we have to push a notification immediately that the prior address is no longer valid? 
+  ... Yes the option is valuable. 
+
+How does TRM affect locking orders? Presence within a transaction? planned transaction? 
+  Locking order:  transaction_update_lock -> individual arrays
+  dependency_table_lock is after individual arrays in the locking order and should not 
+  be held while callbacks are being called. 
+
+Versioned immutable waveforms: 
+  Defined state vs. Ready state. 
+
+Real time display: 
+  * Snapshot current defined state; wait for calculations to complete and corresponding versioned immutables to become ready
+    * Can only happen between transactions as transaction should appear atomic
+    * Delays new planned transactions
+    * Waits for current planned transactions to complete. 
+    * Prevents changes/new transactions until rendering complete 
+  * Problem: How to get simultaneity/ordering of updates that come in during such a delay???***!!!
+  * Need to be able to register to capture each change!
+
+Thought: Maybe if mutable fields are intermediates only: Final outputs generally immutable and raw inputs generally 
+immutable, then the global semantics are immutable and a lot of these problems go away. 
+
 */
 
 #include <unordered_set>
@@ -648,7 +738,7 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
 
     std::atomic<snde_index> currevision;
     
-    std::recursive_mutex dependency_table_lock; /* ordered after transaction_update_lock but before locking of arrays; locks dependencies, contents of dependencies,  and dependency execution tracking variables */
+    std::recursive_mutex dependency_table_lock; /* ordered after transaction_update_lock and after locking of arrays; locks dependencies, the table below of dependency references, and modified_db, modified_struct db*/
     /* dependency_tabel_lock is a recursive mutex so it can be safely re-locked when a trm_dependency's 
        destructor is called, auto removing the trm_dependency from the various sets */
     std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> dependencies; /* list of all dependencies */
