@@ -79,6 +79,37 @@ New design concept requirements:
     * READY character of a global revision is dependent on waveforms of interest: Just mandatory waveforms or additional optional waveforms? so when asking for READY you need to be specific. Some waveforms (local only) not available remotely 
   * Math parser to implement expression logic and implicit intermediates? 
     (pygram-generated?)
+
+  * Explicit mapping process between function returns and channels. 
+
+  * Channels and pending calculation graph reference math functions 
+    (any other references are weak) so that once a math function is no
+    longer referenced, it goes away. 
+  * Explicitly creating a math calculation defines the math channels, which
+    then reference the math calculation. The math calculation maintains
+    a reference to the channels it outputs on. The reference loop is 
+    irrelevant because channels can not be deleted anyway
+  * If the channel does not reference the math calculation, then the 
+    math calculation is not the channel owner and should redirect its 
+    output to an implicit hidden channel
+  * Any dead or empty output channel goes to an implicit hidden channel
+  * Implicit hidden channels store values of intermediates and ignored
+    math function outputs. 
+  * Implicit hidden channels are named uniquely according to their source
+    and only weakly reference the source so the source is deleted when 
+    there are no remaining explicit references
+  * Like all channels, implicit hidden channels are permanent. 
+
+  * Distinction between currently defined math function and an executing
+    math function for a particular global revision, which may be different. 
+  * Math functions should (be able to) keep track of execution CPU/GPU 
+    resource use including OpenMP thread CPU usage, GPU usage, subprocess 
+    CPU usage, and execution wall time. Data should be stored/profiled 
+    according to the execution unit involved. 
+
+
+
+
  
 Rethink identification of inputs and outputs e.g. SDTA_IDENTIFYINPUTS. What are the actual use cases and what do we really need? 
 * Need to be able to propagate proposed input changes to corresponding output changes;
