@@ -49,6 +49,12 @@ New design concept requirements:
         non-"local only" mutable data but not both
 	* Local only functions will usually generate mutable output in-place
         * Need a way to lock them once mutable output generated, to enable render before they are overwritten by next rev. 
+        * Changes to local only functions do define a new global revision, which
+          means that local and remote global revisions will get out of sync
+          and a mapping will be required. 
+      * Sub-waveforms have their own data and revisions, etc. independent 
+        of their parent. Change of parent does not imply change of 
+        sub-waveform. 
     * Execution graph: 
       * Mutable waveforms and immutable waveforms with self-dependency or ability to do partial recalc (possibly pure immutable waveforms that can be bypassed with no input changes as well) all have a dependency on their prior revision
       * Exception for mutable waveforms that are only mutable to decrease copying when only a sub-rectangle is changed. 
