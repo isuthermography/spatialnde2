@@ -21,7 +21,7 @@
 #include "rangetracker.hpp"
 
 /* general locking api information:
- * High level locking order:  (THESE UPDATES NOT YET IMPLEMENTED; SEE class lockingposition)!!!
+ * OLD High level locking order for mutablewfmstore and transactional revision manager (TRM):  
  1 TRM transaction_update_lock -- not managed by lockmanager
 
 Used to have object_trees lock. Problem is that with objects both part of a tree and in the wfmdb
@@ -34,7 +34,7 @@ Solution: atomic lists that can be traversed, sort the results, lock, then verif
     * UV projection data are named by the comma-separated metadata entry uv_parameterization_channel
     * Challenge: If you add or modify a waveform/geom. component, must provide locks and references to
       everything that component references in the tree, directly or indirectly, and pass those
-      to the wfmdb when you update it. 
+      to the wfmdb when you update it (so the dirtynotifies can be safely processed). 
       **** THESE ARE LOCKED BY A PROCESS WHEREBY WE EXPLORE THE GRAPH USING ATOMIC ACCESSES (_explore_component) 
            (Must be prior to any lockprocess spawn()s as the unlocking process is incompatible with spawn() )
 	   Then create an ordered list and lock, then re-explore, and retry locking if the ordered list has changed.
@@ -42,6 +42,27 @@ Solution: atomic lists that can be traversed, sort the results, lock, then verif
    * Ordered by position in geometry data structure relative to others in that structure
    *** THESE ARE LOCKED Following the Locking order via spawn() if necessary 
  4 TRM dependency_table_lock -- not managed by lockmanager
+
+
+ *** NEW, UPDATED LOCKING ORDER for mostly-immutable waveform database: 
+ 1. Entry into a transaction (StartTransaction()/EndTransaction() or equiv)
+ 2. Any locks required to traverse the mostly immutable wfmdb (hopefully few/none)
+   * StartTransaction() defines a new global revision for the calling thread
+     to mess with. Other threads will still get the prior revision and the 
+     structures should generally be immutable so little/no locking required.
+   * EndTransaction() makes the new global revision current
+ 2.1 The wfmdatabase admin lock 
+ 2.2 Any single wfmdatabase channel admin lock, or the available_compute_resource_database admin lock, or any single globalrevision admin lock
+ 2.5 Any waveform admin lock. 
+ 3. Mutable data arrays. This includes transient locking to do allocations
+    for new mutable OR IMMUTABLE sub-arrays.
+    Ordering is by geometry structure or data array structure address, 
+    and within Ordering is by location within the geometry structure
+ 4. Any "last" locks such as the Python GIL
+
+Note that the above means that any code called from Python that is doing
+locking needs to DROP THE GIL FIRST, acquire locks and then re-acquire the
+GIL. With the current SWIG wrappers this is ensured by the -thread option to SWIG
 
 
  * Data array locking can be done at various levels of granularity:  All arrays
