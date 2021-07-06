@@ -983,7 +983,7 @@ public:
   
   void *void_dataptr()
   {
-    return (void *)(((char *)basearray) + startelement*elementsize);
+    return (void *)(((char *)(*basearray)) + startelement*elementsize);
   }
   
 
@@ -1154,7 +1154,7 @@ public:
   
   T *dataptr()
   {
-    return ((T *)basearray) + startelement;
+    return ((T *)(*basearray)) + startelement; 
   }
 
   T element(snde_index idx)
