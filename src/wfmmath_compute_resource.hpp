@@ -1,0 +1,158 @@
+namespace snde {
+
+#define SNDE_CR_PRIORITY_REDUCTION_LIMIT 8 // number of priority reduction levels within a globalrev (priority reductions 0..(SNDE_CR_PRIORITY_REDUCTION_LIMIT-1)
+  
+
+  #define SNDE_CR_CPU 0
+  #define SNDE_CR_OPENCL 1
+  #define SNDE_CR_CUDA 2
+  
+  class compute_resource_option {
+    // A list of shared_ptrs to these are returned from the math_function's get_compute_options() method
+    // they are immutable once published
+  public:
+    compute_resource_option(unsigned type, size_t metadata_bytes,size_t data_bytes,std::shared_ptr<compute_code> function_code);
+
+    // Rule of 3
+    compute_resource_option(const compute_resource_option &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
+    compute_resource_option& operator=(const compute_resource_option &) = delete; 
+    virtual ~compute_resource_option()=default;  // virtual destructor required so we can be subclassed
+
+    unsigned type; // SNDE_CR_...
+
+    // transfer requirement estimate -- intended to decide about transfer to a cluster node or similar
+    size_t metadata_bytes;
+    size_t data_bytes;
+    std::shared_ptr<compute_code> function_code; 
+  };
+
+  class compute_resource_option_cpu: public compute_resource_option {
+  public:
+    compute_resource_option_cpu(unsigned type,
+				size_t metadata_bytes,
+				size_t data_bytes,
+				std::shared_ptr<compute_code> function_code,
+				float64_t flops,
+				size_t max_effective_cpu_cores,
+				size_t max_useful_cpu_cores);
+    float64_t flops; 
+    size_t max_effective_cpu_cores; 
+    size_t max_useful_cpu_cores; 
+  };
+  class compute_resource_option_opencl: public compute_resource_option {
+  public:
+    compute_resource_option_opencl(unsigned type,
+				   size_t metadata_bytes,
+				   size_t data_bytes,
+				   std::shared_ptr<compute_code> function_code,
+				   float64_t cpu_flops,
+				   float64_t gpu_flops,
+				   size_t max_effective_cpu_cores,
+				   size_t max_useful_cpu_cores);
+    float64_t cpu_flops; 
+    float64_t gpu_flops; 
+    size_t max_effective_cpu_cores; 
+    size_t max_useful_cpu_cores;
+  };
+
+  
+  class available_compute_resource_database {
+    // Represents the full set of compute resources available
+    // for waveform math calculations
+  public:
+    std::mutex admin; // locks compute_resources and todo_list, including all pending_computations but not their embedded executing_math_function; precedes just Python GIL
+    std::list<std::shared_ptr<available_compute_resource>> compute_resources;
+
+    // everything in todo_list is queued in with one or more of the compute_resources
+    std::unordered_set<std::shared_ptr<pending_computation>> todo_list;  // Must be very careful with enclosing scope of references to pending_computation elements. They must be removed from todo_list and drop off the available_compute_resource prioritized_computations multimaps by expiration of their weak_ptrs atomically. (How to handle this from a locking perspective is an open question) but in any case the enclosing scope for the extracted shared_ptr must terminate before the lock is released. 
+
+    std::multimap<uint64_t,std::shared_ptr<pending_computation>> blocked_list; // indexed by global revision; map of pending computations that have been blocked from todo_list because we are waiting for all mutable calcs in prior revision to complete. 
+    
+  };
+
+  class pending_computation {
+    // Once the result waveforms are ready we need to copy this and get it off the todo_list,
+    // so as to invalidate other entries on the prioritized_computations
+    // of other available_compute_resources
+    // locked by the available_compute_resource_database's admin lock but the pointed to executing_math_function is locked separately
+  public:
+    std::shared_ptr<executing_math_function> function_to_execute; // once ready to execute, we pull the arguments and create an executing_math_function.
+    uint64_t globalrev;
+    uint64_t priority_reduction; // 0..(SNDE_CR_PRIORITY_REDUCTION_LIMIT-1)
+  };
+  
+  class available_compute_resource {
+    // Locked by the available_compute_resource_database's admin lock
+  public:
+    available_compute_resource(unsigned type);
+    // Rule of 3
+    available_compute_resource(const available_compute_resource &) = delete;
+    available_compute_resource& operator=(const available_compute_resource &) = delete; 
+    virtual ~available_compute_resource()=default;  // virtual destructor required so we can be subclassed
+
+    unsigned type; // SNDE_CR_...
+
+    std::multimap<uint64_t,std::tuple<std::weak_ptr<pending_computation>,std::shared_ptr<compute_resource_option>>> prioritized_computations;  // indexed by (global revision)*8, with priority reductions 0..(SNDE_CR_PRIORITY_REDUCTION_LIMIT-1) added. So  lowest number means highest priority. The values are weak_ptrs, so the same pending_computation can be assigned to multiple compute_resources. When the pending_computation is dispatched the strong shared_ptr to it must be cleared atomically with the dispatch so it appears null in any other maps. As we go to compute, we will just keep popping off the first element
+
+    virtual std::vector<std::shared_ptr<executing_math_function>> currently_executing_functions()=0; // Subclass extract functions that are actually executing right now. 
+  };
+
+  class available_compute_resource_cpu: public available_compute_resource {
+  public:
+    available_compute_resource_cpu(unsigned type,size_t total_cpu_cores_available);
+
+    // NOTE: We should probably implement core affinity here and limit execution to certain sets of cores. 
+    size_t total_cpu_cores_available;
+    std::vector<std::shared_ptr<executing_math_function>> functions_using_cores; // length total_cpu_cores_available
+  };
+  
+  class available_compute_resource_opencl: public available_compute_resource {
+    available_compute_resource_opencl(unsigned type,cl_context opencl_context,cl_device_id *opencl_devices,size_t num_devices,size_t max_parallel);
+    std::shared_ptr<available_compute_resource_cpu> controlling_cpu;
+    cl_context opencl_context;
+    cl_device_id *opencl_devices;
+    size_t num_devices;
+    size_t max_parallel; // max parallel jobs on a single device
+    std::vector<std::shared_ptr<executing_math_function>> functions_using_devices; // length num_devices*max_parallel
+
+  };
+  
+
+  // The assigned_compute_resource structures
+  // are passed to the wfmmath class compute_code virtual methods to
+  // tell them the resources they are allowed to use. The subclass
+  // provided will always match the subclass of the compute_resource_option
+  // corresponding to the compute_code structure being called. 
+  class assigned_compute_resource {
+  public:
+    assigned_compute_resource(unsigned type);
+    // Rule of 3
+    assigned_compute_resource(const assigned_compute_resource &) = delete;
+    assigned_compute_resource& operator=(const assigned_compute_resource &) = delete; 
+    virtual ~assigned_compute_resource()=default;  // virtual destructor required so we can be subclassed
+    
+    unsigned type; // SNDE_CR_...
+    std::shared_ptr<available_compute_resource> resource; 
+  };
+    
+  class assigned_compute_resource_cpu {
+  public:
+    assigned_compute_resource_cpu(unsigned type,const std::vector<size_t> &assigned_cpu_core_indices);
+    std::vector<size_t> assigned_cpu_core_indices;
+    //size_t number_of_cpu_cores; 
+    
+  };
+  
+  class assigned_compute_resource_opencl {
+  public:
+    assigned_compute_resource_opencl(unsigned type,const std::vector<size_t> &assigned_cpu_core_indices,const std::vector<size_t> &assigned_opencl_job_indices,cl_context opencl_context,cl_device_id opencl_device);
+    //size_t number_of_cpu_cores;
+    std::vector<size_t> assigned_cpu_core_indices;
+    std::vector<size_t> assigned_opencl_job_indices;
+    
+    cl_context opencl_context;
+    cl_device_id opencl_device;
+      
+  };
+
+}
