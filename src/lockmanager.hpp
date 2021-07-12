@@ -46,14 +46,15 @@ Solution: atomic lists that can be traversed, sort the results, lock, then verif
 
  *** NEW, UPDATED LOCKING ORDER for mostly-immutable waveform database: 
  1. Entry into a transaction (StartTransaction()/EndTransaction() or equiv)
+ 1.5 dataguzzler-python module locks; 
  2. Any locks required to traverse the mostly immutable wfmdb (hopefully few/none)
    * StartTransaction() defines a new global revision for the calling thread
      to mess with. Other threads will still get the prior revision and the 
      structures should generally be immutable so little/no locking required.
    * EndTransaction() makes the new global revision current
- 2.1 The wfmdatabase admin lock 
- 2.2 Any single wfmdatabase channel admin lock, or the available_compute_resource_database admin lock, or any single globalrevision admin lock
- 2.5 Any waveform admin lock. 
+ 2.4 The wfmdatabase admin lock 
+ 2.5 Any single wfmdatabase channel admin lock, or the available_compute_resource_database admin lock, or any single globalrevision admin lock
+ 2.7 Any waveform admin lock. 
  3. Mutable data arrays. This includes transient locking to do allocations
     for new mutable OR IMMUTABLE sub-arrays.
     Ordering is by geometry structure or data array structure address, 

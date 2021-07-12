@@ -311,7 +311,7 @@ namespace snde {
 	_totalnchunks=2;
       }
       // Perform memory allocation 
-      *(*arrays())[0].arrayptr = _memalloc->malloc(_totalnchunks * _allocchunksize * elemsize);
+      *(*arrays())[0].arrayptr = _memalloc->malloc(0,_totalnchunks * _allocchunksize * elemsize);
 
       if (_locker) {
 	_locker->set_array_size((*arrays())[0].arrayptr,(*arrays())[0].elemsize,_totalnchunks*_allocchunksize);
@@ -369,7 +369,7 @@ namespace snde {
 
       if (*(*new_arrays)[0].arrayptr) {
 	/* if main array already allocated */
-	*arrayptr=_memalloc->calloc(_totalnchunks*_allocchunksize * elsize);
+	*arrayptr=_memalloc->calloc(retval,_totalnchunks*_allocchunksize * elsize);
       } else {
         *arrayptr = nullptr;
       }
@@ -390,15 +390,16 @@ namespace snde {
     void remove_array(void **arrayptr)
     {
       std::unique_lock<std::mutex> lock(allocatormutex);
+      size_t index;
       // we hold allocatormutex, so  _arrays  should not be accessed directly, but won't change
       
-      for (auto ary=arrays()->begin();ary != arrays()->end();ary++) {
+      for (auto ary=arrays()->begin(),index=0;ary != arrays()->end();ary++,index++) {
 	if (ary->arrayptr == arrayptr) {
 	  if (ary==arrays()->begin()) {
 	    /* removing our master array invalidates the entire allocator */
 	    destroyed=true; 
 	  }
-	  _memalloc->free(*ary->arrayptr);
+	  _memalloc->free(index,*ary->arrayptr);
 	  //arrays.erase(ary);
 	  ary->destroyed=true; 
 	  return;
@@ -420,7 +421,7 @@ namespace snde {
       /* resize all arrays  */
       for (size_t cnt=0;cnt < arrays()->size();cnt++) {
 	if ((*arrays())[cnt].destroyed) continue;
-	*(*arrays())[cnt].arrayptr= _memalloc->realloc(*(*arrays())[cnt].arrayptr,_totalnchunks * _allocchunksize * (*arrays())[cnt].elemsize);
+	*(*arrays())[cnt].arrayptr= _memalloc->realloc(cnt,*(*arrays())[cnt].arrayptr,_totalnchunks * _allocchunksize * (*arrays())[cnt].elemsize);
       
 	if (_locker) {
 	  size_t arraycnt;
@@ -736,7 +737,7 @@ namespace snde {
       for (size_t cnt=0;cnt < arrays()->size();cnt++) {
 	if (*(*arrays())[cnt].arrayptr) {
 	  if (!(*arrays())[cnt].destroyed) {
-	    _memalloc->free(*(*arrays())[cnt].arrayptr);
+	    _memalloc->free(cnt,*(*arrays())[cnt].arrayptr);
 	    *((*arrays())[cnt].arrayptr) = NULL;
 	  }
 	}
