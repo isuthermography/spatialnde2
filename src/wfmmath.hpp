@@ -18,6 +18,10 @@ namespace snde {
   // implicit self-dependency: Present for any mutable math functions
   // or any math functions with new_revision_optional flag set
 
+
+  // IDEA: Allow math waveforms to be dependent on external registers (akin to hw registers) that
+  // have a typed interface and can notify when they are updated. They can allow implicit transactions if so configured
+  // and have calcsync behavior so too much doesn't get queued up. -- maybe some sort of explicit grouping? 
   
   // defines for the type entry of the param_names_types list in a math_function... so far identical to DGM_MDT_... in dg_metadata.h
 #define SNDE_MFPT_INT 0
@@ -51,6 +55,8 @@ namespace snde {
     // but different versions can happen in parallel. 
     
     // get_compute_options() returns a list of compute_resource_options, each of which has a compute_code pointer
+    // NOTE: Somehow get_compute_options() or similar needs to consider the types of the parameter arrays and select
+    // or configure code appropriately. 
     virtual std::list<std::shared_ptr<compute_resource_option>> get_compute_options(std::shared_ptr<executing_math_function> fcn)=0;
   };
 
@@ -102,26 +108,31 @@ namespace snde {
     // The clone() function should clear the .definition
     // member in the copy and point original_function at the original
     // (if not already defined) with the valid .definition member
-    
-    instantiated_math_function() = default;
-    // Rule of 3
-    instantiated_math_function(const instantiated_math_function &) = default;  // CC and CAO are deleted because we don't anticipate needing them. 
-    instantiated_math_function& operator=(const instantiated_math_function &) = default;
-    virtual ~instantiated_math_function()=default;  // virtual destructor required so we can be subclassed
 
-    // virtual clone method -- must be implemented in all subclasses. If .definition is non nullptr, it clears the copy and points original_function at the old .definition
-    virtual std::shared_ptr<instantiated_math_function> clone(instantiated_math_function &orig);
-    
     std::list<math_parameter> parameters; 
     //std::list<std::shared_ptr<channel>> results; // Note that null entries are legitimate if results are being ignored.
     std::string channel_path_context; // context for parameters and result_channel_paths, if any are relative. 
     std::list<std::shared_ptr<std::string>> result_channel_paths; // Note that null entries are legitimate if results are being ignored.
     bool disabled; // if this math function is temporarily disabled
+    bool ondemand;
+    bool mdonly; 
     std::shared_ptr<math_function> fcn;
     std::shared_ptr<math_definition> definition;
     
     std::shared_ptr<instantiated_math_function> original_function; // null originally 
     // Should point to allocation interface here? ... No. Allocation interface comes from the channelconfig's storage_manager
+
+    instantiated_math_function();
+    // Rule of 3
+    instantiated_math_function(const instantiated_math_function &) = default;  // CC and CAO are deleted because we don't anticipate needing them. 
+    instantiated_math_function& operator=(const instantiated_math_function &) = default;
+    virtual ~instantiated_math_function()=default;  // virtual destructor required so we can be subclassed
+
+
+    virtual bool check_dependencies(waveform_status &waveformstatus, math_status &mathstatu); 
+    // virtual clone method -- must be implemented in all subclasses. If .definition is non nullptr, it clears the copy and points original_function at the old .definition
+    virtual std::shared_ptr<instantiated_math_function> clone(instantiated_math_function &orig);
+    
   };
 
   class instantiated_math_database {
@@ -129,24 +140,49 @@ namespace snde {
     // In main waveform database, locked by waveform database admin lock;
     // Immutable once copied into a global revision
     
-    std::map<std::string,std::shared_ptr<instantiated_math_function>> defined_math_functions; // key is channel path and channel_path_context; note that several keys will point to the same instantiated_math_function
+    std::map<std::string,std::shared_ptr<instantiated_math_function>> defined_math_functions; // key is channel path and channel_path_context; note that several keys will point to the same instantiated_math_function. Any changes to any functions require calling rebuild_dependency_map (below)
     
-    // !!!*** Need hash table here so that we can look up the math functions that are dependent on an input which may have changed.
-    // !!!*** Need a structure (not here, but in with the global revision) for tracking progress -- but also need to accommodate
-    // ondemand waveforms that might be not calculated or calculated multiple times within a globalrev. 
+    // Hash table here so that we can look up the math channels that are dependent on an input which may have changed.
+    std::unordered_map<std::string,std::set<std::shared_ptr<instantiated_math_function>>> all_dependencies_of_channel;
 
-    // Initialize the given globalrev during end_transaction().
-    // WARNING: Called with the wfmdb mutex already locked (!)
-    // Goes though the defined_math_functions and sorts out which functions have no input changes,
-    // and therefore their outputs can be propagated directly into the new globalrev,
-    // which functions have input changes and all prerequisites are ready,
-    // and which functions may or may not have input changes because not
-    // all prerequisites are ready. It will need to store things
-    // in with the globalrevision structures, which is OK, and interface with
-    // the callbacks we get when calculations are complete. 
-    void initialize_globalrev(std::shared_ptr<globalrevision> globalrev);
+    // Hash table here so that we can look up the math functions that are dependent on a given function (within this global revision; does not include ondemand dependencies or implict or explicit self-dependencies 
+    std::unordered_map<std::shared_ptr<instantiated_math_function>,std::set<std::shared_ptr<instantiated_math_function>>> all_dependencies_of_function;
+
+
+    void rebuild_dependency_map(); // rebuild all_dependencies_of_channel and all_dependencies_of_function hash tables. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main waveform database, and the main waveform database admin lock must be locked when this is called. 
+
   };
-  
+
+
+  class math_function_status {
+    // Should this next map be replaced by a map of general purpose notifies that trigger when all missing prerequisites are satisified? (probably not but we still need the notification functionality)
+    std::set<std::shared_ptr<instantiated_math_function>> missing_prerequisites; // all missing (non-ready) local (in this waveform_set_state/globalrev) prerequisites of this function. Remove entries from the set as they become ready. When the set is empty, the math function represented by the key is dispatchable.
+    
+    std::set<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_prerequisites; // all missing (non-ready) external prerequisites of this function. Remove entries from the set as they become ready
+
+  };
+
+  class math_status {
+    // status of execution of math functions
+    // locked by the parent waveform_set_state's admin lock. Be warned that
+    // you cannot hold the admin locks of two waveform_set_states simultaneously. 
+  public:
+    std::shared_ptr<instantiated_math_database> math_functions; // immutable once copied in on construction
+    std::unordered_map<std::shared_ptr<instantiated_math_function>,math_function_status> function_status; // lookup dependency and status info on this instantiated_math_function in our waveform_set_state/globalrev. You must hold the waveform_set_state's admin lock. 
+    
+    std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>> _external_dependencies; // Lookup external math functions that are dependent on this math function -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your waveform_set_state's admin lock. 
+
+
+    // for the rest of these, you must own the waveform_set_state's admin lock
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> pending_functions; // pending functions where goal is full result
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> mdonly_pending_functions; // pending functions where goal is metadata only
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> completed_functions;  // completed functions with full result
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> completed_mdonly_functions; // pending functions where goal is metadata only and metadata is done
+    
+    
+    math_status(std::shared_ptr<instantiated_math_database> math_functions);
+  };
+
   
   class executing_math_function {
     std::shared_ptr<instantiated_math_function> fcn;     // This attribute is immutable once published
