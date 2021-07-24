@@ -40,6 +40,14 @@ namespace snde {
 #error not yet implemented
   }
 
+  math_function_status::math_function_status() :
+    execution_demanded(false),
+    metadataonly_complete(false),
+    complete(false)    
+  {
+
+  }
+  
   math_status::math_status(std::shared_ptr<instantiated_math_database> math_functions) :
     math_functions(math_functions);
   {

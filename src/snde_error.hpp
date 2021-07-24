@@ -159,5 +159,12 @@ namespace snde {
       
     }
   };
+
+  template<typename ... Args>
+  void snde_warning(std::string fmt, Args && ... args)
+  {
+    std::string warnstr = ssprintf(fmt,std::forward<Args>(args) ...);
+    fprintf(stderr,"SNDE WARNING: %s\n",warnstr.c_str());
+  }
 }
 #endif /* SNDE_ERROR_HPP */

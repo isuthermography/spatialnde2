@@ -109,7 +109,7 @@ namespace snde {
     // member in the copy and point original_function at the original
     // (if not already defined) with the valid .definition member
 
-    std::list<math_parameter> parameters; 
+    std::list<std::shared_ptr<math_parameter>> parameters; 
     //std::list<std::shared_ptr<channel>> results; // Note that null entries are legitimate if results are being ignored.
     std::string channel_path_context; // context for parameters and result_channel_paths, if any are relative. 
     std::list<std::shared_ptr<std::string>> result_channel_paths; // Note that null entries are legitimate if results are being ignored.
@@ -146,7 +146,7 @@ namespace snde {
     std::unordered_map<std::string,std::set<std::shared_ptr<instantiated_math_function>>> all_dependencies_of_channel;
 
     // Hash table here so that we can look up the math functions that are dependent on a given function (within this global revision; does not include ondemand dependencies or implict or explicit self-dependencies 
-    std::unordered_map<std::shared_ptr<instantiated_math_function>,std::set<std::shared_ptr<instantiated_math_function>>> all_dependencies_of_function;
+    std::unordered_map<std::shared_ptr<instantiated_math_function>,std::unordered_set<std::shared_ptr<instantiated_math_function>>> all_dependencies_of_function;
 
 
     void rebuild_dependency_map(); // rebuild all_dependencies_of_channel and all_dependencies_of_function hash tables. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main waveform database, and the main waveform database admin lock must be locked when this is called. 
@@ -155,11 +155,28 @@ namespace snde {
 
 
   class math_function_status {
-    // Should this next map be replaced by a map of general purpose notifies that trigger when all missing prerequisites are satisified? (probably not but we still need the notification functionality)
-    std::set<std::shared_ptr<instantiated_math_function>> missing_prerequisites; // all missing (non-ready) local (in this waveform_set_state/globalrev) prerequisites of this function. Remove entries from the set as they become ready. When the set is empty, the math function represented by the key is dispatchable.
+    // locked with math_status by the parent waveform_set_state's admin lock
     
-    std::set<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_prerequisites; // all missing (non-ready) external prerequisites of this function. Remove entries from the set as they become ready
+    // A math function must be executed in a waveform_set_state/globalrev if it is not ondemand and:
+    //   * It has changed, or
+    //   * There is no prior revision, or
+    //   * at least one of its (non-self) prerequisites has changed (only known for certain once at least one prereq has completed with an updated output (channel_state.updated))
+    // The execution may independently define each of its output(s) as changed or not changed.
+    // Therefore:
+    //   * We need to track prerequisite status changes even if we don't know whether the function will need to be executed at all
+    //   * When a preqreq status change comes in, if the prereq (except for a self-dep) has changed we need to OR that in to execution_demanded
+    //   * If we have a self-dependency, the self-dep should be added to missing_external_dependencies AND
+    //     added to the _external_dependencies of the prior globalrev. This is normally done in end_transaction()
+    
+    // Should this next map be replaced by a map of general purpose notifies that trigger when all missing prerequisites are satisified? (probably not but we still need the notification functionality)
+    std::set<std::shared_ptr<instantiated_math_function>> missing_prerequisites; // all missing (non-ready) local (in this waveform_set_state/globalrev) prerequisites of this function. Remove entries from the set as they become ready, marking execution_demanded if they are ready. When the set is empty, the math function represented by the key is dispatchable.
+    
+    std::set<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_prerequisites; // all missing (non-ready) external prerequisites of this function. Remove entries from the set as they become ready. For the moment the only use-cases are self-dependencies and globalrev dependencies of ondemand functions, so there is no need to update execution_demanded when this comes in. 
+    bool execution_demanded; // even once all prereqs are satisfied, do we need to actually execute?
+    bool metadataonly_complete; // if we are only executing to metadataonly, this is the complete flag
+    bool complete; // set to true once fully executed; Note that this can shift from true back to false for a formerly metadataonly math function where the full data has been requested
 
+    math_function_status();
   };
 
   class math_status {
@@ -170,17 +187,20 @@ namespace snde {
     std::shared_ptr<instantiated_math_database> math_functions; // immutable once copied in on construction
     std::unordered_map<std::shared_ptr<instantiated_math_function>,math_function_status> function_status; // lookup dependency and status info on this instantiated_math_function in our waveform_set_state/globalrev. You must hold the waveform_set_state's admin lock. 
     
-    std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>> _external_dependencies; // Lookup external math functions that are dependent on this math function -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your waveform_set_state's admin lock. 
+    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> _external_dependencies; // Lookup external math functions that are dependent on this math function -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your waveform_set_state's admin lock. 
 
 
     // for the rest of these, you must own the waveform_set_state's admin lock
     std::unordered_set<std::shared_ptr<instantiated_math_function>> pending_functions; // pending functions where goal is full result
     std::unordered_set<std::shared_ptr<instantiated_math_function>> mdonly_pending_functions; // pending functions where goal is metadata only
     std::unordered_set<std::shared_ptr<instantiated_math_function>> completed_functions;  // completed functions with full result
-    std::unordered_set<std::shared_ptr<instantiated_math_function>> completed_mdonly_functions; // pending functions where goal is metadata only and metadata is done
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> completed_mdonly_functions; // pending functions where goal is metadata only and metadata is done (note that it is possible for fully ready functions to be in this list in some circumstances, for example if the full result was requested in another globalrev that references the same waveform structure. 
     
     
     math_status(std::shared_ptr<instantiated_math_database> math_functions);
+
+    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> begin_atomic_external_dependencies_update(); // must be called with waveform_set_state's admin lock held
+    void end_atomic_external_dependencies_update(std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep);
   };
 
   

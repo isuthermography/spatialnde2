@@ -12,13 +12,13 @@ namespace snde {
     virtual ~math_parameter()=default;  // virtual destructor required so we can be subclassed
 
     // default implementations that just raise runtime_error
-    virtual std::string get_string(std::shared_ptr<globalrevision> globalrev, const std::string &channel_path_context);
-    virtual int64_t get_int(std::shared_ptr<globalrevision> globalrev, const std::string &channel_path_context);
-    virtual double get_double(std::shared_ptr<globalrevision> globalrev, const std::string &channel_path_context);
-    virtual std::shared_ptr<waveform> get_waveform(std::shared_ptr<globalrevision> globalrev, const std::string &channel_path_context); // should only return ready waveforms because we shouldn't be called until dependencies are ready
+    virtual std::string get_string(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context);
+    virtual int64_t get_int(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context);
+    virtual double get_double(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context);
+    virtual std::shared_ptr<waveform> get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context); // should only return ready waveforms because we shouldn't be called until dependencies are ready
 
     // default implementations that returns an empty set
-    virtual std::set<std::string> get_dependencies(std::shared_ptr<globalrevision> globalrev, const std::string &channel_path_context); // obtain immediate dependencies of this parameter (absolute path channel names); typically only the waveform
+    virtual std::set<std::string> get_prerequisites(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the waveform
   };
 
 
@@ -27,7 +27,7 @@ namespace snde {
     std::string string_constant;
 
     math_parameter_string_const(std::string string_constant);
-    virtual std::string get_string(std::shared_ptr<globalrevision> globalrev, const std::string &channel_path_context);
+    virtual std::string get_string(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context);
     
   };
 
@@ -37,7 +37,7 @@ namespace snde {
     int64_t int_constant;
 
     math_parameter_int_const(int64_t int_constant);
-    virtual int64_t get_int(std::shared_ptr<globalrevision> globalrev, const std::string &channel_path_context);
+    virtual int64_t get_int(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context);
     
   };
 
@@ -46,7 +46,7 @@ namespace snde {
     double double_constant;
 
     math_parameter_double_const(double double_constant);
-    virtual double get_double(std::shared_ptr<globalrevision> globalrev, const std::string &channel_path_context);
+    virtual double get_double(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context);
     
   };
 
@@ -56,8 +56,8 @@ namespace snde {
     std::string channel_name;
 
     math_parameter_waveform(std::string channel_name);
-    virtual std::shared_ptr<waveform> get_waveform(std::shared_ptr<globalrevision> globalrev, const std::string &channel_path_context); // should only return ready waveforms
-    virtual std::set<std::string> get_dependencies(std::shared_ptr<globalrevision> globalrev, const std::string &channel_path_context); // obtain immediate dependencies of this parameter (absolute path channel names); typically only the waveform
+    virtual std::shared_ptr<waveform> get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context); // should only return ready waveforms
+    virtual std::set<std::string> get_prerequisites(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the waveform
     
   };
 
