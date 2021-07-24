@@ -40,7 +40,10 @@ namespace snde {
 #error not yet implemented
   }
 
-  math_function_status::math_function_status() :
+  math_function_status::math_function_status(bool mdonly,bool is_mutable) :
+    mdonly(mdonly),
+    is_mutable(is_mutable),
+    ready_to_execute(false),
     execution_demanded(false),
     metadataonly_complete(false),
     complete(false)    
@@ -48,19 +51,19 @@ namespace snde {
 
   }
   
-  math_status::math_status(std::shared_ptr<instantiated_math_database> math_functions) :
-    math_functions(math_functions);
+  math_status::math_status(std::shared_ptr<instantiated_math_database> math_functions,const std::map<std::string,channel_state> & channel_map) :
+    math_functions(math_functions)
   {
 
     // put all math functions into function_status and _external_dependencies databases and into pending_functions?
     for (auto && math_function_ptr: math_function->defined_math_functions) {
       if (function_status.find(math_function_ptr) != function_status.end()) {
-	function_status.emplace(std::piecewise_construct, // ***!!! Need to fill out prerequisites somewhere, but not sure constructor is the place!!!*** ... PROBABLY IT IS -- we are called early and the simplest algorithm it to set up all our prerequisites and accept the notifications that many of them are already complete !!!***
+	function_status.emplace(std::piecewise_construct, // ***!!! Need to fill out prerequisites somewhere, but not sure constructor is the place!!!*** ... NO. prerequisites are filled out in end_transaction(). 
 				std::forward_as_tuple(math_function_ptr),
-				std::forward_as_tuple());
-	_external_dependencies.emplace(std::piecewise_construct,
-				       std::forward_as_tuple(math_function_ptr),
-				       std::forward_as_tuple());
+				std::forward_as_tuple(math_function_ptr->mdonly,math_function_ptr->fcn->mandatory_mutable)); // For now we only set the mutable flag for mandatory_mutable functions. In the future we can also enable it when suitable for pure_optionally_mutable functions. 
+	_external_dependencies_on_function.emplace(std::piecewise_construct,
+						   std::forward_as_tuple(math_function_ptr),
+						   std::forward_as_tuple());
 
 	
 	if (math_function_ptr->mdonly) {
@@ -71,6 +74,13 @@ namespace snde {
 	
 	
       }
+    }
+
+    for (auto && channel_path_channel_state: channel_map) {
+      _external_dependencies_on_channel.emplace(std::piecewise_construct,
+						std::forward_as_tuple(channel_path_channel_state.second->config),
+						std::forward_as_tuple());
+      
     }
   }
 

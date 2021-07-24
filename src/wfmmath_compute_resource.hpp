@@ -64,10 +64,14 @@ namespace snde {
     std::list<std::shared_ptr<available_compute_resource>> compute_resources;
 
     // everything in todo_list is queued in with one or more of the compute_resources
-    std::unordered_set<std::shared_ptr<pending_computation>> todo_list;  // Must be very careful with enclosing scope of references to pending_computation elements. They must be removed from todo_list and drop off the available_compute_resource prioritized_computations multimaps by expiration of their weak_ptrs atomically. (How to handle this from a locking perspective is an open question) but in any case the enclosing scope for the extracted shared_ptr must terminate before the lock is released. 
+    std::unordered_set<std::shared_ptr<pending_computation>> todo_list;  // Must be very careful with enclosing scope of references to pending_computation elements. They must be removed from todo_list and drop off the available_compute_resource prioritized_computations multimaps by expiration of their weak_ptrs atomically.  But in any case the enclosing scope for the extracted shared_ptr must terminate before the lock is released, so you must always release the shared pointer prior to the acrdb admin lock. 
 
     std::multimap<uint64_t,std::shared_ptr<pending_computation>> blocked_list; // indexed by global revision; map of pending computations that have been blocked from todo_list because we are waiting for all mutable calcs in prior revision to complete. 
+
+
+    void queue_computation(std::shared_ptr<waveform_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn);
     
+
   };
 
   class pending_computation {
@@ -77,8 +81,12 @@ namespace snde {
     // locked by the available_compute_resource_database's admin lock but the pointed to executing_math_function is locked separately
   public:
     std::shared_ptr<executing_math_function> function_to_execute; // once ready to execute, we pull the arguments and create an executing_math_function.
+    std::shared_ptr<waveform_set_state> wfmstate;
     uint64_t globalrev;
     uint64_t priority_reduction; // 0..(SNDE_CR_PRIORITY_REDUCTION_LIMIT-1)
+
+    pending_computation(std::shared_ptr<executing_math_function> function_to_execute,std::shared_ptr<waveform_set_state> wfmstate,uint64_t globalrev,uint64_t priority_reduction);
+    
   };
   
   class available_compute_resource {
@@ -92,6 +100,7 @@ namespace snde {
 
     unsigned type; // SNDE_CR_...
 
+    std::condition_variable computations_added; // associated mutex is the available_compute_resource_database's admin lock
     std::multimap<uint64_t,std::tuple<std::weak_ptr<pending_computation>,std::shared_ptr<compute_resource_option>>> prioritized_computations;  // indexed by (global revision)*8, with priority reductions 0..(SNDE_CR_PRIORITY_REDUCTION_LIMIT-1) added. So  lowest number means highest priority. The values are weak_ptrs, so the same pending_computation can be assigned to multiple compute_resources. When the pending_computation is dispatched the strong shared_ptr to it must be cleared atomically with the dispatch so it appears null in any other maps. As we go to compute, we will just keep popping off the first element
 
     virtual std::vector<std::shared_ptr<executing_math_function>> currently_executing_functions()=0; // Subclass extract functions that are actually executing right now. 

@@ -234,7 +234,7 @@ namespace snde {
     // transaction and then reacquire after you have the
     // transaction lock.
     std::unique_lock<std::mutex> transaction_lock_holder;
-    std::shared_ptr<wfmdatabase> wfmdb;
+    std::weak_ptr<wfmdatabase> wfmdb;
     std::shared_ptr<globalrevision> previous_globalrev;
     bool transaction_ended;
     
@@ -397,13 +397,14 @@ namespace snde {
 
 
   class _unchanged_channel_notify: public channel_notify {
-    // used internally to get notifications for subsequent globalrev that needs to have a reference to the version (that is not ready yet) in this waveform. 
+    // used internally to get notifications for subsequent globalrev that needs to have a reference to the version (that is not ready yet) in this waveform.
+    std::weak_ptr<wfmdatabase> wfmdb
     std::shared_ptr<globalrev> subsequent_globalrev;
     channel_state &current_channelstate; 
     channel_state &sg_channelstate; 
 
 
-    _unchanged_channel_notify(std::shared_ptr<globalrev> subsequent_globalrev,channel_state & current_channelstate,channel_state & sg_channelstate,bool mdonly);
+    _unchanged_channel_notify(std::weak_ptr<wfmdatabase> wfmdb,std::shared_ptr<globalrev> subsequent_globalrev,channel_state & current_channelstate,channel_state & sg_channelstate,bool mdonly);
     
     virtual void perform_notify();
   };
@@ -427,7 +428,7 @@ namespace snde {
 
 
   class waveform_status {
-    std::map<std::string,channel_state> channel_map; // key is full channel path
+    std::map<std::string,channel_state> channel_map; // key is full channel path... The map itself (not the embedded states) are immutable once the waveform_set_state is published
     
     /// all of these are indexed by their their full path. Every entry in channel_map should be in exactly one of these. Locked by admin mutex per above
     // The index is the shared_ptr in globalrev_channel.config
@@ -441,11 +442,11 @@ namespace snde {
 
   class waveform_set_state {
   public:
-    std::mutex admin; // locks changes to channel_map and the _waveforms reference maps/sets and notifiers. Precedes wfmstatus.channel_map.wfm.admin and Python GIL in locking order
+    std::mutex admin; // locks changes to channel_map contents (map itself is immutable once published) and the _waveforms reference maps/sets and notifiers. Precedes wfmstatus.channel_map.wfm.admin and Python GIL in locking order
     std::atomic<bool> ready; // indicates that all waveforms except ondemand and data_requestonly waveforms are READY (mutable waveforms may be OBSOLETE)
     waveform_status wfmstatus;
     math_status mathstatus; // note math_status.math_functions is immutable
-    std::shared_ptr<waveform_set_state> _prerequisite_state; // C++11 atomic shared pointer. waveform_set_state to be used for self-dependencies and any missing dependencies not present in this state. This is an atomic shared pointer (read with .prerequisite_state()) that is set to nullptr once we are ready, so as to allow prior waveform revisions to be freed.
+    std::shared_ptr<waveform_set_state> _prerequisite_state; // C++11 atomic shared pointer. waveform_set_state to be used for self-dependencies and any missing dependencies not present in this state. This is an atomic shared pointer (read with .prerequisite_state()) that is set to nullptr once a new globalrevision is ready, so as to allow prior waveform revisions to be freed.
     std::unordered_set<std::shared_ptr<channel_notify>> waveformset_complete_notifiers; // Notifiers waiting on this waveform set state being complete. Criteria will be removed as they are satisifed and entries will be removed as the notifications are performed.
 
     
@@ -489,7 +490,7 @@ namespace snde {
     std::vector<std::shared_ptr<repetitive_channel_notify>> repetitive_notifies; 
 
     available_compute_resource_database compute_resources; // has its own admin lock.
-
+    
 
     std::shared_ptr<waveform_storage_manager> default_storage_manager; // pointer is immutable once created; contents not necessarily immutable; see wfmstore_storage.hpp
 

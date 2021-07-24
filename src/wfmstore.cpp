@@ -335,8 +335,9 @@ namespace snde {
         //dependent_functions.emplace(affected_math_function);
 
 	// instead of merging into a set and doing it later we just go ahead and set the execution_demanded flag directly
-	state->mathstatus->function_status.at(affected_math_function).execution_demanded = true; 
-
+	if (!affected_math_function.disabled || !affected_math_function.ondemand) {
+	  state->mathstatus->function_status.at(affected_math_function).execution_demanded = true; 
+	}
       }
       
 
@@ -418,7 +419,13 @@ namespace snde {
   {
     std::set<std::shared_ptr<waveform>> waveforms_needing_finalization; // automatic waveforms created here that need to be marked as ready
 
-    assert(wfmdb->current_transaction);
+    std::shared_ptr<wfmdatabase> wfmdb_strong=wfmdb.lock();
+
+    if (!wfmdb_strong) {
+      previous_globalrev=nullptr;
+      return;
+    }
+    assert(wfmdb_strong->current_transaction);
 
 
     std::shared_ptr<globalrevision> globalrev;
@@ -443,14 +450,14 @@ namespace snde {
     std::unordered_set<channel_state &> unchanged_incomplete_mdonly_channels; // references into the globalrev->wfmstatus.channel_map
     
     {
-      std::lock_guard<mutex> wfmdb_lock(wfmdb->admin);
+      std::lock_guard<mutex> wfmdb_lock(wfmdb_strong->admin);
 
       // build a class globalrevision from wfmdb->current_transaction
-      globalrev = std::make_shared<globalrevision>(wfmdb->current_transaction->globalrev,wfmdb->_math_functions,previous_globalrev);
-      globalrev->wfmstatus.channel_map.reserve(wfmdb->_channels.size());
+      globalrev = std::make_shared<globalrevision>(wfmdb_strong->current_transaction->globalrev,wfmdb_strong->_math_functions,previous_globalrev);
+      globalrev->wfmstatus.channel_map.reserve(wfmdb_strong->_channels.size());
       
       // Build a temporary map of the channels we still need to dispatch
-      for (auto && channel_pointer: wfmdb->_channels) {
+      for (auto && channel_pointer: wfmdb_strong->_channels) {
 	std::shared_ptr<channelconfig> config = channel_pointer->config();
 	all_channels_by_name.emplace(std::piecewise_construct,
 	std::forward_as_tuple(config->channelpath),
@@ -467,7 +474,7 @@ namespace snde {
     changed_channels_need_dispatch.reserve(maybechanged_channels.size());
 
     // mark all new channels/waveforms as changed_channels_need_dispatched
-    for (auto && new_wfm_chanpath_ptr: wfmdb->current_transaction->new_waveforms) {
+    for (auto && new_wfm_chanpath_ptr: wfmdb_strong->current_transaction->new_waveforms) {
 
       std::string &chanpath=new_wfm_chanpath_ptr.first;
       
@@ -478,7 +485,7 @@ namespace snde {
       maybechanged_channels.erase(config);
 
     }
-    for (auto && updated_chan: wfmdb->current_transaction->updated_channels) {
+    for (auto && updated_chan: wfmdb_strong->current_transaction->updated_channels) {
       std::shared_ptr<channelconfig> config = updated_chan->config();
 
       std::unordered_set<std::shared_ptr<channelconfig>>::iterator mcc_it = maybechanged_channels.find(config);
@@ -507,11 +514,44 @@ namespace snde {
 
     std::unordered_set<std::shared_ptr<instantiated_math_function>> unchanged_incomplete_math_functions;
 
+
+    // Figure out which functions are actually mdonly...
+    // Traverse graph from all mdonly_functions, checking that their dependencies are all mdonly. If not
+    // they need to be moved from mdonly_pending_functions or completed_mdonly_functions into pending_functions
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> unchecked_functions;
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> passed_mdonly_functions;
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> failed_mdonly_functions;
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> checked_regular_functions;
+
+    while ((std::unordered_set<std::shared_ptr<instantiated_math_function>>::iterator unchecked_function = unchecked_functions.begin()) != unchecked_functions.end()) {
+      check_all_dependencies_mdonly(unchecked_functions,passed_mdonly_functions,failed_mdonly_functions,checked_regular_functions,unchecked_function);
+
+    }
+
+    // any failed_mdonly_functions need to have their mdonly bool cleared in their math_function_status
+    // and need to be moved from mdonly_pending_functions into pending_functions
+    for (auto && failed_mdonly_function: failed_mdonly_functions) {
+      globalrev->mathstatus.function_status.at(failed_mdonly_function).mdonly=false;
+      globalrev->mathstatus.mdonly_pending_functions.erase(globalrev->mathstatus.mdonly_pending_functions.find(failed_mdonly_function));
+      globalrev->mathstatus.pending_functions.emplace(failed_mdonly_function);
+    }
+
+
     // Now reference previous revision of all unchanged channels, inserting into the new globalrev's channel_map
     // and also marking any corresponding function_status as complete
     for (auto && unchanged_channel: unchanged_channels) {
       std::shared_ptr<waveform> channel_wfm;
       std::shared_ptr<waveform> channel_wfm_is_complete;
+
+      std::shared_ptr<instantiated_math_function> unchanged_channel_math_function;
+      bool is_mdonly = false;
+      
+      if (unchanged_channel->math) {
+	unchanged_channel_math_function = globalrev->mathstatus.math_functions.defined_math_functions.at(unchanged_channel->channelpath);
+	is_mdonly = globalrev->mathstatus.function_status.at(unchanged_channel_math_function).mdonly;
+	
+      }
+      
       assert(previous_globalrev); // Should always be present, because if we are on the first revision, each channel should have had a new waveform and therefore is changed!
       {
 	std::lock_guard<std::mutex> previous_globalrev_admin(previous_globalrev->admin);
@@ -520,7 +560,7 @@ namespace snde {
 	if (previous_globalrev_chanmap_entry==previous_globalrev->wfmstatus.channel_map.end()) {
 	  raise snde_error("Existing channel %s has no prior waveform",unchanged_channel->channelpath.c_str());
 	}
-	channel_wfm_is_complete = previous_globalrev_chanmap_entry->second.waveform_is_complete();
+	channel_wfm_is_complete = previous_globalrev_chanmap_entry->second.waveform_is_complete(is_mdonly);
 	if (channel_wfm_is_complete) {
 	  channel_wfm = channel_wfm_is_complete;
 	} else {
@@ -543,7 +583,7 @@ namespace snde {
 	// direct or indirect prerequisites must also be unchanged
 	if (unchanged_channel->math) {
 	  std::shared_ptr<instantiated_math_function> channel_math_function = globalrev->mathstatus.math_functions->defined_math_functions.at(unchanged_channel->channelpath);
-	  if (channel_math_function->mdonly) {
+	  if (is_mdonly) {
 	    unchanged_complete_math_functions_mdonly.emplace(channel_math_function);
 	  } else {
 	    unchanged_complete_math_functions.emplace(channel_math_function);
@@ -558,10 +598,9 @@ namespace snde {
       } else {
 	// in this case channel_wfm may or may not exist and is NOT complete
 	if (unchanged_channel->math) {
-	  std::shared_ptr<instantiated_math_function> channel_math_function = globalrev->mathstatus.math_functions->defined_math_functions.at(unchanged_channel->channelpath);
 	  
-	  unchanged_incomplete_math_functions.emplace(channel_math_function);
-	  if (channel_math_function->mdonly) {
+	  unchanged_incomplete_math_functions.emplace(unchanged_channel_math_function);
+	  if (is_mdonly) {
 	    unchanged_incomplete_mdonly_channels.emplace(channel_map_it.second);
 	  } else {
 	    unchanged_incomplete_channels.emplace(channel_map_it.second);
@@ -574,17 +613,15 @@ namespace snde {
 	
       }
     }
-
-
+    
+    
     for (auto && unchanged_complete_math_function: unchanged_complete_math_functions) {
       // For all fully ready math functions with no inputs changed, mark them as complete
       // and put them into the appropriate completed set in math_status.
       
       globalrev->mathstatus.function_status.at(unchanged_complete_math_function).complete = true;
       // remove from the appropriate set
-      if (unchanged_complete_math_function->mdonly) {
-	auto & mpf_it = globalrev->mathstatus->mdonly_pending_functions.find(unchanged_complete_math_function);
-	assert(mpf_it != globalrev->mathstatus->mdonly_pending_functions.end());
+      if ((auto & mpf_it = globalrev->mathstatus->mdonly_pending_functions.find(unchanged_complete_math_function)) != globalrev->mathstatus->mdonly_pending_functions.end()) {
 	
 	globalrev->mathstatus->mdonly_pending_functions.erase(mpf_it);
 
@@ -606,7 +643,7 @@ namespace snde {
       // and put them into the appropriate completed set in math_status.
       
       globalrev->mathstatus.function_status.at(unchanged_complete_math_function).complete = true;
-      assert(unchanged_complete_math_function->mdonly); // shouldn't be possible for prior rev to be complete and mdonly if we aren't mdonly.
+      assert(unchanged_complete_math_function->mdonly); // shouldn't be in this list if we aren't mdonly.
       
       auto & mpf_it = globalrev->mathstatus->mdonly_pending_functions.find(unchanged_complete_math_function);
       assert(mpf_it != globalrev->mathstatus->mdonly_pending_functions.end());
@@ -620,7 +657,7 @@ namespace snde {
   
     
     // First, if we have an instantiated new waveform, place this in the channel_map
-    for (auto && new_wfm_chanpath_ptr: wfmdb->current_transaction->new_waveforms) {
+    for (auto && new_wfm_chanpath_ptr: wfmdb_strong->current_transaction->new_waveforms) {
       std::shared_ptr<channelconfig> config = all_channels_by_name.at(new_wfm_chanpath_ptr.first);
 
       if (config->math) {
@@ -639,7 +676,7 @@ namespace snde {
     }
     
     // Second, make sure if a channel was created, it has a waveform present and gets put in the channel_map
-    for (auto && updated_chan: wfmdb->current_transaction->updated_channels) {
+    for (auto && updated_chan: wfmdb_strong->current_transaction->updated_channels) {
       std::shared_ptr<channelconfig> config = updated_chan->config();
       std::shared_ptr<waveform> new_wfm;
 
@@ -652,11 +689,11 @@ namespace snde {
 	continue;
       }
       
-      auto new_waveform_it = wfmdb->current_transaction->new_waveforms.find(config->channelpath);
+      auto new_waveform_it = wfmdb_strong->current_transaction->new_waveforms.find(config->channelpath);
       
       // new waveform should be required but not present; create one
-      assert(wfmdb->current_transaction->new_waveform_required.at(config->channelpath) && new_waveform_it==wfmdb->current_transaction->new_waveforms.end());
-      new_wfm = std::make_shared<waveform>(wfmdb,updated_chan,updated_chan->owner_id); // constructor adds itself to current transaction
+      assert(wfmdb_strong->current_transaction->new_waveform_required.at(config->channelpath) && new_waveform_it==wfmdb_strong->current_transaction->new_waveforms.end());
+      new_wfm = std::make_shared<waveform>(wfmdb_strong,updated_chan,updated_chan->owner_id); // constructor adds itself to current transaction
       waveforms_needing_finalization.emplace(new_wfm); // Since we provided this, we need to make it ready, below
       
       // insert new waveform into channel_map
@@ -696,8 +733,8 @@ namespace snde {
     mark_prospective_calculations(globalrev,definitively_changed_channels);
 
     // How do we splice implicit and explicit self-dependencies into the calculation graph???
-    // Simple: We need to add to the _external_dependencies of the previous_globalrev and
-    // add to the missing_external_prerequisites of this globalrev.
+    // Simple: We need to add to the _external_dependencies_on_[channel|function] of the previous_globalrev and
+    // add to the missing_external_[channel|function]_prerequisites of this globalrev.
 
     // Define variable to store all self-dependencies and fill it up
     std::vector<std::shared_ptr<instantiated_math_function>> self_dependencies;
@@ -714,23 +751,12 @@ namespace snde {
       
     }
 
-    // Traverse graph from all mdonly_functions, checking that their dependencies are all mdonly. If not
-    // they need to be moved from mdonly_pending_functions or completed_mdonly_functions into pending_functions
-    std::unordered_set<std::shared_ptr<instantiated_math_function>> unchecked_functions;
-    std::unordered_set<std::shared_ptr<instantiated_math_function>> passed_mdonly_functions;
-    std::unordered_set<std::shared_ptr<instantiated_math_function>> failed_mdonly_functions;
-    std::unordered_set<std::shared_ptr<instantiated_math_function>> checked_regular_functions;
-
-    while ((std::unordered_set<std::shared_ptr<instantiated_math_function>>::iterator unchecked_function = unchecked_functions.begin()) != unchecked_functions.end()) {
-      check_all_dependencies_mdonly(unchecked_functions,passed_mdonly_functions,failed_mdonly_functions,checked_regular_functions,unchecked_function);
-
-    }
-
+    
     //  Need to copy repetitive_notifies into place.
     {
-      std::lock_guard<mutex> wfmdb_lock(wfmdb->admin);
+      std::lock_guard<mutex> wfmdb_lock(wfmdb_strong->admin);
 
-      for (auto && repetitive_notify: wfmdb->repetitive_notifies) {
+      for (auto && repetitive_notify: wfmdb_strong->repetitive_notifies) {
 	std::shared_ptr<channel_notify> chan_notify = repetitive_notify->create_notify_instance();
 	{
 	  std::lock_guard criteria_lock(chan_notify->criteria.admin);
@@ -825,8 +851,9 @@ namespace snde {
 	// This math function is not complete
 
 	bool mathfunction_is_mdonly = false;
-	if (mathfunction->mdonly) { // to genuinely be mdonly our instantiated_math_function must be marked as such AND we should be in the mdonly_pending_functions set of the math_status
-	  mathfunction_is_mdonly = (globalrev->mathstatus.mdonly_pending_functions.find(mathfunction) != globalrev->mathstatus.mdonly_pending_functions.end());
+	if (mathfunction->mdonly) { //// to genuinely be mdonly our instantiated_math_function must be marked as such AND we should be in the mdonly_pending_functions set of the math_status (now there is a specific flag)
+	  // mathfunction_is_mdonly = (globalrev->mathstatus.mdonly_pending_functions.find(mathfunction) != globalrev->mathstatus.mdonly_pending_functions.end());
+	  mathfunction_is_mdonly = globalrev->mathstatus->function_status.at(mathfunction).mdonly;
 	}
 	// iterate over all parameters that are dependent on other channels
 	for (auto && parameter: mathfunction->parameters) {
@@ -837,6 +864,8 @@ namespace snde {
 
 	    // for each prerequisite channel, look at it's state. 
 	    channel_state &prereq_chanstate = globalrev->wfmstatus.channel_map.at(prereq_channel);
+
+	    bool preqreq_complete = false; 
 	    
 	    std::shared_ptr<waveform> prereq_wfm = prereq_chanstate.wfm();
 	    int prereq_wfm_state = prereq_wfm->info_state;
@@ -848,15 +877,19 @@ namespace snde {
 		// If we are mdonly, and the prereq is mdonly and the waveform exists and is metadataready or fully ready,
 		// then this prerequisite is complete and nothing is needed.
 		
-		// (do nothing)
-	      } else if (prereq_wfm && prereq_wfm_state == SNDE_WFMS_READY) {
-		// If the waveform exists and is fully ready,
-		// then this prerequisite is complete and nothing is needed.
-	      } else {
-		// Prerequisite is not complete; Need to mark this in the missing_prerequisites of the math_function_status
-		globalrev->mathstatus.function_status.at(mathfunction).missing_prerequisites.emplace(math_prereq);
+		prereq_complete = true; 
 	      }
 	    }
+	    if (prereq_wfm && prereq_wfm_state == SNDE_WFMS_READY) {
+	      // If the waveform exists and is fully ready,
+	      // then this prerequisite is complete and nothing is needed.
+	      prereq_complete = true; 
+	    }
+	    if (!prereq_complete) {
+	      // Prerequisite is not complete; Need to mark this in the missing_prerequisites of the math_function_status
+	      globalrev->mathstatus.function_status.at(mathfunction).missing_prerequisites.emplace(prereq_chanstate.config);
+	    }
+	    
 	    
 	  }
 	}
@@ -865,20 +898,20 @@ namespace snde {
     
     // add self-dependencies to the missing_external_prerequisites of this globalrev
     for (auto && self_dep : self_dependencies) {
-      globalrev->mathstatus.function_status.at(self_dep).missing_external_prerequisites.emplace(std::piecewise_construct,
-												std::forward_as_tuple(previous_globalrev),
-												std::forward_as_tuple(self_dep));
+      globalrev->mathstatus.function_status.at(self_dep).missing_external_function_prerequisites.emplace(std::piecewise_construct,
+													 std::forward_as_tuple(previous_globalrev),
+													 std::forward_as_tuple(self_dep));
     }
 
     
     
-    // add self-dependencies to the _external_dependencies of the previous_globalrev
+    // add self-dependencies to the _external_dependencies_on_function of the previous_globalrev
     // Note from hereon we have published our new globalrev so we have to be a bit more careful about
     // locking it because we might get notification callbacks or similar if one of those external waveforms becomes ready
     {
       std::lock_guard<std::mutex> previous_globalrev_admin(previous_globalrev->admin);
 
-      std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> new_prevglob_extdep = previous_globalrev->mathstatus.begin_atomic_external_dependencies_update();
+      std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> new_prevglob_extdep = previous_globalrev->mathstatus.begin_atomic_external_dependencies_on_function_update();
 
       for (auto && self_dep : self_dependencies) {
 	// Check to make sure previous globalrev even has this exact math function.
@@ -894,7 +927,7 @@ namespace snde {
 	  }
 	}
       }
-      previous_globalrev->mathstatus.end_atomic_external_dependencies_update(new_prevglob_extdep);
+      previous_globalrev->mathstatus.end_atomic_external_dependencies_on_function_update(new_prevglob_extdep);
       
       
     }
@@ -903,7 +936,7 @@ namespace snde {
     // ***!!! Need to go through unchanged_incomplete_channels and unchanged_incomplete_mdonly_channels and get notifies when these become complete
     {
       for (auto && chanstate: unchanged_incomplete_channels) { // chanstate is a channel_state &
-	_unchanged_channel_notify unchangednotify(globalrev,!!!***need_previous_channelstate,channelstate,false);
+	_unchanged_channel_notify unchangednotify(wfmdb_strong,globalrev,!!!***need_previous_channelstate,channelstate,false);
 
 	std::unique_lock<std::mutex> previous_globalrev_admin(previous_globalrev->admin);
 	channel_state &previous_state = previous_globalrev->wfmstatus.channel_map.at(chanstate.config->channelpath);
@@ -947,10 +980,10 @@ namespace snde {
     // ***!!! Need to got through unchanged_incomplete_math_functions and get notifies when these become complete, if necessary (?)
     
     {
-      std::lock_guard<mutex> wfmdb_lock(wfmdb->admin);
-      wfmdb->_globalrevs.emplace(wfmdb->current_transaction->globalrev,globalrev);
+      std::lock_guard<mutex> wfmdb_lock(wfmdb_strong->admin);
+      wfmdb_strong->_globalrevs.emplace(wfmdb_strong->current_transaction->globalrev,globalrev);
     
-      wfmdb->current_transaction = nullptr; 
+      wfmdb_strong->current_transaction = nullptr; 
       assert(!transaction_ended);
       transaction_ended=true;
       transaction_lock_holder.unlock();
@@ -973,6 +1006,8 @@ namespace snde {
 	channel_notify_ptr->notify_waveformset_complete();
       }
     }
+    
+    // ***!!! Need to trigger dispatch of all ready_to_execute channels
     
   }
   
@@ -1157,7 +1192,8 @@ namespace snde {
     return notify->notify_copier();
   }
 
-  _unchanged_channel_notify::_unchanged_channel_notify(std::shared_ptr<globalrev> subsequent_globalrev,channel_state &current_channelstate,channel_state & sg_channelstate,bool mdonly) :
+  _unchanged_channel_notify::_unchanged_channel_notify(std::weak_ptr<wfmdatabase> wfmdb,std::shared_ptr<globalrev> subsequent_globalrev,channel_state &current_channelstate,channel_state & sg_channelstate,bool mdonly) :
+    wfmdb(wfmdb),
     subsequent_globalrev(subsequent_globalrev),
     current_channelstate(current_channelstate),
     sg_channelstate(sg_channelstate),
@@ -1179,8 +1215,10 @@ namespace snde {
     }  
     sg_channelstate.issue_nonmath_notifications(subsequent_globalrev);
 
-    sg_channelstate.issue_math_notifications(subsequent_globalrev);
-
+    std::shared_ptr<wfmdatabase> wfmdb_strong=wfmdb.lock();
+    if (wfmdb_strong) {
+      sg_channelstate.issue_math_notifications(wfmdb_strong,subsequent_globalrev);
+    }
   }
     
   channel_state::channel_state(std::shared_ptr<channelconfig> config,std::shared_ptr<waveform> wfm,bool updated) :
@@ -1260,24 +1298,89 @@ namespace snde {
     
   }
 
-  void channel_state::issue_math_notifications(std::shared_ptr<waveform_set_state> wss) // wss is used to lock this channel_state object
+  static void check_dep_fcn_ready(std::shared_ptr<waveform_set_state> wss,
+				  std::shared_ptr<instantiated_math_function> dep_fcn,
+				  math_function_status *mathstatus_ptr,
+				  std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute_appendvec)
+  {
+    // assumes wss admin lock is already held
+
+    if (!mathstatus_ptr->missing_prequisites.size() &&
+	!mathstatus_ptr->missing_external_channel_prerequisites.size() &&
+	!mathstatus_ptr->missing_external_function_prerequisites.size()) {
+      mathstatus_ptr->ready_to_execute=true;
+      
+      ready_to_execute_appendvec.emplace_back(std::piecewise_construct,
+					      std::forward_as_tuple(wss), // waveform_set_state
+					      std::forward_as_tuple(dep_fcn)); // instantiated_math_function
+    }
+    
+  }
+				  
+  
+  void channel_state::issue_math_notifications(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> wss) // wss is used to lock this channel_state object
   // Must be called without anything locked. Issue notifications requested in _notify* and remove those notification requests,
   // based on the channel_state's current status
   {
 
+    std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>> ready_to_execute;
+    
     // Issue metadataonly notifications
-    if (waveform_is_complete(true)) {
+    bool got_mdonly = waveform_is_complete(true);
+    bool got_fullyready = waveform_is_complete(false);
+    if (got_mdonly || got_fullyready) {
       // at least complete through mdonly
-      std::unique_lock<std::mutex> wss_admin(wss->admin);
-
+      
       for (auto && dep_fcn: wss->mathstatus.math_functions->all_dependencies_of_channel.at(config->channelpath)) {
 	// dep_fcn is a shared_ptr to an instantiated_math_function
-#error not_finished
-	wss->mathstatus.function_status.at(dep_fcn).missing_prerequisites;
+        std:lock_guard<std::mutex> wss_admin(wss->admin);
+	
+	std::set<std::shared_ptr<channelconfig>>::iterator missing_prereq_it;
+	math_function_status &dep_fcn_status = wss->mathstatus.function_status.at(dep_fcn);
+	if (!dep_fcn_status.execution_demanded) {
+	  continue;  // ignore unless we are about execution
+	}
+
+	// If the dependent function is mdonly then we only have to be mdonly. Otherwise we have to be fullyready
+	if (got_fullyready || (got_mdonly && dep_fcn_status.mdonly)) {
+
+	  // Remove us as a missing prerequisite
+	  missing_prereq_it = dep_fcn_status.missing_prerequisites.find(config);
+	  if (missing_prereq_it != dep_fcn_status.missing_preqrequisites.end()) {
+	    dep_fcn_status.missing_prerequisites.erase(missing_prereq_it);	  
+	  }
+	  
+	  check_dep_fcn_ready(wss,dep_fcn,&dep_fcn_status,ready_to_execute);
+	}
       }
+      for (auto && wss_extdepfcn: wss->mathstatus.external_dependencies_on_channel()->at(config)) {
+	std::shared_ptr<waveform_set_state> &dependent_wss = wss_extdepfcn.get<0>();
+	std::shared_ptr<instantiated_math_function> &dependent_func = wss_extdepfcn.get<1>();
+
+	std::lock_guard<std::mutex> dependent_wss_admin(dependent_wss->admin);
+	math_function_status &function_status = dependent_wss->mathstatus.function_status.at(dependent_func);
+	std::set<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<channelconfig>>>::iterator
+	  dependent_prereq_it = function_status.missing_external_channel_prerequisites.find(std::make_tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<channelconfig>>(wss,config));
+
+	if (dependent_prereq_it != function_status.missing_external_channel_prerequisites.end()) {
+	  function_status.missing_external_channel_prerequisites.erase(dependent_prereq_it);
+	  
+	}
+	check_dep_fcn_ready(dependent_wss,dependent_func,&function_status,ready_to_execute);
+	
+      }
+      
     }
 
-    
+
+    for (auto && ready_wss_ready_fcn: ready_to_execute) {
+      // Need to queue as a pending_computation
+      std::shared_ptr<waveform_set_state> ready_wss;
+      std::shared_ptr<instantiated_math_function> ready_fcn;
+
+      std::tie(ready_wss,ready_fcn) = ready_wss_ready_fcn;
+      wfmdb->compute_resources->queue_computation(ready_wss,ready_fcn);
+    }
   }
 
   void channel_state::end_atomic_wfm_update(std::shared_ptr<waveform> new_waveform)
