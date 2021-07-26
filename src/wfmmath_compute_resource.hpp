@@ -34,10 +34,10 @@ namespace snde {
 				std::shared_ptr<compute_code> function_code,
 				float64_t flops,
 				size_t max_effective_cpu_cores,
-				size_t max_useful_cpu_cores);
-    float64_t flops; 
-    size_t max_effective_cpu_cores; 
-    size_t max_useful_cpu_cores; 
+				size_t useful_cpu_cores);
+    float64_t flops;  // not currently used
+    size_t max_effective_cpu_cores;  // not currently used
+    size_t useful_cpu_cores; // recommended number of cpu cores to use
   };
   class compute_resource_option_opencl: public compute_resource_option {
   public:
@@ -60,7 +60,7 @@ namespace snde {
     // Represents the full set of compute resources available
     // for waveform math calculations
   public:
-    std::mutex admin; // locks compute_resources and todo_list, including all pending_computations but not their embedded executing_math_function; precedes just Python GIL
+    std::shared_ptr<std::mutex> admin; // locks compute_resources and todo_list, including all pending_computations but not their embedded executing_math_function; precedes just Python GIL
     std::list<std::shared_ptr<available_compute_resource>> compute_resources;
 
     // everything in todo_list is queued in with one or more of the compute_resources
@@ -68,7 +68,7 @@ namespace snde {
 
     std::multimap<uint64_t,std::shared_ptr<pending_computation>> blocked_list; // indexed by global revision; map of pending computations that have been blocked from todo_list because we are waiting for all mutable calcs in prior revision to complete. 
 
-
+    available_compute_resource_database();
     void queue_computation(std::shared_ptr<waveform_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn);
     
 
@@ -92,7 +92,7 @@ namespace snde {
   class available_compute_resource {
     // Locked by the available_compute_resource_database's admin lock
   public:
-    available_compute_resource(unsigned type);
+    available_compute_resource(std::shared_ptr<available_compute_resource_database> acrd,unsigned type);
     // Rule of 3
     available_compute_resource(const available_compute_resource &) = delete;
     available_compute_resource& operator=(const available_compute_resource &) = delete; 
@@ -100,19 +100,36 @@ namespace snde {
 
     unsigned type; // SNDE_CR_...
 
-    std::condition_variable computations_added; // associated mutex is the available_compute_resource_database's admin lock
+    std::shared_ptr<std::mutex> acrd_admin; // so we can access the ACRD's admin lock.  
     std::multimap<uint64_t,std::tuple<std::weak_ptr<pending_computation>,std::shared_ptr<compute_resource_option>>> prioritized_computations;  // indexed by (global revision)*8, with priority reductions 0..(SNDE_CR_PRIORITY_REDUCTION_LIMIT-1) added. So  lowest number means highest priority. The values are weak_ptrs, so the same pending_computation can be assigned to multiple compute_resources. When the pending_computation is dispatched the strong shared_ptr to it must be cleared atomically with the dispatch so it appears null in any other maps. As we go to compute, we will just keep popping off the first element
 
+    virtual notify_acr_of_changes_to_prioritized_computations()=0; // should be called WITH ACRD's admin lock held
     virtual std::vector<std::shared_ptr<executing_math_function>> currently_executing_functions()=0; // Subclass extract functions that are actually executing right now. 
   };
 
   class available_compute_resource_cpu: public available_compute_resource {
   public:
-    available_compute_resource_cpu(unsigned type,size_t total_cpu_cores_available);
 
     // NOTE: We should probably implement core affinity here and limit execution to certain sets of cores. 
     size_t total_cpu_cores_available;
-    std::vector<std::shared_ptr<executing_math_function>> functions_using_cores; // length total_cpu_cores_available
+    std::vector<std::shared_ptr<executing_math_function>> functions_using_cores; // contains core assignments, total length should match total_cpu_cores_available.
+
+    std::condition_variable computations_added_or_completed; // associated mutex is the admin lock of the available_compute_resource_database
+    std::thread dispatch_thread;
+
+    // each pool thread should either be in available_threads or assigned_threads at any given time
+    std::vector<std::thread> available_threads; // mapped according to functions_using_cores
+    std::vector<std::condition_variable> thread_triggers; // mapped according to functions_using_cores
+    std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<executing_math_function>,std::shared_ptr<compute_resource_option_cpu>>> thread_actions; // mapped according to first thread assigned to a particular math function
+    
+    available_compute_resource_cpu(std::shared_ptr<available_compute_resource_database> acrd,unsigned type,size_t total_cpu_cores_available);
+
+    virtual notify_acr_of_changes_to_prioritized_computations(); // should be called WITH  ACRD's admin lock held
+    size_t _number_of_free_cpus(); // Must call with ACRD admin lock locked
+    std::shared_ptr<assigned_compute_resource_cpu> _assign_cpus(std::shared_ptr<executing_math_function> function_to_execute,size_t number_of_cpus);
+    void _dispatch_thread(std::shared_ptr<waveform_set_state> wfmstate,std::shared_ptr<executing_math_function> function_to_execute,size_t first_thread_index);
+    void dispatch_code();
+    void pool_code(size_t threadidx);
   };
   
   class available_compute_resource_opencl: public available_compute_resource {
@@ -146,7 +163,7 @@ namespace snde {
     
   class assigned_compute_resource_cpu {
   public:
-    assigned_compute_resource_cpu(unsigned type,const std::vector<size_t> &assigned_cpu_core_indices);
+    assigned_compute_resource_cpu(const std::vector<size_t> &assigned_cpu_core_indices);
     std::vector<size_t> assigned_cpu_core_indices;
     //size_t number_of_cpu_cores; 
     
@@ -154,7 +171,7 @@ namespace snde {
   
   class assigned_compute_resource_opencl {
   public:
-    assigned_compute_resource_opencl(unsigned type,const std::vector<size_t> &assigned_cpu_core_indices,const std::vector<size_t> &assigned_opencl_job_indices,cl_context opencl_context,cl_device_id opencl_device);
+    assigned_compute_resource_opencl(const std::vector<size_t> &assigned_cpu_core_indices,const std::vector<size_t> &assigned_opencl_job_indices,cl_context opencl_context,cl_device_id opencl_device);
     //size_t number_of_cpu_cores;
     std::vector<size_t> assigned_cpu_core_indices;
     std::vector<size_t> assigned_opencl_job_indices;

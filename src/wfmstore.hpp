@@ -442,7 +442,7 @@ namespace snde {
 
   class waveform_set_state {
   public:
-    std::mutex admin; // locks changes to channel_map contents (map itself is immutable once published) and the _waveforms reference maps/sets and notifiers. Precedes wfmstatus.channel_map.wfm.admin and Python GIL in locking order
+    std::mutex admin; // locks changes to wfmstatus including channel_map contents (map itself is immutable once published), mathstatus,  and the _waveforms reference maps/sets and notifiers. Precedes wfmstatus.channel_map.wfm.admin and Python GIL in locking order
     std::atomic<bool> ready; // indicates that all waveforms except ondemand and data_requestonly waveforms are READY (mutable waveforms may be OBSOLETE)
     waveform_status wfmstatus;
     math_status mathstatus; // note math_status.math_functions is immutable

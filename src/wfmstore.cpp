@@ -618,16 +618,19 @@ namespace snde {
     for (auto && unchanged_complete_math_function: unchanged_complete_math_functions) {
       // For all fully ready math functions with no inputs changed, mark them as complete
       // and put them into the appropriate completed set in math_status.
-      
-      globalrev->mathstatus.function_status.at(unchanged_complete_math_function).complete = true;
+
+      math_function_status &ucmf_status = globalrev->mathstatus.function_status.at(unchanged_complete_math_function);
+      ucmf_status.mdonly_executed=true; 
+      ucmf_status.complete = true;
       // remove from the appropriate set
       if ((auto & mpf_it = globalrev->mathstatus->mdonly_pending_functions.find(unchanged_complete_math_function)) != globalrev->mathstatus->mdonly_pending_functions.end()) {
-	
+
 	globalrev->mathstatus->mdonly_pending_functions.erase(mpf_it);
 
       } else {
 	auto & pf_it = globalrev->mathstatus->pending_functions.find(unchanged_complete_math_function);
 	assert(pf_it != globalrev->mathstatus->pending_functions.end());
+
 	
 	globalrev->mathstatus->pending_functions.erase(pf_it);
 	
@@ -940,18 +943,20 @@ namespace snde {
 
 	std::unique_lock<std::mutex> previous_globalrev_admin(previous_globalrev->admin);
 	channel_state &previous_state = previous_globalrev->wfmstatus.channel_map.at(chanstate.config->channelpath);
+
+	// !!!*** Instead of the below should program unchanged_channel_notify to have a check_criteria method.
 	if (previous_state.waveform_is_complete()) {
 	  // status has changed to complete
 	  // !!!*** perform immediate notification once we drop the lock
 	  previous_globalrev_admin.unlock();
 
 	  // !!!*** perform notification here !!!***
-	  
+	  unchangednotify->
 	} else {
 	  // queue up notification
 	  std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_set = previous_state.begin_atomic_notify_about_this_channel_ready_update();
 	  notify_set->emplace(unchangednotify);
-	  previous_state.end_atomic_notify_aobut_this_channel_ready_update(notify_set);
+	  previous_state.end_atomic_notify_about_this_channel_ready_update(notify_set);
 	}
       }
 
@@ -1008,7 +1013,7 @@ namespace snde {
     }
     
     // ***!!! Need to trigger dispatch of all ready_to_execute channels
-    
+    // !!!*** see queue_computation()
   }
   
   active_transaction::~active_transaction()

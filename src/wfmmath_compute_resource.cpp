@@ -17,11 +17,11 @@ namespace snde {
 							   std::shared_ptr<compute_code> function_code,
 							   float64_t flops,
 							   size_t max_effective_cpu_cores,
-							   size_t max_useful_cpu_cores) :
+							   size_t useful_cpu_cores) :
     compute_resource_option(type,metadata_bytes,data_bytes,function_code),
     flops(flops),
     max_effective_cpu_cores(max_effective_cpu_cores),
-    max_useful_cpu_cores(max_useful_cpu_cores)
+    useful_cpu_cores(useful_cpu_cores)
   {
 
   }
@@ -43,6 +43,11 @@ namespace snde {
 
   }
 
+  available_compute_resource_database::available_compute_resource_database() :
+    admin(std::make_shared<std::mutex>())
+  {
+
+  }
   void available_compute_resource_database::queue_computation(std::shared_ptr<waveform_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn)
   {
     std::shared_ptr<pending_computation> computation;
@@ -81,7 +86,7 @@ namespace snde {
     // way to do that)
     std::shared_ptr<waveform_set_state> prior_globalrev=ready_wss->prerequisite_state(); // only actually prior_globalrev if ready_wss_is_globalrev
     
-    std::lock_guard<std::mutex> acrdb_admin(admin);
+    std::lock_guard<std::mutex> acrdb_admin(*admin);
     if (!ready_fcn->is_mutable || !ready_wss_is_globalrev || !prior_globalrev || prior_globalrev->ready) {
       todo_list.emplace(computation);
 
@@ -96,7 +101,9 @@ namespace snde {
 	    
 	    selected_resource->prioritized_computations.emplace(std::make_pair(globalrev_ptr->globalrev,
 									       std::make_tuple(std::weak_ptr(computation),selected_option)));
-	    selected_resource->computations_added.notify_one();
+	    compute_resource_lock.unlock();
+	    //selected_resource->computations_added.notify_one();
+	    selected_resource->notify_acr_of_changes_to_prioritized_computations();
 	  }	  
 	}
 
@@ -116,17 +123,203 @@ namespace snde {
   }
 
 
-  available_compute_resource::available_compute_resource(unsigned type) :
+  available_compute_resource::available_compute_resource(std::shared_ptr<available_compute_resource_database> acrd,unsigned type) :
+    acrd_admin(acrd->admin),
     type(type)
   {
     
   }
 
-  available_compute_resource_cpu::available_compute_resource_cpu(unsigned type,size_t total_cpu_cores_available) :
-    available_compute_resource(type),
+  available_compute_resource_cpu::available_compute_resource_cpu(std::shared_ptr<available_compute_resource_database> acrd,unsigned type,size_t total_cpu_cores_available) :    
+    available_compute_resource(acrd,type),
     total_cpu_cores_available(total_cpu_cores_available)
   {
+    size_t cnt;
+
+    std::lock_guard acrd_lock(acrd_admin); // because threads will start, and we need to lock them out while we fill up the vector data structures
+    for (cnt=0; cnt < total_cpu_cores_available;cnt++) {
+      functions_using_cores.push_back(nullptr);
+      thread_triggers.push_back();
+      thread_actions.push_back(std::make_tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<executing_math_function>,std::shared_ptr<compute_resource_option_cpu>>(nullptr,nullptr,nullptr));
+      available_threads.emplace_back(pool_code,cnt);
+    }
     
+  }
+  virtual available_compute_resource_cpu::notify_acr_of_changes_to_prioritized_computations() // should be called WITH ACRD's admin lock held
+  {
+    computations_added_or_completed.notify_one();
+  }
+
+  size_t available_compute_resource_cpu::_number_of_free_cpus()
+  // Must call with ACRD admin lock locked
+  {
+    size_t number_of_free_cpus=0;
+
+    for (auto && exec_fcn: functions_using_cores) {
+      if (!exec_fcn) {
+	number_of_free_cpus++;
+      }
+    }
+    return number_of_free_cpus;
+  }
+
+  std::shared_ptr<assigned_compute_resource_cpu> available_compute_resource_cpu::_assign_cpus(std::shared_ptr<executing_math_function> function_to_execute,size_t number_of_cpus)
+  // called with acrd admin lock held
+  {
+    size_t cpu_index=0;
+    std::vector<size_t> cpu_assignments; 
+    for (auto && exec_fcn: functions_using_cores) {
+      if (!exec_fcn) {
+	// this cpu is available
+	cpu_assignments.push_back(cpu_index);
+	//function_to_execute->cpu_cores.push_back(cpu_index);
+	number_of_cpus--;
+
+	if (!number_of_cpus) {
+	  break;
+	}
+      }
+      cpu_index++;
+    }
+    assert(!number_of_cpus); // should have been able to assign everything
+    
+    return std::make_shared<assigned_compute_resource_cpu>(cpu_assignments);
+
+  }
+
+  void available_compute_resource_cpu::_dispatch_thread(std::shared_ptr<waveform_set_state> wfmstate,std::shared_ptr<executing_math_function> function_to_execute,std::shared_ptr<compute_resource_option_cpu> compute_option_cpu,size_t first_thread_index)
+  {
+    !!!
+  }
+  
+  available_compute_resource_cpu::dispatch_code()
+  // Does this really need to be its own thread? Maybe not...
+  {
+    bool no_actual_dispatch = false;
+    while(true) {
+      
+      std::unique_lock<std::mutex> admin_lock(*acrd_admin);
+      if (no_actual_dispatch) {
+	computations_added_or_completed.wait(admin_lock);
+      }
+
+      no_actual_dispatch = true; 
+      if (prioritized_computations.size() > 0) {
+	std::multimap<uint64_t,std::tuple<std::weak_ptr<pending_computation>,std::shared_ptr<compute_resource_option>>>::iterator this_computation_it = prioritized_computations.begin();
+	std::weak_ptr<pending_computation> this_computation_weak;
+	std::shared_ptr<compute_resource_option> compute_option;
+
+	std::tie(this_computation_weak,compute_option) = this_computation_it.second;
+	std::shared_ptr<pending_computation> this_computation = this_computation_weak.lock();
+	if (!this_computation) {
+	  // pointer expired; computation has been handled elsewhere
+	  prioritized_computations.erase(this_computation_it); // remove from our list
+	  no_actual_dispatch = false; // removing from prioritized_computations counts as an actual dispatch
+	} else {
+	  // got this_computation and compute_option to possibly try.
+	  // Check if we have enough cores available for compute_option
+	  std::shared_ptr<compute_resource_option_cpu> compute_option_cpu=std::dynamic_cast<compute_resource_option_cpu>(compute_option);
+	  // this had better be one of our pointers...
+	  assert(compute_option_cpu);
+
+	  // For now, just blindly use the useful # of cpu cores
+	  size_t free_cores = _number_of_free_cpus();
+	  
+	  if (compute_option_cpu->useful_cpu_cores <= free_cores || free_cores == total_cpu_cores_available) {	    
+	    // we have enough cores available (or all of them)
+	    std::shared_ptr<executing_math_function> function_to_execute=this_computation->function_to_execute;
+	    std::shared_ptr<waveform_set_state> wfmstate=this_computation->wfmstate;
+
+	    prioritized_computations.erase(this_computation_it); // take charge of this computation
+	    this_computation = nullptr; // force pointer to expire so nobody else tries this computation;
+
+	    std::shared_ptr<assigned_compute_resource_cpu> assigned_cpus = _assign_cpus(function_to_execute,std::min(compute_option_cpu->useful_cpu_cores,total_cpu_cores_available));
+	    function_to_execute->compute_resource = assigned_cpus;
+
+	    _dispatch_thread(wfmstate,function_to_execute,compute_option_cpu,assigned_cpus.assigned_cpu_core_indices.at(0));
+	    //!!!*** (do anything else here?)
+
+
+	    no_actual_dispatch = false; // dispatched execution, so don't wait at next iteration. 
+	  }
+
+	  this_computation = nullptr; // remove all references to pending_computation before we release the lock
+	}
+      }
+      
+    }
+  }
+
+  available_compute_resource_cpu::pool_code(size_t threadidx)
+  {
+    while(true) {
+      
+      std::unique_lock<std::mutex> admin_lock(*acrd_admin);
+      thread_triggers.at(threadidx).wait(admin_lock);
+      std::shared_ptr<waveform_set_state> wfmstate;
+      std::shared_ptr<executing_math_function> func;
+      std::shared_ptr<assigned_compute_resource_option_cpu> compute_option_cpu;
+      
+      std::tie(wfmstate,func,compute_option_cpu) = thread_actions.at(threadidx);
+      if (wfmstate) {
+	// !!!*** Exactly how do we indicate we are done???
+	// Remove parameters from thread_actions
+	thread_actions.at(threadidx)=std::make_tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<executing_math_function>,std::shared_ptr<compute_resource_option_cpu>>(nullptr,nullptr,nullptr);
+
+	// not worrying about cpu affinity yet.
+
+
+	// Need also our assigned_compute_resource (func->compute_resource)
+	admin_lock.unlock();
+
+	// need the lock manager from somewhere(!!!***???)
+	bool mdonly;
+	bool is_mutable;
+	bool mdonly_executed;
+
+	// Get the mdonly and is_mutable flags from the math_function_status 
+	{
+	  std::lock_guard<std::mutex> wss_admin(wfmstate->admin);
+
+	  
+	  
+	  math_function_status &our_status = wfmstate->mathstatus.function_status.at(func->fcn);
+	  mdonly = our_status.mdonly;
+	  is_mutable = our_status.is_mutable;
+	  mdonly_executed = our_status.mdonly_executed; 
+
+	}
+
+
+	if (is_mutable) {
+	  // Locking: Read locks can be implicit, as even if we are
+	  // a mutable waveform ourselves, nobody should
+	  // be allowed to write to our prerequisites
+	  throw snde_error("Mutable execution not yet implemented");
+	  //func->fcn->result_channel_paths
+	} else {
+	  // non-mutable execution
+	  if (mdonly) {
+	    if (mdonly_executed) {
+	      throw snde_error("Math function %s reexecuting mdonly (?)",func->fcn->definition->definition_command.c_str());
+	    }
+	    compute_option_cpu->function_code->do_metadata_only(wfmstate,func,compute_option_cpu);
+	  } else if (mdonly_executed) {
+	    compute_option_cpu->function_code->do_compute_from_metadata(wfmstate,func,compute_option_cpu);
+	    
+	  } else {
+	    compute_option_cpu->function_code->do_compute(wfmstate,func,compute_option_cpu);
+	    
+	  }
+	}
+
+	// !!!*** Need some sort of completion notification here, such as
+	// removing ourselves from functions_using_cores and triggering computations_added_or_completed
+	// Also need to do notifications that the math function finished. !!!***
+	admin_lock.lock();
+      }
+      
+    }
   }
 
   available_compute_resource_opencl::available_compute_resource_opencl(unsigned type,cl_context opencl_context,cl_device_id *opencl_devices,size_t num_devices,size_t max_parallel) :
@@ -147,15 +340,15 @@ namespace snde {
     
   }
   
-  assigned_compute_resource_cpu::assigned_compute_resource_cpu(unsigned type,const std::vector<size_t> &assigned_cpu_core_indices) :
-    assigned_compute_resource(type),
+  assigned_compute_resource_cpu::assigned_compute_resource_cpu(const std::vector<size_t> &assigned_cpu_core_indices) :
+    assigned_compute_resource(SNDE_CR_CPU),
     assigned_cpu_core_indices(assigned_cpu_core_indices)
   {
     
   }
 
-  assigned_compute_resource_opencl::assigned_compute_resource_opencl(unsigned type,const std::vector<size_t> &assigned_cpu_core_indices,const std::vector<size_t> &assigned_opencl_job_indices,cl_context opencl_context,cl_device_id opencl_device) :
-    assigned_compute_resource(type)
+  assigned_compute_resource_opencl::assigned_compute_resource_opencl(const std::vector<size_t> &assigned_cpu_core_indices,const std::vector<size_t> &assigned_opencl_job_indices,cl_context opencl_context,cl_device_id opencl_device) :
+    assigned_compute_resource(SNDE_CR_OPENCL)
     assigned_cpu_core_indices(assigned_cpu_core_indices),
     assigned_opencl_job_indices(assigned_opencl_job_indices),
     opencl_context(opencl_context),

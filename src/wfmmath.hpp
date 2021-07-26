@@ -46,6 +46,8 @@ namespace snde {
     size_t num_results;
     std::list<std::tuple<std::string,unsigned>> param_names_types; // list of (name,type) tuples
 
+    std::vector<bool> result_mutability; // for each result, is it mutable (if we are in mutable mode)
+    
     bool new_revision_optional; // set if the function sometimes chooses not to create a new revision. Causes an implicit self-dependency, because we have to wait for the prior revision to finish to find out if that version was actually different. 
     bool pure_optionally_mutable; // set if the function is "pure" and can optionally operate on its previous output, only rewriting the modified area according to bounding_hyperboxes. If optionally_mutable is taken advantage of, there is an implicit self-dependency on the prior-revision
     bool mandatory_mutable; // set if the function by design mutates its previous output. Creates an implicit self-dependency.
@@ -82,8 +84,12 @@ namespace snde {
     
     virtual determine_size(std::shared_ptr<assigned_compute_resource_option> compute_resource,executing_math_function fcn)=0;
     virtual do_metadata_only(std::shared_ptr<assigned_compute_resource_option> compute_resource,executing_math_function fcn)=0;
+    virtual do_compute_from_metadata(std::shared_ptr<assigned_compute_resource_option> compute_resource,executing_math_function fcn)=0;
     virtual do_compute(std::shared_ptr<assigned_compute_resource_option> compute_resource,executing_math_function fcn)=0;
   };
+
+
+  
   
 
   class math_function_database {
@@ -175,6 +181,7 @@ namespace snde {
     std::set<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_function_prerequisites; // all missing (non-ready) external prerequisites of this function. Remove entries from the set as they become ready. 
 
     bool mdonly; // if this execution is actually mdonly
+    bool mdonly_executed; // if execution has completed at least through mdonly;
     bool is_mutable; // if this execution does in-place mutation of one or more of its parameters. 
     
     bool execution_demanded; // even once all prereqs are satisfied, do we need to actually execute? This is only set if at least one of our non-self dependencies has changed and we are not disabled (or ondemand in a regular globalrev)
@@ -222,9 +229,11 @@ namespace snde {
     // parameter values should include bounding_hyperboxes of the domains that actually matter,
     // at least if the function is optionally_mutable
 
+    std::shared_ptr<assigned_compute_resource> compute_resource; // locked by acrd's admin lock
     // These next two elements are locked by the parent available_compute_resources_database admin lock
-    std::vector<size_t> cpu_cores;  // vector of indices into available_compute_resource_cpu::functions_using_cores representing assigned CPU cores; from assigned_compute_resource_option_cpu and/or assigned_compute_resource_option_opencl
-    std::vector<size_t> opencl_jobs;  // vector of indices into available_compute_resource_cpu::functions_using_devices representing assigned GPU jobs; from assigned_compute_resource_option_opencl
+    // THEY HAE BEEN REPLACED BY THE ASSIGNED COMPUTE RESOURCE
+    //std::vector<size_t> cpu_cores;  // vector of indices into available_compute_resource_cpu::functions_using_cores representing assigned CPU cores; from assigned_compute_resource_option_cpu and/or assigned_compute_resource_option_opencl
+    //std::vector<size_t> opencl_jobs;  // vector of indices into available_compute_resource_cpu::functions_using_devices representing assigned GPU jobs; from assigned_compute_resource_option_opencl
 
 
     executing_math_function(std::shared_ptr<instantiated_math_function> fcn);
