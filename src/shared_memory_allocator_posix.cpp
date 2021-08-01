@@ -12,8 +12,9 @@ namespace snde {
   std::string posixshm_encode_wfmpath(std::string wfmpath)
   {
     std::string ret;
+    size_t idx,numslashes;
     
-    for (size_t idx=0,size_t numslashes=0;idx < wfmpath.size();idx++) {
+    for (idx=0,numslashes=0;idx < wfmpath.size();idx++) {
       if (wfmpath[idx]=='/') {
 	numslashes++;
       }
@@ -21,23 +22,23 @@ namespace snde {
     
     ret.reserve(wfmpath.size()+numslashes*2);
 
-    for (size_t idx=0,size_t numslashes=0;idx < wfmpath.size();idx++) {
+    for (idx=0,numslashes=0;idx < wfmpath.size();idx++) {
       if (wfmpath[idx]=='/') {
-	ret.push_back("%2F");
+	ret += "%2F";
       } else {
-	ret.push_back(wfmpath[idx]);
+	ret += wfmpath[idx];
       }
     }
     return ret; 
   }
 
   
-  nonmoving_copy_or_reference_posix::nonmoving_copy_or_reference_posix(size_t offset, size_t length,void *mmapaddr, size_t mmaplength, size_t ptroffset) : nonmoving_copy_or_reference(offset,length),mmapaddr(mmapaddr),mmaplength(mmaplength),ptroffset(ptroffset)
+  nonmoving_copy_or_reference_posix::nonmoving_copy_or_reference_posix(snde_index offset, snde_index length,void *mmapaddr, size_t mmaplength, size_t ptroffset) : nonmoving_copy_or_reference(offset,length),mmapaddr(mmapaddr),mmaplength(mmaplength),ptroffset(ptroffset)
   {
     
   }
 
-  virtual nonmoving_copy_or_reference_posix::~nonmoving_copy_or_reference_posix()  // virtual destructor required so we can be subclassed
+  nonmoving_copy_or_reference_posix::~nonmoving_copy_or_reference_posix()  // virtual destructor required so we can be subclassed
   {
     if (munmap(mmapaddr,mmaplength)) {
       throw posix_error("shared_memory_allocator_posix nonmoving_copy_or_reference_posix destructor munmap(%llu,%llu)",(unsigned long long)mmapaddr,(unsigned long long)mmaplength);
@@ -45,7 +46,7 @@ namespace snde {
     mmapaddr=nullptr;
   }
   
-  virtual void *nonmoving_copy_or_reference_posix::get_ptr()
+  void *nonmoving_copy_or_reference_posix::get_ptr()
   {
     return (void *)(((char *)mmapaddr)+ptroffset);
     
@@ -66,6 +67,7 @@ namespace snde {
   }
 
   shared_memory_allocator_posix::shared_memory_allocator_posix(std::string wfmpath,uint64_t wfmrevision) :
+    memallocator(),
     wfmpath(wfmpath),
     wfmrevision(wfmrevision)
   {
@@ -81,13 +83,13 @@ namespace snde {
 			     (unsigned long long)wfmrevision);
     
   }
-  virtual void *shared_memory_allocator_posix::malloc(memallocator_regionid id,std::size_t nbytes)
+  void *shared_memory_allocator_posix::malloc(memallocator_regionid id,std::size_t nbytes)
   {
     // POSIX shm always zeros empty space, so we just use calloc
     
     return calloc(id,nbytes); 
   }
-  virtual void *shared_memory_allocator_posix::calloc(memallocator_regionid id,std::size_t nbytes)
+  void *shared_memory_allocator_posix::calloc(memallocator_regionid id,std::size_t nbytes)
   {
     std::string shm_name = ssprintf("%s_%llu.dat",
 				    base_shm_name.c_str(),
@@ -118,12 +120,13 @@ namespace snde {
 			std::forward_as_tuple(id), // index
 			std::forward_as_tuple(id,shm_name,fd,addr,nbytes)); // parameters to shared_memory_info_posix constructor
     }
+    return addr;
   }
   
-  virtual void *shared_memory_allocator_posix::realloc(memallocator_regionid id,void *ptr,std::size_t newsize)
+  void *shared_memory_allocator_posix::realloc(memallocator_regionid id,void *ptr,std::size_t newsize)
   {
     std::lock_guard<std::mutex> lock(_admin);    
-    shared_memory_info_posix &this_info = _shm_info.find(id);
+    shared_memory_info_posix &this_info = _shm_info.find(id)->second;
     assert(this_info.addr==ptr);
 
     if (munmap(this_info.addr,this_info.nbytes)) {
@@ -135,7 +138,7 @@ namespace snde {
     this_info.addr = mmap(nullptr,newsize,PROT_READ|PROT_WRITE,MAP_SHARED,this_info.fd,0);
     if (this_info.addr==MAP_FAILED) {
       this_info.addr=nullptr;
-      throw posix_error("shared_memory_allocator_posix::realloc mmap(%s,%llu)",this_info.shm_name.c_str(),(unsigned long long)nbytes);
+      throw posix_error("shared_memory_allocator_posix::realloc mmap(%s,%llu)",this_info.shm_name.c_str(),(unsigned long long)newsize);
       
     }
     this_info.nbytes=newsize;
@@ -143,7 +146,7 @@ namespace snde {
   }
   
   
-  virtual std::shared_ptr<nonmoving_copy_or_reference> shared_memory_allocator_posix::obtain_nonmoving_copy_or_reference(memallocator_regionid id, void *ptr, std::size_t offset, std::size_t length)
+  std::shared_ptr<nonmoving_copy_or_reference> shared_memory_allocator_posix::obtain_nonmoving_copy_or_reference(memallocator_regionid id, void *ptr, std::size_t offset, std::size_t length)
   {
 
     long page_size;
@@ -155,7 +158,7 @@ namespace snde {
     
     std::lock_guard<std::mutex> lock(_admin);    
 
-    shared_memory_info_posix &this_info = _shm_info.find(id);
+    shared_memory_info_posix &this_info = _shm_info.find(id)->second;
     assert(this_info.addr==ptr);
     
     size_t offsetpages = offset/page_size;
@@ -171,7 +174,7 @@ namespace snde {
     
   }
 
-  virtual void shared_memory_allocator_posix::free(memallocator_regionid id,void *ptr)
+  void shared_memory_allocator_posix::free(memallocator_regionid id,void *ptr)
   {
     std::lock_guard<std::mutex> lock(_admin);    
 
@@ -185,13 +188,13 @@ namespace snde {
 
     close(this_info.fd);
 
-    shm_unlink(this_info.shm_name);
+    shm_unlink(this_info.shm_name.c_str());
 
     _shm_info.erase(this_it);
   }
   
   
-  virtual ~shared_memory_allocator_posix()
+  shared_memory_allocator_posix::~shared_memory_allocator_posix()
   {
     for ( auto && shm_info_it : _shm_info ) {
       shared_memory_info_posix &this_info = shm_info_it.second;
@@ -202,7 +205,7 @@ namespace snde {
       
       close(this_info.fd);
       
-      shm_unlink(this_info.shm_name);
+      shm_unlink(this_info.shm_name.c_str());
     }
   }
 

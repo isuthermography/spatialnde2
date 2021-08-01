@@ -1,14 +1,23 @@
+#include <mutex>
+#include <memory>
+#include <unordered_map>
+
+#include <cstdlib>
+
+#include "snde_types.h"
+#include "geometry_types.h"
 #include "memallocator.hpp"
 
 namespace snde {
 
   class nonmoving_copy_or_reference_posix: public nonmoving_copy_or_reference {
+  public:
     // immutable once published
     void *mmapaddr;
     size_t mmaplength;
     size_t ptroffset;
     
-    nonmoving_copy_or_reference_posix(void *mmapaddr, size_t mmaplength, size_t ptroffset);
+    nonmoving_copy_or_reference_posix(snde_index offset,snde_index length,void *mmapaddr, size_t mmaplength, size_t ptroffset);
     
     // rule of 3
     nonmoving_copy_or_reference_posix(const nonmoving_copy_or_reference_posix &) = delete;

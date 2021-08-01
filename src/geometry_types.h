@@ -24,7 +24,9 @@ extern "C" {
      python definitions at bottom of geometry_types.i */
 #ifdef __OPENCL_VERSION__
 /* if this is an opencl kernel */
+typedef double snde_float64;
 typedef double snde_coord;
+typedef float snde_float32;
 typedef float snde_rendercoord;
 typedef float snde_imagedata;
 typedef ulong snde_index;
@@ -66,7 +68,9 @@ typedef unsigned int uint32_t;
 //typedef cl_char snde_bool;
 
 //#else
+typedef double snde_float64;
 typedef double snde_coord;
+typedef float snde_float32;
 typedef float snde_rendercoord;
 typedef float snde_imagedata;
 
@@ -82,7 +86,7 @@ static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata
   // aliasing rules
   union {
     uint32_t intval;
-    float32_t floatval;
+    snde_float32 floatval;
     char workbuf[4];
   } oldvalue,newvalue; // ,workvalue;
 
@@ -308,7 +312,33 @@ typedef struct {
   }  
 #endif
 } snde_rgba;
-  
+
+
+typedef struct {
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+  uint8_t a;
+  snde_float32 d;
+#ifdef __cplusplus
+  operator double() const // need operator(double) because we don't (yet) have template code to check for existance of such a cast method. 
+  {
+    // operator(double) always returns NaN... 
+    uint8_t NaNconstLE[4]={ 0x00,0x00,0xc0,0x7f };
+    uint8_t NaNconstBE[4]={ 0x7f,0xc0,0x00,0x00 };
+
+    if ((*((uint32_t*)NaNconstBE) & 0xff) == 0x00) {
+      // big endian
+      return (double)*((float *)NaNconstBE);
+    } else {
+      // little endian
+      return (double)*((float *)NaNconstLE);
+    }
+    
+  }  
+#endif
+} snde_rgbd;
+
   
 typedef struct {
   // i.e. rotate point coordinates (rhs) by angle,

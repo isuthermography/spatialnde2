@@ -2,6 +2,7 @@
 #define SNDE_ERROR_HPP
 
 #include <string>
+#include <stdexcept>
 #include <cstring>
 #include <cstdarg>
 
@@ -100,13 +101,13 @@ namespace snde {
   std::string portable_strerror(int errnum)
   {
     char *errstr;
+    char *buf=nullptr;
 
 #ifdef _WIN32
     // Win32 strerror() is thread safe per MS docs
     errstr=strerror(errnum);
 #else
     {
-      char *buf=nullptr;
       int buflen=1; // Make this big once tested
 #if (_POSIX_C_SOURCE >= 200112L) && !  _GNU_SOURCE
       int err=0;
@@ -116,7 +117,7 @@ namespace snde {
 	  free(buf);
 	}
 	
-	buf=malloc(buflen);
+	buf=(char *)malloc(buflen);
 	buf[0]=0;
 	err=strerror_r(errnum,buf,buflen);
 	buf[buflen-1]=0;
@@ -130,7 +131,7 @@ namespace snde {
 	  free(buf);
 	}
 	
-	buf=malloc(buflen);
+	buf=(char *)malloc(buflen);
 	buf[0]=0;
 	errstr=strerror_r(errnum,buf,buflen);
 	buf[buflen-1]=0;
@@ -142,7 +143,9 @@ namespace snde {
 #endif
     std::string retval(errstr);
     
-    free(buf);
+    if (buf) {
+      free(buf);
+    }
     
     return retval;
   }

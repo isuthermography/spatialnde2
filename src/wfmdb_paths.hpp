@@ -1,6 +1,8 @@
 #include <string>
 #include <sstream>
 #include <list>
+#include <deque>
+#include <cassert>
 
 #include "utils.hpp"
 

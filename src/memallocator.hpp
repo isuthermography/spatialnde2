@@ -42,9 +42,12 @@ namespace snde {
   };
 
   class nonmoving_copy_or_reference_cmem: public nonmoving_copy_or_reference {
+  public:
     void *ptr;
 
-    nonmoving_copy_or_reference_cmem(void *ptr) : ptr(ptr)
+    nonmoving_copy_or_reference_cmem(size_t offset,size_t length,void *ptr) :
+      nonmoving_copy_or_reference(offset,length),
+      ptr(ptr)
     {
 
     }
@@ -67,7 +70,8 @@ namespace snde {
   
   class memallocator {
   public:
-
+    memallocator() = default;
+    
     // Rule of 3
     memallocator(const memallocator &) = delete;
     memallocator& operator=(const memallocator &) = delete; 
@@ -98,7 +102,7 @@ namespace snde {
     {
       void *copyptr = std::malloc(nbytes);
       memcpy(copyptr,((char *)ptr)+offset,nbytes);
-      return std::make_shared<nonmoving_copy_or_reference_cmem>(copyptr);
+      return std::make_shared<nonmoving_copy_or_reference_cmem>(offset,nbytes,copyptr);
     }
 
     

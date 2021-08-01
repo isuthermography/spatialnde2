@@ -1,12 +1,27 @@
+#ifndef SNDE_WFMSTORE_STORAGE_HPP
+#define SNDE_WFMSTORE_STORAGE_HPP
+
+#include <memory>
+#include <string>
+
+#include "snde_types.h"
+#include "geometry_types.h"
+
+#include "memallocator.hpp"
+
 namespace snde {
-  // ***!!! Need to address thread safety of waveform storage
   
   class waveform_storage: public std::enable_shared_from_this<waveform_storage> {
-    // elementsize, typenum, and nelem are immutable once created
+    // waveform storage locked through lockmanager, except
+    // many parameters are immutable: 
+
+    
+    // elements and typenum, are immutable once created
+    // nelem can only be changed when *_basearray is locked for write
     // finalized is immutable once published
     // _basearray is immutable once published, but *_basearray is
     // mutable for a mutable waveform (must use locking following locking order)
-    
+  public:
     void **_basearray; // pointer to lockable address for waveform array (lockability if waveform is mutable)
     size_t elementsize;
     unsigned typenum; // MET_...
@@ -22,7 +37,7 @@ namespace snde {
     virtual ~waveform_storage()=default; // virtual destructor so we can subclass
 
     virtual void *addr()=0; // return waveform base address
-    virtual std::shared_ptr<waveform_storage> obtain_nonmoving_copy_or_reference(size_t offset, size_t length)=0; // NOTE: The returned storage can only be trusted if (a) the originating waveform is immutable, or (b) the originating waveform is mutable but has not been changed since obtain_nonmoving_copy_or_reference() was called. i.e. can only be used as long as the originating waveform is unchanged. Note that this is used only for getting a direct reference within a larger (perhaps mutable) allocation, such as space for a texture or mesh geometry. If you are just referencing a range of elements of a finalized waveofrm you can just reference the waveform_storage shared pointer with a suitable base_index, stride array, and dimlen array. 
+    virtual std::shared_ptr<waveform_storage> obtain_nonmoving_copy_or_reference(snde_index offset, snde_index length)=0; // NOTE: The returned storage can only be trusted if (a) the originating waveform is immutable, or (b) the originating waveform is mutable but has not been changed since obtain_nonmoving_copy_or_reference() was called. i.e. can only be used as long as the originating waveform is unchanged. Note that this is used only for getting a direct reference within a larger (perhaps mutable) allocation, such as space for a texture or mesh geometry. If you are just referencing a range of elements of a finalized waveofrm you can just reference the waveform_storage shared pointer with a suitable base_index, stride array, and dimlen array. 
     
   };
 
@@ -37,7 +52,7 @@ namespace snde {
     waveform_storage_simple(size_t elementsize,unsigned typenum,snde_index nelem,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr);
     virtual ~waveform_storage_simple() = default; // _baseptr contents freed when all references to lowlevel_alloc go away
     virtual void *addr();
-    virtual std::shared_ptr<waveform_storage> obtain_nonmoving_copy_or_reference(size_t offset, size_t length);
+    virtual std::shared_ptr<waveform_storage> obtain_nonmoving_copy_or_reference(snde_index offset, snde_index length);
   };
 
   class waveform_storage_reference: public waveform_storage {
@@ -50,7 +65,7 @@ namespace snde {
     waveform_storage_reference(snde_index nelem,std::shared_ptr<waveform_storage> orig,std::shared_ptr<nonmoving_copy_or_reference> ref);
     virtual ~waveform_storage_reference() = default; 
     virtual void *addr();
-    virtual std::shared_ptr<waveform_storage> obtain_nonmoving_copy_or_reference(size_t offset, size_t length);
+    virtual std::shared_ptr<waveform_storage> obtain_nonmoving_copy_or_reference(snde_index offset, snde_index length);
   };
 
   class waveform_storage_manager {
@@ -75,7 +90,7 @@ namespace snde {
 
   class waveform_storage_manager_shmem: public waveform_storage_manager {
     // allocate_waveform method should be thread-safe
-
+  public:
     waveform_storage_manager_shmem() = default;
     virtual ~waveform_storage_manager_shmem() = default; 
     virtual std::tuple<std::shared_ptr<waveform_storage>,snde_index> allocate_waveform(std::string waveform_path,
@@ -92,3 +107,5 @@ namespace snde {
 
   
 };
+
+#endif // SNDE_WFMSTORE_STORAGE_HPP

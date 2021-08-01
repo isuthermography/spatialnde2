@@ -1,14 +1,83 @@
 #include "wfmstore.hpp"
 
 namespace snde {
-  waveform::waveform(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<channel> chan,void *owner_id) :
+
+
+// wtn_typemap is indexed by typeid(type)
+  const std::unordered_map<std::type_index,unsigned> wtn_typemap({ // look up typenum based on C++ typeid(type)
+      {typeid(float), SNDE_WTN_FLOAT},
+      {typeid(double), SNDE_WTN_DOUBLE},
+      // half-precision not generally
+      // available
+      //{typeid(__fp16), SNDE_WTN_HALFFLOAT},
+      {typeid(uint64_t),SNDE_WTN_UINT64},
+      {typeid(int64_t),SNDE_WTN_INT64},
+      {typeid(uint32_t),SNDE_WTN_UINT32},
+      {typeid(int32_t),SNDE_WTN_INT32},
+      {typeid(uint16_t),SNDE_WTN_UINT16},
+      {typeid(int16_t),SNDE_WTN_INT16},
+      {typeid(uint8_t),SNDE_WTN_UINT8},
+      {typeid(int8_t),SNDE_WTN_INT8},
+      {typeid(snde_rgba),SNDE_WTN_RGBA32},
+      {typeid(std::complex<float>),SNDE_WTN_COMPLEXFLOAT},
+      {typeid(std::complex<double>),SNDE_WTN_COMPLEXDOUBLE},
+      {typeid(snde_rgbd),SNDE_WTN_RGBD64}
+      
+  });
+  
+  // wtn_typesizemap is indexed by SNDE_WTN_xxx
+  const std::unordered_map<unsigned,size_t> wtn_typesizemap({ // Look up element size bysed on typenum
+      {SNDE_WTN_FLOAT,sizeof(float)},
+      {SNDE_WTN_DOUBLE,sizeof(double)},
+      // half-precision not generally
+      // available
+      //{SNDE_WTN_HALFFLOAT,sizeof(__fp16)},
+      {SNDE_WTN_UINT64,sizeof(uint64_t)},
+      {SNDE_WTN_INT64,sizeof(int64_t)},
+      {SNDE_WTN_UINT32,sizeof(uint32_t)},
+      {SNDE_WTN_INT32,sizeof(int32_t)},
+      {SNDE_WTN_UINT16,sizeof(uint16_t)},
+      {SNDE_WTN_INT16,sizeof(int16_t)},
+      {SNDE_WTN_UINT8,sizeof(uint8_t)},
+      {SNDE_WTN_INT8,sizeof(int8_t)},
+      {SNDE_WTN_RGBA32,sizeof(snde_rgba)},
+      {SNDE_WTN_COMPLEXFLOAT,sizeof(std::complex<float>)},
+      {SNDE_WTN_COMPLEXDOUBLE,sizeof(std::complex<double>)},
+      {SNDE_WTN_RGBD64,sizeof(snde_rgbd)},
+    });
+  
+
+  const std::unordered_map<unsigned,std::string> wtn_ocltypemap({ // Look up opencl type string based on typenum
+      {SNDE_WTN_FLOAT,"float"},
+      {SNDE_WTN_DOUBLE,"double"},
+      // half-precision not generally
+      // available
+      {SNDE_WTN_HALFFLOAT,"half"},
+      {SNDE_WTN_UINT64,"unsigned long"},
+      {SNDE_WTN_INT64,"long"},
+      {SNDE_WTN_UINT32,"unsigned int"},
+      {SNDE_WTN_INT32,"int"},
+      {SNDE_WTN_UINT16,"unsigned short"},
+      {SNDE_WTN_INT16,"short"},
+      {SNDE_WTN_UINT8,"unsigned char"},
+      {SNDE_WTN_INT8,"char"},
+      {SNDE_WTN_RGBA32,"snde_rgba"},
+      {SNDE_WTN_COMPLEXFLOAT,"struct { float real; float imag; }"},
+      {SNDE_WTN_COMPLEXDOUBLE,"struct { double real; double imag; }"},
+      {SNDE_WTN_RGBD64,"snde_rgbd"},
+      
+    });
+  // see https://stackoverflow.com/questions/38644146/choose-template-based-on-run-time-string-in-c
+
+  
+  waveform::waveform(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum) :
     // This constructor is to be called by everything except the math engine
     //  * Should be called by the owner of the given channel, as verified by owner_id
     //  * Should be called within a transaction (i.e. the wfmdb transaction_lock is held by the existance of the transaction)
     //  * Because within a transaction, wfmdb->current_transaction is valid
     // This constructor automatically adds the new waveform to the current transaction
     info{
-      .name=strdup(chan->config()->channelpath.c_str());
+      .name=strdup(chan->config()->channelpath.c_str()),
       .revision=0,
       .state=SNDE_WFMS_INITIALIZING,
       .metadata=nullptr,
@@ -20,15 +89,15 @@ namespace snde {
       .base_index=0,
       .dimlen=nullptr,
       .strides=nullptr,
-      .owns_dimlen_strides=nullptr,
+      .owns_dimlen_strides=false,
       .immutable=true,
-      .typenum=,
+      .typenum=typenum,
       .elementsize=0,
-      .basearray = nullptr;
+      .basearray = nullptr,
     },
     info_state(info.state),
-    layout(),
-    mutable_lock(nullptr),
+    layout(arraylayout(std::vector<snde_index>())),
+    //mutable_lock(nullptr),
     storage_manager(wfmdb->default_storage_manager),
     storage(nullptr)
   {
@@ -40,11 +109,11 @@ namespace snde {
     }
   }
   
-  waveform::waveform(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,void *owner_id,std::shared_ptr<globalrevision> globalrev) :
+  waveform::waveform(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,void *owner_id,std::shared_ptr<globalrevision> globalrev,unsigned typenum) :
     // This constructor is reserved for the math engine
     // Creates waveform structure and adds to the pre-existing globalrev. 
     info{
-      .name=strdup(chanpath.c_str());
+      .name=strdup(chanpath.c_str()),
       .revision=0,
       .state=SNDE_WFMS_INITIALIZING,
       .metadata=nullptr,
@@ -56,15 +125,15 @@ namespace snde {
       .base_index=0,
       .dimlen=nullptr,
       .strides=nullptr,
-      .owns_dimlen_strides=nullptr,
+      .owns_dimlen_strides=false,
       .immutable=true,
-      .typenum=,
+      .typenum=typenum,
       .elementsize=0,
-      .basearray = nullptr;
+      .basearray = nullptr,
     },
     info_state(info.state),
-    layout(),
-    mutable_lock(nullptr),  // for simply mutable math waveforms will need to init with std::make_shared<rwlock>();
+    layout(arraylayout(std::vector<snde_index>())),
+    //mutable_lock(nullptr),  // for simply mutable math waveforms will need to init with std::make_shared<rwlock>();
     storage_manager(wfmdb->default_storage_manager),
     storage(nullptr)
   {
@@ -74,17 +143,17 @@ namespace snde {
     assert(globalrev_chan.config->math);
     info.immutable = globalrev_chan.config->data_mutable;
     
-    globalrev_chan.wfm = shared_from_this();
+    std::atomic_store(&globalrev_chan._wfm,shared_from_this());
   }
 
-  virtual waveform::~waveform()
+  waveform::~waveform()
   {
-    free(info->name);
-    info->name=nullptr;
+    free(info.name);
+    info.name=nullptr;
   }
 
 
-  virtual void waveform::allocate_storage(std::vector<snde_index> dimlen, fortran_order=false)
+  void waveform::allocate_storage(std::vector<snde_index> dimlen, bool fortran_order) // fortran_order defaults to false
   // must assign info.elementsize and info.typenum before calling allocate_storage()
   // fortran_order only affects physical layout, not logical layout (interpretation of indices)
   {
@@ -110,7 +179,7 @@ namespace snde {
     } else {
       // c order
       for (dimnum=0;dimnum < dimlen.size();dimnum++) {
-	strides.push_front(stride);
+	strides.insert(strides.begin(),stride);
 	stride *= dimlen.at(dimnum);
       }
       
@@ -120,47 +189,47 @@ namespace snde {
     
     info.base_index=layout.base_index;
     info.ndim=layout.dimlen.size();
-    info.dimlen=layout.dimlen.data;
-    info.strides=layout.strides.data;
+    info.dimlen=layout.dimlen.data();
+    info.strides=layout.strides.data();
   }
 
-  virtual void waveform::reference_immutable_waveform(std::shared_ptr<waveform> wfm,std::vector<snde_index> dimlen,std::vector<snde_index> strides,snde_index base_index)
+  void waveform::reference_immutable_waveform(std::shared_ptr<waveform> wfm,std::vector<snde_index> dimlen,std::vector<snde_index> strides,snde_index base_index)
   {
     snde_index first_index;
     snde_index last_index;
     size_t dimnum;
 
     if (!wfm->storage->finalized) {
-      raise snde_error("Waveform %s trying to reference non-final data from waveform %s",info.name,wfm->info.name);      
+      throw snde_error("Waveform %s trying to reference non-final data from waveform %s",info.name,wfm->info.name);      
       
     }
     
     info.typenum = wfm->info.typenum;
 
-    if (info.elemsize != 0 && info.elemsize != wfm->info.elemsize) {
-      raise snde_error("Element size mismatch in waveform %s trying to reference data from waveform %s",info.name,wfm->info.name);
+    if (info.elementsize != 0 && info.elementsize != wfm->info.elementsize) {
+      throw snde_error("Element size mismatch in waveform %s trying to reference data from waveform %s",info.name,wfm->info.name);
     }
-    info.elemsize = wfm->info.elemsize;
+    info.elementsize = wfm->info.elementsize;
 
     
     first_index=base_index;
-    for (dimnum=0;dimnum < dimlen;dimnum++) {
+    for (dimnum=0;dimnum < dimlen.size();dimnum++) {
       if (strides.at(dimnum) < 0) { // this is somewhat academic because strides is currently snde_index, which is currently unsigned so can't possibly be negative. This test is here in case we make snde_index signed some time in the future... 
 	first_index += strides.at(dimnum)*(dimlen.at(dimnum))-1;
       }
     }
     if (first_index < 0) {
-      raise snde_error("Referencing negative indices in waveform %s trying to reference data from waveform %s",info.name,wfm->info.name);
+      throw snde_error("Referencing negative indices in waveform %s trying to reference data from waveform %s",info.name,wfm->info.name);
     }
 
     last_index=base_index;
-    for (dimnum=0;dimnum < dimlen;dimnum++) {
+    for (dimnum=0;dimnum < dimlen.size();dimnum++) {
       if (strides.at(dimnum) > 0) { 
 	last_index += strides.at(dimnum)*(dimlen.at(dimnum))-1;
       }
     }
     if (last_index >= wfm->storage->nelem) {
-      raise snde_error("Referencing out-of-bounds indices in waveform %s trying to reference data from waveform %s",info.name,wfm->info.name);
+      throw snde_error("Referencing out-of-bounds indices in waveform %s trying to reference data from waveform %s",info.name,wfm->info.name);
     }
 
     
@@ -169,16 +238,18 @@ namespace snde {
     
     info.base_index=layout.base_index;
     info.ndim=layout.dimlen.size();
-    info.dimlen=layout.dimlen.data;
-    info.strides=layout.strides.data;
+    info.dimlen=layout.dimlen.data();
+    info.strides=layout.strides.data();
     
   }
 
-  virtual rwlock_token_set waveform::lock_storage_for_write()
+#if 0
+  // ***!!! This code is probably obsolete ***!!!
+  rwlock_token_set waveform::lock_storage_for_write()
   {
     bool immutable;
     {
-      std::lock_guard<std::mutex>(admin);
+      std::lock_guard<std::mutex> adminlock(admin);
       immutable=info.immutable;
     }
     if (immutable) {
@@ -194,7 +265,7 @@ namespace snde {
     }
   }
 
-  virtual rwlock_token_set waveform::lock_storage_for_read()
+  rwlock_token_set waveform::lock_storage_for_read()
   {
     bool immutable;
     {
@@ -214,31 +285,107 @@ namespace snde {
     }
     
   }
+#endif // 0 (obsolete code)
 
-  virtual void waveform::mark_metadata_done()
+  /* std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> */ void waveform::_mark_metadata_done_internal(std::shared_ptr<waveform_set_state> wss,const std::string &channame)
+  // internal use only. Should be called with the waveform admin lock held
   {
-    // This should be called, not holding locks, (except perhaps dg_python context) after info->metadata is finalized
 
-    {
-      std::lock_guard<std::mutex> adminlock(admin);
-      assert(info->metadata);
       
-      assert(info->state == info_state && info->state==SNDE_WFMS_INITIALIZING);
+    assert(info.state == info_state && info.state==SNDE_WFMS_INITIALIZING);
 
-      info->state = SNDE_WFMS_METADATA_READY;
-      infostate = SNDE_WFMS_METADATA_READY;
-    }
+    info.state = SNDE_WFMS_METADATAREADY;
+    info_state = SNDE_WFMS_METADATAREADY;
+
+    // this code replaced by issue_nonmath_notifications, below
+    //channel_state &chanstate = wss->wfmstatus.channel_map.at(channame);
+    //notify_about_this_channel_metadataonly = chanstate.notify_about_this_channel_metadataonly();
+    //chanstate.end_atomic_notify_about_this_channel_metadataonly_update(nullptr); // all notifications are now our responsibility
+    // return notify_about_this_channel_metadataonly;
     
   }
   
-  virtual void waveform::mark_as_ready()
+  void waveform::mark_metadata_done(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> wss) // wss should be the waveform_set_state or globalrev in which the waveform was initially defined. 
   {
-    #error not implemented
+    // This should be called, not holding locks, (except perhaps dg_python context) after info->metadata is finalized
+
+    std::string channame;
+    //std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_metadataonly;
+    {
+      //std::lock_guard<std::mutex> wssadminlock(wss->admin);  (not actually necessary for anything we are doing
+      std::lock_guard<std::mutex> adminlock(admin);
+      assert(info.metadata);
+      
+      if (info_state == SNDE_WFMS_METADATAREADY || info_state==SNDE_WFMS_READY || info_state == SNDE_WFMS_OBSOLETE) {
+	return; // already ready (or beyond)
+      }
+
+      channame = info.name;
+      /*notify_about_this_channel_metadataonly = */_mark_metadata_done_internal(wss,channame);
+    }
+
+    //// perform notifications
+    //for (auto && notify_ptr: *notify_about_this_channel_metadataonly) {
+    //  notify_ptr->notify_metadataonly(channame);
+    //}
+
+    // Above replaced by chanstate.issue_nonmath_notifications
+
+    channel_state &chanstate = wss->wfmstatus.channel_map.at(channame);
+    chanstate.issue_math_notifications(wfmdb,wss);
+    chanstate.issue_nonmath_notifications(wss);
+
+    
+  }
+  
+  void waveform::mark_as_ready(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> wss)  // wss should be the waveform_set_state or globalrev in which the waveform was initially defined. 
+  {
+    std::string channame;
+    //std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_ready;
+    //std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_metadataonly;
+    {
+      std::lock_guard<std::mutex> wfm_admin(admin);
+
+      assert(info.metadata);
+      
+      if (info_state==SNDE_WFMS_READY || info_state == SNDE_WFMS_OBSOLETE) {
+	return; // already ready (or beyond)
+      }
+      channame = info.name;
+      
+      if (info_state==SNDE_WFMS_INITIALIZING) {
+	// need to perform metadata notifies too
+	/*notify_about_this_channel_metadataonly =*/ /* _mark_metadata_done_internal(wss,channame); */
+	
+      }
+
+      info.state = SNDE_WFMS_READY;
+      info_state = SNDE_WFMS_READY;
+
+      // These next few lines replaced by chanstate.issue_nonmath_notifications, below
+      //channel_state &chanstate = wss->wfmstatus.channel_map.at(channame);
+      //notify_about_this_channel_ready = chanstate.notify_about_this_channel_ready();
+      //chanstate.end_atomic_notify_about_this_channel_ready_update(nullptr); // all notifications are now our responsibility
+      
+    }
+
+    // perform notifications (replaced by issue_nonmath_notifications())
+    //for (auto && notify_ptr: *notify_about_this_channel_metadataonly) {
+    //  notify_ptr->notify_metadataonly(channame);
+    //}
+    //for (auto && notify_ptr: *notify_about_this_channel_ready) {
+    //  notify_ptr->notify_ready(channame);
+    //}
+
+
+    channel_state &chanstate = wss->wfmstatus.channel_map.at(channame);
+    chanstate.issue_math_notifications(wfmdb,wss);
+    chanstate.issue_nonmath_notifications(wss);
   }
 
   active_transaction::active_transaction(std::shared_ptr<wfmdatabase> wfmdb) :
-    wfmdb(wfmdb)
-    transaction_ended(false);
+    wfmdb(wfmdb),
+    transaction_ended(false)
   {
     std::unique_lock<std::mutex> tr_lock_acquire(wfmdb->transaction_lock);;
 
@@ -249,13 +396,14 @@ namespace snde {
 
     wfmdb->current_transaction=std::make_shared<transaction>();
 
+    
+    uint64_t previous_globalrev_index = 0;
     {
-      std::lock_guard<mutex> wfmdb_lock(wfmdb->admin);
-      std::map<uint64_t,std::shared_ptr<globalrevision>>::iterator last_globalrev_ptr = wfmdb->_globalrevs->end();
+      std::lock_guard<std::mutex> wfmdb_lock(wfmdb->admin);
+      std::map<uint64_t,std::shared_ptr<globalrevision>>::iterator last_globalrev_ptr = wfmdb->_globalrevs.end();
       --last_globalrev_ptr; // change from final+1 to final entry
 
-      uint64_t previous_globalrev_index = 0;
-      if (last_globalrev_ptr != wfmdb->_globalrevs->end()) {
+      if (last_globalrev_ptr != wfmdb->_globalrevs.end()) {
 	// if there is a last globalrev (otherwise we are starting the first!)
 	previous_globalrev_index = last_globalrev_ptr->first;
 	previous_globalrev = last_globalrev_ptr->second;
@@ -270,7 +418,7 @@ namespace snde {
     
   }
 
-  static void _identify_changed_channels(std::map<std::string,std::shared_ptr<channelconfig>> &all_channels_by_name,instantiated_math_database &mathdb, std::unordered_set<std::shared_ptr<channelconfig>> &maybechanged_channels,std::unordered_set<std::shared_ptr<channelconfig>> &changed_channels_dispatched,std::unordered_set<std::shared_ptr<channelconfig>> &changed_channels_need_dispatch,std::shared_ptr<channelconfig> channel_to_dispatch ) // channel_to_dispatch should be in changed_channels_need_dispatch
+  static void _identify_changed_channels(std::map<std::string,std::shared_ptr<channelconfig>> &all_channels_by_name,instantiated_math_database &mathdb, std::unordered_set<std::shared_ptr<channelconfig>> &maybechanged_channels,std::unordered_set<std::shared_ptr<channelconfig>> &changed_channels_dispatched,std::unordered_set<std::shared_ptr<channelconfig>> &changed_channels_need_dispatch,std::unordered_set<std::shared_ptr<channelconfig>>::iterator channel_to_dispatch_it ) // channel_to_dispatch should be in changed_channels_need_dispatch
   // mathdb must be immutable; (i.e. it must already be copied into the global revision)
   {
     // std::unordered_set iterators remain valid so long as the iterated element itself is not erased, and the set does not need rehashing.
@@ -279,12 +427,13 @@ namespace snde {
     // We do add to changed_channels_need dispatch
     //std::unordered_set<std::shared_ptr<channelconfig>>::iterator changed_chan;
 
-    changed_channels_need_dispatch.erase(channel_to_dispatch);
-    changed_channels_dispatch.emplace(channel_to_dispatch);
+    std::shared_ptr<channelconfig> channel_to_dispatch = *channel_to_dispatch_it;
+    changed_channels_need_dispatch.erase(channel_to_dispatch_it);
+    changed_channels_dispatched.emplace(channel_to_dispatch);
 
     if (channel_to_dispatch->math) {
       // look up what is dependent on this channel
-      std::set<std::shared_ptr<instantiated_math_function>> &dependent_math_functions=mathdb.all_dependencies_of_channel.at(channel_to_dispatch->channelpath);
+      std::unordered_set<std::shared_ptr<instantiated_math_function>> &dependent_math_functions=mathdb.all_dependencies_of_channel.at(channel_to_dispatch->channelpath);
 
       for (auto && instantiated_math_ptr: dependent_math_functions) {
 	if (instantiated_math_ptr->ondemand || instantiated_math_ptr->disabled) {
@@ -301,7 +450,7 @@ namespace snde {
 	    // Is the dependenent channel in maybechanged_channels?... if so it is definitely changed, but not yet dispatched
 	    if (maybechanged_it != maybechanged_channels.end()) {
 	      // put it in the changed dispatch set
-	      changed_channels_to_dispatch.emplace(*maybechanged_it);
+	      changed_channels_need_dispatch.emplace(*maybechanged_it);
 	      // remove it from the maybe changed set
 	      maybechanged_channels.erase(maybechanged_it);
 	    } 
@@ -328,15 +477,15 @@ namespace snde {
     
     for (auto && changed_channelconfig_ptr : definitively_changed_channels) {
       
-      std::unordered_set<std::shared_ptr<instantiated_math_function>> & dependent_functions_of_this_channel = state->mathstatus->math_functions->all_dependencies_of_channel.at(changed_channelconfig_ptr->channelpath);
+      std::unordered_set<std::shared_ptr<instantiated_math_function>> & dependent_functions_of_this_channel = state->mathstatus.math_functions->all_dependencies_of_channel.at(changed_channelconfig_ptr->channelpath);
 
       for (auto && affected_math_function: dependent_functions_of_this_channel) {
 	// merge into set 
         //dependent_functions.emplace(affected_math_function);
 
 	// instead of merging into a set and doing it later we just go ahead and set the execution_demanded flag directly
-	if (!affected_math_function.disabled || !affected_math_function.ondemand) {
-	  state->mathstatus->function_status.at(affected_math_function).execution_demanded = true; 
+	if (!affected_math_function->disabled || !affected_math_function->ondemand) {
+	  state->mathstatus.function_status.at(affected_math_function).execution_demanded = true; 
 	}
       }
       
@@ -345,7 +494,7 @@ namespace snde {
 
     // go over all of the dependent functions and mark their execution_demanded flag
     //for (auto && affected_math_function: dependent_functions) {
-    //  state->mathstatus->function_status.at(affected_math_function).execution_demanded = true; 
+    //  state->mathstatus.function_status.at(affected_math_function).execution_demanded = true; 
     //}
   }
 
@@ -374,15 +523,20 @@ namespace snde {
       if (passed_mdonly_functions.find(dependent_function) != passed_mdonly_functions.end()) {
 	// found previously passed function. all good
 	continue; 
-      } else if (failed_mdonly_functions.find(dependent_function) != failed_mdonly_functions.end()) {
+      }
+      if (failed_mdonly_functions.find(dependent_function) != failed_mdonly_functions.end()) {
 	// Found previously failed function. Failed.
 	all_mdonly=false;
 	break;
-      } else if (checked_regular_functions.find(dependent_function) != checked_regular_functions.end()) {
+      }
+      if (checked_regular_functions.find(dependent_function) != checked_regular_functions.end()) {
 	// This dependent function is not mdonly so we are failed.
 	all_mdonly=false;
 	break;
-      } else if ((std::unordered_set<std::shared_ptr<instantiated_math_function>>::iterator unchecked_it = unchecked_functions.find(dependent_function)) != unchecked_functions.end()) {
+      }
+
+      std::unordered_set<std::shared_ptr<instantiated_math_function>>::iterator unchecked_it = unchecked_functions.find(dependent_function);
+      if (unchecked_it != unchecked_functions.end()) {
 	// unchecked function... check it with recursive call.
 	bool unchecked_status = check_all_dependencies_mdonly(state,
 							      unchecked_functions,
@@ -444,21 +598,29 @@ namespace snde {
 
 
     // set of ready channels
-    std::unordered_set<channel_state &> ready_channels; // references into the globalrev->wfmstatus.channel_map
+    std::unordered_set<channel_state *> ready_channels; // references into the globalrev->wfmstatus.channel_map
     // set of unchanged incomplete channels
-    std::unordered_set<channel_state &> unchanged_incomplete_channels; // references into the globalrev->wfmstatus.channel_map
-    std::unordered_set<channel_state &> unchanged_incomplete_mdonly_channels; // references into the globalrev->wfmstatus.channel_map
+    std::unordered_set<channel_state *> unchanged_incomplete_channels; // references into the globalrev->wfmstatus.channel_map
+    std::unordered_set<channel_state *> unchanged_incomplete_mdonly_channels; // references into the globalrev->wfmstatus.channel_map
     
     {
-      std::lock_guard<mutex> wfmdb_lock(wfmdb_strong->admin);
-
+      std::lock_guard<std::mutex> wfmdb_lock(wfmdb_strong->admin);
+      // assemble the channel_map
+      std::map<std::string,channel_state> initial_channel_map;
+      for (auto && channel_name_chan_ptr : wfmdb_strong->_channels) {
+	initial_channel_map.emplace(std::piecewise_construct,
+				    std::forward_as_tuple(channel_name_chan_ptr.first),
+				    std::forward_as_tuple(channel_name_chan_ptr.second->config(),nullptr,false)); // tentatively mark channel_state as not updated
+	
+      }
+      
       // build a class globalrevision from wfmdb->current_transaction
-      globalrev = std::make_shared<globalrevision>(wfmdb_strong->current_transaction->globalrev,wfmdb_strong->_math_functions,previous_globalrev);
-      globalrev->wfmstatus.channel_map.reserve(wfmdb_strong->_channels.size());
+      globalrev = std::make_shared<globalrevision>(wfmdb_strong->current_transaction->globalrev,wfmdb_strong->_math_functions,initial_channel_map,previous_globalrev);
+      //globalrev->wfmstatus.channel_map.reserve(wfmdb_strong->_channels.size());
       
       // Build a temporary map of the channels we still need to dispatch
-      for (auto && channel_pointer: wfmdb_strong->_channels) {
-	std::shared_ptr<channelconfig> config = channel_pointer->config();
+      for (auto && channelname_channelpointer: wfmdb_strong->_channels) {
+	std::shared_ptr<channelconfig> config = channelname_channelpointer.second->config();
 	all_channels_by_name.emplace(std::piecewise_construct,
 	std::forward_as_tuple(config->channelpath),
 	std::forward_as_tuple(config));
@@ -476,7 +638,7 @@ namespace snde {
     // mark all new channels/waveforms as changed_channels_need_dispatched
     for (auto && new_wfm_chanpath_ptr: wfmdb_strong->current_transaction->new_waveforms) {
 
-      std::string &chanpath=new_wfm_chanpath_ptr.first;
+      const std::string &chanpath=new_wfm_chanpath_ptr.first;
       
       std::shared_ptr<channelconfig> config = all_channels_by_name.at(chanpath);
       
@@ -499,8 +661,12 @@ namespace snde {
 
     // Now empty out changed_channels_need_dispatch, adding into it any dependencies of currently referenced changed channels
     // This progressively identifies all (possibly) changed channels
-    while ((std::unordered_set<std::shared_ptr<channelconfig>>::iterator channel_to_dispatch = changed_channels_need_dispatch.begin()) != changed_channels_need_dispatch.end()) {
-      _identify_changed_channels(all_channels_by_name,*globalrev->status.math_functions, maybechanged_channels,changed_channels_dispatched,changed_channels_need_dispatch,channel_to_dispatch );
+    std::unordered_set<std::shared_ptr<channelconfig>>::iterator channel_to_dispatch_it = changed_channels_need_dispatch.begin();
+    
+    while (channel_to_dispatch_it != changed_channels_need_dispatch.end()) {
+      _identify_changed_channels(all_channels_by_name,*globalrev->mathstatus.math_functions, maybechanged_channels,changed_channels_dispatched,changed_channels_need_dispatch,channel_to_dispatch_it );
+
+      channel_to_dispatch_it = changed_channels_need_dispatch.begin();
     }
     
     // now changed_channels_need_dispatch is empty, changed_channels_dispatched represents all changed or possibly-changed (i.e. math may decide presence of a new revision) channels,
@@ -523,9 +689,11 @@ namespace snde {
     std::unordered_set<std::shared_ptr<instantiated_math_function>> failed_mdonly_functions;
     std::unordered_set<std::shared_ptr<instantiated_math_function>> checked_regular_functions;
 
-    while ((std::unordered_set<std::shared_ptr<instantiated_math_function>>::iterator unchecked_function = unchecked_functions.begin()) != unchecked_functions.end()) {
-      check_all_dependencies_mdonly(unchecked_functions,passed_mdonly_functions,failed_mdonly_functions,checked_regular_functions,unchecked_function);
+    std::unordered_set<std::shared_ptr<instantiated_math_function>>::iterator unchecked_function = unchecked_functions.begin();
+    while (unchecked_function != unchecked_functions.end()) {
+      check_all_dependencies_mdonly(globalrev,unchecked_functions,passed_mdonly_functions,failed_mdonly_functions,checked_regular_functions,unchecked_function);
 
+      unchecked_function = unchecked_functions.begin();
     }
 
     // any failed_mdonly_functions need to have their mdonly bool cleared in their math_function_status
@@ -547,7 +715,7 @@ namespace snde {
       bool is_mdonly = false;
       
       if (unchanged_channel->math) {
-	unchanged_channel_math_function = globalrev->mathstatus.math_functions.defined_math_functions.at(unchanged_channel->channelpath);
+	unchanged_channel_math_function = globalrev->mathstatus.math_functions->defined_math_functions.at(unchanged_channel->channelpath);
 	is_mdonly = globalrev->mathstatus.function_status.at(unchanged_channel_math_function).mdonly;
 	
       }
@@ -558,7 +726,7 @@ namespace snde {
 	
 	std::map<std::string,channel_state>::iterator previous_globalrev_chanmap_entry = previous_globalrev->wfmstatus.channel_map.find(unchanged_channel->channelpath);
 	if (previous_globalrev_chanmap_entry==previous_globalrev->wfmstatus.channel_map.end()) {
-	  raise snde_error("Existing channel %s has no prior waveform",unchanged_channel->channelpath.c_str());
+	  throw snde_error("Existing channel %s has no prior waveform",unchanged_channel->channelpath.c_str());
 	}
 	channel_wfm_is_complete = previous_globalrev_chanmap_entry->second.waveform_is_complete(is_mdonly);
 	if (channel_wfm_is_complete) {
@@ -569,12 +737,14 @@ namespace snde {
       }
       std::map<std::string,channel_state>::iterator channel_map_it;
       bool added_successfully;
-      std::tie(channel_map_it,added_successfully) =
-	globalrev->wfmstatus.channel_map.emplace(std::piecewise_construct,
-						 std::forward_as_tuple(unchanged_channel->channelpath),
-						 std::forward_as_tuple(unchanged_channel,channel_wfm,false)); // mark channel_state as not updated
-
-      assert(added_successfully);
+      //std::tie(channel_map_it,added_successfully) =
+      //globalrev->wfmstatus.channel_map.emplace(std::piecewise_construct,
+      //std::forward_as_tuple(unchanged_channel->channelpath),
+      //						 std::forward_as_tuple(unchanged_channel,channel_wfm,false)); // mark channel_state as not updated
+      channel_map_it = globalrev->wfmstatus.channel_map.find(unchanged_channel->channelpath);
+      channel_map_it->second._wfm = channel_wfm;
+      
+      assert(channel_map_it != globalrev->wfmstatus.channel_map.end());
 
       // check if added channel is complete
       if (channel_wfm_is_complete) {
@@ -591,24 +761,26 @@ namespace snde {
 	}
 	// Queue notification that this channel is complete, except we are currently holding the admin lock, so we can't
 	// do it now. Instead queue up a reference into the channel_map
-	ready_channels.emplace(channel_map_it.second);
+	ready_channels.emplace(&channel_map_it->second);
 
 	// place in globalrev->wfmstatus.completed_waveforms
-	globalrev->wfmstatus.completed_waveforms.emplace(channel_map_it.second);
+	globalrev->wfmstatus.completed_waveforms.emplace(std::piecewise_construct,
+							 std::forward_as_tuple((std::shared_ptr<channelconfig>)unchanged_channel),
+							 std::forward_as_tuple((channel_state *)&channel_map_it->second));
       } else {
 	// in this case channel_wfm may or may not exist and is NOT complete
 	if (unchanged_channel->math) {
 	  
 	  unchanged_incomplete_math_functions.emplace(unchanged_channel_math_function);
 	  if (is_mdonly) {
-	    unchanged_incomplete_mdonly_channels.emplace(channel_map_it.second);
+	    unchanged_incomplete_mdonly_channels.emplace(&channel_map_it->second);
 	  } else {
-	    unchanged_incomplete_channels.emplace(channel_map_it.second);
+	    unchanged_incomplete_channels.emplace(&channel_map_it->second);
 	  }
 
 	} else {
 	  // not a math function; cannot be mdonly
-	  unchanged_incomplete_channels.emplace(channel_map_it.second);
+	  unchanged_incomplete_channels.emplace(&channel_map_it->second);
 	}
 	
       }
@@ -623,20 +795,22 @@ namespace snde {
       ucmf_status.mdonly_executed=true; 
       ucmf_status.complete = true;
       // remove from the appropriate set
-      if ((auto & mpf_it = globalrev->mathstatus->mdonly_pending_functions.find(unchanged_complete_math_function)) != globalrev->mathstatus->mdonly_pending_functions.end()) {
 
-	globalrev->mathstatus->mdonly_pending_functions.erase(mpf_it);
+      auto mpf_it = globalrev->mathstatus.mdonly_pending_functions.find(unchanged_complete_math_function);
+      if (mpf_it != globalrev->mathstatus.mdonly_pending_functions.end()) {
+
+	globalrev->mathstatus.mdonly_pending_functions.erase(mpf_it);
 
       } else {
-	auto & pf_it = globalrev->mathstatus->pending_functions.find(unchanged_complete_math_function);
-	assert(pf_it != globalrev->mathstatus->pending_functions.end());
+	auto pf_it = globalrev->mathstatus.pending_functions.find(unchanged_complete_math_function);
+	assert(pf_it != globalrev->mathstatus.pending_functions.end());
 
 	
-	globalrev->mathstatus->pending_functions.erase(pf_it);
+	globalrev->mathstatus.pending_functions.erase(pf_it);
 	
       }
       // add to the complete fully ready set. 
-      globalrev->mathstatus->completed_functions.emplace(unchanged_complete_math_function);
+      globalrev->mathstatus.completed_functions.emplace(unchanged_complete_math_function);
       
       
     }
@@ -648,12 +822,12 @@ namespace snde {
       globalrev->mathstatus.function_status.at(unchanged_complete_math_function).complete = true;
       assert(unchanged_complete_math_function->mdonly); // shouldn't be in this list if we aren't mdonly.
       
-      auto & mpf_it = globalrev->mathstatus->mdonly_pending_functions.find(unchanged_complete_math_function);
-      assert(mpf_it != globalrev->mathstatus->mdonly_pending_functions.end());
+      auto mpf_it = globalrev->mathstatus.mdonly_pending_functions.find(unchanged_complete_math_function);
+      assert(mpf_it != globalrev->mathstatus.mdonly_pending_functions.end());
 	
-      globalrev->mathstatus->mdonly_pending_functions.erase(mpf_it);
+      globalrev->mathstatus.mdonly_pending_functions.erase(mpf_it);
 
-      globalrev->mathstatus->completed_mdonly_functions.emplace(unchanged_complete_math_function);
+      globalrev->mathstatus.completed_mdonly_functions.emplace(unchanged_complete_math_function);
 	
       
     }
@@ -665,15 +839,22 @@ namespace snde {
 
       if (config->math) {
 	// Not allowed to manually update a math channel
-	throw snde_error("Manual instantiation of math channel %s" % (config->channelpath.c_str()));
+	throw snde_error("Manual instantiation of math channel %s",config->channelpath.c_str());
       }
-      auto cm_it = globalrev->wfmstatus.channel_map.emplace(std::piecewise_construct,
-							    std::forward_as_tuple(new_wfm_chanpath_ptr.first),
-							    std::forward_as_tuple(config,new_wfm_chanpath_ptr.second,true)).first; // mark updated=true
+      auto cm_it = globalrev->wfmstatus.channel_map.find(new_wfm_chanpath_ptr.first);
+      assert(cm_it != globalrev->wfmstatus.channel_map.end());
+      cm_it->second._wfm = new_wfm_chanpath_ptr.second;
+      cm_it->second.updated=true; 
+      
+      //
+      //						 emplace(std::piecewise_construct,
+      //						    std::forward_as_tuple(new_wfm_chanpath_ptr.first),
+      //						    std::forward_as_tuple(config,new_wfm_chanpath_ptr.second,true)).first; // mark updated=true
+      
       // mark it as instantiated
       globalrev->wfmstatus.instantiated_waveforms.emplace(std::piecewise_construct,
 						std::forward_as_tuple(config),
-						std::forward_as_tuple(*cm_it));
+						std::forward_as_tuple(&cm_it->second));
       
       possibly_changed_channels_to_process.erase(config); // no further processing needed here
     }
@@ -696,18 +877,23 @@ namespace snde {
       
       // new waveform should be required but not present; create one
       assert(wfmdb_strong->current_transaction->new_waveform_required.at(config->channelpath) && new_waveform_it==wfmdb_strong->current_transaction->new_waveforms.end());
-      new_wfm = std::make_shared<waveform>(wfmdb_strong,updated_chan,updated_chan->owner_id); // constructor adds itself to current transaction
+      new_wfm = std::make_shared<waveform>(wfmdb_strong,updated_chan,config->owner_id,SNDE_WTN_FLOAT); // constructor adds itself to current transaction
       waveforms_needing_finalization.emplace(new_wfm); // Since we provided this, we need to make it ready, below
       
       // insert new waveform into channel_map
-      auto cm_it = globalrev->wfmstatus.channel_map.emplace(std::piecewise_construct,
-							    std::forward_as_tuple(config->channelpath),
-							    std::forward_as_tuple(config,new_wfm,true)); // mark updated=true
+      //auto cm_it = globalrev->wfmstatus.channel_map.emplace(std::piecewise_construct,
+      //							    std::forward_as_tuple(config->channelpath),
+      //std::forward_as_tuple(config,new_wfm,true)).first; // mark updated=true
+      
+      auto cm_it = globalrev->wfmstatus.channel_map.find(config->channelpath);
+      assert(cm_it != globalrev->wfmstatus.channel_map.end());
+      cm_it->second._wfm = new_wfm;
+      cm_it->second.updated=true; 
       
       // mark it as instantiated
       globalrev->wfmstatus.instantiated_waveforms.emplace(std::piecewise_construct,
 						std::forward_as_tuple(config),
-						std::forward_as_tuple(*cm_it));
+						std::forward_as_tuple(&cm_it->second));
       
       // remove this from channels_to_process, as it has been already been inserted into the channel_map
       possibly_changed_channels_to_process.erase(config);
@@ -718,14 +904,18 @@ namespace snde {
       // (These must be math dependencies))
       // Since the math hasn't started, we don't have defined waveforms yet
       // so the waveform is just nullptr
-      auto cm_it = globalrev->wfmstatus.channel_map.emplace(std::piecewise_construct,
-							    std::forward_as_tuple(possibly_changed_channel->channelpath),
-							    std::forward_as_tuple(possibly_changed_channel,nullptr,false)); // mark updated as false (so far, at least)
+      
+      //auto cm_it = globalrev->wfmstatus.channel_map.emplace(std::piecewise_construct,
+      //std::forward_as_tuple(possibly_changed_channel->channelpath),
+      //							    std::forward_as_tuple(possibly_changed_channel,nullptr,false)).first; // mark updated as false (so far, at least)
+      auto cm_it = globalrev->wfmstatus.channel_map.find(possibly_changed_channel->channelpath);
+      assert(cm_it != globalrev->wfmstatus.channel_map.end());
+      
       
       // These waveforms are defined but not instantiated
-      globalrev->defined_waveforms.wfmstatus.emplace(std::piecewise_construct,
-						     std::forward_as_tuple(config),
-						     std::forward_as_tuple(*cm_it));      
+      globalrev->wfmstatus.defined_waveforms.emplace(std::piecewise_construct,
+      						     std::forward_as_tuple(possibly_changed_channel),
+      						     std::forward_as_tuple(&cm_it->second));      
       
     }
   
@@ -746,7 +936,7 @@ namespace snde {
       std::shared_ptr<instantiated_math_function> mathfunction = mathfunction_alldeps.first;
 
       if (!globalrev->mathstatus.function_status.at(mathfunction).complete) { // Complete marked above, if none of the direct or indirect inputs has changed. If complete, nothing else matters. 
-	if (mathfunction->definition->self_dependent || mathfunction->definition->mandatory_mutable || mathfunction->definition->pure_optionally_mutable || mathfunction->definition->new_revision_optional) {
+	if (mathfunction->fcn->self_dependent || mathfunction->fcn->mandatory_mutable || mathfunction->fcn->pure_optionally_mutable || mathfunction->fcn->new_revision_optional) {
 	  // implicit or explicit self-dependency
 	  self_dependencies.push_back(mathfunction);
 	}
@@ -757,15 +947,20 @@ namespace snde {
     
     //  Need to copy repetitive_notifies into place.
     {
-      std::lock_guard<mutex> wfmdb_lock(wfmdb_strong->admin);
+      std::lock_guard<std::mutex> wfmdb_lock(wfmdb_strong->admin);
 
       for (auto && repetitive_notify: wfmdb_strong->repetitive_notifies) {
+	// copy notify into this globalrev
 	std::shared_ptr<channel_notify> chan_notify = repetitive_notify->create_notify_instance();
+
+	// insert this notify into globalrev data structures.
+	/// NOTE: ***!!! This could probably be simplified by leveraging apply_to_wss() method
+	// but that would lose flexibility to ignore missing channels
 	{
 	  std::lock_guard criteria_lock(chan_notify->criteria.admin);
 	  for (auto && mdonly_channame : chan_notify->criteria.metadataonly_channels) {
-	    auto channel_map_it = globalrev->wfmstatus->channel_map.find(mdonly_channame);
-	    if (channel_map_it == channel_map_end) {
+	    auto channel_map_it = globalrev->wfmstatus.channel_map.find(mdonly_channame);
+	    if (channel_map_it == globalrev->wfmstatus.channel_map.end()) {
 	      std::string other_channels="";
 	      for (auto && mdonly_channame2 : chan_notify->criteria.metadataonly_channels) {
 		other_channels += mdonly_channame2+";";
@@ -774,10 +969,10 @@ namespace snde {
 	      continue;
 	    }
 
-	    channel_state &chanstate=channel_map_it.second;
+	    channel_state &chanstate=channel_map_it->second;
 
 	    // Add notification unless criterion already met
-	    std::shared_ptr<waveform> wfm_is_complete  chanstate.waveform_is_complete(true);
+	    std::shared_ptr<waveform> wfm_is_complete = chanstate.waveform_is_complete(true);
 
 	    if (!wfm_is_complete) {
 	      // Criterion not met; add notification
@@ -788,8 +983,8 @@ namespace snde {
 
 
 	  for (auto && fullyready_channame : chan_notify->criteria.fullyready_channels) {
-	    auto channel_map_it = globalrev->wfmstatus->channel_map.find(fullyready_channame);
-	    if (channel_map_it == channel_map_end) {
+	    auto channel_map_it = globalrev->wfmstatus.channel_map.find(fullyready_channame);
+	    if (channel_map_it == globalrev->wfmstatus.channel_map.end()) {
 	      std::string other_channels="";
 	      for (auto && fullyready_channame2 : chan_notify->criteria.fullyready_channels) {
 		other_channels += fullyready_channame2+";";
@@ -798,10 +993,10 @@ namespace snde {
 	      continue;
 	    }
 	    
-	    channel_state &chanstate=channel_map_it.second;
+	    channel_state &chanstate=channel_map_it->second;
 
 	    // Add notification unless criterion already met
-	    std::shared_ptr<waveform> wfm = chanstate->wfm();
+	    std::shared_ptr<waveform> wfm = chanstate.wfm();
 	    int wfm_state = wfm->info_state;
 	    
 	    if (wfm && wfm_state==SNDE_WFMS_READY) {
@@ -856,19 +1051,19 @@ namespace snde {
 	bool mathfunction_is_mdonly = false;
 	if (mathfunction->mdonly) { //// to genuinely be mdonly our instantiated_math_function must be marked as such AND we should be in the mdonly_pending_functions set of the math_status (now there is a specific flag)
 	  // mathfunction_is_mdonly = (globalrev->mathstatus.mdonly_pending_functions.find(mathfunction) != globalrev->mathstatus.mdonly_pending_functions.end());
-	  mathfunction_is_mdonly = globalrev->mathstatus->function_status.at(mathfunction).mdonly;
+	  mathfunction_is_mdonly = globalrev->mathstatus.function_status.at(mathfunction).mdonly;
 	}
 	// iterate over all parameters that are dependent on other channels
 	for (auto && parameter: mathfunction->parameters) {
 
 	  // get the set of prerequisite channels
-	  std::set<std::string> preqreq_channels = parameter->get_prerequisites(globalrev,mathfunction->channel_path_context);
+	  std::set<std::string> prereq_channels = parameter->get_prerequisites(/*globalrev,*/mathfunction->channel_path_context);
 	  for (auto && prereq_channel: prereq_channels) {
 
 	    // for each prerequisite channel, look at it's state. 
 	    channel_state &prereq_chanstate = globalrev->wfmstatus.channel_map.at(prereq_channel);
 
-	    bool preqreq_complete = false; 
+	    bool prereq_complete = false; 
 	    
 	    std::shared_ptr<waveform> prereq_wfm = prereq_chanstate.wfm();
 	    int prereq_wfm_state = prereq_wfm->info_state;
@@ -901,9 +1096,7 @@ namespace snde {
     
     // add self-dependencies to the missing_external_prerequisites of this globalrev
     for (auto && self_dep : self_dependencies) {
-      globalrev->mathstatus.function_status.at(self_dep).missing_external_function_prerequisites.emplace(std::piecewise_construct,
-													 std::forward_as_tuple(previous_globalrev),
-													 std::forward_as_tuple(self_dep));
+      globalrev->mathstatus.function_status.at(self_dep).missing_external_function_prerequisites.emplace(std::make_tuple(previous_globalrev,self_dep));
     }
 
     
@@ -911,6 +1104,7 @@ namespace snde {
     // add self-dependencies to the _external_dependencies_on_function of the previous_globalrev
     // Note from hereon we have published our new globalrev so we have to be a bit more careful about
     // locking it because we might get notification callbacks or similar if one of those external waveforms becomes ready
+    std::vector<std::shared_ptr<instantiated_math_function>> need_to_check_if_ready;
     {
       std::lock_guard<std::mutex> previous_globalrev_admin(previous_globalrev->admin);
 
@@ -923,7 +1117,9 @@ namespace snde {
 	  // Got it.
 	  // Check the status -- may have changed since the above.
 	  if (previous_globalrev->mathstatus.function_status.at(self_dep).complete) {
-	    // !!!*** now complete -- perform immediate notification on this waveform
+	    
+	    // complete -- perform ready check on this waveform
+	    need_to_check_if_ready.push_back(self_dep);
 	  } else {
 	    //add to previous globalrev's _external_dependencies
 	    new_prevglob_extdep->at(self_dep).push_back(std::make_tuple(globalrev,self_dep));
@@ -934,58 +1130,57 @@ namespace snde {
       
       
     }
+
+    std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>> ready_to_execute;
+
+    for (auto && readycheck : need_to_check_if_ready) {
+      std::lock_guard<std::mutex> globalrev_admin(globalrev->admin);
+      math_function_status &readycheck_status = globalrev->mathstatus.function_status.at(readycheck);
+
+      globalrev->mathstatus.check_dep_fcn_ready(globalrev,readycheck,&readycheck_status,ready_to_execute);
+    }
     
-    
-    // ***!!! Need to go through unchanged_incomplete_channels and unchanged_incomplete_mdonly_channels and get notifies when these become complete
+    // Go through unchanged_incomplete_channels and unchanged_incomplete_mdonly_channels and get notifies when these become complete
     {
       for (auto && chanstate: unchanged_incomplete_channels) { // chanstate is a channel_state &
-	_unchanged_channel_notify unchangednotify(wfmdb_strong,globalrev,!!!***need_previous_channelstate,channelstate,false);
-
+	channel_state &previous_state = previous_globalrev->wfmstatus.channel_map.at(chanstate->config->channelpath);
+	std::shared_ptr<_unchanged_channel_notify> unchangednotify=std::make_shared<_unchanged_channel_notify>(wfmdb_strong,globalrev,previous_state,*chanstate,false);
+	unchangednotify->apply_to_wss(previous_globalrev); 
+	/*this code replaced by apply_to_wss()
 	std::unique_lock<std::mutex> previous_globalrev_admin(previous_globalrev->admin);
-	channel_state &previous_state = previous_globalrev->wfmstatus.channel_map.at(chanstate.config->channelpath);
 
-	// !!!*** Instead of the below should program unchanged_channel_notify to have a check_criteria method.
-	if (previous_state.waveform_is_complete()) {
-	  // status has changed to complete
-	  // !!!*** perform immediate notification once we drop the lock
-	  previous_globalrev_admin.unlock();
-
-	  // !!!*** perform notification here !!!***
-	  unchangednotify->
-	} else {
-	  // queue up notification
-	  std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_set = previous_state.begin_atomic_notify_about_this_channel_ready_update();
-	  notify_set->emplace(unchangednotify);
-	  previous_state.end_atomic_notify_about_this_channel_ready_update(notify_set);
-	}
+	// queue up notification
+	std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_set = previous_state.begin_atomic_notify_about_this_channel_ready_update();
+	notify_set->emplace(unchangednotify);
+	previous_state.end_atomic_notify_about_this_channel_ready_update(notify_set);
+	
+	unchangednotify->check_all_criteria(globalrev);
+	*/
       }
 
       for (auto && chanstate: unchanged_incomplete_mdonly_channels) { // chanstate is a channel_state &
-	_unchanged_channel_notify unchangednotify(globalrev,!!!***need_previous_channelstate,channelstate,true);
+	channel_state &previous_state = previous_globalrev->wfmstatus.channel_map.at(chanstate->config->channelpath);
+	std::shared_ptr<_unchanged_channel_notify> unchangednotify=std::make_shared<_unchanged_channel_notify>(wfmdb,globalrev,previous_state,*chanstate,true);
+	unchangednotify->apply_to_wss(previous_globalrev); 
 
+	/* this code replaced by apply_to_wss()
 	std::unique_lock<std::mutex> previous_globalrev_admin(previous_globalrev->admin);
-	channel_state &previous_state = previous_globalrev->wfmstatus.channel_map.at(chanstate.config->channelpath);
-	if (previous_state.waveform_is_complete()) {
-	  // status has changed to complete
-	  // !!!*** perform immediate notification once we drop the lock
-	  previous_globalrev_admin.unlock();
+	
+	// queue up notification
+	std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_set = previous_state.begin_atomic_notify_about_this_channel_metadataonly_update();
+	notify_set->emplace(unchangednotify);
+	previous_state.end_atomic_notify_about_this_channel_metadataonly_update(notify_set);
 
-	  // !!!*** perform notification here !!!***
-	  
-	} else {
-	  // queue up notification
-	  std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_set = previous_state.begin_atomic_notify_about_this_channel_metadataonly_update();
-	  notify_set->emplace(unchangednotify);
-	  previous_state.end_atomic_notify_about_this_channel_metadataonly_update(notify_set);
-	}
+	unchangednotify->check_all_criteria(globalrev);
+	*/
 	
       }
 
     }
     // ***!!! Need to got through unchanged_incomplete_math_functions and get notifies when these become complete, if necessary (?)
-    
+    // Think it should be unnecessary. 
     {
-      std::lock_guard<mutex> wfmdb_lock(wfmdb_strong->admin);
+      std::lock_guard<std::mutex> wfmdb_lock(wfmdb_strong->admin);
       wfmdb_strong->_globalrevs.emplace(wfmdb_strong->current_transaction->globalrev,globalrev);
     
       wfmdb_strong->current_transaction = nullptr; 
@@ -997,8 +1192,19 @@ namespace snde {
     // Perform notifies that unchanged copied waveforms from prior revs are now ready
     // (and that globalrev is ready if there is nothing pending!)
     for (auto && readychan : ready_channels) { // readychan is a channel_state &
-      readychan.issue_nonmath_notifications(globalrev);
+      readychan->issue_nonmath_notifications(globalrev);
     }
+
+    // queue up everything we marked as ready_to_execute
+    for (auto && ready_wss_ready_fcn: ready_to_execute) {
+      // Need to queue as a pending_computation
+      std::shared_ptr<waveform_set_state> ready_wss;
+      std::shared_ptr<instantiated_math_function> ready_fcn;
+
+      std::tie(ready_wss,ready_fcn) = ready_wss_ready_fcn;
+      wfmdb_strong->compute_resources.queue_computation(ready_wss,ready_fcn);
+    }
+
 
     // Check if everything is done; issue notification
     if (all_ready) {
@@ -1011,9 +1217,14 @@ namespace snde {
 	channel_notify_ptr->notify_waveformset_complete();
       }
     }
-    
-    // ***!!! Need to trigger dispatch of all ready_to_execute channels
-    // !!!*** see queue_computation()
+
+    // get notified so as to remove entries from available_compute_resource_database blocked_list
+    // once the previous globalrev is complete.
+    std::shared_ptr<_previous_globalrev_done_notify> prev_done_notify = std::make_shared<_previous_globalrev_done_notify>(wfmdb,previous_globalrev,globalrev);
+    {
+      std::lock_guard<std::mutex> prev_admin(previous_globalrev->admin);
+      previous_globalrev->waveformset_complete_notifiers.emplace(prev_done_notify);
+    }
   }
   
   active_transaction::~active_transaction()
@@ -1025,7 +1236,7 @@ namespace snde {
   }
 
 
-  channelconfig::channelconfig(std::string channelpath, std::string owner_name, void *owner_id,bool hidden,std::shared_ptr<waveform_storage_manager> storage_manager=nullptr) :
+  channelconfig::channelconfig(std::string channelpath, std::string owner_name, void *owner_id,bool hidden,std::shared_ptr<waveform_storage_manager> storage_manager) : // storage_manager parameter defaults to nullptr
     channelpath(channelpath),
     owner_name(owner_name),
     owner_id(owner_id),
@@ -1050,7 +1261,7 @@ namespace snde {
     
   }
   
-  std::shared_ptr<channelconfig> channel::config();
+  std::shared_ptr<channelconfig> channel::config()
   {
     return std::atomic_load(&_config);
   }
@@ -1063,7 +1274,7 @@ namespace snde {
   }
 
   channel_notification_criteria::channel_notification_criteria() :
-    waveformset_complete(false);
+    waveformset_complete(false)
   {
     
   }
@@ -1091,20 +1302,20 @@ namespace snde {
     
   }
 
-  channel_notification_criteria::add_waveformset_complete() 
+  void channel_notification_criteria::add_waveformset_complete() 
   {
     // only allowed during creation so we don't worry about locking
     waveformset_complete=true;
     
   }
 
-  channel_notification_criteria::add_fullyready_channel(std::string channelname) 
+  void channel_notification_criteria::add_fullyready_channel(std::string channelname) 
   {
     // only allowed during creation so we don't worry about locking
     fullyready_channels.emplace(channelname);    
   }
 
-  channel_notification_criteria::add_metadataonly_channel(std::string channelname) 
+  void channel_notification_criteria::add_metadataonly_channel(std::string channelname) 
   {
     // only allowed during creation so we don't worry about locking
     metadataonly_channels.emplace(channelname);    
@@ -1116,20 +1327,20 @@ namespace snde {
 
   }
   
-  channel_notify::channel_notify(const channel_notifiation_criteria &criteria_to_copy) :
+  channel_notify::channel_notify(const channel_notification_criteria &criteria_to_copy) :
     criteria(criteria_to_copy)
   {
     
   }
 
-  virtual void channel_notify::notify_metadataonly(const std::string &channelpath) // notify this notifier that the given channel has satisified metadataonly (not usually modified by subclass)
+  void channel_notify::notify_metadataonly(const std::string &channelpath) // notify this notifier that the given channel has satisified metadataonly (not usually modified by subclass)
   {
 
     bool generate_notify=false;
     {
       std::lock_guard<std::mutex> criteria_admin(criteria.admin);
       
-      std::unordered_set<std::string> mdo_channels_it = criteria.metadataonly_channels.find(channelpath);
+      std::unordered_set<std::string>::iterator mdo_channels_it = criteria.metadataonly_channels.find(channelpath);
       
       assert(mdo_channels_it != criteria.metadataonly_channels.end()); // should only be able to do a notify on something in the set!
       criteria.metadataonly_channels.erase(mdo_channels_it);
@@ -1144,13 +1355,13 @@ namespace snde {
     }
   }
   
-  virtual void channel_notify::notify_ready(const std::string &channelpath) // notify this notifier that the given channel has satisified ready (not usually modified by subclass)
+  void channel_notify::notify_ready(const std::string &channelpath) // notify this notifier that the given channel has satisified ready (not usually modified by subclass)
   {
     bool generate_notify=false;
     {
       std::lock_guard<std::mutex> criteria_admin(criteria.admin);
       
-      std::unordered_set<std::string> fullyready_channels_it = criteria.fullyready_channels.find(channelpath);
+      std::unordered_set<std::string>::iterator fullyready_channels_it = criteria.fullyready_channels.find(channelpath);
       
       assert(fullyready_channels_it != criteria.fullyready_channels.end()); // should only be able to do a notify on something in the set!
       criteria.fullyready_channels.erase(fullyready_channels_it);
@@ -1165,7 +1376,7 @@ namespace snde {
     }
   }
   
-  virtual void channel_notify::notify_waveformset_complete() // notify this notifier that all waveforms in this set are complete.
+  void channel_notify::notify_waveformset_complete() // notify this notifier that all waveforms in this set are complete.
   {
     bool generate_notify=false;
     {
@@ -1185,32 +1396,203 @@ namespace snde {
     }
 
   }
+
+  void channel_notify::check_waveformset_complete(std::shared_ptr<waveform_set_state> wss)
+  {
+    bool generate_notify=false;
+
+    {
+      std::lock_guard<std::mutex> wss_admin(wss->admin);
+      std::lock_guard<std::mutex> criteria_admin(criteria.admin);
+      
+      // check if all waveforms are ready;
+      bool all_ready = !wss->wfmstatus.defined_waveforms.size() && !wss->wfmstatus.instantiated_waveforms.size();      
+      
+      if (criteria.waveformset_complete && all_ready) {
+	criteria.waveformset_complete = false;
+	wss->waveformset_complete_notifiers.erase(shared_from_this());
+      }
+      
+      if (!criteria.metadataonly_channels.size() && !criteria.fullyready_channels.size() && !criteria.waveformset_complete) {
+	// all criteria removed; ready for notification
+	generate_notify=true;
+      }
+    }
+    if (generate_notify) {
+      perform_notify();
+    }
+    
+    
+  }
+  bool channel_notify::_check_all_criteria_locked(std::shared_ptr<waveform_set_state> wss,bool notifies_already_applied_to_wss)
+  // Internal only: Should be called with wss admin lock and criteria admin locks locked. Returns true if an immediate notification is due
+  {
+    bool generate_notify=false;
+    std::vector<std::string> mdonly_satisfied;
+    std::vector<std::string> fullyready_satisfied;
+    
+    for (auto && md_channelname: criteria.metadataonly_channels) {
+      channel_state & chanstate = wss->wfmstatus.channel_map.at(md_channelname);
+      
+      if (chanstate.waveform_is_complete(true)) {
+	if (notifies_already_applied_to_wss) {
+	  std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_metadataonly = chanstate.begin_atomic_notify_about_this_channel_metadataonly_update();	  
+	  notify_about_this_channel_metadataonly->erase(shared_from_this());
+	  chanstate.end_atomic_notify_about_this_channel_metadataonly_update(notify_about_this_channel_metadataonly);
+	}
+	mdonly_satisfied.push_back(md_channelname);
+      }
+    }
+    
+    for (auto && fr_channelname: criteria.fullyready_channels) {
+      channel_state & chanstate = wss->wfmstatus.channel_map.at(fr_channelname);
+      
+      if (chanstate.waveform_is_complete(false)) {
+	if (notifies_already_applied_to_wss) {
+	  std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_ready = chanstate.begin_atomic_notify_about_this_channel_ready_update();
+	  
+	  notify_about_this_channel_ready->erase(shared_from_this());
+	  chanstate.end_atomic_notify_about_this_channel_ready_update(notify_about_this_channel_ready);
+	}
+	fullyready_satisfied.push_back(fr_channelname);
+	
+      }
+    }
+    
+    // check if all waveforms are ready;
+    bool all_ready = !wss->wfmstatus.defined_waveforms.size() && !wss->wfmstatus.instantiated_waveforms.size();
+    
+    // update criteria according to satisfied conditions
+    for (auto && md_channelname: mdonly_satisfied) {
+      criteria.metadataonly_channels.erase(md_channelname);
+    }
+    
+    for (auto && fr_channelname: fullyready_satisfied) {
+      criteria.fullyready_channels.erase(fr_channelname);
+    }
+    
+    if (criteria.waveformset_complete && all_ready) {
+      criteria.waveformset_complete = false; 
+      if (notifies_already_applied_to_wss) {
+	wss->waveformset_complete_notifiers.erase(shared_from_this());
+      }
+    }
+    
+    if (!criteria.metadataonly_channels.size() && !criteria.fullyready_channels.size() && !criteria.waveformset_complete) {
+      // all criteria removed; ready for notification
+      generate_notify=true;
+    }
+
+    return generate_notify;
+  }
+  
+    
+  
+
+  void channel_notify::check_all_criteria(std::shared_ptr<waveform_set_state> wss)
+  {
+    bool generate_notify=false;
+	
+
+    {
+      std::lock_guard<std::mutex> wss_admin(wss->admin);
+      std::lock_guard<std::mutex> criteria_admin(criteria.admin);
+
+      generate_notify=_check_all_criteria_locked(wss,true);
+      
+      
+    }
+    
+    if (generate_notify) {
+      perform_notify();
+    }
+
+  }
   
   std::shared_ptr<channel_notify> channel_notify::notify_copier()
   {
-    raise snde_error("Copier must be provided for repetitive channel notifications");
+    throw snde_error("Copier must be provided for repetitive channel notifications");
+    return nullptr;
+  }
+  
+  void channel_notify::apply_to_wss(std::shared_ptr<waveform_set_state> wss) // apply this notification process to a particular waveform_set_state. WARNING: May trigger the notification immediately
+  {
+    bool generate_notify;
+    {
+      std::lock_guard<std::mutex> wss_admin(wss->admin);
+      std::lock_guard<std::mutex> criteria_admin(criteria.admin);
+
+      generate_notify=_check_all_criteria_locked(wss,false);
+      
+      // Add criteria to this waveform set state
+
+
+      for (auto && md_channelname: criteria.metadataonly_channels) {
+	channel_state & chanstate = wss->wfmstatus.channel_map.at(md_channelname);
+      
+	std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_metadataonly = chanstate.begin_atomic_notify_about_this_channel_metadataonly_update();	  
+	notify_about_this_channel_metadataonly->emplace(shared_from_this());
+	chanstate.end_atomic_notify_about_this_channel_metadataonly_update(notify_about_this_channel_metadataonly);		
+      }
+
+
+      
+      for (auto && fr_channelname: criteria.fullyready_channels) {
+	channel_state & chanstate = wss->wfmstatus.channel_map.at(fr_channelname);
+      
+	std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_ready = chanstate.begin_atomic_notify_about_this_channel_ready_update();
+	  
+	notify_about_this_channel_ready->emplace(shared_from_this());
+	chanstate.end_atomic_notify_about_this_channel_ready_update(notify_about_this_channel_ready);
+      }
+    }
+
+      
+    if (criteria.waveformset_complete) {
+      wss->waveformset_complete_notifiers.emplace(shared_from_this());
+    }
+    
+    
+    if (generate_notify) {
+      perform_notify();
+    }
   }
 
-  virtual std::shared_ptr<channel_notify> repetitive_channel_notify::create_notify_instance()
+  std::shared_ptr<channel_notify> repetitive_channel_notify::create_notify_instance()
   // this default implementation uses the channel_notify's notify_copier() to create the instance
   {
     return notify->notify_copier();
   }
 
-  _unchanged_channel_notify::_unchanged_channel_notify(std::weak_ptr<wfmdatabase> wfmdb,std::shared_ptr<globalrev> subsequent_globalrev,channel_state &current_channelstate,channel_state & sg_channelstate,bool mdonly) :
+  promise_channel_notify::promise_channel_notify(const std::vector<std::string> &mdonly_channels,const std::vector<std::string> &ready_channels)
+  {
+    for (auto && mdonly_channel: mdonly_channels) {
+      criteria.add_metadataonly_channel(mdonly_channel);
+    }
+    for (auto && ready_channel: ready_channels) {
+      criteria.add_fullyready_channel(ready_channel);
+    }
+  }
+
+  void promise_channel_notify::perform_notify()
+  {
+    promise.set_value();
+  }
+  
+  _unchanged_channel_notify::_unchanged_channel_notify(std::weak_ptr<wfmdatabase> wfmdb,std::shared_ptr<globalrevision> subsequent_globalrev,channel_state &current_channelstate,channel_state & sg_channelstate,bool mdonly) :
     wfmdb(wfmdb),
     subsequent_globalrev(subsequent_globalrev),
     current_channelstate(current_channelstate),
-    sg_channelstate(sg_channelstate),
+    sg_channelstate(sg_channelstate)
   {
     if (mdonly) {
-      criteria.add_mdonly_channel(sg_channelstate.config->channelpath);
+      criteria.add_metadataonly_channel(sg_channelstate.config->channelpath);
     } else {
       criteria.add_fullyready_channel(sg_channelstate.config->channelpath);
     }
   }
-    
-  _unchanged_channel_notify::perform_notify()
+  
+  void _unchanged_channel_notify::perform_notify()
   {
     {
       std::lock_guard<std::mutex> subsequent_globalrev_admin(subsequent_globalrev->admin);
@@ -1229,13 +1611,30 @@ namespace snde {
   channel_state::channel_state(std::shared_ptr<channelconfig> config,std::shared_ptr<waveform> wfm,bool updated) :
     config(config),
     _wfm(nullptr),
-    _notifies(nullptr),
     updated(updated)
   {
+    std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_nullptr;
     std::atomic_store(&_wfm,wfm);
-    std::atomic_store(&_notifies,nullptr);
+    std::atomic_store(&_notify_about_this_channel_metadataonly,notify_nullptr);
+    std::atomic_store(&_notify_about_this_channel_ready,notify_nullptr);
   }
-  std::shared_ptr<waveform> channel_state::wfm()
+
+  channel_state::channel_state(const channel_state &orig) :
+    config(orig.config),
+    _wfm(nullptr),
+    updated((bool)orig.updated)
+  {
+    std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_nullptr;
+
+    assert(!orig._notify_about_this_channel_metadataonly);
+    assert(!orig._notify_about_this_channel_ready);
+    
+    std::atomic_store(&_wfm,orig.wfm());
+    std::atomic_store(&_notify_about_this_channel_metadataonly,notify_nullptr);
+    std::atomic_store(&_notify_about_this_channel_ready,notify_nullptr);
+  }
+
+  std::shared_ptr<waveform> channel_state::wfm() const
   {
     return std::atomic_load(&_wfm);
   }
@@ -1267,19 +1666,21 @@ namespace snde {
   // based on the channel_state's current status
   {
 
+    // !!!*** This code is largely redundant with waveform::mark_as_ready, and the excess should probably be removed ***!!!
+
     
     // Issue metadataonly notifications
     if (waveform_is_complete(true)) {
       // at least complete through mdonly
       std::unique_lock<std::mutex> wss_admin(wss->admin);
-      std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_metadataonly = readychan.begin_atomic_notify_about_this_channel_metadataonly_update();
-      if (notify_about_this_channel_metadataonly) {
-	readychan.end_atomic_notify_about_this_channel_metadataonly_update(nullptr); // clear out notification list pointer
+      std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> local_notify_about_this_channel_metadataonly = begin_atomic_notify_about_this_channel_metadataonly_update();
+      if (local_notify_about_this_channel_metadataonly) {
+	end_atomic_notify_about_this_channel_metadataonly_update(nullptr); // clear out notification list pointer
 	wss_admin.unlock();
 	
 	// perform notifications
-	for (auto && channel_notify_ptr: notify_about_this_channel_metadataonly) {
-	  channel_notify_ptr->notify_metadataonly(readychan.config->channelpath);
+	for (auto && channel_notify_ptr: *local_notify_about_this_channel_metadataonly) {
+	  channel_notify_ptr->notify_metadataonly(config->channelpath);
 	}
       }
     }
@@ -1288,40 +1689,37 @@ namespace snde {
     if (waveform_is_complete(false)) {
       
       std::unique_lock<std::mutex> wss_admin(wss->admin);
-      std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_ready = readychan.begin_atomic_notify_about_this_channel_ready_update();
-      if (notify_about_this_channel_ready) {
-	readychan.end_atomic_notify_about_this_channel_ready_update(nullptr); // clear out notification list pointer
+      std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> local_notify_about_this_channel_ready = begin_atomic_notify_about_this_channel_ready_update();
+      if (local_notify_about_this_channel_ready) {
+	end_atomic_notify_about_this_channel_ready_update(nullptr); // clear out notification list pointer
 	wss_admin.unlock();
 	
 	// perform notifications
-	for (auto && channel_notify_ptr: notify_about_this_channel_ready) {
-	  channel_notify_ptr->notify_ready(readychan.config->channelpath);
+	for (auto && channel_notify_ptr: *local_notify_about_this_channel_ready) {
+	  channel_notify_ptr->notify_ready(config->channelpath);
 	}
       }
       
     }
-    
-  }
 
-  static void check_dep_fcn_ready(std::shared_ptr<waveform_set_state> wss,
-				  std::shared_ptr<instantiated_math_function> dep_fcn,
-				  math_function_status *mathstatus_ptr,
-				  std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute_appendvec)
-  {
-    // assumes wss admin lock is already held
-
-    if (!mathstatus_ptr->missing_prequisites.size() &&
-	!mathstatus_ptr->missing_external_channel_prerequisites.size() &&
-	!mathstatus_ptr->missing_external_function_prerequisites.size()) {
-      mathstatus_ptr->ready_to_execute=true;
-      
-      ready_to_execute_appendvec.emplace_back(std::piecewise_construct,
-					      std::forward_as_tuple(wss), // waveform_set_state
-					      std::forward_as_tuple(dep_fcn)); // instantiated_math_function
+    bool all_ready=false;
+    {
+      std::lock_guard<std::mutex> wss_admin(wss->admin);
+      all_ready = !wss->wfmstatus.defined_waveforms.size() && !wss->wfmstatus.instantiated_waveforms.size();      
     }
     
+    if (all_ready) {
+      std::unordered_set<std::shared_ptr<channel_notify>> wss_complete_notifiers_copy;
+      {
+	std::lock_guard<std::mutex> wss_admin(wss->admin);
+	wss_complete_notifiers_copy = wss->waveformset_complete_notifiers;
+      }
+      for (auto && notifier: wss_complete_notifiers_copy) {
+	notifier->check_waveformset_complete(wss);
+      }
+    }
   }
-				  
+
   
   void channel_state::issue_math_notifications(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> wss) // wss is used to lock this channel_state object
   // Must be called without anything locked. Issue notifications requested in _notify* and remove those notification requests,
@@ -1331,14 +1729,14 @@ namespace snde {
     std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>> ready_to_execute;
     
     // Issue metadataonly notifications
-    bool got_mdonly = waveform_is_complete(true);
-    bool got_fullyready = waveform_is_complete(false);
+    bool got_mdonly = (bool)waveform_is_complete(true);
+    bool got_fullyready = (bool)waveform_is_complete(false);
     if (got_mdonly || got_fullyready) {
       // at least complete through mdonly
       
       for (auto && dep_fcn: wss->mathstatus.math_functions->all_dependencies_of_channel.at(config->channelpath)) {
 	// dep_fcn is a shared_ptr to an instantiated_math_function
-        std:lock_guard<std::mutex> wss_admin(wss->admin);
+        std::lock_guard<std::mutex> wss_admin(wss->admin);
 	
 	std::set<std::shared_ptr<channelconfig>>::iterator missing_prereq_it;
 	math_function_status &dep_fcn_status = wss->mathstatus.function_status.at(dep_fcn);
@@ -1351,27 +1749,27 @@ namespace snde {
 
 	  // Remove us as a missing prerequisite
 	  missing_prereq_it = dep_fcn_status.missing_prerequisites.find(config);
-	  if (missing_prereq_it != dep_fcn_status.missing_preqrequisites.end()) {
+	  if (missing_prereq_it != dep_fcn_status.missing_prerequisites.end()) {
 	    dep_fcn_status.missing_prerequisites.erase(missing_prereq_it);	  
 	  }
 	  
-	  check_dep_fcn_ready(wss,dep_fcn,&dep_fcn_status,ready_to_execute);
+	  wss->mathstatus.check_dep_fcn_ready(wss,dep_fcn,&dep_fcn_status,ready_to_execute);
 	}
       }
       for (auto && wss_extdepfcn: wss->mathstatus.external_dependencies_on_channel()->at(config)) {
-	std::shared_ptr<waveform_set_state> &dependent_wss = wss_extdepfcn.get<0>();
-	std::shared_ptr<instantiated_math_function> &dependent_func = wss_extdepfcn.get<1>();
+	std::shared_ptr<waveform_set_state> &dependent_wss = std::get<0>(wss_extdepfcn);
+	std::shared_ptr<instantiated_math_function> &dependent_func = std::get<1>(wss_extdepfcn);
 
 	std::lock_guard<std::mutex> dependent_wss_admin(dependent_wss->admin);
 	math_function_status &function_status = dependent_wss->mathstatus.function_status.at(dependent_func);
 	std::set<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<channelconfig>>>::iterator
-	  dependent_prereq_it = function_status.missing_external_channel_prerequisites.find(std::make_tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<channelconfig>>(wss,config));
+	  dependent_prereq_it = function_status.missing_external_channel_prerequisites.find(std::make_tuple(wss,config));
 
 	if (dependent_prereq_it != function_status.missing_external_channel_prerequisites.end()) {
 	  function_status.missing_external_channel_prerequisites.erase(dependent_prereq_it);
 	  
 	}
-	check_dep_fcn_ready(dependent_wss,dependent_func,&function_status,ready_to_execute);
+	dependent_wss->mathstatus.check_dep_fcn_ready(dependent_wss,dependent_func,&function_status,ready_to_execute);
 	
       }
       
@@ -1384,7 +1782,7 @@ namespace snde {
       std::shared_ptr<instantiated_math_function> ready_fcn;
 
       std::tie(ready_wss,ready_fcn) = ready_wss_ready_fcn;
-      wfmdb->compute_resources->queue_computation(ready_wss,ready_fcn);
+      wfmdb->compute_resources.queue_computation(ready_wss,ready_fcn);
     }
   }
 
@@ -1393,11 +1791,18 @@ namespace snde {
     std::atomic_store(&_wfm,new_waveform);
 
   }
-  
-  waveform_set_state::waveform_set_state(const instantiated_math_database &math_functions,std::shared_ptr<waveform_set_state> prereq_state) :
+
+  waveform_status::waveform_status(const std::map<std::string,channel_state> & channel_map_param) :
+    channel_map(channel_map_param)
+  {
+
+  }
+
+  waveform_set_state::waveform_set_state(const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<waveform_set_state> prereq_state) :
     ready(false),
-    mathstatus(std::make_shared<instantiated_math_database>(math_functions)),
-    _prerequisite_state(nullptr),
+    wfmstatus(channel_map_param),
+    mathstatus(std::make_shared<instantiated_math_database>(math_functions),channel_map_param),
+    _prerequisite_state(nullptr)
   {
     std::atomic_store(&_prerequisite_state,prereq_state);
   }
@@ -1410,13 +1815,14 @@ namespace snde {
   // sets the prerequisite state to nullptr
   void waveform_set_state::atomic_prerequisite_state_clear()
   {
-    std::atomic_store(&_prerequisite_state,nullptr);
+    std::shared_ptr<waveform_set_state> null_prerequisite;    
+    std::atomic_store(&_prerequisite_state,null_prerequisite);
 
   }
 
   
-  globalrevision::globalrevision(uint64_t globalrev, const instantiated_math_database &math_functions,std::shared_ptr<waveform_set_state> prereq_state) :
-    waveform_set_state(math_functions,prereq_state),
+  globalrevision::globalrevision(uint64_t globalrev, const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<waveform_set_state> prereq_state) :
+    waveform_set_state(math_functions,channel_map_param,prereq_state),
     globalrev(globalrev)
   {
     
@@ -1426,7 +1832,7 @@ namespace snde {
   
   std::shared_ptr<active_transaction> wfmdatabase::start_transaction()
   {
-    return std::make_shared<active_transaction>();
+    return std::make_shared<active_transaction>(shared_from_this());
   }
   
   void wfmdatabase::end_transaction(std::shared_ptr<active_transaction> act_trans)
@@ -1437,11 +1843,11 @@ namespace snde {
   std::shared_ptr<channel> wfmdatabase::reserve_channel(std::shared_ptr<channelconfig> new_config)
   {
     // Note that this is called with transaction lock held, but that is OK because transaction lock precedes wfmdb admin lock
+    std::shared_ptr<channel> new_chan;
     {
       std::lock_guard<std::mutex> wfmdb_lock(admin);
       
       std::map<std::string,std::shared_ptr<channel>>::iterator chan_it;
-      std::shared_ptr<channel> new_chan;
       
       chan_it = _channels.find(new_config->channelpath);
       if (chan_it != _channels.end()) {
@@ -1465,7 +1871,7 @@ namespace snde {
 	new_chan = std::make_shared<channel>(new_config);
       }
       // update _channels map with new channel
-      _channels->emplace(new_config->channelpath,new_chan);
+      _channels.emplace(new_config->channelpath,new_chan);
     }
     {
       // add new_chan to current transaction
@@ -1473,7 +1879,7 @@ namespace snde {
 
       // verify waveform not already updated in current transaction
       if (current_transaction->new_waveforms.find(new_config->channelpath) != current_transaction->new_waveforms.end()) {
-	raise snde_error("Replacing owner of channel %s in transaction where waveform already updated",new_config->channelpath);
+	throw snde_error("Replacing owner of channel %s in transaction where waveform already updated",new_config->channelpath);
       }
       
       current_transaction->updated_channels.emplace(new_chan);
@@ -1485,19 +1891,57 @@ namespace snde {
     return new_chan;
   }
 
-  void wfmdatabase::wait_waveforms(std::vector<std::shared_ptr<waveform>> &)
-  // NOTE: python wrapper needs to drop thread context during wait and poll to check for connection drop
-  {
-#error not implemented
-  }
+  //  void wfmdatabase::wait_waveforms(std::share_ptr<waveform_set_state> wss, const std::vector<std::shared_ptr<waveform>> &metadataonly,const std::vector<std::shared_ptr<waveform>> &ready)
+  //// NOTE: python wrapper needs to drop thread context during wait and poll to check for connection drop
+  // {
+  //#error not implemented
+  //}
   
-  void wfmdatabase::wait_waveform_names(std::shared_ptr<globalrevision> globalrev,std::vector<std::string> &)
+  void wfmdatabase::wait_waveform_names(std::shared_ptr<waveform_set_state> wss,const std::vector<std::string> &metadataonly, const std::vector<std::string> fullyready)
   // NOTE: python wrapper needs to drop thread context during wait and poll to check for connection drop
   {
     // should queue up a std::promise for central dispatch
     // then we wait here polling the corresponding future with a timeout so we can accommodate dropped
-    // connections. 
-#error not implemented
+    // connections.
+
+    std::shared_ptr<promise_channel_notify> promise_notify=std::make_shared<promise_channel_notify>(metadataonly,fullyready);
+
+    promise_notify->apply_to_wss(wss);
+
+    std::future<void> criteria_satisfied = promise_notify->promise.get_future();
+    criteria_satisfied.wait();
   }
 
-}
+  _previous_globalrev_done_notify::_previous_globalrev_done_notify(std::weak_ptr<wfmdatabase> wfmdb,std::shared_ptr<globalrevision> previous_globalrev,std::shared_ptr<globalrevision> current_globalrev) :
+    wfmdb(wfmdb),
+    previous_globalrev(previous_globalrev),
+    current_globalrev(current_globalrev)
+  {
+    criteria.add_waveformset_complete();
+  }
+    
+  void _previous_globalrev_done_notify::perform_notify()
+  {
+    {
+      std::shared_ptr<wfmdatabase> wfmdb_strong=wfmdb.lock();
+      if (!wfmdb_strong) return; 
+      std::unique_lock<std::mutex> computeresources_admin(*wfmdb_strong->compute_resources.admin);
+
+      // go through compute_resources blocked_list, removing the blocked computations
+      // and queueing them up. 
+      std::multimap<uint64_t,std::shared_ptr<pending_computation>>::iterator blocked_it; 
+      while ((blocked_it = wfmdb_strong->compute_resources.blocked_list.begin()) != wfmdb_strong->compute_resources.blocked_list.end() && blocked_it->first <= previous_globalrev->globalrev) {
+	std::shared_ptr<pending_computation> blocked_computation = blocked_it->second;
+	wfmdb_strong->compute_resources.blocked_list.erase(blocked_it);
+	computeresources_admin.unlock();
+	wfmdb_strong->compute_resources._queue_computation_internal(blocked_computation);
+	computeresources_admin.lock();
+      }
+    }
+
+    // clear previous_globalrev's prerequisite state now that previous_globalrev is entirely ready
+    previous_globalrev->atomic_prerequisite_state_clear();
+  }
+  
+  
+};

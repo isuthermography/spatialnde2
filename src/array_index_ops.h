@@ -1,10 +1,17 @@
-#include <stdlib.h>
+#ifndef SNDE_ARRAY_INDEX_OPS_H
+#define SNDE_ARRAY_INDEX_OPS_H
+
 
 #ifdef __OPENCL_VERSION__
 #define SNDE_AIO_GLOBAL __global
 #else
 #define SNDE_AIO_GLOBAL
-#endif
+
+#include <stdlib.h> // for qsort
+
+#include "snde_types.h"
+#include "geometry_types.h"
+#endif // __OPENCL_VERSION__
 
 #define SNDE_AIO_STATIC_INLINE static inline
 
@@ -124,7 +131,7 @@ snde_array_index_decrement(
 	pos[ndim-dimnum-1]--;
 	break;
       } else {
-	pos[ndim-dimnum-1] = dimlen[ndim-dimlen-1]-1;
+	pos[ndim-dimnum-1] = dimlen[ndim-dimnum-1]-1;
       }
     }
   }
@@ -157,9 +164,9 @@ snde_array_index_rawval(
 
 snde_bool SNDE_AIO_STATIC_INLINE
 snde_array_index_equal(
-		       SNDE_AIO_GLOBAL snde_index *dimlen,
-		       snde_index *pos1,
-		       snde_index *pos2,
+		       SNDE_AIO_GLOBAL const snde_index *dimlen,
+		       const snde_index *pos1,
+		       const snde_index *pos2,
 		       snde_index ndim)
 // specify if two indexes are equal (invalids match invalids)
 // pos1, pos2 always at least length 1
@@ -243,8 +250,13 @@ snde_array_is_f_contiguous(SNDE_AIO_GLOBAL snde_index *dimlen,
 
 #ifndef __OPENCL_VERSION__ // ignore under OpenCL because we don't have qsort there and probably don't need this
 
-int snde_aic_stride_compare(snde_index *stride1,snde_index *stride2)
+int snde_aic_stride_compare(const void *stride1_vp,const void *stride2_vp)
 {
+  snde_index *stride1;
+  snde_index *stride2;
+
+  stride1 = (snde_index *)stride1_vp;
+  stride2 = (snde_index *)stride2_vp;
   if (*stride1==*stride2) return TRUE;
   if (*stride1 < *stride2) return -1;
   return 1;
@@ -269,4 +281,6 @@ snde_array_is_contiguous(SNDE_AIO_GLOBAL snde_index *dimlen,
   
 
 }
-#endif
+#endif // !__OPENCL_VERSION__
+
+#endif // ARRAYA_INDEX_OPS_H

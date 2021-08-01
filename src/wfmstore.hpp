@@ -107,54 +107,35 @@
 // StartTransaction() and EndTransaction().
 // i.e. snde::wfmstore_scoped_transaction transaction;
 
-#ifndef __cplusplus
-typedef void immutable_metadata; // must treat metadata pointer as opaque from C
-#endif
+#ifndef SNDE_WFMSTORE_HPP
+#define SNDE_WFMSTORE_HPP
 
-struct snde_waveform {
-  // This structure and pointed data are fully mutable during the INITIALIZING state
-  // In METADATAREADY state metadata_valid should be set and metadata storage becomes immutable
-  // in READY state the rest of the structure and data pointed to is immutable except in the case of a mutable waveform for the state variable, which could could change to OBSOLETE and the data pointed to, which could change as well once the state becomes OBSOLETE
-  // Note that in a threaded environment you can't safely read the state without an assocated lock, or you can read a mirrored atomic state variable, such as in class waveform. 
-  
-  char *name; // separate malloc() 
-  uint64_t revision;
-  int state; // see SNDE_WFMS... defines below
+#include <unordered_set>
+#include <typeindex>
+#include <memory>
+#include <complex>
+#include <future>
 
-  immutable_metadata *metadata; 
-  
-  // what has been filled out in this struct so far
-  snde_bool metadata_valid;
-  snde_bool dims_valid;
-  snde_bool data_valid;
-  snde_bool deletable;  // whether it is OK to call snde_waveform_delete() on this structure
+#include "waveform.h" // definition of snde_waveform
 
-  // This info must be kept sync'd with class waveform.layout
-  snde_index ndim;
-  snde_index base_index; // index in elements beyond (*basearray)
-  snde_index *dimlen; // pointer often from waveform.layout.dimlen.get()
-  snde_index *strides; // pointer often from waveform.layout.strides.get()
-
-  snde_bool owns_dimlen_strides; // if set, dimlen and strides should be free()'d with this data structure.
-  snde_bool immutable; // doesn't mean necessarily immutable __now__, just immutable once ready
-
-  unsigned typenum; /// like mutablewfmstore.hpp typenum?
-  size_t elementsize; 
-
-  // *** Need Metadata storage ***
-  // Use C or C++ library interface???
-
-  
-  // physical data storage
-  void **basearray; // pointer into low-level store
-};
-#define SNDE_WFMS_INITIALIZING 0
-#define SNDE_WFMS_METADATAREADY 1
-#define SNDE_WFMS_READY 2
-#define SNDE_WFMS_OBSOLETE 3
+#include "arrayposition.hpp"
+#include "wfmstore_storage.hpp"
+#include "lockmanager.hpp"
+#include "wfmmath.hpp"
 
 namespace snde {
 
+  // forward references
+  class wfmdatabase;
+  class channel;
+  class globalrevision;
+  class channel_state;
+
+  // constant data structures with waveform type information
+  extern const std::unordered_map<std::type_index,unsigned> wtn_typemap; // look up typenum based on C++ typeid(type)
+  extern const std::unordered_map<unsigned,size_t> wtn_typesizemap; // Look up element size bysed on typenum
+  extern const std::unordered_map<unsigned,std::string> wtn_ocltypemap; // Look up opencl type string based on typenum
+  
   class waveform: public std::enable_shared_from_this<waveform> {
     // may be subclassed by creator
     // mutable in certain circumstances following the conventions of snde_waveform
@@ -162,12 +143,13 @@ namespace snde {
     // lock required to safely read/write mutable portions unless you are the owner and
     // you are single threaded and the information you are writing is for a subsequent state (info->state/info_state);
     // last lock in the locking order except for Python GIL
+  public:
     std::mutex admin; 
     struct snde_waveform info;
-    atomic_int info_state; // atomic mirror of info->state
+    std::atomic_int info_state; // atomic mirror of info->state
     std::shared_ptr<immutable_metadata> metadata; // pointer may not be changed once info_state reaches METADATADONE. The pointer in info is the .get() value of this pointer. 
     arraylayout layout; // changes to layout must be propagated to info.ndim, info.base_index, info.dimlen, and info.strides
-    std::shared_ptr<rwlock> mutable_lock; // for simply mutable waveforms; otherwise nullptr
+    //std::shared_ptr<rwlock> mutable_lock; // for simply mutable waveforms; otherwise nullptr
 
     std::shared_ptr<waveform_storage_manager> storage_manager; // pointer initialized to a default by waveform constructor, then used by the allocate_storage() method. Any assignment must be prior to that. may not be used afterward; see waveform_storage in wfmstore_storage.hpp for details on pointed structure.
     std::shared_ptr<waveform_storage> storage; // pointer immutable once initialized  by allocate_storage() or reference_immutable_waveform().  immutable afterward; see waveform_storage in wfmstore_storage.hpp for details on pointed structure.
@@ -183,11 +165,11 @@ namespace snde {
     //  * Because within a transaction, wfmdb->current_transaction is valid
     // This constructor automatically adds the new waveform to the current transaction
     // ***!!! Should we require a transaction pointer ***???!!!
-    waveform(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<channel> chan,void *owner_id);
+    waveform(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
 
     // This constructor is reserved for the math engine
     // Creates waveform structure and adds to the pre-existing globalrev. 
-    waveform(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,void *owner_id,std::shared_ptr<globalrevision> globalrev);
+    waveform(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,void *owner_id,std::shared_ptr<globalrevision> globalrev,unsigned typenum);
 
     // rule of 3
     waveform & operator=(const waveform &) = delete; 
@@ -196,20 +178,22 @@ namespace snde {
 
     // must assign info.elementsize and info.typenum before calling allocate_storage()
   // fortran_order only affects physical layout, not logical layout (interpretation of indices)
-    virtual void allocate_storage(std::vector<snde_index> dimlen, fortran_order=false);
+    virtual void allocate_storage(std::vector<snde_index> dimlen, bool fortran_order=false);
 
     // alternative to allocating storage: Referencing an existing waveform
     virtual void reference_immutable_waveform(std::shared_ptr<waveform> wfm,std::vector<snde_index> dimlen,std::vector<snde_index> strides,snde_index base_index);
 
     virtual rwlock_token_set lock_storage_for_write();
     virtual rwlock_token_set lock_storage_for_read();
-
-    virtual void mark_metadata_done();  // call WITHOUT admin lock (or other locks?) held
-    virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held
+    
+    virtual void _mark_metadata_done_internal(std::shared_ptr<waveform_set_state> wss,const std::string &channame);
+    virtual void mark_metadata_done(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> wss);  // call WITHOUT admin lock (or other locks?) held. wss should be the waveform_set_state or globalrev in which the waveform was initially defined. 
+    virtual void mark_as_ready(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> wss);  // call WITHOUT admin lock (or other locks?) held. wss should be the waveform_set_state or globalrev in which the waveform was initially defined. 
   };
 
   
   class transaction {
+  public:
     // mutable until end of transaction when it is destroyed and converted to a globalrev structure
     std::mutex admin; // last in the locking order except before python GIL. Must hold this lock when reading or writing structures within. Does not cover the channels/wavaveforms themselves.
 
@@ -233,6 +217,7 @@ namespace snde {
     // you need to drop the thread context before starting the
     // transaction and then reacquire after you have the
     // transaction lock.
+  public:
     std::unique_lock<std::mutex> transaction_lock_holder;
     std::weak_ptr<wfmdatabase> wfmdb;
     std::shared_ptr<globalrevision> previous_globalrev;
@@ -259,12 +244,7 @@ namespace snde {
     // copy constructor!) and republished.  It may be
     // freed once no references to it exist any more.
     // can be subclassed to accommodate e.g. geometry scene graph entries, geometry parameterizations, etc. 
-
-    channelconfig(std::string channelpath, std::string owner_name, void *owner_id,bool hidden,std::shared_ptr<waveform_storage_manager> storage_manager=nullptr);
-    // rule of 3
-    channelconfig& operator=(const channelconfig &) = default; 
-    channelconfig(const channelconfig &orig) = default;
-    virtual ~channelconfig() = default; // virtual destructor required so we can be subclassed
+  public:
     
     std::string channelpath; // Path of this channel in waveform database
     std::string owner_name; // Name of owner, such as a dataguzzler_python module
@@ -283,10 +263,17 @@ namespace snde {
     bool ondemand; // if the output is not actually stored in the database but just delivered on-demand
     bool data_requestonly; // if the output is to be stored in the database with the metadata always calculated but the underlying data only triggered to be computed if requested or needed by another waveform.
     bool data_mutable; // if the output is mutable
-    
+
+    channelconfig(std::string channelpath, std::string owner_name, void *owner_id,bool hidden,std::shared_ptr<waveform_storage_manager> storage_manager=nullptr);
+    // rule of 3
+    channelconfig& operator=(const channelconfig &) = default; 
+    channelconfig(const channelconfig &orig) = default;
+    virtual ~channelconfig() = default; // virtual destructor required so we can be subclassed
+
   };
   
   class channel {
+  public:
     // Channel objects are persistent and tracked with shared pointers.
     // They are never destroyed once created and the channelpath in
     // _config must remain fixed over the lifetime (although _config
@@ -305,7 +292,7 @@ namespace snde {
     std::atomic<uint64_t> latest_revision; // 0 means "invalid"; generally 0 (or previous latest) during channel creation/undeletion; incremented to 1 (with an empty waveform if necessary) after transaction end 
     std::atomic<bool> deleted; // is the channel currently defined?
 
-    std::mutex admin; // last in the locking order except before python GIL. Used to ensure there can only be one _config update at a time.
+    std::mutex admin; // last in the locking order except before python GIL. Used to ensure there can only be one _config update at a time. 
 
 
     channel(std::shared_ptr<channelconfig> initial_config);
@@ -333,8 +320,9 @@ namespace snde {
     // may access/modify it so long as the waveform_set_state admin lock is held (removing criteria that are already satisifed)
     // Internal members should generally be treated as private from an external API perspective
   public:
-    std::mutex admin; // must be locked to read/modify waveformset_complete, metadataonly_channels and/or fullready_channels; last lock except for python GIL
+    mutable std::mutex admin; // must be locked to read/modify waveformset_complete, metadataonly_channels and/or fullready_channels; last lock except for python GIL
     // (may also be interpreted by channel_notify subclasses as protecting subclass data)
+    // Mutable so we can lock it even with a const reference
     bool waveformset_complete; // true if this notification is to occur only once the entire waveform_set/globalrev is marked complete
 
     // These next two members: entries keep getting removed from the sets as the criteria are satisfied
@@ -350,38 +338,57 @@ namespace snde {
     void add_metadataonly_channel(std::string);
   };
   
-  class channel_notify {
+  class channel_notify : public std::enable_shared_from_this<channel_notify> {
+  public:
     // base class
     // derive from this class if you want to get notified
     // when a channel or waveform, or channel or waveform set,
     // becomes ready.
 
     // Note that all channels must be in the same waveform_set_state/globalrevision
-    // Notification occurs once all criteria are satisfied. 
+    // Notification occurs once all criteria are satisfied.
+
+    // !!!*** channel_notify should probably be simplified such that adding criteria
+    // not only goes into criteria but also adds into waveform_state_set removing error
+    // prone extra code to manually add it in and when channel_notify gets copied in
+    // during end_transaction()
     channel_notification_criteria criteria; 
 
-    channel_notify();  // initialize with empty criteria; may add with criteria methods .criteria.add_waveformset_complete(), .criteria.add_fullyready_channel(), .criteria.add_mdonly_channel();
-    channel_notify(const channel_notifiation_criteria &criteria_to_copy);
+    channel_notify();  // initialize with empty criteria; may add with criteria methods .criteria.add_waveformset_complete(), .criteria.add_fullyready_channel(), .criteria.add_mdonly_channel(); NOTE: After instantiating and setting criteria must call apply_to_wss() to apply it to a waveform_set_state or globalrev
+    channel_notify(const channel_notification_criteria &criteria_to_copy);
     
     // rule of 3
     channel_notify & operator=(const channel_notify &) = delete; 
     channel_notify(const channel_notify &orig) = delete;
-    virtual ~channel_notify=default;
+    virtual ~channel_notify()=default;
     
     virtual void perform_notify()=0; // will be called once ALL criteria are satisfied. May be called in any thread or context; must return quickly. Shouldn't do more than acquire a non-heavily-contended lock and perform a simple operation. NOTE: WILL NEED TO SPECIFY WHAT EXISTING LOCKS IF ANY MIGHT BE HELD WHEN THIS IS CALLED
 
     // These next three methods are called when one of the criteria has been satisifed
     virtual void notify_metadataonly(const std::string &channelpath); // notify this notifier that the given channel has satisified metadataonly (not usually modified by subclass)
     virtual void notify_ready(const std::string &channelpath); // notify this notifier that the given channel has satisified ready (not usually modified by subclass)
-    virtual void notify_waveformset_complete(); // notify this notifier that all waveforms in this set are complete.
+    virtual void notify_waveformset_complete(); // notify this notifier that all waveforms in this set are complete
+
+    // check to see if any waveformset criterion is satisfied and notify if everything is satisfied
+    virtual void check_waveformset_complete(std::shared_ptr<waveform_set_state> wss);
+
+
+    // Internal only: Should be called with wss admin lock and criteria admin locks locked. Returns true if an immediate notification is due
+    bool _check_all_criteria_locked(std::shared_ptr<waveform_set_state> wss,bool notifies_already_applied_to_wss);
+
+    // check all criteria and notify if everything is satisfied. 
+    virtual void check_all_criteria(std::shared_ptr<waveform_set_state> wss);
 
 
 
     virtual std::shared_ptr<channel_notify> notify_copier(); // default implementation throws a snde_error. Derived classes should use channel_notify(criteria) superclass constructor
-    
+
+
+    virtual void apply_to_wss(std::shared_ptr<waveform_set_state> wss); // apply this notification process to a particular waveform_set_state. WARNING: May trigger the notification immediately
   };
 
   class repetitive_channel_notify {
+  public:
     // base class
     // either derive from this class or use our default implementation
     // with a derived channel_notify and an explicit notify_copier()
@@ -390,53 +397,92 @@ namespace snde {
     // rule of 3
     repetitive_channel_notify & operator=(const repetitive_channel_notify &) = delete; 
     repetitive_channel_notify(const repetitive_channel_notify &orig) = delete;
-    virtual ~repetitive_channel_notify=default;
+    virtual ~repetitive_channel_notify()=default;
 
     virtual std::shared_ptr<channel_notify> create_notify_instance(); // default implementation uses the channel_notify's notify_copier() to create the instance
   };
 
 
+  class promise_channel_notify: public channel_notify {
+    // has a .promise member
+    // with a .get_future() that you can
+    // wait on  (be sure to drop all locks before waiting)
+  public:
+    std::promise<void> promise;
+
+    // After construction, need to call .apply_to_wss() method!!!
+    promise_channel_notify(const std::vector<std::string> &mdonly_channels,const std::vector<std::string> &ready_channels);
+    // rule of 3
+    promise_channel_notify & operator=(const promise_channel_notify &) = delete; 
+    promise_channel_notify(const promise_channel_notify &orig) = delete;
+    virtual ~promise_channel_notify()=default;
+
+    
+    void perform_notify();
+
+  };
+  
+  
   class _unchanged_channel_notify: public channel_notify {
+  public:
     // used internally to get notifications for subsequent globalrev that needs to have a reference to the version (that is not ready yet) in this waveform.
-    std::weak_ptr<wfmdatabase> wfmdb
-    std::shared_ptr<globalrev> subsequent_globalrev;
+    std::weak_ptr<wfmdatabase> wfmdb;
+    std::shared_ptr<globalrevision> subsequent_globalrev;
     channel_state &current_channelstate; 
     channel_state &sg_channelstate; 
 
 
-    _unchanged_channel_notify(std::weak_ptr<wfmdatabase> wfmdb,std::shared_ptr<globalrev> subsequent_globalrev,channel_state & current_channelstate,channel_state & sg_channelstate,bool mdonly);
+    _unchanged_channel_notify(std::weak_ptr<wfmdatabase> wfmdb,std::shared_ptr<globalrevision> subsequent_globalrev,channel_state & current_channelstate,channel_state & sg_channelstate,bool mdonly); // After construction, need to call .apply_to_wss() method!!!
+
+    virtual ~_unchanged_channel_notify()=default;
     
     virtual void perform_notify();
   };
   
   class channel_state {
+  public:
     // for atomic updates to notify_ ... atomic shared pointers, you must lock the waveform_set_state's admin lock
     std::shared_ptr<channelconfig> config; // immutable
     std::shared_ptr<waveform> _wfm; // atomic shared ptr to waveform structure created to store the ouput; may be nullptr if not (yet) created. Always nullptr for ondemand waveforms... waveform contents may be mutable but have their own admin lock
     std::atomic<bool> updated; // this field is only valid once wfm() returns a valid pointer and once wfm()->state is READY or METADATAREADY. It is true if this particular waveform has a new revision particular to the enclosing waveform_set_state
-    std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_metadataonly; // atomic shared ptr to set of channel_notifies that need to be updated or perhaps triggered when this channel becomes metadataonly; set to nullptr at end of channel becoming metadataonly. 
-    std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_ready; // atomic shared ptr to set of channel_notifies that need to be updated or perhaps triggered when this channel becomes ready; set to nullptr at end of channel becoming ready. 
+    std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_metadataonly; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes metadataonly; set to nullptr at end of channel becoming metadataonly. 
+    std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_ready; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes ready; set to nullptr at end of channel becoming ready. 
 
     channel_state(std::shared_ptr<channelconfig> config,std::shared_ptr<waveform> wfm,bool updated);
-    std::shared_ptr<waveform> wfm();
+
+    channel_state(const channel_state &orig); // copy constructor used for initializing channel_map from prototype defined in end_transaction()
+
+    std::shared_ptr<waveform> wfm() const;
     std::shared_ptr<waveform> waveform_is_complete(bool mdonly); // uses only atomic members so safe to call in all circumstances. Set to mdonly if you only care that the metadata is complete. Normally call waveform_is_complete(false). Returns waveform pointer if waveform is complete to the requested condition, otherwise nullptr. 
     void issue_nonmath_notifications(std::shared_ptr<waveform_set_state> wss); // Must be called without anything locked. Issue notifications requested in _notify* and remove those notification requests
-    void issue_math_notifications(std::shared_ptr<waveform_set_state> wss); // Must be called without anything locked. Check for any math updates from the new status of this waveform
+    void issue_math_notifications(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> wss); // Must be called without anything locked. Check for any math updates from the new status of this waveform
     
     void end_atomic_wfm_update(std::shared_ptr<waveform> new_waveform);
+
+
+    std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> begin_atomic_notify_about_this_channel_metadataonly_update();
+    void end_atomic_notify_about_this_channel_metadataonly_update(std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> newval);
+    std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_metadataonly();
+
+    
+    std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> begin_atomic_notify_about_this_channel_ready_update();
+    void end_atomic_notify_about_this_channel_ready_update(std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> newval);
+    std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_ready();
   };
 
 
   class waveform_status {
+  public:
     std::map<std::string,channel_state> channel_map; // key is full channel path... The map itself (not the embedded states) are immutable once the waveform_set_state is published
     
     /// all of these are indexed by their their full path. Every entry in channel_map should be in exactly one of these. Locked by admin mutex per above
     // The index is the shared_ptr in globalrev_channel.config
-    std::unordered_map<std::shared_ptr<channelconfig>,channel_state&> defined_waveforms;
-    std::unordered_map<std::shared_ptr<channelconfig>,channel_state&> instantiated_waveforms;
-    std::unordered_map<std::shared_ptr<channelconfig>,channel_state&> metadataonly_waveforms;
-    std::unordered_map<std::shared_ptr<channelconfig>,channel_state&> completed_waveforms;
+    std::unordered_map<std::shared_ptr<channelconfig>,channel_state *> defined_waveforms;
+    std::unordered_map<std::shared_ptr<channelconfig>,channel_state *> instantiated_waveforms;
+    std::unordered_map<std::shared_ptr<channelconfig>,channel_state *> metadataonly_waveforms;
+    std::unordered_map<std::shared_ptr<channelconfig>,channel_state *> completed_waveforms;
 
+    waveform_status(const std::map<std::string,channel_state> & channel_map_param);
   };
 
 
@@ -450,8 +496,7 @@ namespace snde {
     std::unordered_set<std::shared_ptr<channel_notify>> waveformset_complete_notifiers; // Notifiers waiting on this waveform set state being complete. Criteria will be removed as they are satisifed and entries will be removed as the notifications are performed.
 
     
-    waveform_set_state(); // constructor
-
+    waveform_set_state(const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<waveform_set_state> prereq_state); // constructor
     // Rule of 3
     waveform_set_state& operator=(const waveform_set_state &) = delete; 
     waveform_set_state(const waveform_set_state &orig) = delete;
@@ -461,7 +506,7 @@ namespace snde {
     std::shared_ptr<waveform_set_state> prerequisite_state();
     void atomic_prerequisite_state_clear(); // sets the prerequisite state to nullptr
     
-  }
+  };
   
   class globalrevision: public waveform_set_state { // should probably be derived from a class math_calculation_set or similar, so code can be reused for ondemand waveforms
     // channel_map is mutable until the ready flag is set. Once the ready flag is set only mutable and data_requestonly waveforms may be modified.
@@ -475,12 +520,12 @@ namespace snde {
     
     uint64_t globalrev;
 
-    
-    globalrevision(uint64_t globalrev);
+    globalrevision(uint64_t globalrev, const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<waveform_set_state> prereq_state);   
   };
   
 
-  class wfmdatabase {
+  class wfmdatabase : public std::enable_shared_from_this<wfmdatabase> {
+  public:
     std::mutex admin; // Locks access to _channels and _deleted_channels and _math_functions, _globalrevs and repetitive_notifies. In locking order, precedes channel admin locks, available_compute_resource_database, globalrevision admin locks, waveform admin locks, and Python GIL. 
     std::map<std::string,std::shared_ptr<channel>> _channels; // Generally don't use the channel map directly. Grab the latestglobalrev and use the channel map from that. 
     std::map<std::string,std::shared_ptr<channel>> _deleted_channels; // Channels are put here after they are deleted. They can be moved back into the main list if re-created. 
@@ -498,7 +543,7 @@ namespace snde {
     std::mutex transaction_lock; // ***!!! Before any dataguzzler-python module locks, etc.
     std::shared_ptr<transaction> current_transaction; // only valid while transaction_lock is held. 
 
-      ,    
+        
     // avoid using start_transaction() and end_transaction() from C++; instantiate the RAII wrapper class active_transaction instead
     // (start_transaction() and end_transaction() are intended for C and perhaps Python)
 
@@ -508,17 +553,34 @@ namespace snde {
     void end_transaction(std::shared_ptr<active_transaction> act_trans);
 
     // Allocate channel with a specific name; returns nullptr if the name is inuse
-    std::shared_ptr<channel> reserve_channel(std::string channelpath,std::string owner_name,void *owner_id,bool hidden,std::shared_ptr<waveform_storage_manager> storage_manager=nullptr);
+    std::shared_ptr<channel> reserve_channel(std::shared_ptr<channelconfig> new_config);
 
     //std::shared_ptr<channel> lookup_channel_live(std::string channelpath);
 
 
     // NOTE: python wrappers for wait_waveforms and wait_waveform_names need to drop dgpython thread context during wait and poll to check for connection drop
-    void wait_waveforms(std::vector<std::shared_ptr<waveform>> &);
-    void wait_waveform_names(std::shared_ptr<globalrevision> globalrev,std::vector<std::string> &);
+    //void wait_waveforms(std::vector<std::shared_ptr<waveform>> &);
+    void wait_waveform_names(std::shared_ptr<waveform_set_state> wss,const std::vector<std::string> &metadataonly, const std::vector<std::string> fullyready);
     
   };
 
-  // Need function to walk all channels and find all math channels?
+
+  class _previous_globalrev_done_notify: public channel_notify {
+  public:
+    // used internally to get notification that a previous globalrev is complete so as to remove entries from available_compute_resource_database blocked_list
+    std::weak_ptr<wfmdatabase> wfmdb;
+    std::shared_ptr<globalrevision> previous_globalrev;
+    std::shared_ptr<globalrevision> current_globalrev;
+    
+
+    _previous_globalrev_done_notify(std::weak_ptr<wfmdatabase> wfmdb,std::shared_ptr<globalrevision> previous_globalrev,std::shared_ptr<globalrevision> current_globalrev);
+
+    virtual ~_previous_globalrev_done_notify()=default;
+    virtual void perform_notify();
+  };
+  
+
   
 };
+
+#endif // SNDE_WFMSTORE_HPP

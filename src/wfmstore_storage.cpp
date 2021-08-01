@@ -1,5 +1,11 @@
 #include "wfmstore_storage.hpp"
 
+#ifdef _WIN32
+// No win32 shared_memory_allocator yet
+#else
+#include "shared_memory_allocator_posix.hpp"
+#endif
+
 namespace snde {
 
   waveform_storage::waveform_storage(void **basearray,size_t elementsize,unsigned typenum,snde_index nelem,bool finalized) :
@@ -17,15 +23,15 @@ namespace snde {
     lowlevel_alloc(lowlevel_alloc),
     _baseptr(baseptr)
   {
-    basearray = &_baseptr;
+    _basearray = &_baseptr;
   }
 
-  virtual void *waveform_storage_simple::addr()
+  void *waveform_storage_simple::addr()
   {
-    return basearray;
+    return _basearray;
   }
 
-  virtual std::shared_ptr<waveform_storage> waveform_storage_simple::obtain_nonmoving_copy_or_reference(snde_index offset_elements, snde_index length_elements)
+  std::shared_ptr<waveform_storage> waveform_storage_simple::obtain_nonmoving_copy_or_reference(snde_index offset_elements, snde_index length_elements)
   {
     std::shared_ptr<nonmoving_copy_or_reference> ref = lowlevel_alloc->obtain_nonmoving_copy_or_reference(0,_baseptr,offset_elements*elementsize,length_elements*elementsize);
     std::shared_ptr<waveform_storage_reference> reference = std::make_shared<waveform_storage_reference>(length_elements,shared_from_this(),ref);
@@ -41,12 +47,12 @@ namespace snde {
     
   }
 
-  virtual void *waveform_storage_reference::addr()
+  void *waveform_storage_reference::addr()
   {
     return ref->get_ptr();
   }
   
-  virtual std::shared_ptr<waveform_storage> waveform_storage_reference::obtain_nonmoving_copy_or_reference(snde_index offset_elements, snde_index length_elements)
+  std::shared_ptr<waveform_storage> waveform_storage_reference::obtain_nonmoving_copy_or_reference(snde_index offset_elements, snde_index length_elements)
   {
     // delegate to original storage, adding in our own offset
     assert(ref->offset % elementsize == 0);
@@ -54,8 +60,8 @@ namespace snde {
   }
   
   
-  virtual std::tuple<std::shared_ptr<waveform_storage>,snde_index>
-  waveform_storage_manager_simple_shmem::allocate_waveform(std::string waveform_path,
+  std::tuple<std::shared_ptr<waveform_storage>,snde_index>
+  waveform_storage_manager_shmem::allocate_waveform(std::string waveform_path,
 							   uint64_t wfmrevision,
 							   size_t elementsize,
 							   unsigned typenum, // MET_...
@@ -70,9 +76,9 @@ namespace snde {
     std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<shared_memory_allocator_posix>(waveform_path,wfmrevision);
 #endif
     
-    void *baseptr = shm_allocator->calloc(0,nelem*elementsize);
+    void *baseptr = lowlevel_alloc->calloc(0,nelem*elementsize);
 
-    std::shared_ptr<waveform_storage_simple> retval = std::make_shared<waveform_storage_simple>(elementsize,typenum,nelem,lowlevel_alloc,baseptr);
+    std::shared_ptr<waveform_storage_simple> retval = std::make_shared<waveform_storage_simple>(elementsize,typenum,nelem,false,lowlevel_alloc,baseptr);
 
     return std::make_tuple<std::shared_ptr<waveform_storage>,snde_index>(retval,0);
   }

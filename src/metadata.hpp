@@ -1,6 +1,8 @@
 #include <string>
 #include <mutex>
 #include <unordered_map>
+#include <memory>
+#include <atomic>
 
 #ifndef SNDE_METADATA_HPP
 #define SNDE_METADATA_HPP

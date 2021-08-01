@@ -1,11 +1,25 @@
+#ifndef WFMMATH_PARAMETER_HPP
+#define WFMMATH_PARAMETER_HPP
+
+#include <set>
+#include <memory>
+#include <unordered_map>
+
+#include "snde_error.hpp"
+#include "wfmdb_paths.hpp"
+
 namespace snde {
+
+  // forward declarations
+  class waveform; // defined in wfmstore.hpp
+  class waveform_set_state; // defined in wfmstore.hpp
   
   class math_parameter {
   public:
     unsigned paramtype; // SNDE_MFPT_XXX from wfmmath.hpp
 
 
-    math_parameter(paramtype);
+    math_parameter(unsigned paramtype);
     // Rule of 3
     math_parameter(const math_parameter &) = delete;
     math_parameter& operator=(const math_parameter &) = delete; 
@@ -18,7 +32,7 @@ namespace snde {
     virtual std::shared_ptr<waveform> get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context); // should only return ready waveforms because we shouldn't be called until dependencies are ready
 
     // default implementations that returns an empty set
-    virtual std::set<std::string> get_prerequisites(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the waveform
+    virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<waveform_set_state> wss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the waveform
   };
 
 
@@ -64,3 +78,6 @@ namespace snde {
   // ***!!! Could have more classes here to implement e.g. parameters derived from metadata, expressions involving metadata, etc. 
 
 };
+
+#endif // WFMMATH_PARAMETER_HPP
+
