@@ -15,10 +15,13 @@ extern "C" {
 #endif
 
 
-typedef float float32_t;
-typedef double float64_t;
+  typedef float snde_float32;
+  typedef double snde_float64;
   
-
+#ifdef SNDE_HAVE_FLOAT16
+  typedef __fp16 snde_float16
+#endif
+  
 #ifdef __cplusplus
 }
 #endif

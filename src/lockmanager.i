@@ -239,7 +239,9 @@ namespace snde{
   class arraymanager; // forward declaration
   class mutablewfmdb; // forward declaration
   class geometry;
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
   class lockable_infostore_or_component;
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
   //class component; // forward declaration
   //class parameterization; // forward declaration
   class lockingposition;
@@ -363,7 +365,9 @@ struct arrayregion {
       bool initial_position; // if true this is the blank initial position in the locking order
       bool between_infostores_and_arrays; // if true this is the blank position between infostores and arrays
 
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
       std::weak_ptr<lockable_infostore_or_component> lic;
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
     lockindex_t array_idx; // -1 if invalid
 
     snde_index idx_in_array; /* index within array, or SNDE_INDEX_INVALID*/
@@ -374,7 +378,9 @@ struct arrayregion {
 
 
     lockingposition(lockindex_t array_idx,snde_index idx_in_array,bool write);
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
     lockingposition(std::weak_ptr<lockable_infostore_or_component> lic,bool write);
+#endif //SNDE_MUTABLE_WFMDB_SUPPORT
     bool operator<(const lockingposition & other) const;
   };
 

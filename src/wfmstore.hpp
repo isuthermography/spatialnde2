@@ -131,12 +131,12 @@ namespace snde {
   class globalrevision;
   class channel_state;
 
-  // constant data structures with waveform type information
+  // constant data structures with waveform type number information
   extern const std::unordered_map<std::type_index,unsigned> wtn_typemap; // look up typenum based on C++ typeid(type)
   extern const std::unordered_map<unsigned,size_t> wtn_typesizemap; // Look up element size bysed on typenum
   extern const std::unordered_map<unsigned,std::string> wtn_ocltypemap; // Look up opencl type string based on typenum
   
-  class waveform: public std::enable_shared_from_this<waveform> {
+  class waveform_base: public std::enable_shared_from_this<waveform_base> {
     // may be subclassed by creator
     // mutable in certain circumstances following the conventions of snde_waveform
 
@@ -145,14 +145,20 @@ namespace snde {
     // last lock in the locking order except for Python GIL
   public:
     std::mutex admin; 
-    struct snde_waveform info;
+    struct snde_waveform_base *info; // owned by this class and allocated with malloc; often actually a sublcass such as snde_ndarray_waveform
     std::atomic_int info_state; // atomic mirror of info->state
     std::shared_ptr<immutable_metadata> metadata; // pointer may not be changed once info_state reaches METADATADONE. The pointer in info is the .get() value of this pointer. 
-    arraylayout layout; // changes to layout must be propagated to info.ndim, info.base_index, info.dimlen, and info.strides
-    //std::shared_ptr<rwlock> mutable_lock; // for simply mutable waveforms; otherwise nullptr
 
     std::shared_ptr<waveform_storage_manager> storage_manager; // pointer initialized to a default by waveform constructor, then used by the allocate_storage() method. Any assignment must be prior to that. may not be used afterward; see waveform_storage in wfmstore_storage.hpp for details on pointed structure.
     std::shared_ptr<waveform_storage> storage; // pointer immutable once initialized  by allocate_storage() or reference_immutable_waveform().  immutable afterward; see waveform_storage in wfmstore_storage.hpp for details on pointed structure.
+
+    // These next three items relate to the __originating__ globalrevision or waveform set state
+    // wss, but depending on the state _originating_wss may not have been assigned yet and may
+    // need to extract from _wfmdb and _originating_globalrev_index.
+    // DON'T ACCESS THESE DIRECTLY! Use the .get_originating_wss() and ._get_originating_wss_wfmdb_and_wfm_admin_prelocked() methods.
+    std::weak_ptr<wfmdatabase> _wfmdb;
+    uint64_t _originating_globalrev_index;
+    std::weak_ptr<waveform_set_state> _originating_wss;
 
     // Need typed template interface !!! ***
     
@@ -164,44 +170,262 @@ namespace snde {
     //  * Should be called within a transaction (i.e. the wfmdb transaction_lock is held by the existance of the transaction)
     //  * Because within a transaction, wfmdb->current_transaction is valid
     // This constructor automatically adds the new waveform to the current transaction
-    // ***!!! Should we require a transaction pointer ***???!!!
-    waveform(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
+    waveform_base(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<channel> chan,void *owner_id,size_t info_structsize=sizeof(struct snde_waveform_base));
 
     // This constructor is reserved for the math engine
     // Creates waveform structure and adds to the pre-existing globalrev. 
-    waveform(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,void *owner_id,std::shared_ptr<globalrevision> globalrev,unsigned typenum);
+    waveform_base(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,void *owner_id,std::shared_ptr<waveform_set_state> calc_wss,size_t info_structsize=sizeof(struct snde_waveform_base));
 
     // rule of 3
-    waveform & operator=(const waveform &) = delete; 
-    waveform(const waveform &orig) = delete;
-    virtual ~waveform(); // virtual destructor so we can be subclassed
+    waveform_base & operator=(const waveform_base &) = delete; 
+    waveform_base(const waveform_base &orig) = delete;
+    virtual ~waveform_base(); // virtual destructor so we can be subclassed
 
+    virtual std::shared_ptr<waveform_set_state> _get_originating_wss_wfmdb_and_wfm_admin_prelocked(); // version of get_originating_wss() to use if you have the waveform database and waveform's admin locks already locked. 
+    virtual std::shared_ptr<waveform_set_state> get_originating_wss(); // Get the originating waveform set state (often a globalrev). You should only call this if you are sure that originating wss must still exist (otherwise may generate a snde_error), such as before the creator has declared the waveform "ready". This will lock the waveform database and wfm admin locks, so any locks currently held must precede both in the locking order
+    
+
+    // Mutable waveform only ***!!! Not properly implemented yet ***!!!
+    /*
+    virtual rwlock_token_set lock_storage_for_write();
+    virtual rwlock_token_set lock_storage_for_read();
+    */
+    
+    virtual void _mark_metadata_done_internal(/*std::shared_ptr<waveform_set_state> wss,const std::string &channame*/);
+    virtual void mark_metadata_done();  // call WITHOUT admin lock (or other locks?) held. 
+    virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held. 
+  };
+
+
+  class ndarray_waveform : public waveform_base {
+  public:
+    arraylayout layout; // changes to layout must be propagated to info.ndim, info.base_index, info.dimlen, and info.strides
+    //std::shared_ptr<rwlock> mutable_lock; // for simply mutable waveforms; otherwise nullptr
+
+
+    // This constructor is to be called by everything except the math engine
+    //  * Should be called by the owner of the given channel, as verified by owner_id
+    //  * Should be called within a transaction (i.e. the wfmdb transaction_lock is held by the existance of the transaction)
+    //  * Because within a transaction, wfmdb->current_transaction is valid
+    // This constructor automatically adds the new waveform to the current transaction
+    // WARNING: Don't call directly:
+    //    * If the type is known at compile time, better to instantiate ndtyped_waveform<T>(...)
+    //    * If the type is known only at run time, call .create_typed_waveform() method
+    ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum,size_t info_structsize=sizeof(struct snde_ndarray_waveform));
+    
+    // This constructor is reserved for the math engine
+    // Creates waveform structure and adds to the pre-existing globalrev. 
+    // WARNING: Don't call directly:
+    //    * If the type is known at compile time, better to instantiate ndtyped_waveform<T>(...)
+    //    * If the type is known only at run time, call .create_typed_waveform() method
+    ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,void *owner_id,std::shared_ptr<waveform_set_state> calc_wss,unsigned typenum,size_t info_structsize=sizeof(struct snde_ndarray_waveform));
+
+    // rule of 3
+    ndarray_waveform & operator=(const ndarray_waveform &) = delete; 
+    ndarray_waveform(const ndarray_waveform &orig) = delete;
+    virtual ~ndarray_waveform();
+
+    inline snde_ndarray_waveform *ndinfo() {return (snde_ndarray_waveform *)info;}
+
+    // static factory methods for creating waveforms with runtime-determined types
+    static std::shared_ptr<ndarray_waveform> create_typed_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
+    static std::shared_ptr<ndarray_waveform> create_typed_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,void *owner_id,std::shared_ptr<waveform_set_state> calc_wss,unsigned typenum);
+    
+    
     // must assign info.elementsize and info.typenum before calling allocate_storage()
-  // fortran_order only affects physical layout, not logical layout (interpretation of indices)
+    // fortran_order only affects physical layout, not logical layout (interpretation of indices)
     virtual void allocate_storage(std::vector<snde_index> dimlen, bool fortran_order=false);
 
     // alternative to allocating storage: Referencing an existing waveform
-    virtual void reference_immutable_waveform(std::shared_ptr<waveform> wfm,std::vector<snde_index> dimlen,std::vector<snde_index> strides,snde_index base_index);
+    virtual void reference_immutable_waveform(std::shared_ptr<ndarray_waveform> wfm,std::vector<snde_index> dimlen,std::vector<snde_index> strides,snde_index base_index);
 
-    virtual rwlock_token_set lock_storage_for_write();
-    virtual rwlock_token_set lock_storage_for_read();
     
-    virtual void _mark_metadata_done_internal(std::shared_ptr<waveform_set_state> wss,const std::string &channame);
-    virtual void mark_metadata_done(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> wss);  // call WITHOUT admin lock (or other locks?) held. wss should be the waveform_set_state or globalrev in which the waveform was initially defined. 
-    virtual void mark_as_ready(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> wss);  // call WITHOUT admin lock (or other locks?) held. wss should be the waveform_set_state or globalrev in which the waveform was initially defined. 
+    inline void *void_dataptr()
+    {
+      return *ndinfo()->basearray;
+    }
+    
+    inline void *element_dataptr(const std::vector<snde_index> &idx)  // returns a pointer to an element, which is of size ndinfo()->elementsize
+    {
+      char *base_charptr = (char *) (*ndinfo()->basearray);
+      
+      char *cur_charptr = base_charptr + ndinfo()->elementsize*ndinfo()->base_index;
+      for (size_t dimnum=0;dimnum < ndinfo()->ndim;dimnum++) {
+	snde_index thisidx = idx.at(dimnum);
+	assert(thisidx < ndinfo()->dimlen[dimnum]);
+	cur_charptr += ndinfo()->strides[dimnum]*ndinfo()->elementsize*thisidx;
+      }
+      
+      return (void *)cur_charptr;
+    }
+
+    inline size_t element_offset(const std::vector<snde_index> &idx)
+    {      
+      size_t cur_offset = ndinfo()->base_index;
+      
+      for (size_t dimnum=0;dimnum < ndinfo()->ndim;dimnum++) {
+	snde_index thisidx = idx.at(dimnum);
+	assert(thisidx < ndinfo()->dimlen[dimnum]);
+	cur_offset += ndinfo()->strides[dimnum]*thisidx;
+      }
+      
+      return cur_offset;
+      
+    }
+    virtual double element_double(const std::vector<snde_index> &idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    virtual void assign_double(const std::vector<snde_index> &idx,double val); // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+
+    virtual int64_t element_int(const std::vector<snde_index> &idx); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    virtual void assign_int(const std::vector<snde_index> &idx,int64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+
+    virtual uint64_t element_unsigned(const std::vector<snde_index> &idx); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    virtual void assign_unsigned(const std::vector<snde_index> &idx,uint64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    
   };
 
+
+  template <typename T>
+  class ndtyped_waveform : public ndarray_waveform {
+  public:
+    typedef T dtype;
+
+    // This constructor is to be called by everything except the math engine
+    //  * Should be called by the owner of the given channel, as verified by owner_id
+    //  * Should be called within a transaction (i.e. the wfmdb transaction_lock is held by the existance of the transaction)
+    //  * Because within a transaction, wfmdb->current_transaction is valid
+    // This constructor automatically adds the new waveform to the current transaction
+    ndtyped_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<channel> chan,void *owner_id) :
+      ndarray_waveform(wfmdb,chan,owner_id,wtn_typemap.at(typeid(T)))
+    {
+      
+    }
+    
+    // This constructor is reserved for the math engine
+    // Creates waveform structure and adds to the pre-existing globalrev. 
+    ndtyped_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,void *owner_id,std::shared_ptr<waveform_set_state> calc_wss) :
+      ndarray_waveform(wfmdb,chanpath,owner_id,calc_wss,wtn_typemap.at(typeid(T)))
+    {
+      
+    }
+    
+    T *dataptr() { return (T*)void_dataptr; }
+
+    T& element(std::vector<snde_index> idx);
+    
+    // rule of 3
+    ndtyped_waveform & operator=(const ndtyped_waveform &) = delete; 
+    ndtyped_waveform(const ndtyped_waveform &orig) = delete;
+    ~ndtyped_waveform() { }
+
+
+    
+    // see https://stackoverflow.com/questions/12073689/c11-template-function-specialization-for-integer-types/12073915
+    // https://stackoverflow.com/questions/57964743/cannot-be-overloaded-error-while-trying-to-enable-sfinae-with-enable-if
+    // element_double for arithmetic types
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,double>::type element_double(const std::vector<snde_index> &idx) // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      size_t offset = element_offset(idx);
+      return (double)dataptr()[offset];
+    }
+
+    // element_double for nonarithmetic types
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,double>::type element_double(const std::vector<snde_index> &idx) // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      throw snde_error("Cannot extract floating point value from non-arithmetic type");
+    }
+    
+    // assign_double for arithmetic types
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,void>::type assign_double(const std::vector<snde_index> &idx,double val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      size_t offset = element_offset(idx);
+      dataptr[offset]=(T)val;      
+    }
+
+    // assign_double for nonarithmetic types
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,void>::type assign_double(const std::vector<snde_index> &idx,double val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      throw snde_error("Cannot assign floating point value from non-arithmetic type");
+    }
+
+    
+    // element_int for arithmetic types
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,int64_t>::type element_int(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      size_t offset = element_offset(idx);
+      return (int64_t)dataptr[offset];
+    }
+
+    // element_int for non-arithmetic types
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,int64_t>::type element_int(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      throw snde_error("Cannot extract integer value from non-arithmetic type");
+    }
+    
+    // assign_int for arithmetic types
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,void>::type  assign_int(const std::vector<snde_index> &idx,int64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      size_t offset = element_offset(idx);
+      dataptr[offset]=(T)val;
+    }
+
+    // assign_int for non-arithmetic types
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,void>::type  assign_int(const std::vector<snde_index> &idx,int64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      throw snde_error("Cannot assign integer value to non-arithmetic type");
+    }
+    
+    // element_unsigned for arithmetic types
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,uint64_t>::type element_unsigned(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      size_t offset = element_offset(idx);
+      return (uint64_t)dataptr[offset];
+    }
+    
+    // element_unsigned for non-arithmetic types
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,uint64_t>::type element_unsigned(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      throw snde_error("Cannot extract integer value from non-arithmetic type");
+    }
+
+    
+    // assign_unsigned for arithmetic types
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,void>::type assign_unsigned(const std::vector<snde_index> &idx,uint64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      size_t offset = element_offset(idx);
+      dataptr[offset]=(T)val;
+    }
+
+
+    // assign_unsigned for non-arithmetic types
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,void>::type assign_unsigned(const std::vector<snde_index> &idx,uint64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      throw snde_error("Cannot assign integer value to non-arithmetic type");
+    }
+
+  };
   
   class transaction {
   public:
     // mutable until end of transaction when it is destroyed and converted to a globalrev structure
     std::mutex admin; // last in the locking order except before python GIL. Must hold this lock when reading or writing structures within. Does not cover the channels/wavaveforms themselves.
 
-    uint64_t globalrev; // globalrev for this transaction
+    uint64_t globalrev; // globalrev for this transaction. Immutable once published
     std::unordered_set<std::shared_ptr<channel>> updated_channels;
     //Keep track of whether a new waveform is required for the channel (e.g. if it has a new owner)
     std::map<std::string,bool> new_waveform_required; // index is channel name for updated channels
-    std::unordered_map<std::string,std::shared_ptr<waveform>> new_waveforms;
+    std::unordered_map<std::string,std::shared_ptr<waveform_base>> new_waveforms;
 
     // end of transaction propagates this structure into an update of wfmdatabase._channels
     // and a new globalrevision 
@@ -231,7 +455,7 @@ namespace snde {
     active_transaction(const active_transaction &orig) = delete;
     ~active_transaction(); // destructor releases transaction_lock from holder
 
-    void end_transaction();
+    std::shared_ptr<globalrevision> end_transaction();
     
   };
 
@@ -443,21 +667,23 @@ namespace snde {
   public:
     // for atomic updates to notify_ ... atomic shared pointers, you must lock the waveform_set_state's admin lock
     std::shared_ptr<channelconfig> config; // immutable
-    std::shared_ptr<waveform> _wfm; // atomic shared ptr to waveform structure created to store the ouput; may be nullptr if not (yet) created. Always nullptr for ondemand waveforms... waveform contents may be mutable but have their own admin lock
+    std::shared_ptr<channel> _channel; // immutable pointer, but pointed data is not immutable, (but you shouldn't generally need to access this)
+    std::shared_ptr<waveform_base> _wfm; // atomic shared ptr to waveform structure created to store the ouput; may be nullptr if not (yet) created. Always nullptr for ondemand waveforms... waveform contents may be mutable but have their own admin lock
     std::atomic<bool> updated; // this field is only valid once wfm() returns a valid pointer and once wfm()->state is READY or METADATAREADY. It is true if this particular waveform has a new revision particular to the enclosing waveform_set_state
+    uint64_t revision; // This is assigned when the channel_state is created from _wfm->info->revision for manually created waveforms. For ondemand math waveforms this is not meaningful. For math waveforms with the math_function's new_revision_optional (config->math_fcn->fcn->new_revision_optional) flag clear, this is defined during end_transaction() ***!!!. If the new_revision_optional flag is set, this is defined when the math function instantiates its waveform in the waveform_base constructor
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_metadataonly; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes metadataonly; set to nullptr at end of channel becoming metadataonly. 
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_ready; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes ready; set to nullptr at end of channel becoming ready. 
 
-    channel_state(std::shared_ptr<channelconfig> config,std::shared_ptr<waveform> wfm,bool updated);
+    channel_state(std::shared_ptr<channel> chan,std::shared_ptr<waveform_base> wfm,bool updated);
 
     channel_state(const channel_state &orig); // copy constructor used for initializing channel_map from prototype defined in end_transaction()
 
-    std::shared_ptr<waveform> wfm() const;
-    std::shared_ptr<waveform> waveform_is_complete(bool mdonly); // uses only atomic members so safe to call in all circumstances. Set to mdonly if you only care that the metadata is complete. Normally call waveform_is_complete(false). Returns waveform pointer if waveform is complete to the requested condition, otherwise nullptr. 
+    std::shared_ptr<waveform_base> wfm() const;
+    std::shared_ptr<waveform_base> waveform_is_complete(bool mdonly); // uses only atomic members so safe to call in all circumstances. Set to mdonly if you only care that the metadata is complete. Normally call waveform_is_complete(false). Returns waveform pointer if waveform is complete to the requested condition, otherwise nullptr. 
     void issue_nonmath_notifications(std::shared_ptr<waveform_set_state> wss); // Must be called without anything locked. Issue notifications requested in _notify* and remove those notification requests
     void issue_math_notifications(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> wss); // Must be called without anything locked. Check for any math updates from the new status of this waveform
     
-    void end_atomic_wfm_update(std::shared_ptr<waveform> new_waveform);
+    void end_atomic_wfm_update(std::shared_ptr<waveform_base> new_waveform);
 
 
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> begin_atomic_notify_about_this_channel_metadataonly_update();
@@ -473,7 +699,7 @@ namespace snde {
 
   class waveform_status {
   public:
-    std::map<std::string,channel_state> channel_map; // key is full channel path... The map itself (not the embedded states) are immutable once the waveform_set_state is published
+    std::map<std::string,channel_state> channel_map; // key is full channel path... The map itself (not the embedded states) is immutable once the waveform_set_state is published
     
     /// all of these are indexed by their their full path. Every entry in channel_map should be in exactly one of these. Locked by admin mutex per above
     // The index is the shared_ptr in globalrev_channel.config
@@ -531,7 +757,8 @@ namespace snde {
     std::map<std::string,std::shared_ptr<channel>> _deleted_channels; // Channels are put here after they are deleted. They can be moved back into the main list if re-created. 
     instantiated_math_database _math_functions; 
     
-    std::map<uint64_t,std::shared_ptr<globalrevision>> _globalrevs; // Index is global revision counter. The first element in this is the latest globalrev with all mandatory immutable channels ready. The last element in this is the most recently defined globalrev. 
+    std::map<uint64_t,std::shared_ptr<globalrevision>> _globalrevs; // Index is global revision counter. The first element in this is the latest globalrev with all mandatory immutable channels ready. The last element in this is the most recently defined globalrev.
+    std::shared_ptr<globalrevision> _latest_globalrev; // atomic shared pointer -- access with latest_globalrev() method;
     std::vector<std::shared_ptr<repetitive_channel_notify>> repetitive_notifies; 
 
     available_compute_resource_database compute_resources; // has its own admin lock.
@@ -543,6 +770,7 @@ namespace snde {
     std::mutex transaction_lock; // ***!!! Before any dataguzzler-python module locks, etc.
     std::shared_ptr<transaction> current_transaction; // only valid while transaction_lock is held. 
 
+    wfmdatabase();
         
     // avoid using start_transaction() and end_transaction() from C++; instantiate the RAII wrapper class active_transaction instead
     // (start_transaction() and end_transaction() are intended for C and perhaps Python)
@@ -550,7 +778,9 @@ namespace snde {
     // a transaction update can be multi-threaded but you shouldn't call end_transaction()  (or the end_transaction method on the
     // active_transaction or delete the active_transaction) until all other threads are finished with transaction actions
     std::shared_ptr<active_transaction> start_transaction();
-    void end_transaction(std::shared_ptr<active_transaction> act_trans);
+    std::shared_ptr<globalrevision> end_transaction(std::shared_ptr<active_transaction> act_trans);
+
+    std::shared_ptr<globalrevision> latest_globalrev();
 
     // Allocate channel with a specific name; returns nullptr if the name is inuse
     std::shared_ptr<channel> reserve_channel(std::shared_ptr<channelconfig> new_config);

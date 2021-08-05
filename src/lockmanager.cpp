@@ -5,7 +5,10 @@
 #include "geometry_types.h"
 #include "lockmanager.hpp"
 #include "arraymanager.hpp"
+
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
 #include "infostore_or_component.hpp"
+#endif
 //#include "geometry.hpp"
 //##include "mutablewfmstore.hpp"
 
@@ -260,6 +263,7 @@ std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get
 }
 */
 
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
 
 std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_write_lockable(std::shared_ptr<lockable_infostore_or_component> lic)
 {
@@ -279,6 +283,7 @@ std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get
   return std::make_pair(lockholder_index(lic.get(),true),newset);
 }
 
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
 
 std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_write_array(void **array)
 {
@@ -338,6 +343,7 @@ rwlock_token_set snde::lockingprocess_threaded::begin_temporary_locking(lockingp
   return empty_rwlock_token_set();
 }
 
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
 rwlock_token_set snde::lockingprocess_threaded::get_locks_read_lockable_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic)
 {
   rwlock_token_set newset = _lockmanager->get_locks_read_lockable(temporary_lock_pool,lic);
@@ -373,6 +379,7 @@ rwlock_token_set snde::lockingprocess_threaded::get_locks_lockable_mask_temporar
   }
 
 }
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
 
 void snde::lockingprocess_threaded::abort_temporary_locking(rwlock_token_set temporary_lock_pool) /* WARNING: Temporary locking only supported prior to all spawns!!! */
 // aborts and releases given locks 
@@ -492,6 +499,7 @@ std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get
 */
 
 
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
 
 std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get_locks_read_lockable(std::shared_ptr<lockable_infostore_or_component> lic)
 {
@@ -510,6 +518,7 @@ std::pair<lockholder_index,rwlock_token_set>  snde::lockingprocess_threaded::get
   
   return std::make_pair(lockholder_index(lic.get(),false),newset);
 }
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
 
 
 std::pair<lockholder_index,rwlock_token_set> snde::lockingprocess_threaded::get_locks_read_array(void **array)
@@ -698,6 +707,7 @@ std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_
 */
 
 
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
 
 std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_lockable_mask(std::shared_ptr<lockable_infostore_or_component> lic,uint64_t maskentry,uint64_t readmask,uint64_t writemask)
 {
@@ -720,6 +730,7 @@ std::pair<lockholder_index,rwlock_token_set> lockingprocess_threaded::get_locks_
   }
 }
 
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
 
 
 std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> snde::lockingprocess_threaded::alloc_array_region(std::shared_ptr<arraymanager> manager,void **allocatedptr,snde_index nelem,std::string allocid)

@@ -250,7 +250,7 @@ snde_array_is_f_contiguous(SNDE_AIO_GLOBAL snde_index *dimlen,
 
 #ifndef __OPENCL_VERSION__ // ignore under OpenCL because we don't have qsort there and probably don't need this
 
-int snde_aic_stride_compare(const void *stride1_vp,const void *stride2_vp)
+SNDE_AIO_STATIC_INLINE int snde_aic_stride_compare(const void *stride1_vp,const void *stride2_vp)
 {
   snde_index *stride1;
   snde_index *stride2;

@@ -11,6 +11,10 @@
 #include <thread>
 #include <cstdlib>
 
+#ifdef SNDE_OPENCL
+#include <CL/opencl.h>
+#endif // SNDE_OPENCL
+
 #include "snde_types.h"
 #include "geometry_types.h"
 namespace snde {
@@ -167,7 +171,7 @@ namespace snde {
 
 #ifdef SNDE_OPENCL
   class available_compute_resource_opencl: public available_compute_resource {
-    available_compute_resource_opencl(std::shared_ptr<wfmdatabase> wfmdb,unsigned type,cl_context opencl_context,cl_device_id *opencl_devices,size_t num_devices,size_t max_parallel);
+    available_compute_resource_opencl(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type,cl_context opencl_context,cl_device_id *opencl_devices,size_t num_devices,size_t max_parallel);
     std::shared_ptr<available_compute_resource_cpu> controlling_cpu;
     cl_context opencl_context;
     cl_device_id *opencl_devices;
@@ -204,7 +208,7 @@ namespace snde {
   };
 
 #ifdef SNDE_OPENCL
-  class assigned_compute_resource_opencl {
+  class assigned_compute_resource_opencl : public assigned_compute_resource {
   public:
     assigned_compute_resource_opencl(const std::vector<size_t> &assigned_cpu_core_indices,const std::vector<size_t> &assigned_opencl_job_indices,cl_context opencl_context,cl_device_id opencl_device);
     //size_t number_of_cpu_cores;

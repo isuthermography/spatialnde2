@@ -6,9 +6,11 @@
    i.e. one that allocates space directly in OpenCL 
    memory on the GPU card */
 
+#include <memory>
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
+
 
 namespace snde {
   typedef size_t memallocator_regionid;
@@ -36,7 +38,7 @@ namespace snde {
     // Rule of 3
     nonmoving_copy_or_reference(const nonmoving_copy_or_reference &) = delete;
     nonmoving_copy_or_reference& operator=(const nonmoving_copy_or_reference &) = delete; 
-    virtual ~nonmoving_copy_or_reference();  // virtual destructor required so we can be subclassed
+    virtual ~nonmoving_copy_or_reference()=default;  // virtual destructor required so we can be subclassed
 
     virtual void *get_ptr()=0;
   };
@@ -81,7 +83,7 @@ namespace snde {
     virtual void *malloc(memallocator_regionid id,std::size_t nbytes)=0;
     virtual void *calloc(memallocator_regionid id,std::size_t nbytes)=0;
     virtual void *realloc(memallocator_regionid id,void *ptr,std::size_t newsize)=0;
-    virtual std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(memallocator_regionid id, void *ptr, std::size_t offset, std::size_t length);
+    virtual std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(memallocator_regionid id, void *ptr, std::size_t offset, std::size_t length)=0;
     virtual void free(memallocator_regionid id,void *ptr)=0;
   };
 

@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.5)
 project(spatialnde)
 
 cmake_policy(SET CMP0071 NEW)
+cmake_policy(SET CMP0078 NEW)
+cmake_policy(SET CMP0086 NEW)
+
 set(CMAKE_AUTOMOC OFF)
 #set(CMAKE_INCLUDE_CURRENT_DIR)
 
@@ -80,7 +83,12 @@ endif()
 
 
 
-set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/infostore_or_component.cpp src/geometry.cpp src/revision_manager.cpp src/mutablewfmstore.cpp )
+set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/wfmmath_compute_resource.cpp src/wfmmath.cpp src/wfmmath_parameter.cpp src/wfmstore.cpp src/wfmstore_storage.cpp ) # src/infostore_or_component.cpp src/geometry.cpp src/revision_manager.cpp src/mutablewfmstore.cpp )
+
+if (NOT WIN32)
+  set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} src/shared_memory_allocator_posix.cpp )
+endif()
+
 
 #add_definitions(-Dprivate=public)
 #add_definitions(-Dprotected=public)
@@ -119,6 +127,10 @@ ENDIF (PythonInterp_FOUND)
 
 set(SPATIALNDE2_LIBS spatialnde2 ${CMAKE_THREAD_LIBS_INIT})
 set(SPATIALNDE2_QT_LIBS spatialnde2 spatialnde2_qt ${CMAKE_THREAD_LIBS_INIT})
+IF(NOT WIN32)
+  set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} rt ) # -lrt required for shm_open() etc.
+  set(SPATIALNDE2_QT_LIBS ${SPATIALNDE2_QT_LIBS} rt ) # -lrt required for shm_open() etc.
+ENDIF()
 
 
 IF (OpenCL_FOUND)
@@ -127,22 +139,22 @@ IF (OpenCL_FOUND)
     add_definitions(-DSNDE_OPENCL)
     add_definitions(-DCL_TARGET_OPENCL_VERSION=120)
     # Build OpenCL support into library
-    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/opencl_utils.cpp src/openclcachemanager.cpp src/data_to_rgba.cpp src/inplanemat_calculation.cpp src/projinfo_calculation.cpp src/boxes_calculation.cpp)
-    IF (PythonInterp_FOUND) 
-      set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} src/normal_calculation.cpp)
-      IF (OpenSceneGraph_FOUND)
-	set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/openscenegraph_geom.cpp)
-      ENDIF (OpenSceneGraph_FOUND)
-    ENDIF (PythonInterp_FOUND)
+    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/opencl_utils.cpp src/openclcachemanager.cpp ) # src/data_to_rgba.cpp src/inplanemat_calculation.cpp src/projinfo_calculation.cpp src/boxes_calculation.cpp)
+    #IF (PythonInterp_FOUND) 
+    #  set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} src/normal_calculation.cpp)
+    #  IF (OpenSceneGraph_FOUND)
+    #    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/openscenegraph_geom.cpp)
+    #  ENDIF (OpenSceneGraph_FOUND)
+    #ENDIF (PythonInterp_FOUND)
     set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} ${OpenCL_LIBRARIES})
 
 ENDIF (OpenCL_FOUND)
 
-IF (Qt5_FOUND)
-  include_directories(${Qt5Widgets_INCLUDE_DIRS} ${Qt5Core_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5OpenGL_INCLUDE_DIRS} ${Qt5UiTools_INCLUDE_DIRS} ) 
-  QT5_WRAP_CPP(qtwfmviewer_MOC src/qtwfmviewer.cpp src/qtwfmviewer.hpp)
-  set(SPATIALNDE2_QT_SOURCES src/qtwfmviewer.cpp ${qtwfmviewer_MOC} )
-ENDIF()
+#IF (Qt5_FOUND)
+#  include_directories(${Qt5Widgets_INCLUDE_DIRS} ${Qt5Core_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5OpenGL_INCLUDE_DIRS} ${Qt5UiTools_INCLUDE_DIRS} ) 
+#  QT5_WRAP_CPP(qtwfmviewer_MOC src/qtwfmviewer.cpp src/qtwfmviewer.hpp)
+#  set(SPATIALNDE2_QT_SOURCES src/qtwfmviewer.cpp ${qtwfmviewer_MOC} )
+#ENDIF()
 
 IF (LibXml2_FOUND)
   include_directories(${LIBXML2_INCLUDE_DIR})
@@ -176,6 +188,7 @@ ENDIF()
 # SpatialNDE2 library
 add_library(spatialnde2 SHARED ${SPATIALNDE2_SOURCES})
 
+
 IF (Qt5_FOUND)
   qt5_add_resources(SPATIALNDE2_QT_RCC src/qtwfmviewer.qrc )
   add_library(spatialnde2_qt SHARED ${SPATIALNDE2_QT_SOURCES} ${SPATIALNDE2_QT_RCC})
@@ -207,40 +220,45 @@ ENDIF()
 add_executable(allocator_test
         test/allocator_test.cpp)
 target_link_libraries(allocator_test ${SPATIALNDE2_LIBS})
-      
-add_executable(manager_test
-        test/manager_test.cpp)
-target_link_libraries(manager_test ${SPATIALNDE2_LIBS})
 
-add_executable(thread_test
-        test/thread_test.cpp)
-target_link_libraries(thread_test spatialnde2 ${SPATIALNDE2_LIBS})
+
+add_executable(wfmdb_test
+        test/wfmdb_test.cpp)
+target_link_libraries(wfmdb_test ${SPATIALNDE2_LIBS})
+
+#add_executable(manager_test
+#        test/manager_test.cpp)
+#target_link_libraries(manager_test ${SPATIALNDE2_LIBS})
+
+#add_executable(thread_test
+#        test/thread_test.cpp)
+#target_link_libraries(thread_test spatialnde2 ${SPATIALNDE2_LIBS})
 
 add_executable(matrixsolve_test
         test/matrixsolve_test.cpp)
 target_link_libraries(matrixsolve_test spatialnde2 ${SPATIALNDE2_LIBS})
 
 IF (OpenCL_FOUND)
-  add_executable(opencl_calc_test test/opencl_calc_test.cpp)
-  target_link_libraries(opencl_calc_test spatialnde2 ${SPATIALNDE2_LIBS} ${OpenCL_LIBRARIES} ${PNG_LIBRARIES} ${LIBXML2_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
+  #add_executable(opencl_calc_test test/opencl_calc_test.cpp)
+  #target_link_libraries(opencl_calc_test spatialnde2 ${SPATIALNDE2_LIBS} ${OpenCL_LIBRARIES} ${PNG_LIBRARIES} ${LIBXML2_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
 ENDIF (OpenCL_FOUND)
 
 IF (Eigen3_FOUND)
-    add_executable(transform_eval_test
+  add_executable(transform_eval_test
             test/transform_eval_test.cpp)
 ENDIF (Eigen3_FOUND)
 
 IF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
-        add_executable(x3d_test
-                test/x3d_test.cpp)
-        target_link_libraries(x3d_test ${SPATIALNDE2_LIBS} ${LIBXML2_LIBRARIES} ${PNG_LIBRARIES} )
+  #add_executable(x3d_test
+  #        test/x3d_test.cpp)
+  #      target_link_libraries(x3d_test ${SPATIALNDE2_LIBS} ${LIBXML2_LIBRARIES} ${PNG_LIBRARIES} )
 ENDIF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
 
 
 IF (PythonInterp_FOUND)
-    set(PYTHONGENHEADERS src/snde_types.h src/geometry_types.h src/geometry_ops.h src/vecops.h src/testkernel.c src/osg_vertexarray.c src/osg_texvertexarray.c src/normal_calc.c src/projinfo_calc.c src/colormap.h src/scale_colormap.c src/dummy_scale_colormap.c )
+    set(PYTHONGENHEADERS src/snde_types.h src/geometry_types.h src/geometry_ops.h src/vecops.h ) #  src/testkernel.c src/osg_vertexarray.c src/osg_texvertexarray.c src/normal_calc.c src/projinfo_calc.c src/colormap.h src/scale_colormap.c src/dummy_scale_colormap.c )
   
-    set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
+    set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h ) # ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
 
     add_custom_command(OUTPUT ${PYTHONGENERATEDHEADERS}
             DEPENDS ${PYTHONGENHEADERS}
@@ -250,14 +268,14 @@ IF (PythonInterp_FOUND)
             COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/geometry_types.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h
             COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/geometry_ops.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h
             COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/vecops.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h
-            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/testkernel.c ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
-            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/osg_vertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h
-            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/osg_texvertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h
-            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/normal_calc.c ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h
-            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/projinfo_calc.c ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h
-            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/colormap.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h
-            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h
-            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/dummy_scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h
+            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/testkernel.c ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
+            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/osg_vertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h
+            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/osg_texvertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h
+            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/normal_calc.c ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h
+            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/projinfo_calc.c ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h
+            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/colormap.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h
+            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h
+            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/dummy_scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 	    )
     add_custom_target(OpenCL_Headers DEPENDS ${PYTHONGENERATEDHEADERS})
@@ -265,32 +283,32 @@ ENDIF (PythonInterp_FOUND)
 
 IF (OpenCL_FOUND AND PythonInterp_FOUND)
     # build opencl_example... requires Python to preprocess the testkernel
-    add_executable(opencl_example
-            example/opencl_example.cpp
-            )
-    add_dependencies(opencl_example OpenCL_Headers)
-    target_link_libraries(opencl_example ${SPATIALNDE2_LIBS} ${OpenCL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+    #add_executable(opencl_example
+    #        example/opencl_example.cpp
+    #        )
+    #add_dependencies(opencl_example OpenCL_Headers)
+    #target_link_libraries(opencl_example ${SPATIALNDE2_LIBS} ${OpenCL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 ENDIF()
 
 IF (OpenCL_FOUND AND PythonInterp_FOUND AND OpenSceneGraph_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND GLUT_FOUND AND PNG_FOUND)
-  add_executable(x3d_viewer
-    example/x3d_viewer.cpp
-    )
-  add_dependencies(x3d_viewer OpenCL_Headers)
-  target_link_libraries(x3d_viewer ${SPATIALNDE2_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES} ${OpenCL_LIBRARIES} ${PNG_LIBRARIES} ${LIBXML2_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
+  #add_executable(x3d_viewer
+  #  example/x3d_viewer.cpp
+  #  )
+  #add_dependencies(x3d_viewer OpenCL_Headers)
+  #target_link_libraries(x3d_viewer ${SPATIALNDE2_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES} ${OpenCL_LIBRARIES} ${PNG_LIBRARIES} ${LIBXML2_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
 ENDIF()
 
 
 IF (Qt5_FOUND AND OpenCL_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
-  add_executable(png_viewer example/png_viewer.cpp)
-  add_dependencies(png_viewer OpenCL_Headers)
-  target_link_libraries(png_viewer ${SPATIALNDE2_QT_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${OpenCL_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
+  #add_executable(png_viewer example/png_viewer.cpp)
+  #add_dependencies(png_viewer OpenCL_Headers)
+  #target_link_libraries(png_viewer ${SPATIALNDE2_QT_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${OpenCL_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
 ENDIF()
 
 IF (Qt5_FOUND AND PythonInterp_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND OpenCL_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PNG_FOUND)
-  add_executable(x3d_viewer_qt example/x3d_viewer_qt.cpp)
-  add_dependencies(x3d_viewer_qt OpenCL_Headers)
-  target_link_libraries(x3d_viewer_qt ${SPATIALNDE2_QT_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${OpenCL_LIBRARIES}  ${LIBXML2_LIBRARIES} ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
+  #add_executable(x3d_viewer_qt example/x3d_viewer_qt.cpp)
+  #add_dependencies(x3d_viewer_qt OpenCL_Headers)
+  #target_link_libraries(x3d_viewer_qt ${SPATIALNDE2_QT_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${OpenCL_LIBRARIES}  ${LIBXML2_LIBRARIES} ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
 ENDIF()
 
 
@@ -335,8 +353,10 @@ IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
 	ENDIF()
 	
 	SET_SOURCE_FILES_PROPERTIES(src/spatialnde2.i PROPERTIES CPLUSPLUS 1)
+	set(UseSWIG_TARGET_NAME_PREFERENCE "LEGACY")
 
 	set(SPATIALNDE2_SWIG_SOURCES src/spatialnde2.i)
+	set_property(SOURCE src/spatialnde2.i PROPERTY SWIG_MODULE_NAME spatialnde2_python)
 	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${PYTHON_LIBRARIES})
 
 	IF (OpenCL_FOUND)
@@ -347,8 +367,8 @@ IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
 	  set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${LIBXML2_LIBRARIES})
 	ENDIF()
     
-	SWIG_ADD_LIBRARY(spatialnde2 LANGUAGE python SOURCES ${SPATIALNDE2_SWIG_SOURCES} )
-	SWIG_LINK_LIBRARIES(spatialnde2 ${SWIG_SPATIALNDE2_LINK_LIBRARIES})
+	SWIG_ADD_LIBRARY(spatialnde2_python LANGUAGE python SOURCES ${SPATIALNDE2_SWIG_SOURCES} )
+	SWIG_LINK_LIBRARIES(spatialnde2_python ${SWIG_SPATIALNDE2_LINK_LIBRARIES})
 	
 	add_dependencies(spatialnde2 OpenCL_Headers)
     ELSE ()
@@ -369,44 +389,44 @@ ENDIF()
 # TEST
 install(TARGETS
         transform_eval_test
-        manager_test
-        thread_test
+        #manager_test
+        #thread_test
         DESTINATION ${APP_INSTALL_DIR}/test)
 install(FILES
         test/transform_eval_test.py
-        test/x3d_test.py
+        #test/x3d_test.py
         DESTINATION ${APP_INSTALL_DIR}/test)
 
 # EXAMPLE
 IF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
-  install(TARGETS
-    x3d_test
-    DESTINATION ${APP_INSTALL_DIR}/test)
+  #install(TARGETS
+  #  x3d_test
+  #  DESTINATION ${APP_INSTALL_DIR}/test)
 ENDIF()
 
 IF (OpenCL_FOUND AND PythonInterp_FOUND)
-  install(TARGETS
-    opencl_example
-    DESTINATION ${APP_INSTALL_DIR}/example)
+  #install(TARGETS
+  #  opencl_example
+  #  DESTINATION ${APP_INSTALL_DIR}/example)
 ENDIF()
 
 IF (OpenCL_FOUND AND PythonInterp_FOUND AND OpenSceneGraph_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND GLUT_FOUND AND PNG_FOUND)
-  install(TARGETS
-    x3d_viewer
-    DESTINATION ${APP_INSTALL_DIR}/example)
+  #install(TARGETS
+  #  x3d_viewer
+  #  DESTINATION ${APP_INSTALL_DIR}/example)
   
 ENDIF()
 
 IF (Qt5_FOUND AND OpenCL_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND )
-  install(TARGETS
-    png_viewer
-    DESTINATION ${APP_INSTALL_DIR}/example)
+  #install(TARGETS
+  #  png_viewer
+  #  DESTINATION ${APP_INSTALL_DIR}/example)
 ENDIF()
 
 IF (Qt5_FOUND AND PythonInterp_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND OpenCL_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PNG_FOUND)
-  install(TARGETS
-    x3d_viewer_qt
-    DESTINATION ${APP_INSTALL_DIR}/example)
+  #install(TARGETS
+  #  x3d_viewer_qt
+  #  DESTINATION ${APP_INSTALL_DIR}/example)
 ENDIF()
 
 

@@ -29,12 +29,12 @@ namespace snde {
 
   }
   
-  std::shared_ptr<waveform> math_parameter::get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context) // should only return ready waveforms
+  std::shared_ptr<waveform_base> math_parameter::get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context) // should only return ready waveforms
   {
     throw snde_error("Cannot get waveform value from parameter of class %s",(char *)typeid(*this).name()); 
 
   }
-  std::set<std::string> math_parameter::get_prerequisites(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context) // obtain immediate dependencies of this parameter (absolute path channel names); typically only the waveform
+  std::set<std::string> math_parameter::get_prerequisites(/*std::shared_ptr<waveform_set_state> wss,*/ const std::string &channel_path_context) // obtain immediate dependencies of this parameter (absolute path channel names); typically only the waveform
   {
     return std::set<std::string>(); // default to no prerequisites
   }
@@ -94,9 +94,9 @@ namespace snde {
     return retval;
   }
 
-  std::shared_ptr<waveform> math_parameter_waveform::get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context) // should only return ready waveforms because we shouldn't be called until our deps are ready. 
+  std::shared_ptr<waveform_base> math_parameter_waveform::get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context) // should only return ready waveforms because we shouldn't be called until our deps are ready. 
   {
-    std::shared_ptr<waveform> wfm;
+    std::shared_ptr<waveform_base> wfm;
     std::string fullpath = wfmdb_path_join(channel_path_context,channel_name);
     {
       std::lock_guard<std::mutex> wsslock(wss->admin); // Think this locking is actually unnecessary

@@ -36,7 +36,7 @@ typedef __constant float *my_infnan_float32_ptr_t;
 
 
 typedef uint8_t my_infnan_constchar_t;
-typedef float32_t *my_infnan_float32_ptr_t;
+typedef snde_float32 *my_infnan_float32_ptr_t;
 
 #endif /* __OPENCL_VERSION__ */
 

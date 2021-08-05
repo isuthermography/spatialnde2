@@ -98,7 +98,7 @@ namespace snde {
     }
   };
 
-  std::string portable_strerror(int errnum)
+  static inline std::string portable_strerror(int errnum)
   {
     char *errstr;
     char *buf=nullptr;

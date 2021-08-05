@@ -390,10 +390,10 @@ namespace snde {
     void remove_array(void **arrayptr)
     {
       std::unique_lock<std::mutex> lock(allocatormutex);
-      size_t index;
+      size_t index=0;
       // we hold allocatormutex, so  _arrays  should not be accessed directly, but won't change
       
-      for (auto ary=arrays()->begin(),index=0;ary != arrays()->end();ary++,index++) {
+      for (std::deque<struct arrayinfo>::iterator ary=arrays()->begin();ary != arrays()->end();ary++,index++) {
 	if (ary->arrayptr == arrayptr) {
 	  if (ary==arrays()->begin()) {
 	    /* removing our master array invalidates the entire allocator */

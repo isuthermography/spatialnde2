@@ -17,7 +17,7 @@ namespace snde {
 							   size_t metadata_bytes,
 							   size_t data_bytes,
 							   std::shared_ptr<compute_code> function_code,
-							   float64_t flops,
+							   snde_float64 flops,
 							   size_t max_effective_cpu_cores,
 							   size_t useful_cpu_cores) :
     compute_resource_option(type,metadata_bytes,data_bytes,function_code),
@@ -33,8 +33,8 @@ namespace snde {
 								 size_t metadata_bytes,
 								 size_t data_bytes,
 								 std::shared_ptr<compute_code> function_code,
-								 float64_t cpu_flops,
-								 float64_t gpu_flops,
+								 snde_float64 cpu_flops,
+								 snde_float64 gpu_flops,
 								 size_t max_effective_cpu_cores,
 								 size_t max_useful_cpu_cores) :
     compute_resource_option(type,metadata_bytes,data_bytes,function_code),
@@ -100,7 +100,7 @@ namespace snde {
 	    selected_option = compute_option;
 	    
 	    selected_resource->prioritized_computations.emplace(std::make_pair(globalrev_ptr->globalrev,
-									       std::make_tuple(std::weak_ptr(computation),selected_option)));
+									       std::make_tuple(std::weak_ptr<pending_computation>(computation),selected_option)));
 	    //compute_resource_lock.unlock();  (???What was this supposed to do???)
 	    //selected_resource->computations_added.notify_one();
 	    selected_resource->notify_acr_of_changes_to_prioritized_computations();
@@ -160,6 +160,16 @@ namespace snde {
   }
 
 
+  pending_computation::pending_computation(std::shared_ptr<executing_math_function> function_to_execute,std::shared_ptr<waveform_set_state> wfmstate,uint64_t globalrev,uint64_t priority_reduction) :
+    function_to_execute(function_to_execute),
+    wfmstate(wfmstate),
+    globalrev(globalrev),
+    priority_reduction(priority_reduction)
+  {
+
+  }
+
+
   available_compute_resource::available_compute_resource(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type) :
     wfmdb(wfmdb),
     acrd_admin(acrd->admin),
@@ -174,7 +184,7 @@ namespace snde {
   {
     size_t cnt;
 
-    std::lock_guard acrd_lock(*acrd_admin); // because threads will start, and we need to lock them out while we fill up the vector data structures
+    std::lock_guard<std::mutex> acrd_lock(*acrd_admin); // because threads will start, and we need to lock them out while we fill up the vector data structures
     for (cnt=0; cnt < total_cpu_cores_available;cnt++) {
       functions_using_cores.push_back(nullptr);
       thread_triggers.emplace_back(std::make_shared<std::condition_variable>());
@@ -393,8 +403,8 @@ namespace snde {
   }
 
 #ifdef SNDE_OPENCL
-  available_compute_resource_opencl::available_compute_resource_opencl(std::shared_ptr<wfmdatabase> wfmdb,unsigned type,cl_context opencl_context,cl_device_id *opencl_devices,size_t num_devices,size_t max_parallel) :
-    available_compute_resource(wfmdb,type),
+  available_compute_resource_opencl::available_compute_resource_opencl(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type,cl_context opencl_context,cl_device_id *opencl_devices,size_t num_devices,size_t max_parallel) :
+    available_compute_resource(wfmdb,acrd,type),
     opencl_context(opencl_context),
     opencl_devices(opencl_devices),
     num_devices(num_devices),
@@ -420,7 +430,7 @@ namespace snde {
 
 #ifdef SNDE_OPENCL
   assigned_compute_resource_opencl::assigned_compute_resource_opencl(const std::vector<size_t> &assigned_cpu_core_indices,const std::vector<size_t> &assigned_opencl_job_indices,cl_context opencl_context,cl_device_id opencl_device) :
-    assigned_compute_resource(SNDE_CR_OPENCL)
+    assigned_compute_resource(SNDE_CR_OPENCL),
     assigned_cpu_core_indices(assigned_cpu_core_indices),
     assigned_opencl_job_indices(assigned_opencl_job_indices),
     opencl_context(opencl_context),

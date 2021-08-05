@@ -150,7 +150,7 @@ namespace snde {
     virtual ~instantiated_math_function()=default;  // virtual destructor required so we can be subclassed
 
 
-    virtual bool check_dependencies(waveform_status &waveformstatus, math_status &mathstatus); 
+    //virtual bool check_dependencies(waveform_status &waveformstatus, math_status &mathstatus)=0; 
     // virtual clone method -- must be implemented in all subclasses. If .definition is non nullptr, it clears the copy and points original_function at the old .definition
     virtual std::shared_ptr<instantiated_math_function> clone();
     

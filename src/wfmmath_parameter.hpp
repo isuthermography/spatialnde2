@@ -11,7 +11,7 @@
 namespace snde {
 
   // forward declarations
-  class waveform; // defined in wfmstore.hpp
+  class waveform_base; // defined in wfmstore.hpp
   class waveform_set_state; // defined in wfmstore.hpp
   
   class math_parameter {
@@ -29,7 +29,7 @@ namespace snde {
     virtual std::string get_string(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context);
     virtual int64_t get_int(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context);
     virtual double get_double(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context);
-    virtual std::shared_ptr<waveform> get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context); // should only return ready waveforms because we shouldn't be called until dependencies are ready
+    virtual std::shared_ptr<waveform_base> get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context); // should only return ready waveforms because we shouldn't be called until dependencies are ready
 
     // default implementations that returns an empty set
     virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<waveform_set_state> wss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the waveform
@@ -70,8 +70,8 @@ namespace snde {
     std::string channel_name;
 
     math_parameter_waveform(std::string channel_name);
-    virtual std::shared_ptr<waveform> get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context); // should only return ready waveforms
-    virtual std::set<std::string> get_prerequisites(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the waveform
+    virtual std::shared_ptr<waveform_base> get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context); // should only return ready waveforms
+    virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<waveform_set_state> wss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the waveform
     
   };
 

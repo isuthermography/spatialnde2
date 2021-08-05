@@ -112,18 +112,18 @@ typedef unsigned long size_t;
 %include "arraymanager.i"
 %include "pywrapper.i"
 %include "lockmanager.i"
-%include "infostore_or_component.i"
+ //%include "infostore_or_component.i"
 %include "geometrydata.i"
-%include "geometry.i"
+ //%include "geometry.i"
 
 #ifdef SNDE_OPENCL
 %include "opencl_utils.i"
 %include "openclcachemanager.i"
 #endif
 
-#ifdef SNDE_X3D
-%include "x3d.i"
-#endif
+ //#ifdef SNDE_X3D
+ //%include "x3d.i"
+ //#endif
 
 %{
 //#include "memallocator.hpp"

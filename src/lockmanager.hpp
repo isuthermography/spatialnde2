@@ -123,7 +123,9 @@ namespace snde {
   //class mutableinfostore; // forward declaration
   class mutablewfmdb;
   class geometry;
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
   class lockable_infostore_or_component; // forward declaration
+#endif //SNDE_MUTABLE_WFMDB_SUPPORT
   //class component; // forward declaration
   //class parameterization; // forward declaration
   class lockingposition;
@@ -1459,13 +1461,18 @@ typedef uint64_t snde_infostore_lock_mask_t;
     //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_lockable(std::shared_ptr<geometry> geom)=0;
     //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_lockable(std::shared_ptr<component> comp)=0;
     //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_lockable(std::shared_ptr<parameterization> param)=0;
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_lockable(std::shared_ptr<lockable_infostore_or_component> lic)=0;
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_array(void **array)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems)=0;
     virtual rwlock_token_set begin_temporary_locking(lockingposition startpos)=0; /* WARNING: Temporary locking only supported prior to all spawns!!! */
+
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
     virtual rwlock_token_set get_locks_read_lockable_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic)=0;
     virtual rwlock_token_set get_locks_write_lockable_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic)=0;
     virtual rwlock_token_set get_locks_lockable_mask_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
     virtual void abort_temporary_locking(rwlock_token_set temporary_lock_pool)=0; /* WARNING: Temporary locking only supported prior to all spawns!!! */
     virtual rwlock_token_set finish_temporary_locking(lockingposition endpos,rwlock_token_set locks)=0; /* WARNING: Temporary locking only supported prior to all spawns!!! */
 
@@ -1474,7 +1481,9 @@ typedef uint64_t snde_infostore_lock_mask_t;
     //virtual rwlock_token_set get_locks_read_lockable_temporary(std::shared_ptr<geometry> geom)=0;
     //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_lockable(std::shared_ptr<component> comp)=0;
     //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_lockable(std::shared_ptr<parameterization> param)=0;
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_lockable(std::shared_ptr<lockable_infostore_or_component> lic)=0;
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array(void **array)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems)=0;
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_array_region(void **array,bool write,snde_index indexstart,snde_index numelems)=0;
@@ -1484,8 +1493,9 @@ typedef uint64_t snde_infostore_lock_mask_t;
     //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<geometry> geom,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
     //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<component> comp,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
     //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<parameterization> param,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<lockable_infostore_or_component> lic,uint64_t maskentry,uint64_t readmask,uint64_t writemask)=0;
-    
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
     virtual std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> alloc_array_region(std::shared_ptr<arraymanager> manager,void **allocatedptr,snde_index nelem,std::string allocid)=0;
     virtual std::shared_ptr<lockingprocess_thread> spawn(std::function<void(void)> f)=0;
     //virtual rwlock_token_set lock_infostores(std::shared_ptr<mutablewfmdb> wfmdb,std::set<std::string> channels_to_lock,bool write)=0; // moved to mutablewfmstore.hpp
@@ -1543,7 +1553,9 @@ typedef uint64_t snde_infostore_lock_mask_t;
     //std::weak_ptr<geometry> geom;
     //std::weak_ptr<component> comp;
     //std::weak_ptr<parameterization> param;
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
       std::weak_ptr<lockable_infostore_or_component> lic;
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
       lockindex_t array_idx; // -1 if invalid
       
       snde_index idx_in_array; /* index within array, or SNDE_INDEX_INVALID*/
@@ -1650,6 +1662,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
       }
     */
 
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
     lockingposition(std::weak_ptr<lockable_infostore_or_component> lic,bool write) :
 	initial_position(false),
 	between_infostores_and_arrays(false),
@@ -1665,7 +1678,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
 	assert(lic.owner_before(invalid_lic) || invalid_lic.owner_before(lic)); // we should compare not-equal to the invalid_infostore
 	
       }
-    
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
 
       bool operator<(const lockingposition & other) const {
 	// handle initial position case
@@ -1800,6 +1813,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
 	*/
 	// neither parameterization is set... fall back to comparing lockable_infostore_or_component
 
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
 	{
 	  bool our_lic_valid=false;
 	  bool other_lic_valid=false;
@@ -1826,6 +1840,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
 	    return lic.owner_before(other.lic);
 	  }
 	}
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
 	// neither lockable_infostore_or_component is set... fall back to comparing arrays
 
 	// handle between_infostores_and_arrays case
@@ -1960,17 +1975,21 @@ typedef uint64_t snde_infostore_lock_mask_t;
     //virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_lockable(std::shared_ptr<component> comp);
 
     //virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_lockable(std::shared_ptr<parameterization> param);
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
     virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_lockable(std::shared_ptr<lockable_infostore_or_component> lic);
-
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
 
     virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_array(void **array);
 
     virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_write_array_region(void **array,snde_index indexstart,snde_index numelems);
 
     virtual rwlock_token_set begin_temporary_locking(lockingposition startpos); /* WARNING: Temporary locking only supported prior to all spawns!!! */
+    
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
     virtual rwlock_token_set get_locks_read_lockable_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic);
     virtual rwlock_token_set get_locks_write_lockable_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic);
     virtual rwlock_token_set get_locks_lockable_mask_temporary(rwlock_token_set temporary_lock_pool,std::shared_ptr<lockable_infostore_or_component> lic,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
     virtual void abort_temporary_locking(rwlock_token_set temporary_lock_pool); /* WARNING: Temporary locking only supported prior to all spawns!!! */
     virtual rwlock_token_set finish_temporary_locking(lockingposition endpos,rwlock_token_set locks); /* WARNING: Temporary locking only supported prior to all spawns!!! */
 
@@ -1980,8 +1999,10 @@ typedef uint64_t snde_infostore_lock_mask_t;
     //virtual rwlock_token_set get_locks_read_lockable_temporary(std::shared_ptr<geometry> geom);
     //virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_read_lockable(std::shared_ptr<component> comp);
     //virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_read_lockable(std::shared_ptr<parameterization> param);
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
     virtual std::pair<lockholder_index,rwlock_token_set>  get_locks_read_lockable(std::shared_ptr<lockable_infostore_or_component> lic);
-
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
+    
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array(void **array);
 
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_read_array_region(void **array,snde_index indexstart,snde_index numelems);
@@ -1994,8 +2015,9 @@ typedef uint64_t snde_infostore_lock_mask_t;
     //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<geometry> geom,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
     //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<component> comp,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
     //virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<parameterization> param,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
     virtual std::pair<lockholder_index,rwlock_token_set> get_locks_lockable_mask(std::shared_ptr<lockable_infostore_or_component> lic,uint64_t maskentry,uint64_t readmask,uint64_t writemask);
-
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
     virtual std::vector<std::tuple<lockholder_index,rwlock_token_set,std::string>> alloc_array_region(std::shared_ptr<arraymanager> manager,void **allocatedptr,snde_index nelem,std::string allocid);
 
     virtual std::shared_ptr<lockingprocess_thread> spawn(std::function<void(void)> f);
@@ -2026,7 +2048,9 @@ namespace snde {
     //geometry *geom;
     //component *comp;
     //parameterization *param;
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
     lockable_infostore_or_component *lic;
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
     void **array;
     bool write;
     snde_index startidx;
@@ -2037,7 +2061,9 @@ namespace snde {
       //geom(nullptr),
       //comp(nullptr),
       //param(nullptr),
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
       lic(nullptr),
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
       array(nullptr), write(false), startidx(SNDE_INDEX_INVALID), numelem(SNDE_INDEX_INVALID)
     {
 
@@ -2048,7 +2074,9 @@ namespace snde {
       //geom(nullptr),
       //comp(nullptr), //
       //param(nullptr),
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
       lic(nullptr),
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
       array(_array), write(_write), startidx(_startidx), numelem(_numelem)
     {
 
@@ -2082,6 +2110,7 @@ namespace snde {
     }
     */
     
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
     lockholder_index(lockable_infostore_or_component *_lic,bool _write) :
       //infostore(_infostore),
       //geom(nullptr),
@@ -2090,11 +2119,17 @@ namespace snde {
     {
 
     }
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
+
     
     // equality operator for std::unordered_map
     bool operator==(const lockholder_index b) const
     {
-      return /*b.infostore==infostore && */ /* b.geom==geom && */ /* b.comp==comp && b.param==param && */ b.lic==lic && b.array==array && b.write==write && b.startidx==startidx && b.numelem==numelem;
+      return /*b.infostore==infostore && */ /* b.geom==geom && */ /* b.comp==comp && b.param==param && */
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
+	b.lic==lic &&
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
+	b.array==array && b.write==write && b.startidx==startidx && b.numelem==numelem;
     }
   };
 
@@ -2103,7 +2138,11 @@ namespace snde {
   struct lockholder_index_hash {
     size_t operator()(const lockholder_index &x) const
     {
-      return /*std::hash<void *>{}((void *)x.infostore)+std::hash<void *>{}((void *)x.geom)+std::hash<void *>{}((void *)x.comp)+std::hash<void *>{}((void *)x.param)*/ std::hash<void *>{}((void *)x.lic)+std::hash<void *>{}((void *)x.array) + std::hash<bool>{}(x.write) + std::hash<snde_index>{}(x.startidx) + std::hash<snde_index>{}(x.numelem);
+      return /*std::hash<void *>{}((void *)x.infostore)+std::hash<void *>{}((void *)x.geom)+std::hash<void *>{}((void *)x.comp)+std::hash<void *>{}((void *)x.param)*/
+#ifdef SNDE_MUTABLE_WFMDB_SUPPORT
+	std::hash<void *>{}((void *)x.lic)+
+#endif // SNDE_MUTABLE_WFMDB_SUPPORT
+			     std::hash<void *>{}((void *)x.array) + std::hash<bool>{}(x.write) + std::hash<snde_index>{}(x.startidx) + std::hash<snde_index>{}(x.numelem);
     }
   };
   

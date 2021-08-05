@@ -139,6 +139,42 @@ namespace snde {
       
     }
   }
+
+  
+  std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::begin_atomic_external_dependencies_on_channel_update() // must be called with waveform_set_state's admin lock held
+  {
+    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> orig = external_dependencies_on_channel(); 
+    return std::make_shared<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>>(*orig);    
+  }
+  
+  void math_status::end_atomic_external_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep)
+// must be called with waveform_set_state's admin lock held
+  {
+    std::atomic_store(&_external_dependencies_on_channel,newextdep);
+  }
+  
+  std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::external_dependencies_on_channel()
+  {
+    return std::atomic_load(&_external_dependencies_on_channel);
+  }
+
+  
+  std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::begin_atomic_external_dependencies_on_function_update() // must be called with waveform_set_state's admin lock held
+  {
+    return std::make_shared<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>>(*external_dependencies_on_function());
+  }
+  
+  void math_status::end_atomic_external_dependencies_on_function_update(std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep)
+// must be called with waveform_set_state's admin lock held
+  {
+    std::atomic_store(&_external_dependencies_on_function,newextdep);
+  }
+  
+  std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::external_dependencies_on_function()
+  {
+    return std::atomic_load(&_external_dependencies_on_function);
+  }
+
   
   void math_status::notify_math_function_executed(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> wfmstate,std::shared_ptr<instantiated_math_function> fcn,bool mdonly)
   {
@@ -241,6 +277,11 @@ namespace snde {
     
   }
 				  
+  executing_math_function::executing_math_function(std::shared_ptr<instantiated_math_function> fcn) :
+    fcn(fcn)
+  {
+
+  }
 
 
 };
