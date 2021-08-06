@@ -39,32 +39,38 @@ namespace snde {
     nonmoving_copy_or_reference(const nonmoving_copy_or_reference &) = delete;
     nonmoving_copy_or_reference& operator=(const nonmoving_copy_or_reference &) = delete; 
     virtual ~nonmoving_copy_or_reference()=default;  // virtual destructor required so we can be subclassed
-
-    virtual void *get_ptr()=0;
+    
+    virtual void *get_baseptr()=0;
+    virtual void **get_basearray()=0;
   };
 
   class nonmoving_copy_or_reference_cmem: public nonmoving_copy_or_reference {
   public:
-    void *ptr;
-
-    nonmoving_copy_or_reference_cmem(size_t offset,size_t length,void *ptr) :
+    void **basearray; // pointer to the maintained pointer for the data
+    void *base_ptr; // will never move
+    nonmoving_copy_or_reference_cmem(size_t offset,size_t length,void *orig_ptr) :
       nonmoving_copy_or_reference(offset,length),
-      ptr(ptr)
+      base_ptr(malloc(length)),
+      basearray(&base_ptr)
     {
-
+      memcpy(base_ptr,((char *)orig_ptr)+offset,length);
     }
     // rule of 3
     nonmoving_copy_or_reference_cmem(const nonmoving_copy_or_reference_cmem &) = delete;
     nonmoving_copy_or_reference_cmem& operator=(const nonmoving_copy_or_reference_cmem &) = delete; 
     virtual ~nonmoving_copy_or_reference_cmem()  // virtual destructor required so we can be subclassed
     {
-      std::free(ptr);
-      ptr=nullptr; 
+      std::free(base_ptr);
+      base_ptr=nullptr; 
     }
 
-    virtual void *get_ptr()
+    virtual void **get_basearray()
     {
-      return ptr;
+      return basearray;
+    }
+    virtual void *get_baseptr()
+    {
+      return base_ptr;
     }
     
   };
@@ -104,7 +110,7 @@ namespace snde {
     {
       void *copyptr = std::malloc(nbytes);
       memcpy(copyptr,((char *)ptr)+offset,nbytes);
-      return std::make_shared<nonmoving_copy_or_reference_cmem>(offset,nbytes,copyptr);
+      return std::make_shared<nonmoving_copy_or_reference_cmem>(offset,nbytes,ptr);
     }
 
     

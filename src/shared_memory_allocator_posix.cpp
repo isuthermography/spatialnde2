@@ -35,7 +35,8 @@ namespace snde {
   
   nonmoving_copy_or_reference_posix::nonmoving_copy_or_reference_posix(snde_index offset, snde_index length,void *mmapaddr, size_t mmaplength, size_t ptroffset) : nonmoving_copy_or_reference(offset,length),mmapaddr(mmapaddr),mmaplength(mmaplength),ptroffset(ptroffset)
   {
-    
+    set_basearray();
+
   }
 
   nonmoving_copy_or_reference_posix::~nonmoving_copy_or_reference_posix()  // virtual destructor required so we can be subclassed
@@ -46,7 +47,18 @@ namespace snde {
     mmapaddr=nullptr;
   }
   
-  void *nonmoving_copy_or_reference_posix::get_ptr()
+  void **nonmoving_copy_or_reference_posix::get_basearray()
+  {
+    return &baseptr;
+    
+  }
+
+  void nonmoving_copy_or_reference_posix::set_basearray()
+  // must be called once mmapaddr is finalized
+  {
+    baseptr = get_baseptr();
+  }
+  void *nonmoving_copy_or_reference_posix::get_baseptr()
   {
     return (void *)(((char *)mmapaddr)+ptroffset);
     

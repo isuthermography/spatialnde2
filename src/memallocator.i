@@ -26,12 +26,15 @@ namespace snde {
     nonmoving_copy_or_reference& operator=(const nonmoving_copy_or_reference &) = delete; 
     virtual ~nonmoving_copy_or_reference();  // virtual destructor required so we can be subclassed
 
-    virtual void *get_ptr()=0;
+    
+    virtual void *get_baseptr()=0;
+    virtual void **get_basearray()=0;
   };
 
   class nonmoving_copy_or_reference_cmem: public nonmoving_copy_or_reference {
   public:
-    void *ptr;
+    void **basearray; // pointer to the maintained pointer for the data
+    void *base_ptr; // will never move
 
     nonmoving_copy_or_reference_cmem(size_t offset,size_t length,void *ptr);
     // rule of 3
@@ -39,8 +42,9 @@ namespace snde {
     nonmoving_copy_or_reference_cmem& operator=(const nonmoving_copy_or_reference_cmem &) = delete; 
     virtual ~nonmoving_copy_or_reference_cmem();  // virtual destructor required so we can be subclassed
 
-    virtual void *get_ptr();
     
+    virtual void *get_baseptr()=0;
+    virtual void **get_basearray()=0;
   };
 
 

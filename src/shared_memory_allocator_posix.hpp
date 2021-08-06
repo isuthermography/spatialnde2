@@ -13,6 +13,7 @@ namespace snde {
   class nonmoving_copy_or_reference_posix: public nonmoving_copy_or_reference {
   public:
     // immutable once published
+    void *baseptr;
     void *mmapaddr;
     size_t mmaplength;
     size_t ptroffset;
@@ -24,7 +25,9 @@ namespace snde {
     nonmoving_copy_or_reference_posix& operator=(const nonmoving_copy_or_reference_posix &) = delete; 
     virtual ~nonmoving_copy_or_reference_posix();  // virtual destructor required so we can be subclassed
     
-    virtual void *get_ptr();
+    virtual void **get_basearray();
+    virtual void set_basearray();
+    virtual void *get_baseptr();
   };
 
   class shared_memory_info_posix {

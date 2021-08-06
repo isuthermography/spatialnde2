@@ -61,9 +61,9 @@ struct snde_ndarray_waveform {
   size_t elementsize; 
 
   // physical data storage
-  void **basearray; // double-pointer generally passed around, used for locking, etc. so that storage can be moved around if the waveform is mutable
+  void **basearray; // double-pointer generally passed around, used for locking, etc. so that storage can be moved around if the waveform is mutable. For independently-stored waveforms this points at the _baseptr of the waveform_storage_simple object. 
   
-  void *basearray_holder; // This is what basearray is pointed to in most (all?) cases
+  //void *basearray_holder; // replaced by _baseptr of waveform_storage_simple object 
 };
 
 

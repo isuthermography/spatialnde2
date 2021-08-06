@@ -26,7 +26,7 @@ namespace snde {
     _basearray = &_baseptr;
   }
 
-  void *waveform_storage_simple::addr()
+  void **waveform_storage_simple::addr()
   {
     return _basearray;
   }
@@ -47,9 +47,9 @@ namespace snde {
     
   }
 
-  void *waveform_storage_reference::addr()
+  void **waveform_storage_reference::addr()
   {
-    return ref->get_ptr();
+    return ref->get_basearray();
   }
   
   std::shared_ptr<waveform_storage> waveform_storage_reference::obtain_nonmoving_copy_or_reference(snde_index offset_elements, snde_index length_elements)
@@ -76,7 +76,7 @@ namespace snde {
     std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<shared_memory_allocator_posix>(waveform_path,wfmrevision);
 #endif
     
-    void *baseptr = lowlevel_alloc->calloc(0,nelem*elementsize);
+    void *baseptr = lowlevel_alloc->calloc(1,nelem*elementsize);
 
     std::shared_ptr<waveform_storage_simple> retval = std::make_shared<waveform_storage_simple>(elementsize,typenum,nelem,false,lowlevel_alloc,baseptr);
 

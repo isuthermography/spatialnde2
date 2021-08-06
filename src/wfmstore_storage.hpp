@@ -36,12 +36,18 @@ namespace snde {
     waveform_storage& operator=(const waveform_storage &) = delete; 
     virtual ~waveform_storage()=default; // virtual destructor so we can subclass
 
-    virtual void *addr()=0; // return waveform base address
+    virtual void **addr()=0; // return pointer to waveform base address pointer
     virtual std::shared_ptr<waveform_storage> obtain_nonmoving_copy_or_reference(snde_index offset, snde_index length)=0; // NOTE: The returned storage can only be trusted if (a) the originating waveform is immutable, or (b) the originating waveform is mutable but has not been changed since obtain_nonmoving_copy_or_reference() was called. i.e. can only be used as long as the originating waveform is unchanged. Note that this is used only for getting a direct reference within a larger (perhaps mutable) allocation, such as space for a texture or mesh geometry. If you are just referencing a range of elements of a finalized waveofrm you can just reference the waveform_storage shared pointer with a suitable base_index, stride array, and dimlen array. 
     
   };
 
   class waveform_storage_simple: public waveform_storage {
+    // waveform_storage_simple represents
+    // the simple case of a single space used for the entire waveform
+    // This is as opposed to a reference into a shared space (e.g. in
+    // a memory space used for 3D graphics)
+    // that might be reallocated or similar.
+    
   public:
     // lowlevel_alloc is thread safe
     // _baseptr is immutable once published
@@ -51,7 +57,7 @@ namespace snde {
 
     waveform_storage_simple(size_t elementsize,unsigned typenum,snde_index nelem,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr);
     virtual ~waveform_storage_simple() = default; // _baseptr contents freed when all references to lowlevel_alloc go away
-    virtual void *addr();
+    virtual void **addr();
     virtual std::shared_ptr<waveform_storage> obtain_nonmoving_copy_or_reference(snde_index offset, snde_index length);
   };
 
@@ -64,7 +70,7 @@ namespace snde {
 
     waveform_storage_reference(snde_index nelem,std::shared_ptr<waveform_storage> orig,std::shared_ptr<nonmoving_copy_or_reference> ref);
     virtual ~waveform_storage_reference() = default; 
-    virtual void *addr();
+    virtual void **addr();
     virtual std::shared_ptr<waveform_storage> obtain_nonmoving_copy_or_reference(snde_index offset, snde_index length);
   };
 

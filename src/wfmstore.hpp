@@ -136,7 +136,7 @@ namespace snde {
   extern const std::unordered_map<unsigned,size_t> wtn_typesizemap; // Look up element size bysed on typenum
   extern const std::unordered_map<unsigned,std::string> wtn_ocltypemap; // Look up opencl type string based on typenum
   
-  class waveform_base: public std::enable_shared_from_this<waveform_base> {
+  class waveform_base  {
     // may be subclassed by creator
     // mutable in certain circumstances following the conventions of snde_waveform
 
@@ -169,19 +169,21 @@ namespace snde {
     //  * Should be called by the owner of the given channel, as verified by owner_id
     //  * Should be called within a transaction (i.e. the wfmdb transaction_lock is held by the existance of the transaction)
     //  * Because within a transaction, wfmdb->current_transaction is valid
-    // This constructor automatically adds the new waveform to the current transaction
+    // must call wfmdb->register_new_wfm() on the constructed waveform
     waveform_base(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<channel> chan,void *owner_id,size_t info_structsize=sizeof(struct snde_waveform_base));
 
     // This constructor is reserved for the math engine
-    // Creates waveform structure and adds to the pre-existing globalrev. 
-    waveform_base(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,void *owner_id,std::shared_ptr<waveform_set_state> calc_wss,size_t info_structsize=sizeof(struct snde_waveform_base));
+    // must call wfmdb->register_new_math_wfm() on the constructed waveform
+    waveform_base(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,std::shared_ptr<waveform_set_state> calc_wss,size_t info_structsize=sizeof(struct snde_waveform_base));
 
     // rule of 3
     waveform_base & operator=(const waveform_base &) = delete; 
     waveform_base(const waveform_base &orig) = delete;
     virtual ~waveform_base(); // virtual destructor so we can be subclassed
 
-    virtual std::shared_ptr<waveform_set_state> _get_originating_wss_wfmdb_and_wfm_admin_prelocked(); // version of get_originating_wss() to use if you have the waveform database and waveform's admin locks already locked. 
+    virtual std::shared_ptr<waveform_set_state> _get_originating_wss_wfmdb_and_wfm_admin_prelocked(); // version of get_originating_wss() to use if you have the waveform database and waveform's admin locks already locked.
+    std::shared_ptr<waveform_set_state> _get_originating_wss_wfmdb_admin_prelocked(); // version of get_originating_wss() to use if you have the waveform database admin lock already locked.
+
     virtual std::shared_ptr<waveform_set_state> get_originating_wss(); // Get the originating waveform set state (often a globalrev). You should only call this if you are sure that originating wss must still exist (otherwise may generate a snde_error), such as before the creator has declared the waveform "ready". This will lock the waveform database and wfm admin locks, so any locks currently held must precede both in the locking order
     
 
@@ -207,18 +209,17 @@ namespace snde {
     //  * Should be called by the owner of the given channel, as verified by owner_id
     //  * Should be called within a transaction (i.e. the wfmdb transaction_lock is held by the existance of the transaction)
     //  * Because within a transaction, wfmdb->current_transaction is valid
-    // This constructor automatically adds the new waveform to the current transaction
-    // WARNING: Don't call directly:
-    //    * If the type is known at compile time, better to instantiate ndtyped_waveform<T>(...)
-    //    * If the type is known only at run time, call .create_typed_waveform() method
+    // WARNING: Don't call directly as this constructor doesn't add to the transaction (need to call wfmdb->register_new_waveform())
+    //    * If the type is known at compile time, better to call ndtyped_waveform<T>::create_waveform(...)
+    //    * If the type is known only at run time, call ::create_typed_waveform() method
     ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum,size_t info_structsize=sizeof(struct snde_ndarray_waveform));
     
     // This constructor is reserved for the math engine
-    // Creates waveform structure and adds to the pre-existing globalrev. 
-    // WARNING: Don't call directly:
-    //    * If the type is known at compile time, better to instantiate ndtyped_waveform<T>(...)
-    //    * If the type is known only at run time, call .create_typed_waveform() method
-    ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,void *owner_id,std::shared_ptr<waveform_set_state> calc_wss,unsigned typenum,size_t info_structsize=sizeof(struct snde_ndarray_waveform));
+    // Creates waveform structure . 
+    // WARNING: Don't call directly as this constructor doesn't and  to the pre-existing globalrev (need to call wfmdb->register_new_math_wfm())
+    //    * If the type is known at compile time, better to call ndtyped_waveform<T>::create_waveform(...)
+    //    * If the type is known only at run time, call ::create_typed_waveform() method
+    ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,std::shared_ptr<waveform_set_state> calc_wss,unsigned typenum,size_t info_structsize=sizeof(struct snde_ndarray_waveform));
 
     // rule of 3
     ndarray_waveform & operator=(const ndarray_waveform &) = delete; 
@@ -228,6 +229,7 @@ namespace snde {
     inline snde_ndarray_waveform *ndinfo() {return (snde_ndarray_waveform *)info;}
 
     // static factory methods for creating waveforms with runtime-determined types
+    // for regular (non-math) use. Automatically registers the new waveform
     static std::shared_ptr<ndarray_waveform> create_typed_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
     static std::shared_ptr<ndarray_waveform> create_typed_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,void *owner_id,std::shared_ptr<waveform_set_state> calc_wss,unsigned typenum);
     
@@ -284,138 +286,6 @@ namespace snde {
   };
 
 
-  template <typename T>
-  class ndtyped_waveform : public ndarray_waveform {
-  public:
-    typedef T dtype;
-
-    // This constructor is to be called by everything except the math engine
-    //  * Should be called by the owner of the given channel, as verified by owner_id
-    //  * Should be called within a transaction (i.e. the wfmdb transaction_lock is held by the existance of the transaction)
-    //  * Because within a transaction, wfmdb->current_transaction is valid
-    // This constructor automatically adds the new waveform to the current transaction
-    ndtyped_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<channel> chan,void *owner_id) :
-      ndarray_waveform(wfmdb,chan,owner_id,wtn_typemap.at(typeid(T)))
-    {
-      
-    }
-    
-    // This constructor is reserved for the math engine
-    // Creates waveform structure and adds to the pre-existing globalrev. 
-    ndtyped_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,void *owner_id,std::shared_ptr<waveform_set_state> calc_wss) :
-      ndarray_waveform(wfmdb,chanpath,owner_id,calc_wss,wtn_typemap.at(typeid(T)))
-    {
-      
-    }
-    
-    T *dataptr() { return (T*)void_dataptr; }
-
-    T& element(std::vector<snde_index> idx);
-    
-    // rule of 3
-    ndtyped_waveform & operator=(const ndtyped_waveform &) = delete; 
-    ndtyped_waveform(const ndtyped_waveform &orig) = delete;
-    ~ndtyped_waveform() { }
-
-
-    
-    // see https://stackoverflow.com/questions/12073689/c11-template-function-specialization-for-integer-types/12073915
-    // https://stackoverflow.com/questions/57964743/cannot-be-overloaded-error-while-trying-to-enable-sfinae-with-enable-if
-    // element_double for arithmetic types
-    template <typename U = T>
-    typename std::enable_if<std::is_arithmetic<U>::value,double>::type element_double(const std::vector<snde_index> &idx) // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
-    {
-      size_t offset = element_offset(idx);
-      return (double)dataptr()[offset];
-    }
-
-    // element_double for nonarithmetic types
-    template <typename U = T>
-    typename std::enable_if<!std::is_arithmetic<U>::value,double>::type element_double(const std::vector<snde_index> &idx) // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
-    {
-      throw snde_error("Cannot extract floating point value from non-arithmetic type");
-    }
-    
-    // assign_double for arithmetic types
-    template <typename U = T>
-    typename std::enable_if<std::is_arithmetic<U>::value,void>::type assign_double(const std::vector<snde_index> &idx,double val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    {
-      size_t offset = element_offset(idx);
-      dataptr[offset]=(T)val;      
-    }
-
-    // assign_double for nonarithmetic types
-    template <typename U = T>
-    typename std::enable_if<!std::is_arithmetic<U>::value,void>::type assign_double(const std::vector<snde_index> &idx,double val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    {
-      throw snde_error("Cannot assign floating point value from non-arithmetic type");
-    }
-
-    
-    // element_int for arithmetic types
-    template <typename U = T>
-    typename std::enable_if<std::is_arithmetic<U>::value,int64_t>::type element_int(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
-    {
-      size_t offset = element_offset(idx);
-      return (int64_t)dataptr[offset];
-    }
-
-    // element_int for non-arithmetic types
-    template <typename U = T>
-    typename std::enable_if<!std::is_arithmetic<U>::value,int64_t>::type element_int(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
-    {
-      throw snde_error("Cannot extract integer value from non-arithmetic type");
-    }
-    
-    // assign_int for arithmetic types
-    template <typename U = T>
-    typename std::enable_if<std::is_arithmetic<U>::value,void>::type  assign_int(const std::vector<snde_index> &idx,int64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    {
-      size_t offset = element_offset(idx);
-      dataptr[offset]=(T)val;
-    }
-
-    // assign_int for non-arithmetic types
-    template <typename U = T>
-    typename std::enable_if<!std::is_arithmetic<U>::value,void>::type  assign_int(const std::vector<snde_index> &idx,int64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    {
-      throw snde_error("Cannot assign integer value to non-arithmetic type");
-    }
-    
-    // element_unsigned for arithmetic types
-    template <typename U = T>
-    typename std::enable_if<std::is_arithmetic<U>::value,uint64_t>::type element_unsigned(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
-    {
-      size_t offset = element_offset(idx);
-      return (uint64_t)dataptr[offset];
-    }
-    
-    // element_unsigned for non-arithmetic types
-    template <typename U = T>
-    typename std::enable_if<!std::is_arithmetic<U>::value,uint64_t>::type element_unsigned(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
-    {
-      throw snde_error("Cannot extract integer value from non-arithmetic type");
-    }
-
-    
-    // assign_unsigned for arithmetic types
-    template <typename U = T>
-    typename std::enable_if<std::is_arithmetic<U>::value,void>::type assign_unsigned(const std::vector<snde_index> &idx,uint64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    {
-      size_t offset = element_offset(idx);
-      dataptr[offset]=(T)val;
-    }
-
-
-    // assign_unsigned for non-arithmetic types
-    template <typename U = T>
-    typename std::enable_if<!std::is_arithmetic<U>::value,void>::type assign_unsigned(const std::vector<snde_index> &idx,uint64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    {
-      throw snde_error("Cannot assign integer value to non-arithmetic type");
-    }
-
-  };
-  
   class transaction {
   public:
     // mutable until end of transaction when it is destroyed and converted to a globalrev structure
@@ -635,7 +505,7 @@ namespace snde {
     std::promise<void> promise;
 
     // After construction, need to call .apply_to_wss() method!!!
-    promise_channel_notify(const std::vector<std::string> &mdonly_channels,const std::vector<std::string> &ready_channels);
+    promise_channel_notify(const std::vector<std::string> &mdonly_channels,const std::vector<std::string> &ready_channels,bool waveformset_complete);
     // rule of 3
     promise_channel_notify & operator=(const promise_channel_notify &) = delete; 
     promise_channel_notify(const promise_channel_notify &orig) = delete;
@@ -701,7 +571,7 @@ namespace snde {
   public:
     std::map<std::string,channel_state> channel_map; // key is full channel path... The map itself (not the embedded states) is immutable once the waveform_set_state is published
     
-    /// all of these are indexed by their their full path. Every entry in channel_map should be in exactly one of these. Locked by admin mutex per above
+    /// all of these are indexed by their their full path. Every entry in channel_map should be in exactly one of these. Locked by wss admin mutex per above
     // The index is the shared_ptr in globalrev_channel.config
     std::unordered_map<std::shared_ptr<channelconfig>,channel_state *> defined_waveforms;
     std::unordered_map<std::shared_ptr<channelconfig>,channel_state *> instantiated_waveforms;
@@ -712,7 +582,7 @@ namespace snde {
   };
 
 
-  class waveform_set_state {
+  class waveform_set_state : public std::enable_shared_from_this<waveform_set_state> {
   public:
     std::mutex admin; // locks changes to wfmstatus including channel_map contents (map itself is immutable once published), mathstatus,  and the _waveforms reference maps/sets and notifiers. Precedes wfmstatus.channel_map.wfm.admin and Python GIL in locking order
     std::atomic<bool> ready; // indicates that all waveforms except ondemand and data_requestonly waveforms are READY (mutable waveforms may be OBSOLETE)
@@ -727,6 +597,9 @@ namespace snde {
     waveform_set_state& operator=(const waveform_set_state &) = delete; 
     waveform_set_state(const waveform_set_state &orig) = delete;
     virtual ~waveform_set_state()=default;
+
+    void wait_complete(); // wait for all the math in this waveform_set_state or globalrev to reach nominal completion (metadataonly or ready, as configured)
+
 
     // admin lock must be locked when calling this function. Returns
     std::shared_ptr<waveform_set_state> prerequisite_state();
@@ -779,6 +652,8 @@ namespace snde {
     // active_transaction or delete the active_transaction) until all other threads are finished with transaction actions
     std::shared_ptr<active_transaction> start_transaction();
     std::shared_ptr<globalrevision> end_transaction(std::shared_ptr<active_transaction> act_trans);
+    void register_new_wfm(std::shared_ptr<waveform_base> new_wfm);
+    void register_new_math_wfm(void *owner_id,std::shared_ptr<waveform_set_state> calc_wss,std::shared_ptr<waveform_base> new_wfm); // registers newly created math waveform in the given wss (and extracts mutable flag for the given channel into the waveform structure)). 
 
     std::shared_ptr<globalrevision> latest_globalrev();
 
@@ -807,6 +682,190 @@ namespace snde {
 
     virtual ~_previous_globalrev_done_notify()=default;
     virtual void perform_notify();
+  };
+  
+  template <typename T>
+  class ndtyped_waveform : public ndarray_waveform {
+  public:
+    typedef T dtype;
+
+    // This constructor is to be called by everything except the math engine
+    //  * Should be called by the owner of the given channel, as verified by owner_id
+    //  * Should be called within a transaction (i.e. the wfmdb transaction_lock is held by the existance of the transaction)
+    //  * Because within a transaction, wfmdb->current_transaction is valid
+    // WARNING: Don't call directly as this constructor doesn't add to the transaction (need to call wfmdb->register_new_waveform(). Use ndtyped_waveform<T>::create_waveform() instead
+    ndtyped_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<channel> chan,void *owner_id) :
+      ndarray_waveform(wfmdb,chan,owner_id,wtn_typemap.at(typeid(T)))
+    {
+      
+    }
+    
+    // This constructor is reserved for the math engine
+    // Creates waveform structure
+    // WARNING: Don't call directly as this constructor doesn't add to the transaction (need to call wfmdb->register_new_math_waveform(). Use ndtyped_waveform<T>::create_waveform() instead
+    ndtyped_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,std::shared_ptr<waveform_set_state> calc_wss) :
+      ndarray_waveform(wfmdb,chanpath,calc_wss,wtn_typemap.at(typeid(T)))
+    {
+      
+    }
+
+    static std::shared_ptr<ndtyped_waveform> create_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<channel> chan,void *owner_id)
+    {
+      std::shared_ptr<ndtyped_waveform> new_wfm = std::make_shared<ndtyped_waveform>(wfmdb,chan,owner_id);
+      wfmdb->register_new_wfm(new_wfm);
+      return new_wfm;
+    }
+
+    
+    static std::shared_ptr<ndtyped_waveform> create_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,void *owner_id,std::shared_ptr<waveform_set_state> calc_wss)
+    {
+      std::shared_ptr<ndtyped_waveform> new_wfm = std::make_shared<ndtyped_waveform>(wfmdb,chanpath,owner_id,calc_wss);
+      wfmdb->register_new_math_wfm(calc_wss,new_wfm);
+      return new_wfm;
+    }
+    
+    T *dataptr() { return (T*)void_dataptr(); }
+
+    T& element(std::vector<snde_index> idx);
+    
+    // rule of 3
+    ndtyped_waveform & operator=(const ndtyped_waveform &) = delete; 
+    ndtyped_waveform(const ndtyped_waveform &orig) = delete;
+    ~ndtyped_waveform() { }
+
+
+    
+    // see https://stackoverflow.com/questions/12073689/c11-template-function-specialization-for-integer-types/12073915
+    // https://stackoverflow.com/questions/57964743/cannot-be-overloaded-error-while-trying-to-enable-sfinae-with-enable-if
+    // but the above method requires that the methods be templates to use SFINAE,
+    // but template methods cannot override a parent's virtual methods per
+    // https://stackoverflow.com/questions/2778352/template-child-class-overriding-a-parent-classs-virtual-function
+    // So we need non-template wrappers that call the SFINAE templates
+
+
+    // Here are the SFINAE templates
+    // element_double for arithmetic types
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,double>::type _element_double(const std::vector<snde_index> &idx) // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      size_t offset = element_offset(idx);
+      return (double)dataptr()[offset];
+    }
+
+    // element_double for nonarithmetic types
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,double>::type _element_double(const std::vector<snde_index> &idx) // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      throw snde_error("Cannot extract floating point value from non-arithmetic type");
+    }
+    
+    // assign_double for arithmetic types
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,void>::type _assign_double(const std::vector<snde_index> &idx,double val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      size_t offset = element_offset(idx);
+      dataptr()[offset]=(T)val;      
+    }
+
+    // assign_double for nonarithmetic types
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,void>::type _assign_double(const std::vector<snde_index> &idx,double val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      throw snde_error("Cannot assign floating point value from non-arithmetic type");
+    }
+
+    
+    // element_int for arithmetic types
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,int64_t>::type _element_int(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      size_t offset = element_offset(idx);
+      return (int64_t)dataptr()[offset];
+    }
+
+    // element_int for non-arithmetic types
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,int64_t>::type _element_int(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      throw snde_error("Cannot extract integer value from non-arithmetic type");
+    }
+    
+    // assign_int for arithmetic types
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,void>::type  _assign_int(const std::vector<snde_index> &idx,int64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      size_t offset = element_offset(idx);
+      dataptr()[offset]=(T)val;
+    }
+
+    // assign_int for non-arithmetic types
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,void>::type  _assign_int(const std::vector<snde_index> &idx,int64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      throw snde_error("Cannot assign integer value to non-arithmetic type");
+    }
+    
+    // element_unsigned for arithmetic types
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,uint64_t>::type _element_unsigned(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      size_t offset = element_offset(idx);
+      return (uint64_t)dataptr()[offset];
+    }
+    
+    // element_unsigned for non-arithmetic types
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,uint64_t>::type _element_unsigned(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      throw snde_error("Cannot extract integer value from non-arithmetic type");
+    }
+
+    
+    // assign_unsigned for arithmetic types
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,void>::type _assign_unsigned(const std::vector<snde_index> &idx,uint64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      size_t offset = element_offset(idx);
+      dataptr()[offset]=(T)val;
+    }
+
+
+    // assign_unsigned for non-arithmetic types
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,void>::type _assign_unsigned(const std::vector<snde_index> &idx,uint64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      throw snde_error("Cannot assign integer value to non-arithmetic type");
+    }
+
+
+    // ... and here are the non-template wrappers
+    double element_double(const std::vector<snde_index> &idx)
+    {
+      return _element_double(idx);
+    }
+    void assign_double(const std::vector<snde_index> &idx,double val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      _assign_double(idx,val);
+    }
+    
+    int64_t element_int(const std::vector<snde_index> &idx)
+    {
+      return _element_int(idx);
+    }
+    void assign_int(const std::vector<snde_index> &idx,int64_t val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      _assign_int(idx,val);
+    }
+
+    uint64_t element_unsigned(const std::vector<snde_index> &idx)
+    {
+      return _element_unsigned(idx);
+    }
+    void assign_unsigned(const std::vector<snde_index> &idx,uint64_t val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      _assign_unsigned(idx,val);
+    }
+
   };
   
 
