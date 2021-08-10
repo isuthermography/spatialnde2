@@ -83,7 +83,7 @@ endif()
 
 
 
-set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/wfmmath_compute_resource.cpp src/wfmmath.cpp src/wfmmath_parameter.cpp src/wfmstore.cpp src/wfmstore_storage.cpp ) # src/infostore_or_component.cpp src/geometry.cpp src/revision_manager.cpp src/mutablewfmstore.cpp )
+set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/wfmmath_compute_resource.cpp src/wfmmath.cpp src/wfmmath_parameter.cpp src/wfmstore.cpp src/wfmstore_storage.cpp src/wfmmath_cppfunction.cpp ) # src/infostore_or_component.cpp src/geometry.cpp src/revision_manager.cpp src/mutablewfmstore.cpp )
 
 if (NOT WIN32)
   set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} src/shared_memory_allocator_posix.cpp )
@@ -225,6 +225,10 @@ target_link_libraries(allocator_test ${SPATIALNDE2_LIBS})
 add_executable(wfmdb_test
         test/wfmdb_test.cpp)
 target_link_libraries(wfmdb_test ${SPATIALNDE2_LIBS})
+
+add_executable(wfmmath_test
+        test/wfmmath_test.cpp)
+target_link_libraries(wfmmath_test ${SPATIALNDE2_LIBS})
 
 #add_executable(manager_test
 #        test/manager_test.cpp)

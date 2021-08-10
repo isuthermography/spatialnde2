@@ -3,11 +3,11 @@
 #include "wfmmath.hpp"
 
 namespace snde {
-  compute_resource_option::compute_resource_option(unsigned type, size_t metadata_bytes,size_t data_bytes,std::shared_ptr<compute_code> function_code) :
+  compute_resource_option::compute_resource_option(unsigned type, size_t metadata_bytes,size_t data_bytes,std::shared_ptr<void> parameter_block) :
     type(type),
     metadata_bytes(metadata_bytes),
     data_bytes(data_bytes),
-    function_code(function_code)
+    parameter_block(parameter_block)
   {
 
   }
@@ -16,11 +16,11 @@ namespace snde {
   compute_resource_option_cpu::compute_resource_option_cpu(unsigned type,
 							   size_t metadata_bytes,
 							   size_t data_bytes,
-							   std::shared_ptr<compute_code> function_code,
+							   std::shared_ptr<void> parameter_block,
 							   snde_float64 flops,
 							   size_t max_effective_cpu_cores,
 							   size_t useful_cpu_cores) :
-    compute_resource_option(type,metadata_bytes,data_bytes,function_code),
+    compute_resource_option(type,metadata_bytes,data_bytes,parameter_block),
     flops(flops),
     max_effective_cpu_cores(max_effective_cpu_cores),
     useful_cpu_cores(useful_cpu_cores)
@@ -32,12 +32,12 @@ namespace snde {
   compute_resource_option_opencl::compute_resource_option_opencl(unsigned type,
 								 size_t metadata_bytes,
 								 size_t data_bytes,
-								 std::shared_ptr<compute_code> function_code,
+								 std::shared_ptr<void> parameter_block,
 								 snde_float64 cpu_flops,
 								 snde_float64 gpu_flops,
 								 size_t max_effective_cpu_cores,
 								 size_t max_useful_cpu_cores) :
-    compute_resource_option(type,metadata_bytes,data_bytes,function_code),
+    compute_resource_option(type,metadata_bytes,data_bytes,parameter_block),
     cpu_flops(cpu_flops),
     gpu_flops(gpu_flops),
     max_effective_cpu_cores(max_effective_cpu_cores),
@@ -74,7 +74,8 @@ namespace snde {
 
     
     // get the compute options
-    std::list<std::shared_ptr<compute_resource_option>> compute_options = computation->function_to_execute->fcn->fcn->get_compute_options(computation->function_to_execute);
+    //std::list<std::shared_ptr<compute_resource_option>> compute_options = computation->function_to_execute->get_compute_options();
+    std::list<std::shared_ptr<compute_resource_option>> compute_options = computation->function_to_execute->perform_compute_options();
 
     
     // we can execute anything immutable, anything that is not part of a globalrev (i.e. ondemand), or once the prior globalrev is fully ready
@@ -87,9 +88,11 @@ namespace snde {
 
     // ***!!!! Really here we need to see if we want to run it in
     // mutable or immutable mode !!!***
-    if (!computation->function_to_execute->fcn->fcn->mandatory_mutable || !computation_wss_is_globalrev || !prior_globalrev || prior_globalrev->ready) {
-      todo_list.emplace(computation);
+    //if (!computation->function_to_execute->inst->fcn->mandatory_mutable || !computation_wss_is_globalrev || !prior_globalrev || prior_globalrev->ready) {
 
+    if (!computation->function_to_execute->is_mutable || !computation_wss_is_globalrev || !prior_globalrev || prior_globalrev->ready) {
+      todo_list.emplace(computation);
+      
       // This is a really dumb loop that just assigns all matching resources
       std::shared_ptr <available_compute_resource> selected_resource;
       std::shared_ptr <compute_resource_option> selected_option;
@@ -110,7 +113,7 @@ namespace snde {
       }
       
       if (!selected_resource) {
-	throw snde_error("No suitable compute resource found for math function %s",computation->function_to_execute->fcn->definition->definition_command.c_str());
+	throw snde_error("No suitable compute resource found for math function %s",computation->function_to_execute->inst->definition->definition_command.c_str());
       }
       
       
@@ -123,7 +126,7 @@ namespace snde {
   }
 
 
-  void available_compute_resource_database::queue_computation(std::shared_ptr<waveform_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn)
+  void available_compute_resource_database::queue_computation(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn)
   {
 
     bool ready_wss_is_globalrev = false; 
@@ -140,20 +143,50 @@ namespace snde {
       ready_wss_is_globalrev=true; 
     }
 
-    std::shared_ptr<executing_math_function> function_to_execute=std::make_shared<executing_math_function>(ready_fcn);
-    std::shared_ptr<pending_computation> computation = std::make_shared<pending_computation>(function_to_execute,ready_wss,globalrev_ptr->globalrev,0);
-
-    bool is_mutable=false; 
+    bool is_mutable=false;
+    bool mdonly;
     {
       std::lock_guard<std::mutex> ready_wss_admin(ready_wss->admin);
       math_function_status &ready_wss_status = ready_wss->mathstatus.function_status.at(ready_fcn);
       is_mutable = ready_wss_status.is_mutable;
+      mdonly = ready_wss_status.mdonly;
       if (ready_wss_status.ready_to_execute) {
 	assert(ready_wss_status.execution_demanded); 
 	// clear ready_to_execute flag, indicating that we are taking care of execution
 	ready_wss_status.ready_to_execute=false;
       }
     }
+
+    //std::shared_ptr<executing_math_function> function_to_execute=std::make_shared<executing_math_function>(ready_fcn);
+    std::shared_ptr<executing_math_function> function_to_execute=ready_fcn->fcn->initiate_execution(ready_wss,ready_fcn,is_mutable,mdonly);
+
+    bool new_revision=true;
+    
+    // Check new_revision_optional
+    if (ready_fcn->fcn->new_revision_optional) {
+      // Need to check if it s OK to execute
+
+      new_revision = function_to_execute->perform_decide_new_revision();
+    }
+
+    if (!new_revision) {
+      {
+	std::lock_guard<std::mutex> ready_wss_admin(ready_wss->admin);
+	math_function_status &ready_wss_status = ready_wss->mathstatus.function_status.at(ready_fcn);
+
+	ready_wss_status.complete=true;
+      }
+      for (auto && result_channel_path_ptr: ready_fcn->result_channel_paths) {
+	channel_state &chanstate = ready_wss->wfmstatus.channel_map.at(*result_channel_path_ptr);
+	chanstate.issue_math_notifications(wfmdb,ready_wss);
+	chanstate.issue_nonmath_notifications(ready_wss);
+	
+      }
+      
+      return;
+    }
+    std::shared_ptr<pending_computation> computation = std::make_shared<pending_computation>(function_to_execute,ready_wss,globalrev_ptr->globalrev,0);
+
 
     _queue_computation_internal(computation); // this call sets computation to nullptr;
     
@@ -347,7 +380,7 @@ namespace snde {
 
 	  
 	  
-	  math_function_status &our_status = wfmstate->mathstatus.function_status.at(func->fcn);
+	  math_function_status &our_status = wfmstate->mathstatus.function_status.at(func->inst);
 	  mdonly = our_status.mdonly;
 	  is_mutable = our_status.is_mutable;
 	  mdonly_executed = our_status.mdonly_executed; 
@@ -355,18 +388,23 @@ namespace snde {
 	}
 
 
+	/* !!!*** Needs to be written 
+
+	func->execute(mdonly,is_mutable,mdonly_executed);
+
 	if (is_mutable) {
 	  // Locking: Read locks can be implicit, as even if we are
 	  // a mutable waveform ourselves, nobody should
 	  // be allowed to write to our prerequisites
 	  throw snde_error("Mutable execution not yet implemented");
-	  //func->fcn->result_channel_paths
+	  //func->inst->result_channel_paths
 	} else {
 	  // non-mutable execution
 	  // !!!*** Need to accommodate possible decision on whether to even define a new revision or reference the old one ***!!!
+
 	  if (mdonly) {
 	    if (mdonly_executed) {
-	      throw snde_error("Math function %s reexecuting mdonly (?)",func->fcn->definition->definition_command.c_str());
+	      throw snde_error("Math function %s reexecuting mdonly (?)",func->inst->definition->definition_command.c_str());
 	    }
 	    compute_option_cpu->function_code->do_metadata_only(wfmstate,func,compute_option_cpu);
 	  } else if (mdonly_executed) {
@@ -375,14 +413,14 @@ namespace snde {
 	  } else {
 	    compute_option_cpu->function_code->do_compute(wfmstate,func,compute_option_cpu);
 	    
-	  }
+	    }
 	}
-
+	*/
 	std::shared_ptr<wfmdatabase> wfmdb_strong = wfmdb.lock();
 
 	// Need to do notifications that the math function finished.
 	if (wfmdb_strong) {
-	  wfmstate->mathstatus.notify_math_function_executed(wfmdb_strong,wfmstate,func->fcn,mdonly);
+	  wfmstate->mathstatus.notify_math_function_executed(wfmdb_strong,wfmstate,func->inst,mdonly);
 	}
 	
 	// Completion notification:

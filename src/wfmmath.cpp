@@ -2,9 +2,10 @@
 #include "wfmstore.hpp"
 
 namespace snde {
-  math_function::math_function(size_t num_results,const std::list<std::tuple<std::string,unsigned>> &param_names_types) :
+  math_function::math_function(size_t num_results,const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated,bool is_mutable,bool mdonly)> initiate_execution) :
     num_results(num_results),
-    param_names_types(param_names_types)
+    param_names_types(param_names_types),
+    initiate_execution(initiate_execution)
   {
     new_revision_optional=false;
     pure_optionally_mutable=false;
@@ -12,21 +13,42 @@ namespace snde {
     self_dependent=false; 
   }
 
-  instantiated_math_function::instantiated_math_function() :
+  math_definition::math_definition(std::string definition_command) :
+    definition_command(definition_command)
+  {
+
+  }
+
+  instantiated_math_function::instantiated_math_function(const std::vector<std::shared_ptr<math_parameter>> & parameters,
+							 const std::vector<std::shared_ptr<std::string>> & result_channel_paths,
+							 std::string channel_path_context,
+							 bool is_mutable,
+							 bool ondemand,
+							 bool mdonly,
+							 std::shared_ptr<math_function> fcn,
+							 std::shared_ptr<math_definition> definition) :
+    parameters(parameters.begin(),parameters.end()),
+    result_channel_paths(result_channel_paths.begin(),result_channel_paths.end()),
+    channel_path_context(channel_path_context),
     disabled(false),
-    ondemand(false),
-    mdonly(false)
+    is_mutable(is_mutable),
+    self_dependent(fcn->new_revision_optional || is_mutable || fcn->self_dependent),
+    ondemand(ondemand),
+    mdonly(mdonly),
+    fcn(fcn),
+    definition(definition)
   {
     
   }
   
-  std::shared_ptr<instantiated_math_function> instantiated_math_function::clone()
+  
+  std::shared_ptr<instantiated_math_function> instantiated_math_function::clone(bool definition_change)
   {
     // This code needs to be repeated in every derived class with the make_shared<> referencing the derived class
     std::shared_ptr<instantiated_math_function> copy = std::make_shared<instantiated_math_function>(*this);
 
     // see comment at start of definition of class instantiated_math_function
-    if (definition) {
+    if (definition_change && definition) {
       assert(!copy->original_function);
       copy->original_function = shared_from_this();
       copy->definition = nullptr; 
@@ -113,10 +135,10 @@ namespace snde {
     
     // put all math functions into function_status and _external_dependencies databases and into pending_functions?
     for (auto && math_function_name_ptr: math_functions->defined_math_functions) {
-      if (function_status.find(math_function_name_ptr.second) != function_status.end()) {
+      if (function_status.find(math_function_name_ptr.second) == function_status.end()) {
 	function_status.emplace(std::piecewise_construct, // ***!!! Need to fill out prerequisites somewhere, but not sure constructor is the place!!!*** ... NO. prerequisites are filled out in end_transaction(). 
 				std::forward_as_tuple(math_function_name_ptr.second),
-				std::forward_as_tuple(math_function_name_ptr.second->mdonly,math_function_name_ptr.second->fcn->mandatory_mutable)); // For now we only set the mutable flag for mandatory_mutable functions. In the future we can also enable it when suitable for pure_optionally_mutable functions. 
+				std::forward_as_tuple(math_function_name_ptr.second->mdonly,math_function_name_ptr.second->is_mutable)); // Set the mutable flag according to the instantiated_math_function (do we really need this flag still???) 
 	_external_dependencies_on_function->emplace(std::piecewise_construct,
 						    std::forward_as_tuple(math_function_name_ptr.second),
 						    std::forward_as_tuple());
@@ -245,7 +267,7 @@ namespace snde {
       std::shared_ptr<instantiated_math_function> ready_fcn;
 
       std::tie(ready_wss,ready_fcn) = ready_wss_ready_fcn;
-      wfmdb->compute_resources.queue_computation(ready_wss,ready_fcn);
+      wfmdb->compute_resources.queue_computation(wfmdb,ready_wss,ready_fcn);
     }
 
 
@@ -277,9 +299,27 @@ namespace snde {
     
   }
 				  
-  executing_math_function::executing_math_function(std::shared_ptr<instantiated_math_function> fcn) :
-    fcn(fcn)
+  executing_math_function::executing_math_function(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool is_mutable,bool mdonly) :
+    wss(wss),
+    inst(inst),
+    is_mutable(is_mutable),
+    mdonly(mdonly)
   {
+    std::shared_ptr<waveform_base> null_waveform;
+    
+    
+    // initialize self_dependent_waveforms, if applicable
+    if (inst && inst->self_dependent) {
+      for (auto &&result_channel_path_ptr: inst->result_channel_paths) {
+	if (result_channel_path_ptr) {
+	  channel_state &chanstate = wss->wfmstatus.channel_map.at(*result_channel_path_ptr);
+	  self_dependent_waveforms.push_back(chanstate.wfm());
+	} else {
+	  self_dependent_waveforms.push_back(null_waveform);
+	}
+      }
+    }
+    
 
   }
 

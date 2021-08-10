@@ -3,6 +3,8 @@
 
 using namespace snde;
 
+
+
 int main(int argc, char *argv[])
 {
   size_t len=100;
@@ -10,8 +12,6 @@ int main(int argc, char *argv[])
   std::shared_ptr<snde::ndarray_waveform> test_wfm;
 
   wfmdb->default_storage_manager = std::make_shared<waveform_storage_manager_shmem>();
-  
-  wfmdb->_math_functions.rebuild_dependency_map();
   
   snde::active_transaction transact(wfmdb); // Transaction RAII holder
   std::shared_ptr<snde::channelconfig> testchan_config=std::make_shared<snde::channelconfig>("test channel", "main", (void *)&main,false);

@@ -86,6 +86,7 @@ struct snde_ndarray_waveform {
 #define SNDE_WTN_COMPLEXFLOAT64 13
 #define SNDE_WTN_COMPLEXFLOAT16 14
 #define SNDE_WTN_RGBD64 15 /* as address goes from low to high: R (byte) G (byte) B (byte) A (byte) D (float32) */ 
-
+#define SNDE_WTN_STRING 16 // not usable for waveforms, but used internally for math parameters. 
+#define SNDE_WTN_WAVEFORM 17 // not usable for waveforms, but used internally for math parameters. 
 
 #endif // SNDE_WAVEFORM_H

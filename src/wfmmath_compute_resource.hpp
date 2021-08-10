@@ -40,10 +40,10 @@ namespace snde {
   class pending_computation;
   
   class compute_resource_option {
-    // A list of shared_ptrs to these are returned from the math_function's get_compute_options() method
+    // A list of shared_ptrs to these are returned from the executing math_function's perform_compute_options() method
     // they are immutable once published
   public:
-    compute_resource_option(unsigned type, size_t metadata_bytes,size_t data_bytes,std::shared_ptr<compute_code> function_code);
+    compute_resource_option(unsigned type, size_t metadata_bytes,size_t data_bytes,std::shared_ptr<void> parameter_block); // parameter block passed to math funciton code
 
     // Rule of 3
     compute_resource_option(const compute_resource_option &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
@@ -55,7 +55,7 @@ namespace snde {
     // transfer requirement estimate -- intended to decide about transfer to a cluster node or similar
     size_t metadata_bytes;
     size_t data_bytes;
-    std::shared_ptr<compute_code> function_code; 
+    std::shared_ptr<void> parameter_block; 
   };
 
   class compute_resource_option_cpu: public compute_resource_option {
@@ -63,7 +63,7 @@ namespace snde {
     compute_resource_option_cpu(unsigned type,
 				size_t metadata_bytes,
 				size_t data_bytes,
-				std::shared_ptr<compute_code> function_code,
+				std::shared_ptr<void> parameter_block,
 				snde_float64 flops,
 				size_t max_effective_cpu_cores,
 				size_t useful_cpu_cores);
@@ -78,7 +78,7 @@ namespace snde {
     compute_resource_option_opencl(unsigned type,
 				   size_t metadata_bytes,
 				   size_t data_bytes,
-				   std::shared_ptr<compute_code> function_code,
+				   std::shared_ptr<void> parameter_block,
 				   snde_float64 cpu_flops,
 				   snde_float64 gpu_flops,
 				   size_t max_effective_cpu_cores,
@@ -103,7 +103,7 @@ namespace snde {
     std::multimap<uint64_t,std::shared_ptr<pending_computation>> blocked_list; // indexed by global revision; map of pending computations that have been blocked from todo_list because we are waiting for all mutable calcs in prior revision to complete. 
 
     available_compute_resource_database();
-    void queue_computation(std::shared_ptr<waveform_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn);
+    void queue_computation(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn);
     void _queue_computation_internal(std::shared_ptr<pending_computation> &computation); // NOTE: Sets computation to nullptr once queued
 
 

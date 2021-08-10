@@ -1,6 +1,8 @@
 #ifndef SNDE_WFMMATH_HPP
 #define SNDE_WFMMATH_HPP
 
+#include <functional>
+
 #include "wfmmath_compute_resource.hpp"
 #include "wfmmath_parameter.hpp"
 #include "wfmdb_paths.hpp"
@@ -40,16 +42,17 @@ namespace snde {
   class channel_state; // defined in wfmstore.hpp
 
   class math_status;
+  class math_definition;
   
-  class math_function { // a math function that is defined accessable so it can be instantiated
+  class math_function : public std::enable_shared_from_this<math_function> { // a math function that is defined accessable so it can be instantiated
     // Immutable once published; that said it may be replaced in the database due to a reloading operation. 
   public:
 
-    math_function(size_t num_results,const std::list<std::tuple<std::string,unsigned>> &param_names_types);
+    math_function(size_t num_results,const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated,bool is_mutable,bool mdonly)> initiate_execution);
 
     // Rule of 3
-    math_function(const math_function &) = default;
-    math_function& operator=(const math_function &) = default; 
+    math_function(const math_function &) = delete;
+    math_function& operator=(const math_function &) = delete; 
     virtual ~math_function()=default;  // virtual destructor required so we can be subclassed
 
     
@@ -63,16 +66,30 @@ namespace snde {
     bool pure_optionally_mutable; // set if the function is "pure" and can optionally operate on its previous output, only rewriting the modified area according to bounding_hyperboxes. If optionally_mutable is taken advantage of, there is an implicit self-dependency on the prior-revision
     bool mandatory_mutable; // set if the function by design mutates its previous output. Creates an implicit self-dependency.
     bool self_dependent; // set if the function by design is dependent on the prior revision of its previous output
+    bool mdonly_allowed; // set if it is OK to instantiate this function in metadataonly form
+    
+    std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated,bool is_mutable,bool mdonly)> initiate_execution;
     
     // WARNING: If there is no implict or explicit self-dependency multiple computations for the same math function
     // but different versions can happen in parallel. 
-    
+
+    // note: instantiated_math_function returned by instantiate() needs to be explicitly added to waveform database/channels created/etc. !!!***
+    virtual std::shared_ptr<instantiated_math_function> instantiate(const std::vector<std::shared_ptr<math_parameter>> & parameters,
+								    const std::vector<std::shared_ptr<std::string>> & result_channel_paths,
+								    std::string channel_path_context,
+								    bool is_mutable,
+								    bool ondemand,
+								    bool mdonly,
+								    std::shared_ptr<math_definition> definition,
+								    std::string extra_params)=0;
+								    
     // get_compute_options() returns a list of compute_resource_options, each of which has a compute_code pointer
     // NOTE: Somehow get_compute_options() or similar needs to consider the types of the parameter arrays and select
-    // or configure code appropriately. 
-    virtual std::list<std::shared_ptr<compute_resource_option>> get_compute_options(std::shared_ptr<executing_math_function> fcn)=0;
+    // or configure code appropriately.
+    //virtual std::shared_ptr<executing_math_function> initiate_execution(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)=0; // usually returns a sub-class
   };
 
+  // ***!!! compute_code is obsolete!!!***
   class compute_code {
     // This class represents the information provided by the math_function with the compute_resource_option; basically an offer to compute
     // immutable once published
@@ -111,7 +128,7 @@ namespace snde {
     // _functions can be updated atomically using the admin lock.
   public:
     std::mutex admin; // last lock in order except for Python GIL
-    std::shared_ptr<std::map<std::string,math_function>> _functions; // Actually C++11 atomic shared pointer to immutable map
+    std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> _functions; // Actually C++11 atomic shared pointer to immutable map
     
   };
 
@@ -120,6 +137,8 @@ namespace snde {
     // immutable once published. Needed for saving settings. 
   public:
     std::string definition_command;
+
+    math_definition(std::string definition_command);
   };
   
   class instantiated_math_function: public std::enable_shared_from_this<instantiated_math_function>  {
@@ -132,9 +151,12 @@ namespace snde {
   public:
     std::list<std::shared_ptr<math_parameter>> parameters; 
     //std::list<std::shared_ptr<channel>> results; // Note that null entries are legitimate if results are being ignored.
-    std::string channel_path_context; // context for parameters and result_channel_paths, if any are relative. 
     std::list<std::shared_ptr<std::string>> result_channel_paths; // Note that null entries are legitimate if results are being ignored.
+    
+    std::string channel_path_context; // context for parameters and result_channel_paths, if any are relative. 
     bool disabled; // if this math function is temporarily disabled
+    bool is_mutable; // should be set if the function is mutable for any reason
+    bool self_dependent; // this function is self-dependent: fcn->new_revision_optional || is_mutable || fcn->self_dependent;
     bool ondemand;
     bool mdonly; // Note: This determines whether the instantiation is mdonly. For the execution to be mdonly, the mdonly flag in the math_function_status must be true as well. 
     std::shared_ptr<math_function> fcn;
@@ -143,16 +165,24 @@ namespace snde {
     std::shared_ptr<instantiated_math_function> original_function; // null originally 
     // Should point to allocation interface here? ... No. Allocation interface comes from the channelconfig's storage_manager
 
-    instantiated_math_function();
+    instantiated_math_function(const std::vector<std::shared_ptr<math_parameter>> & parameters,
+			       const std::vector<std::shared_ptr<std::string>> & result_channel_paths,
+			       std::string channel_path_context,
+			       bool is_mutable,
+			       bool ondemand,
+			       bool mdonly,
+			       std::shared_ptr<math_function> fcn,
+			       std::shared_ptr<math_definition> definition);
+
     // Rule of 3
-    instantiated_math_function(const instantiated_math_function &) = default;  // CC and CAO are deleted because we don't anticipate needing them. 
-    instantiated_math_function& operator=(const instantiated_math_function &) = default;
+    instantiated_math_function(const instantiated_math_function &) = default;  // CC is present so subclass copy constructor can initialize us more easily
+    instantiated_math_function& operator=(const instantiated_math_function &) = delete;
     virtual ~instantiated_math_function()=default;  // virtual destructor required so we can be subclassed
 
 
     //virtual bool check_dependencies(waveform_status &waveformstatus, math_status &mathstatus)=0; 
-    // virtual clone method -- must be implemented in all subclasses. If .definition is non nullptr, it clears the copy and points original_function at the old .definition
-    virtual std::shared_ptr<instantiated_math_function> clone();
+    // virtual clone method -- must be implemented in all subclasses. If .definition is non nullptr and definition_change is set, it clears the copy and points original_function at the old .definition
+    virtual std::shared_ptr<instantiated_math_function> clone(bool definition_change=true); // only clone with definition_change=false for enable/disable of the function
     
   };
 
@@ -168,7 +198,6 @@ namespace snde {
 
     // Hash table here so that we can look up the math functions that are dependent on a given function (within this global revision; does not include ondemand dependencies or implict or explicit self-dependencies 
     std::unordered_map<std::shared_ptr<instantiated_math_function>,std::unordered_set<std::shared_ptr<instantiated_math_function>>> all_dependencies_of_function;
-
 
     void rebuild_dependency_map(); // rebuild all_dependencies_of_channel and all_dependencies_of_function hash tables. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main waveform database, and the main waveform database admin lock must be locked when this is called. 
 
@@ -253,14 +282,25 @@ namespace snde {
 
   
   class executing_math_function {
+    // generated once we are ready to execute a math function
+    // (all prerequisites are done)
+    // usually subclassed
   public:
-    std::shared_ptr<instantiated_math_function> fcn;     // This attribute is immutable once published
-    
+    std::shared_ptr<waveform_set_state> wss; // waveform set state in which we are executing
+    std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
+
+    bool is_mutable;
+    bool mdonly; 
     // should also have parameter values, references, etc. here
     
     // parameter values should include bounding_hyperboxes of the domains that actually matter,
     // at least if the function is optionally_mutable
 
+
+    // self_dependent_waveforms is auto-created by the constructor
+    std::list<std::shared_ptr<waveform_base>> self_dependent_waveforms; // only valid (size() > 0) with implicit/explict self dependency. entries will be nullptr first time through anyway. Entries may also be nullptr if the function output is being ignored rather than stored in the waveform database. 
+
+    // compute_resource is assigned post-creation
     std::shared_ptr<assigned_compute_resource> compute_resource; // locked by acrd's admin lock
     // These next two elements are locked by the parent available_compute_resources_database admin lock
     // THEY HAE BEEN REPLACED BY THE ASSIGNED COMPUTE RESOURCE
@@ -268,7 +308,16 @@ namespace snde {
     //std::vector<size_t> opencl_jobs;  // vector of indices into available_compute_resource_cpu::functions_using_devices representing assigned GPU jobs; from assigned_compute_resource_option_opencl
 
 
-    executing_math_function(std::shared_ptr<instantiated_math_function> fcn);
+    executing_math_function(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> fcn,bool is_mutable, bool mdonly);
+
+    // Rule of 3
+    executing_math_function(const executing_math_function &) = delete;
+    executing_math_function& operator=(const executing_math_function &) = delete; 
+    virtual ~executing_math_function()=default;  // virtual destructor required so we can be subclasse
+
+    virtual bool perform_decide_new_revision()=0; // perform_decide_new_revision asks the executing math function to determine whether a new revision is to be created ***!!! SHOULD THIS BE SEPARATE FOR EACH OUTPUT CHANNEL RATHER THAN A SINGLE BOOL!!!???
+    virtual std::list<std::shared_ptr<compute_resource_option>> perform_compute_options()=0; // perform_compute_options asks the executing math function to perform its compute_options step (which should not be compute intensive)
+
   };
 }
 

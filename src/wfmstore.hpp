@@ -115,6 +115,7 @@
 #include <memory>
 #include <complex>
 #include <future>
+#include <type_traits>
 
 #include "waveform.h" // definition of snde_waveform
 
@@ -133,8 +134,52 @@ namespace snde {
 
   // constant data structures with waveform type number information
   extern const std::unordered_map<std::type_index,unsigned> wtn_typemap; // look up typenum based on C++ typeid(type)
+  extern const std::unordered_map<unsigned,std::string> wtn_typenamemap;
   extern const std::unordered_map<unsigned,size_t> wtn_typesizemap; // Look up element size bysed on typenum
   extern const std::unordered_map<unsigned,std::string> wtn_ocltypemap; // Look up opencl type string based on typenum
+
+  // https://stackoverflow.com/questions/41494844/check-if-object-is-instance-of-class-with-template
+  // https://stackoverflow.com/questions/43587405/constexpr-if-alternative
+  template <typename> 
+  struct wtn_type_is_shared_ptr: public std::false_type { };
+
+  template <typename T> 
+  struct wtn_type_is_shared_ptr<std::shared_ptr<T>>: public std::true_type { };
+  
+  
+  template <typename T>
+  typename std::enable_if<!wtn_type_is_shared_ptr<T>::value,bool>::type 
+  wtn_type_is_shared_waveformbase_ptr()
+  {
+    return false;
+  }
+
+  template <typename T>
+  typename std::enable_if<wtn_type_is_shared_ptr<T>::value,bool>::type 
+  wtn_type_is_shared_waveformbase_ptr()
+  {
+    return (bool)std::is_base_of<waveform_base,typename T::element_type>::value;
+  }
+  
+  
+  template <typename T>
+  unsigned wtn_fromtype()
+  // works like wtn_typemap but can accommodate instances and subclasses of waveform_base. Also nicer error message
+  {
+    std::unordered_map<std::type_index,unsigned>::const_iterator wtnt_it = wtn_typemap.find(std::type_index(typeid(T)));
+
+    if (wtnt_it != wtn_typemap.end()) {
+      return wtnt_it->second;
+    } else {
+      // T may be a snde::waveform_base subclass instance
+      if (wtn_type_is_shared_waveformbase_ptr<T>()) {
+	return SNDE_WTN_WAVEFORM;
+      } else {
+	throw snde_error("Type %s is not supported in this context",typeid(T).name());
+      }
+    }
+  }
+
   
   class waveform_base  {
     // may be subclassed by creator
@@ -293,7 +338,7 @@ namespace snde {
 
     uint64_t globalrev; // globalrev for this transaction. Immutable once published
     std::unordered_set<std::shared_ptr<channel>> updated_channels;
-    //Keep track of whether a new waveform is required for the channel (e.g. if it has a new owner)
+    //Keep track of whether a new waveform is required for the channel (e.g. if it has a new owner) (use false for math waveforms)
     std::map<std::string,bool> new_waveform_required; // index is channel name for updated channels
     std::unordered_map<std::string,std::shared_ptr<waveform_base>> new_waveforms;
 
@@ -652,6 +697,9 @@ namespace snde {
     // active_transaction or delete the active_transaction) until all other threads are finished with transaction actions
     std::shared_ptr<active_transaction> start_transaction();
     std::shared_ptr<globalrevision> end_transaction(std::shared_ptr<active_transaction> act_trans);
+    // add_math_function() must be called within a transaction
+    void add_math_function(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<waveform_storage_manager> storage_manager=nullptr);
+
     void register_new_wfm(std::shared_ptr<waveform_base> new_wfm);
     void register_new_math_wfm(void *owner_id,std::shared_ptr<waveform_set_state> calc_wss,std::shared_ptr<waveform_base> new_wfm); // registers newly created math waveform in the given wss (and extracts mutable flag for the given channel into the waveform structure)). 
 

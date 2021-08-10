@@ -12,26 +12,26 @@ namespace snde {
 
   }
 
-  std::string math_parameter::get_string(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context)
+  std::string math_parameter::get_string(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index)
   {
-    throw snde_error("Cannot get string value from parameter of class %s",(char *)typeid(*this).name()); 
+    throw snde_error("Cannot get string value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def.c_str()); 
   }
   
-  int64_t math_parameter::get_int(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context)
+  int64_t math_parameter::get_int(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index)
   {
-    throw snde_error("Cannot get integer value from parameter of class %s",(char *)typeid(*this).name()); 
+    throw snde_error("Cannot get integer value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def.c_str()); 
     
   }
   
-  double math_parameter::get_double(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context)
+  double math_parameter::get_double(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index)
   {
-    throw snde_error("Cannot get double value from parameter of class %s",(char *)typeid(*this).name()); 
+    throw snde_error("Cannot get double value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def.c_str()); 
 
   }
   
-  std::shared_ptr<waveform_base> math_parameter::get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context) // should only return ready waveforms
+  std::shared_ptr<waveform_base> math_parameter::get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index) // should only return ready waveforms
   {
-    throw snde_error("Cannot get waveform value from parameter of class %s",(char *)typeid(*this).name()); 
+    throw snde_error("Cannot get waveform value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def.c_str()); 
 
   }
   std::set<std::string> math_parameter::get_prerequisites(/*std::shared_ptr<waveform_set_state> wss,*/ const std::string &channel_path_context) // obtain immediate dependencies of this parameter (absolute path channel names); typically only the waveform
@@ -48,7 +48,7 @@ namespace snde {
   }
 
 
-  std::string math_parameter_string_const::get_string(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context)
+  std::string math_parameter_string_const::get_string(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index)
   {
     return string_constant;
   }
@@ -62,7 +62,7 @@ namespace snde {
 
   }
   
-  int64_t math_parameter_int_const::get_int(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context)
+  int64_t math_parameter_int_const::get_int(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index)
   {
     return int_constant;
   }
@@ -74,7 +74,7 @@ namespace snde {
 
   }
 
-  double math_parameter_double_const::get_double(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context)
+  double math_parameter_double_const::get_double(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index)
   {
     return double_constant;
   }
@@ -94,12 +94,12 @@ namespace snde {
     return retval;
   }
 
-  std::shared_ptr<waveform_base> math_parameter_waveform::get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context) // should only return ready waveforms because we shouldn't be called until our deps are ready. 
+  std::shared_ptr<waveform_base> math_parameter_waveform::get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index) // should only return ready waveforms because we shouldn't be called until our deps are ready. 
   {
     std::shared_ptr<waveform_base> wfm;
     std::string fullpath = wfmdb_path_join(channel_path_context,channel_name);
     {
-      std::lock_guard<std::mutex> wsslock(wss->admin); // Think this locking is actually unnecessary
+      //std::lock_guard<std::mutex> wsslock(wss->admin); // Think this locking is actually unnecessary
       wfm=wss->wfmstatus.channel_map.at(fullpath).wfm();
     }
     return wfm; 

@@ -23,8 +23,9 @@ namespace snde {
       {typeid(snde_rgba),SNDE_WTN_RGBA32},
       {typeid(std::complex<snde_float32>),SNDE_WTN_COMPLEXFLOAT32},
       {typeid(std::complex<snde_float64>),SNDE_WTN_COMPLEXFLOAT64},
-      {typeid(snde_rgbd),SNDE_WTN_RGBD64}
-      
+      {typeid(snde_rgbd),SNDE_WTN_RGBD64},
+      {typeid(std::string),SNDE_WTN_STRING},
+      {typeid(std::shared_ptr<waveform_base>),SNDE_WTN_WAVEFORM},      
   });
   
   // wtn_typesizemap is indexed by SNDE_WTN_xxx
@@ -57,6 +58,30 @@ namespace snde {
       {SNDE_WTN_RGBD64,sizeof(snde_rgbd)},
     });
   
+  const std::unordered_map<unsigned,std::string> wtn_typenamemap({ // Look up type name based on typenum
+      {SNDE_WTN_FLOAT32,"SNDE_WTN_FLOAT32"},
+      {SNDE_WTN_FLOAT64,"SNDE_WTN_FLOAT64"},
+      // half-precision not generally
+      // available
+      {SNDE_WTN_FLOAT16,"SNDE_WTN_FLOAT16"},
+      {SNDE_WTN_UINT64,"SNDE_WTN_UINT64"},
+      {SNDE_WTN_INT64,"SNDE_WTN_INT64"},
+      {SNDE_WTN_UINT32,"SNDE_WTN_UINT32"},
+      {SNDE_WTN_INT32,"SNDE_WTN_INT32"},
+      {SNDE_WTN_UINT16,"SNDE_WTN_UINT16"},
+      {SNDE_WTN_INT16,"SNDE_WTN_INT16"},
+      {SNDE_WTN_UINT8,"SNDE_WTN_UINT8"},
+      {SNDE_WTN_INT8,"SNDE_WTN_INT8"},
+      {SNDE_WTN_RGBA32,"SNDE_WTN_RGBA32"},
+      {SNDE_WTN_COMPLEXFLOAT32,"SNDE_WTN_COMPLEXFLOAT32"},
+      {SNDE_WTN_COMPLEXFLOAT64,"SNDE_WTN_COMPLEXFLOAT64"},
+      {SNDE_WTN_COMPLEXFLOAT16,"SNDE_WTN_COMPLEXFLOAT16"},
+      {SNDE_WTN_RGBD64,"SNDE_WTN_RGBD64"},
+      {SNDE_WTN_STRING,"SNDE_WTN_STRING"},
+      {SNDE_WTN_WAVEFORM,"SNDE_WTN_WAVEFORM"},      
+
+    });
+  
 
   const std::unordered_map<unsigned,std::string> wtn_ocltypemap({ // Look up opencl type string based on typenum
       {SNDE_WTN_FLOAT32,"float"},
@@ -79,6 +104,8 @@ namespace snde {
       {SNDE_WTN_RGBD64,"snde_rgbd"},
       
     });
+  
+  
   // see https://stackoverflow.com/questions/38644146/choose-template-based-on-run-time-string-in-c
 
   
@@ -1649,7 +1676,7 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
       std::shared_ptr<instantiated_math_function> ready_fcn;
 
       std::tie(ready_wss,ready_fcn) = ready_wss_ready_fcn;
-      wfmdb_strong->compute_resources.queue_computation(ready_wss,ready_fcn);
+      wfmdb_strong->compute_resources.queue_computation(wfmdb_strong,ready_wss,ready_fcn);
     }
 
 
@@ -2245,7 +2272,7 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
       std::shared_ptr<instantiated_math_function> ready_fcn;
 
       std::tie(ready_wss,ready_fcn) = ready_wss_ready_fcn;
-      wfmdb->compute_resources.queue_computation(ready_wss,ready_fcn);
+      wfmdb->compute_resources.queue_computation(wfmdb,ready_wss,ready_fcn);
     }
   }
 
@@ -2353,6 +2380,8 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
   {
     std::shared_ptr<globalrevision> null_globalrev;
     std::atomic_store(&_latest_globalrev,null_globalrev);
+
+    _math_functions.rebuild_dependency_map();
   }
   
   
@@ -2365,7 +2394,59 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
   {
     return act_trans->end_transaction();
   }
-  
+
+  void wfmdatabase::add_math_function(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<waveform_storage_manager> storage_manager) // storage_manager defaults to nullptr
+  {
+
+    std::vector<std::tuple<std::string,std::shared_ptr<channel>>> paths_and_channels;
+
+    // Create objects prior to adding them to transaction because transaction lock is later in the locking order
+    
+    for (auto && result_channel_path: new_function->result_channel_paths) {
+      if (result_channel_path) {
+	// if a waveform is given for this result_channel
+	std::string full_path = wfmdb_path_join(new_function->channel_path_context,*result_channel_path);
+	std::shared_ptr<channelconfig> channel_config=std::make_shared<channelconfig>(full_path,"math",(void *)&_math_functions,hidden,storage_manager);  
+	std::shared_ptr<channel> channelptr = reserve_channel(channel_config);
+	
+	if (!channelptr) {
+	  throw snde_error("Channel %s is already defined",full_path.c_str());
+	}
+	
+	paths_and_channels.push_back(std::make_tuple(full_path,channelptr));
+      }
+    }
+
+    // add to the current transaction
+    {
+      std::lock_guard<std::mutex> curtrans_lock(current_transaction->admin);
+      
+      for (auto && path_channelptr: paths_and_channels) {
+	std::string full_path;
+	std::shared_ptr<channel> channelptr;
+	std::tie(full_path,channelptr) = path_channelptr;
+	
+	current_transaction->updated_channels.emplace(channelptr);
+	current_transaction->new_waveform_required.emplace(full_path,false);
+      }
+    }
+
+    // add to _math_functions
+    {
+      std::lock_guard<std::mutex> wfmdb_admin(admin);
+      for (auto && path_channelptr: paths_and_channels) {
+	std::string full_path;
+	std::shared_ptr<channel> channelptr;
+	std::tie(full_path,channelptr) = path_channelptr;
+	
+	_math_functions.defined_math_functions.emplace(full_path,new_function);
+      }
+
+      _math_functions.rebuild_dependency_map();
+    }
+
+  }
+
   void wfmdatabase::register_new_wfm(std::shared_ptr<waveform_base> new_wfm)
   {
     std::lock_guard<std::mutex> curtrans_lock(current_transaction->admin);
