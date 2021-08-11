@@ -281,6 +281,7 @@ namespace snde {
     wfmmath_cppfuncexec(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool is_mutable,bool mdonly) :
       wfmmath_cppfuncexec_base(wss,inst,is_mutable,mdonly),
       compute_options_function(nullptr),
+      define_wfms_function(nullptr),
       metadata_function(nullptr),
       lock_alloc_function(nullptr),
       exec_function(nullptr),
@@ -297,7 +298,8 @@ namespace snde {
     typedef std::function<void(Ts&...)> exec_function_type;
     typedef std::function<std::shared_ptr<exec_function_type>(Ts&...)> lock_alloc_function_type; 
     typedef std::function<std::shared_ptr<lock_alloc_function_type>(Ts&...)> metadata_function_type;
-    typedef std::function<std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<metadata_function_type>>(Ts&...)> compute_options_function_type; 
+    typedef std::function<std::shared_ptr<metadata_function_type>(Ts&...)> define_wfms_function_type;
+    typedef std::function<std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_wfms_function_type>>(Ts&...)> compute_options_function_type; 
     typedef std::function<std::pair<bool,std::shared_ptr<compute_options_function_type>>(Ts&...)> decide_new_revision_function_type; 
     
     // The function pointers stored here (if they are valid) override the methods below.
@@ -311,6 +313,7 @@ namespace snde {
     // decide_new_revision in any case is only used if new_revision_optional set in the math_function
     // !!!*** If adding more function pointers here, be sure to initialize them  to nullptr in the constructor !!!***
     std::shared_ptr<compute_options_function_type> compute_options_function;
+    std::shared_ptr<define_wfms_function_type> define_wfms_function;
     std::shared_ptr<metadata_function_type> metadata_function;
     std::shared_ptr<lock_alloc_function_type> lock_alloc_function;
     std::shared_ptr<exec_function_type> exec_function;
@@ -327,21 +330,21 @@ namespace snde {
     // NOTE: any captured variables passed to lock_alloc_function should be "smart" so that they don't leak if subsequent lambdas are never called because we returned false
     // NOTE: If you choose to override decide_new_revision, the decision should be made
     // quickly without going through the full calculations. 
-    virtual std::pair<bool,std::shared_ptr<compute_options_function_type>> decide_new_revision(Ts&...) // only used if new_revision_optional set in the math_function
+    virtual std::pair<bool,std::shared_ptr<compute_options_function_type>> decide_new_revision(Ts...) // only used if new_revision_optional set in the math_function
     {
       // default implementation returns true and null compute_options method
       return std::make_pair(true,nullptr);
     }
 
     // call decide_new_revision, passing parameters from tuple (see stackoverflow link, above)
-    template <typename... Args, std::size_t... Indexes>
-    std::pair<bool,std::shared_ptr<compute_options_function_type>> call_decide_new_revision(std::tuple<Args...>& tup,std::index_sequence<Indexes...>)
+    template <std::size_t... Indexes>
+    std::pair<bool,std::shared_ptr<compute_options_function_type>> call_decide_new_revision(std::tuple<Ts...>& tup,std::index_sequence<Indexes...>)
     {
       return decide_new_revision(std::get<Indexes>(tup)...);
     }
     
-    template <typename... Args,std::size_t... Indexes>
-    std::pair<bool,std::shared_ptr<compute_options_function_type>> call_decide_new_revision(std::tuple<Args...>& tup)
+    template <std::size_t... Indexes>
+    std::pair<bool,std::shared_ptr<compute_options_function_type>> call_decide_new_revision(std::tuple<Ts...>& tup)
     {
       return call_decide_new_revision(tup,std::index_sequence_for<Ts...>{});
     }
@@ -355,15 +358,15 @@ namespace snde {
     }
 
     // likewise if you override compute_options, this one should not do much and finish quickly
-    virtual std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<metadata_function_type>> compute_options(Ts&...)
+    virtual std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_wfms_function_type>> compute_options(Ts...)
     {
       std::list<std::shared_ptr<compute_resource_option>> option_list = { std::make_shared<compute_resource_option_cpu>(SNDE_CR_CPU,0,0,nullptr,0,1,1) };
       return std::make_pair(option_list,nullptr);
     }
 
     // call compute_options, passing parameters from tuple (see stackoverflow link, above)
-    template <typename... Args, std::size_t... Indexes>
-    std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<metadata_function_type>> call_compute_options(std::tuple<Args...>& tup,std::index_sequence<Indexes...>)
+    template <std::size_t... Indexes>
+    std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_wfms_function_type>> call_compute_options(std::tuple<Ts...>& tup,std::index_sequence<Indexes...>)
     {
       if (compute_options_function) {
 	return (*compute_options_function)(std::get<Indexes>(tup)...);
@@ -373,8 +376,8 @@ namespace snde {
       }
     }
     
-    template <typename... Args,std::size_t... Indexes>
-    std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<metadata_function_type>> call_compute_options(std::tuple<Args...>& tup)
+    template <std::size_t... Indexes>
+    std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_wfms_function_type>> call_compute_options(std::tuple<Ts...>& tup)
     {
       return call_compute_options(tup,std::index_sequence_for<Ts...>{});
     }
@@ -382,13 +385,45 @@ namespace snde {
     virtual std::list<std::shared_ptr<compute_resource_option>> perform_compute_options()
     {
       std::list<std::shared_ptr<compute_resource_option>> opts;
-      std::tie(opts,metadata_function)=call_compute_options(parameters);
+      std::tie(opts,define_wfms_function)=call_compute_options(parameters);
 
       return opts;
     }
 
 
-    virtual std::shared_ptr<lock_alloc_function_type> metadata(Ts&...)
+    virtual std::shared_ptr<metadata_function_type> define_wfms(Ts...)
+    {
+      return nullptr;
+    }
+
+    
+    // call define_wfms, passing parameters from tuple (see stackoverflow link, above)
+    template <std::size_t... Indexes>
+    std::shared_ptr<metadata_function_type> call_define_wfms(std::tuple<Ts...>& tup,std::index_sequence<Indexes...>)
+    {
+      if (define_wfms_function) {
+	return (*define_wfms_function)(std::get<Indexes>(tup)...);
+
+      } else {
+	return define_wfms(std::get<Indexes>(tup)...);
+      }
+    }
+    
+    template <std::size_t... Indexes>
+    std::shared_ptr<metadata_function_type> call_define_wfms(std::tuple<Ts...>& tup)
+    {
+      return call_define_wfms(tup,std::index_sequence_for<Ts...>{});
+    }
+        
+    virtual void perform_define_wfms()
+    {
+      metadata_function=call_define_wfms(parameters);
+
+    }
+
+
+    
+    virtual std::shared_ptr<lock_alloc_function_type> metadata(Ts...)
     // NOTE: Your metadata implementation is only required to actually
     // set all metadata if the function is mdonly. If you do
     // set all metadata you should call the mark_metadata_done
@@ -401,18 +436,97 @@ namespace snde {
       return nullptr;
     }
     
+
+    // call metadata, passing parameters from tuple (see stackoverflow link, above)
+    template <std::size_t... Indexes>
+    std::shared_ptr<lock_alloc_function_type> call_metadata(std::tuple<Ts...>& tup,std::index_sequence<Indexes...>)
+    {
+      if (metadata_function) {
+	return (*metadata_function)(std::get<Indexes>(tup)...);
+
+      } else {
+	return metadata(std::get<Indexes>(tup)...);
+      }
+    }
     
-    // don't override if you implement decide_new_revision() and return a suitable lock_alloc() from that.
-    virtual std::shared_ptr<exec_function_type>lock_alloc(Ts&... ts) {
-      throw snde_error("lock_alloc method must be provided or returned from decide_new_revision");
+    template <std::size_t... Indexes>
+    std::shared_ptr<lock_alloc_function_type> call_metadata(std::tuple<Ts...>& tup)
+    {
+      return call_metadata(tup,std::index_sequence_for<Ts...>{});
+    }
+        
+    virtual void perform_metadata()
+    {
+      lock_alloc_function=call_metadata(parameters);
 
     }
+
+
+    
+    // don't override if you implement decide_new_revision() and return a suitable lock_alloc() from that.
+    virtual std::shared_ptr<exec_function_type>lock_alloc(Ts... ts) {
+      throw snde_error("lock_alloc method must be provided or returned from metadata function");
+
+    }
+
+    // call lock_alloc, passing parameters from tuple (see stackoverflow link, above)
+    template <std::size_t... Indexes>
+    std::shared_ptr<exec_function_type> call_lock_alloc(std::tuple<Ts...>& tup,std::index_sequence<Indexes...>)
+    {
+      if (lock_alloc_function) {
+	return (*lock_alloc_function)(std::get<Indexes>(tup)...);
+
+      } else {
+	return lock_alloc(std::get<Indexes>(tup)...);
+      }
+    }
+    
+    template <std::size_t... Indexes>
+    std::shared_ptr<exec_function_type> call_lock_alloc(std::tuple<Ts...>& tup)
+    {
+      return call_lock_alloc(tup,std::index_sequence_for<Ts...>{});
+    }
+        
+    virtual void perform_lock_alloc()
+    {
+      exec_function=call_lock_alloc(parameters);
+
+    }
+
+
+    
     // generally don't override; just return lambda from lock_alloc instead
-    virtual void exec(Ts&&...) {
+    virtual void exec(Ts...)
+    {
       throw snde_error("exec method should be overridden or returned from lock_alloc");
 
     }
+
+
+    // call exec, passing parameters from tuple (see stackoverflow link, above)
+    template <std::size_t... Indexes>
+    void call_exec(std::tuple<Ts...>& tup,std::index_sequence<Indexes...>)
+    {
+      if (exec_function) {
+	(*exec_function)(std::get<Indexes>(tup)...);
+
+      } else {
+	exec(std::get<Indexes>(tup)...);
+      }
+    }
     
+    template <std::size_t... Indexes>
+    void call_exec(std::tuple<Ts...>& tup)
+    {
+      call_exec(tup,std::index_sequence_for<Ts...>{});
+    }
+        
+    virtual void perform_exec()
+    {
+      call_exec(parameters);
+
+    }
+
     
   };
 

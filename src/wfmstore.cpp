@@ -120,7 +120,7 @@ namespace snde {
     metadata(nullptr),
     storage_manager(wfmdb->default_storage_manager),
     storage(nullptr),
-    _wfmdb(wfmdb),
+    wfmdb_weak(wfmdb),
     _originating_globalrev_index(wfmdb->current_transaction->globalrev),
     _originating_wss()
   {
@@ -150,8 +150,8 @@ namespace snde {
     metadata(nullptr),
     storage_manager(wfmdb->default_storage_manager),
     storage(nullptr),
-    _wfmdb(wfmdb),
-    _originating_globalrev_index(wfmdb->current_transaction->globalrev),
+    wfmdb_weak(wfmdb),
+    _originating_globalrev_index(calc_wss->originating_globalrev_index),
     _originating_wss(calc_wss)
   {
 
@@ -203,7 +203,7 @@ namespace snde {
   // version of get_originating_wss() to use if you have the wfmdb and wfm admin locks already locked.
   {
     std::shared_ptr<waveform_set_state> originating_wss_strong;
-    std::shared_ptr<wfmdatabase> wfmdb_strong(_wfmdb);
+    std::shared_ptr<wfmdatabase> wfmdb_strong(wfmdb_weak);
     bool originating_wss_is_expired=false; // will assign to true if we get an invalid pointer and it turns out to be expired rather than null
 
     {
@@ -258,7 +258,7 @@ namespace snde {
     std::shared_ptr<waveform_set_state> originating_wss_strong = _originating_wss.lock();
     if (originating_wss_strong) return originating_wss_strong;
     
-    std::shared_ptr<wfmdatabase> wfmdb_strong = _wfmdb.lock();
+    std::shared_ptr<wfmdatabase> wfmdb_strong = wfmdb_weak.lock();
     if (!wfmdb_strong) return nullptr; // shouldn't be possible in general
     std::lock_guard<std::mutex> wfmdbadmin(wfmdb_strong->admin);
     std::lock_guard<std::mutex> wfmadmin(admin);
@@ -669,7 +669,7 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
     // This should be called, not holding locks, (except perhaps dg_python context) after info->metadata is finalized
     std::shared_ptr<waveform_set_state> wss; // originating wss
     
-    std::shared_ptr<wfmdatabase> wfmdb = _wfmdb.lock();
+    std::shared_ptr<wfmdatabase> wfmdb = wfmdb_weak.lock();
     if (!wfmdb) return;
     
     
@@ -744,7 +744,7 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
 
     // This should be called, not holding locks, (except perhaps dg_python context) after info->metadata is finalized
     
-    std::shared_ptr<wfmdatabase> wfmdb = _wfmdb.lock();
+    std::shared_ptr<wfmdatabase> wfmdb = wfmdb_weak.lock();
     if (!wfmdb) return;
     
 
@@ -1079,7 +1079,7 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
       }
       
       // build a class globalrevision from wfmdb->current_transaction
-      globalrev = std::make_shared<globalrevision>(wfmdb_strong->current_transaction->globalrev,wfmdb_strong->_math_functions,initial_channel_map,previous_globalrev);
+      globalrev = std::make_shared<globalrevision>(wfmdb_strong->current_transaction->globalrev,wfmdb_strong,wfmdb_strong->_math_functions,initial_channel_map,previous_globalrev);
       //globalrev->wfmstatus.channel_map.reserve(wfmdb_strong->_channels.size());
       
       // Build a temporary map of the channels we still need to dispatch
@@ -1676,7 +1676,7 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
       std::shared_ptr<instantiated_math_function> ready_fcn;
 
       std::tie(ready_wss,ready_fcn) = ready_wss_ready_fcn;
-      wfmdb_strong->compute_resources.queue_computation(wfmdb_strong,ready_wss,ready_fcn);
+      wfmdb_strong->compute_resources->queue_computation(wfmdb_strong,ready_wss,ready_fcn);
     }
 
 
@@ -2272,7 +2272,7 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
       std::shared_ptr<instantiated_math_function> ready_fcn;
 
       std::tie(ready_wss,ready_fcn) = ready_wss_ready_fcn;
-      wfmdb->compute_resources.queue_computation(wfmdb,ready_wss,ready_fcn);
+      wfmdb->compute_resources->queue_computation(wfmdb,ready_wss,ready_fcn);
     }
   }
 
@@ -2333,7 +2333,8 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
 
   }
 
-  waveform_set_state::waveform_set_state(const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<waveform_set_state> prereq_state) :
+  waveform_set_state::waveform_set_state(std::shared_ptr<wfmdatabase> wfmdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<waveform_set_state> prereq_state) :
+    wfmdb_weak(wfmdb),
     ready(false),
     wfmstatus(channel_map_param),
     mathstatus(std::make_shared<instantiated_math_database>(math_functions),channel_map_param),
@@ -2368,15 +2369,16 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
   }
 
   
-  globalrevision::globalrevision(uint64_t globalrev, const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<waveform_set_state> prereq_state) :
-    waveform_set_state(math_functions,channel_map_param,prereq_state),
+  globalrevision::globalrevision(uint64_t globalrev, std::shared_ptr<wfmdatabase> wfmdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<waveform_set_state> prereq_state) :
+    waveform_set_state(wfmdb,math_functions,channel_map_param,prereq_state),
     globalrev(globalrev)
   {
     
   }
 
 
-  wfmdatabase::wfmdatabase()
+  wfmdatabase::wfmdatabase():
+    compute_resources(std::make_shared<available_compute_resource_database>())
   {
     std::shared_ptr<globalrevision> null_globalrev;
     std::atomic_store(&_latest_globalrev,null_globalrev);
@@ -2557,16 +2559,16 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
     {
       std::shared_ptr<wfmdatabase> wfmdb_strong=wfmdb.lock();
       if (!wfmdb_strong) return; 
-      std::unique_lock<std::mutex> computeresources_admin(*wfmdb_strong->compute_resources.admin);
+      std::unique_lock<std::mutex> computeresources_admin(*wfmdb_strong->compute_resources->admin);
 
       // go through compute_resources blocked_list, removing the blocked computations
       // and queueing them up. 
       std::multimap<uint64_t,std::shared_ptr<pending_computation>>::iterator blocked_it; 
-      while ((blocked_it = wfmdb_strong->compute_resources.blocked_list.begin()) != wfmdb_strong->compute_resources.blocked_list.end() && blocked_it->first <= previous_globalrev->globalrev) {
+      while ((blocked_it = wfmdb_strong->compute_resources->blocked_list.begin()) != wfmdb_strong->compute_resources->blocked_list.end() && blocked_it->first <= previous_globalrev->globalrev) {
 	std::shared_ptr<pending_computation> blocked_computation = blocked_it->second;
-	wfmdb_strong->compute_resources.blocked_list.erase(blocked_it);
+	wfmdb_strong->compute_resources->blocked_list.erase(blocked_it);
 	computeresources_admin.unlock();
-	wfmdb_strong->compute_resources._queue_computation_internal(blocked_computation);
+	wfmdb_strong->compute_resources->_queue_computation_internal(blocked_computation);
 	computeresources_admin.lock();
       }
     }

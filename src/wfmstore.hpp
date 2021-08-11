@@ -199,9 +199,9 @@ namespace snde {
 
     // These next three items relate to the __originating__ globalrevision or waveform set state
     // wss, but depending on the state _originating_wss may not have been assigned yet and may
-    // need to extract from _wfmdb and _originating_globalrev_index.
+    // need to extract from wfmdb_weak and _originating_globalrev_index.
     // DON'T ACCESS THESE DIRECTLY! Use the .get_originating_wss() and ._get_originating_wss_wfmdb_and_wfm_admin_prelocked() methods.
-    std::weak_ptr<wfmdatabase> _wfmdb;
+    std::weak_ptr<wfmdatabase> wfmdb_weak;
     uint64_t _originating_globalrev_index;
     std::weak_ptr<waveform_set_state> _originating_wss;
 
@@ -630,6 +630,8 @@ namespace snde {
   class waveform_set_state : public std::enable_shared_from_this<waveform_set_state> {
   public:
     std::mutex admin; // locks changes to wfmstatus including channel_map contents (map itself is immutable once published), mathstatus,  and the _waveforms reference maps/sets and notifiers. Precedes wfmstatus.channel_map.wfm.admin and Python GIL in locking order
+    uint64_t originating_globalrev_index; // this wss may not __be__ a globalrev but it (almost certainly?) is built on one. 
+    std::weak_ptr<wfmdatabase> wfmdb_weak;
     std::atomic<bool> ready; // indicates that all waveforms except ondemand and data_requestonly waveforms are READY (mutable waveforms may be OBSOLETE)
     waveform_status wfmstatus;
     math_status mathstatus; // note math_status.math_functions is immutable
@@ -637,14 +639,14 @@ namespace snde {
     std::unordered_set<std::shared_ptr<channel_notify>> waveformset_complete_notifiers; // Notifiers waiting on this waveform set state being complete. Criteria will be removed as they are satisifed and entries will be removed as the notifications are performed.
 
     
-    waveform_set_state(const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<waveform_set_state> prereq_state); // constructor
+    waveform_set_state(std::shared_ptr<wfmdatabase> wfmdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<waveform_set_state> prereq_state); // constructor
     // Rule of 3
     waveform_set_state& operator=(const waveform_set_state &) = delete; 
     waveform_set_state(const waveform_set_state &orig) = delete;
     virtual ~waveform_set_state()=default;
 
     void wait_complete(); // wait for all the math in this waveform_set_state or globalrev to reach nominal completion (metadataonly or ready, as configured)
-
+    std::shared_ptr<waveform_base> get_waveform(const std::string &fullpath);
 
     // admin lock must be locked when calling this function. Returns
     std::shared_ptr<waveform_set_state> prerequisite_state();
@@ -664,7 +666,7 @@ namespace snde {
     
     uint64_t globalrev;
 
-    globalrevision(uint64_t globalrev, const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<waveform_set_state> prereq_state);   
+    globalrevision(uint64_t globalrev, std::shared_ptr<wfmdatabase> wfmdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<waveform_set_state> prereq_state);   
   };
   
 
@@ -679,7 +681,7 @@ namespace snde {
     std::shared_ptr<globalrevision> _latest_globalrev; // atomic shared pointer -- access with latest_globalrev() method;
     std::vector<std::shared_ptr<repetitive_channel_notify>> repetitive_notifies; 
 
-    available_compute_resource_database compute_resources; // has its own admin lock.
+    std::shared_ptr<available_compute_resource_database> compute_resources; // has its own admin lock.
     
 
     std::shared_ptr<waveform_storage_manager> default_storage_manager; // pointer is immutable once created; contents not necessarily immutable; see wfmstore_storage.hpp
@@ -764,17 +766,22 @@ namespace snde {
       return new_wfm;
     }
 
-    
-    static std::shared_ptr<ndtyped_waveform> create_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,void *owner_id,std::shared_ptr<waveform_set_state> calc_wss)
+
+
+    // for math_waveforms_only
+    static std::shared_ptr<ndtyped_waveform> create_waveform(std::string chanpath,std::shared_ptr<waveform_set_state> calc_wss)
     {
-      std::shared_ptr<ndtyped_waveform> new_wfm = std::make_shared<ndtyped_waveform>(wfmdb,chanpath,owner_id,calc_wss);
-      wfmdb->register_new_math_wfm(calc_wss,new_wfm);
+      std::shared_ptr<wfmdatabase> wfmdb = calc_wss->wfmdb_weak.lock();
+      if (!wfmdb) return nullptr;
+      
+      std::shared_ptr<ndtyped_waveform> new_wfm = std::make_shared<ndtyped_waveform>(wfmdb,chanpath,calc_wss); // owner id for math waveforms is wfmdb raw pointer wfmdb.get() 
+      wfmdb->register_new_math_wfm((void*)wfmdb.get(),calc_wss,new_wfm);
       return new_wfm;
     }
     
-    T *dataptr() { return (T*)void_dataptr(); }
+    inline T *dataptr() { return (T*)void_dataptr(); }
 
-    T& element(std::vector<snde_index> idx);
+    inline T& element(const std::vector<snde_index> &idx) { return *(dataptr()+element_offset(idx)); }
     
     // rule of 3
     ndtyped_waveform & operator=(const ndtyped_waveform &) = delete; 

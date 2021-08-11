@@ -1,3 +1,4 @@
+#include <thread>
 #include <cmath>
 #include "wfmstore.hpp"
 
@@ -12,7 +13,8 @@ int main(int argc, char *argv[])
   std::shared_ptr<snde::ndarray_waveform> test_wfm;
 
   wfmdb->default_storage_manager = std::make_shared<waveform_storage_manager_shmem>();
-  
+  wfmdb->compute_resources->compute_resources.push_back(std::make_shared<available_compute_resource_cpu>(wfmdb,wfmdb->compute_resources,SNDE_CR_CPU,std::thread::hardware_concurrency()));
+ 
   snde::active_transaction transact(wfmdb); // Transaction RAII holder
   std::shared_ptr<snde::channelconfig> testchan_config=std::make_shared<snde::channelconfig>("test channel", "main", (void *)&main,false);
   

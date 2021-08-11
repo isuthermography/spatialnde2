@@ -141,7 +141,7 @@ namespace snde {
     std::multimap<uint64_t,std::tuple<std::weak_ptr<pending_computation>,std::shared_ptr<compute_resource_option>>> prioritized_computations;  // indexed by (global revision)*8, with priority reductions 0..(SNDE_CR_PRIORITY_REDUCTION_LIMIT-1) added. So  lowest number means highest priority. The values are weak_ptrs, so the same pending_computation can be assigned to multiple compute_resources. When the pending_computation is dispatched the strong shared_ptr to it must be cleared atomically with the dispatch so it appears null in any other maps. As we go to compute, we will just keep popping off the first element
 
     virtual void notify_acr_of_changes_to_prioritized_computations()=0; // should be called WITH ACRD's admin lock held
-    virtual std::vector<std::shared_ptr<executing_math_function>> currently_executing_functions()=0; // Subclass extract functions that are actually executing right now. 
+    //virtual std::vector<std::shared_ptr<executing_math_function>> currently_executing_functions()=0; // Subclass extract functions that are actually executing right now. 
   };
 
   class available_compute_resource_cpu: public available_compute_resource {
@@ -158,10 +158,11 @@ namespace snde {
     std::vector<std::thread> available_threads; // mapped according to functions_using_cores
     std::vector<std::shared_ptr<std::condition_variable>> thread_triggers; // mapped according to functions_using_cores  (use shared_ptrs because condition_variable is not MoveConstructable)
     std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<executing_math_function>,std::shared_ptr<compute_resource_option_cpu>>> thread_actions; // mapped according to first thread assigned to a particular math function
+    std::thread dispatcher_thread; // started by constructor
     
     available_compute_resource_cpu(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type,size_t total_cpu_cores_available);
 
-    virtual void notify_acr_of_new_or_finished_computations(); // should be called WITH  ACRD's admin lock held
+    virtual void notify_acr_of_changes_to_prioritized_computations(); // should be called WITH  ACRD's admin lock held
     size_t _number_of_free_cpus(); // Must call with ACRD admin lock locked
     std::shared_ptr<assigned_compute_resource_cpu> _assign_cpus(std::shared_ptr<executing_math_function> function_to_execute,size_t number_of_cpus);
     void _dispatch_thread(std::shared_ptr<waveform_set_state> wfmstate,std::shared_ptr<executing_math_function> function_to_execute,std::shared_ptr<compute_resource_option_cpu> compute_option_cpu,size_t first_thread_index);

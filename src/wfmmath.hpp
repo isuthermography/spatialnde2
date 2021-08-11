@@ -151,7 +151,7 @@ namespace snde {
   public:
     std::list<std::shared_ptr<math_parameter>> parameters; 
     //std::list<std::shared_ptr<channel>> results; // Note that null entries are legitimate if results are being ignored.
-    std::list<std::shared_ptr<std::string>> result_channel_paths; // Note that null entries are legitimate if results are being ignored.
+    std::vector<std::shared_ptr<std::string>> result_channel_paths; // Note that null entries are legitimate if results are being ignored.
     
     std::string channel_path_context; // context for parameters and result_channel_paths, if any are relative. 
     bool disabled; // if this math function is temporarily disabled
@@ -227,7 +227,8 @@ namespace snde {
 
     bool mdonly; // if this execution is actually mdonly
     bool mdonly_executed; // if execution has completed at least through mdonly;
-    bool is_mutable; // if this execution does in-place mutation of one or more of its parameters. 
+    bool is_mutable; // if this execution does in-place mutation of one or more of its parameters.
+    bool execution_in_progress; // set while holding the wss's admin lock right before the executing_math_function is generated. Cleared when the executing_math_function is released. 
     
     bool execution_demanded; // even once all prereqs are satisfied, do we need to actually execute? This is only set if at least one of our non-self dependencies has changed and we are not disabled (or ondemand in a regular globalrev)
     bool ready_to_execute;
@@ -317,6 +318,11 @@ namespace snde {
 
     virtual bool perform_decide_new_revision()=0; // perform_decide_new_revision asks the executing math function to determine whether a new revision is to be created ***!!! SHOULD THIS BE SEPARATE FOR EACH OUTPUT CHANNEL RATHER THAN A SINGLE BOOL!!!???
     virtual std::list<std::shared_ptr<compute_resource_option>> perform_compute_options()=0; // perform_compute_options asks the executing math function to perform its compute_options step (which should not be compute intensive)
+
+    virtual void perform_define_wfms()=0;
+    virtual void perform_metadata()=0;
+    virtual void perform_lock_alloc()=0;
+    virtual void perform_exec()=0;
 
   };
 }

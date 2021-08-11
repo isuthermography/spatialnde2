@@ -267,7 +267,7 @@ namespace snde {
       std::shared_ptr<instantiated_math_function> ready_fcn;
 
       std::tie(ready_wss,ready_fcn) = ready_wss_ready_fcn;
-      wfmdb->compute_resources.queue_computation(wfmdb,ready_wss,ready_fcn);
+      wfmdb->compute_resources->queue_computation(wfmdb,ready_wss,ready_fcn);
     }
 
 

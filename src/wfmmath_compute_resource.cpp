@@ -150,10 +150,15 @@ namespace snde {
       math_function_status &ready_wss_status = ready_wss->mathstatus.function_status.at(ready_fcn);
       is_mutable = ready_wss_status.is_mutable;
       mdonly = ready_wss_status.mdonly;
-      if (ready_wss_status.ready_to_execute) {
+      if (ready_wss_status.ready_to_execute && !ready_wss_status.execution_in_progress) {
 	assert(ready_wss_status.execution_demanded); 
 	// clear ready_to_execute flag, indicating that we are taking care of execution
 	ready_wss_status.ready_to_execute=false;
+	// set execution_in_progress, indicating that nobody else should try to execute
+	ready_wss_status.execution_in_progress=true;
+      } else {
+	// Somebody else is taking care of computation
+	return;
       }
     }
 
@@ -224,9 +229,11 @@ namespace snde {
       thread_actions.push_back(std::make_tuple((std::shared_ptr<waveform_set_state>)nullptr,(std::shared_ptr<executing_math_function>)nullptr,(std::shared_ptr<compute_resource_option_cpu>)nullptr));
       available_threads.emplace_back(std::thread([this](size_t n){ pool_code(n); },cnt));
     }
-    
+
+    // instantiate dispatch thread
+    dispatcher_thread = std::thread([this]() { dispatch_code(); });
   }
-  void available_compute_resource_cpu::notify_acr_of_new_or_finished_computations() // should be called WITH ACRD's admin lock held
+  void available_compute_resource_cpu::notify_acr_of_changes_to_prioritized_computations() // should be called WITH ACRD's admin lock held
   {
     computations_added_or_completed.notify_one();
   }
@@ -269,24 +276,27 @@ namespace snde {
   }
 
   void available_compute_resource_cpu::_dispatch_thread(std::shared_ptr<waveform_set_state> wfmstate,std::shared_ptr<executing_math_function> function_to_execute,std::shared_ptr<compute_resource_option_cpu> compute_option_cpu,size_t first_thread_index)
+  // Must be called with acrd_admin lock held
   {
+    printf("_dispatch_thread()!\n");
 
-    {
-      std::lock_guard<std::mutex> admin_lock(*acrd_admin);
+    
+    //std::lock_guard<std::mutex> admin_lock(*acrd_admin); // lock assumed to be already held
       
-      // assign ourselves to functions_using_cores;
-      for (auto && core_index: (std::dynamic_pointer_cast<assigned_compute_resource_cpu>(function_to_execute->compute_resource)->assigned_cpu_core_indices)) {
-	assert(functions_using_cores.at(core_index)==nullptr);
-	functions_using_cores.at(core_index) = function_to_execute; 
-      }
-      
-      std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<executing_math_function>,std::shared_ptr<compute_resource_option_cpu>> & this_thread_action = thread_actions.at(first_thread_index);
-      assert(this_thread_action==std::make_tuple((std::shared_ptr<waveform_set_state>)nullptr,(std::shared_ptr<executing_math_function>)nullptr,(std::shared_ptr<compute_resource_option_cpu>)nullptr));
-      
-      this_thread_action = std::make_tuple(wfmstate,function_to_execute,compute_option_cpu);
-      
+    // assign ourselves to functions_using_cores;
+    for (auto && core_index: (std::dynamic_pointer_cast<assigned_compute_resource_cpu>(function_to_execute->compute_resource)->assigned_cpu_core_indices)) {
+      assert(functions_using_cores.at(core_index)==nullptr);
+      functions_using_cores.at(core_index) = function_to_execute; 
     }
-
+    
+    std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<executing_math_function>,std::shared_ptr<compute_resource_option_cpu>> & this_thread_action = thread_actions.at(first_thread_index);
+    assert(this_thread_action==std::make_tuple((std::shared_ptr<waveform_set_state>)nullptr,(std::shared_ptr<executing_math_function>)nullptr,(std::shared_ptr<compute_resource_option_cpu>)nullptr));
+    
+    this_thread_action = std::make_tuple(wfmstate,function_to_execute,compute_option_cpu);
+    
+    
+  
+    printf("triggering thread %d\n",first_thread_index);
     thread_triggers.at(first_thread_index)->notify_one();
   }
   
@@ -301,6 +311,7 @@ namespace snde {
 	computations_added_or_completed.wait(admin_lock);
       }
 
+      printf("Dispatch!\n");
       no_actual_dispatch = true; 
       if (prioritized_computations.size() > 0) {
 	std::multimap<uint64_t,std::tuple<std::weak_ptr<pending_computation>,std::shared_ptr<compute_resource_option>>>::iterator this_computation_it = prioritized_computations.begin();
@@ -333,7 +344,7 @@ namespace snde {
 
 	    std::shared_ptr<assigned_compute_resource_cpu> assigned_cpus = _assign_cpus(function_to_execute,std::min(compute_option_cpu->useful_cpu_cores,total_cpu_cores_available));
 	    function_to_execute->compute_resource = assigned_cpus;
-
+	    
 	    _dispatch_thread(wfmstate,function_to_execute,compute_option_cpu,assigned_cpus->assigned_cpu_core_indices.at(0));
 
 
@@ -350,16 +361,20 @@ namespace snde {
   void available_compute_resource_cpu::pool_code(size_t threadidx)
   {
     
+    printf("pool_code_startup!\n");
     while(true) {
       
       std::unique_lock<std::mutex> admin_lock(*acrd_admin);
       thread_triggers.at(threadidx)->wait(admin_lock);
+      printf("pool_code_wakeup!\n");
+
       std::shared_ptr<waveform_set_state> wfmstate;
       std::shared_ptr<executing_math_function> func;
       std::shared_ptr<compute_resource_option_cpu> compute_option_cpu;
       
       std::tie(wfmstate,func,compute_option_cpu) = thread_actions.at(threadidx);
       if (wfmstate) {
+	printf("Pool code got thread action\n");
 	// Remove parameters from thread_actions
 	thread_actions.at(threadidx)=std::make_tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<executing_math_function>,std::shared_ptr<compute_resource_option_cpu>>(nullptr,nullptr,nullptr);
 
@@ -387,35 +402,40 @@ namespace snde {
 
 	}
 
-
-	/* !!!*** Needs to be written 
-
-	func->execute(mdonly,is_mutable,mdonly_executed);
-
-	if (is_mutable) {
-	  // Locking: Read locks can be implicit, as even if we are
-	  // a mutable waveform ourselves, nobody should
-	  // be allowed to write to our prerequisites
-	  throw snde_error("Mutable execution not yet implemented");
-	  //func->inst->result_channel_paths
-	} else {
-	  // non-mutable execution
-	  // !!!*** Need to accommodate possible decision on whether to even define a new revision or reference the old one ***!!!
-
-	  if (mdonly) {
-	    if (mdonly_executed) {
-	      throw snde_error("Math function %s reexecuting mdonly (?)",func->inst->definition->definition_command.c_str());
-	    }
-	    compute_option_cpu->function_code->do_metadata_only(wfmstate,func,compute_option_cpu);
-	  } else if (mdonly_executed) {
-	    compute_option_cpu->function_code->do_compute_from_metadata(wfmstate,func,compute_option_cpu);
-	    
-	  } else {
-	    compute_option_cpu->function_code->do_compute(wfmstate,func,compute_option_cpu);
-	    
-	    }
+	
+	if (!mdonly_executed) {
+	  func->perform_define_wfms();
+	  func->perform_metadata();
 	}
-	*/
+
+	
+	if (!mdonly) {
+	  func->perform_lock_alloc();
+	  func->perform_exec();
+	}
+	
+
+	
+	// Mark execution as no longer ongoing in the math_function_status 
+	{
+	  std::unique_lock<std::mutex> wss_admin(wfmstate->admin);
+	  	  
+	  math_function_status &our_status = wfmstate->mathstatus.function_status.at(func->inst);
+	  if (mdonly && !our_status.mdonly) {
+	    // execution status changed from mdonly to non-mdonly behind our back...
+	    mdonly=false;
+	    // finish up execution before we mark as finished
+	    wss_admin.unlock();
+
+	    func->perform_lock_alloc();
+	    func->perform_exec();
+	    
+	    wss_admin.lock();
+	  }
+	  our_status.execution_in_progress=false;
+
+	}
+
 	std::shared_ptr<wfmdatabase> wfmdb_strong = wfmdb.lock();
 
 	// Need to do notifications that the math function finished.
@@ -434,7 +454,7 @@ namespace snde {
 	  }
 	}
 	// Notify that we are done
-	notify_acr_of_new_or_finished_computations();
+	notify_acr_of_changes_to_prioritized_computations();
       }
       
     }
