@@ -48,7 +48,7 @@ namespace snde {
     // Immutable once published; that said it may be replaced in the database due to a reloading operation. 
   public:
 
-    math_function(size_t num_results,const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated,bool is_mutable,bool mdonly)> initiate_execution);
+    math_function(size_t num_results,const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
 
     // Rule of 3
     math_function(const math_function &) = delete;
@@ -62,13 +62,13 @@ namespace snde {
 
     std::vector<bool> result_mutability; // for each result, is it mutable (if we are in mutable mode)
     
-    bool new_revision_optional; // set if the function sometimes chooses not to create a new revision. Causes an implicit self-dependency, because we have to wait for the prior revision to finish to find out if that version was actually different. 
+    bool new_revision_optional; // set if the function sometimes chooses not to create a new revision. Causes an implicit self-dependency, because we have to wait for the prior revision to finish to find out if that version was actually different. Note that new_revision_optional implies that execution is optional but execution of a new_revision_optional math function does not guarantee it will actually create new revisions but may still reference prior revs. Execution of a non-new_revision_optional math function is guaranteed to define new waveforms in each result channel. 
     bool pure_optionally_mutable; // set if the function is "pure" and can optionally operate on its previous output, only rewriting the modified area according to bounding_hyperboxes. If optionally_mutable is taken advantage of, there is an implicit self-dependency on the prior-revision
     bool mandatory_mutable; // set if the function by design mutates its previous output. Creates an implicit self-dependency.
     bool self_dependent; // set if the function by design is dependent on the prior revision of its previous output
-    bool mdonly_allowed; // set if it is OK to instantiate this function in metadataonly form
+    bool mdonly_allowed; // set if it is OK to instantiate this function in metadataonly form. Note mdonly is incompatible with new_reivision_optional
     
-    std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated,bool is_mutable,bool mdonly)> initiate_execution;
+    std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution;
     
     // WARNING: If there is no implict or explicit self-dependency multiple computations for the same math function
     // but different versions can happen in parallel. 
@@ -198,8 +198,9 @@ namespace snde {
 
     // Hash table here so that we can look up the math functions that are dependent on a given function (within this global revision; does not include ondemand dependencies or implict or explicit self-dependencies 
     std::unordered_map<std::shared_ptr<instantiated_math_function>,std::unordered_set<std::shared_ptr<instantiated_math_function>>> all_dependencies_of_function;
-
-    void rebuild_dependency_map(); // rebuild all_dependencies_of_channel and all_dependencies_of_function hash tables. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main waveform database, and the main waveform database admin lock must be locked when this is called. 
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> mdonly_functions; // all functions with mdonly set... updated by rebuild_dependency_map()
+    
+    void _rebuild_dependency_map(); // rebuild all_dependencies_of_channel and all_dependencies_of_function hash tables. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main waveform database, and the main waveform database admin lock must be locked when this is called. 
 
   };
 
@@ -220,22 +221,23 @@ namespace snde {
 
   public:
     // Should this next map be replaced by a map of general purpose notifies that trigger when all missing prerequisites are satisified? (probably not but we still need the notification functionality)
-    std::set<std::shared_ptr<channelconfig>> missing_prerequisites; // all missing (non-ready) local (in this waveform_set_state/globalrev) prerequisites of this function. Remove entries from the set as they become ready. When the set is empty, the math function represented by the key is dispatchable and should be marked as ready_to_execute
+    std::set<std::shared_ptr<channelconfig>> missing_prerequisites; // all missing (non-ready -- or !!!*** non-mdonly as appropriate) local (in this waveform_set_state/globalrev) prerequisites of this function. Remove entries from the set as they become ready. When the set is empty, the math function represented by the key is dispatchable and should be marked as ready_to_execute
+    std::shared_ptr<math_function_execution> execfunc; // tracking of this particular execution. Later globalrevs that will use the result unchanged may also point to this. (Each pointing globalrev should be registered in the execfunc's referencing_wss set so that it can get callbacks on completion)
     
-    std::set<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<channelconfig>>> missing_external_channel_prerequisites; // all missing (non-ready) external prerequisites of this function. Remove entries from the set as they become ready. 
-    std::set<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_function_prerequisites; // all missing (non-ready) external prerequisites of this function. Remove entries from the set as they become ready. 
+    std::set<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<channelconfig>>> missing_external_channel_prerequisites; // all missing (non-ready...or !!!*** nonmdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Will be used e.g. for dependencies of on-demand waveforms calculated in their own wss context
+    std::set<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_function_prerequisites; // all missing (non-ready... or !!!*** non-mdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Currently used solely for self-dependencies (which can't be mdonly)
 
-    bool mdonly; // if this execution is actually mdonly
-    bool mdonly_executed; // if execution has completed at least through mdonly;
-    bool is_mutable; // if this execution does in-place mutation of one or more of its parameters.
-    bool execution_in_progress; // set while holding the wss's admin lock right before the executing_math_function is generated. Cleared when the executing_math_function is released. 
+    // bool mdonly; // if this execution is actually mdonly. Now replaced with execfunc->mdonly
+    //bool mdonly_executed; // if execution has completed at least through mdonly; Now replaced with execfunc->mdonly_executed
+    //bool is_mutable; // if this execution does in-place mutation of one or more of its parameters. Now replaced with execfunc->is_mutable
+    //bool execution_in_progress; // set while holding the wss's admin lock right before the executing_math_function is generated. Cleared when the executing_math_function is released. 
     
-    bool execution_demanded; // even once all prereqs are satisfied, do we need to actually execute? This is only set if at least one of our non-self dependencies has changed and we are not disabled (or ondemand in a regular globalrev)
+    bool execution_demanded; // even once all prereqs are satisfied, do we need to actually execute? This is only set if at least one of our non-self dependencies has changed and we are not disabled (or ondemand in a regular globalrev) and !!!*** the execfunc was generated for this revision
     bool ready_to_execute;
-    bool metadataonly_complete; // if we are only executing to metadataonly, this is the complete flag
+    // bool metadataonly_complete; // if we are only executing to metadataonly, this is the complete flag.... move to execfunc->
     bool complete; // set to true once fully executed; Note that this can shift from true back to false for a formerly metadataonly math function where the full data has been requested
 
-    math_function_status(bool mdonly,bool is_mutable);
+    math_function_status();
   };
 
   class math_status {
@@ -281,17 +283,68 @@ namespace snde {
 
   };
 
-  
-  class executing_math_function {
-    // generated once we are ready to execute a math function
-    // (all prerequisites are done)
-    // usually subclassed
+  class math_function_execution {
+    // tracks the status of a math function and its execution across multiple wss/globalrevs
+    // since this structure is persistent, subclasses must be careful not to maintain shared_ptrs that will
+    // keep old data in memory
+    
+    // lock-free behavior:
+    //    * wss should be valid from creation as long as mdonly_executed is not set.
+    //    * inst is immutable
+    //    * bools are atomic so they can be read safely (but if you read several you may not get a consistent state without locking
+
+    // The 'execution ticket' is the non-false value of .executing and is acquired by calling try_execution_ticket() and having that
+    // return true. Once you have the execution ticket you can create a pending computation, assign the compute resource, etc.
+
   public:
-    std::shared_ptr<waveform_set_state> wss; // waveform set state in which we are executing
+    std::mutex admin; // guards referencing_wss and groups operations on the bools. Also acquire this before clearing wss. Last in the locking order except python GIL
+
+    std::shared_ptr<waveform_set_state> wss; // waveform set state in which we are executing. Set to nullptr by owner of execution ticket after metadata phase to avoid a reference loop that will keep old waveforms in memory. 
     std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
 
-    bool is_mutable;
-    bool mdonly; 
+    std::set<std::weak_ptr<waveform_set_state>,std::owner_less<std::weak_ptr<waveform_set_state>>> referencing_wss; // all waveform set states that reference this executing_math_function
+
+    std::atomic<bool> executing; // the execution ticket (see try_execution_ticket() method)
+    std::atomic<bool> is_mutable; // if this execution does in-place mutation of one or more of its parameters.
+    std::atomic<bool> mdonly; // if this execution is actually mdonly
+    std::atomic<bool> metadata_executed; // if execution has completed at least through metadata
+    std::atomic<bool> metadataonly_complete; // if we are only executing to metadataonly, this is the complete flag.
+    std::atomic<bool> fully_complete; // function has fully executed to ready state
+    std::shared_ptr<executing_math_function> execution_tracker; // only valid once prerequisites are complete because we can't instantiate it until we have resolved the types of the parameters to identify which code to execute. 
+
+    math_function_execution(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool mdonly,bool is_mutable);  // automatically adds wss to referencing_wss set
+    
+    inline bool try_execution_ticket()
+    // if this returns true, you have the execution ticket. Don't forget to assign executing=false when you are done. 
+    {
+      bool expected=false;
+      return executing.compare_exchange_strong(expected,true);
+    }
+    
+  };
+  
+  
+  class executing_math_function {
+    // generated to track the execution of a math function
+    // each executing_math_function has a single unique math_function_execution. It
+    // is not allowed for multiple math_function_executions to point at the same executing_math_function
+    
+    // executing_math_function is created once all prerequisites are done
+    // and usually subclassed
+
+    // lock-free behavior:
+    //    * wss should be valid from creation as long as mdonly_executed is not set. Safe to read by holder of parent's execution ticket, including the corresponding execution methods
+    //    * inst is immutable
+    //    * self_dependent_waveforms: safe for owner of parent math_function_execution's 'execution ticket' to read lock-free
+    //    * compute_resource: shared_ptr may be assigned/read by the owner of the parent math_function_execution's 'execution ticket'. The pointed data structure is locked by
+    //      the assigned compute resource database's admin lock
+    //
+    
+  public:
+    std::shared_ptr<waveform_set_state> wss; // waveform set state in which we are executing. Set to nullptr by owner of parent's execution ticket after metadata phase to avoid a reference loop that will keep old waveforms in memory. 
+    std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
+
+
     // should also have parameter values, references, etc. here
     
     // parameter values should include bounding_hyperboxes of the domains that actually matter,
@@ -299,24 +352,25 @@ namespace snde {
 
 
     // self_dependent_waveforms is auto-created by the constructor
-    std::list<std::shared_ptr<waveform_base>> self_dependent_waveforms; // only valid (size() > 0) with implicit/explict self dependency. entries will be nullptr first time through anyway. Entries may also be nullptr if the function output is being ignored rather than stored in the waveform database. 
+    std::vector<std::shared_ptr<waveform_base>> self_dependent_waveforms; // only valid (size() > 0) with implicit/explict self dependency. entries will be nullptr first time through anyway. Entries may also be nullptr if the function output is being ignored rather than stored in the waveform database. ***!!! Must be set to nullptr after execution to avoid keeping old waveforms alive ***!!!
 
     // compute_resource is assigned post-creation
-    std::shared_ptr<assigned_compute_resource> compute_resource; // locked by acrd's admin lock
+    std::shared_ptr<assigned_compute_resource> compute_resource; // pointed structure locked by acrd's admin lock
     // These next two elements are locked by the parent available_compute_resources_database admin lock
     // THEY HAE BEEN REPLACED BY THE ASSIGNED COMPUTE RESOURCE
     //std::vector<size_t> cpu_cores;  // vector of indices into available_compute_resource_cpu::functions_using_cores representing assigned CPU cores; from assigned_compute_resource_option_cpu and/or assigned_compute_resource_option_opencl
     //std::vector<size_t> opencl_jobs;  // vector of indices into available_compute_resource_cpu::functions_using_devices representing assigned GPU jobs; from assigned_compute_resource_option_opencl
 
 
-    executing_math_function(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> fcn,bool is_mutable, bool mdonly);
+    executing_math_function(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> fcn);
 
     // Rule of 3
     executing_math_function(const executing_math_function &) = delete;
     executing_math_function& operator=(const executing_math_function &) = delete; 
     virtual ~executing_math_function()=default;  // virtual destructor required so we can be subclasse
 
-    virtual bool perform_decide_new_revision()=0; // perform_decide_new_revision asks the executing math function to determine whether a new revision is to be created ***!!! SHOULD THIS BE SEPARATE FOR EACH OUTPUT CHANNEL RATHER THAN A SINGLE BOOL!!!???
+    
+    virtual bool perform_decide_execution()=0; // perform_decide_execution asks the new_revision_optional executing math function to determine whether it needs to execute, potentially creating new revisions of its output
     virtual std::list<std::shared_ptr<compute_resource_option>> perform_compute_options()=0; // perform_compute_options asks the executing math function to perform its compute_options step (which should not be compute intensive)
 
     virtual void perform_define_wfms()=0;

@@ -2,8 +2,8 @@
 
 namespace snde {
   
-  wfmmath_cppfuncexec_base::wfmmath_cppfuncexec_base(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool is_mutable,bool mdonly) :
-    executing_math_function(wss,inst,is_mutable,mdonly)
+  wfmmath_cppfuncexec_base::wfmmath_cppfuncexec_base(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
+    executing_math_function(wss,inst)
   {
     
   }
@@ -11,7 +11,7 @@ namespace snde {
 
 
   cpp_math_function::cpp_math_function(size_t num_results,
-				       std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated,bool is_mutable,bool mdonly)> initiate_execution,
+				       std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
 				       bool supports_cpu,
 				       bool supports_opencl,
 				       bool supports_cuda) :
@@ -21,7 +21,7 @@ namespace snde {
     supports_cuda(supports_cuda)
   {
     // perform test creation of a wfmmath_cppfuncexec_base to extract the parameter list
-    std::shared_ptr<wfmmath_cppfuncexec_base> testexec = std::dynamic_pointer_cast<wfmmath_cppfuncexec_base>(initiate_execution(nullptr,nullptr,false,false));
+    std::shared_ptr<wfmmath_cppfuncexec_base> testexec = std::dynamic_pointer_cast<wfmmath_cppfuncexec_base>(initiate_execution(nullptr,nullptr));
 
     // Get vector of param type numbers from 
     std::vector<unsigned> param_types_vec = testexec->determine_param_types();

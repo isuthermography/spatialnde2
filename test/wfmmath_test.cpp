@@ -7,11 +7,13 @@
 using namespace snde;
 
 
+const double scalefactor=4.5;
+
 class multiply_by_scalar: public wfmmath_cppfuncexec<std::shared_ptr<ndtyped_waveform<snde_float32>>,snde_float64>
 {
 public:
-  multiply_by_scalar(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool is_mutable,bool mdonly) :
-      wfmmath_cppfuncexec(wss,inst,is_mutable,mdonly)
+  multiply_by_scalar(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
+      wfmmath_cppfuncexec(wss,inst)
   {
 
   }
@@ -32,14 +34,14 @@ public:
   std::shared_ptr<metadata_function_type> define_wfms(std::shared_ptr<ndtyped_waveform<snde_float32>> waveform, snde_float64 multiplier) 
   {
     // define_wfms code
-    printf("define_wfms()");
+    printf("define_wfms()\n");
     std::shared_ptr<ndtyped_waveform<snde_float32>> result_wfm = ndtyped_waveform<snde_float32>::create_waveform(*inst->result_channel_paths.at(0),wss);
     // ***!!! Should provide means to set allocation manager !!!***
     
     return std::make_shared<metadata_function_type>([ this,result_wfm ](std::shared_ptr<ndtyped_waveform<snde_float32>> waveform, snde_float64 multiplier) {
       // metadata code
       std::unordered_map<std::string,metadatum> metadata;
-      printf("metadata()");
+      printf("metadata()\n");
       metadata.emplace("Test_metadata_entry",metadatum("Test_metadata_entry",3.14));
       
       result_wfm->metadata=std::make_shared<immutable_metadata>(metadata);
@@ -90,10 +92,11 @@ int main(int argc, char *argv[])
 
   wfmdb->default_storage_manager = std::make_shared<waveform_storage_manager_shmem>();
   wfmdb->compute_resources->compute_resources.push_back(std::make_shared<available_compute_resource_cpu>(wfmdb,wfmdb->compute_resources,SNDE_CR_CPU,std::thread::hardware_concurrency()));
+  wfmdb->compute_resources->start();
 
   std::shared_ptr<math_function> multiply_by_scalar_function = std::make_shared<cpp_math_function>(1,
-												   [] (std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool is_mutable,bool mdonly) {
-												     return std::make_shared<multiply_by_scalar>(wss,inst,is_mutable,mdonly);
+												   [] (std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst) {
+												     return std::make_shared<multiply_by_scalar>(wss,inst);
 												   },
 												   true,
 												   false,
@@ -101,7 +104,7 @@ int main(int argc, char *argv[])
   
   std::shared_ptr<instantiated_math_function> scaled_channel_function = multiply_by_scalar_function->instantiate({
       std::make_shared<math_parameter_waveform>("/test_channel"),
-      std::make_shared<math_parameter_double_const>(4.5),
+      std::make_shared<math_parameter_double_const>(scalefactor),
     },
     { std::make_shared<std::string>("/scaled channel") },
     "",
@@ -133,6 +136,21 @@ int main(int argc, char *argv[])
   }
   test_wfm->mark_as_ready();
 
+  printf("About to wait_complete()\n");
+  fflush(stdout);
   globalrev->wait_complete();
+
+  printf("wait_complete() done\n");
+  fflush(stdout);
+  std::shared_ptr<ndarray_waveform> scaled_wfm = std::dynamic_pointer_cast<ndarray_waveform>(globalrev->get_waveform("/scaled channel"));
+  
+  for (size_t cnt=0;cnt < len; cnt++) {
+    double math_function_value = scaled_wfm->element_double({cnt});
+    double recalc_value = (float)(test_wfm->element_double({cnt})*scalefactor);
+    printf(" %f \t \t %f\n",recalc_value,math_function_value);
+    assert(math_function_value == recalc_value);
+  }
+  
+  printf("Exiting.\n");
   return 0;
 }

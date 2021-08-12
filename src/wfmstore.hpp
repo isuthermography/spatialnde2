@@ -131,7 +131,8 @@ namespace snde {
   class channel;
   class globalrevision;
   class channel_state;
-
+  class transaction;
+  
   // constant data structures with waveform type number information
   extern const std::unordered_map<std::type_index,unsigned> wtn_typemap; // look up typenum based on C++ typeid(type)
   extern const std::unordered_map<unsigned,std::string> wtn_typenamemap;
@@ -201,9 +202,10 @@ namespace snde {
     // wss, but depending on the state _originating_wss may not have been assigned yet and may
     // need to extract from wfmdb_weak and _originating_globalrev_index.
     // DON'T ACCESS THESE DIRECTLY! Use the .get_originating_wss() and ._get_originating_wss_wfmdb_and_wfm_admin_prelocked() methods.
-    std::weak_ptr<wfmdatabase> wfmdb_weak;
-    uint64_t _originating_globalrev_index;
-    std::weak_ptr<waveform_set_state> _originating_wss;
+    std::weak_ptr<wfmdatabase> wfmdb_weak;  // Right now I think this is here solely so that we can get access to the available_compute_resources_database to queue more calculations after a waveform is marked as ready. 
+    std::weak_ptr<transaction> defining_transact; // This pointer should be valid for a waveform defined as part of a transaction; nullptr for an ondemand math waveform, for example. Weak ptr should be convertible to strong as long as the originating_wss is still current.
+    
+    std::weak_ptr<waveform_set_state> _originating_wss; // locked by admin mutex; if expired than originating_wss has been freed. if nullptr then this was defined as part of a transaction that was may still be going on when the waveform was defined. Use get_originating_wss() which handles locking and getting the originating_wss from the defining_transact
 
     // Need typed template interface !!! ***
     
@@ -219,6 +221,8 @@ namespace snde {
 
     // This constructor is reserved for the math engine
     // must call wfmdb->register_new_math_wfm() on the constructed waveform
+    // Note: defining_transact will be nullptr if this calculation
+    // is not from a globalrevision originating from a transaction
     waveform_base(std::shared_ptr<wfmdatabase> wfmdb,std::string chanpath,std::shared_ptr<waveform_set_state> calc_wss,size_t info_structsize=sizeof(struct snde_waveform_base));
 
     // rule of 3
@@ -226,11 +230,11 @@ namespace snde {
     waveform_base(const waveform_base &orig) = delete;
     virtual ~waveform_base(); // virtual destructor so we can be subclassed
 
-    virtual std::shared_ptr<waveform_set_state> _get_originating_wss_wfmdb_and_wfm_admin_prelocked(); // version of get_originating_wss() to use if you have the waveform database and waveform's admin locks already locked.
+    virtual std::shared_ptr<waveform_set_state> _get_originating_wss_wfm_admin_prelocked(); // version of get_originating_wss() to use if you have the waveform database and waveform's admin locks already locked.
     std::shared_ptr<waveform_set_state> _get_originating_wss_wfmdb_admin_prelocked(); // version of get_originating_wss() to use if you have the waveform database admin lock already locked.
 
     virtual std::shared_ptr<waveform_set_state> get_originating_wss(); // Get the originating waveform set state (often a globalrev). You should only call this if you are sure that originating wss must still exist (otherwise may generate a snde_error), such as before the creator has declared the waveform "ready". This will lock the waveform database and wfm admin locks, so any locks currently held must precede both in the locking order
-    
+    virtual bool _transactionwfm_transaction_still_in_progress_admin_prelocked(); // with the waveform admin locked,  return if this is a transaction waveform where the transaction is still in progress and therefore we can't get the waveform_set_state
 
     // Mutable waveform only ***!!! Not properly implemented yet ***!!!
     /*
@@ -334,17 +338,21 @@ namespace snde {
   class transaction {
   public:
     // mutable until end of transaction when it is destroyed and converted to a globalrev structure
-    std::mutex admin; // last in the locking order except before python GIL. Must hold this lock when reading or writing structures within. Does not cover the channels/wavaveforms themselves.
+    std::mutex admin; // last in the locking order except before python GIL. Must hold this lock when reading or writing structures within. Does not cover the channels/waveforms themselves.
 
-    uint64_t globalrev; // globalrev for this transaction. Immutable once published
+    uint64_t globalrev; // globalrev index for this transaction. Immutable once published
     std::unordered_set<std::shared_ptr<channel>> updated_channels;
     //Keep track of whether a new waveform is required for the channel (e.g. if it has a new owner) (use false for math waveforms)
     std::map<std::string,bool> new_waveform_required; // index is channel name for updated channels
     std::unordered_map<std::string,std::shared_ptr<waveform_base>> new_waveforms;
 
     // end of transaction propagates this structure into an update of wfmdatabase._channels
-    // and a new globalrevision 
+    // and a new globalrevision
 
+    // when the transaction is complete, resulting_globalrevision() is assigned
+    // so that if you have a pointer to the transaction you can get the globalrevision (which is also a waveform_set_state)
+    std::weak_ptr<globalrevision> _resulting_globalrevision; // locked by transaction admin mutex; use resulting_globalrevision() accessor. 
+    std::pair<std::shared_ptr<globalrevision>,bool> resulting_globalrevision(); // returned bool true means null pointer indicates expired pointer, rather than in-progress transaction
 
     
   };
@@ -473,8 +481,11 @@ namespace snde {
     channel_notification_criteria(const channel_notification_criteria &orig);
     ~channel_notification_criteria() = default;
     void add_waveformset_complete();
-    void add_fullyready_channel(std::string);
-    void add_metadataonly_channel(std::string);
+    
+    void add_completion_channel(std::shared_ptr<waveform_set_state> wss,std::string); // satisfied once the specified channel reaches the current (when this criteria is defined) definition of completion for that channel (mdonly vs fullyready)
+    
+    void add_fullyready_channel(std::string); // satisified once the specified channel becomes fullyready (inapplicable to mdonly channels -- may never trigger unless fullyready is requested)
+    void add_metadataonly_channel(std::string); // satisfied once the specified channel achieves mdonly (if applied to an mdonly channel you may not get notified until the channel is fullyready)
   };
   
   class channel_notify : public std::enable_shared_from_this<channel_notify> {
@@ -504,7 +515,7 @@ namespace snde {
     virtual void perform_notify()=0; // will be called once ALL criteria are satisfied. May be called in any thread or context; must return quickly. Shouldn't do more than acquire a non-heavily-contended lock and perform a simple operation. NOTE: WILL NEED TO SPECIFY WHAT EXISTING LOCKS IF ANY MIGHT BE HELD WHEN THIS IS CALLED
 
     // These next three methods are called when one of the criteria has been satisifed
-    virtual void notify_metadataonly(const std::string &channelpath); // notify this notifier that the given channel has satisified metadataonly (not usually modified by subclass)
+    virtual void notify_metadataonly(const std::string &channelpath); // notify this notifier that the given mdonly channel has satisified metadataonly (not usually modified by subclass)
     virtual void notify_ready(const std::string &channelpath); // notify this notifier that the given channel has satisified ready (not usually modified by subclass)
     virtual void notify_waveformset_complete(); // notify this notifier that all waveforms in this set are complete
 
@@ -585,7 +596,7 @@ namespace snde {
     std::shared_ptr<channel> _channel; // immutable pointer, but pointed data is not immutable, (but you shouldn't generally need to access this)
     std::shared_ptr<waveform_base> _wfm; // atomic shared ptr to waveform structure created to store the ouput; may be nullptr if not (yet) created. Always nullptr for ondemand waveforms... waveform contents may be mutable but have their own admin lock
     std::atomic<bool> updated; // this field is only valid once wfm() returns a valid pointer and once wfm()->state is READY or METADATAREADY. It is true if this particular waveform has a new revision particular to the enclosing waveform_set_state
-    uint64_t revision; // This is assigned when the channel_state is created from _wfm->info->revision for manually created waveforms. For ondemand math waveforms this is not meaningful. For math waveforms with the math_function's new_revision_optional (config->math_fcn->fcn->new_revision_optional) flag clear, this is defined during end_transaction() ***!!!. If the new_revision_optional flag is set, this is defined when the math function instantiates its waveform in the waveform_base constructor
+    std::shared_ptr<uint64_t> revision; // This is assigned when the channel_state is created from _wfm->info->revision for manually created waveforms. (For ondemand math waveforms this is not meaningful?) For math waveforms with the math_function's new_revision_optional (config->math_fcn->fcn->new_revision_optional) flag clear, this is defined during end_transaction() before the channel_state is published. If the new_revision_optional flag is set, this left nullptr; once the math function determines whether a new waveform will be instantiated the revision will be assigned when the waveform is define, with ordering ensured by the implicit self-dependency implied by the new_revision_optional flag (wfmmath_compute_resource.cpp)
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_metadataonly; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes metadataonly; set to nullptr at end of channel becoming metadataonly. 
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_ready; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes ready; set to nullptr at end of channel becoming ready. 
 
@@ -618,9 +629,12 @@ namespace snde {
     
     /// all of these are indexed by their their full path. Every entry in channel_map should be in exactly one of these. Locked by wss admin mutex per above
     // The index is the shared_ptr in globalrev_channel.config
+    // primary use for these is determining when our globalrev/wss is
+    // complete: Once call waveforms are in metadataonly or completed,
+    // then it should be complete
     std::unordered_map<std::shared_ptr<channelconfig>,channel_state *> defined_waveforms;
     std::unordered_map<std::shared_ptr<channelconfig>,channel_state *> instantiated_waveforms;
-    std::unordered_map<std::shared_ptr<channelconfig>,channel_state *> metadataonly_waveforms;
+    std::unordered_map<std::shared_ptr<channelconfig>,channel_state *> metadataonly_waveforms; // only move waveforms to here if they are mdonly waveforms
     std::unordered_map<std::shared_ptr<channelconfig>,channel_state *> completed_waveforms;
 
     waveform_status(const std::map<std::string,channel_state> & channel_map_param);
@@ -665,8 +679,9 @@ namespace snde {
 
     
     uint64_t globalrev;
+    std::shared_ptr<transaction> defining_transact; // This keeps the transaction data structure (pointed to by weak pointers in the waveforms created in the transaction) in memory at least as long as the globalrevision is current. 
 
-    globalrevision(uint64_t globalrev, std::shared_ptr<wfmdatabase> wfmdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<waveform_set_state> prereq_state);   
+    globalrevision(uint64_t globalrev, std::shared_ptr<transaction> defining_transact, std::shared_ptr<wfmdatabase> wfmdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<waveform_set_state> prereq_state);   
   };
   
 

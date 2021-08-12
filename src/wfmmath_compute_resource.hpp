@@ -9,7 +9,9 @@
 #include <vector>
 #include <condition_variable>
 #include <thread>
+#include <atomic>
 #include <cstdlib>
+
 
 #ifdef SNDE_OPENCL
 #include <CL/opencl.h>
@@ -34,6 +36,7 @@ namespace snde {
   class wfmdatabase; // defined in wfmstore.hpp
   class instantiated_math_function; // defined in wfmmath.hpp
   class executing_math_function; // defined in wfmmath.hpp
+  class math_function_execution; // defined in wfmmath.hpp
   
   class available_compute_resource;
   class assigned_compute_resource_cpu;
@@ -105,7 +108,7 @@ namespace snde {
     available_compute_resource_database();
     void queue_computation(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn);
     void _queue_computation_internal(std::shared_ptr<pending_computation> &computation); // NOTE: Sets computation to nullptr once queued
-
+    void start(); // start all of the compute_resources
 
   };
 
@@ -115,16 +118,16 @@ namespace snde {
     // of other available_compute_resources
     // locked by the available_compute_resource_database's admin lock but the pointed to executing_math_function is locked separately
   public:
-    std::shared_ptr<executing_math_function> function_to_execute; // once ready to execute, we pull the arguments and create an executing_math_function.
+    std::shared_ptr<math_function_execution> function_to_execute; 
     std::shared_ptr<waveform_set_state> wfmstate;
     uint64_t globalrev;
     uint64_t priority_reduction; // 0..(SNDE_CR_PRIORITY_REDUCTION_LIMIT-1)
 
-    pending_computation(std::shared_ptr<executing_math_function> function_to_execute,std::shared_ptr<waveform_set_state> wfmstate,uint64_t globalrev,uint64_t priority_reduction);
+    pending_computation(std::shared_ptr<math_function_execution> function_to_execute,std::shared_ptr<waveform_set_state> wfmstate,uint64_t globalrev,uint64_t priority_reduction);
     
   };
   
-  class available_compute_resource {
+  class available_compute_resource: public std::enable_shared_from_this<available_compute_resource> {
     // Locked by the available_compute_resource_database's admin lock
   public:
     available_compute_resource(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type);
@@ -133,6 +136,8 @@ namespace snde {
     available_compute_resource& operator=(const available_compute_resource &) = delete; 
     virtual ~available_compute_resource()=default;  // virtual destructor required so we can be subclassed
 
+    virtual void start()=0; // set the compute resource going
+    
     unsigned type; // SNDE_CR_...
 
     std::shared_ptr<std::mutex> acrd_admin; // so we can access the ACRD's admin lock.
@@ -149,7 +154,7 @@ namespace snde {
 
     // NOTE: We should probably implement core affinity here and limit execution to certain sets of cores. 
     size_t total_cpu_cores_available;
-    std::vector<std::shared_ptr<executing_math_function>> functions_using_cores; // contains core assignments, total length should match total_cpu_cores_available.
+    std::vector<std::shared_ptr<math_function_execution>> functions_using_cores; // contains core assignments, total length should match total_cpu_cores_available.
 
     std::condition_variable computations_added_or_completed; // associated mutex is the admin lock of the available_compute_resource_database
     std::thread dispatch_thread;
@@ -157,15 +162,17 @@ namespace snde {
     // each pool thread should either be in available_threads or assigned_threads at any given time
     std::vector<std::thread> available_threads; // mapped according to functions_using_cores
     std::vector<std::shared_ptr<std::condition_variable>> thread_triggers; // mapped according to functions_using_cores  (use shared_ptrs because condition_variable is not MoveConstructable)
-    std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<executing_math_function>,std::shared_ptr<compute_resource_option_cpu>>> thread_actions; // mapped according to first thread assigned to a particular math function
+    std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<math_function_execution>,std::shared_ptr<compute_resource_option_cpu>>> thread_actions; // mapped according to first thread assigned to a particular math function
     std::thread dispatcher_thread; // started by constructor
     
     available_compute_resource_cpu(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type,size_t total_cpu_cores_available);
 
+
+    virtual void start(); // set the compute resource going
     virtual void notify_acr_of_changes_to_prioritized_computations(); // should be called WITH  ACRD's admin lock held
     size_t _number_of_free_cpus(); // Must call with ACRD admin lock locked
-    std::shared_ptr<assigned_compute_resource_cpu> _assign_cpus(std::shared_ptr<executing_math_function> function_to_execute,size_t number_of_cpus);
-    void _dispatch_thread(std::shared_ptr<waveform_set_state> wfmstate,std::shared_ptr<executing_math_function> function_to_execute,std::shared_ptr<compute_resource_option_cpu> compute_option_cpu,size_t first_thread_index);
+    std::shared_ptr<assigned_compute_resource_cpu> _assign_cpus(std::shared_ptr<math_function_execution> function_to_execute,size_t number_of_cpus);
+    void _dispatch_thread(std::shared_ptr<waveform_set_state> wfmstate,std::shared_ptr<math_function_execution> function_to_execute,std::shared_ptr<compute_resource_option_cpu> compute_option_cpu,size_t first_thread_index);
     void dispatch_code();
     void pool_code(size_t threadidx);
   };
@@ -173,12 +180,14 @@ namespace snde {
 #ifdef SNDE_OPENCL
   class available_compute_resource_opencl: public available_compute_resource {
     available_compute_resource_opencl(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type,cl_context opencl_context,cl_device_id *opencl_devices,size_t num_devices,size_t max_parallel);
+    virtual void start(); // set the compute resource going
+
     std::shared_ptr<available_compute_resource_cpu> controlling_cpu;
     cl_context opencl_context;
     cl_device_id *opencl_devices;
     size_t num_devices;
     size_t max_parallel; // max parallel jobs on a single device
-    std::vector<std::shared_ptr<executing_math_function>> functions_using_devices; // length num_devices*max_parallel
+    std::vector<std::shared_ptr<math_function_execution>> functions_using_devices; // length num_devices*max_parallel
 
   };
 #endif // SNDE_OPENCL

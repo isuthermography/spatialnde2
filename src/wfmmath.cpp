@@ -2,7 +2,7 @@
 #include "wfmstore.hpp"
 
 namespace snde {
-  math_function::math_function(size_t num_results,const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated,bool is_mutable,bool mdonly)> initiate_execution) :
+  math_function::math_function(size_t num_results,const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution) :
     num_results(num_results),
     param_names_types(param_names_types),
     initiate_execution(initiate_execution)
@@ -10,7 +10,8 @@ namespace snde {
     new_revision_optional=false;
     pure_optionally_mutable=false;
     mandatory_mutable=false;
-    self_dependent=false; 
+    self_dependent=false;
+    mdonly_allowed = false; 
   }
 
   math_definition::math_definition(std::string definition_command) :
@@ -38,7 +39,19 @@ namespace snde {
     fcn(fcn),
     definition(definition)
   {
-    
+
+    if (mdonly) {
+      if (fcn->new_revision_optional) {
+	// mdonly is (maybe) incompatible with new_revision_optional because if we decide not to execute
+	// we need a prior result to fall back on. But execution is managed based on changed
+	// inputs (math_function_execution) where the prior incomplete result would require importing
+	// and replacing our current math_function_execution/executing_math_function pair,
+	// which might be possible but we currently don't allow. If we were to do this, any
+	// subsequent revisions already created but referring to our current math_function_execution/executing_math_function pair
+	// would need to be identified and updated
+	throw snde_error("Metadata only function may not be new_revision_optional");
+      }
+    }
   }
   
   
@@ -57,18 +70,23 @@ namespace snde {
   }
 
   // rebuild all_dependencies_of_channel hash table. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main waveform database, and the main waveform database admin lock must be locked when this is called. 
-  void instantiated_math_database::rebuild_dependency_map()
+  void instantiated_math_database::_rebuild_dependency_map()
   {
 
     all_dependencies_of_channel.clear();
     all_dependencies_of_function.clear();
-
+    mdonly_functions.clear();
+    
     std::unordered_set<std::shared_ptr<instantiated_math_function>> all_fcns; 
     
     for (auto&& channame_math_fcn_ptr: defined_math_functions) {
       std::shared_ptr<instantiated_math_function> fcn_ptr = channame_math_fcn_ptr.second;
 
       all_fcns.emplace(fcn_ptr);
+      if (fcn_ptr->mdonly) {
+	mdonly_functions.emplace(fcn_ptr);
+      }
+      
       for (auto && parameter_ptr: fcn_ptr->parameters) {
 
 	std::set<std::string> prereqs = parameter_ptr->get_prerequisites(fcn_ptr->channel_path_context);
@@ -112,12 +130,11 @@ namespace snde {
     
   }
 
-  math_function_status::math_function_status(bool mdonly,bool is_mutable) :
-    mdonly(mdonly),
-    is_mutable(is_mutable),
-    ready_to_execute(false),
+  math_function_status::math_function_status() :
+    //mdonly(mdonly),
+    // is_mutable(is_mutable),
     execution_demanded(false),
-    metadataonly_complete(false),
+    ready_to_execute(false),
     complete(false)    
   {
 
@@ -138,7 +155,7 @@ namespace snde {
       if (function_status.find(math_function_name_ptr.second) == function_status.end()) {
 	function_status.emplace(std::piecewise_construct, // ***!!! Need to fill out prerequisites somewhere, but not sure constructor is the place!!!*** ... NO. prerequisites are filled out in end_transaction(). 
 				std::forward_as_tuple(math_function_name_ptr.second),
-				std::forward_as_tuple(math_function_name_ptr.second->mdonly,math_function_name_ptr.second->is_mutable)); // Set the mutable flag according to the instantiated_math_function (do we really need this flag still???) 
+				std::forward_as_tuple()); // .second->mdonly,math_function_name_ptr.second->is_mutable)); // Set the mutable flag according to the instantiated_math_function (do we really need this flag still???) 
 	_external_dependencies_on_function->emplace(std::piecewise_construct,
 						    std::forward_as_tuple(math_function_name_ptr.second),
 						    std::forward_as_tuple());
@@ -223,11 +240,12 @@ namespace snde {
 	wfmstate->mathstatus.pending_functions.erase(pending_it);
 	wfmstate->mathstatus.completed_functions.emplace(fcn);
       }
-      
-      our_status.mdonly_executed=true;
-      if (mdonly && our_status.mdonly) {
-	our_status.complete=true;
-      }
+
+      // These assigned before calling this function
+      //our_status.metadata_executed=true;
+      //if (mdonly && our_status.mdonly) {
+      //our_status.complete=true;
+      //}
       
       // look up anything dependent on this function's execution
       external_dependencies_on_function = wfmstate->mathstatus.external_dependencies_on_function();
@@ -298,15 +316,29 @@ namespace snde {
     }
     
   }
-				  
-  executing_math_function::executing_math_function(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool is_mutable,bool mdonly) :
+
+  math_function_execution::math_function_execution(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool mdonly,bool is_mutable) :
     wss(wss),
     inst(inst),
+    executing(false),
     is_mutable(is_mutable),
-    mdonly(mdonly)
+    mdonly(mdonly),
+    metadata_executed(false),
+    metadataonly_complete(false),
+    fully_complete(false)
+    // automatically adds wss to referencing_wss set
+  {
+    referencing_wss.emplace(std::weak_ptr<waveform_set_state>(wss));
+
+  }
+
+  
+  executing_math_function::executing_math_function(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
+    wss(wss),
+    inst(inst)
   {
     std::shared_ptr<waveform_base> null_waveform;
-    
+
     
     // initialize self_dependent_waveforms, if applicable
     if (inst && inst->self_dependent) {

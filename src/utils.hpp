@@ -7,6 +7,24 @@
 #define SNDE_UTILS_HPP
 
 namespace snde {
+
+
+  //  (see https://stackoverflow.com/questions/26913743/can-an-expired-weak-ptr-be-distinguished-from-an-uninitialized-one)
+  template <typename T>
+  bool invalid_weak_ptr_is_expired(const std::weak_ptr<T> &weakptr)
+  {
+    assert(!weakptr.lock()); // assuming weakptr tests as invalid
+    std::weak_ptr<T> null_weak_ptr;
+    
+    if (null_weak_ptr.owner_before(weakptr) || weakptr.owner_before(null_weak_ptr)) {
+      // this is distinct from the nullptr
+      return true; 
+    }
+    return false;
+    
+  }
+
+  
 // my_tokenize: like strtok_r, but allows empty tokens
   static inline char *c_tokenize(char *buf,int c,char **SavePtr)
   {

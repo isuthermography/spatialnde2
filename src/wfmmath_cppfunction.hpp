@@ -82,7 +82,7 @@ namespace snde {
 
     // !!!*** May still need self_dependent_waveforms but perhaps not here... (moved to executing_math_function
 
-    wfmmath_cppfuncexec_base(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool is_mutable,bool mdonly);
+    wfmmath_cppfuncexec_base(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst);
 
     wfmmath_cppfuncexec_base(const wfmmath_cppfuncexec_base &) = delete;
     wfmmath_cppfuncexec_base& operator=(const wfmmath_cppfuncexec_base &) = delete; 
@@ -278,8 +278,8 @@ namespace snde {
 
     std::tuple<Ts...> parameters;
       
-    wfmmath_cppfuncexec(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool is_mutable,bool mdonly) :
-      wfmmath_cppfuncexec_base(wss,inst,is_mutable,mdonly),
+    wfmmath_cppfuncexec(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
+      wfmmath_cppfuncexec_base(wss,inst),
       compute_options_function(nullptr),
       define_wfms_function(nullptr),
       metadata_function(nullptr),
@@ -300,17 +300,17 @@ namespace snde {
     typedef std::function<std::shared_ptr<lock_alloc_function_type>(Ts&...)> metadata_function_type;
     typedef std::function<std::shared_ptr<metadata_function_type>(Ts&...)> define_wfms_function_type;
     typedef std::function<std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_wfms_function_type>>(Ts&...)> compute_options_function_type; 
-    typedef std::function<std::pair<bool,std::shared_ptr<compute_options_function_type>>(Ts&...)> decide_new_revision_function_type; 
+    typedef std::function<std::pair<bool,std::shared_ptr<compute_options_function_type>>(Ts&...)> decide_execution_function_type; 
     
     // The function pointers stored here (if they are valid) override the methods below.
-    // This way decide_new_revision_function can return a metadata_function which returns a
+    // This way decide_execution_function can return a metadata_function which returns a
     // lock_alloc_function, which returns an exec_function all constructed in a chain of lambdas
     // such that captured parameters can persist throughout the chain. It's OK for the
     // returned functions to be empty, in which case the class methods will be used. 
-    //decide_new_revision_function_type decide_new_revision_function;
-    // Don't need a pointer for decide_new_revision because there's nothing that
+    //decide_execution_function_type decide_execution_function;
+    // Don't need a pointer for decide_execution because there's nothing that
     // could cause it to be overriden.
-    // decide_new_revision in any case is only used if new_revision_optional set in the math_function
+    // decide_execution in any case is only used if new_revision_optional set in the math_function
     // !!!*** If adding more function pointers here, be sure to initialize them  to nullptr in the constructor !!!***
     std::shared_ptr<compute_options_function_type> compute_options_function;
     std::shared_ptr<define_wfms_function_type> define_wfms_function;
@@ -328,31 +328,31 @@ namespace snde {
 	
     
     // NOTE: any captured variables passed to lock_alloc_function should be "smart" so that they don't leak if subsequent lambdas are never called because we returned false
-    // NOTE: If you choose to override decide_new_revision, the decision should be made
+    // NOTE: If you choose to override decide_execution, the decision should be made
     // quickly without going through the full calculations. 
-    virtual std::pair<bool,std::shared_ptr<compute_options_function_type>> decide_new_revision(Ts...) // only used if new_revision_optional set in the math_function
+    virtual std::pair<bool,std::shared_ptr<compute_options_function_type>> decide_execution(Ts...) // only used if new_revision_optional set in the math_function
     {
       // default implementation returns true and null compute_options method
       return std::make_pair(true,nullptr);
     }
 
-    // call decide_new_revision, passing parameters from tuple (see stackoverflow link, above)
+    // call decide_execution, passing parameters from tuple (see stackoverflow link, above)
     template <std::size_t... Indexes>
-    std::pair<bool,std::shared_ptr<compute_options_function_type>> call_decide_new_revision(std::tuple<Ts...>& tup,std::index_sequence<Indexes...>)
+    std::pair<bool,std::shared_ptr<compute_options_function_type>> call_decide_execution(std::tuple<Ts...>& tup,std::index_sequence<Indexes...>)
     {
-      return decide_new_revision(std::get<Indexes>(tup)...);
+      return decide_execution(std::get<Indexes>(tup)...);
     }
     
     template <std::size_t... Indexes>
-    std::pair<bool,std::shared_ptr<compute_options_function_type>> call_decide_new_revision(std::tuple<Ts...>& tup)
+    std::pair<bool,std::shared_ptr<compute_options_function_type>> call_decide_execution(std::tuple<Ts...>& tup)
     {
-      return call_decide_new_revision(tup,std::index_sequence_for<Ts...>{});
+      return call_decide_execution(tup,std::index_sequence_for<Ts...>{});
     }
         
-    virtual bool perform_decide_new_revision()
+    virtual bool perform_decide_execution()
     {
       bool new_revision;
-      std::tie(new_revision,compute_options_function)=call_decide_new_revision(parameters);
+      std::tie(new_revision,compute_options_function)=call_decide_execution(parameters);
 
       return new_revision;
     }
@@ -463,7 +463,7 @@ namespace snde {
 
 
     
-    // don't override if you implement decide_new_revision() and return a suitable lock_alloc() from that.
+    // don't override if you implement decide_execution() and return a suitable lock_alloc() from that.
     virtual std::shared_ptr<exec_function_type>lock_alloc(Ts... ts) {
       throw snde_error("lock_alloc method must be provided or returned from metadata function");
 
@@ -536,7 +536,7 @@ namespace snde {
     bool supports_opencl;
     bool supports_cuda;
     cpp_math_function(size_t num_results,
-		      std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated,bool is_mutable,bool mdonly)> initiate_execution,
+		      std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
 		      bool supports_cpu,
 		      bool supports_opencl,
 		      bool supports_cuda);
