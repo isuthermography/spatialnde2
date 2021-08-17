@@ -149,7 +149,7 @@ namespace snde {
     // member in the copy and point original_function at the original
     // (if not already defined) with the valid .definition member
   public:
-    std::list<std::shared_ptr<math_parameter>> parameters; 
+    std::vector<std::shared_ptr<math_parameter>> parameters; 
     //std::list<std::shared_ptr<channel>> results; // Note that null entries are legitimate if results are being ignored.
     std::vector<std::shared_ptr<std::string>> result_channel_paths; // Note that null entries are legitimate if results are being ignored.
     

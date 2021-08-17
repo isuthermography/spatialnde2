@@ -222,6 +222,14 @@ namespace snde {
     {
       std::lock_guard<std::mutex> wss_admin(wfmstate->admin);
       math_function_status &our_status = wfmstate->mathstatus.function_status.at(fcn);
+
+      // ***!!!!! Need to refactor the status transfer so that we can
+      // explicitly check it; also need to be OK with status transfer
+      // being ahead of us (possibly another thread)
+      //
+      // Also need in wfmstore.cpp:end_transaction()
+      // to go through and check if this needs to be redone
+      // after execfunc set. 
       
       // Find this fcn in matstatus [mdonly_]pending_functions and remove it, adding it to the completed block
       std::unordered_set<std::shared_ptr<instantiated_math_function>>::iterator pending_it;

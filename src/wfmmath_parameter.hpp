@@ -13,6 +13,7 @@ namespace snde {
   // forward declarations
   class waveform_base; // defined in wfmstore.hpp
   class waveform_set_state; // defined in wfmstore.hpp
+  class math_definition; // defined in wfmmath.hpp
   
   class math_parameter {
   public:
@@ -33,10 +34,10 @@ namespace snde {
     // and wfmmath_cppfunction.hpp templates to call the appropriate
     // additional get_...() methods. Also make sure they have a SNDE_WTN entry
     // in waveform.h
-    virtual std::string get_string(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index);
-    virtual int64_t get_int(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index);
-    virtual double get_double(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index);
-    virtual std::shared_ptr<waveform_base> get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index); // should only return ready waveforms because we shouldn't be called until dependencies are ready
+    virtual std::string get_string(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
+    virtual int64_t get_int(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
+    virtual double get_double(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
+    virtual std::shared_ptr<waveform_base> get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready waveforms because we shouldn't be called until dependencies are ready // parameter_index human interpreted parameter number, starting at 1, for error messages only
 
     // default implementations that returns an empty set
     virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<waveform_set_state> wss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the waveform
@@ -48,7 +49,7 @@ namespace snde {
     std::string string_constant;
 
     math_parameter_string_const(std::string string_constant);
-    virtual std::string get_string(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index);
+    virtual std::string get_string(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
     
   };
 
@@ -58,7 +59,7 @@ namespace snde {
     int64_t int_constant;
 
     math_parameter_int_const(int64_t int_constant);
-    virtual int64_t get_int(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index);
+    virtual int64_t get_int(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
     
   };
 
@@ -67,7 +68,7 @@ namespace snde {
     double double_constant;
 
     math_parameter_double_const(double double_constant);
-    virtual double get_double(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index);
+    virtual double get_double(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
     
   };
 
@@ -77,7 +78,7 @@ namespace snde {
     std::string channel_name;
 
     math_parameter_waveform(std::string channel_name);
-    virtual std::shared_ptr<waveform_base> get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::string &fcn_def, size_t parameter_index); // should only return ready waveforms
+    virtual std::shared_ptr<waveform_base> get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready waveforms. parameter_index starting at 1, just for printing messages
     virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<waveform_set_state> wss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the waveform
     
   };

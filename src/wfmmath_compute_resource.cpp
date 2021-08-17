@@ -56,6 +56,7 @@ namespace snde {
   
   void available_compute_resource_database::_queue_computation_internal(std::shared_ptr<pending_computation> &computation) // NOTE: Sets computation to nullptr once queued
   {
+    printf("_queue_computation_internal\n");
 
     bool computation_wss_is_globalrev = false; 
     // we cheat a bit in getting the globalrev index: We try dynamically casting ready_wss, and if that fails we use the value from the prerequisite state
@@ -129,7 +130,10 @@ namespace snde {
   void available_compute_resource_database::queue_computation(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn)
   {
 
-    bool ready_wss_is_globalrev = false; 
+    bool ready_wss_is_globalrev = false;
+
+    printf("queue_computation\n");
+    
     // we cheat a bit in getting the globalrev index: We try dynamically casting ready_wss, and if that fails we use the value from the prerequisite state
     std::shared_ptr<globalrevision> globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(ready_wss);
     if (!globalrev_ptr) {
@@ -150,6 +154,8 @@ namespace snde {
       std::unique_lock<std::mutex> ready_wss_admin(ready_wss->admin);
       math_function_status &ready_wss_status = ready_wss->mathstatus.function_status.at(ready_fcn);
       execfunc = ready_wss_status.execfunc;
+      printf("execfunc=0x%lx; wss=0x%lx\n",(unsigned long)execfunc.get(),(unsigned long)ready_wss.get());
+      printf("ready_to_execute:%d\n",(int)ready_wss_status.ready_to_execute);
       if (ready_wss_status.ready_to_execute && execfunc->try_execution_ticket()) {
 	// we are taking care of execution
 	assert(ready_wss_status.execution_demanded); 
@@ -215,11 +221,12 @@ namespace snde {
 	      
 	    }
 	    
+	    printf("qc: already finished wss notify %lx\n",(unsigned long)referencing_wss_strong.get());
 	    // Issue function completion notification
 	    referencing_wss_strong->mathstatus.notify_math_function_executed(wfmdb,referencing_wss_strong,execfunc->inst,false); // note mdonly hardwired to false here
 	  }
 	  
-	  
+	  printf("qc: already finished\n");
 	  return;
 	}
 	std::shared_ptr<pending_computation> computation = std::make_shared<pending_computation>(execfunc,ready_wss,globalrev_ptr->globalrev,0);
@@ -229,7 +236,8 @@ namespace snde {
 	
 	
       } else {
-	// Somebody else is taking care of computation
+	// Somebody else is taking care of computation (or not ready to execute)
+	printf("qc: somebody else\n");
 	
 	// no need to do anything; just return
       }
@@ -602,6 +610,10 @@ namespace snde {
 
 	std::shared_ptr<wfmdatabase> wfmdb_strong = wfmdb.lock();
 
+	printf("Pool code completed math function\n");
+	//fflush(stdout);
+
+	
 	// Need to do notifications that the math function finished in all referencing wss's
 	for (auto && referencing_wss_weak: func->referencing_wss) {
 	  std::shared_ptr<waveform_set_state> referencing_wss_strong(referencing_wss_weak);
@@ -613,10 +625,9 @@ namespace snde {
 	    
 	  }
 	    
-	  //printf("Pool code completed math function\n");
-	  //fflush(stdout);
 	  // Issue function completion notification
 	  if (wfmdb_strong) {
+	    printf("pool code: wss notify %lx\n",(unsigned long)referencing_wss_strong.get());
 	    referencing_wss_strong->mathstatus.notify_math_function_executed(wfmdb_strong,referencing_wss_strong,func->inst,mdonly); 
 	  }
 	}

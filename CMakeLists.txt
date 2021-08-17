@@ -230,6 +230,10 @@ add_executable(wfmmath_test
         test/wfmmath_test.cpp)
 target_link_libraries(wfmmath_test ${SPATIALNDE2_LIBS})
 
+add_executable(wfmmath_test2
+        test/wfmmath_test2.cpp)
+target_link_libraries(wfmmath_test2 ${SPATIALNDE2_LIBS})
+
 #add_executable(manager_test
 #        test/manager_test.cpp)
 #target_link_libraries(manager_test ${SPATIALNDE2_LIBS})

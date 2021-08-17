@@ -100,20 +100,20 @@ namespace snde {
   // first, declare the template
   template <typename... Rest>
   struct wmcfe_tuple_builder_helper {
-    std::tuple<std::tuple<Rest...>,std::list<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::list<std::shared_ptr<math_parameter>>::iterator thisparam, std::list<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::string &definition_str,size_t thisparam_index);
+    std::tuple<std::tuple<Rest...>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index);
   };
   
   // recursive definition
   template <typename T,typename... Rest>
   struct wmcfe_tuple_builder_helper<T,Rest...> {
-    std::tuple<std::tuple<T,Rest...>,std::list<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::list<std::shared_ptr<math_parameter>>::iterator thisparam, std::list<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::string &definition_str,size_t thisparam_index)
+    std::tuple<std::tuple<T,Rest...>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::tuple<T> this_tuple;
       std::tuple<Rest...> rest_tuple;
       size_t nextparam_index,endparam_index;
-      std::list<std::shared_ptr<math_parameter>>::iterator nextparam,endparam;
-      std::tie(this_tuple,nextparam,nextparam_index) = wmcfe_tuple_builder_helper<T>().wmcfe_tuple_builder(wss,thisparam,end,channel_path_context,definition_str,thisparam_index); // call full specialization
-      std::tie(rest_tuple,endparam,endparam_index) = wmcfe_tuple_builder_helper<Rest...>().wmcfe_tuple_builder(wss,nextparam,end,channel_path_context,definition_str,nextparam_index);
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam,endparam;
+      std::tie(this_tuple,nextparam,nextparam_index) = wmcfe_tuple_builder_helper<T>().wmcfe_tuple_builder(wss,thisparam,end,channel_path_context,definition,thisparam_index); // call full specialization
+      std::tie(rest_tuple,endparam,endparam_index) = wmcfe_tuple_builder_helper<Rest...>().wmcfe_tuple_builder(wss,nextparam,end,channel_path_context,definition,nextparam_index);
       
       return std::make_tuple(std::tuple_cat(this_tuple,rest_tuple),endparam,endparam_index);
     }
@@ -122,100 +122,101 @@ namespace snde {
   // full specialization for each concrete parameter type
   template <>
   struct wmcfe_tuple_builder_helper<std::string> {  
-    std::tuple<std::tuple<std::string>,std::list<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::list<std::shared_ptr<math_parameter>>::iterator thisparam, std::list<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::string &definition_str,size_t thisparam_index)
+    std::tuple<std::tuple<std::string>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
-      std::list<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
+      
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy string parameter #%d of %s",(int)thisparam_index,definition_str.c_str());
+	throw snde_error("Not enough parameters provided to satisfy string parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       
       // return statement implements the following:
       //std::tie(this_tuple,nextparam) = wmcfe_tuple_builder(wss,firstparam,end,channel_path_context);
-      return std::make_tuple(std::make_tuple((*thisparam)->get_string(wss,channel_path_context,definition_str,thisparam_index)),nextparam,thisparam_index+1);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_string(wss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
     }
   };
 
   template <>
   struct wmcfe_tuple_builder_helper<int64_t> {
-    std::tuple<std::tuple<int64_t>,std::list<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::list<std::shared_ptr<math_parameter>>::iterator thisparam, std::list<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::string &definition_str,size_t thisparam_index)
+    std::tuple<std::tuple<int64_t>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
-      std::list<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy integer parameter #%d of %s",(int)thisparam_index,definition_str.c_str());
+	throw snde_error("Not enough parameters provided to satisfy integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       // return statement implements the following:
       //std::tie(this_tuple,nextparam) = wmcfe_tuple_builder(wss,firstparam,end,channel_path_context);
-      return std::make_tuple(std::make_tuple((*thisparam)->get_int(wss,channel_path_context,definition_str,thisparam_index)),nextparam,thisparam_index+1);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_int(wss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
     }
   };
 
   template <>
   struct wmcfe_tuple_builder_helper<double> {
-    std::tuple<std::tuple<double>,std::list<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::list<std::shared_ptr<math_parameter>>::iterator thisparam, std::list<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::string &definition_str,size_t thisparam_index)
+    std::tuple<std::tuple<double>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
-      std::list<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy double precision parameter #%d of %s",(int)thisparam_index,definition_str.c_str());
+	throw snde_error("Not enough parameters provided to satisfy double precision parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       
       // return statement implements the following:
       //std::tie(this_tuple,nextparam) = wmcfe_tuple_builder(wss,firstparam,end,channel_path_context);
-      return std::make_tuple(std::make_tuple((*thisparam)->get_double(wss,channel_path_context,definition_str,thisparam_index)),nextparam,thisparam_index+1);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_double(wss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
     }
   };
   
   // specialization for a waveform_base
   template <>
   struct wmcfe_tuple_builder_helper<std::shared_ptr<waveform_base>> {
-    std::tuple<std::tuple<std::shared_ptr<waveform_base>>,std::list<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::list<std::shared_ptr<math_parameter>>::iterator thisparam, std::list<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::string &definition_str,size_t thisparam_index)
+    std::tuple<std::tuple<std::shared_ptr<waveform_base>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
-      std::list<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy waveform parameter #%d of %s",(int)thisparam_index,definition_str.c_str());
+	throw snde_error("Not enough parameters provided to satisfy waveform parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       // return statement implements the following:
       //std::tie(this_tuple,nextparam) = wmcfe_tuple_builder(wss,thisparam,end,channel_path_context);
-      return std::make_tuple(std::make_tuple((*thisparam)->get_waveform(wss,channel_path_context,definition_str,thisparam_index)),nextparam,thisparam_index+1);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_waveform(wss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
     }
   };
   
   // specialization for an ndarray_waveform
   template <>
   struct wmcfe_tuple_builder_helper<std::shared_ptr<ndarray_waveform>> {
-    std::tuple<std::tuple<std::shared_ptr<ndarray_waveform>>,std::list<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::list<std::shared_ptr<math_parameter>>::iterator thisparam, std::list<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::string &definition_str,size_t thisparam_index)
+    std::tuple<std::tuple<std::shared_ptr<ndarray_waveform>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
-      std::list<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy waveform parameter #%d of %s",(int)thisparam_index,definition_str.c_str());
+	throw snde_error("Not enough parameters provided to satisfy waveform parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       // return statement implements the following:
       //std::tie(this_tuple,nextparam) = wmcfe_tuple_builder(wss,firstparam,end,channel_path_context);
-      return std::make_tuple(std::make_tuple(std::dynamic_pointer_cast<ndarray_waveform>((*thisparam)->get_waveform(wss,channel_path_context,definition_str,thisparam_index))),nextparam,thisparam_index+1);
+      return std::make_tuple(std::make_tuple(std::dynamic_pointer_cast<ndarray_waveform>((*thisparam)->get_waveform(wss,channel_path_context,definition,thisparam_index))),nextparam,thisparam_index+1);
     }
   };
     
   // partial specialization for an ntyped_waveform<T>
   template <typename T>
   struct wmcfe_tuple_builder_helper<std::shared_ptr<ndtyped_waveform<T>>> {
-    std::tuple<std::tuple<std::shared_ptr<ndtyped_waveform<T>>>,std::list<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::list<std::shared_ptr<math_parameter>>::iterator thisparam, std::list<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::string &definition_str,size_t thisparam_index)
+    std::tuple<std::tuple<std::shared_ptr<ndtyped_waveform<T>>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
-      std::list<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy waveform parameter #%d of %s",(int)thisparam_index,definition_str.c_str());
+	throw snde_error("Not enough parameters provided to satisfy waveform parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       // return statement implements the following:
       //std::tie(this_tuple,nextparam) = wmcfe_tuple_builder(wss,firstparam,end,channel_path_context);
-      return std::make_tuple(std::make_tuple(std::dynamic_pointer_cast<ndtyped_waveform<T>>((*thisparam)->get_waveform(wss,channel_path_context,definition_str,thisparam_index))),nextparam,thisparam_index+1);
+      return std::make_tuple(std::make_tuple(std::dynamic_pointer_cast<ndtyped_waveform<T>>((*thisparam)->get_waveform(wss,channel_path_context,definition,thisparam_index))),nextparam,thisparam_index+1);
     }
   };
 
@@ -223,11 +224,11 @@ namespace snde {
   // specialization for a blank at the end, which g++ seemss to want (?)
   template <>
   struct wmcfe_tuple_builder_helper<> {
-    std::tuple<std::tuple<>,std::list<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::list<std::shared_ptr<math_parameter>>::iterator thisparam, std::list<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::string &definition_str,size_t thisparam_index)
+    std::tuple<std::tuple<>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
     
       if (thisparam!=end) {
-	throw snde_error("Too many parameters provided to satisfy integer parameter #%d of %s",(int)thisparam_index,definition_str.c_str());
+	throw snde_error("Too many parameters provided to satisfy integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       // return statement implements the following:
       //std::tie(this_tuple,nextparam) = wmcfe_tuple_builder(wss,firstparam,end,channel_path_context);
@@ -240,14 +241,14 @@ namespace snde {
   std::tuple<Ts...> wmcfe_get_parameters(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst)
   {
     // extract the parameters from the waveform_set_state, store them in parameters tuple
-    std::list<std::shared_ptr<math_parameter>>::iterator param_extract_last;
+    std::vector<std::shared_ptr<math_parameter>>::iterator param_extract_last;
     //std::tie(parameters,param_extract_last)
 
     if (!inst) { // accomodate no instance; used on startup to probe available parameters
       return std::tuple<Ts...>();
     }
     
-    std::tuple<std::tuple<Ts...>,std::list<std::shared_ptr<math_parameter>>::iterator,size_t> parameters_param_extract_last = wmcfe_tuple_builder_helper<Ts...>().wmcfe_tuple_builder(wss,inst->parameters.begin(),inst->parameters.end(),inst->channel_path_context,inst->definition->definition_command,1);
+    std::tuple<std::tuple<Ts...>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> parameters_param_extract_last = wmcfe_tuple_builder_helper<Ts...>().wmcfe_tuple_builder(wss,inst->parameters.begin(),inst->parameters.end(),inst->channel_path_context,inst->definition,1);
     
     param_extract_last = std::get<1>(parameters_param_extract_last);
     if (param_extract_last != inst->parameters.end()) {
@@ -530,6 +531,51 @@ namespace snde {
     
   };
 
+
+  // This template allows you to write a math function once
+  // that auto-detects whether its first input is snde_float32 or
+  // snde_float64 and runs the correct version automatically
+  template <template<class> class CppFuncClass>
+  std::shared_ptr<executing_math_function> make_cppfuncexec_floatingtypes(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst)
+  {
+    if (!inst) {
+      // initial call with no instantiation to probe parameters; just use float32 case
+      return std::make_shared<CppFuncClass<snde_float32>>(wss,inst);
+
+    }
+    
+    std::shared_ptr<math_parameter> firstparam = inst->parameters.at(0);
+
+    assert(firstparam->paramtype==SNDE_MFPT_WAVEFORM);
+
+    std::shared_ptr<math_parameter_waveform> firstparam_wfm = std::dynamic_pointer_cast<math_parameter_waveform>(firstparam);
+
+    assert(firstparam_wfm);
+    
+    std::shared_ptr<ndarray_waveform> firstparam_wfm_val = std::dynamic_pointer_cast<ndarray_waveform>(firstparam_wfm->get_waveform(wss,inst->channel_path_context,inst->definition,1));
+
+    if (!firstparam_wfm_val) {
+      throw snde_error("In attempting to call math function %s, first parameter %s is not an ndarray waveform",inst->definition->definition_command.c_str(),firstparam_wfm->channel_name.c_str());
+    }
+
+    switch (firstparam_wfm_val->ndinfo()->typenum) {
+    case SNDE_WTN_FLOAT32:
+      return std::make_shared<CppFuncClass<snde_float32>>(wss,inst);
+
+    case SNDE_WTN_FLOAT64:
+      return std::make_shared<CppFuncClass<snde_float64>>(wss,inst);
+
+#ifdef SNDE_HAVE_FLOAT16
+    case SNDE_WTN_FLOAT16:
+      return std::make_shared<CppFuncClass<snde_float16>>(wss,inst);    
+#endif
+      
+    default:
+      throw snde_error("In attempting to call math function %s, first parameter %s does not have floating point type %s",inst->definition->definition_command.c_str(),firstparam_wfm->channel_name.c_str(),wtn_typenamemap.at(firstparam_wfm_val->ndinfo()->typenum).c_str());
+    }
+  }
+  
+
   class cpp_math_function: public math_function {
   public:
     bool supports_cpu;
@@ -590,7 +636,7 @@ namespace snde {
   };
 
 
-    };
+};
 
   
 
