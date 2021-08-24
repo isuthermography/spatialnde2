@@ -169,5 +169,24 @@ namespace snde {
     std::string warnstr = ssprintf(fmt,std::forward<Args>(args) ...);
     fprintf(stderr,"SNDE WARNING: %s\n",warnstr.c_str());
   }
+
+  extern unsigned current_debugflags;
+  
+  template<typename ... Args>
+  void snde_debug(unsigned dbgclass,std::string fmt, Args && ... args)
+  {
+    if (dbgclass & current_debugflags) {
+      std::string warnstr = ssprintf(fmt,std::forward<Args>(args) ...);
+      fprintf(stderr,"SNDE DEBUG: %s\n",warnstr.c_str());
+    }
+  }
+  // defines for dbgclass/current_debugflags
+#define SNDE_DC_WFMDB (1<<0)
+#define SNDE_DC_WFMMATH (1<<1)
+#define SNDE_DC_NOTIFY (1<<2)
+#define SNDE_DC_LOCKING (1<<3)
+#define SNDE_DC_APP (1<<4)
+#define SNDE_DC_ALL ((1<<5)-1)
+  
 }
 #endif /* SNDE_ERROR_HPP */

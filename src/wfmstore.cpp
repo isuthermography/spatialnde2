@@ -1007,42 +1007,41 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
     changed_channels_need_dispatch.erase(channel_to_dispatch_it);
     changed_channels_dispatched.emplace(channel_to_dispatch);
 
-    if (channel_to_dispatch->math) {
-      // look up what is dependent on this channel
+    // look up what is dependent on this channel
+    
+    auto dep_it = mathdb.all_dependencies_of_channel.find(channel_to_dispatch->channelpath);
+    if (dep_it != mathdb.all_dependencies_of_channel.end()) {
       
-      auto dep_it = mathdb.all_dependencies_of_channel.find(channel_to_dispatch->channelpath);
-      if (dep_it != mathdb.all_dependencies_of_channel.end()) {
+      std::unordered_set<std::shared_ptr<instantiated_math_function>> &dependent_math_functions=dep_it->second;
+      
+      for (auto && instantiated_math_ptr: dependent_math_functions) {
+	if (instantiated_math_ptr->ondemand || instantiated_math_ptr->disabled) {
+	  // ignore disabled and ondemand dependent channels (for now)
+	  continue; 
+	}
 	
-	std::unordered_set<std::shared_ptr<instantiated_math_function>> &dependent_math_functions=dep_it->second;
+	// mark math function as changed if it isn't already
+	changed_math_functions.emplace(instantiated_math_ptr);
 	
-	for (auto && instantiated_math_ptr: dependent_math_functions) {
-	  if (instantiated_math_ptr->ondemand || instantiated_math_ptr->disabled) {
-	    // ignore disabled and ondemand dependent channels (for now)
-	    continue; 
-	  }
-
-	  // mark math function as changed if it isn't already
-	  changed_math_functions.emplace(instantiated_math_ptr);
-	  
-	  for (auto && result_chanpath_name_ptr: instantiated_math_ptr->result_channel_paths) {
-	    if (result_chanpath_name_ptr) {
-	      // Found a dependent channel name
-	      // Could probably speed this up by copying result_channel_paths into a form whre it points directly at channelconfs. 
-	      std::shared_ptr<channelconfig> channelconf = all_channels_by_name.at(*result_chanpath_name_ptr);
-	      
-	      std::unordered_set<std::shared_ptr<channelconfig>>::iterator maybechanged_it = maybechanged_channels.find(channelconf);
-	      // Is the dependenent channel in maybechanged_channels?... if so it is definitely changed, but not yet dispatched
-	      if (maybechanged_it != maybechanged_channels.end()) {
-		// put it in the changed dispatch set
-		changed_channels_need_dispatch.emplace(*maybechanged_it);
-		// remove it from the maybe changed set
+	for (auto && result_chanpath_name_ptr: instantiated_math_ptr->result_channel_paths) {
+	  if (result_chanpath_name_ptr) {
+	    // Found a dependent channel name
+	    // Could probably speed this up by copying result_channel_paths into a form whre it points directly at channelconfs. 
+	    std::shared_ptr<channelconfig> channelconf = all_channels_by_name.at(*result_chanpath_name_ptr);
+	    
+	    std::unordered_set<std::shared_ptr<channelconfig>>::iterator maybechanged_it = maybechanged_channels.find(channelconf);
+	    // Is the dependenent channel in maybechanged_channels?... if so it is definitely changed, but not yet dispatched
+	    if (maybechanged_it != maybechanged_channels.end()) {
+	      // put it in the changed dispatch set
+	      changed_channels_need_dispatch.emplace(*maybechanged_it);
+	      // remove it from the maybe changed set
 	      maybechanged_channels.erase(maybechanged_it);
-	      } 
-	    }
+	    } 
 	  }
 	}
       }
     }
+  
 
         
   }
@@ -1415,7 +1414,7 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
       //ucmf_status.mdonly_executed=true;
 
       // reference the prior math_function_execution, although it won't be of much use
-      printf("ucmf: assigning execfunc\n");
+      snde_debug(SNDE_DC_WFMDB,"ucmf: assigning execfunc");
       
       std::shared_ptr<math_function_execution> execfunc;
 
@@ -1461,7 +1460,7 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
       ucmf_status.complete = true;
 
       // reference the prior math_function_execution; we may still need to execute past mdonly
-      printf("ucmfm: assigning execfunc\n");
+      snde_debug(SNDE_DC_WFMDB,"ucmfm: assigning execfunc");
       
       std::shared_ptr<math_function_execution> execfunc;
       {
@@ -1493,7 +1492,7 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
       // Need to import math progress: math_function_execution from previous_globalrev
             
       math_function_status &uimf_status = globalrev->mathstatus.function_status.at(unchanged_incomplete_math_function);
-      printf("ucimf: assigning execfunc\n");
+      snde_debug(SNDE_DC_WFMDB,"ucimf: assigning execfunc");
 
       std::shared_ptr<math_function_execution> execfunc;
       {
@@ -1523,7 +1522,7 @@ ndarray_waveform::ndarray_waveform(std::shared_ptr<wfmdatabase> wfmdb,std::strin
       }
       cmf_status.execfunc = std::make_shared<math_function_execution>(globalrev,changed_math_function,mdonly,changed_math_function->is_mutable);
       
-      printf("make execfunc=0x%lx; globalrev=0x%lx\n",(unsigned long)cmf_status.execfunc.get(),(unsigned long)globalrev.get());
+      snde_debug(SNDE_DC_WFMDB,"make execfunc=0x%lx; globalrev=0x%lx",(unsigned long)cmf_status.execfunc.get(),(unsigned long)globalrev.get());
 
       if (!changed_math_function->fcn->new_revision_optional) {
 	// if not new_revision_optional then we define the new

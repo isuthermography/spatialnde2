@@ -209,7 +209,8 @@ namespace snde {
     bool generate_notify=false;
     std::vector<std::string> mdonly_satisfied;
     std::vector<std::string> fullyready_satisfied;
-    
+
+    snde_debug(SNDE_DC_NOTIFY,"channel_notify::_check_all_criteria_locked(0x%lx)",(unsigned long)(wss.get()));
     for (auto && md_channelname: criteria.metadataonly_channels) {
       channel_state & chanstate = wss->wfmstatus.channel_map.at(md_channelname);
       
@@ -261,7 +262,7 @@ namespace snde {
       // all criteria removed; ready for notification
       generate_notify=true;
     }
-
+    snde_debug(SNDE_DC_NOTIFY,"cacl() mdoc_size=%d frc_size=%d wait_complete=%s defined=%d instantiated=%d; returns %s",(int)criteria.metadataonly_channels.size(),(int)criteria.fullyready_channels.size(),(criteria.waveformset_complete) ? "true": "false",(int)wss->wfmstatus.defined_waveforms.size(),(int)wss->wfmstatus.instantiated_waveforms.size(), (generate_notify) ? "true":"false");
     return generate_notify;
   }
   
@@ -365,7 +366,8 @@ namespace snde {
     wfmdb(wfmdb),
     subsequent_globalrev(subsequent_globalrev),
     current_channelstate(current_channelstate),
-    sg_channelstate(sg_channelstate)
+    sg_channelstate(sg_channelstate),
+    mdonly(mdonly)
   {
     if (mdonly) {
       criteria.add_metadataonly_channel(sg_channelstate.config->channelpath);
@@ -381,6 +383,23 @@ namespace snde {
     
       // Pass completed waveform from this channel_state to subsequent_globalrev's channelstate
       sg_channelstate.end_atomic_wfm_update(current_channelstate.wfm());
+
+      std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator def_wfms_it = subsequent_globalrev->wfmstatus.defined_waveforms.find(current_channelstate.config);
+      assert(def_wfms_it != subsequent_globalrev->wfmstatus.defined_waveforms.end()); // should be in defined_waveforms prior to the notifications
+
+      assert(def_wfms_it->second == &sg_channelstate);
+      
+      if (mdonly  && !sg_channelstate.waveform_is_complete(false)) {
+	// if we are mdonly and waveform is only complete through mdonly
+	assert(sg_channelstate.waveform_is_complete(true));
+	subsequent_globalrev->wfmstatus.metadataonly_waveforms.emplace(current_channelstate.config,&sg_channelstate);	
+      } else {
+	// waveform must be complete
+	assert(sg_channelstate.waveform_is_complete(false));
+	subsequent_globalrev->wfmstatus.completed_waveforms.emplace(current_channelstate.config,&sg_channelstate);	
+      }
+      
+      subsequent_globalrev->wfmstatus.defined_waveforms.erase(def_wfms_it);
     }  
     sg_channelstate.issue_nonmath_notifications(subsequent_globalrev);
 

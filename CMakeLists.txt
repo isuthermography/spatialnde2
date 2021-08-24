@@ -83,7 +83,7 @@ endif()
 
 
 
-set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/wfmmath_compute_resource.cpp src/wfmmath.cpp src/wfmmath_parameter.cpp src/wfmstore.cpp src/wfmstore_storage.cpp src/wfmmath_cppfunction.cpp ) # src/infostore_or_component.cpp src/geometry.cpp src/revision_manager.cpp src/mutablewfmstore.cpp )
+set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/wfmmath_compute_resource.cpp src/wfmmath.cpp src/wfmmath_parameter.cpp src/wfmstore.cpp src/wfmstore_storage.cpp src/wfmmath_cppfunction.cpp src/notify.cpp src/snde_error.cpp ) # src/infostore_or_component.cpp src/geometry.cpp src/revision_manager.cpp src/mutablewfmstore.cpp )
 
 if (NOT WIN32)
   set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} src/shared_memory_allocator_posix.cpp )
@@ -94,6 +94,11 @@ endif()
 #add_definitions(-Dprotected=public)
 
 add_definitions(-DSNDE_LOCKMANAGER_COROUTINES_THREADED)
+
+# SNDE_WCR_DISABLE_EXCEPTION_HANDLING can be used to make
+# exceptions in math functions cause an immediate exit/debugger entry/core dump
+#add_definitions(-DSNDE_WCR_DISABLE_EXCEPTION_HANDLING)
+
 IF(WIN32)
   #add_definitions(-fpermissive) # Allow casting on windows (unsigned long) in lockmanager and arraymanager  !!! Should fix the casts, probably
   add_definitions(-D_hypot=hypot) # Added for swig on windows. !!! Which compiler specificallly

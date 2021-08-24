@@ -65,20 +65,6 @@ public:
   
   
   
-  std::shared_ptr<lock_alloc_function_type> metadata(std::shared_ptr<ndtyped_waveform<snde_float32>> waveform, snde_float64 multiplier)
-  // NOTE: Your metadata implementation is only required to actually
-  // set all metadata if the function is mdonly. If you do
-  // set all metadata you should call the mark_metadata_done
-  // on all output waveforms
-  {
-
-
-    
-    return std::make_shared<lock_alloc_function_type>([ this ](std::shared_ptr<ndtyped_waveform<snde_float32>> waveform, snde_float64 multiplier) -> std::shared_ptr<exec_function_type> {
-	return lock_alloc(waveform,multiplier);
-      });
-  }
-  
 };
 
 

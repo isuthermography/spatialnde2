@@ -184,7 +184,7 @@ namespace snde {
     std::shared_ptr<globalrevision> subsequent_globalrev;
     channel_state &current_channelstate; 
     channel_state &sg_channelstate; 
-
+    bool mdonly;
 
     _unchanged_channel_notify(std::weak_ptr<wfmdatabase> wfmdb,std::shared_ptr<globalrevision> subsequent_globalrev,channel_state & current_channelstate,channel_state & sg_channelstate,bool mdonly); // After construction, need to call .apply_to_wss() method!!!
 
@@ -207,3 +207,6 @@ namespace snde {
     virtual ~_previous_globalrev_done_notify()=default;
     virtual void perform_notify();
   };
+};
+
+#endif // SNDE_NOTIFY_HPP

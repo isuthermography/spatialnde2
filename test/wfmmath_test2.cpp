@@ -27,10 +27,10 @@ public:
   
   // just using the default for decide_new_revision and compute_options
  
-  std::shared_ptr<metadata_function_type> define_wfms(std::shared_ptr<ndtyped_waveform<snde_float32>> waveform, snde_float64 multiplier) 
+  std::shared_ptr<metadata_function_type> define_wfms(std::shared_ptr<ndtyped_waveform<T>> waveform, snde_float64 multiplier) 
   {
     // define_wfms code
-    printf("define_wfms()\n");
+    snde_debug(SNDE_DC_APP,"define_wfms()");
     // Use of "this" in the next line for the same reason as the typedefs, above
     std::shared_ptr<ndtyped_waveform<T>> result_wfm = ndtyped_waveform<T>::create_waveform(*this->inst->result_channel_paths.at(0),this->wss);
     // ***!!! Should provide means to set allocation manager !!!***
@@ -38,7 +38,7 @@ public:
     return std::make_shared<metadata_function_type>([ this,result_wfm ](std::shared_ptr<ndtyped_waveform<T>> waveform, snde_float64 multiplier) {
       // metadata code
       std::unordered_map<std::string,metadatum> metadata;
-      printf("metadata()\n");
+      snde_debug(SNDE_DC_APP,"metadata()");
       metadata.emplace("Test_metadata_entry",metadatum("Test_metadata_entry",3.14));
       
       result_wfm->metadata=std::make_shared<immutable_metadata>(metadata);
@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
 
   snde::active_transaction transact2(wfmdb); // Transaction RAII holder
 
-  //  test_wfm_64 = ndtyped_waveform<snde_float64>::create_waveform(wfmdb,testchan,(void *)&main);
+  test_wfm_64 = ndtyped_waveform<snde_float64>::create_waveform(wfmdb,testchan,(void *)&main);
   std::shared_ptr<snde::globalrevision> globalrev2 = transact2.end_transaction();
 
   
@@ -123,29 +123,27 @@ int main(int argc, char *argv[])
   test_wfm_32->mark_metadata_done();
   test_wfm_32->allocate_storage(std::vector<snde_index>{len});
 
-  /*
+  
   test_wfm_64->metadata=std::make_shared<snde::immutable_metadata>();
   test_wfm_64->mark_metadata_done();
   test_wfm_64->allocate_storage(std::vector<snde_index>{len});
-  */
+  
   for (size_t cnt=0;cnt < len; cnt++) {
 
     // demonstrating alternative array interfaces
     test_wfm_32->assign_double({cnt},100.0*sin(cnt));
     
-    //test_wfm_64->element({cnt}) = 100.0*sin(cnt);
+    test_wfm_64->element({cnt}) = -46.0*sin(cnt);
     
   }
   test_wfm_32->mark_as_ready();
-  //test_wfm_64->mark_as_ready();
+  test_wfm_64->mark_as_ready();
 
-  printf("About to wait_complete()\n");
-  fflush(stdout);
+  snde_debug(SNDE_DC_APP,"About to wait_complete()");
   globalrev->wait_complete();
   globalrev2->wait_complete();
 
-  printf("wait_complete() done\n");
-  fflush(stdout);
+  snde_debug(SNDE_DC_APP,"wait_complete() done");
   std::shared_ptr<ndarray_waveform> scaled_wfm_32 = std::dynamic_pointer_cast<ndarray_waveform>(globalrev->get_waveform("/scaled channel"));
   
   for (size_t cnt=0;cnt < len; cnt++) {
@@ -155,7 +153,7 @@ int main(int argc, char *argv[])
     assert(math_function_value == recalc_value);
   }
 
-  /*
+  
   std::shared_ptr<ndarray_waveform> scaled_wfm_64 = std::dynamic_pointer_cast<ndarray_waveform>(globalrev2->get_waveform("/scaled channel"));
   
   for (size_t cnt=0;cnt < len; cnt++) {
@@ -164,7 +162,7 @@ int main(int argc, char *argv[])
     printf(" %f \t \t %f\n",recalc_value,math_function_value);
     assert(math_function_value == recalc_value);
   }
-  */
-  printf("Exiting.\n");
+  
+  snde_debug(SNDE_DC_APP,"Exiting.");
   return 0;
 }
