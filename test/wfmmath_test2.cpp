@@ -21,13 +21,13 @@ public:
 
   // These typedefs are regrettably necessary and will need to be updated according to the parameter signature of your function
   // https://stackoverflow.com/questions/1120833/derived-template-class-access-to-base-class-member-data
-  typedef typename wfmmath_cppfuncexec<std::shared_ptr<ndtyped_waveform<T>>,snde_float64>::metadata_function_type metadata_function_type;
-  typedef typename wfmmath_cppfuncexec<std::shared_ptr<ndtyped_waveform<T>>,snde_float64>::lock_alloc_function_type lock_alloc_function_type;
-  typedef typename wfmmath_cppfuncexec<std::shared_ptr<ndtyped_waveform<T>>,snde_float64>::exec_function_type exec_function_type;
+  typedef typename wfmmath_cppfuncexec<std::shared_ptr<ndtyped_waveform<T>>,snde_float64>::metadata_function_override_type metadata_function_override_type;
+  typedef typename wfmmath_cppfuncexec<std::shared_ptr<ndtyped_waveform<T>>,snde_float64>::lock_alloc_function_override_type lock_alloc_function_override_type;
+  typedef typename wfmmath_cppfuncexec<std::shared_ptr<ndtyped_waveform<T>>,snde_float64>::exec_function_override_type exec_function_override_type;
   
   // just using the default for decide_new_revision and compute_options
  
-  std::shared_ptr<metadata_function_type> define_wfms(std::shared_ptr<ndtyped_waveform<T>> waveform, snde_float64 multiplier) 
+  std::shared_ptr<metadata_function_override_type> define_wfms(std::shared_ptr<ndtyped_waveform<T>> waveform, snde_float64 multiplier) 
   {
     // define_wfms code
     snde_debug(SNDE_DC_APP,"define_wfms()");
@@ -35,7 +35,7 @@ public:
     std::shared_ptr<ndtyped_waveform<T>> result_wfm = ndtyped_waveform<T>::create_waveform(*this->inst->result_channel_paths.at(0),this->wss);
     // ***!!! Should provide means to set allocation manager !!!***
     
-    return std::make_shared<metadata_function_type>([ this,result_wfm ](std::shared_ptr<ndtyped_waveform<T>> waveform, snde_float64 multiplier) {
+    return std::make_shared<metadata_function_override_type>([ this,result_wfm,waveform,multiplier ]() {
       // metadata code
       std::unordered_map<std::string,metadatum> metadata;
       snde_debug(SNDE_DC_APP,"metadata()");
@@ -44,12 +44,12 @@ public:
       result_wfm->metadata=std::make_shared<immutable_metadata>(metadata);
       result_wfm->mark_metadata_done();
       
-      return std::make_shared<lock_alloc_function_type>([ this,result_wfm ](std::shared_ptr<ndtyped_waveform<T>> waveform, snde_float64 multiplier) {
+      return std::make_shared<lock_alloc_function_override_type>([ this,result_wfm,waveform,multiplier ]() {
 	  // lock_alloc code
 	  
 	  result_wfm->allocate_storage(waveform->layout.dimlen);
 	  
-	  return std::make_shared<exec_function_type>([ this,result_wfm ](std::shared_ptr<ndtyped_waveform<T>> waveform, snde_float64 multiplier) {
+	  return std::make_shared<exec_function_override_type>([ this,result_wfm,waveform,multiplier ]() {
 	    // exec code
 	    for (snde_index pos=0;pos < waveform->layout.dimlen.at(0);pos++){
 	      result_wfm->element({pos}) = waveform->element({pos}) * multiplier;
