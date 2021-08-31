@@ -270,7 +270,11 @@ static GEOTYPES_INLINE int snde_direction_flip(int direction)
   }
   return SNDE_DIRECTION_CCW;
 }
-  
+
+typedef struct {
+  int16_t coord[3];
+} snde_coord3_int16;
+
 typedef struct {
   snde_coord coord[4];
 } snde_coord4;
