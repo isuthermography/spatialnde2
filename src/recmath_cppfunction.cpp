@@ -30,7 +30,7 @@ namespace snde {
 
       unsigned paramtype = param_types_vec.at(paramnum);
       if (paramtype != SNDE_RTN_STRING && paramtype != SNDE_RTN_INT64 && paramtype != SNDE_RTN_FLOAT64 && paramtype != SNDE_RTN_RECORDING) {
-	throw snde_error("Type %s is not supported as a math function parameter",wtn_typenamemap.at(paramtype).c_str());
+	throw snde_error("Type %s is not supported as a math function parameter",rtn_typenamemap.at(paramtype).c_str());
       }
       param_names_types.emplace_back(ssprintf("Param%d",paramnum+1),paramtype);
       
