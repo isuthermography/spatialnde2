@@ -1,34 +1,17 @@
-#ifndef SNDE_RECMATH_HPP
-#define SNDE_RECMATH_HPP
+%shared_ptr(snde::math_function);
+%shared_ptr(snde::compute_code);
+%shared_ptr(snde::math_function_database);
+%shared_ptr(snde::math_definition);
+%shared_ptr(snde::instantiated_math_function);
+%shared_ptr(snde::instantiated_math_database);
+%shared_ptr(snde::math_function_execution);
+%shared_ptr(snde::executing_math_function);
+%{
 
-#include <functional>
+  #include "recmath.hpp"
 
-#include "recmath_compute_resource.hpp"
-#include "recmath_parameter.hpp"
-#include "recdb_paths.hpp"
-
+%}
 namespace snde {
-  // NEED TO CONSIDER THREAD SAFETY ACCESS OF ALL THE STRUCTURES IN HERE !!! (DONE) ***
-  // Probably need a lock that is acquired AFTER relevant recstore lock(s)
-  // because we will have to be going through the recstore to put computations
-  // on hold in order to safely render mutable data. While going through it
-  // we will need pull things off the todo_list and associated prioritized_computations multimaps
-  //
-
-  // PROBLEM: How to print back the defined math function:
-  // SOLUTION: Need a data structure within the recording database that "remembers" how it was
-  // originally defined and verifies that that original definition is still
-  // valid
-
-  
-  // implicit self-dependency: Present for any mutable math functions
-  // or any math functions with new_revision_optional flag set
-
-
-  // IDEA: Allow math recordings to be dependent on external registers (akin to hw registers) that
-  // have a typed interface and can notify when they are updated. They can allow implicit transactions if so configured
-  // and have calcsync behavior so too much doesn't get queued up. -- maybe some sort of explicit grouping? 
-  
   // defines for the type entry of the param_names_types list in a math_function... so far identical to DGM_MDT_... in dg_metadata.h
 #define SNDE_MFPT_INT 0
 #define SNDE_MFPT_STR 1
@@ -47,8 +30,8 @@ namespace snde {
   class instantiated_math_database;
   class instantiated_math_function;
   class math_definition;
-
-  class math_function : public std::enable_shared_from_this<math_function> { // a math function that is defined accessable so it can be instantiated
+  
+  class math_function /* : public std::enable_shared_from_this<math_function> */ { // a math function that is defined accessable so it can be instantiated
     // Immutable once published; that said it may be replaced in the database due to a reloading operation. 
   public:
 
@@ -56,7 +39,8 @@ namespace snde {
 
     // Rule of 3
     math_function(const math_function &) = delete;
-    math_function& operator=(const math_function &) = delete; 
+    math_function& operator=(const math_function &) = delete;
+
     virtual ~math_function()=default;  // virtual destructor required so we can be subclassed
 
     
@@ -131,7 +115,7 @@ namespace snde {
     // represents the full set of available functions
     // _functions can be updated atomically using the admin lock.
   public:
-    std::mutex admin; // last lock in order except for Python GIL
+    //std::mutex admin; // last lock in order except for Python GIL
     std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> _functions; // Actually C++11 atomic shared pointer to immutable map
     
   };
@@ -145,7 +129,7 @@ namespace snde {
     math_definition(std::string definition_command);
   };
   
-  class instantiated_math_function: public std::enable_shared_from_this<instantiated_math_function>  {
+  class instantiated_math_function /* : public std::enable_shared_from_this<instantiated_math_function> */ {
     // This structure represents a defined math function. It is immutable
     // once published. 
     // but you may copy it for the purpose of changing it (using clone()) and replace it in the master database.
@@ -301,19 +285,22 @@ namespace snde {
     // return true. Once you have the execution ticket you can create a pending computation, assign the compute resource, etc.
 
   public:
-    std::mutex admin; // guards referencing_wss and groups operations on the bools. Also acquire this before clearing wss. Last in the locking order except python GIL
+    //std::mutex admin; // guards referencing_wss and groups operations on the bools. Also acquire this before clearing wss. Last in the locking order except python GIL
 
     std::shared_ptr<recording_set_state> wss; // recording set state in which we are executing. Set to nullptr by owner of execution ticket after metadata phase to avoid a reference loop that will keep old recordings in memory. 
     std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
 
     std::set<std::weak_ptr<recording_set_state>,std::owner_less<std::weak_ptr<recording_set_state>>> referencing_wss; // all recording set states that reference this executing_math_function
 
-    std::atomic<bool> executing; // the execution ticket (see try_execution_ticket() method)
-    std::atomic<bool> is_mutable; // if this execution does in-place mutation of one or more of its parameters.
-    std::atomic<bool> mdonly; // if this execution is actually mdonly
-    std::atomic<bool> metadata_executed; // if execution has completed at least through metadata
-    std::atomic<bool> metadataonly_complete; // if we are only executing to metadataonly, this is the complete flag.
-    std::atomic<bool> fully_complete; // function has fully executed to ready state
+    %immutable;
+    /*std::atomic<*/bool/*>*/ executing; // the execution ticket (see try_execution_ticket() method)
+    /*std::atomic<*/bool/*>*/ is_mutable; // if this execution does in-place mutation of one or more of its parameters.
+    /*std::atomic<*/bool/*>*/ mdonly; // if this execution is actually mdonly
+    /*std::atomic<*/bool/*>*/ metadata_executed; // if execution has completed at least through metadata
+    /*std::atomic<*/bool/*>*/ metadataonly_complete; // if we are only executing to metadataonly, this is the complete flag.
+    /*std::atomic<*/bool/*>*/ fully_complete; // function has fully executed to ready state
+    %mutable;
+       
     std::shared_ptr<executing_math_function> execution_tracker; // only valid once prerequisites are complete because we can't instantiate it until we have resolved the types of the parameters to identify which code to execute. 
 
     math_function_execution(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool mdonly,bool is_mutable);  // automatically adds wss to referencing_wss set
@@ -385,4 +372,3 @@ namespace snde {
   };
 }
 
-#endif // SNDE_RECMATH_HPP

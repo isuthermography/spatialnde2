@@ -1,129 +1,16 @@
-// Mostly immutable recstore concept:
+%shared_ptr(snde::recording_base);
+%shared_ptr(snde::ndarray_recording);
+%shared_ptr(snde::channelconfig);
+%shared_ptr(snde::channel);
+%shared_ptr(snde::recording_set_state);
+%shared_ptr(snde::globalrevision);
+%shared_ptr(snde::recdatabase);
+%shared_ptr(snde::instantiated_math_function);
+  
+%{
+#include "recstore.hpp"
 
-// "Channel" is a permanent, non-renameable
-// identifier/structure that keeps track of revisions
-// for each named address (recording path).
-// Channels can be "Deleted" in which case
-// they are omitted from current lists, but
-// their revisions are kept so if the name
-// is reused the revision counter will
-// increment, not reset.
-// A channel is "owned" by a module, which
-// is generally the only source of new
-// recordings on the channel.
-// The module requests a particular channel
-// name, but the obtained name might
-// be different if the name is already in use.
-
-// Channels can have sub-channels, generally with
-// their own data. In some cases -- for example
-// a renderable geometry collection -- the parent channel
-// mediates the storage of sub-channels.
-//
-// Channel cross-references are usually by name
-// but an exception is possible for renderable
-// geometry collections. 
-
-// The recording database keeps a collection
-// of named channels and the current owners.
-// Entries can only be
-// added or marked as deleted during a
-// transaction.
-
-// "Recording" represents a particular revision
-// of a channel. The recording structure itself
-// and metadata is always immutable once READY,
-// except for the state field and the presence
-// of an immutable data copy (mutable only).
-// The underlying data can be
-// mutable or immutable.
-// Recordings have three states: INITIALIZING, READY,
-// and OBSOLETE (mutable only).
-// INITIALIZING is the status while its creator is
-// filling out the data structure
-//
-// Once the entire recording (including all metadata
-// and the underlying data) is complete, the recording
-// becomes READY. If the recording is mutable, before
-// its is allowed to be mutated, the recording should
-// be marked as OBSOLETE
-
-// Mutable recordings can only be modified in one situation:
-//  * As an outcome of a math computation
-// Thus mutation of a particular channel/recording can be
-// prevented by inhibiting its controlling computation
-
-// Live remote access does not distinguish between READY and
-// OBSOLETE recordings; thus code that accesses such recordings
-// needs to be robust in the presence of corrupted data,
-// as it is expected to be quite common.
-//
-// Local rendering can inhibit the controlling computation
-// of mutable math channels. 
-// so as to be able to render a coherent picture. Remote
-// access can similarly inhibit the controlling computation
-// while a coherent copy is made. This defeats the zero copy
-// characteristic, however.
-
-// RECStore structure:
-// std::map of ref's to global revision structures
-// each global revision structure has pointers to either a placeholder
-// or recording per non-deleted channel (perhaps a hash table by recording path?).
-// The placeholder must be replaced by the recording when or before the
-// recording becomes READY
-// this recording has a revision index (derived from the channel),
-// flags, references an underlying datastore, etc.
-
-// Transactions:
-// Unlike traditional databases, simultaneous transactions are NOT permitted.
-// That said, most of the work of a transaction is expected to be in the
-// math, and the math can proceed in parallel for multiple transactions.
-
-// StartTransaction() acquires the transaction lock, defines a new
-// global revision index, and starts recording created recordings. 
-// EndTransaction() treats the new recordings as an atomic update to
-// the recording database. Essentially we copy recdatabase._channels
-// into the channel_map of a new globalrevision. We insert all explicitly-defined
-// new recordings from the transaction into the global revision, we carry-forward
-// unchanged non-math functions. We build (or update/copy?) a mapping of
-// what is dependent on each channel (and also create graph edges from
-// the previous revision for sel-dependencies) and walk the dependency graph, defining new
-// revisions of all dependent math recordings without
-// implicit or explicit self-dependencies (see recmath.hpp) that have
-// all inputs ready. (Remember that a self-dependency alone does not
-// trigger a new version). Then we can queue computation of any remaining
-// math recordings that have all inputs ready.
-// We do that by putting all of those computations as pending_computations in the todo list of the available_compute_resource_database and queue them up as applicable
-// in the prioritized_computations of the applicable
-// available_compute_resource(s).
-// As we get notified (how?) of these computations finishing
-// we follow the same process, identifying recordings whose inputs
-// are all ready, etc. 
-
-// StartTransaction() and EndTransaction() are nestable, and only
-// the outer pair are active.
-//   *** UPDATE: Due to C++ lack of finally: blocks, use a RAII
-// "Transaction" object to hold the transaction lock. instead of
-// StartTransaction() and EndTransaction().
-// i.e. snde::recstore_scoped_transaction transaction;
-
-#ifndef SNDE_RECSTORE_HPP
-#define SNDE_RECSTORE_HPP
-
-#include <unordered_set>
-#include <typeindex>
-#include <memory>
-#include <complex>
-#include <future>
-#include <type_traits>
-
-#include "recording.h" // definition of snde_recording
-
-#include "arrayposition.hpp"
-#include "recstore_storage.hpp"
-#include "lockmanager.hpp"
-#include "recmath.hpp"
-
+%}
 namespace snde {
 
   // forward references
@@ -143,52 +30,12 @@ namespace snde {
   class repetitive_channel_notify; // from notify.hpp
   class promise_channel_notify; 
   
-  // constant data structures with recording type number information
-  extern const std::unordered_map<std::type_index,unsigned> rtn_typemap; // look up typenum based on C++ typeid(type)
   extern const std::unordered_map<unsigned,std::string> rtn_typenamemap;
   extern const std::unordered_map<unsigned,size_t> rtn_typesizemap; // Look up element size bysed on typenum
   extern const std::unordered_map<unsigned,std::string> rtn_ocltypemap; // Look up opencl type string based on typenum
 
-  // https://stackoverflow.com/questions/41494844/check-if-object-is-instance-of-class-with-template
-  // https://stackoverflow.com/questions/43587405/constexpr-if-alternative
-  template <typename> 
-  struct rtn_type_is_shared_ptr: public std::false_type { };
-
-  template <typename T> 
-  struct rtn_type_is_shared_ptr<std::shared_ptr<T>>: public std::true_type { };
-  
-  
-  template <typename T>
-  typename std::enable_if<!rtn_type_is_shared_ptr<T>::value,bool>::type 
-  rtn_type_is_shared_recordingbase_ptr()
-  {
-    return false;
-  }
-
-  template <typename T>
-  typename std::enable_if<rtn_type_is_shared_ptr<T>::value,bool>::type 
-  rtn_type_is_shared_recordingbase_ptr()
-  {
-    return (bool)std::is_base_of<recording_base,typename T::element_type>::value;
-  }
-  
-  
-  template <typename T>
-  unsigned rtn_fromtype()
-  // works like rtn_typemap but can accommodate instances and subclasses of recording_base. Also nicer error message
-  {
-    std::unordered_map<std::type_index,unsigned>::const_iterator wtnt_it = rtn_typemap.find(std::type_index(typeid(T)));
-
-    if (wtnt_it != rtn_typemap.end()) {
-      return wtnt_it->second;
-    } else {
-      // T may be a snde::recording_base subclass instance
-      if (rtn_type_is_shared_recordingbase_ptr<T>()) {
-	return SNDE_RTN_RECORDING;
-      } else {
-	throw snde_error("Type %s is not supported in this context",typeid(T).name());
-      }
-    }
+  %typemap(in) void *owner_id {
+    $1 = (void *)$input;
   }
 
   
@@ -200,9 +47,11 @@ namespace snde {
     // you are single threaded and the information you are writing is for a subsequent state (info->state/info_state);
     // last lock in the locking order except for Python GIL
   public:
-    std::mutex admin; 
+    //std::mutex admin; 
     struct snde_recording_base *info; // owned by this class and allocated with malloc; often actually a sublcass such as snde_ndarray_recording
-    std::atomic_int info_state; // atomic mirror of info->state
+    %immutable;
+    /*std::atomic_int*/ int info_state; // atomic mirror of info->state
+    %mutable;
     std::shared_ptr<immutable_metadata> metadata; // pointer may not be changed once info_state reaches METADATADONE. The pointer in info is the .get() value of this pointer. 
 
     std::shared_ptr<recording_storage_manager> storage_manager; // pointer initialized to a default by recording constructor, then used by the allocate_storage() method. Any assignment must be prior to that. may not be used afterward; see recording_storage in recstore_storage.hpp for details on pointed structure.
@@ -348,7 +197,7 @@ namespace snde {
   class transaction {
   public:
     // mutable until end of transaction when it is destroyed and converted to a globalrev structure
-    std::mutex admin; // last in the locking order except before python GIL. Must hold this lock when reading or writing structures within. Does not cover the channels/recordings themselves.
+    //std::mutex admin; // last in the locking order except before python GIL. Must hold this lock when reading or writing structures within. Does not cover the channels/recordings themselves.
 
     uint64_t globalrev; // globalrev index for this transaction. Immutable once published
     std::unordered_set<std::shared_ptr<channel>> updated_channels;
@@ -375,7 +224,7 @@ namespace snde {
     // transaction and then reacquire after you have the
     // transaction lock.
   public:
-    std::unique_lock<std::mutex> transaction_lock_holder;
+    //std::unique_lock<std::mutex> transaction_lock_holder;
     std::weak_ptr<recdatabase> recdb;
     std::shared_ptr<globalrevision> previous_globalrev;
     bool transaction_ended;
@@ -423,7 +272,7 @@ namespace snde {
 
     channelconfig(std::string channelpath, std::string owner_name, void *owner_id,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager=nullptr);
     // rule of 3
-    channelconfig& operator=(const channelconfig &) = default; 
+    //channelconfig& operator=(const channelconfig &) = default; 
     channelconfig(const channelconfig &orig) = default;
     virtual ~channelconfig() = default; // virtual destructor required so we can be subclassed
 
@@ -446,10 +295,12 @@ namespace snde {
     // the completion of math?
     
     std::shared_ptr<channelconfig> _config; // atomic shared pointer to immutable data structure; nullptr for a deleted channel
-    std::atomic<uint64_t> latest_revision; // 0 means "invalid"; generally 0 (or previous latest) during channel creation/undeletion; incremented to 1 (with an empty recording if necessary) after transaction end 
-    std::atomic<bool> deleted; // is the channel currently defined?
-
-    std::mutex admin; // last in the locking order except before python GIL. Used to ensure there can only be one _config update at a time. 
+    %immutable;
+    /*std::atomic<*/uint64_t/*>*/ latest_revision; // 0 means "invalid"; generally 0 (or previous latest) during channel creation/undeletion; incremented to 1 (with an empty recording if necessary) after transaction end 
+    /*std::atomic<*/bool/*>*/ deleted; // is the channel currently defined?
+    %mutable;
+       
+    //std::mutex admin; // last in the locking order except before python GIL. Used to ensure there can only be one _config update at a time. 
 
 
     channel(std::shared_ptr<channelconfig> initial_config);
@@ -477,7 +328,10 @@ namespace snde {
     std::shared_ptr<channelconfig> config; // immutable
     std::shared_ptr<channel> _channel; // immutable pointer, but pointed data is not immutable, (but you shouldn't generally need to access this)
     std::shared_ptr<recording_base> _rec; // atomic shared ptr to recording structure created to store the ouput; may be nullptr if not (yet) created. Always nullptr for ondemand recordings... recording contents may be mutable but have their own admin lock
-    std::atomic<bool> updated; // this field is only valid once rec() returns a valid pointer and once rec()->state is READY or METADATAREADY. It is true if this particular recording has a new revision particular to the enclosing recording_set_state
+
+    %immutable;
+    /*std::atomic<*/bool/*>*/ updated; // this field is only valid once rec() returns a valid pointer and once rec()->state is READY or METADATAREADY. It is true if this particular recording has a new revision particular to the enclosing recording_set_state
+    %mutable;
     std::shared_ptr<uint64_t> revision; // This is assigned when the channel_state is created from _rec->info->revision for manually created recordings. (For ondemand math recordings this is not meaningful?) For math recordings with the math_function's new_revision_optional (config->math_fcn->fcn->new_revision_optional) flag clear, this is defined during end_transaction() before the channel_state is published. If the new_revision_optional flag is set, this left nullptr; once the math function determines whether a new recording will be instantiated the revision will be assigned when the recording is define, with ordering ensured by the implicit self-dependency implied by the new_revision_optional flag (recmath_compute_resource.cpp)
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_metadataonly; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes metadataonly; set to nullptr at end of channel becoming metadataonly. 
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_ready; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes ready; set to nullptr at end of channel becoming ready. 
@@ -523,12 +377,15 @@ namespace snde {
   };
 
 
-  class recording_set_state : public std::enable_shared_from_this<recording_set_state> {
+  class recording_set_state /* : public std::enable_shared_from_this<recording_set_state>*/ {
   public:
-    std::mutex admin; // locks changes to recstatus including channel_map contents (map itself is immutable once published), mathstatus,  and the _recordings reference maps/sets and notifiers. Precedes recstatus.channel_map.rec.admin and Python GIL in locking order
+    //std::mutex admin; // locks changes to recstatus including channel_map contents (map itself is immutable once published), mathstatus,  and the _recordings reference maps/sets and notifiers. Precedes recstatus.channel_map.rec.admin and Python GIL in locking order
     uint64_t originating_globalrev_index; // this wss may not __be__ a globalrev but it (almost certainly?) is built on one. 
     std::weak_ptr<recdatabase> recdb_weak;
-    std::atomic<bool> ready; // indicates that all recordings except ondemand and data_requestonly recordings are READY (mutable recordings may be OBSOLETE)
+    %immutable;
+    /*std::atomic<*/bool/*>*/ ready; // indicates that all recordings except ondemand and data_requestonly recordings are READY (mutable recordings may be OBSOLETE)
+    %mutable;
+       
     recording_status recstatus;
     math_status mathstatus; // note math_status.math_functions is immutable
     std::shared_ptr<recording_set_state> _prerequisite_state; // C++11 atomic shared pointer. recording_set_state to be used for self-dependencies and any missing dependencies not present in this state. This is an atomic shared pointer (read with .prerequisite_state()) that is set to nullptr once a new globalrevision is ready, so as to allow prior recording revisions to be freed.
@@ -567,9 +424,9 @@ namespace snde {
   };
   
 
-  class recdatabase : public std::enable_shared_from_this<recdatabase> {
+  class recdatabase /* : public std::enable_shared_from_this<recdatabase> */ {
   public:
-    std::mutex admin; // Locks access to _channels and _deleted_channels and _math_functions, _globalrevs and repetitive_notifies. In locking order, precedes channel admin locks, available_compute_resource_database, globalrevision admin locks, recording admin locks, and Python GIL. 
+    //std::mutex admin; // Locks access to _channels and _deleted_channels and _math_functions, _globalrevs and repetitive_notifies. In locking order, precedes channel admin locks, available_compute_resource_database, globalrevision admin locks, recording admin locks, and Python GIL. 
     std::map<std::string,std::shared_ptr<channel>> _channels; // Generally don't use the channel map directly. Grab the latestglobalrev and use the channel map from that. 
     std::map<std::string,std::shared_ptr<channel>> _deleted_channels; // Channels are put here after they are deleted. They can be moved back into the main list if re-created. 
     instantiated_math_database _math_functions; 
@@ -584,7 +441,7 @@ namespace snde {
     std::shared_ptr<recording_storage_manager> default_storage_manager; // pointer is immutable once created; contents not necessarily immutable; see recstore_storage.hpp
 
 
-    std::mutex transaction_lock; // ***!!! Before any dataguzzler-python module locks, etc.
+    //std::mutex transaction_lock; // ***!!! Before any dataguzzler-python module locks, etc.
     std::shared_ptr<transaction> current_transaction; // only valid while transaction_lock is held. 
 
     recdatabase();
@@ -618,197 +475,7 @@ namespace snde {
 
 
   
-  template <typename T>
-  class ndtyped_recording : public ndarray_recording {
-  public:
-    typedef T dtype;
-
-    // This constructor is to be called by everything except the math engine
-    //  * Should be called by the owner of the given channel, as verified by owner_id
-    //  * Should be called within a transaction (i.e. the recdb transaction_lock is held by the existance of the transaction)
-    //  * Because within a transaction, recdb->current_transaction is valid
-    // WARNING: Don't call directly as this constructor doesn't add to the transaction (need to call recdb->register_new_recording(). Use ndtyped_recording<T>::create_recording() instead
-    ndtyped_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id) :
-      ndarray_recording(recdb,chan,owner_id,rtn_typemap.at(typeid(T)))
-    {
-      
-    }
-    
-    // This constructor is reserved for the math engine
-    // Creates recording structure
-    // WARNING: Don't call directly as this constructor doesn't add to the transaction (need to call recdb->register_new_math_recording(). Use ndtyped_recording<T>::create_recording() instead
-    ndtyped_recording(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> calc_wss) :
-      ndarray_recording(recdb,chanpath,calc_wss,rtn_typemap.at(typeid(T)))
-    {
-      
-    }
-
-    static std::shared_ptr<ndtyped_recording> create_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id)
-    {
-      std::shared_ptr<ndtyped_recording> new_rec = std::make_shared<ndtyped_recording>(recdb,chan,owner_id);
-      recdb->register_new_rec(new_rec);
-      return new_rec;
-    }
-
-
-
-    // for math_recordings_only
-    static std::shared_ptr<ndtyped_recording> create_recording(std::string chanpath,std::shared_ptr<recording_set_state> calc_wss)
-    {
-      std::shared_ptr<recdatabase> recdb = calc_wss->recdb_weak.lock();
-      if (!recdb) return nullptr;
-      
-      std::shared_ptr<ndtyped_recording> new_rec = std::make_shared<ndtyped_recording>(recdb,chanpath,calc_wss); // owner id for math recordings is recdb raw pointer recdb.get() 
-      recdb->register_new_math_rec((void*)recdb.get(),calc_wss,new_rec);
-      return new_rec;
-    }
-    
-    inline T *dataptr() { return (T*)void_dataptr(); }
-
-    inline T& element(const std::vector<snde_index> &idx) { return *(dataptr()+element_offset(idx)); }
-    
-    // rule of 3
-    ndtyped_recording & operator=(const ndtyped_recording &) = delete; 
-    ndtyped_recording(const ndtyped_recording &orig) = delete;
-    ~ndtyped_recording() { }
-
-
-    
-    // see https://stackoverflow.com/questions/12073689/c11-template-function-specialization-for-integer-types/12073915
-    // https://stackoverflow.com/questions/57964743/cannot-be-overloaded-error-while-trying-to-enable-sfinae-with-enable-if
-    // but the above method requires that the methods be templates to use SFINAE,
-    // but template methods cannot override a parent's virtual methods per
-    // https://stackoverflow.com/questions/2778352/template-child-class-overriding-a-parent-classs-virtual-function
-    // So we need non-template wrappers that call the SFINAE templates
-
-
-    // Here are the SFINAE templates
-    // element_double for arithmetic types
-    template <typename U = T>
-    typename std::enable_if<std::is_arithmetic<U>::value,double>::type _element_double(const std::vector<snde_index> &idx) // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
-    {
-      size_t offset = element_offset(idx);
-      return (double)dataptr()[offset];
-    }
-
-    // element_double for nonarithmetic types
-    template <typename U = T>
-    typename std::enable_if<!std::is_arithmetic<U>::value,double>::type _element_double(const std::vector<snde_index> &idx) // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
-    {
-      throw snde_error("Cannot extract floating point value from non-arithmetic type");
-    }
-    
-    // assign_double for arithmetic types
-    template <typename U = T>
-    typename std::enable_if<std::is_arithmetic<U>::value,void>::type _assign_double(const std::vector<snde_index> &idx,double val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    {
-      size_t offset = element_offset(idx);
-      dataptr()[offset]=(T)val;      
-    }
-
-    // assign_double for nonarithmetic types
-    template <typename U = T>
-    typename std::enable_if<!std::is_arithmetic<U>::value,void>::type _assign_double(const std::vector<snde_index> &idx,double val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    {
-      throw snde_error("Cannot assign floating point value from non-arithmetic type");
-    }
-
-    
-    // element_int for arithmetic types
-    template <typename U = T>
-    typename std::enable_if<std::is_arithmetic<U>::value,int64_t>::type _element_int(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
-    {
-      size_t offset = element_offset(idx);
-      return (int64_t)dataptr()[offset];
-    }
-
-    // element_int for non-arithmetic types
-    template <typename U = T>
-    typename std::enable_if<!std::is_arithmetic<U>::value,int64_t>::type _element_int(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
-    {
-      throw snde_error("Cannot extract integer value from non-arithmetic type");
-    }
-    
-    // assign_int for arithmetic types
-    template <typename U = T>
-    typename std::enable_if<std::is_arithmetic<U>::value,void>::type  _assign_int(const std::vector<snde_index> &idx,int64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    {
-      size_t offset = element_offset(idx);
-      dataptr()[offset]=(T)val;
-    }
-
-    // assign_int for non-arithmetic types
-    template <typename U = T>
-    typename std::enable_if<!std::is_arithmetic<U>::value,void>::type  _assign_int(const std::vector<snde_index> &idx,int64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    {
-      throw snde_error("Cannot assign integer value to non-arithmetic type");
-    }
-    
-    // element_unsigned for arithmetic types
-    template <typename U = T>
-    typename std::enable_if<std::is_arithmetic<U>::value,uint64_t>::type _element_unsigned(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
-    {
-      size_t offset = element_offset(idx);
-      return (uint64_t)dataptr()[offset];
-    }
-    
-    // element_unsigned for non-arithmetic types
-    template <typename U = T>
-    typename std::enable_if<!std::is_arithmetic<U>::value,uint64_t>::type _element_unsigned(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
-    {
-      throw snde_error("Cannot extract integer value from non-arithmetic type");
-    }
-
-    
-    // assign_unsigned for arithmetic types
-    template <typename U = T>
-    typename std::enable_if<std::is_arithmetic<U>::value,void>::type _assign_unsigned(const std::vector<snde_index> &idx,uint64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    {
-      size_t offset = element_offset(idx);
-      dataptr()[offset]=(T)val;
-    }
-
-
-    // assign_unsigned for non-arithmetic types
-    template <typename U = T>
-    typename std::enable_if<!std::is_arithmetic<U>::value,void>::type _assign_unsigned(const std::vector<snde_index> &idx,uint64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    {
-      throw snde_error("Cannot assign integer value to non-arithmetic type");
-    }
-
-
-    // ... and here are the non-template wrappers
-    double element_double(const std::vector<snde_index> &idx)
-    {
-      return _element_double(idx);
-    }
-    void assign_double(const std::vector<snde_index> &idx,double val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    {
-      _assign_double(idx,val);
-    }
-    
-    int64_t element_int(const std::vector<snde_index> &idx)
-    {
-      return _element_int(idx);
-    }
-    void assign_int(const std::vector<snde_index> &idx,int64_t val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    {
-      _assign_int(idx,val);
-    }
-
-    uint64_t element_unsigned(const std::vector<snde_index> &idx)
-    {
-      return _element_unsigned(idx);
-    }
-    void assign_unsigned(const std::vector<snde_index> &idx,uint64_t val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    {
-      _assign_unsigned(idx,val);
-    }
-
-  };
   
 
   
 };
-
-#endif // SNDE_RECSTORE_HPP

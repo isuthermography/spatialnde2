@@ -368,12 +368,17 @@ IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
 	SET_SOURCE_FILES_PROPERTIES(src/spatialnde2.i PROPERTIES CPLUSPLUS 1)
 	set(UseSWIG_TARGET_NAME_PREFERENCE "LEGACY")
 
-	set(SPATIALNDE2_SWIG_SOURCES src/spatialnde2.i)
+	set(SPATIALNDE2_SWIG_SOURCES src/spatialnde2.i src/allocator.cpp  src/lockmanager.cpp src/recstore_storage.cpp src/recstore.cpp src/recmath_compute_resource.cpp src/recmath.cpp src/recmath_cppfunction.cpp src/snde_error.cpp src/notify.cpp src/shared_memory_allocator_posix.cpp )
 	set_property(SOURCE src/spatialnde2.i PROPERTY SWIG_MODULE_NAME spatialnde2_python)
 	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${PYTHON_LIBRARIES})
 
+	IF(NOT WIN32)
+	  set(SPATIALNDE2_SWIG_SOURCES ${SPATIALNDE2_SWIG_SOURCES} src/shared_memory_allocator_posix.cpp )
+	  set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} rt ) # -lrt required for shm_open() etc.
+	ENDIF()
+	
 	IF (OpenCL_FOUND)
-	  set(SPATIALNDE2_SWIG_SOURCES ${SPATIALNDE2_SWIG_SOURCES} src/lockmanager.cpp src/openclcachemanager.cpp src/opencl_utils.cpp)
+	  set(SPATIALNDE2_SWIG_SOURCES ${SPATIALNDE2_SWIG_SOURCES} src/openclcachemanager.cpp src/opencl_utils.cpp)
 	  set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${OpenCL_LIBRARIES})
 	ENDIF()
 	IF (LibXml2_FOUND AND Eigen3_FOUND)

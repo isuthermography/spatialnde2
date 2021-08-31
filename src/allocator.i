@@ -66,7 +66,7 @@ namespace snde {
   
   class allocator /* : public allocatorbase*/ {
 
-    std::mutex allocatormutex; // Always final mutex in locking order; protects the free list 
+    //std::mutex allocatormutex; // Always final mutex in locking order; protects the free list 
     
   public: 
     snde_index _totalnchunks;

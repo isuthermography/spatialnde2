@@ -44,6 +44,7 @@ typedef unsigned long size_t;
 %include "stdint.i"
 %include "std_string.i"
 %include "std_vector.i"
+%include "std_list.i"
 %include "std_map.i"
 %include "std_deque.i"
 %include "std_except.i"
@@ -115,6 +116,14 @@ typedef unsigned long size_t;
  //%include "infostore_or_component.i"
 %include "geometrydata.i"
  //%include "geometry.i"
+%include "metadata.i"
+%include "recording.i"
+%include "recdb_paths.i"
+%include "recstore_storage.i"
+%include "recstore.i"
+%include "recmath_compute_resource.i"
+%include "recmath.i"
+%include "recmath_cppfunction.i"
 
 #ifdef SNDE_OPENCL
 %include "opencl_utils.i"
@@ -138,3 +147,5 @@ typedef unsigned long size_t;
 // Instantiate templates for shared ptrs
 //%shared_ptr(snde::openclcachemanager);
 %template(StringVector) std::vector<std::string>;
+
+
