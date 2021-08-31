@@ -139,46 +139,46 @@ namespace snde {
   class promise_channel_notify; 
   
   // constant data structures with recording type number information
-  extern const std::unordered_map<std::type_index,unsigned> wtn_typemap; // look up typenum based on C++ typeid(type)
-  extern const std::unordered_map<unsigned,std::string> wtn_typenamemap;
-  extern const std::unordered_map<unsigned,size_t> wtn_typesizemap; // Look up element size bysed on typenum
-  extern const std::unordered_map<unsigned,std::string> wtn_ocltypemap; // Look up opencl type string based on typenum
+  extern const std::unordered_map<std::type_index,unsigned> rtn_typemap; // look up typenum based on C++ typeid(type)
+  extern const std::unordered_map<unsigned,std::string> rtn_typenamemap;
+  extern const std::unordered_map<unsigned,size_t> rtn_typesizemap; // Look up element size bysed on typenum
+  extern const std::unordered_map<unsigned,std::string> rtn_ocltypemap; // Look up opencl type string based on typenum
 
   // https://stackoverflow.com/questions/41494844/check-if-object-is-instance-of-class-with-template
   // https://stackoverflow.com/questions/43587405/constexpr-if-alternative
   template <typename> 
-  struct wtn_type_is_shared_ptr: public std::false_type { };
+  struct rtn_type_is_shared_ptr: public std::false_type { };
 
   template <typename T> 
-  struct wtn_type_is_shared_ptr<std::shared_ptr<T>>: public std::true_type { };
+  struct rtn_type_is_shared_ptr<std::shared_ptr<T>>: public std::true_type { };
   
   
   template <typename T>
-  typename std::enable_if<!wtn_type_is_shared_ptr<T>::value,bool>::type 
-  wtn_type_is_shared_recordingbase_ptr()
+  typename std::enable_if<!rtn_type_is_shared_ptr<T>::value,bool>::type 
+  rtn_type_is_shared_recordingbase_ptr()
   {
     return false;
   }
 
   template <typename T>
-  typename std::enable_if<wtn_type_is_shared_ptr<T>::value,bool>::type 
-  wtn_type_is_shared_recordingbase_ptr()
+  typename std::enable_if<rtn_type_is_shared_ptr<T>::value,bool>::type 
+  rtn_type_is_shared_recordingbase_ptr()
   {
     return (bool)std::is_base_of<recording_base,typename T::element_type>::value;
   }
   
   
   template <typename T>
-  unsigned wtn_fromtype()
-  // works like wtn_typemap but can accommodate instances and subclasses of recording_base. Also nicer error message
+  unsigned rtn_fromtype()
+  // works like rtn_typemap but can accommodate instances and subclasses of recording_base. Also nicer error message
   {
-    std::unordered_map<std::type_index,unsigned>::const_iterator wtnt_it = wtn_typemap.find(std::type_index(typeid(T)));
+    std::unordered_map<std::type_index,unsigned>::const_iterator wtnt_it = rtn_typemap.find(std::type_index(typeid(T)));
 
-    if (wtnt_it != wtn_typemap.end()) {
+    if (wtnt_it != rtn_typemap.end()) {
       return wtnt_it->second;
     } else {
       // T may be a snde::recording_base subclass instance
-      if (wtn_type_is_shared_recordingbase_ptr<T>()) {
+      if (rtn_type_is_shared_recordingbase_ptr<T>()) {
 	return SNDE_RTN_RECORDING;
       } else {
 	throw snde_error("Type %s is not supported in this context",typeid(T).name());
@@ -624,7 +624,7 @@ namespace snde {
     //  * Because within a transaction, recdb->current_transaction is valid
     // WARNING: Don't call directly as this constructor doesn't add to the transaction (need to call recdb->register_new_recording(). Use ndtyped_recording<T>::create_recording() instead
     ndtyped_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id) :
-      ndarray_recording(recdb,chan,owner_id,wtn_typemap.at(typeid(T)))
+      ndarray_recording(recdb,chan,owner_id,rtn_typemap.at(typeid(T)))
     {
       
     }
@@ -633,7 +633,7 @@ namespace snde {
     // Creates recording structure
     // WARNING: Don't call directly as this constructor doesn't add to the transaction (need to call recdb->register_new_math_recording(). Use ndtyped_recording<T>::create_recording() instead
     ndtyped_recording(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> calc_wss) :
-      ndarray_recording(recdb,chanpath,calc_wss,wtn_typemap.at(typeid(T)))
+      ndarray_recording(recdb,chanpath,calc_wss,rtn_typemap.at(typeid(T)))
     {
       
     }

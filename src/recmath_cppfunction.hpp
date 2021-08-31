@@ -323,7 +323,7 @@ namespace snde {
     
     virtual std::vector<unsigned> determine_param_types()
     {
-      return std::vector<unsigned>({ wtn_fromtype<Ts>()... }); // NOTE: If you get an exception thrown at this line, it probably means that one of the parameters to your math function 
+      return std::vector<unsigned>({ rtn_fromtype<Ts>()... }); // NOTE: If you get an exception thrown at this line, it probably means that one of the parameters to your math function 
     }
 	
 	
@@ -571,7 +571,7 @@ namespace snde {
 #endif
       
     default:
-      throw snde_error("In attempting to call math function %s, first parameter %s does not have floating point type %s",inst->definition->definition_command.c_str(),firstparam_rec->channel_name.c_str(),wtn_typenamemap.at(firstparam_rec_val->ndinfo()->typenum).c_str());
+      throw snde_error("In attempting to call math function %s, first parameter %s does not have floating point type %s",inst->definition->definition_command.c_str(),firstparam_rec->channel_name.c_str(),rtn_typenamemap.at(firstparam_rec_val->ndinfo()->typenum).c_str());
     }
   }
   

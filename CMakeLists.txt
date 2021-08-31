@@ -83,7 +83,7 @@ endif()
 
 
 
-set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/wfmmath_compute_resource.cpp src/wfmmath.cpp src/wfmmath_parameter.cpp src/wfmstore.cpp src/wfmstore_storage.cpp src/wfmmath_cppfunction.cpp src/notify.cpp src/snde_error.cpp ) # src/infostore_or_component.cpp src/geometry.cpp src/revision_manager.cpp src/mutablewfmstore.cpp )
+set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/recmath_compute_resource.cpp src/recmath.cpp src/recmath_parameter.cpp src/recstore.cpp src/recstore_storage.cpp src/recmath_cppfunction.cpp src/notify.cpp src/snde_error.cpp ) # src/infostore_or_component.cpp src/geometry.cpp src/revision_manager.cpp src/mutablerecstore.cpp )
 
 if (NOT WIN32)
   set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} src/shared_memory_allocator_posix.cpp )
@@ -157,8 +157,8 @@ ENDIF (OpenCL_FOUND)
 
 #IF (Qt5_FOUND)
 #  include_directories(${Qt5Widgets_INCLUDE_DIRS} ${Qt5Core_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5OpenGL_INCLUDE_DIRS} ${Qt5UiTools_INCLUDE_DIRS} ) 
-#  QT5_WRAP_CPP(qtwfmviewer_MOC src/qtwfmviewer.cpp src/qtwfmviewer.hpp)
-#  set(SPATIALNDE2_QT_SOURCES src/qtwfmviewer.cpp ${qtwfmviewer_MOC} )
+#  QT5_WRAP_CPP(qtrecviewer_MOC src/qtrecviewer.cpp src/qtrecviewer.hpp)
+#  set(SPATIALNDE2_QT_SOURCES src/qtrecviewer.cpp ${qtrecviewer_MOC} )
 #ENDIF()
 
 IF (LibXml2_FOUND)
@@ -195,7 +195,7 @@ add_library(spatialnde2 SHARED ${SPATIALNDE2_SOURCES})
 
 
 IF (Qt5_FOUND)
-  qt5_add_resources(SPATIALNDE2_QT_RCC src/qtwfmviewer.qrc )
+  qt5_add_resources(SPATIALNDE2_QT_RCC src/qtrecviewer.qrc )
   add_library(spatialnde2_qt SHARED ${SPATIALNDE2_QT_SOURCES} ${SPATIALNDE2_QT_RCC})
 ENDIF()
 
@@ -227,17 +227,17 @@ add_executable(allocator_test
 target_link_libraries(allocator_test ${SPATIALNDE2_LIBS})
 
 
-add_executable(wfmdb_test
-        test/wfmdb_test.cpp)
-target_link_libraries(wfmdb_test ${SPATIALNDE2_LIBS})
+add_executable(recdb_test
+        test/recdb_test.cpp)
+target_link_libraries(recdb_test ${SPATIALNDE2_LIBS})
 
-add_executable(wfmmath_test
-        test/wfmmath_test.cpp)
-target_link_libraries(wfmmath_test ${SPATIALNDE2_LIBS})
+add_executable(recmath_test
+        test/recmath_test.cpp)
+target_link_libraries(recmath_test ${SPATIALNDE2_LIBS})
 
-add_executable(wfmmath_test2
-        test/wfmmath_test2.cpp)
-target_link_libraries(wfmmath_test2 ${SPATIALNDE2_LIBS})
+add_executable(recmath_test2
+        test/recmath_test2.cpp)
+target_link_libraries(recmath_test2 ${SPATIALNDE2_LIBS})
 
 #add_executable(manager_test
 #        test/manager_test.cpp)

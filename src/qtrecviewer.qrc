@@ -1,6 +1,6 @@
 <!DOCTYPE RCC><RCC version="1.0">
 <qresource>
-  <file>qtwfmviewer.ui</file>
+  <file>qtrecviewer.ui</file>
   <file>rarrow.png</file>
   <file>larrow.png</file>
   <file>uarrow.png</file>
