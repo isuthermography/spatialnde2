@@ -1,5 +1,5 @@
-#ifndef SNDE_WFMMATH_CPPFUNCTION_HPP
-#define SNDE_WFMMATH_CPPFUNCTION_HPP
+#ifndef SNDE_RECMATH_CPPFUNCTION_HPP
+#define SNDE_RECMATH_CPPFUNCTION_HPP
 
 #include <utility>
 #include <typeindex>
@@ -9,8 +9,8 @@
 //#endif
 
 
-#include "wfmstore.hpp"
-#include "wfmmath.hpp"
+#include "recstore.hpp"
+#include "recmath.hpp"
 
 namespace snde {
   // The problem of how to define a function can be thought of as having several
@@ -49,7 +49,7 @@ namespace snde {
   // a set of parameters. 
 
 
-  // The class can have a derived subclass of wfmmath's instantiated_math_function
+  // The class can have a derived subclass of recmath's instantiated_math_function
   // with custom information for this particular c++ function.
   // Note that while instantiated_math_function is treated as immutable once
   // published, your additions don't necessarily need to be, provided that you manipulate
@@ -59,34 +59,34 @@ namespace snde {
 
   // ***!!! Need subclass for instantiated_math_function
   // with instantiation data for the cpp math function.
-  // ... Specifically, a lamdba to create the wfmmath_cppfuncexec
+  // ... Specifically, a lamdba to create the recmath_cppfuncexec
   // ... flags to represent raw, opencl, and cuda options
   // Alternate methods for raw, opencl, and cuda versions?
   
   // creation of data structures to return representing those options.
-  // ***!!! (NO: Type of input waveforms may change. Single lambda may not be adequate?)
+  // ***!!! (NO: Type of input recordings may change. Single lambda may not be adequate?)
   
   // ***!!! Need template and helper to instantiate specializations for multiple
-  // waveform types, select them on the basis of input waveform type
+  // recording types, select them on the basis of input recording type
   //  THIS helper should be what is called in the lambda. !!!***
 
-  class wfmmath_cppfuncexec_base : public executing_math_function {
+  class recmath_cppfuncexec_base : public executing_math_function {
   public:
 
     // executing_math_function defines these class members:
-    //   std::shared_ptr<waveform_set_state> wss; // waveform set state in which we are executing
+    //   std::shared_ptr<recording_set_state> wss; // recording set state in which we are executing
     //   std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
     //   bool is_mutable;
     //   bool mdonly; 
     //   std::shared_ptr<assigned_compute_resource> compute_resource; // locked by acrd's admin lock
 
-    // !!!*** May still need self_dependent_waveforms but perhaps not here... (moved to executing_math_function
+    // !!!*** May still need self_dependent_recordings but perhaps not here... (moved to executing_math_function
 
-    wfmmath_cppfuncexec_base(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst);
+    recmath_cppfuncexec_base(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst);
 
-    wfmmath_cppfuncexec_base(const wfmmath_cppfuncexec_base &) = delete;
-    wfmmath_cppfuncexec_base& operator=(const wfmmath_cppfuncexec_base &) = delete; 
-    virtual ~wfmmath_cppfuncexec_base()=default;  // virtual destructor required so we can be subclassed
+    recmath_cppfuncexec_base(const recmath_cppfuncexec_base &) = delete;
+    recmath_cppfuncexec_base& operator=(const recmath_cppfuncexec_base &) = delete; 
+    virtual ~recmath_cppfuncexec_base()=default;  // virtual destructor required so we can be subclassed
 
     virtual std::vector<unsigned> determine_param_types()=0;
 
@@ -96,17 +96,17 @@ namespace snde {
 
   };
 
-  // recursive parameter tuple builder for wfmmath_cppfuncexec
+  // recursive parameter tuple builder for recmath_cppfuncexec
   // first, declare the template
   template <typename... Rest>
   struct wmcfe_tuple_builder_helper {
-    std::tuple<std::tuple<Rest...>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index);
+    std::tuple<std::tuple<Rest...>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index);
   };
   
   // recursive definition
   template <typename T,typename... Rest>
   struct wmcfe_tuple_builder_helper<T,Rest...> {
-    std::tuple<std::tuple<T,Rest...>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    std::tuple<std::tuple<T,Rest...>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::tuple<T> this_tuple;
       std::tuple<Rest...> rest_tuple;
@@ -122,7 +122,7 @@ namespace snde {
   // full specialization for each concrete parameter type
   template <>
   struct wmcfe_tuple_builder_helper<std::string> {  
-    std::tuple<std::tuple<std::string>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    std::tuple<std::tuple<std::string>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
@@ -139,7 +139,7 @@ namespace snde {
 
   template <>
   struct wmcfe_tuple_builder_helper<int64_t> {
-    std::tuple<std::tuple<int64_t>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    std::tuple<std::tuple<int64_t>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       if (thisparam==end) {
@@ -154,7 +154,7 @@ namespace snde {
 
   template <>
   struct wmcfe_tuple_builder_helper<double> {
-    std::tuple<std::tuple<double>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    std::tuple<std::tuple<double>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
@@ -169,54 +169,54 @@ namespace snde {
     }
   };
   
-  // specialization for a waveform_base
+  // specialization for a recording_base
   template <>
-  struct wmcfe_tuple_builder_helper<std::shared_ptr<waveform_base>> {
-    std::tuple<std::tuple<std::shared_ptr<waveform_base>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+  struct wmcfe_tuple_builder_helper<std::shared_ptr<recording_base>> {
+    std::tuple<std::tuple<std::shared_ptr<recording_base>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy waveform parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw snde_error("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       // return statement implements the following:
       //std::tie(this_tuple,nextparam) = wmcfe_tuple_builder(wss,thisparam,end,channel_path_context);
-      return std::make_tuple(std::make_tuple((*thisparam)->get_waveform(wss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_recording(wss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
     }
   };
   
-  // specialization for an ndarray_waveform
+  // specialization for an ndarray_recording
   template <>
-  struct wmcfe_tuple_builder_helper<std::shared_ptr<ndarray_waveform>> {
-    std::tuple<std::tuple<std::shared_ptr<ndarray_waveform>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+  struct wmcfe_tuple_builder_helper<std::shared_ptr<ndarray_recording>> {
+    std::tuple<std::tuple<std::shared_ptr<ndarray_recording>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy waveform parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw snde_error("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       // return statement implements the following:
       //std::tie(this_tuple,nextparam) = wmcfe_tuple_builder(wss,firstparam,end,channel_path_context);
-      return std::make_tuple(std::make_tuple(std::dynamic_pointer_cast<ndarray_waveform>((*thisparam)->get_waveform(wss,channel_path_context,definition,thisparam_index))),nextparam,thisparam_index+1);
+      return std::make_tuple(std::make_tuple(std::dynamic_pointer_cast<ndarray_recording>((*thisparam)->get_recording(wss,channel_path_context,definition,thisparam_index))),nextparam,thisparam_index+1);
     }
   };
     
-  // partial specialization for an ntyped_waveform<T>
+  // partial specialization for an ntyped_recording<T>
   template <typename T>
-  struct wmcfe_tuple_builder_helper<std::shared_ptr<ndtyped_waveform<T>>> {
-    std::tuple<std::tuple<std::shared_ptr<ndtyped_waveform<T>>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+  struct wmcfe_tuple_builder_helper<std::shared_ptr<ndtyped_recording<T>>> {
+    std::tuple<std::tuple<std::shared_ptr<ndtyped_recording<T>>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy waveform parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw snde_error("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       // return statement implements the following:
       //std::tie(this_tuple,nextparam) = wmcfe_tuple_builder(wss,firstparam,end,channel_path_context);
-      return std::make_tuple(std::make_tuple(std::dynamic_pointer_cast<ndtyped_waveform<T>>((*thisparam)->get_waveform(wss,channel_path_context,definition,thisparam_index))),nextparam,thisparam_index+1);
+      return std::make_tuple(std::make_tuple(std::dynamic_pointer_cast<ndtyped_recording<T>>((*thisparam)->get_recording(wss,channel_path_context,definition,thisparam_index))),nextparam,thisparam_index+1);
     }
   };
 
@@ -224,7 +224,7 @@ namespace snde {
   // specialization for a blank at the end, which g++ seemss to want (?)
   template <>
   struct wmcfe_tuple_builder_helper<> {
-    std::tuple<std::tuple<>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<waveform_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    std::tuple<std::tuple<>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> wmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
     
       if (thisparam!=end) {
@@ -238,9 +238,9 @@ namespace snde {
 
   
   template <typename... Ts>
-  std::tuple<Ts...> wmcfe_get_parameters(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst)
+  std::tuple<Ts...> wmcfe_get_parameters(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst)
   {
-    // extract the parameters from the waveform_set_state, store them in parameters tuple
+    // extract the parameters from the recording_set_state, store them in parameters tuple
     std::vector<std::shared_ptr<math_parameter>>::iterator param_extract_last;
     //std::tie(parameters,param_extract_last)
 
@@ -261,14 +261,14 @@ namespace snde {
   // https://stackoverflow.com/questions/16868129/how-to-store-variadic-template-arguments  (see update from aschepler)
   // We are depending on C++14 here for std::index_sequence_for
   template <typename... Ts>
-  class wfmmath_cppfuncexec: public wfmmath_cppfuncexec_base {
+  class recmath_cppfuncexec: public recmath_cppfuncexec_base {
     // represents execution of a c++ function
     // derive your implementation from this templated base class
     // Instantiate the template according to your function arguments
     // e.g.
-    // class multiply_by_scalar: public wfmmath_cppfuncexec_base<ndtyped_waveform<float>,float> {};
+    // class multiply_by_scalar: public recmath_cppfuncexec_base<ndtyped_recording<float>,float> {};
     // or even as a template
-    // template <typename T> class multiply_by_scalar: public wfmmath_cppfuncexec_base<ndtyped_waveform<T>,float> {};
+    // template <typename T> class multiply_by_scalar: public recmath_cppfuncexec_base<ndtyped_recording<T>,float> {};
 
     // ***!!! Because we will be deriving classes from this class, any code
     // in here has to be very careful, because since templates can't be virtual
@@ -279,10 +279,10 @@ namespace snde {
 
     std::tuple<Ts...> parameters;
       
-    wfmmath_cppfuncexec(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
-      wfmmath_cppfuncexec_base(wss,inst),
+    recmath_cppfuncexec(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
+      recmath_cppfuncexec_base(wss,inst),
       compute_options_function(nullptr),
-      define_wfms_function(nullptr),
+      define_recs_function(nullptr),
       metadata_function(nullptr),
       lock_alloc_function(nullptr),
       exec_function(nullptr),
@@ -292,15 +292,15 @@ namespace snde {
     }
 
     // rule of 3
-    wfmmath_cppfuncexec(const wfmmath_cppfuncexec &) = delete;
-    wfmmath_cppfuncexec & operator = (const wfmmath_cppfuncexec &) = delete;
-    virtual ~wfmmath_cppfuncexec()=default;
+    recmath_cppfuncexec(const recmath_cppfuncexec &) = delete;
+    recmath_cppfuncexec & operator = (const recmath_cppfuncexec &) = delete;
+    virtual ~recmath_cppfuncexec()=default;
 
     typedef std::function<void()> exec_function_override_type;
     typedef std::function<std::shared_ptr<exec_function_override_type>()> lock_alloc_function_override_type; 
     typedef std::function<std::shared_ptr<lock_alloc_function_override_type>()> metadata_function_override_type;
-    typedef std::function<std::shared_ptr<metadata_function_override_type>()> define_wfms_function_override_type;
-    typedef std::function<std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_wfms_function_override_type>>()> compute_options_function_override_type; 
+    typedef std::function<std::shared_ptr<metadata_function_override_type>()> define_recs_function_override_type;
+    typedef std::function<std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>>()> compute_options_function_override_type; 
     typedef std::function<std::pair<bool,std::shared_ptr<compute_options_function_override_type>>()> decide_execution_function_override_type; 
     
     // The function pointers stored here (if they are valid) override the methods below.
@@ -314,7 +314,7 @@ namespace snde {
     // decide_execution in any case is only used if new_revision_optional set in the math_function
     // !!!*** If adding more function pointers here, be sure to initialize them  to nullptr in the constructor !!!***
     std::shared_ptr<compute_options_function_override_type> compute_options_function;
-    std::shared_ptr<define_wfms_function_override_type> define_wfms_function;
+    std::shared_ptr<define_recs_function_override_type> define_recs_function;
     std::shared_ptr<metadata_function_override_type> metadata_function;
     std::shared_ptr<lock_alloc_function_override_type> lock_alloc_function;
     std::shared_ptr<exec_function_override_type> exec_function;
@@ -359,7 +359,7 @@ namespace snde {
     }
 
     // likewise if you override compute_options, this one should not do much and finish quickly
-    virtual std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_wfms_function_override_type>> compute_options(Ts...)
+    virtual std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(Ts...)
     {
       std::list<std::shared_ptr<compute_resource_option>> option_list = { std::make_shared<compute_resource_option_cpu>(SNDE_CR_CPU,0,0,nullptr,0,1,1) };
       return std::make_pair(option_list,nullptr);
@@ -367,7 +367,7 @@ namespace snde {
 
     // call compute_options, passing parameters from tuple (see stackoverflow link, above)
     template <std::size_t... Indexes>
-    std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_wfms_function_override_type>> call_compute_options(std::tuple<Ts...>& tup,std::index_sequence<Indexes...>)
+    std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> call_compute_options(std::tuple<Ts...>& tup,std::index_sequence<Indexes...>)
     {
       if (compute_options_function) {
 	return (*compute_options_function)();
@@ -378,7 +378,7 @@ namespace snde {
     }
     
     template <std::size_t... Indexes>
-    std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_wfms_function_override_type>> call_compute_options(std::tuple<Ts...>& tup)
+    std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> call_compute_options(std::tuple<Ts...>& tup)
     {
       return call_compute_options(tup,std::index_sequence_for<Ts...>{});
     }
@@ -386,39 +386,39 @@ namespace snde {
     virtual std::list<std::shared_ptr<compute_resource_option>> perform_compute_options()
     {
       std::list<std::shared_ptr<compute_resource_option>> opts;
-      std::tie(opts,define_wfms_function)=call_compute_options(parameters);
+      std::tie(opts,define_recs_function)=call_compute_options(parameters);
 
       return opts;
     }
 
 
-    virtual std::shared_ptr<metadata_function_override_type> define_wfms(Ts...)
+    virtual std::shared_ptr<metadata_function_override_type> define_recs(Ts...)
     {
       return nullptr;
     }
 
     
-    // call define_wfms, passing parameters from tuple (see stackoverflow link, above)
+    // call define_recs, passing parameters from tuple (see stackoverflow link, above)
     template <std::size_t... Indexes>
-    std::shared_ptr<metadata_function_override_type> call_define_wfms(std::tuple<Ts...>& tup,std::index_sequence<Indexes...>)
+    std::shared_ptr<metadata_function_override_type> call_define_recs(std::tuple<Ts...>& tup,std::index_sequence<Indexes...>)
     {
-      if (define_wfms_function) {
-	return (*define_wfms_function)();
+      if (define_recs_function) {
+	return (*define_recs_function)();
 
       } else {
-	return define_wfms(std::get<Indexes>(tup)...);
+	return define_recs(std::get<Indexes>(tup)...);
       }
     }
     
     template <std::size_t... Indexes>
-    std::shared_ptr<metadata_function_override_type> call_define_wfms(std::tuple<Ts...>& tup)
+    std::shared_ptr<metadata_function_override_type> call_define_recs(std::tuple<Ts...>& tup)
     {
-      return call_define_wfms(tup,std::index_sequence_for<Ts...>{});
+      return call_define_recs(tup,std::index_sequence_for<Ts...>{});
     }
         
-    virtual void perform_define_wfms()
+    virtual void perform_define_recs()
     {
-      metadata_function=call_define_wfms(parameters);
+      metadata_function=call_define_recs(parameters);
 
     }
 
@@ -428,7 +428,7 @@ namespace snde {
     // NOTE: Your metadata implementation is only required to actually
     // set all metadata if the function is mdonly. If you do
     // set all metadata you should call the mark_metadata_done
-    // on all output waveforms
+    // on all output recordings
     {
       //// default implementation returns lock_alloc method
       //return std::make_shared<lock_alloc_function_override_type>([ this ](Ts&... ts) -> std::shared_ptr<exec_function_override_type> {
@@ -536,7 +536,7 @@ namespace snde {
   // that auto-detects whether its first input is snde_float32 or
   // snde_float64 and runs the correct version automatically
   template <template<class> class CppFuncClass>
-  std::shared_ptr<executing_math_function> make_cppfuncexec_floatingtypes(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst)
+  std::shared_ptr<executing_math_function> make_cppfuncexec_floatingtypes(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst)
   {
     if (!inst) {
       // initial call with no instantiation to probe parameters; just use float32 case
@@ -546,32 +546,32 @@ namespace snde {
     
     std::shared_ptr<math_parameter> firstparam = inst->parameters.at(0);
 
-    assert(firstparam->paramtype==SNDE_MFPT_WAVEFORM);
+    assert(firstparam->paramtype==SNDE_MFPT_RECORDING);
 
-    std::shared_ptr<math_parameter_waveform> firstparam_wfm = std::dynamic_pointer_cast<math_parameter_waveform>(firstparam);
+    std::shared_ptr<math_parameter_recording> firstparam_rec = std::dynamic_pointer_cast<math_parameter_recording>(firstparam);
 
-    assert(firstparam_wfm);
+    assert(firstparam_rec);
     
-    std::shared_ptr<ndarray_waveform> firstparam_wfm_val = std::dynamic_pointer_cast<ndarray_waveform>(firstparam_wfm->get_waveform(wss,inst->channel_path_context,inst->definition,1));
+    std::shared_ptr<ndarray_recording> firstparam_rec_val = std::dynamic_pointer_cast<ndarray_recording>(firstparam_rec->get_recording(wss,inst->channel_path_context,inst->definition,1));
 
-    if (!firstparam_wfm_val) {
-      throw snde_error("In attempting to call math function %s, first parameter %s is not an ndarray waveform",inst->definition->definition_command.c_str(),firstparam_wfm->channel_name.c_str());
+    if (!firstparam_rec_val) {
+      throw snde_error("In attempting to call math function %s, first parameter %s is not an ndarray recording",inst->definition->definition_command.c_str(),firstparam_rec->channel_name.c_str());
     }
 
-    switch (firstparam_wfm_val->ndinfo()->typenum) {
-    case SNDE_WTN_FLOAT32:
+    switch (firstparam_rec_val->ndinfo()->typenum) {
+    case SNDE_RTN_FLOAT32:
       return std::make_shared<CppFuncClass<snde_float32>>(wss,inst);
 
-    case SNDE_WTN_FLOAT64:
+    case SNDE_RTN_FLOAT64:
       return std::make_shared<CppFuncClass<snde_float64>>(wss,inst);
 
 #ifdef SNDE_HAVE_FLOAT16
-    case SNDE_WTN_FLOAT16:
+    case SNDE_RTN_FLOAT16:
       return std::make_shared<CppFuncClass<snde_float16>>(wss,inst);    
 #endif
       
     default:
-      throw snde_error("In attempting to call math function %s, first parameter %s does not have floating point type %s",inst->definition->definition_command.c_str(),firstparam_wfm->channel_name.c_str(),wtn_typenamemap.at(firstparam_wfm_val->ndinfo()->typenum).c_str());
+      throw snde_error("In attempting to call math function %s, first parameter %s does not have floating point type %s",inst->definition->definition_command.c_str(),firstparam_rec->channel_name.c_str(),wtn_typenamemap.at(firstparam_rec_val->ndinfo()->typenum).c_str());
     }
   }
   
@@ -582,7 +582,7 @@ namespace snde {
     bool supports_opencl;
     bool supports_cuda;
     cpp_math_function(size_t num_results,
-		      std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
+		      std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
 		      bool supports_cpu,
 		      bool supports_opencl,
 		      bool supports_cuda);
@@ -602,7 +602,7 @@ namespace snde {
 								    std::string extra_params);
     
     // initiate_execution is now a function pointer member of our superclass
-    //virtual std::shared_ptr<executing_math_function> initiate_execution(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated); // actually returns pointer to class wfmmath_cppfuncexec<...>
+    //virtual std::shared_ptr<executing_math_function> initiate_execution(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated); // actually returns pointer to class recmath_cppfuncexec<...>
 
     // !!!*** How to concisely extract parameter types from template instantiated by
     // initiate_execution?
@@ -640,4 +640,4 @@ namespace snde {
 
   
 
-#endif // SNDE_WFMMATH_CPPFUNCTION_HPP
+#endif // SNDE_RECMATH_CPPFUNCTION_HPP

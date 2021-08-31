@@ -188,7 +188,7 @@ int main(int argc, char **argv)
   // locking of resources) 
   geom=std::make_shared<geometry>(1e-6,manager);
 
-  std::shared_ptr<mutablewfmdb> wfmdb = std::make_shared<mutablewfmdb>();
+  std::shared_ptr<mutablerecdb> recdb = std::make_shared<mutablerecdb>();
   
   revision_manager=std::make_shared<trm>(); /* transactional revision manager */
 
@@ -202,11 +202,11 @@ int main(int argc, char **argv)
     
   }
   
-  std::shared_ptr<osg_texturecache> texcache=std::make_shared<osg_texturecache>(geom,revision_manager,wfmdb,context,device,queue);
+  std::shared_ptr<osg_texturecache> texcache=std::make_shared<osg_texturecache>(geom,revision_manager,recdb,context,device,queue);
 
   std::shared_ptr<osg_parameterizationcache> paramcache=std::make_shared<osg_parameterizationcache>(geom,context,device,queue);
   
-  geomcache=std::make_shared<osg_instancecache>(geom,wfmdb,paramcache,context,device,queue);
+  geomcache=std::make_shared<osg_instancecache>(geom,recdb,paramcache,context,device,queue);
 
   //std::vector<std::shared_ptr<trm_dependency>> normal_calcs;
 
@@ -222,7 +222,7 @@ int main(int argc, char **argv)
 													 };
     
     
-    part_infostores = x3d_load_geometry(geom,argv[1],wfmdb,"/",false,true); // !!!*** Try enable vertex reindexing !!!***
+    part_infostores = x3d_load_geometry(geom,argv[1],recdb,"/",false,true); // !!!*** Try enable vertex reindexing !!!***
 
     revision_manager->End_Transaction();
   }
@@ -236,16 +236,16 @@ int main(int argc, char **argv)
     //  geom->object_trees.insert(std::make_pair(partname,parts[partcnt]));    
     //}
     std::shared_ptr<mutablegeomstore> assem_infostore;
-    assem_infostore=mutablegeomstore::from_partlist(wfmdb,"/",geom,"LoadedX3D",part_infostores);
+    assem_infostore=mutablegeomstore::from_partlist(recdb,"/",geom,"LoadedX3D",part_infostores);
 
     
     
     //geom->object_trees.insert(std::make_pair("LoadedX3D",assem));
     revision_manager->Start_Transaction();
 
-    //std::shared_ptr<mutablegeomstore> LoadedX3D = std::make_shared<mutablegeomstore>("LoadedX3D","/LoadedX3D",wfmmetadata(md),geom,assem);
+    //std::shared_ptr<mutablegeomstore> LoadedX3D = std::make_shared<mutablegeomstore>("LoadedX3D","/LoadedX3D",recmetadata(md),geom,assem);
 
-    wfmdb->addinfostore(assem_infostore);
+    recdb->addinfostore(assem_infostore);
     
     //for (auto & part_md : *parts) {
     //  // add normal calculation for each part from the .x3d file
@@ -254,9 +254,9 @@ int main(int argc, char **argv)
     //  normal_calcs.push_back(normal_calculation(geom,revision_manager,part_md.first,context,device,queue));
     //}
     
-    std::shared_ptr<display_info> display = std::make_shared<display_info>(wfmdb);
+    std::shared_ptr<display_info> display = std::make_shared<display_info>(recdb);
     
-    OSGComp=new snde::OSGComponent(geom,geomcache,paramcache,texcache,wfmdb,revision_manager,assem_infostore->fullname,display); // OSGComp must be created during a transaction...
+    OSGComp=new snde::OSGComponent(geom,geomcache,paramcache,texcache,recdb,revision_manager,assem_infostore->fullname,display); // OSGComp must be created during a transaction...
 
     
     revnum=revision_manager->End_Transaction();

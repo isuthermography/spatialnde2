@@ -28,7 +28,7 @@
 
 #include "normal_calculation.hpp"
 
-#include "mutablewfmstore.hpp"
+#include "mutablerecstore.hpp"
 
 #include "revman_geometry.hpp"
 
@@ -314,7 +314,7 @@ public:
   // snde_geom, context, device, and queue shall be constant
   // after creation so can be freely read from any thread context
   std::shared_ptr<geometry> snde_geom;
-  std::weak_ptr<mutablewfmdb> snde_wfmdb;
+  std::weak_ptr<mutablerecdb> snde_recdb;
   std::shared_ptr<osg_parameterizationcache> param_cache;
   cl_context context;
   cl_device_id device;
@@ -323,13 +323,13 @@ public:
   std::mutex admin; // serialize references to instance_map because that could be used from any thread that drops the last reference to an instancecacheentry... Need to think thread-safety of the instancecache through more carefully 
   
   osg_instancecache(std::shared_ptr<geometry> snde_geom,
-		    std::shared_ptr<mutablewfmdb> snde_wfmdb,
+		    std::shared_ptr<mutablerecdb> snde_recdb,
 		    std::shared_ptr<osg_parameterizationcache> param_cache,
 		    cl_context context,
 		    cl_device_id device,
 		    cl_command_queue queue) :
     snde_geom(snde_geom),
-    snde_wfmdb(snde_wfmdb),
+    snde_recdb(snde_recdb),
     param_cache(param_cache),
     context(context),
     device(device),
@@ -339,14 +339,14 @@ public:
   }
 
   
-  std::shared_ptr<osg_instancecacheentry> lookup(std::shared_ptr<trm> revman,const snde_partinstance &instance,std::string wfmname /* std::shared_ptr<mutablegeomstore> info*/,std::shared_ptr<part> part_ptr,std::shared_ptr<parameterization> param) //std::shared_ptr<geometry> geom,std::shared_ptr<lockholder> holder,rwlock_token_set all_locks,snde_partinstance &instance,cl_context context, cl_device device, cl_command_queue queue,snde_index thisversion)
+  std::shared_ptr<osg_instancecacheentry> lookup(std::shared_ptr<trm> revman,const snde_partinstance &instance,std::string recname /* std::shared_ptr<mutablegeomstore> info*/,std::shared_ptr<part> part_ptr,std::shared_ptr<parameterization> param) //std::shared_ptr<geometry> geom,std::shared_ptr<lockholder> holder,rwlock_token_set all_locks,snde_partinstance &instance,cl_context context, cl_device device, cl_command_queue queue,snde_index thisversion)
 
   // NOTE: May be called while locks held on the mutablegeomstore "info" (REALLY?... NEED TO INVESTIGATE WITH NEW LOCKING MODEL!)
 
   // must be called during a transaction
   {
-    std::shared_ptr<mutablewfmdb> wfmdb_strong = snde_wfmdb.lock();
-    if (!wfmdb_strong) return nullptr; 
+    std::shared_ptr<mutablerecdb> recdb_strong = snde_recdb.lock();
+    if (!recdb_strong) return nullptr; 
     
     std::unique_lock<std::mutex> adminlock(admin);
     
@@ -370,7 +370,7 @@ public:
 
       
       std::shared_ptr<osg_instancecacheentry> entry_ptr(&(entry->second),
-							[ shared_cache, wfmdb_strong ](osg_instancecacheentry *ent) { /* custom deleter... this is a parameter to the shared_ptr constructor, ... the osg_instancecachentry was created in emplace(), above.  */ 
+							[ shared_cache, recdb_strong ](osg_instancecacheentry *ent) { /* custom deleter... this is a parameter to the shared_ptr constructor, ... the osg_instancecachentry was created in emplace(), above.  */ 
 							  std::unordered_map<snde_partinstance,osg_instancecacheentry,osg_snde_partinstance_hash,osg_snde_partinstance_equal>::iterator foundent;
 
 							  std::lock_guard<std::mutex> adminlock(shared_cache->admin);
@@ -445,7 +445,7 @@ public:
 					      // triangles, based on part.firsttri and part.numtris
 					      // edges, based on part.firstedge and part.numedges
 					      // vertices, based on part.firstvertex and part.numvertices
-					      [ entry_ptr_weak,shared_cache,wfmdb_strong ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
+					      [ entry_ptr_weak,shared_cache,recdb_strong ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
 
 						// actions is STDA_IDENTIFY_INPUTS or
 						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS or
@@ -588,10 +588,10 @@ public:
 	entry->second.param_cache_entry=param_cache->lookup(revman,param);
 
 	// request parameterization boxes... dependent solely on the parameterization
-	param->request_boxes(wfmdb_strong,wfmdb_path_context(wfmname),wfmname,revman,context,device,queue);
+	param->request_boxes(recdb_strong,recdb_path_context(recname),recname,revman,context,device,queue);
 
 	// request projection info... co-dependent on part and parameterization
-	param->request_projinfo(wfmdb_strong,wfmdb_path_context(wfmname),wfmname,part_ptr,revman,context,device,queue); 
+	param->request_projinfo(recdb_strong,recdb_path_context(recname),recname,part_ptr,revman,context,device,queue); 
       }
       
 
@@ -759,9 +759,9 @@ public:
   std::shared_ptr<osg_instancecache> cache;
   std::shared_ptr<osg_texturecache> texcache;
   std::shared_ptr<osg_parameterizationcache> paramcache;
-  std::shared_ptr<mutablewfmdb> wfmdb;
+  std::shared_ptr<mutablerecdb> recdb;
   std::shared_ptr<trm> rendering_revman;
-  std::string wfmname;
+  std::string recname;
   //std::shared_ptr<mutablegeomstore> comp;
   osg::ref_ptr<osg::MatrixTransform> PickerCoordAxes; 
   
@@ -797,18 +797,18 @@ public:
 	       std::shared_ptr<osg_instancecache> cache,
 	       std::shared_ptr<osg_parameterizationcache> paramcache,
 	       std::shared_ptr<osg_texturecache> texcache,
-	       std::shared_ptr<mutablewfmdb> wfmdb,
+	       std::shared_ptr<mutablerecdb> recdb,
 	       std::shared_ptr<trm> rendering_revman,
-	       std::string wfmname,
+	       std::string recname,
 	       //std::shared_ptr<mutablegeomstore> comp,
 	       std::shared_ptr<display_info> dispinfo) :
     snde_geom(snde_geom),
     cache(cache),
     paramcache(paramcache),
     texcache(texcache),
-    wfmdb(wfmdb),
+    recdb(recdb),
     rendering_revman(rendering_revman),
-    wfmname(wfmname)
+    recname(recname)
     //comp(comp)
   {
 
@@ -852,14 +852,14 @@ public:
     
     //auto emptyparamdict = std::make_shared<std::unordered_map<std::string,paramdictentry>>();
 
-    std::string wfmdb_context = wfmdb_path_context(wfmname);
-    scene = geometry_scene::lock_scene(snde_geom->manager->locker, wfmdb,wfmdb_context,
-				       wfmname,
+    std::string recdb_context = recdb_path_context(recname);
+    scene = geometry_scene::lock_scene(snde_geom->manager->locker, recdb,recdb_context,
+				       recname,
 				       std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
-				       [ this, dispinfo ](std::shared_ptr<mutabledatastore> paramdata, std::string wfmfullname) -> std::shared_ptr<image_data> {
+				       [ this, dispinfo ](std::shared_ptr<mutabledatastore> paramdata, std::string recfullname) -> std::shared_ptr<image_data> {
 					 // get_image_data() lambda
 					 
-					 std::shared_ptr<osg_texturecacheentry> texinfo = texcache->lookup(paramdata,dispinfo->lookup_channel(wfmfullname)); // look up texture data
+					 std::shared_ptr<osg_texturecacheentry> texinfo = texcache->lookup(paramdata,dispinfo->lookup_channel(recfullname)); // look up texture data
 					 
 					 return std::static_pointer_cast<image_data>(texinfo);
 				       });
@@ -952,7 +952,7 @@ public:
 	cacheentries.push_back(oldcacheentries[pos]);
       } else {
 	// Not present or mismatch in old array... perform lookup
-	cacheentry = cache->lookup(rendering_revman,std::get<0>(instance_part_param_imagemap),wfmname,std::get<1>(instance_part_param_imagemap),std::get<2>(instance_part_param_imagemap));
+	cacheentry = cache->lookup(rendering_revman,std::get<0>(instance_part_param_imagemap),recname,std::get<1>(instance_part_param_imagemap),std::get<2>(instance_part_param_imagemap));
 	assert(paramcacheentry==cacheentry->param_cache_entry);
 	
 	cacheentries.push_back(cacheentry);
@@ -1103,7 +1103,7 @@ public:
 
   void ClearPickedOrientation()
   {
-    // sent via osg_renderer implementation (e.g. qtwfmviewer)
+    // sent via osg_renderer implementation (e.g. qtrecviewer)
     for (size_t pos=0;pos < transforms.size();pos++) {
       transforms[pos]->removeChild(PickerCoordAxes);
       
@@ -1177,10 +1177,10 @@ public:
 
     //comp->obtain_lock(lockprocess,SNDE_INFOSTORE_INFOSTORE|SNDE_INFOSTORE_COMPONENTS|SNDE_COMPONENT_GEOM_PARTS); //|SNDE_COMPONENT_GEOM_VERTNORMALS,
 
-    obtain_graph_lock(lockprocess,wfmname,
+    obtain_graph_lock(lockprocess,recname,
 		      std::vector<std::string>(),
 		      std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
-		      wfmdb,wfmdb_path_context(wfmname), 
+		      recdb,recdb_path_context(recname), 
 		      SNDE_INFOSTORE_COMPONENTS|SNDE_COMPONENT_GEOM_PARTS,
 		      0);
     

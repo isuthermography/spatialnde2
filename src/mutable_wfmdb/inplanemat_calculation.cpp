@@ -85,7 +85,7 @@ std::shared_ptr<trm_dependency> inplanemat_calculation(std::shared_ptr<geometry>
 						obtain_graph_lock(lockprocess,comp,
 								  std::vector<std::string>(),
 								  std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
-								  nullptr,"", // wfmdb and context only relevant for components which might have children we want to access (this only operates on parts, which can only have parameterizations, which we're not asking fore)
+								  nullptr,"", // recdb and context only relevant for components which might have children we want to access (this only operates on parts, which can only have parameterizations, which we're not asking fore)
 								  SNDE_INFOSTORE_COMPONENTS|SNDE_COMPONENT_GEOM_PARTS|((actions & STDA_EXECUTE) ? (SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES|SNDE_COMPONENT_GEOM_TRINORMALS) : 0),
 								  (actions & STDA_EXECUTE) ? SNDE_COMPONENT_GEOM_INPLANEMATS:0);
 						

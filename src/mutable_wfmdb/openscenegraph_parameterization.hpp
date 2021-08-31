@@ -244,7 +244,7 @@ public:
 							 obtain_graph_lock(lockprocess,param,
 									   std::vector<std::string>(),
 									   std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
-									   nullptr,"", // wfmdb and context only relevant for components which might have children we want to access
+									   nullptr,"", // recdb and context only relevant for components which might have children we want to access
 									   SNDE_INFOSTORE_PARAMETERIZATIONS|SNDE_UV_GEOM_UVS|((actions & STDA_EXECUTE) ? (SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_UV_EDGES|SNDE_UV_GEOM_UV_VERTICES):0),
 									   0);
 							 //param->obtain_lock(lockprocess);

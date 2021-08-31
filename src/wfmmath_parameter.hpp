@@ -1,23 +1,23 @@
-#ifndef WFMMATH_PARAMETER_HPP
-#define WFMMATH_PARAMETER_HPP
+#ifndef RECMATH_PARAMETER_HPP
+#define RECMATH_PARAMETER_HPP
 
 #include <set>
 #include <memory>
 #include <unordered_map>
 
 #include "snde_error.hpp"
-#include "wfmdb_paths.hpp"
+#include "recdb_paths.hpp"
 
 namespace snde {
 
   // forward declarations
-  class waveform_base; // defined in wfmstore.hpp
-  class waveform_set_state; // defined in wfmstore.hpp
-  class math_definition; // defined in wfmmath.hpp
+  class recording_base; // defined in recstore.hpp
+  class recording_set_state; // defined in recstore.hpp
+  class math_definition; // defined in recmath.hpp
   
   class math_parameter {
   public:
-    unsigned paramtype; // SNDE_MFPT_XXX from wfmmath.hpp
+    unsigned paramtype; // SNDE_MFPT_XXX from recmath.hpp
 
 
     math_parameter(unsigned paramtype);
@@ -30,17 +30,17 @@ namespace snde {
     // function definition and parameter index are just for the error message
     // NOTE: To add support for more parameter types,
     // need to add entries here as well as modify
-    // wfmmath_cppfunction.cpp/cpp_math_function() constructor to accept them
-    // and wfmmath_cppfunction.hpp templates to call the appropriate
+    // recmath_cppfunction.cpp/cpp_math_function() constructor to accept them
+    // and recmath_cppfunction.hpp templates to call the appropriate
     // additional get_...() methods. Also make sure they have a SNDE_WTN entry
-    // in waveform.h
-    virtual std::string get_string(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
-    virtual int64_t get_int(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
-    virtual double get_double(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
-    virtual std::shared_ptr<waveform_base> get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready waveforms because we shouldn't be called until dependencies are ready // parameter_index human interpreted parameter number, starting at 1, for error messages only
+    // in recording.h
+    virtual std::string get_string(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
+    virtual int64_t get_int(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
+    virtual double get_double(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
+    virtual std::shared_ptr<recording_base> get_recording(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings because we shouldn't be called until dependencies are ready // parameter_index human interpreted parameter number, starting at 1, for error messages only
 
     // default implementations that returns an empty set
-    virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<waveform_set_state> wss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the waveform
+    virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<recording_set_state> wss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the recording
   };
 
 
@@ -49,7 +49,7 @@ namespace snde {
     std::string string_constant;
 
     math_parameter_string_const(std::string string_constant);
-    virtual std::string get_string(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
+    virtual std::string get_string(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
     
   };
 
@@ -59,7 +59,7 @@ namespace snde {
     int64_t int_constant;
 
     math_parameter_int_const(int64_t int_constant);
-    virtual int64_t get_int(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
+    virtual int64_t get_int(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
     
   };
 
@@ -68,18 +68,18 @@ namespace snde {
     double double_constant;
 
     math_parameter_double_const(double double_constant);
-    virtual double get_double(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
+    virtual double get_double(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
     
   };
 
 
-  class math_parameter_waveform: public math_parameter {
+  class math_parameter_recording: public math_parameter {
   public:
     std::string channel_name;
 
-    math_parameter_waveform(std::string channel_name);
-    virtual std::shared_ptr<waveform_base> get_waveform(std::shared_ptr<waveform_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready waveforms. parameter_index starting at 1, just for printing messages
-    virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<waveform_set_state> wss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the waveform
+    math_parameter_recording(std::string channel_name);
+    virtual std::shared_ptr<recording_base> get_recording(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings. parameter_index starting at 1, just for printing messages
+    virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<recording_set_state> wss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the recording
     
   };
 
@@ -87,5 +87,5 @@ namespace snde {
 
 };
 
-#endif // WFMMATH_PARAMETER_HPP
+#endif // RECMATH_PARAMETER_HPP
 

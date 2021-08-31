@@ -2,7 +2,7 @@
 #include <QMainWindow>
 #include <QStyleFactory>
 
-#include "qtwfmviewer.hpp"
+#include "qtrecviewer.hpp"
 
 #include "revision_manager.hpp"
 #include "arraymanager.hpp"
@@ -75,7 +75,7 @@ int main(int argc, char **argv)
 
   geom=std::make_shared<geometry>(1e-6,manager);
   
-  std::shared_ptr<mutablewfmdb> wfmdb = std::make_shared<mutablewfmdb>();
+  std::shared_ptr<mutablerecdb> recdb = std::make_shared<mutablerecdb>();
 
   std::shared_ptr<trm> revision_manager=std::make_shared<trm>(); /* transactional revision manager */
 
@@ -93,10 +93,10 @@ int main(int argc, char **argv)
   
   revision_manager->Start_Transaction();
   std::shared_ptr<mutabledatastore> pngstore = ReadPNG(manager,"PNGFile","PNGFile",argv[1]);
-  wfmdb->addinfostore(pngstore);
+  recdb->addinfostore(pngstore);
 
   std::shared_ptr<mutabledatastore> pngstore2 = ReadPNG(manager,"PNGFile2","PNGFile2",argv[2]);
-  wfmdb->addinfostore(pngstore2);
+  recdb->addinfostore(pngstore2);
   revision_manager->End_Transaction();
 
   qInstallMessageHandler(StdErrOutput);
@@ -110,7 +110,7 @@ int main(int argc, char **argv)
   ////hardwire QT style
   //qapp.setStyle(QStyleFactory::create("Fusion"));
   window.setAttribute(Qt::WA_AcceptTouchEvents, true);
-  QTWfmViewer *Viewer = new QTWfmViewer(wfmdb,geom,revision_manager,context,device,queue,&window);
+  QTRecViewer *Viewer = new QTRecViewer(recdb,geom,revision_manager,context,device,queue,&window);
   window.setCentralWidget(Viewer);
   window.show();
 

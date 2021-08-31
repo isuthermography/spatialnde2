@@ -2,7 +2,7 @@
 #include <QMainWindow>
 #include <QStyleFactory>
 
-#include "qtwfmviewer.hpp"
+#include "qtrecviewer.hpp"
 
 #include "revision_manager.hpp"
 #include "arraymanager.hpp"
@@ -86,7 +86,7 @@ int main(int argc, char **argv)
 
   geom=std::make_shared<geometry>(1e-6,manager);
   
-  std::shared_ptr<mutablewfmdb> wfmdb = std::make_shared<mutablewfmdb>();
+  std::shared_ptr<mutablerecdb> recdb = std::make_shared<mutablerecdb>();
 
   std::shared_ptr<trm> revision_manager=std::make_shared<trm>(); /* transactional revision manager */
 
@@ -105,16 +105,16 @@ int main(int argc, char **argv)
   //std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>> parts;
   std::shared_ptr<std::vector<std::shared_ptr<mutableinfostore>>> part_infostores;
   revision_manager->Start_Transaction();
-  part_infostores = x3d_load_geometry(geom,argv[1],wfmdb,"/",false,true); // !!!*** Try enable vertex reindexing !!!***
+  part_infostores = x3d_load_geometry(geom,argv[1],recdb,"/",false,true); // !!!*** Try enable vertex reindexing !!!***
   revision_manager->End_Transaction();
 
 
   std::shared_ptr<osg_instancecache> geomcache;
-  std::shared_ptr<osg_texturecache> texcache=std::make_shared<osg_texturecache>(geom,revision_manager,wfmdb,context,device,queue);
+  std::shared_ptr<osg_texturecache> texcache=std::make_shared<osg_texturecache>(geom,revision_manager,recdb,context,device,queue);
 
   std::shared_ptr<osg_parameterizationcache> paramcache=std::make_shared<osg_parameterizationcache>(geom,context,device,queue);
   
-  geomcache=std::make_shared<osg_instancecache>(geom,wfmdb,paramcache,context,device,queue);
+  geomcache=std::make_shared<osg_instancecache>(geom,recdb,paramcache,context,device,queue);
 
 
   
@@ -123,21 +123,21 @@ int main(int argc, char **argv)
   ////hardwire QT style
   //qapp.setStyle(QStyleFactory::create("Fusion"));
   window.setAttribute(Qt::WA_AcceptTouchEvents, true);
-  QTWfmViewer *Viewer = new QTWfmViewer(wfmdb,geom,revision_manager,context,device,queue,&window);
+  QTRecViewer *Viewer = new QTRecViewer(recdb,geom,revision_manager,context,device,queue,&window);
 
   
   {
     std::shared_ptr<mutablegeomstore> assem_infostore;
-    assem_infostore=mutablegeomstore::from_partlist(wfmdb,"/",geom,"LoadedX3D",part_infostores);
+    assem_infostore=mutablegeomstore::from_partlist(recdb,"/",geom,"LoadedX3D",part_infostores);
     
     
     
     //geom->object_trees.insert(std::make_pair("LoadedX3D",assem));
     revision_manager->Start_Transaction();
     
-    //std::shared_ptr<mutablegeomstore> LoadedX3D = std::make_shared<mutablegeomstore>("LoadedX3D","/LoadedX3D",wfmmetadata(md),geom,assem);
+    //std::shared_ptr<mutablegeomstore> LoadedX3D = std::make_shared<mutablegeomstore>("LoadedX3D","/LoadedX3D",recmetadata(md),geom,assem);
     
-    wfmdb->addinfostore(assem_infostore);
+    recdb->addinfostore(assem_infostore);
     
     //for (auto & part_md : *parts) {
     //  // add normal calculation for each part from the .x3d file
@@ -149,7 +149,7 @@ int main(int argc, char **argv)
     
     osg::ref_ptr<snde::OSGComponent> OSGComp;
     // ***!!!!! (is OSGComp used? I don't think so)
-    //OSGComp=new snde::OSGComponent(geom,geomcache,paramcache,texcache,wfmdb,revision_manager,LoadedX3D->fullname,Viewer->display); // OSGComp must be created during a transaction...
+    //OSGComp=new snde::OSGComponent(geom,geomcache,paramcache,texcache,recdb,revision_manager,LoadedX3D->fullname,Viewer->display); // OSGComp must be created during a transaction...
 
     
     revnum=revision_manager->End_Transaction();

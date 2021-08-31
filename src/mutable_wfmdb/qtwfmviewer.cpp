@@ -1,21 +1,21 @@
 #include <osgDB/WriteFile>
 
-#include "qtwfmviewer.hpp"
+#include "qtrecviewer.hpp"
 
 namespace snde {
   /*
-  QTWfmGraphicsWindow::QTWfmGraphicsWindow(int x,int y,int width,int height,QTWfmRender *Renderer) :
+  QTRecGraphicsWindow::QTRecGraphicsWindow(int x,int y,int width,int height,QTRecRender *Renderer) :
       osgViewer::GraphicsWindowEmbedded(x,y,width,height),Renderer(Renderer)
     {
       
     }
 
-  void QTWfmGraphicsWindow::requestRedraw()
+  void QTRecGraphicsWindow::requestRedraw()
   {
     Renderer->update();
   }
 
-  void QTWfmGraphicsWindow::requestContinuousUpdate(bool needed)
+  void QTRecGraphicsWindow::requestContinuousUpdate(bool needed)
   {
     if (needed && Renderer->AnimTimer) {
       if (!Renderer->AnimTimer->isActive()) {
@@ -33,7 +33,7 @@ namespace snde {
   }
   */
   
-  QTWfmRender::QTWfmRender(osg::ref_ptr<osg::Node> RootNode, QTWfmViewer *QTViewer,QWidget *parent)
+  QTRecRender::QTRecRender(osg::ref_ptr<osg::Node> RootNode, QTRecViewer *QTViewer,QWidget *parent)
       : QOpenGLWidget(parent),
 	osg_renderer(new osgViewer::GraphicsWindowEmbedded(x(),y(),width(),height()),
 		     RootNode,
@@ -58,7 +58,7 @@ namespace snde {
       QObject::connect(AnimTimer,SIGNAL(timeout()),this,SLOT(update()));
     }
   
-  /* virtual */ void QTWfmRender::ClearPickedOrientation() // in qtwfmviewer.cpp
+  /* virtual */ void QTRecRender::ClearPickedOrientation() // in qtrecviewer.cpp
   {
     // notification from picker to clear any marked orientation
     if (QTViewer->GeomRenderer) {
@@ -66,7 +66,7 @@ namespace snde {
     }
   }
   
-  /* virtual */ void QTWfmRender::paintGL()
+  /* virtual */ void QTRecRender::paintGL()
   {
     //fprintf(stderr,"paintGL()\n");
     
@@ -83,7 +83,7 @@ namespace snde {
       
       
  
-      QTViewer->update_wfm_list();
+      QTViewer->update_rec_list();
       QTViewer->rendering_revman->Start_Transaction();
       QTViewer->update_renderer(); // this eats the events...
       /* !!!*** Need to be able to auto-lock all inputs as 
@@ -97,7 +97,7 @@ namespace snde {
       /* ... perhaps based on output from update_renderer() ?  */
       QTViewer->rendering_revman->Wait_Computation(revnum);
 
-      //osgDB::writeNodeFile(*RootNode,"/tmp/qtwfmviewer.osg");
+      //osgDB::writeNodeFile(*RootNode,"/tmp/qtrecviewer.osg");
       
       assert(!Camera->getViewMatrix().isNaN());
       fprintf(stderr,"Render! empty=%d\n",(int)GraphicsWindow->getEventQueue()->empty());
@@ -139,7 +139,7 @@ namespace snde {
     }
   }
     
-  /* virtual */ void QTWfmRender::resizeGL(int width,int height)
+  /* virtual */ void QTRecRender::resizeGL(int width,int height)
   {
     GraphicsWindow->getEventQueue()->windowResize(x(),y(),width,height);
     GraphicsWindow->resized(x(),y(),width,height);
@@ -151,13 +151,13 @@ namespace snde {
 
 
   
-  qtwfm_position_manager::~qtwfm_position_manager()
+  qtrec_position_manager::~qtrec_position_manager()
   {
     
   }
 
 
-  bool QTWfmSelector::eventFilter(QObject *object,QEvent *event)
+  bool QTRecSelector::eventFilter(QObject *object,QEvent *event)
   {
     if (event->type()==QEvent::FocusIn) {
       //fprintf(stderr,"FocusIn\n");
@@ -188,7 +188,7 @@ namespace snde {
 	  if (event->type()==QEvent::KeyPress) {
 	    if (Viewer->posmgr->selected_channel) {
 	      std::shared_ptr<mutableinfostore> chan_data;
-	      chan_data = Viewer->wfmdb->lookup(Viewer->posmgr->selected_channel->FullName());
+	      chan_data = Viewer->recdb->lookup(Viewer->posmgr->selected_channel->FullName());
 
 	      std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
 	      if (datastore) {
@@ -208,7 +208,7 @@ namespace snde {
 
 	    if (Viewer->posmgr->selected_channel) {
 	      std::shared_ptr<mutableinfostore> chan_data;
-	      chan_data = Viewer->wfmdb->lookup(Viewer->posmgr->selected_channel->FullName());
+	      chan_data = Viewer->recdb->lookup(Viewer->posmgr->selected_channel->FullName());
 
 	      std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
 	      if (datastore) {

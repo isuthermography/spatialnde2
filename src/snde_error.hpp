@@ -181,8 +181,8 @@ namespace snde {
     }
   }
   // defines for dbgclass/current_debugflags
-#define SNDE_DC_WFMDB (1<<0)
-#define SNDE_DC_WFMMATH (1<<1)
+#define SNDE_DC_RECDB (1<<0)
+#define SNDE_DC_RECMATH (1<<1)
 #define SNDE_DC_NOTIFY (1<<2)
 #define SNDE_DC_LOCKING (1<<3)
 #define SNDE_DC_APP (1<<4)

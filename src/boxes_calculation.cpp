@@ -335,7 +335,7 @@ std::shared_ptr<trm_dependency> boxes_calculation_3d(std::shared_ptr<geometry> g
 						obtain_graph_lock(lockprocess,comp,
 								  std::vector<std::string>(),
 								  std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
-								  nullptr,"", // wfmdb and context only relevant for components which might have children we want to access (this only operates on parts, which can only have parameterizations, which we're not asking fore)
+								  nullptr,"", // recdb and context only relevant for components which might have children we want to access (this only operates on parts, which can only have parameterizations, which we're not asking fore)
 								  SNDE_INFOSTORE_COMPONENTS|SNDE_COMPONENT_GEOM_PARTS|((actions & STDA_EXECUTE) ? (SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES|SNDE_COMPONENT_GEOM_TRINORMALS) : 0),
 								  (actions & STDA_EXECUTE) ? (SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_BOXES|SNDE_COMPONENT_GEOM_BOXCOORD|SNDE_COMPONENT_GEOM_BOXPOLYS):0);
 
@@ -664,7 +664,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   
 
   
-std::shared_ptr<trm_dependency> boxes_calculation_2d(std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,std::string wfmname,std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<snde::parameterization> param,snde_index patchnum,cl_context context,cl_device_id device,cl_command_queue queue)
+std::shared_ptr<trm_dependency> boxes_calculation_2d(std::shared_ptr<mutablerecdb> recdb,std::string recdb_context,std::string recname,std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<snde::parameterization> param,snde_index patchnum,cl_context context,cl_device_id device,cl_command_queue queue)
 {
 
   // ***!!! NOTE: This calculation does not assign its output location until it actually executes.
@@ -693,7 +693,7 @@ std::shared_ptr<trm_dependency> boxes_calculation_2d(std::shared_ptr<mutablewfmd
 					      // Function
 					      // input parameters are:
 					      // paramnum
-					      [ geom,context,device,queue,wfmdb,wfmdb_context ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
+					      [ geom,context,device,queue,recdb,recdb_context ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
 						// actions is STDA_IDENTIFY_INPUTS or
 						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS or
 						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS|STDA_EXECUTE
@@ -724,7 +724,7 @@ std::shared_ptr<trm_dependency> boxes_calculation_2d(std::shared_ptr<mutablewfmd
 						obtain_graph_lock(lockprocess,param,
 								  std::vector<std::string>(),
 								  std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
-								  wfmdb,wfmdb_context, 
+								  recdb,recdb_context, 
 								  SNDE_INFOSTORE_PARAMETERIZATIONS|SNDE_UV_GEOM_UVS|((actions & STDA_EXECUTE) ? (SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_UV_EDGES|SNDE_UV_GEOM_UV_VERTICES) : 0),
 								  (actions & STDA_EXECUTE) ? (SNDE_UV_GEOM_UV_PATCHES|SNDE_UV_GEOM_UV_BOXES|SNDE_UV_GEOM_UV_BOXCOORD|SNDE_UV_GEOM_UV_BOXPOLYS) : 0);
 						

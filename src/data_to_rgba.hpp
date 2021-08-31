@@ -6,10 +6,10 @@
 #include "openclcachemanager.hpp"
 #include "opencl_utils.hpp"
 #include "revision_manager.hpp"
-#include "mutablewfmstore.hpp"
-#include "wfm_display.hpp"
-#include "revman_wfm_display.hpp"
-#include "revman_wfmstore.hpp"
+#include "mutablerecstore.hpp"
+#include "rec_display.hpp"
+#include "revman_rec_display.hpp"
+#include "revman_recstore.hpp"
 
 #include "geometry_types_h.h"
 #include "colormap_h.h"
@@ -48,7 +48,7 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
   /* (Idea: just lock vertex_arrays, texvertex_arrays, and texbuffer) */
   /* ***!!! Should have ability to combine texture data from multiple patches... see geometry_types.h */ 
   static std::shared_ptr<trm_dependency> CreateRGBADependency(std::shared_ptr<trm> revman,
-							      std::shared_ptr<mutablewfmdb> wfmdb,
+							      std::shared_ptr<mutablerecdb> recdb,
 							      std::string input_fullname,
 							      //std::shared_ptr<mutabledatastore> input,
 							      //unsigned input_datatype, // MET_...
@@ -66,7 +66,7 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
     std::vector<trm_struct_depend> struct_inputs;
 
     struct_inputs.emplace_back(display_channel_dependency(revman,scaling_colormap_channel));
-    struct_inputs.emplace_back(wfm_dependency(revman,wfmdb,input_fullname));
+    struct_inputs.emplace_back(rec_dependency(revman,recdb,input_fullname));
     
     retval=revman->add_dependency_during_update(						
 						struct_inputs,
@@ -75,18 +75,18 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 						// function
 						[ context,device,queue,output_array,output_manager,callback ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
 						  std::shared_ptr<display_channel> scaling_colormap_channel=get_display_channel_dependency(dep->struct_inputs[0]);
-						  std::shared_ptr<mutablewfmdb> wfmdb;
-						  std::shared_ptr<mutableinfostore> wfm_inp;
-						  std::shared_ptr<mutabledatastore> wfm_inp_data;
+						  std::shared_ptr<mutablerecdb> recdb;
+						  std::shared_ptr<mutableinfostore> rec_inp;
+						  std::shared_ptr<mutabledatastore> rec_inp_data;
 						  
-						  std::tie(wfmdb,wfm_inp) = get_wfm_dependency(dep->struct_inputs[1]);
+						  std::tie(recdb,rec_inp) = get_rec_dependency(dep->struct_inputs[1]);
 						  
 						  
-						  if (wfmdb && wfm_inp) {
-						    wfm_inp_data = std::dynamic_pointer_cast<mutabledatastore>(wfm_inp);
+						  if (recdb && rec_inp) {
+						    rec_inp_data = std::dynamic_pointer_cast<mutabledatastore>(rec_inp);
 						  }
 						  
-						  if (!wfmdb || !wfm_inp || !wfm_inp_data || !scaling_colormap_channel) {
+						  if (!recdb || !rec_inp || !rec_inp_data || !scaling_colormap_channel) {
 						    // data invalid or not available: inputs & outputs blank
 						    std::vector<trm_arrayregion> new_inputs;
 						    dep->update_inputs(new_inputs);
@@ -107,17 +107,17 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 						  std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
 						  std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(output_manager->locker); // new locking process
 						  
-						  holder->store(lockprocess->get_locks_read_lockable(wfm_inp));
+						  holder->store(lockprocess->get_locks_read_lockable(rec_inp));
 						  
 						  // Use spawn to get the array locks, as we don't know relative positions of input and output arrays in the locking roder
-						  lockprocess->spawn( [ dep,wfm_inp_data,lockprocess,holder ]() {
+						  lockprocess->spawn( [ dep,rec_inp_data,lockprocess,holder ]() {
 									
-									holder->store(lockprocess->get_locks_read_array_region(wfm_inp_data->basearray,wfm_inp_data->startelement,wfm_inp_data->numelements));
+									holder->store(lockprocess->get_locks_read_array_region(rec_inp_data->basearray,rec_inp_data->startelement,rec_inp_data->numelements));
 								      });
 						  
 						  
 						  if (actions & STDA_IDENTIFYOUTPUTS) {
-						    lockprocess->spawn( [ wfm_inp_data,output_array,output_manager,dep,lockprocess,holder ]() { holder->store_alloc(dep->realloc_output_if_needed(lockprocess,output_manager,0,output_array,wfm_inp_data->numelements,"output"));});
+						    lockprocess->spawn( [ rec_inp_data,output_array,output_manager,dep,lockprocess,holder ]() { holder->store_alloc(dep->realloc_output_if_needed(lockprocess,output_manager,0,output_array,rec_inp_data->numelements,"output"));});
 						    
 						  }
 						  rwlock_token_set all_locks=lockprocess->finish();
@@ -125,7 +125,7 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 						
 						  std::vector<trm_arrayregion> new_inputs;
 						
-						  new_inputs.push_back(trm_arrayregion(wfm_inp_data->manager,wfm_inp_data->basearray,wfm_inp_data->startelement,wfm_inp_data->numelements));
+						  new_inputs.push_back(trm_arrayregion(rec_inp_data->manager,rec_inp_data->basearray,rec_inp_data->startelement,rec_inp_data->numelements));
 						  
 						  dep->update_inputs(new_inputs);
 						  
@@ -148,13 +148,13 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 						      
 						      
 						      snde_coord2 inival={
-									  wfm_inp_data->metadata.GetMetaDatumDbl("IniVal1",0.0),
-									  wfm_inp_data->metadata.GetMetaDatumDbl("IniVal2",0.0),
+									  rec_inp_data->metadata.GetMetaDatumDbl("IniVal1",0.0),
+									  rec_inp_data->metadata.GetMetaDatumDbl("IniVal2",0.0),
 						      };
 						      
 						      snde_coord2 step={
-									wfm_inp_data->metadata.GetMetaDatumDbl("Step1",1.0),
-									wfm_inp_data->metadata.GetMetaDatumDbl("Step2",1.0),
+									rec_inp_data->metadata.GetMetaDatumDbl("Step1",1.0),
+									rec_inp_data->metadata.GetMetaDatumDbl("Step2",1.0),
 						      };
 						      
 						      
@@ -162,14 +162,14 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 						      // obtain kernel
 						      {
 							std::lock_guard<std::mutex> scop_lock(scop_mutex);
-							auto scop_iter = scale_colormap_opencl_program.find(wfm_inp_data->typenum);
+							auto scop_iter = scale_colormap_opencl_program.find(rec_inp_data->typenum);
 							if (scop_iter==scale_colormap_opencl_program.end()) {
 							
 							  
-							  scale_colormap_opencl_program.emplace(std::piecewise_construct,std::forward_as_tuple(wfm_inp_data->typenum),std::forward_as_tuple(std::string("scale_colormap"), std::vector<std::string>{ get_data_to_rgba_program_text(wfm_inp_data->typenum) }));
+							  scale_colormap_opencl_program.emplace(std::piecewise_construct,std::forward_as_tuple(rec_inp_data->typenum),std::forward_as_tuple(std::string("scale_colormap"), std::vector<std::string>{ get_data_to_rgba_program_text(rec_inp_data->typenum) }));
 							}
 							
-							scale_colormap_kern = scale_colormap_opencl_program.at(wfm_inp_data->typenum).get_kernel(context,device);
+							scale_colormap_kern = scale_colormap_opencl_program.at(rec_inp_data->typenum).get_kernel(context,device);
 							
 						      }
 						      
@@ -199,41 +199,41 @@ static inline std::string get_data_to_rgba_program_text(unsigned input_datatype)
 						      snde_index ysize=0;
 						      snde_index xstride=0;
 						      snde_index ystride=0;
-						      if (wfm_inp_data->dimlen.size() >= xaxis+1) {
-							xsize=wfm_inp_data->dimlen[xaxis];
-							xstride=wfm_inp_data->strides[xaxis];
+						      if (rec_inp_data->dimlen.size() >= xaxis+1) {
+							xsize=rec_inp_data->dimlen[xaxis];
+							xstride=rec_inp_data->strides[xaxis];
 						      }
-						      if (wfm_inp_data->dimlen.size() >= yaxis+1) {
-							ysize=wfm_inp_data->dimlen[yaxis];
-							ystride=wfm_inp_data->strides[yaxis];
+						      if (rec_inp_data->dimlen.size() >= yaxis+1) {
+							ysize=rec_inp_data->dimlen[yaxis];
+							ystride=rec_inp_data->strides[yaxis];
 						      }
 						      if (xsize*ysize > dep->outputs[0].len) {
 							ysize=dep->outputs[0].len/xsize; // just in case output is somehow too small (might happen in loose consistency mode)
 						      }
 						    
-						      if (frameaxis >= wfm_inp_data->dimlen.size()) {
+						      if (frameaxis >= rec_inp_data->dimlen.size()) {
 							DisplayFrame=0;
-						      } else if (DisplayFrame >= wfm_inp_data->dimlen[frameaxis]) {
-							DisplayFrame=wfm_inp_data->dimlen[frameaxis]-1;
+						      } else if (DisplayFrame >= rec_inp_data->dimlen[frameaxis]) {
+							DisplayFrame=rec_inp_data->dimlen[frameaxis]-1;
 						      }
 						      
-						      if (seqaxis >= wfm_inp_data->dimlen.size()) {
+						      if (seqaxis >= rec_inp_data->dimlen.size()) {
 							DisplaySeq=0;
-						      } else if (DisplaySeq >= wfm_inp_data->dimlen[seqaxis]) {
-							DisplaySeq=wfm_inp_data->dimlen[seqaxis]-1;
+						      } else if (DisplaySeq >= rec_inp_data->dimlen[seqaxis]) {
+							DisplaySeq=rec_inp_data->dimlen[seqaxis]-1;
 						      }
 						      
-						      //std::vector<snde_index> dimlen=wfm_inp_data->dimlen;
-						      //std::vector<snde_index> strides=wfm_inp_data->strides;
-						      //snde_index startelement=wfm_inp_data->startelement;
+						      //std::vector<snde_index> dimlen=rec_inp_data->dimlen;
+						      //std::vector<snde_index> strides=rec_inp_data->strides;
+						      //snde_index startelement=rec_inp_data->startelement;
 						      snde_index input_offset = 0;
 						      size_t axcnt;
-						      for (axcnt=0;axcnt < wfm_inp_data->dimlen.size();axcnt++) {
+						      for (axcnt=0;axcnt < rec_inp_data->dimlen.size();axcnt++) {
 							if (axcnt==frameaxis) {
-							  input_offset += DisplayFrame*wfm_inp_data->strides[axcnt];
+							  input_offset += DisplayFrame*rec_inp_data->strides[axcnt];
 							}
 							if (axcnt==seqaxis) {
-							  input_offset += DisplaySeq*wfm_inp_data->strides[axcnt];
+							  input_offset += DisplaySeq*rec_inp_data->strides[axcnt];
 							}	  
 						      }
 						      if (input_offset > dep->inputs[0].len) {

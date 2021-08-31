@@ -2,7 +2,7 @@
 /* ***!!!!  SHOULD REDESIGN WITH PROPER DATABASE INDEXED BY 
    WHAT THE FUNCTION IS DEPENDENT ON
 
-   ***!!!! Need some way to declare dependence on waveform metadata ***!!!
+   ***!!!! Need some way to declare dependence on recording metadata ***!!!
 
 
    ***!!! Need some way to auto-lock output at the end of transaction ***!!!   
@@ -27,8 +27,8 @@ provided only the last one will be locked.
 New design concept requirements:
    * Dependency graph for mutable zones
    * Immutable zones with revisions can also exist in dependency graph
-   * Immutable waveforms also 
-   * Waveform headers/metadata can also exist in dependency graph
+   * Immutable recordings also 
+   * Recording headers/metadata can also exist in dependency graph
    CANCELLED: 
       * Planned transactions: Pre-specify what will be changed, what will be 
         accessed, what (if-any) output is locked at the end of the transaction
@@ -41,7 +41,7 @@ New design concept requirements:
         is orthogonal to the other transactions. 
     * Track rectangular bounding box for changes through from initiated transaction to completion. 
     * Need library to perform intersections on bounding boxes. 
-    * Need to tag waveforms with their changed box since prior revision (metadata?)
+    * Need to tag recordings with their changed box since prior revision (metadata?)
     * Some math functions are marked to be automatically re-run in the viewer
       (live only) and probably don't have any data saved -- like ProcExpr/ProcRGBA -- Can we define helper math functions that assist with viewing the data? -- i.e. math function for background subtraction that evaluates the background average; then a viewing assist? -- Can geometry math such as normals and boxes fit into this framework? 
       * Tag ProcExpr/ProcRGBA/rendering math functions as "local only"
@@ -52,19 +52,19 @@ New design concept requirements:
         * Changes to local only functions do define a new global revision, which
           means that local and remote global revisions will get out of sync
           and a mapping will be required. 
-      * Sub-waveforms have their own data and revisions, etc. independent 
+      * Sub-recordings have their own data and revisions, etc. independent 
         of their parent. Change of parent does not imply change of 
-        sub-waveform. 
+        sub-recording. 
     * Execution graph: 
-      * Mutable waveforms and immutable waveforms with self-dependency or ability to do partial recalc (possibly pure immutable waveforms that can be bypassed with no input changes as well) all have a dependency on their prior revision
-      * Exception for mutable waveforms that are only mutable to decrease copying when only a sub-rectangle is changed. 
-      * How to handle graphics arrays that aren't actually waveforms? 
-      * Mutable waveforms have implicit dependency on all dependencies of their prior revision (this prevents mutable waveform calculation of new revision from occuring before previous revision)
+      * Mutable recordings and immutable recordings with self-dependency or ability to do partial recalc (possibly pure immutable recordings that can be bypassed with no input changes as well) all have a dependency on their prior revision
+      * Exception for mutable recordings that are only mutable to decrease copying when only a sub-rectangle is changed. 
+      * How to handle graphics arrays that aren't actually recordings? 
+      * Mutable recordings have implicit dependency on all dependencies of their prior revision (this prevents mutable recording calculation of new revision from occuring before previous revision)
       * Keep graph of everything pending
         * With new revision, build new graph and then splice/graft it on to 
           current graph, or just add entries piecemeal (probably former; we 
           need to start on the left side, which may not otherwise be clear
-	* But externally provided waveforms may pop into being piecemeal 
+	* But externally provided recordings may pop into being piecemeal 
           as they become ("Ready").  
     * Everything immediately executable goes onto work queues
       * Different work queues for different types of jobs (what if a particular
@@ -79,10 +79,10 @@ New design concept requirements:
     * Job prioritization according to (a) global revision number (older 
       revisions higher priority), (b) number of (immediate? downstream?)
       dependencies within its global revision revision. 
-    * Some waveforms are on-demand -- only generated if desired
-    * Any waveform with a mandatory self-dependency (including all 
-      mutable waveforms) cannot be on-demand. 
-    * READY character of a global revision is dependent on waveforms of interest: Just mandatory waveforms or additional optional waveforms? so when asking for READY you need to be specific. Some waveforms (local only) not available remotely 
+    * Some recordings are on-demand -- only generated if desired
+    * Any recording with a mandatory self-dependency (including all 
+      mutable recordings) cannot be on-demand. 
+    * READY character of a global revision is dependent on recordings of interest: Just mandatory recordings or additional optional recordings? so when asking for READY you need to be specific. Some recordings (local only) not available remotely 
   * Math parser to implement expression logic and implicit intermediates? 
     (pygram-generated?)
 
@@ -133,7 +133,7 @@ How does TRM affect locking orders? Presence within a transaction? planned trans
   dependency_table_lock is after individual arrays in the locking order and should not 
   be held while callbacks are being called. 
 
-Versioned immutable waveforms: 
+Versioned immutable recordings: 
   Defined state vs. Ready state. 
 
 Real time display: 
@@ -932,8 +932,8 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
       state=TRMS_IDLE;
       transaction_update_lock=std::make_shared<rwlock>();
 
-      //wfmdb_notifier = std::make_shared<trm_wfmdirty_notification>(this);
-      //wfmdb->add_dirty_notification_receiver(wfmdb_notifier);
+      //recdb_notifier = std::make_shared<trm_recdirty_notification>(this);
+      //recdb->add_dirty_notification_receiver(recdb_notifier);
       our_unique_name="trm_" + std::to_string((unsigned long long)this);
 
       // Assigment of change_detection_pseudo_cache moved to first
@@ -1261,7 +1261,7 @@ static trm_struct_depend trm_trmdependency(std::shared_ptr<trm> revman, std::sha
       }
       transaction_wait_thread.join();
 
-      //wfmdb_notifier=nullptr; // trigger deletion of wfmdb_notifier before we disappear ourselves, because it has a pointer to us. 
+      //recdb_notifier=nullptr; // trigger deletion of recdb_notifier before we disappear ourselves, because it has a pointer to us. 
 
     }
 

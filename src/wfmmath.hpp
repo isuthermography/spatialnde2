@@ -1,22 +1,22 @@
-#ifndef SNDE_WFMMATH_HPP
-#define SNDE_WFMMATH_HPP
+#ifndef SNDE_RECMATH_HPP
+#define SNDE_RECMATH_HPP
 
 #include <functional>
 
-#include "wfmmath_compute_resource.hpp"
-#include "wfmmath_parameter.hpp"
-#include "wfmdb_paths.hpp"
+#include "recmath_compute_resource.hpp"
+#include "recmath_parameter.hpp"
+#include "recdb_paths.hpp"
 
 namespace snde {
   // NEED TO CONSIDER THREAD SAFETY ACCESS OF ALL THE STRUCTURES IN HERE !!! (DONE) ***
-  // Probably need a lock that is acquired AFTER relevant wfmstore lock(s)
-  // because we will have to be going through the wfmstore to put computations
+  // Probably need a lock that is acquired AFTER relevant recstore lock(s)
+  // because we will have to be going through the recstore to put computations
   // on hold in order to safely render mutable data. While going through it
   // we will need pull things off the todo_list and associated prioritized_computations multimaps
   //
 
   // PROBLEM: How to print back the defined math function:
-  // SOLUTION: Need a data structure within the waveform database that "remembers" how it was
+  // SOLUTION: Need a data structure within the recording database that "remembers" how it was
   // originally defined and verifies that that original definition is still
   // valid
 
@@ -25,7 +25,7 @@ namespace snde {
   // or any math functions with new_revision_optional flag set
 
 
-  // IDEA: Allow math waveforms to be dependent on external registers (akin to hw registers) that
+  // IDEA: Allow math recordings to be dependent on external registers (akin to hw registers) that
   // have a typed interface and can notify when they are updated. They can allow implicit transactions if so configured
   // and have calcsync behavior so too much doesn't get queued up. -- maybe some sort of explicit grouping? 
   
@@ -34,12 +34,12 @@ namespace snde {
 #define SNDE_MFPT_STR 1
 #define SNDE_MFPT_DBL 2
   // 3 is for an ancillary string
-#define SNDE_MFPT_WAVEFORM 4
+#define SNDE_MFPT_RECORDING 4
 
   // forward declarations
-  class channelconfig; // defined in wfmstore.hpp
-  class waveform_status; // defined in wfmstore.hpp
-  class channel_state; // defined in wfmstore.hpp
+  class channelconfig; // defined in recstore.hpp
+  class recording_status; // defined in recstore.hpp
+  class channel_state; // defined in recstore.hpp
 
   class math_status;
   class math_definition;
@@ -48,7 +48,7 @@ namespace snde {
     // Immutable once published; that said it may be replaced in the database due to a reloading operation. 
   public:
 
-    math_function(size_t num_results,const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
+    math_function(size_t num_results,const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
 
     // Rule of 3
     math_function(const math_function &) = delete;
@@ -62,18 +62,18 @@ namespace snde {
 
     std::vector<bool> result_mutability; // for each result, is it mutable (if we are in mutable mode)
     
-    bool new_revision_optional; // set if the function sometimes chooses not to create a new revision. Causes an implicit self-dependency, because we have to wait for the prior revision to finish to find out if that version was actually different. Note that new_revision_optional implies that execution is optional but execution of a new_revision_optional math function does not guarantee it will actually create new revisions but may still reference prior revs. Execution of a non-new_revision_optional math function is guaranteed to define new waveforms in each result channel. 
+    bool new_revision_optional; // set if the function sometimes chooses not to create a new revision. Causes an implicit self-dependency, because we have to wait for the prior revision to finish to find out if that version was actually different. Note that new_revision_optional implies that execution is optional but execution of a new_revision_optional math function does not guarantee it will actually create new revisions but may still reference prior revs. Execution of a non-new_revision_optional math function is guaranteed to define new recordings in each result channel. 
     bool pure_optionally_mutable; // set if the function is "pure" and can optionally operate on its previous output, only rewriting the modified area according to bounding_hyperboxes. If optionally_mutable is taken advantage of, there is an implicit self-dependency on the prior-revision
     bool mandatory_mutable; // set if the function by design mutates its previous output. Creates an implicit self-dependency.
     bool self_dependent; // set if the function by design is dependent on the prior revision of its previous output
     bool mdonly_allowed; // set if it is OK to instantiate this function in metadataonly form. Note mdonly is incompatible with new_reivision_optional
     
-    std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution;
+    std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution;
     
     // WARNING: If there is no implict or explicit self-dependency multiple computations for the same math function
     // but different versions can happen in parallel. 
 
-    // note: instantiated_math_function returned by instantiate() needs to be explicitly added to waveform database/channels created/etc. !!!***
+    // note: instantiated_math_function returned by instantiate() needs to be explicitly added to recording database/channels created/etc. !!!***
     virtual std::shared_ptr<instantiated_math_function> instantiate(const std::vector<std::shared_ptr<math_parameter>> & parameters,
 								    const std::vector<std::shared_ptr<std::string>> & result_channel_paths,
 								    std::string channel_path_context,
@@ -86,7 +86,7 @@ namespace snde {
     // get_compute_options() returns a list of compute_resource_options, each of which has a compute_code pointer
     // NOTE: Somehow get_compute_options() or similar needs to consider the types of the parameter arrays and select
     // or configure code appropriately.
-    //virtual std::shared_ptr<executing_math_function> initiate_execution(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)=0; // usually returns a sub-class
+    //virtual std::shared_ptr<executing_math_function> initiate_execution(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)=0; // usually returns a sub-class
   };
 
   // ***!!! compute_code is obsolete!!!***
@@ -99,8 +99,8 @@ namespace snde {
     // In particular anything to be run in a subprocess or over MPI we really need to know how to __find__ the code from the foreign context
     // once the input data has been marshalled.
 
-    // BUG: How/where should locking be done for mutable waveforms?
-    // BUG: How does allocation process work? For mutable waveforms? For immutable waveforms?
+    // BUG: How/where should locking be done for mutable recordings?
+    // BUG: How does allocation process work? For mutable recordings? For immutable recordings?
     
   public:
     compute_code() = default;
@@ -113,10 +113,10 @@ namespace snde {
     // !!!*** Should all of these methods be replaced by one overarching method
     // that then is implemented in subclasses for
     // various common patterns???
-    virtual void determine_size(std::shared_ptr<waveform_set_state> wss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
-    virtual void do_metadata_only(std::shared_ptr<waveform_set_state> wss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
-    virtual void do_compute_from_metadata(std::shared_ptr<waveform_set_state> wss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
-    virtual void do_compute(std::shared_ptr<waveform_set_state> wss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
+    virtual void determine_size(std::shared_ptr<recording_set_state> wss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
+    virtual void do_metadata_only(std::shared_ptr<recording_set_state> wss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
+    virtual void do_compute_from_metadata(std::shared_ptr<recording_set_state> wss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
+    virtual void do_compute(std::shared_ptr<recording_set_state> wss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
   };
 
 
@@ -180,15 +180,15 @@ namespace snde {
     virtual ~instantiated_math_function()=default;  // virtual destructor required so we can be subclassed
 
 
-    //virtual bool check_dependencies(waveform_status &waveformstatus, math_status &mathstatus)=0; 
+    //virtual bool check_dependencies(recording_status &recordingstatus, math_status &mathstatus)=0; 
     // virtual clone method -- must be implemented in all subclasses. If .definition is non nullptr and definition_change is set, it clears the copy and points original_function at the old .definition
     virtual std::shared_ptr<instantiated_math_function> clone(bool definition_change=true); // only clone with definition_change=false for enable/disable of the function
     
   };
 
   class instantiated_math_database {
-    // Used to represent currently defined functions. Both in main waveform database and then copied into each global revision.
-    // In main waveform database, locked by waveform database admin lock;
+    // Used to represent currently defined functions. Both in main recording database and then copied into each global revision.
+    // In main recording database, locked by recording database admin lock;
     // Immutable once copied into a global revision
   public:
     std::map<std::string,std::shared_ptr<instantiated_math_function>> defined_math_functions; // key is channel path and channel_path_context; note that several keys will point to the same instantiated_math_function. Any changes to any functions require calling rebuild_dependency_map (below)
@@ -200,15 +200,15 @@ namespace snde {
     std::unordered_map<std::shared_ptr<instantiated_math_function>,std::unordered_set<std::shared_ptr<instantiated_math_function>>> all_dependencies_of_function;
     std::unordered_set<std::shared_ptr<instantiated_math_function>> mdonly_functions; // all functions with mdonly set... updated by rebuild_dependency_map()
     
-    void _rebuild_dependency_map(); // rebuild all_dependencies_of_channel and all_dependencies_of_function hash tables. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main waveform database, and the main waveform database admin lock must be locked when this is called. 
+    void _rebuild_dependency_map(); // rebuild all_dependencies_of_channel and all_dependencies_of_function hash tables. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main recording database, and the main recording database admin lock must be locked when this is called. 
 
   };
 
 
   class math_function_status {
-    // locked with math_status by the parent waveform_set_state's admin lock
+    // locked with math_status by the parent recording_set_state's admin lock
     
-    // A math function must be executed in a waveform_set_state/globalrev if it is not ondemand and:
+    // A math function must be executed in a recording_set_state/globalrev if it is not ondemand and:
     //   * It has changed, or
     //   * There is no prior revision, or
     //   * at least one of its (non-self) prerequisites has changed (only known for certain once at least one prereq has completed with an updated output (channel_state.updated))
@@ -221,11 +221,11 @@ namespace snde {
 
   public:
     // Should this next map be replaced by a map of general purpose notifies that trigger when all missing prerequisites are satisified? (probably not but we still need the notification functionality)
-    std::set<std::shared_ptr<channelconfig>> missing_prerequisites; // all missing (non-ready -- or !!!*** non-mdonly as appropriate) local (in this waveform_set_state/globalrev) prerequisites of this function. Remove entries from the set as they become ready. When the set is empty, the math function represented by the key is dispatchable and should be marked as ready_to_execute
+    std::set<std::shared_ptr<channelconfig>> missing_prerequisites; // all missing (non-ready -- or !!!*** non-mdonly as appropriate) local (in this recording_set_state/globalrev) prerequisites of this function. Remove entries from the set as they become ready. When the set is empty, the math function represented by the key is dispatchable and should be marked as ready_to_execute
     std::shared_ptr<math_function_execution> execfunc; // tracking of this particular execution. Later globalrevs that will use the result unchanged may also point to this. (Each pointing globalrev should be registered in the execfunc's referencing_wss set so that it can get callbacks on completion)
     
-    std::set<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<channelconfig>>> missing_external_channel_prerequisites; // all missing (non-ready...or !!!*** nonmdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Will be used e.g. for dependencies of on-demand waveforms calculated in their own wss context
-    std::set<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_function_prerequisites; // all missing (non-ready... or !!!*** non-mdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Currently used solely for self-dependencies (which can't be mdonly)
+    std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<channelconfig>>> missing_external_channel_prerequisites; // all missing (non-ready...or !!!*** nonmdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Will be used e.g. for dependencies of on-demand recordings calculated in their own wss context
+    std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_function_prerequisites; // all missing (non-ready... or !!!*** non-mdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Currently used solely for self-dependencies (which can't be mdonly)
 
     // bool mdonly; // if this execution is actually mdonly. Now replaced with execfunc->mdonly
     //bool mdonly_executed; // if execution has completed at least through mdonly; Now replaced with execfunc->mdonly_executed
@@ -242,44 +242,44 @@ namespace snde {
 
   class math_status {
     // status of execution of math functions
-    // locked by the parent waveform_set_state's admin lock. Be warned that
-    // you cannot hold the admin locks of two waveform_set_states simultaneously. 
+    // locked by the parent recording_set_state's admin lock. Be warned that
+    // you cannot hold the admin locks of two recording_set_states simultaneously. 
   public:
     std::shared_ptr<instantiated_math_database> math_functions; // immutable once copied in on construction
-    std::unordered_map<std::shared_ptr<instantiated_math_function>,math_function_status> function_status; // lookup dependency and status info on this instantiated_math_function in our waveform_set_state/globalrev. You must hold the waveform_set_state's admin lock. 
+    std::unordered_map<std::shared_ptr<instantiated_math_function>,math_function_status> function_status; // lookup dependency and status info on this instantiated_math_function in our recording_set_state/globalrev. You must hold the recording_set_state's admin lock. 
 
 
     // NOTE: an entry in either _external_dependencies_on_channel or _external_dependencies_on_function is sufficient to get you the needed callback. 
-    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> _external_dependencies_on_channel; // Lookup external math functions that are dependent on this channel -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your waveform_set_state's admin lock. 
+    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> _external_dependencies_on_channel; // Lookup external math functions that are dependent on this channel -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your recording_set_state's admin lock. 
 
-    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> _external_dependencies_on_function; // Lookup external math functions that are dependent on this math function -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your waveform_set_state's admin lock. 
+    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> _external_dependencies_on_function; // Lookup external math functions that are dependent on this math function -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your recording_set_state's admin lock. 
 
 
-    // for the rest of these, you must own the waveform_set_state's admin lock
+    // for the rest of these, you must own the recording_set_state's admin lock
     std::unordered_set<std::shared_ptr<instantiated_math_function>> pending_functions; // pending functions where goal is full result
     std::unordered_set<std::shared_ptr<instantiated_math_function>> mdonly_pending_functions; // pending functions where goal is metadata only
     std::unordered_set<std::shared_ptr<instantiated_math_function>> completed_functions;  // completed functions with full result
-    std::unordered_set<std::shared_ptr<instantiated_math_function>> completed_mdonly_functions; // pending functions where goal is metadata only and metadata is done (note that it is possible for fully ready functions to be in this list in some circumstances, for example if the full result was requested in another globalrev that references the same waveform structure. 
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> completed_mdonly_functions; // pending functions where goal is metadata only and metadata is done (note that it is possible for fully ready functions to be in this list in some circumstances, for example if the full result was requested in another globalrev that references the same recording structure. 
     
     
     math_status(std::shared_ptr<instantiated_math_database> math_functions,const std::map<std::string,channel_state> & channel_map);
 
-    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> begin_atomic_external_dependencies_on_channel_update(); // must be called with waveform_set_state's admin lock held
-    void end_atomic_external_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep);
-    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_channel();
+    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> begin_atomic_external_dependencies_on_channel_update(); // must be called with recording_set_state's admin lock held
+    void end_atomic_external_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep);
+    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_channel();
     
-    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> begin_atomic_external_dependencies_on_function_update(); // must be called with waveform_set_state's admin lock held
-    void end_atomic_external_dependencies_on_function_update(std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep);
-    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_function(); 
+    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> begin_atomic_external_dependencies_on_function_update(); // must be called with recording_set_state's admin lock held
+    void end_atomic_external_dependencies_on_function_update(std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep);
+    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_function(); 
 
 
-    void notify_math_function_executed(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> fcn,bool mdonly);
+    void notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> fcn,bool mdonly);
     
     // check_dep_fcn_ready() assumes dep_wss admin lock is already held
-    void check_dep_fcn_ready(std::shared_ptr<waveform_set_state> dep_wss,
+    void check_dep_fcn_ready(std::shared_ptr<recording_set_state> dep_wss,
 			     std::shared_ptr<instantiated_math_function> dep_fcn,
 			     math_function_status *mathstatus_ptr,
-			     std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute_appendvec);
+			     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute_appendvec);
 
   };
 
@@ -299,10 +299,10 @@ namespace snde {
   public:
     std::mutex admin; // guards referencing_wss and groups operations on the bools. Also acquire this before clearing wss. Last in the locking order except python GIL
 
-    std::shared_ptr<waveform_set_state> wss; // waveform set state in which we are executing. Set to nullptr by owner of execution ticket after metadata phase to avoid a reference loop that will keep old waveforms in memory. 
+    std::shared_ptr<recording_set_state> wss; // recording set state in which we are executing. Set to nullptr by owner of execution ticket after metadata phase to avoid a reference loop that will keep old recordings in memory. 
     std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
 
-    std::set<std::weak_ptr<waveform_set_state>,std::owner_less<std::weak_ptr<waveform_set_state>>> referencing_wss; // all waveform set states that reference this executing_math_function
+    std::set<std::weak_ptr<recording_set_state>,std::owner_less<std::weak_ptr<recording_set_state>>> referencing_wss; // all recording set states that reference this executing_math_function
 
     std::atomic<bool> executing; // the execution ticket (see try_execution_ticket() method)
     std::atomic<bool> is_mutable; // if this execution does in-place mutation of one or more of its parameters.
@@ -312,7 +312,7 @@ namespace snde {
     std::atomic<bool> fully_complete; // function has fully executed to ready state
     std::shared_ptr<executing_math_function> execution_tracker; // only valid once prerequisites are complete because we can't instantiate it until we have resolved the types of the parameters to identify which code to execute. 
 
-    math_function_execution(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool mdonly,bool is_mutable);  // automatically adds wss to referencing_wss set
+    math_function_execution(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool mdonly,bool is_mutable);  // automatically adds wss to referencing_wss set
     
     inline bool try_execution_ticket()
     // if this returns true, you have the execution ticket. Don't forget to assign executing=false when you are done. 
@@ -335,13 +335,13 @@ namespace snde {
     // lock-free behavior:
     //    * wss should be valid from creation as long as mdonly_executed is not set. Safe to read by holder of parent's execution ticket, including the corresponding execution methods
     //    * inst is immutable
-    //    * self_dependent_waveforms: safe for owner of parent math_function_execution's 'execution ticket' to read lock-free
+    //    * self_dependent_recordings: safe for owner of parent math_function_execution's 'execution ticket' to read lock-free
     //    * compute_resource: shared_ptr may be assigned/read by the owner of the parent math_function_execution's 'execution ticket'. The pointed data structure is locked by
     //      the assigned compute resource database's admin lock
     //
     
   public:
-    std::shared_ptr<waveform_set_state> wss; // waveform set state in which we are executing. Set to nullptr by owner of parent's execution ticket after metadata phase to avoid a reference loop that will keep old waveforms in memory. 
+    std::shared_ptr<recording_set_state> wss; // recording set state in which we are executing. Set to nullptr by owner of parent's execution ticket after metadata phase to avoid a reference loop that will keep old recordings in memory. 
     std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
 
 
@@ -351,8 +351,8 @@ namespace snde {
     // at least if the function is optionally_mutable
 
 
-    // self_dependent_waveforms is auto-created by the constructor
-    std::vector<std::shared_ptr<waveform_base>> self_dependent_waveforms; // only valid (size() > 0) with implicit/explict self dependency. entries will be nullptr first time through anyway. Entries may also be nullptr if the function output is being ignored rather than stored in the waveform database. ***!!! Must be set to nullptr after execution to avoid keeping old waveforms alive ***!!!
+    // self_dependent_recordings is auto-created by the constructor
+    std::vector<std::shared_ptr<recording_base>> self_dependent_recordings; // only valid (size() > 0) with implicit/explict self dependency. entries will be nullptr first time through anyway. Entries may also be nullptr if the function output is being ignored rather than stored in the recording database. ***!!! Must be set to nullptr after execution to avoid keeping old recordings alive ***!!!
 
     // compute_resource is assigned post-creation
     std::shared_ptr<assigned_compute_resource> compute_resource; // pointed structure locked by acrd's admin lock
@@ -362,7 +362,7 @@ namespace snde {
     //std::vector<size_t> opencl_jobs;  // vector of indices into available_compute_resource_cpu::functions_using_devices representing assigned GPU jobs; from assigned_compute_resource_option_opencl
 
 
-    executing_math_function(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> fcn);
+    executing_math_function(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> fcn);
 
     // Rule of 3
     executing_math_function(const executing_math_function &) = delete;
@@ -373,7 +373,7 @@ namespace snde {
     virtual bool perform_decide_execution()=0; // perform_decide_execution asks the new_revision_optional executing math function to determine whether it needs to execute, potentially creating new revisions of its output
     virtual std::list<std::shared_ptr<compute_resource_option>> perform_compute_options()=0; // perform_compute_options asks the executing math function to perform its compute_options step (which should not be compute intensive)
 
-    virtual void perform_define_wfms()=0;
+    virtual void perform_define_recs()=0;
     virtual void perform_metadata()=0;
     virtual void perform_lock_alloc()=0;
     virtual void perform_exec()=0;
@@ -381,4 +381,4 @@ namespace snde {
   };
 }
 
-#endif // SNDE_WFMMATH_HPP
+#endif // SNDE_RECMATH_HPP

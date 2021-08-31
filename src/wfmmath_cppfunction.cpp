@@ -1,8 +1,8 @@
-#include "wfmmath_cppfunction.hpp"
+#include "recmath_cppfunction.hpp"
 
 namespace snde {
   
-  wfmmath_cppfuncexec_base::wfmmath_cppfuncexec_base(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
+  recmath_cppfuncexec_base::recmath_cppfuncexec_base(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
     executing_math_function(wss,inst)
   {
     
@@ -11,7 +11,7 @@ namespace snde {
 
 
   cpp_math_function::cpp_math_function(size_t num_results,
-				       std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
+				       std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
 				       bool supports_cpu,
 				       bool supports_opencl,
 				       bool supports_cuda) :
@@ -20,8 +20,8 @@ namespace snde {
     supports_opencl(supports_opencl),
     supports_cuda(supports_cuda)
   {
-    // perform test creation of a wfmmath_cppfuncexec_base to extract the parameter list
-    std::shared_ptr<wfmmath_cppfuncexec_base> testexec = std::dynamic_pointer_cast<wfmmath_cppfuncexec_base>(initiate_execution(nullptr,nullptr));
+    // perform test creation of a recmath_cppfuncexec_base to extract the parameter list
+    std::shared_ptr<recmath_cppfuncexec_base> testexec = std::dynamic_pointer_cast<recmath_cppfuncexec_base>(initiate_execution(nullptr,nullptr));
 
     // Get vector of param type numbers from 
     std::vector<unsigned> param_types_vec = testexec->determine_param_types();
@@ -29,7 +29,7 @@ namespace snde {
     for (size_t paramnum=0; paramnum < param_types_vec.size();paramnum++) {
 
       unsigned paramtype = param_types_vec.at(paramnum);
-      if (paramtype != SNDE_WTN_STRING && paramtype != SNDE_WTN_INT64 && paramtype != SNDE_WTN_FLOAT64 && paramtype != SNDE_WTN_WAVEFORM) {
+      if (paramtype != SNDE_RTN_STRING && paramtype != SNDE_RTN_INT64 && paramtype != SNDE_RTN_FLOAT64 && paramtype != SNDE_RTN_RECORDING) {
 	throw snde_error("Type %s is not supported as a math function parameter",wtn_typenamemap.at(paramtype).c_str());
       }
       param_names_types.emplace_back(ssprintf("Param%d",paramnum+1),paramtype);

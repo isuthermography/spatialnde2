@@ -9,24 +9,24 @@
 
 namespace snde {
 
-  std::string posixshm_encode_wfmpath(std::string wfmpath)
+  std::string posixshm_encode_recpath(std::string recpath)
   {
     std::string ret;
     size_t idx,numslashes;
     
-    for (idx=0,numslashes=0;idx < wfmpath.size();idx++) {
-      if (wfmpath[idx]=='/') {
+    for (idx=0,numslashes=0;idx < recpath.size();idx++) {
+      if (recpath[idx]=='/') {
 	numslashes++;
       }
     }
     
-    ret.reserve(wfmpath.size()+numslashes*2);
+    ret.reserve(recpath.size()+numslashes*2);
 
-    for (idx=0,numslashes=0;idx < wfmpath.size();idx++) {
-      if (wfmpath[idx]=='/') {
+    for (idx=0,numslashes=0;idx < recpath.size();idx++) {
+      if (recpath[idx]=='/') {
 	ret += "%2F";
       } else {
-	ret += wfmpath[idx];
+	ret += recpath[idx];
       }
     }
     return ret; 
@@ -78,21 +78,21 @@ namespace snde {
 
   }
 
-  shared_memory_allocator_posix::shared_memory_allocator_posix(std::string wfmpath,uint64_t wfmrevision) :
+  shared_memory_allocator_posix::shared_memory_allocator_posix(std::string recpath,uint64_t recrevision) :
     memallocator(),
-    wfmpath(wfmpath),
-    wfmrevision(wfmrevision)
+    recpath(recpath),
+    recrevision(recrevision)
   {
 
-    // NOTE: This doesn't currently permit multiple waveform databases in the
-    // same process with identically named waveforms because these names
+    // NOTE: This doesn't currently permit multiple recording databases in the
+    // same process with identically named recordings because these names
     // may conflict. If we want to support such an application we could always
-    // add a wfmdb identifier or our "this" pointer to the filename
+    // add a recdb identifier or our "this" pointer to the filename
     base_shm_name = ssprintf("/snde_%llu_%llu_%s_%llu",
 			     (unsigned long long)getuid(),
 			     (unsigned long long)getpid(),
-			     posixshm_encode_wfmpath(wfmpath).c_str(),
-			     (unsigned long long)wfmrevision);
+			     posixshm_encode_recpath(recpath).c_str(),
+			     (unsigned long long)recrevision);
     
   }
   void *shared_memory_allocator_posix::malloc(memallocator_regionid id,std::size_t nbytes)

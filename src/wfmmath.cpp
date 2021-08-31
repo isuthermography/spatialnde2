@@ -1,8 +1,8 @@
-#include "wfmmath.hpp"
-#include "wfmstore.hpp"
+#include "recmath.hpp"
+#include "recstore.hpp"
 
 namespace snde {
-  math_function::math_function(size_t num_results,const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution) :
+  math_function::math_function(size_t num_results,const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution) :
     num_results(num_results),
     param_names_types(param_names_types),
     initiate_execution(initiate_execution)
@@ -69,7 +69,7 @@ namespace snde {
     return copy;
   }
 
-  // rebuild all_dependencies_of_channel hash table. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main waveform database, and the main waveform database admin lock must be locked when this is called. 
+  // rebuild all_dependencies_of_channel hash table. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main recording database, and the main recording database admin lock must be locked when this is called. 
   void instantiated_math_database::_rebuild_dependency_map()
   {
 
@@ -145,9 +145,9 @@ namespace snde {
   {
 
     
-    std::atomic_store(&_external_dependencies_on_function,std::make_shared<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>>());
+    std::atomic_store(&_external_dependencies_on_function,std::make_shared<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>>());
 
-    std::atomic_store(&_external_dependencies_on_channel,std::make_shared<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>>());
+    std::atomic_store(&_external_dependencies_on_channel,std::make_shared<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>>());
 
     
     // put all math functions into function_status and _external_dependencies databases and into pending_functions?
@@ -180,73 +180,73 @@ namespace snde {
   }
 
   
-  std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::begin_atomic_external_dependencies_on_channel_update() // must be called with waveform_set_state's admin lock held
+  std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::begin_atomic_external_dependencies_on_channel_update() // must be called with recording_set_state's admin lock held
   {
-    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> orig = external_dependencies_on_channel(); 
-    return std::make_shared<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>>(*orig);    
+    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> orig = external_dependencies_on_channel(); 
+    return std::make_shared<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>>(*orig);    
   }
   
-  void math_status::end_atomic_external_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep)
-// must be called with waveform_set_state's admin lock held
+  void math_status::end_atomic_external_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep)
+// must be called with recording_set_state's admin lock held
   {
     std::atomic_store(&_external_dependencies_on_channel,newextdep);
   }
   
-  std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::external_dependencies_on_channel()
+  std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::external_dependencies_on_channel()
   {
     return std::atomic_load(&_external_dependencies_on_channel);
   }
 
   
-  std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::begin_atomic_external_dependencies_on_function_update() // must be called with waveform_set_state's admin lock held
+  std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::begin_atomic_external_dependencies_on_function_update() // must be called with recording_set_state's admin lock held
   {
-    return std::make_shared<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>>(*external_dependencies_on_function());
+    return std::make_shared<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>>(*external_dependencies_on_function());
   }
   
-  void math_status::end_atomic_external_dependencies_on_function_update(std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep)
-// must be called with waveform_set_state's admin lock held
+  void math_status::end_atomic_external_dependencies_on_function_update(std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep)
+// must be called with recording_set_state's admin lock held
   {
     std::atomic_store(&_external_dependencies_on_function,newextdep);
   }
   
-  std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::external_dependencies_on_function()
+  std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::external_dependencies_on_function()
   {
     return std::atomic_load(&_external_dependencies_on_function);
   }
 
   
-  void math_status::notify_math_function_executed(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> wfmstate,std::shared_ptr<instantiated_math_function> fcn,bool mdonly)
+  void math_status::notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> recstate,std::shared_ptr<instantiated_math_function> fcn,bool mdonly)
   {
-    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_function;
+    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_function;
     
     {
-      std::lock_guard<std::mutex> wss_admin(wfmstate->admin);
-      math_function_status &our_status = wfmstate->mathstatus.function_status.at(fcn);
+      std::lock_guard<std::mutex> wss_admin(recstate->admin);
+      math_function_status &our_status = recstate->mathstatus.function_status.at(fcn);
 
       // ***!!!!! Need to refactor the status transfer so that we can
       // explicitly check it; also need to be OK with status transfer
       // being ahead of us (possibly another thread)
       //
-      // Also need in wfmstore.cpp:end_transaction()
+      // Also need in recstore.cpp:end_transaction()
       // to go through and check if this needs to be redone
       // after execfunc set. 
       
       // Find this fcn in matstatus [mdonly_]pending_functions and remove it, adding it to the completed block
       std::unordered_set<std::shared_ptr<instantiated_math_function>>::iterator pending_it;
       if (mdonly) {
-	pending_it = wfmstate->mathstatus.mdonly_pending_functions.find(fcn);
-	if (pending_it==wfmstate->mathstatus.mdonly_pending_functions.end()) {
+	pending_it = recstate->mathstatus.mdonly_pending_functions.find(fcn);
+	if (pending_it==recstate->mathstatus.mdonly_pending_functions.end()) {
 	  throw snde_error("Math function %s executed mdonly without being in mdonly_pending_functions queue",fcn->definition->definition_command.c_str());
 	}
-	wfmstate->mathstatus.mdonly_pending_functions.erase(pending_it);
-	wfmstate->mathstatus.completed_mdonly_functions.emplace(fcn);
+	recstate->mathstatus.mdonly_pending_functions.erase(pending_it);
+	recstate->mathstatus.completed_mdonly_functions.emplace(fcn);
       } else {
-	pending_it = wfmstate->mathstatus.pending_functions.find(fcn);
-	if (pending_it==wfmstate->mathstatus.pending_functions.end()) {
+	pending_it = recstate->mathstatus.pending_functions.find(fcn);
+	if (pending_it==recstate->mathstatus.pending_functions.end()) {
 	  throw snde_error("Math function %s executed without being in pending_functions queue",fcn->definition->definition_command.c_str());
 	}
-	wfmstate->mathstatus.pending_functions.erase(pending_it);
-	wfmstate->mathstatus.completed_functions.emplace(fcn);
+	recstate->mathstatus.pending_functions.erase(pending_it);
+	recstate->mathstatus.completed_functions.emplace(fcn);
       }
 
       // These assigned before calling this function
@@ -256,28 +256,28 @@ namespace snde {
       //}
       
       // look up anything dependent on this function's execution
-      external_dependencies_on_function = wfmstate->mathstatus.external_dependencies_on_function();
+      external_dependencies_on_function = recstate->mathstatus.external_dependencies_on_function();
     } // release lock
 
     
-    std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>> ready_to_execute;
+    std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> ready_to_execute;
 
     // Search for external dependencies on this function; accumulate in ready_to_execute
     
-    std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>>::iterator ext_dep_it = external_dependencies_on_function->find(fcn);    
+    std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>::iterator ext_dep_it = external_dependencies_on_function->find(fcn);    
     assert(ext_dep_it != external_dependencies_on_function->end()); // should always have a vector, even if it's empty
 
 
     for (auto && wss_fcn: ext_dep_it->second) {
-      std::shared_ptr<waveform_set_state> ext_dep_wss;
+      std::shared_ptr<recording_set_state> ext_dep_wss;
       std::shared_ptr<instantiated_math_function> ext_dep_fcn;
 
       std::tie(ext_dep_wss,ext_dep_fcn) = wss_fcn;
       std::lock_guard<std::mutex> dep_wss_admin(ext_dep_wss->admin);
       math_function_status &ext_dep_status = ext_dep_wss->mathstatus.function_status.at(ext_dep_fcn);
 
-      std::set<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>>::iterator
-	dependent_prereq_it = ext_dep_status.missing_external_function_prerequisites.find(std::make_tuple((std::shared_ptr<waveform_set_state>)wfmstate,(std::shared_ptr<instantiated_math_function>)fcn));
+      std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>::iterator
+	dependent_prereq_it = ext_dep_status.missing_external_function_prerequisites.find(std::make_tuple((std::shared_ptr<recording_set_state>)recstate,(std::shared_ptr<instantiated_math_function>)fcn));
       if (dependent_prereq_it != ext_dep_status.missing_external_function_prerequisites.end()) {
 	ext_dep_status.missing_external_function_prerequisites.erase(dependent_prereq_it);
       }
@@ -289,29 +289,29 @@ namespace snde {
     
     for (auto && ready_wss_ready_fcn: ready_to_execute) {
       // Need to queue as a pending_computation
-      std::shared_ptr<waveform_set_state> ready_wss;
+      std::shared_ptr<recording_set_state> ready_wss;
       std::shared_ptr<instantiated_math_function> ready_fcn;
 
       std::tie(ready_wss,ready_fcn) = ready_wss_ready_fcn;
-      wfmdb->compute_resources->queue_computation(wfmdb,ready_wss,ready_fcn);
+      recdb->compute_resources->queue_computation(recdb,ready_wss,ready_fcn);
     }
 
 
     // Go through the function's output channels and issue suitable notifications
     for (auto && result_channel_relpath: fcn->result_channel_paths) {
-      std::string result_channel_path = wfmdb_path_join(fcn->channel_path_context,*result_channel_relpath);
-      channel_state &chanstate = wfmstate->wfmstatus.channel_map.at(result_channel_path);
-      chanstate.issue_math_notifications(wfmdb,wfmstate);
+      std::string result_channel_path = recdb_path_join(fcn->channel_path_context,*result_channel_relpath);
+      channel_state &chanstate = recstate->recstatus.channel_map.at(result_channel_path);
+      chanstate.issue_math_notifications(recdb,recstate);
     }
 
       
     
   }
 
-  void math_status::check_dep_fcn_ready(std::shared_ptr<waveform_set_state> dep_wss,
+  void math_status::check_dep_fcn_ready(std::shared_ptr<recording_set_state> dep_wss,
 					std::shared_ptr<instantiated_math_function> dep_fcn,
 					math_function_status *mathstatus_ptr,
-					std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute_appendvec)
+					std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute_appendvec)
     // assumes dep_wss admin lock is already held
   {
 
@@ -320,12 +320,12 @@ namespace snde {
 	!mathstatus_ptr->missing_external_function_prerequisites.size()) {
       mathstatus_ptr->ready_to_execute=true;
       
-      ready_to_execute_appendvec.emplace_back(std::make_tuple(dep_wss,dep_fcn));  // waveform_set_state,  instantiated_math_function
+      ready_to_execute_appendvec.emplace_back(std::make_tuple(dep_wss,dep_fcn));  // recording_set_state,  instantiated_math_function
     }
     
   }
 
-  math_function_execution::math_function_execution(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool mdonly,bool is_mutable) :
+  math_function_execution::math_function_execution(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool mdonly,bool is_mutable) :
     wss(wss),
     inst(inst),
     executing(false),
@@ -336,26 +336,26 @@ namespace snde {
     fully_complete(false)
     // automatically adds wss to referencing_wss set
   {
-    referencing_wss.emplace(std::weak_ptr<waveform_set_state>(wss));
+    referencing_wss.emplace(std::weak_ptr<recording_set_state>(wss));
 
   }
 
   
-  executing_math_function::executing_math_function(std::shared_ptr<waveform_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
+  executing_math_function::executing_math_function(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
     wss(wss),
     inst(inst)
   {
-    std::shared_ptr<waveform_base> null_waveform;
+    std::shared_ptr<recording_base> null_recording;
 
     
-    // initialize self_dependent_waveforms, if applicable
+    // initialize self_dependent_recordings, if applicable
     if (inst && inst->self_dependent) {
       for (auto &&result_channel_path_ptr: inst->result_channel_paths) {
 	if (result_channel_path_ptr) {
-	  channel_state &chanstate = wss->wfmstatus.channel_map.at(*result_channel_path_ptr);
-	  self_dependent_waveforms.push_back(chanstate.wfm());
+	  channel_state &chanstate = wss->recstatus.channel_map.at(*result_channel_path_ptr);
+	  self_dependent_recordings.push_back(chanstate.rec());
 	} else {
-	  self_dependent_waveforms.push_back(null_waveform);
+	  self_dependent_recordings.push_back(null_recording);
 	}
       }
     }

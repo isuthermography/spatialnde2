@@ -1,5 +1,5 @@
-#ifndef WFMMATH_COMPUTE_RESOURCE_HPP
-#define WFMMATH_COMPUTE_RESOURCE_HPP
+#ifndef RECMATH_COMPUTE_RESOURCE_HPP
+#define RECMATH_COMPUTE_RESOURCE_HPP
 
 #include <list>
 #include <memory>
@@ -31,12 +31,12 @@ namespace snde {
 #define SNDE_CR_CUDA 2
 
   // forward references 
-  class compute_code; // defined in wfmstore.hpp
-  class waveform_set_state; // defined in wfmstore.hpp
-  class wfmdatabase; // defined in wfmstore.hpp
-  class instantiated_math_function; // defined in wfmmath.hpp
-  class executing_math_function; // defined in wfmmath.hpp
-  class math_function_execution; // defined in wfmmath.hpp
+  class compute_code; // defined in recstore.hpp
+  class recording_set_state; // defined in recstore.hpp
+  class recdatabase; // defined in recstore.hpp
+  class instantiated_math_function; // defined in recmath.hpp
+  class executing_math_function; // defined in recmath.hpp
+  class math_function_execution; // defined in recmath.hpp
   
   class available_compute_resource;
   class assigned_compute_resource_cpu;
@@ -95,9 +95,9 @@ namespace snde {
   
   class available_compute_resource_database {
     // Represents the full set of compute resources available
-    // for waveform math calculations
+    // for recording math calculations
   public:
-    std::shared_ptr<std::mutex> admin; // locks compute_resources and todo_list, including all pending_computations but not their embedded executing_math_function; After the wfmdatabase; in the locking order precedes just Python GIL
+    std::shared_ptr<std::mutex> admin; // locks compute_resources and todo_list, including all pending_computations but not their embedded executing_math_function; After the recdatabase; in the locking order precedes just Python GIL
     std::list<std::shared_ptr<available_compute_resource>> compute_resources;
 
     // everything in todo_list is queued in with one or more of the compute_resources
@@ -106,31 +106,31 @@ namespace snde {
     std::multimap<uint64_t,std::shared_ptr<pending_computation>> blocked_list; // indexed by global revision; map of pending computations that have been blocked from todo_list because we are waiting for all mutable calcs in prior revision to complete. 
 
     available_compute_resource_database();
-    void queue_computation(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn);
+    void queue_computation(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn);
     void _queue_computation_internal(std::shared_ptr<pending_computation> &computation); // NOTE: Sets computation to nullptr once queued
     void start(); // start all of the compute_resources
 
   };
 
   class pending_computation {
-    // Once the result waveforms are ready we need to copy this and get it off the todo_list,
+    // Once the result recordings are ready we need to copy this and get it off the todo_list,
     // so as to invalidate other entries on the prioritized_computations
     // of other available_compute_resources
     // locked by the available_compute_resource_database's admin lock but the pointed to executing_math_function is locked separately
   public:
     std::shared_ptr<math_function_execution> function_to_execute; 
-    std::shared_ptr<waveform_set_state> wfmstate;
+    std::shared_ptr<recording_set_state> recstate;
     uint64_t globalrev;
     uint64_t priority_reduction; // 0..(SNDE_CR_PRIORITY_REDUCTION_LIMIT-1)
 
-    pending_computation(std::shared_ptr<math_function_execution> function_to_execute,std::shared_ptr<waveform_set_state> wfmstate,uint64_t globalrev,uint64_t priority_reduction);
+    pending_computation(std::shared_ptr<math_function_execution> function_to_execute,std::shared_ptr<recording_set_state> recstate,uint64_t globalrev,uint64_t priority_reduction);
     
   };
   
   class available_compute_resource: public std::enable_shared_from_this<available_compute_resource> {
     // Locked by the available_compute_resource_database's admin lock
   public:
-    available_compute_resource(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type);
+    available_compute_resource(std::shared_ptr<recdatabase> recdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type);
     // Rule of 3
     available_compute_resource(const available_compute_resource &) = delete;
     available_compute_resource& operator=(const available_compute_resource &) = delete; 
@@ -141,7 +141,7 @@ namespace snde {
     unsigned type; // SNDE_CR_...
 
     std::shared_ptr<std::mutex> acrd_admin; // so we can access the ACRD's admin lock.
-    std::weak_ptr<wfmdatabase> wfmdb;
+    std::weak_ptr<recdatabase> recdb;
     
     std::multimap<uint64_t,std::tuple<std::weak_ptr<pending_computation>,std::shared_ptr<compute_resource_option>>> prioritized_computations;  // indexed by (global revision)*8, with priority reductions 0..(SNDE_CR_PRIORITY_REDUCTION_LIMIT-1) added. So  lowest number means highest priority. The values are weak_ptrs, so the same pending_computation can be assigned to multiple compute_resources. When the pending_computation is dispatched the strong shared_ptr to it must be cleared atomically with the dispatch so it appears null in any other maps. As we go to compute, we will just keep popping off the first element
 
@@ -162,24 +162,24 @@ namespace snde {
     // each pool thread should either be in available_threads or assigned_threads at any given time
     std::vector<std::thread> available_threads; // mapped according to functions_using_cores
     std::vector<std::shared_ptr<std::condition_variable>> thread_triggers; // mapped according to functions_using_cores  (use shared_ptrs because condition_variable is not MoveConstructable)
-    std::vector<std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<math_function_execution>,std::shared_ptr<compute_resource_option_cpu>>> thread_actions; // mapped according to first thread assigned to a particular math function
+    std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>,std::shared_ptr<compute_resource_option_cpu>>> thread_actions; // mapped according to first thread assigned to a particular math function
     std::thread dispatcher_thread; // started by constructor
     
-    available_compute_resource_cpu(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type,size_t total_cpu_cores_available);
+    available_compute_resource_cpu(std::shared_ptr<recdatabase> recdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type,size_t total_cpu_cores_available);
 
 
     virtual void start(); // set the compute resource going
     virtual void notify_acr_of_changes_to_prioritized_computations(); // should be called WITH  ACRD's admin lock held
     size_t _number_of_free_cpus(); // Must call with ACRD admin lock locked
     std::shared_ptr<assigned_compute_resource_cpu> _assign_cpus(std::shared_ptr<math_function_execution> function_to_execute,size_t number_of_cpus);
-    void _dispatch_thread(std::shared_ptr<waveform_set_state> wfmstate,std::shared_ptr<math_function_execution> function_to_execute,std::shared_ptr<compute_resource_option_cpu> compute_option_cpu,size_t first_thread_index);
+    void _dispatch_thread(std::shared_ptr<recording_set_state> recstate,std::shared_ptr<math_function_execution> function_to_execute,std::shared_ptr<compute_resource_option_cpu> compute_option_cpu,size_t first_thread_index);
     void dispatch_code();
     void pool_code(size_t threadidx);
   };
 
 #ifdef SNDE_OPENCL
   class available_compute_resource_opencl: public available_compute_resource {
-    available_compute_resource_opencl(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type,cl_context opencl_context,cl_device_id *opencl_devices,size_t num_devices,size_t max_parallel);
+    available_compute_resource_opencl(std::shared_ptr<recdatabase> recdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type,cl_context opencl_context,cl_device_id *opencl_devices,size_t num_devices,size_t max_parallel);
     virtual void start(); // set the compute resource going
 
     std::shared_ptr<available_compute_resource_cpu> controlling_cpu;
@@ -193,7 +193,7 @@ namespace snde {
 #endif // SNDE_OPENCL
 
   // The assigned_compute_resource structures
-  // are passed to the wfmmath class compute_code virtual methods to
+  // are passed to the recmath class compute_code virtual methods to
   // tell them the resources they are allowed to use. The subclass
   // provided will always match the subclass of the compute_resource_option
   // corresponding to the compute_code structure being called. 
@@ -236,4 +236,4 @@ namespace snde {
   
 };
 
-#endif // WFMMATH_COMPUTE_RESOURCE_HPP
+#endif // RECMATH_COMPUTE_RESOURCE_HPP

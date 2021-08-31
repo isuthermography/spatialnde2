@@ -26,7 +26,7 @@
 
 #include "revision_manager.hpp"
 
-#include "mutablewfmstore.hpp"
+#include "mutablerecstore.hpp"
 
 #ifndef SNDE_X3D_HPP
 #define SNDE_X3D_HPP
@@ -1195,7 +1195,7 @@ namespace snde {
 
 
   
- std::shared_ptr<std::vector<std::shared_ptr<mutableinfostore>>> x3d_load_geometry(std::shared_ptr<geometry> geom,std::vector<std::shared_ptr<x3d_shape>> shapes,std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,std::string context_fname,bool reindex_vertices,bool reindex_tex_vertices)
+ std::shared_ptr<std::vector<std::shared_ptr<mutableinfostore>>> x3d_load_geometry(std::shared_ptr<geometry> geom,std::vector<std::shared_ptr<x3d_shape>> shapes,std::shared_ptr<mutablerecdb> recdb,std::string recdb_context,std::string context_fname,bool reindex_vertices,bool reindex_tex_vertices)
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
@@ -1284,14 +1284,14 @@ namespace snde {
       };
       // Grab texture image, if available
       
-      std::shared_ptr<mutableinfostore> texture_wfm_super=nullptr;
-      std::shared_ptr<mutabledatastore> texture_wfm=nullptr;
-      if (texture && texture->url.size() > 0 && wfmdb) {
+      std::shared_ptr<mutableinfostore> texture_rec_super=nullptr;
+      std::shared_ptr<mutabledatastore> texture_rec=nullptr;
+      if (texture && texture->url.size() > 0 && recdb) {
 	//teximage_data=get_texture_image(geom,texture->url);
 	if (texture->url[0]=='#') {
 	  // URL Fragment... get from existing channel
-	  texture_wfm_super = wfmdb->wfmlist()->lookup(texture->url.substr(1));
-	  if (texture_wfm_super) texture_wfm=std::dynamic_pointer_cast<mutabledatastore>(texture_wfm_super);
+	  texture_rec_super = recdb->reclist()->lookup(texture->url.substr(1));
+	  if (texture_rec_super) texture_rec=std::dynamic_pointer_cast<mutabledatastore>(texture_rec_super);
 	} else {
 	  // Attempt to load URL from file.... currently support .pngs only
 	  std::shared_ptr<std::string> texture_fname = url2pathname(texture->url);
@@ -1299,11 +1299,11 @@ namespace snde {
 	    // .png file
 	    std::string texture_path = pathjoin(stripfilepart(context_fname),*texture_fname);
 	    
-	    texture_wfm = ReadPNG(geom->manager,strippathpart(*texture_fname),strippathpart(*texture_fname),texture_path);
+	    texture_rec = ReadPNG(geom->manager,strippathpart(*texture_fname),strippathpart(*texture_fname),texture_path);
 	    fprintf(stderr,"x3d: adding uv_parameterization metadata\n");
 
-	    texture_wfm->metadata.AddMetaDatum(metadatum("uv_parameterization","intrinsic"));
-	    wfmdb->addinfostore(texture_wfm);
+	    texture_rec->metadata.AddMetaDatum(metadatum("uv_parameterization","intrinsic"));
+	    recdb->addinfostore(texture_rec);
 	  }
 	  
 	}
@@ -1311,22 +1311,22 @@ namespace snde {
       
       Eigen::Matrix<double,3,3> TexCoordsToParameterizationCoords=Eigen::Matrix<double,3,3>::Identity();
       
-      if (texture_wfm and texture_wfm->dimlen.size() >= 2) {
+      if (texture_rec and texture_rec->dimlen.size() >= 2) {
 	// uv_imagedata_channels should be comma-separated list
 	fprintf(stderr,"x3d: adding uv_imagedata_channels metadata\n");
-	metadata.emplace(std::make_pair<std::string,metadatum>("uv_imagedata_channels",metadatum("uv_imagedata_channels",texture_wfm->fullname)));
+	metadata.emplace(std::make_pair<std::string,metadatum>("uv_imagedata_channels",metadatum("uv_imagedata_channels",texture_rec->fullname)));
 
-	// Use pixel size in given texture_wfm to get scaling for texture coordinates.
+	// Use pixel size in given texture_rec to get scaling for texture coordinates.
 	
-	double IniVal1 = texture_wfm->metadata.GetMetaDatumDbl("IniVal1",-texture_wfm->dimlen[0]/2.0);
-	double IniVal2 = texture_wfm->metadata.GetMetaDatumDbl("IniVal2",texture_wfm->dimlen[1]/2.0);
+	double IniVal1 = texture_rec->metadata.GetMetaDatumDbl("IniVal1",-texture_rec->dimlen[0]/2.0);
+	double IniVal2 = texture_rec->metadata.GetMetaDatumDbl("IniVal2",texture_rec->dimlen[1]/2.0);
 
-	double Step1 = texture_wfm->metadata.GetMetaDatumDbl("Step1",1.0);
+	double Step1 = texture_rec->metadata.GetMetaDatumDbl("Step1",1.0);
 	assert(Step1 > 0.0); 
-	double Step2 = texture_wfm->metadata.GetMetaDatumDbl("Step2",-1.0);
+	double Step2 = texture_rec->metadata.GetMetaDatumDbl("Step2",-1.0);
 	
-	TexCoordsToParameterizationCoords(0,0)=fabs(Step1)*texture_wfm->dimlen[0];
-	TexCoordsToParameterizationCoords(1,1)=fabs(Step2)*texture_wfm->dimlen[1];
+	TexCoordsToParameterizationCoords(0,0)=fabs(Step1)*texture_rec->dimlen[0];
+	TexCoordsToParameterizationCoords(1,1)=fabs(Step2)*texture_rec->dimlen[1];
 
 	// To get [0,2] element, rule is that texture coordinate 0 maps to IniVal1-Step1/2.0 (For positive Step1) because the left edge of that first element is 1/2 step to the left. 
 	// TCTPC[0,0]*TexU + TCTPC[0,2] = scaled pos
@@ -1338,7 +1338,7 @@ namespace snde {
 	  // For negative step1, x values start at the right (max value) and
 	  // decrease... so the 0 texcoord point is actually at IniVal1+Step1*dimlen[0]-Step1/2.0
 	  // (Remember, Step2 is negative in that expression!)
-	  TexCoordsToParameterizationCoords(0,2)=IniVal1+Step1*texture_wfm->dimlen[0]-Step1/2.0;
+	  TexCoordsToParameterizationCoords(0,2)=IniVal1+Step1*texture_rec->dimlen[0]-Step1/2.0;
 
 	}
 	
@@ -1349,7 +1349,7 @@ namespace snde {
 	  // For negative step2, y values start at the top (max value) and
 	  // decrease... so the 0 texcoord point is actually at IniVal2+Step2*dimlen[1]-Step2/2.0
 	  // (Remember, Step2 is negative in that expression!)
-	  TexCoordsToParameterizationCoords(1,2)=IniVal2+Step2*texture_wfm->dimlen[1]-Step2/2.0;
+	  TexCoordsToParameterizationCoords(1,2)=IniVal2+Step2*texture_rec->dimlen[1]-Step2/2.0;
 	}
 	
       }
@@ -1899,7 +1899,7 @@ namespace snde {
       std::shared_ptr<part> curpart=std::make_shared<part>(geom,firstpart);
 
       std::string partname = std::string("x3d")+std::to_string(shapecnt);
-      std::string fullname = wfmdb_path_join(wfmdb_context,partname);
+      std::string fullname = recdb_path_join(recdb_context,partname);
       std::shared_ptr<mutablegeomstore> curinfostore = std::make_shared<mutablegeomstore>(partname,fullname,metadata,geom,curpart);
       parts_parameterizations->emplace_back(curinfostore);
       
@@ -2357,8 +2357,8 @@ namespace snde {
 	uvparam=std::make_shared<parameterization>(geom,firstuv,1);  // currently only implement numuvimages==1
 	/* add this parameterization to our part */
 	
-	std::shared_ptr<mutableparameterizationstore> curparamstore = curpart->addparameterization(wfmdb,wfmdb_context,uvparam,"intrinsic",wfmmetadata()); // addparameterization adds it to wfmdb automatically
-	wfmdb->addinfostore(curinfostore); // add the (now pretty well complete) part to the waveform database
+	std::shared_ptr<mutableparameterizationstore> curparamstore = curpart->addparameterization(recdb,recdb_context,uvparam,"intrinsic",recmetadata()); // addparameterization adds it to recdb automatically
+	recdb->addinfostore(curinfostore); // add the (now pretty well complete) part to the recording database
 
 	parts_parameterizations->emplace_back(curparamstore);
 	
@@ -2411,7 +2411,7 @@ namespace snde {
   }
 
 
-  std::shared_ptr<std::vector<std::shared_ptr<mutableinfostore>>> x3d_load_geometry(std::shared_ptr<geometry> geom,std::string filename,std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,bool reindex_vertices,bool reindex_tex_vertices)
+  std::shared_ptr<std::vector<std::shared_ptr<mutableinfostore>>> x3d_load_geometry(std::shared_ptr<geometry> geom,std::string filename,std::shared_ptr<mutablerecdb> recdb,std::string recdb_context,bool reindex_vertices,bool reindex_tex_vertices)
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
@@ -2423,7 +2423,7 @@ namespace snde {
   {
     std::vector<std::shared_ptr<x3d_shape>> shapes=x3d_loader::shapes_from_file(filename.c_str());
     
-    return x3d_load_geometry(geom,shapes,wfmdb,wfmdb_context,filename,reindex_vertices,reindex_tex_vertices);
+    return x3d_load_geometry(geom,shapes,recdb,recdb_context,filename,reindex_vertices,reindex_tex_vertices);
     
   }
 

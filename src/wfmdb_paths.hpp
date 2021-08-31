@@ -6,14 +6,14 @@
 
 #include "utils.hpp"
 
-#ifndef SNDE_WFMDB_PATHS_HPP
-#define SNDE_WFMDB_PATHS_HPP
+#ifndef SNDE_RECDB_PATHS_HPP
+#define SNDE_RECDB_PATHS_HPP
 
 namespace snde {
   
-  static inline std::string wfmdb_path_context(std::string full_path)
+  static inline std::string recdb_path_context(std::string full_path)
   {
-    // Given a full wfmdb path (WITH leading slash)
+    // Given a full recdb path (WITH leading slash)
     // return just the context (without last portion, unless full_path is
     // already a context, in which case the context is returned unchanged. ) 
     
@@ -31,7 +31,7 @@ namespace snde {
   }
   
   
-  static inline std::string wfmdb_path_join(std::string context,std::string tojoin)
+  static inline std::string recdb_path_join(std::string context,std::string tojoin)
   {
     // Given a context: absolute (WITH leading slash) or relative (empty string
     // or NO leading slash), either the empty string or WITH trailing slash,
@@ -103,7 +103,7 @@ namespace snde {
   }
   
   
-  static std::shared_ptr<std::string> wfmdb_relative_path_to(const std::string &from,const std::string &to)
+  static std::shared_ptr<std::string> recdb_relative_path_to(const std::string &from,const std::string &to)
   {
     assert(from.size() > 0);
     assert(from.at(0)=='/'); // from should be absolute
@@ -146,4 +146,4 @@ namespace snde {
     return detokenize(std::vector<std::string>(to_tok_deq.begin(),to_tok_deq.end()),'/');
   }
 }
-#endif // SNDE_WFMDB_PATHS_HPP
+#endif // SNDE_RECDB_PATHS_HPP

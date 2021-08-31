@@ -3,11 +3,11 @@
 #include <typeindex>
 
 #include "units.hpp"
-#include "mutablewfmstore.hpp"
+#include "mutablerecstore.hpp"
 #include "revision_manager.hpp"
 
-#ifndef SNDE_WFM_DISPLAY_HPP
-#define SNDE_WFM_DISPLAY_HPP
+#ifndef SNDE_REC_DISPLAY_HPP
+#define SNDE_REC_DISPLAY_HPP
 
 namespace snde {
 
@@ -64,19 +64,19 @@ struct display_axis {
 };
 
 
-class wfmdisplay_notification_receiver {
+class recdisplay_notification_receiver {
   // abstract base class
 public:
-  wfmdisplay_notification_receiver()
+  recdisplay_notification_receiver()
   {
     
   }
   
-  wfmdisplay_notification_receiver(const wfmdisplay_notification_receiver &)=delete; // no copy constructor
-  wfmdisplay_notification_receiver & operator=(const wfmdisplay_notification_receiver &)=delete; // no copy assignment
+  recdisplay_notification_receiver(const recdisplay_notification_receiver &)=delete; // no copy constructor
+  recdisplay_notification_receiver & operator=(const recdisplay_notification_receiver &)=delete; // no copy assignment
   
   virtual void mark_as_dirty(std::shared_ptr<display_channel> dirtychan) {} ;
-  virtual ~wfmdisplay_notification_receiver() {} ;
+  virtual ~recdisplay_notification_receiver() {} ;
 };
 
 struct display_channel: public std::enable_shared_from_this<display_channel> {
@@ -85,7 +85,7 @@ struct display_channel: public std::enable_shared_from_this<display_channel> {
   std::shared_ptr<std::string> _FullName; // Atomic shared pointer pointing to full name, including slash separating tree elements
   //std::shared_ptr<mutableinfostore> chan_data;
   
-  float Scale; // vertical axis scaling for 1D wfms; color axis scaling for 2D waveforms; units/pixel if pixelflag is set is set for the axis/units, units/div (or equivalently units/intensity) if pixelflag is not set
+  float Scale; // vertical axis scaling for 1D recs; color axis scaling for 2D recordings; units/pixel if pixelflag is set is set for the axis/units, units/div (or equivalently units/intensity) if pixelflag is not set
   float Position; // vertical offset on display, in divisions. To get in units, multiply by GetVertUnitsPerDiv(Chan) USED ONLY IF VertZoomAroundAxis is true
   float VertCenterCoord; // Vertical position, in vertical axis units, of center of display. USE ONLY IF VertZoomAroundAxis is false;
   bool VertZoomAroundAxis;
@@ -100,11 +100,11 @@ struct display_channel: public std::enable_shared_from_this<display_channel> {
   // NeedAxisScales
   size_t ColorMap; // colormap selection
 
-  //std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> adjustment_deps; // these trm_dependencies should be triggered when these parameters are changed. *** SHOULD BE REPLACED BY revman_wfm_display method
+  //std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> adjustment_deps; // these trm_dependencies should be triggered when these parameters are changed. *** SHOULD BE REPLACED BY revman_rec_display method
 
   // NOTE: Adjustement deps needs to be cleaned periodically of lost weak pointers!
   // receivers in adjustment_deps should be called during a transaction! */
-  std::set<std::weak_ptr<wfmdisplay_notification_receiver>,std::owner_less<std::weak_ptr<wfmdisplay_notification_receiver>>> adjustment_deps;
+  std::set<std::weak_ptr<recdisplay_notification_receiver>,std::owner_less<std::weak_ptr<recdisplay_notification_receiver>>> adjustment_deps;
 
   std::mutex admin; // protects all members, as the display_channel
   // may be accessed from transform threads, not just the GUI thread
@@ -144,13 +144,13 @@ struct display_channel: public std::enable_shared_from_this<display_channel> {
     std::shared_ptr<std::string> New_NamePtr = std::make_shared<std::string>(new_FullName);
     std::atomic_store(&_FullName,New_NamePtr);
   }
-  void add_adjustment_dep(std::shared_ptr<wfmdisplay_notification_receiver> notifier)
+  void add_adjustment_dep(std::shared_ptr<recdisplay_notification_receiver> notifier)
   {
     std::lock_guard<std::mutex> dc_lock(admin);
     adjustment_deps.emplace(notifier);
 
     // filter out any dead pointers
-    std::set<std::weak_ptr<wfmdisplay_notification_receiver>,std::owner_less<std::weak_ptr<wfmdisplay_notification_receiver>>>::iterator next;
+    std::set<std::weak_ptr<recdisplay_notification_receiver>,std::owner_less<std::weak_ptr<recdisplay_notification_receiver>>>::iterator next;
     for (auto it=adjustment_deps.begin(); it != adjustment_deps.end(); it=next) {
       next=it;
       next++;
@@ -165,16 +165,16 @@ struct display_channel: public std::enable_shared_from_this<display_channel> {
 
   void mark_as_dirty()
   {
-    std::vector<std::shared_ptr<wfmdisplay_notification_receiver>> tonotify;
+    std::vector<std::shared_ptr<recdisplay_notification_receiver>> tonotify;
     {
       std::lock_guard<std::mutex> dc_lock(admin);
-      std::set<std::weak_ptr<wfmdisplay_notification_receiver>,std::owner_less<std::weak_ptr<wfmdisplay_notification_receiver>>>::iterator next;
+      std::set<std::weak_ptr<recdisplay_notification_receiver>,std::owner_less<std::weak_ptr<recdisplay_notification_receiver>>>::iterator next;
       
       for (auto it=adjustment_deps.begin(); it != adjustment_deps.end(); it=next) {
 	next=it;
 	next++;
       
-	if (std::shared_ptr<wfmdisplay_notification_receiver> rcvr = it->lock()) {
+	if (std::shared_ptr<recdisplay_notification_receiver> rcvr = it->lock()) {
 	  tonotify.push_back(rcvr);
 	} else {
 	  adjustment_deps.erase(it);
@@ -205,20 +205,20 @@ struct display_posn {
   
 };
 
-struct WfmColor {
+struct RecColor {
   double R,G,B;
 
-  friend bool operator==(const WfmColor &lhs, const WfmColor &rhs)
+  friend bool operator==(const RecColor &lhs, const RecColor &rhs)
   {
     return (lhs.R == rhs.R && lhs.G==rhs.G && lhs.B==rhs.B);
   }
-  friend bool operator!=(const WfmColor &lhs, const WfmColor &rhs)
+  friend bool operator!=(const RecColor &lhs, const RecColor &rhs)
   {
     return !(lhs==rhs);
   }
 };
 
-  static const WfmColor WfmColorTable[]={
+  static const RecColor RecColorTable[]={
 					 {1.0,0.0,0.0}, /* Red */
 					 {0.0,0.4,1.0}, /* Blue */
 					 {0.0,1.0,0.0}, /* Green */
@@ -285,15 +285,15 @@ public:
   double pixelsperdiv;
   display_posn selected_posn; 
   
-  std::shared_ptr<mutablewfmdb> wfmdb;
+  std::shared_ptr<mutablerecdb> recdb;
   
   std::mutex admin;
 
   
   std::unordered_map<std::string,std::shared_ptr<display_channel>> channel_info;
 
-  display_info(std::shared_ptr<mutablewfmdb> wfmdb) :
-    wfmdb(wfmdb),
+  display_info(std::shared_ptr<mutablerecdb> recdb) :
+    recdb(recdb),
     selected_posn(display_posn{.HorizPosn=0.0})
   {
     NextColor=0;
@@ -359,22 +359,22 @@ public:
     return selected_posn;
   }
   
-  std::shared_ptr<display_channel> lookup_channel(std::string wfmfullname)
+  std::shared_ptr<display_channel> lookup_channel(std::string recfullname)
   {
     std::unique_lock<std::mutex> adminlock(admin);
-    auto iter = channel_info.find(wfmfullname);
+    auto iter = channel_info.find(recfullname);
 
     if (iter==channel_info.end()) {
       // not found in list
       admin.unlock();
-      // Does the wfm exist in the wfmdb?
-      std::shared_ptr<mutableinfostore> infostore = wfmdb->lookup(wfmfullname);
+      // Does the rec exist in the recdb?
+      std::shared_ptr<mutableinfostore> infostore = recdb->lookup(recfullname);
 
       if (infostore) {
-	// create an entry if found in wfmdb
-	return  _add_new_channel(wfmfullname,infostore);
+	// create an entry if found in recdb
+	return  _add_new_channel(recfullname,infostore);
       } else {
-	// return null if not found in wfmdb
+	// return null if not found in recdb
 	return nullptr;
       }
     }
@@ -398,7 +398,7 @@ public:
     {
       std::lock_guard<std::mutex> adminlock(admin);
       _NextColor=NextColor;
-      NewNextColor = (NextColor + 1) % (sizeof(WfmColorTable)/sizeof(WfmColorTable[0]));
+      NewNextColor = (NextColor + 1) % (sizeof(RecColorTable)/sizeof(RecColorTable[0]));
       NextColor=NewNextColor;
     }
     
@@ -424,24 +424,24 @@ public:
     std::vector<std::shared_ptr<display_channel>> retval;
     std::shared_ptr<display_channel> selected_chan=nullptr;
     
-    std::shared_ptr<iterablewfmrefs> wfmlist=wfmdb->wfmlist();
+    std::shared_ptr<iterablerecrefs> reclist=recdb->reclist();
 
-    // go through wfmlist forwards, assembling wfmlist
-    // so last entries in wfmlist will be on top
+    // go through reclist forwards, assembling reclist
+    // so last entries in reclist will be on top
     // (except for selected_chan which will be last, if given).
-    for (auto wfmiter=wfmlist->begin();wfmiter != wfmlist->end();wfmiter++) {
+    for (auto reciter=reclist->begin();reciter != reclist->end();reciter++) {
       
-      std::shared_ptr<mutableinfostore> info=*wfmiter;
-      std::string fullname=wfmiter.get_full_name();
+      std::shared_ptr<mutableinfostore> info=*reciter;
+      std::string fullname=reciter.get_full_name();
 
-      // do we have this wfm in our channel_info database?
-      bool found_wfm=false;
+      // do we have this rec in our channel_info database?
+      bool found_rec=false;
       {
 	std::lock_guard<std::mutex> adminlock(admin);
 	auto ci_iter = channel_info.find(fullname);
 	if (ci_iter != channel_info.end() /* && ci_iter->second->chan_data==info*/) {
 	  if (include_disabled || ci_iter->second->Enabled) {
-	    if (selected.size() > 0 && info==wfmdb->lookup(selected)) {
+	    if (selected.size() > 0 && info==recdb->lookup(selected)) {
 	      retval.insert(retval.begin(),ci_iter->second);
 	      //assert(!selected_chan);
 	      //selected_chan = ci_iter->second;
@@ -449,15 +449,15 @@ public:
 	      retval.push_back(ci_iter->second);
 	    }
 	  }
-	  found_wfm=true;
+	  found_rec=true;
 	}
       }
 
-      if (!found_wfm) {
+      if (!found_rec) {
 
 	std::shared_ptr<display_channel> new_display_channel=_add_new_channel(fullname,info);
 	if (include_disabled || new_display_channel->Enabled) {
-	  if (selected.size() > 0 && info==wfmdb->lookup(selected)) {
+	  if (selected.size() > 0 && info==recdb->lookup(selected)) {
 	    retval.insert(retval.begin(),new_display_channel);
 	    //assert(!selected_chan);
 	    //selected_chan = new_display_channel;
@@ -524,62 +524,62 @@ public:
     return ax_ptr;
   }
 
-  std::shared_ptr<display_axis> GetFirstAxis(std::string fullname /*std::shared_ptr<mutableinfostore> wfm */)
+  std::shared_ptr<display_axis> GetFirstAxis(std::string fullname /*std::shared_ptr<mutableinfostore> rec */)
   {
-    std::shared_ptr<mutableinfostore> wfm;
-    wfm = wfmdb->lookup(fullname);
-    if (!wfm) return FindAxis("Time","seconds");
+    std::shared_ptr<mutableinfostore> rec;
+    rec = recdb->lookup(fullname);
+    if (!rec) return FindAxis("Time","seconds");
     
-    std::string AxisName = wfm->metadata.GetMetaDatumStr("Coord1","Time");
-    std::string UnitName = wfm->metadata.GetMetaDatumStr("Units1","seconds");
+    std::string AxisName = rec->metadata.GetMetaDatumStr("Coord1","Time");
+    std::string UnitName = rec->metadata.GetMetaDatumStr("Units1","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
 
   std::shared_ptr<display_axis> GetSecondAxis(std::string fullname)
   {
-    std::shared_ptr<mutableinfostore> wfm;
-    wfm = wfmdb->lookup(fullname);
-    if (!wfm) return FindAxis("Time","seconds");
+    std::shared_ptr<mutableinfostore> rec;
+    rec = recdb->lookup(fullname);
+    if (!rec) return FindAxis("Time","seconds");
 
-    std::string AxisName = wfm->metadata.GetMetaDatumStr("Coord2","Time");
-    std::string UnitName = wfm->metadata.GetMetaDatumStr("Units2","seconds");
+    std::string AxisName = rec->metadata.GetMetaDatumStr("Coord2","Time");
+    std::string UnitName = rec->metadata.GetMetaDatumStr("Units2","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
 
   std::shared_ptr<display_axis> GetThirdAxis(std::string fullname)
   {
-    std::shared_ptr<mutableinfostore> wfm;
-    wfm = wfmdb->lookup(fullname);
-    if (!wfm) return FindAxis("Time","seconds");
+    std::shared_ptr<mutableinfostore> rec;
+    rec = recdb->lookup(fullname);
+    if (!rec) return FindAxis("Time","seconds");
 
-    std::string AxisName = wfm->metadata.GetMetaDatumStr("Coord3","Time");
-    std::string UnitName = wfm->metadata.GetMetaDatumStr("Units3","seconds");
+    std::string AxisName = rec->metadata.GetMetaDatumStr("Coord3","Time");
+    std::string UnitName = rec->metadata.GetMetaDatumStr("Units3","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
 
   std::shared_ptr<display_axis> GetFourthAxis(std::string fullname)
   {
-    std::shared_ptr<mutableinfostore> wfm;
-    wfm = wfmdb->lookup(fullname);
-    if (!wfm) return FindAxis("Time","seconds");
+    std::shared_ptr<mutableinfostore> rec;
+    rec = recdb->lookup(fullname);
+    if (!rec) return FindAxis("Time","seconds");
 
-    std::string AxisName = wfm->metadata.GetMetaDatumStr("Coord4","Time");
-    std::string UnitName = wfm->metadata.GetMetaDatumStr("Units4","seconds");
+    std::string AxisName = rec->metadata.GetMetaDatumStr("Coord4","Time");
+    std::string UnitName = rec->metadata.GetMetaDatumStr("Units4","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
 
   std::shared_ptr<display_axis> GetAmplAxis(std::string fullname)
   {
-    std::shared_ptr<mutableinfostore> wfm;
-    wfm = wfmdb->lookup(fullname);
-    if (!wfm) return FindAxis("Voltage","Volts");
+    std::shared_ptr<mutableinfostore> rec;
+    rec = recdb->lookup(fullname);
+    if (!rec) return FindAxis("Voltage","Volts");
 
-    std::string AxisName = wfm->metadata.GetMetaDatumStr("AmplCoord","Voltage");
-    std::string UnitName = wfm->metadata.GetMetaDatumStr("AmplUnits","Volts");
+    std::string AxisName = rec->metadata.GetMetaDatumStr("AmplCoord","Voltage");
+    std::string UnitName = rec->metadata.GetMetaDatumStr("AmplUnits","Volts");
 
     return FindAxis(AxisName,UnitName);
   }
@@ -589,7 +589,7 @@ public:
     std::shared_ptr<display_axis> a;
     
     std::shared_ptr<mutableinfostore> chan_data;
-    chan_data = wfmdb->lookup(c->FullName());
+    chan_data = recdb->lookup(c->FullName());
     if (!chan_data) return;
     
     std::shared_ptr<mutabledatastore> datastore;
@@ -640,7 +640,7 @@ public:
     bool success=false;
 
     std::shared_ptr<mutableinfostore> chan_data;
-    chan_data = wfmdb->lookup(c->FullName());
+    chan_data = recdb->lookup(c->FullName());
     if (!chan_data) return std::make_tuple(false,0.0,false);    ;
 
     std::shared_ptr<mutabledatastore> datastore;
@@ -697,7 +697,7 @@ public:
     std::shared_ptr<mutabledatastore> datastore;
 
     std::shared_ptr<mutableinfostore> chan_data;
-    chan_data = wfmdb->lookup(c->FullName());
+    chan_data = recdb->lookup(c->FullName());
     if (!chan_data) return 0.0;
 
     
@@ -750,4 +750,4 @@ public:
   
 
 }
-#endif // SNDE_WFM_DISPLAY_HPP
+#endif // SNDE_REC_DISPLAY_HPP

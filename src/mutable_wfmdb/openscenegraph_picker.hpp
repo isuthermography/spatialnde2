@@ -121,7 +121,7 @@ namespace snde {
 			pointer_roots.push_back(std::make_tuple(null_orientation,param_ptr));
 		      }
 		      
-		      std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist
+		      std::shared_ptr<iterablerecrefs> recdb_reclist
 			= std::get<0>(
 				      obtain_graph_lock_instances_multiple(lockprocess,
 									   std::vector<std::tuple<snde_orientation3,std::string>>(),
@@ -129,7 +129,7 @@ namespace snde {
 									   std::vector<std::string>(),
 									   std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
 									   std::shared_ptr<immutable_metadata>(),
-									   [  ] (std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names) -> std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>> {
+									   [  ] (std::shared_ptr<iterablerecrefs> recdb_reclist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names) -> std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>> {
 									     return std::make_tuple(std::shared_ptr<parameterization>(),std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>());
 									   },
 									   nullptr,"",

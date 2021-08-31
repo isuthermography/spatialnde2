@@ -23,7 +23,7 @@
 #include <osgViewer/Viewer>
 #include <osgGA/TrackballManipulator>
 
-#include "wfm_display.hpp"
+#include "rec_display.hpp"
 #include "colormap.h"
 
 #include "openscenegraph_geom.hpp"
@@ -31,8 +31,8 @@
 #include "openscenegraph_renderer.hpp"
 #include "openscenegraph_picker.hpp"
 
-#ifndef SNDE_QTWFMVIEWER_HPP
-#define SNDE_QTWFMVIEWER_HPP
+#ifndef SNDE_QTRECVIEWER_HPP
+#define SNDE_QTRECVIEWER_HPP
 
 namespace snde {
 
@@ -41,15 +41,15 @@ namespace snde {
   // and http://forum.openscenegraph.org/viewtopic.php?t=16549 "QOpenGLWidget in osgQt"
   // and http://forum.openscenegraph.org/viewtopic.php?t=15097 "OSG 3.2.1 and Qt5 Widget integration"
 
-  class QTWfmViewer; // forward declaration
-  class QTWfmRender; // forward declaration
+  class QTRecViewer; // forward declaration
+  class QTRecRender; // forward declaration
 
   /*
-  class QTWfmGraphicsWindow: public osgViewer::GraphicsWindowEmbedded {
+  class QTRecGraphicsWindow: public osgViewer::GraphicsWindowEmbedded {
   public:
-    QTWfmRender *Renderer;
+    QTRecRender *Renderer;
     
-    QTWfmGraphicsWindow(int x,int y,int width,int height,QTWfmRender *Renderer); 
+    QTRecGraphicsWindow(int x,int y,int width,int height,QTRecRender *Renderer); 
 
     virtual void requestRedraw();
 
@@ -57,9 +57,9 @@ namespace snde {
 
   };
   */
-  class QTWfmRender : public QOpenGLWidget, public osg_renderer {
+  class QTRecRender : public QOpenGLWidget, public osg_renderer {
   public:
-    QTWfmViewer *QTViewer; 
+    QTRecViewer *QTViewer; 
     QTimer *AnimTimer; 
     
     // member variables from osg_renderer:
@@ -76,7 +76,7 @@ namespace snde {
     osg::ref_ptr<osg_picker> picker;
     
     
-    QTWfmRender(osg::ref_ptr<osg::Node> RootNode, QTWfmViewer *QTViewer,QWidget *parent=0); // Note: Constructor body moved to qtwfmviewer.cpp because of reference to QTViewer->display
+    QTRecRender(osg::ref_ptr<osg::Node> RootNode, QTRecViewer *QTViewer,QWidget *parent=0); // Note: Constructor body moved to qtrecviewer.cpp because of reference to QTViewer->display
 
     
     void update()
@@ -113,13 +113,13 @@ namespace snde {
       }
     }
 
-  virtual void ClearPickedOrientation(); // in qtwfmviewer.cpp
+  virtual void ClearPickedOrientation(); // in qtrecviewer.cpp
 
     
   protected:
-    virtual void paintGL(); // rendeirng code in qtwfmviewer.cpp
+    virtual void paintGL(); // rendeirng code in qtrecviewer.cpp
 
-    virtual void resizeGL(int width,int height); // code in qtwfmviewer.cpp
+    virtual void resizeGL(int width,int height); // code in qtrecviewer.cpp
 
     virtual void initializeGL()
     {
@@ -251,18 +251,18 @@ namespace snde {
   
 
   
-  class QTWfmSelector : public QFrame {
+  class QTRecSelector : public QFrame {
   public:
     std::string Name;
-    QTWfmViewer *Viewer;
+    QTRecViewer *Viewer;
     QRadioButton *RadioButton;
-    bool touched_during_update; // has this QTWfmSelector been touched during the latest update pass
+    bool touched_during_update; // has this QTRecSelector been touched during the latest update pass
     QPalette basepalette;
     QPalette selectedpalette;
     bool selected;
-    WfmColor wfmcolor; 
+    RecColor reccolor; 
     
-    QTWfmSelector(QTWfmViewer *Viewer,std::string Name,WfmColor wfmcolor,QWidget *parent=0) :
+    QTRecSelector(QTRecViewer *Viewer,std::string Name,RecColor reccolor,QWidget *parent=0) :
       QFrame(parent),
       Viewer(Viewer),
       RadioButton(new QRadioButton(QString::fromStdString(Name),this)),
@@ -270,7 +270,7 @@ namespace snde {
       basepalette(palette()),
       touched_during_update(true),
       selected(false),
-      wfmcolor(wfmcolor)
+      reccolor(reccolor)
     {
       setFrameShadow(QFrame::Shadow::Raised);
       setFrameShape(QFrame::Shape::Box);
@@ -289,11 +289,11 @@ namespace snde {
       selectedpalette = basepalette;
       selectedpalette.setColor(QPalette::Mid,basepalette.color(QPalette::Mid).lighter(150));
       
-      //setcolor(wfmcolor);
+      //setcolor(reccolor);
       setselected(selected);
     }
       
-    void setcolor(WfmColor newcolor)
+    void setcolor(RecColor newcolor)
     {
       float Rscaled=round_to_uchar(newcolor.R*255.0);
       float Gscaled=round_to_uchar(newcolor.G*255.0);
@@ -311,7 +311,7 @@ namespace snde {
       
       setStyleSheet(QString::fromStdString("QRadioButton { color:"+CSScolor+"; }\n" + "QFrame { border: 2px solid " + BorderColor + "; }\n"));
 
-      wfmcolor=newcolor;
+      reccolor=newcolor;
     }
       
     void setselected(bool newselected)
@@ -323,11 +323,11 @@ namespace snde {
       } else {
 	setPalette(basepalette);
       }
-      setcolor(wfmcolor);
+      setcolor(reccolor);
     }
 
     
-    bool eventFilter(QObject *object,QEvent *event); // in qtwfmviewer.cpp
+    bool eventFilter(QObject *object,QEvent *event); // in qtrecviewer.cpp
   };
 
 
@@ -437,7 +437,7 @@ namespace snde {
   }
 
   
-  class qtwfm_position_manager: public QObject
+  class qtrec_position_manager: public QObject
   {
     Q_OBJECT
 
@@ -461,7 +461,7 @@ namespace snde {
     // 1e-1, 2e-1, 5e-1, 1e0, 2e0, 5e0, 1e1
 
     
-    qtwfm_position_manager(std::shared_ptr<display_info> display,QAbstractSlider *HorizSlider,QAbstractSlider *VertSlider,QAbstractSlider *HorizZoom,
+    qtrec_position_manager(std::shared_ptr<display_info> display,QAbstractSlider *HorizSlider,QAbstractSlider *VertSlider,QAbstractSlider *HorizZoom,
 			   //QToolButton *HorizZoomInButton, QToolButton *HorizZoomOutButton,
 			   QAbstractSlider *VertZoom
 			   //QToolButton *VertZoomInButton,QToolButton *VertZoomOutButton
@@ -490,7 +490,7 @@ namespace snde {
       HorizZoom->setRange(0,nzoomsteps-1);
     }
 
-    ~qtwfm_position_manager();
+    ~qtrec_position_manager();
 
 
     std::tuple<double,bool> GetHorizScale()
@@ -670,32 +670,32 @@ namespace snde {
     
     void trigger()
     {
-      double LeftEdgeWfm,RightEdgeWfm,horizunitsperdiv;
-      double BottomEdgeWfm,TopEdgeWfm,vertunitsperdiv;
+      double LeftEdgeRec,RightEdgeRec,horizunitsperdiv;
+      double BottomEdgeRec,TopEdgeRec,vertunitsperdiv;
 
       if (!selected_channel) return; 
       
       std::shared_ptr<mutableinfostore> chan_data;
-      chan_data = display->wfmdb->lookup(selected_channel->FullName());
+      chan_data = display->recdb->lookup(selected_channel->FullName());
 
       if (!chan_data || std::dynamic_pointer_cast<mutablegeomstore>(chan_data)) return; // none of this matters for 3D rendering
 
-      std::tie(LeftEdgeWfm,RightEdgeWfm,horizunitsperdiv)=GetHorizEdges();
-      std::tie(BottomEdgeWfm,TopEdgeWfm,vertunitsperdiv)=GetVertEdges();
+      std::tie(LeftEdgeRec,RightEdgeRec,horizunitsperdiv)=GetHorizEdges();
+      std::tie(BottomEdgeRec,TopEdgeRec,vertunitsperdiv)=GetVertEdges();
 
-      /* NOTE: LeftEdgeWfm and RightEdgeWfm are in waveform coordinates (with units)
-	 so the farther right the waveform is scrolled, the more negative 
-	 LeftEdgeWfm and RightEdgeWfm are.
+      /* NOTE: LeftEdgeRec and RightEdgeRec are in recording coordinates (with units)
+	 so the farther right the recording is scrolled, the more negative 
+	 LeftEdgeRec and RightEdgeRec are.
 	 
 	 By contrast, LeftEdgeInt and RightEdgeInt are the other way around and we 
 	 negate and interchange them to make things work nicely
 
       */
-      int LeftEdgeInt = SliderPosFromScaledPos(LeftEdgeWfm/horizunitsperdiv,horizunitsperdiv, display->horizontal_divisions,power,nsteps);
-      int RightEdgeInt = SliderPosFromScaledPos(RightEdgeWfm/horizunitsperdiv,horizunitsperdiv, display->horizontal_divisions,power,nsteps);
+      int LeftEdgeInt = SliderPosFromScaledPos(LeftEdgeRec/horizunitsperdiv,horizunitsperdiv, display->horizontal_divisions,power,nsteps);
+      int RightEdgeInt = SliderPosFromScaledPos(RightEdgeRec/horizunitsperdiv,horizunitsperdiv, display->horizontal_divisions,power,nsteps);
 
-      int BottomEdgeInt = SliderPosFromScaledPos(-BottomEdgeWfm/vertunitsperdiv,vertunitsperdiv, display->vertical_divisions,power,nsteps);
-      int TopEdgeInt = SliderPosFromScaledPos(-TopEdgeWfm/vertunitsperdiv,vertunitsperdiv, display->vertical_divisions,power,nsteps);
+      int BottomEdgeInt = SliderPosFromScaledPos(-BottomEdgeRec/vertunitsperdiv,vertunitsperdiv, display->vertical_divisions,power,nsteps);
+      int TopEdgeInt = SliderPosFromScaledPos(-TopEdgeRec/vertunitsperdiv,vertunitsperdiv, display->vertical_divisions,power,nsteps);
       
 
       //fprintf(stderr,"LeftEdgeInt=%d; RightEdgeInt=%d\n",LeftEdgeInt,RightEdgeInt);
@@ -807,14 +807,14 @@ namespace snde {
       case QAbstractSlider::SliderMove:
 	if (a) {
 	  std::lock_guard<std::mutex> adminlock(a->admin);
-	  double LeftEdgeWfm=-1.0;
+	  double LeftEdgeRec=-1.0;
 	  if (HorizPosn < 0.0) {
-	    LeftEdgeWfm = log(1.0 - fabs(HorizPosn)/((nsteps-1)/2.0 + 1.0) )*((nsteps-1)/2+1)*horizunitsperdiv;
+	    LeftEdgeRec = log(1.0 - fabs(HorizPosn)/((nsteps-1)/2.0 + 1.0) )*((nsteps-1)/2+1)*horizunitsperdiv;
 	  } else {
-	    LeftEdgeWfm = -log(1.0 - HorizPosn/((nsteps-1)/2.0 + 1.0) )*((nsteps-1)/2+1)*horizunitsperdiv;
+	    LeftEdgeRec = -log(1.0 - HorizPosn/((nsteps-1)/2.0 + 1.0) )*((nsteps-1)/2+1)*horizunitsperdiv;
 	    
 	  }
-	  a->CenterCoord = (LeftEdgeWfm + horizunitsperdiv*display->horizontal_divisions/2);
+	  a->CenterCoord = (LeftEdgeRec + horizunitsperdiv*display->horizontal_divisions/2);
 	  //fprintf(stderr,"HorizSliderMove: Setting CenterCoord to %f\n",a->CenterCoord);
 	}
 	
@@ -895,7 +895,7 @@ namespace snde {
 	break;
 	
       case QAbstractSlider::SliderMove:
-	double BottomEdgeWfm=1.0;
+	double BottomEdgeRec=1.0;
 
 	size_t vertical_divisions;
 	{
@@ -905,19 +905,19 @@ namespace snde {
 	
 	if (selected_channel) {
 	  if (VertPosn < 0.0) {
-	    BottomEdgeWfm = -log(1.0 - fabs(VertPosn)/((nsteps-1)/2.0 + 1.0) )*((nsteps-1)/2+1)*vertunitsperdiv;
+	    BottomEdgeRec = -log(1.0 - fabs(VertPosn)/((nsteps-1)/2.0 + 1.0) )*((nsteps-1)/2+1)*vertunitsperdiv;
 	  } else {
-	    BottomEdgeWfm = log(1.0 - VertPosn/((nsteps-1)/2.0 + 1.0) )*((nsteps-1)/2+1)*vertunitsperdiv;
+	    BottomEdgeRec = log(1.0 - VertPosn/((nsteps-1)/2.0 + 1.0) )*((nsteps-1)/2+1)*vertunitsperdiv;
 	  }
 	  
 	  if (selected_channel->VertZoomAroundAxis) {
 	    std::lock_guard<std::mutex> adminlock(selected_channel->admin);
-	    selected_channel->Position = -BottomEdgeWfm/vertunitsperdiv + vertical_divisions/2;
+	    selected_channel->Position = -BottomEdgeRec/vertunitsperdiv + vertical_divisions/2;
 	    //fprintf(stderr,"Position = %f vert units\n",selected_channel->Position);
 	  } else {
 	    std::lock_guard<std::mutex> adminlock(selected_channel->admin);
-	    selected_channel->VertCenterCoord = BottomEdgeWfm + vertunitsperdiv*vertical_divisions/2;
-	    //fprintf(stderr,"BottomEdgeWfm=%f; VertCenterCoord=%f\n",BottomEdgeWfm,selected_channel->VertCenterCoord);
+	    selected_channel->VertCenterCoord = BottomEdgeRec + vertunitsperdiv*vertical_divisions/2;
+	    //fprintf(stderr,"BottomEdgeRec=%f; VertCenterCoord=%f\n",BottomEdgeRec,selected_channel->VertCenterCoord);
 	  }
 	  
 
@@ -1059,11 +1059,11 @@ namespace snde {
 
   
     
-  class QTWfmViewer : public QWidget {
+  class QTRecViewer : public QWidget {
     Q_OBJECT
   public:
-    QTWfmRender *OSGWidget;
-    std::shared_ptr<mutablewfmdb> wfmdb;
+    QTRecRender *OSGWidget;
+    std::shared_ptr<mutablerecdb> recdb;
     std::shared_ptr<display_info> display;
     std::string selected; // name of selected channel
     std::shared_ptr<snde::geometry> sndegeom;
@@ -1073,26 +1073,26 @@ namespace snde {
     cl_device_id device;
     cl_command_queue queue;
     
-    std::unordered_map<std::string,QTWfmSelector *> Selectors; // indexed by FullName
+    std::unordered_map<std::string,QTRecSelector *> Selectors; // indexed by FullName
     
     QHBoxLayout *layout;
     QWidget *DesignerTree;
-    QWidget *WfmListScrollAreaContent;
-    QVBoxLayout *WfmListScrollAreaLayout;
-    //   QSpacerItem *WfmListScrollAreaBottomSpace;
+    QWidget *RecListScrollAreaContent;
+    QVBoxLayout *RecListScrollAreaLayout;
+    //   QSpacerItem *RecListScrollAreaBottomSpace;
     QLineEdit *ViewerStatus;
     osg::ref_ptr<OSGData> DataRenderer; 
     osg::ref_ptr<OSGComponent> GeomRenderer;
 
-    std::shared_ptr<qtwfm_position_manager> posmgr; 
+    std::shared_ptr<qtrec_position_manager> posmgr; 
     
     std::shared_ptr<osg_instancecache> geomcache;
     std::shared_ptr<osg_parameterizationcache> paramcache;
     std::shared_ptr<osg_texturecache> texcache;
     
-    QTWfmViewer(std::shared_ptr<mutablewfmdb> wfmdb,std::shared_ptr<snde::geometry> sndegeom,std::shared_ptr<trm> rendering_revman,cl_context context, cl_device_id device, cl_command_queue queue,QWidget *parent =0)
+    QTRecViewer(std::shared_ptr<mutablerecdb> recdb,std::shared_ptr<snde::geometry> sndegeom,std::shared_ptr<trm> rendering_revman,cl_context context, cl_device_id device, cl_command_queue queue,QWidget *parent =0)
       : QWidget(parent),
-	wfmdb(wfmdb),
+	recdb(recdb),
 	sndegeom(sndegeom),
 	rendering_revman(rendering_revman),
 	context(context),
@@ -1100,12 +1100,12 @@ namespace snde {
 	queue(queue)   /* !!!*** Should either use reference tracking objects for context, device, and queue, or explicitly reference them and dereference them in the destructor !!!*** */ 
     {
 
-      texcache=std::make_shared<osg_texturecache>(sndegeom,rendering_revman,wfmdb,context,device,queue);
+      texcache=std::make_shared<osg_texturecache>(sndegeom,rendering_revman,recdb,context,device,queue);
       paramcache=std::make_shared<osg_parameterizationcache>(sndegeom,context,device,queue);
       
-      geomcache = std::make_shared<osg_instancecache>(sndegeom,wfmdb,paramcache,context,device,queue);
+      geomcache = std::make_shared<osg_instancecache>(sndegeom,recdb,paramcache,context,device,queue);
       
-      QFile file(":/qtwfmviewer.ui");
+      QFile file(":/qtrecviewer.ui");
       file.open(QFile::ReadOnly);
       
       QUiLoader loader;
@@ -1126,17 +1126,17 @@ namespace snde {
       QGridLayout *viewerGridLayout = DesignerTree->findChild<QGridLayout*>("viewerGridLayout");
       // we want to add our QOpenGLWidget to the 1,0 entry of the QGridLayout
 
-      display = std::make_shared<display_info>(wfmdb);
+      display = std::make_shared<display_info>(recdb);
 
-      OSGWidget=new QTWfmRender(nullptr,this,viewerGridLayout->parentWidget());
+      OSGWidget=new QTRecRender(nullptr,this,viewerGridLayout->parentWidget());
       viewerGridLayout->addWidget(OSGWidget,1,0);
       
-      WfmListScrollAreaContent=DesignerTree->findChild<QWidget *>("wfmListScrollAreaContent");
-      WfmListScrollAreaLayout=new QVBoxLayout();
-      WfmListScrollAreaContent->setLayout(WfmListScrollAreaLayout);
+      RecListScrollAreaContent=DesignerTree->findChild<QWidget *>("recListScrollAreaContent");
+      RecListScrollAreaLayout=new QVBoxLayout();
+      RecListScrollAreaContent->setLayout(RecListScrollAreaLayout);
 
       
-      //setWindowTitle(tr("QTWfmViewer"));
+      //setWindowTitle(tr("QTRecViewer"));
 
       ViewerStatus=DesignerTree->findChild<QLineEdit *>("ViewerStatus");
 
@@ -1229,7 +1229,7 @@ namespace snde {
 							"   image: url(\":/darrow.png\");\n"
 							"}\n"));
 
-      posmgr = std::make_shared<qtwfm_position_manager>(display,HorizSlider,VertSlider,HorizZoom,VertZoom);
+      posmgr = std::make_shared<qtrec_position_manager>(display,HorizSlider,VertSlider,HorizZoom,VertZoom);
       QObject::connect(HorizSlider,SIGNAL(actionTriggered(int)),
 		       posmgr.get(), SLOT(HorizSliderActionTriggered(int)));
 
@@ -1280,7 +1280,7 @@ namespace snde {
       // eventfilter monitors for keypresses
       //      installEventFilter(this);
       
-      update_wfm_list();
+      update_rec_list();
       rendering_revman->Start_Transaction();
       update_renderer();
       rendering_revman->End_Transaction();
@@ -1289,7 +1289,7 @@ namespace snde {
     }
 
     
-    std::shared_ptr<display_channel> FindDisplayChan(QTWfmSelector *Selector)
+    std::shared_ptr<display_channel> FindDisplayChan(QTRecSelector *Selector)
     {
 
       if (!Selector) return nullptr;
@@ -1307,17 +1307,17 @@ namespace snde {
       return nullptr; 
     }
     
-    void set_selected(QTWfmSelector *Selector)
+    void set_selected(QTRecSelector *Selector)
     // assumes Selector already highlighted 
     {
 
       std::shared_ptr<display_channel> displaychan=FindDisplayChan(Selector);
       
       Selector->setselected(true);
-      //std::shared_ptr<iterablewfmrefs> wfmlist=wfmdb->wfmlist();
+      //std::shared_ptr<iterablerecrefs> reclist=recdb->reclist();
       
-      //for (auto wfmiter=wfmlist->begin();wfmiter != wfmlist->end();wfmiter++) {
-      //std::shared_ptr<mutableinfostore> infostore=*wfmiter;
+      //for (auto reciter=reclist->begin();reciter != reclist->end();reciter++) {
+      //std::shared_ptr<mutableinfostore> infostore=*reciter;
       posmgr->set_selected(displaychan);
       selected = displaychan->FullName();
       //}
@@ -1327,7 +1327,7 @@ namespace snde {
       //UpdateViewerStatus(); // Now taken care of by posmgr->set_selected()'s call to trigger which emits into this slot
     }
     
-    void update_data_renderer(const std::vector<std::shared_ptr<display_channel>> &currentwfmlist)
+    void update_data_renderer(const std::vector<std::shared_ptr<display_channel>> &currentreclist)
     // Must be called inside a transaction!
     {
       GeomRenderer=nullptr; /* remove geom rendering while rendering data */ 
@@ -1336,22 +1336,22 @@ namespace snde {
 	DataRenderer=new OSGData(display,rendering_revman);
       }
       display->set_pixelsperdiv(OSGWidget->width(),OSGWidget->height());
-      DataRenderer->update(sndegeom,wfmdb,selected,currentwfmlist,OSGWidget->width(),OSGWidget->height(),context,device,queue);
+      DataRenderer->update(sndegeom,recdb,selected,currentreclist,OSGWidget->width(),OSGWidget->height(),context,device,queue);
       OSGWidget->SetTwoDimensional(true);
       OSGWidget->SetRootNode(DataRenderer);
     }
 
-    void update_geom_renderer(std::shared_ptr<display_channel> geomchan,std::string wfmname /*std::shared_ptr<mutablegeomstore> geomstore*/,const std::vector<std::shared_ptr<display_channel>> &currentwfmlist)
+    void update_geom_renderer(std::shared_ptr<display_channel> geomchan,std::string recname /*std::shared_ptr<mutablegeomstore> geomstore*/,const std::vector<std::shared_ptr<display_channel>> &currentreclist)
     // Must be called inside a transaction!
     {
       if (DataRenderer) {
 	DataRenderer->clearcache(); // empty out data renderer
       }
       
-      if (!GeomRenderer  || (GeomRenderer && GeomRenderer->wfmname != wfmname)) {
+      if (!GeomRenderer  || (GeomRenderer && GeomRenderer->recname != recname)) {
 	// component mismatch: Need new GeomRenderer
 	fprintf(stderr,"New OSGComponent()\n");
-	GeomRenderer=new OSGComponent(sndegeom,geomcache,paramcache,texcache,wfmdb,rendering_revman,wfmname /*geomstore*/,display);
+	GeomRenderer=new OSGComponent(sndegeom,geomcache,paramcache,texcache,recdb,rendering_revman,recname /*geomstore*/,display);
       }
       OSGWidget->SetTwoDimensional(false);
       OSGWidget->SetRootNode(GeomRenderer);
@@ -1360,25 +1360,25 @@ namespace snde {
     void update_renderer()
     // Must be called inside a transaction!
     {
-      std::vector<std::shared_ptr<display_channel>> currentwfmlist = display->update(selected,false,false);
+      std::vector<std::shared_ptr<display_channel>> currentreclist = display->update(selected,false,false);
       std::shared_ptr<display_channel> geomchan;
       // Is any channel a mutablegeomstore? i.e. do we render a 3D geometry
       std::shared_ptr<mutablegeomstore> geom;
       
-      for (size_t pos=0;pos < currentwfmlist.size();pos++) {
+      for (size_t pos=0;pos < currentreclist.size();pos++) {
 	std::shared_ptr<mutableinfostore> chan_data;
-	chan_data = display->wfmdb->lookup(currentwfmlist[pos]->FullName());
+	chan_data = display->recdb->lookup(currentreclist[pos]->FullName());
 	
 	if (chan_data && std::dynamic_pointer_cast<mutablegeomstore>(chan_data)) {
 	  geom=std::dynamic_pointer_cast<mutablegeomstore>(chan_data);
-	  geomchan=currentwfmlist[pos];
+	  geomchan=currentreclist[pos];
 	}
       }
       
       if (geom) {
-	update_geom_renderer(geomchan,geomchan->FullName(),currentwfmlist);
+	update_geom_renderer(geomchan,geomchan->FullName(),currentreclist);
       } else {
-	update_data_renderer(currentwfmlist);
+	update_data_renderer(currentreclist);
       }
     }
 
@@ -1393,25 +1393,25 @@ namespace snde {
       }
     }
     
-    void update_wfm_list()  
+    void update_rec_list()  
     {
-      std::vector<std::shared_ptr<display_channel>> currentwfmlist = display->update("",true,false);
+      std::vector<std::shared_ptr<display_channel>> currentreclist = display->update("",true,false);
 
       // clear touched flag for all selectors
       for(auto & selector: Selectors) {
 	selector.second->touched_during_update=false;
       }
 
-      // iterate over wfm list
+      // iterate over rec list
       size_t pos=0;
-      for (auto & displaychan: currentwfmlist) {
+      for (auto & displaychan: currentreclist) {
 	std::lock_guard<std::mutex> displaychanlock(displaychan->admin);
 
 	auto selector_iter = Selectors.find(displaychan->FullName());
 	if (selector_iter == Selectors.end()) {
 	  // create a new selector
-	  QTWfmSelector *NewSel = new QTWfmSelector(this,displaychan->FullName(),WfmColorTable[displaychan->ColorIdx],WfmListScrollAreaContent);
-	  WfmListScrollAreaLayout->insertWidget(pos,NewSel);
+	  QTRecSelector *NewSel = new QTRecSelector(this,displaychan->FullName(),RecColorTable[displaychan->ColorIdx],RecListScrollAreaContent);
+	  RecListScrollAreaLayout->insertWidget(pos,NewSel);
 	  Selectors[displaychan->FullName()]=NewSel;
 	  QObject::connect(NewSel->RadioButton,SIGNAL(clicked(bool)),
 			   this,SLOT(SelectorClicked(bool)));
@@ -1419,17 +1419,17 @@ namespace snde {
 	  //this,SLOT(SelectorClicked(bool)));
 	}
       
-	QTWfmSelector *Sel = Selectors[displaychan->FullName()];
+	QTRecSelector *Sel = Selectors[displaychan->FullName()];
 	Sel->touched_during_update=true;
 	
-	if (WfmListScrollAreaLayout->indexOf(Sel) != pos) {
+	if (RecListScrollAreaLayout->indexOf(Sel) != pos) {
 	  /* entry is out-of-order */
-	  WfmListScrollAreaLayout->removeWidget(Sel);
-	  WfmListScrollAreaLayout->insertWidget(pos,Sel);
+	  RecListScrollAreaLayout->removeWidget(Sel);
+	  RecListScrollAreaLayout->insertWidget(pos,Sel);
 	}
 
-	if (Sel->wfmcolor != WfmColorTable[displaychan->ColorIdx]) {
-	  Sel->setcolor(WfmColorTable[displaychan->ColorIdx]);
+	if (Sel->reccolor != RecColorTable[displaychan->ColorIdx]) {
+	  Sel->setcolor(RecColorTable[displaychan->ColorIdx]);
 	}
 	if (displaychan->Enabled != Sel->RadioButton->isChecked()) {
 	  Sel->RadioButton->setChecked(displaychan->Enabled);
@@ -1444,7 +1444,7 @@ namespace snde {
       
 
       // re-iterate through selectors, removing any that weren't touched
-      std::unordered_map<std::string,QTWfmSelector *>::iterator selector_iter, next_selector_iter;
+      std::unordered_map<std::string,QTRecSelector *>::iterator selector_iter, next_selector_iter;
   
       for(selector_iter=Selectors.begin(); selector_iter != Selectors.end(); selector_iter = next_selector_iter) {
 	next_selector_iter=selector_iter;
@@ -1462,15 +1462,15 @@ namespace snde {
 
       // remove anything else from the tree, including our stretch
 
-      while (pos < WfmListScrollAreaLayout->count()) {
-	WfmListScrollAreaLayout->removeItem(WfmListScrollAreaLayout->itemAt(pos));
+      while (pos < RecListScrollAreaLayout->count()) {
+	RecListScrollAreaLayout->removeItem(RecListScrollAreaLayout->itemAt(pos));
       }
 
       // add our stretch
-      WfmListScrollAreaLayout->addStretch(10);
+      RecListScrollAreaLayout->addStretch(10);
     }
 
-    void deselect_other_selectors(QTWfmSelector *Selected)
+    void deselect_other_selectors(QTRecSelector *Selected)
     {
       for (auto & name_sel : Selectors) {
 	if (name_sel.second != Selected) {
@@ -1489,7 +1489,7 @@ namespace snde {
 
       if (posmgr->selected_channel) {
 	std::shared_ptr<mutableinfostore> chan_data;
-	chan_data = wfmdb->lookup(posmgr->selected_channel->FullName());
+	chan_data = recdb->lookup(posmgr->selected_channel->FullName());
 
 	std::shared_ptr<display_axis> a = display->GetFirstAxis(posmgr->selected_channel->FullName());	
 	std::shared_ptr<mutabledatastore> datastore=std::dynamic_pointer_cast<mutabledatastore>(chan_data);
@@ -1700,7 +1700,7 @@ namespace snde {
     {
       if (posmgr->selected_channel) {
 	std::shared_ptr<mutableinfostore> chan_data;
-	chan_data = wfmdb->lookup(posmgr->selected_channel->FullName());
+	chan_data = recdb->lookup(posmgr->selected_channel->FullName());
 
 	//{
 	//  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
@@ -1738,7 +1738,7 @@ namespace snde {
 
 	std::shared_ptr<mutableinfostore> chan_data;
 	
-	chan_data = wfmdb->lookup(posmgr->selected_channel->FullName());
+	chan_data = recdb->lookup(posmgr->selected_channel->FullName());
 
 	if (chan_data) {
 	  
@@ -1769,7 +1769,7 @@ namespace snde {
     {
       if (posmgr->selected_channel) {
 	std::shared_ptr<mutableinfostore> chan_data;
-	chan_data = wfmdb->lookup(posmgr->selected_channel->FullName());
+	chan_data = recdb->lookup(posmgr->selected_channel->FullName());
 	
 
 	if (chan_data) {
@@ -1802,7 +1802,7 @@ namespace snde {
     {
       if (posmgr->selected_channel) {
 	std::shared_ptr<mutableinfostore> chan_data;
-	chan_data = wfmdb->lookup(posmgr->selected_channel->FullName());
+	chan_data = recdb->lookup(posmgr->selected_channel->FullName());
 	double Scale;
 	{
 	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
@@ -1865,7 +1865,7 @@ namespace snde {
     {
       if (posmgr->selected_channel) {
 	std::shared_ptr<mutableinfostore> chan_data;
-	chan_data = wfmdb->lookup(posmgr->selected_channel->FullName());
+	chan_data = recdb->lookup(posmgr->selected_channel->FullName());
 	double Scale;
 	{
 	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
@@ -1927,4 +1927,4 @@ namespace snde {
   
 
   }
-#endif // SNDE_QTWFMVIEWER_HPP
+#endif // SNDE_QTRECVIEWER_HPP

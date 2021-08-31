@@ -19,7 +19,7 @@
 #include "projinfo_calculation.hpp"
 
 #include "arraymanager.hpp"
-#include "wfmdb_paths.hpp"
+#include "recdb_paths.hpp"
 
 #include "stringtools.hpp"
 
@@ -58,7 +58,7 @@ namespace snde {
   class mutableinfostore;
   class mutabledatastore;
   class mutableparameterizationstore;
-  class mutablewfmdb;
+  class mutablerecdb;
   
   class geometry {
   public:
@@ -347,11 +347,11 @@ namespace snde {
       
     }
     
-    std::shared_ptr<trm_dependency> request_boxes(std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,std::string wfmname,std::shared_ptr<geometry> geom,std::shared_ptr<parameterization> param,std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
+    std::shared_ptr<trm_dependency> request_boxes(std::shared_ptr<mutablerecdb> recdb,std::string recdb_context,std::string recname,std::shared_ptr<geometry> geom,std::shared_ptr<parameterization> param,std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
     {
       // must be called during a transaction!
       if (!boxes_function) {
-	boxes_function = boxes_calculation_2d(wfmdb,wfmdb_context,wfmname,geom,revman,param,patchnum,context,device,queue);
+	boxes_function = boxes_calculation_2d(recdb,recdb_context,recname,geom,revman,param,patchnum,context,device,queue);
       }
       return boxes_function;
     }
@@ -410,10 +410,10 @@ namespace snde {
 
     virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>>
     explore_component_get_instances(std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>> &component_set,
-				     std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::string wfmdb_context,
+				     std::shared_ptr<iterablerecrefs> recdb_reclist,std::string recdb_context,
 				     snde_orientation3 orientation,
 				     std::shared_ptr<immutable_metadata> metadata,
-				    std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata)
+				    std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablerecrefs> recdb_reclist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata)
     {
       std::shared_ptr<parameterization> our_ptr=std::dynamic_pointer_cast<parameterization>(shared_from_this());
       
@@ -436,25 +436,25 @@ namespace snde {
     //  patches.emplace(std::pair<std::string,std::shared_ptr<uv_patches>>(to_add->name,to_add));
     //}
 
-    std::vector<std::shared_ptr<trm_dependency>> request_boxes(std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,std::string wfmname,std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
+    std::vector<std::shared_ptr<trm_dependency>> request_boxes(std::shared_ptr<mutablerecdb> recdb,std::string recdb_context,std::string recname,std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
     {
       // must be called during a transaction!
       std::vector<std::shared_ptr<trm_dependency>> ret;
       
       for (size_t cnt=0;cnt < patches.size();cnt++) {
-	ret.push_back(patches.at(cnt)->request_boxes(wfmdb,wfmdb_context,wfmname,geom,std::dynamic_pointer_cast<parameterization>(shared_from_this()),revman,context,device,queue));
+	ret.push_back(patches.at(cnt)->request_boxes(recdb,recdb_context,recname,geom,std::dynamic_pointer_cast<parameterization>(shared_from_this()),revman,context,device,queue));
       }
       return ret;
     }
 
 
-    std::shared_ptr<trm_dependency> request_projinfo(std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,std::string wfmname,std::shared_ptr<part> partobj,std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
+    std::shared_ptr<trm_dependency> request_projinfo(std::shared_ptr<mutablerecdb> recdb,std::string recdb_context,std::string recname,std::shared_ptr<part> partobj,std::shared_ptr<trm> revman,cl_context context, cl_device_id device, cl_command_queue queue)
     {
       // partobj must be the (unique!) part that this parameterization corresponds to. It need not be locked. 
       
       // must be called during a transaction!
       if (!projinfo_function) {
-	projinfo_function = projinfo_calculation(wfmdb,wfmdb_context,wfmname,geom,revman,partobj,std::dynamic_pointer_cast<parameterization>(shared_from_this()),context,device,queue);
+	projinfo_function = projinfo_calculation(recdb,recdb_context,recname,geom,revman,partobj,std::dynamic_pointer_cast<parameterization>(shared_from_this()),context,device,queue);
       }
       return projinfo_function;
     }
@@ -467,7 +467,7 @@ namespace snde {
       
     }
     
-    /* virtual rwlock_token_set obtain_lock(std::shared_ptr<lockingprocess> process,std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist=null,std::string wfmdb_context="",snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_PARAMETERIZATIONS,snde_infostore_lock_mask_t writemask=0,temporary=false) // readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits 
+    /* virtual rwlock_token_set obtain_lock(std::shared_ptr<lockingprocess> process,std::shared_ptr<iterablerecrefs> recdb_reclist=null,std::string recdb_context="",snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_PARAMETERIZATIONS,snde_infostore_lock_mask_t writemask=0,temporary=false) // readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits 
     {
       // lock this parameterization
       // Assumes this is either the only parameterization being locked or the caller is taking care of the locking order
@@ -480,12 +480,12 @@ namespace snde {
     }
     
     */
-    virtual void obtain_geom_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist=nullptr,std::string wfmdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_infostore_lock_mask_t writemask=0,snde_infostore_lock_mask_t resizemask=0) /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */
+    virtual void obtain_geom_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablerecrefs> recdb_reclist=nullptr,std::string recdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_infostore_lock_mask_t writemask=0,snde_infostore_lock_mask_t resizemask=0) /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */
     {
       // Nothing to do here as we only have parameterization (uv), not geometry 
     }
     
-    virtual void obtain_uv_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist=nullptr,std::string wfmdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_UV_GEOM_ALL, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
+    virtual void obtain_uv_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablerecrefs> recdb_reclist=nullptr,std::string recdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_UV_GEOM_ALL, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
     // NOTE: obtain_uv_lock() is parallel in functionality to obtain_geom_lock()
     // (i.e. locks underlying UV geometry data structures), NOT component obtain_lock(), which just locks C++ structures.
     // ... Note that mutablegeomstore::obtain_lock DOES lock underlying regular geometry if requested but NOT uv... (at least not yet)
@@ -756,18 +756,18 @@ namespace snde {
     
 
     // If you have the geometry for this component (and subcomponents) locked via obtain_geom_lock() -- usually via superclass obtain_graph_lock(), ,get_instances will return you a vector of instances
-    //virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::string wfmdb_context,snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data)=0;
+    //virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(std::shared_ptr<iterablerecrefs> recdb_reclist,std::string recdb_context,snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data)=0;
 
     // obtain_geom_lock prototype is in superclass
-    //virtual void obtain_geom_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablewfmrefs> wfmdb_wfmrefs=null,std::string wfmdb_context="",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_infostore_lock_mask_t writemask=0,snde_infostore_lock_mask_t resizemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */
+    //virtual void obtain_geom_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablerecrefs> recdb_recrefs=null,std::string recdb_context="",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_infostore_lock_mask_t writemask=0,snde_infostore_lock_mask_t resizemask=0)=0; /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */
 
     // explore_component_get_instances() defined in superclass infostore_or_component.hpp
     virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>>
     explore_component_get_instances(std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>> &component_set,
-				     std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::string wfmdb_context,
+				     std::shared_ptr<iterablerecrefs> recdb_reclist,std::string recdb_context,
 				     snde_orientation3 orientation,
 				     std::shared_ptr<immutable_metadata> metadata,
-				    std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata)=0;
+				    std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablerecrefs> recdb_reclist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata)=0;
 
     
     virtual void modified()
@@ -795,37 +795,37 @@ namespace snde {
       ;
   };
 
-  class wfmcomponent: public component {
-    // ****!!!!!! THIS CLASS IS PROBABLY OBSOLETE AND NOT NEEDED ANY MORE now that wfminfostores
+  class reccomponent: public component {
+    // ****!!!!!! THIS CLASS IS PROBABLY OBSOLETE AND NOT NEEDED ANY MORE now that recinfostores
     // are the primary pointers to geometry anyway.
     
-    // A component that is a mutablegeomstore in the same wfmdb as this geometry 
+    // A component that is a mutablegeomstore in the same recdb as this geometry 
     // superclass defines:
     //   std::string name
     //   std::shared_ptr<rwlock> lock; 
     const std::string path; // can be absolute (leading /) or relative. constness makes it thread-safe
 
-    wfmcomponent(std::string path) :
+    reccomponent(std::string path) :
       component(),
       path(path)
     {
 
     }
     
-    //virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::string wfmdb_context,snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_uv_imagedata); // implementation in geometry.cpp
+    //virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(std::shared_ptr<iterablerecrefs> recdb_reclist,std::string recdb_context,snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_uv_imagedata); // implementation in geometry.cpp
 
 
-    virtual void obtain_geom_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist=nullptr,std::string wfmdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_infostore_lock_mask_t writemask=0,snde_infostore_lock_mask_t resizemask=0); /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */ // moved to geometry.cpp
+    virtual void obtain_geom_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablerecrefs> recdb_reclist=nullptr,std::string recdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_infostore_lock_mask_t writemask=0,snde_infostore_lock_mask_t resizemask=0); /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */ // moved to geometry.cpp
 
     virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>>
     explore_component_get_instances(std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>> &component_set,
-				    std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::string wfmdb_context,
+				    std::shared_ptr<iterablerecrefs> recdb_reclist,std::string recdb_context,
 				     snde_orientation3 orientation,
 				    std::shared_ptr<immutable_metadata> metadata,
-				    std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata); // moved to geomemtry.cpp
+				    std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablerecrefs> recdb_reclist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata); // moved to geomemtry.cpp
 
     /*
-    virtual rwlock_token_set obtain_lock(std::shared_ptr<lockingprocess> process,std::shared_ptr<mutablewfmdb> wfmdb=null,std::string wfmdb_context="",snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS,snde_infostore_lock_mask_t writemask=0,temporary=false)
+    virtual rwlock_token_set obtain_lock(std::shared_ptr<lockingprocess> process,std::shared_ptr<mutablerecdb> recdb=null,std::string recdb_context="",snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS,snde_infostore_lock_mask_t writemask=0,temporary=false)
     {
       // attempt to obtain set of component pointers
       // including this component and all sub-components.
@@ -833,8 +833,8 @@ namespace snde {
       
       std::shared_ptr<component> our_ptr=shared_from_this(); 
 
-      std::string full_path=wfmdb_path_join(wfmdb_context,path);
-      std::shared_ptr<mutablegeomstore> geomstore = std::dynamic_pointer_cast<mutablegeomstore>(wfmdb->lookup(full_path));
+      std::string full_path=recdb_path_join(recdb_context,path);
+      std::shared_ptr<mutablegeomstore> geomstore = std::dynamic_pointer_cast<mutablegeomstore>(recdb->lookup(full_path));
      
 
       // ***!!!! Need to reorder locking of us vs geomstore according to locking order? ***!!!
@@ -842,9 +842,9 @@ namespace snde {
       process->get_locks_lockable_mask(our_ptr,SNDE_INFOSTORE_COMPONENTS,readmask & SNDE_INFOSTORE_ALL,writemask & SNDE_INFOSTORE_ALL);
       if (geomstore) {
 	
-	geomstore->obtain_lock(process,wfmdb,full_path,readmask,writemask);
+	geomstore->obtain_lock(process,recdb,full_path,readmask,writemask);
       } else {
-	fprintf(stderr,"Warning: wfmcomponent:obtain_lock: geometry store %s not found\n",(char *)full_path);
+	fprintf(stderr,"Warning: reccomponent:obtain_lock: geometry store %s not found\n",(char *)full_path);
       }
     }
     */
@@ -867,7 +867,7 @@ namespace snde {
     
     //std::shared_ptr<const std::map<std::string,std::shared_ptr<parameterization>>> _parameterizations; /* atomic shared pointer to parameterization map */ /* NOTE: is a string (URI?) really the proper way to index parameterizations? ... may want to change this */
 
-    std::shared_ptr<const std::set<std::string>> _parameterizations; // set of waveform names relative to our context
+    std::shared_ptr<const std::set<std::string>> _parameterizations; // set of recording names relative to our context
     
     std::shared_ptr<trm_dependency> normal_function;
     std::shared_ptr<trm_dependency> inplanemat_function;
@@ -954,12 +954,12 @@ namespace snde {
 
     virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>>
     explore_component_get_instances(std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>> &component_set,
-				    std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::string wfmdb_context,
+				    std::shared_ptr<iterablerecrefs> recdb_reclist,std::string recdb_context,
 				    snde_orientation3 orientation,
 				    std::shared_ptr<immutable_metadata> metadata,
-				    std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata); // implementation in geometry.cpp
+				    std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablerecrefs> recdb_reclist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata); // implementation in geometry.cpp
     /*
-    virtual rwlock_token_set obtain_lock(std::shared_ptr<lockingprocess> process,std::shared_ptr<mutablewfmdb> wfmdb=null,std::string wfmdb_context="",snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS,snde_infostore_lock_mask_t writemask=0,temporary=false) // readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits 
+    virtual rwlock_token_set obtain_lock(std::shared_ptr<lockingprocess> process,std::shared_ptr<mutablerecdb> recdb=null,std::string recdb_context="",snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS,snde_infostore_lock_mask_t writemask=0,temporary=false) // readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits 
     {
       // attempt to obtain set of component pointers
       // including this component and all sub-components.
@@ -974,15 +974,15 @@ namespace snde {
       }
 
       if (readmask & SNDE_COMPONENT_GEOM_ALL || writemask & SNDE_COMPONENT_GEOM_ALL) { // if ANY geometry requested... 
-	obtain_geom_lock(process,wfmdb,wfmdb_context,readmask & SNDE_COMPONENT_GEOM_ALL,writemask & SNDE_COMPONENT_GEOM_ALL);
+	obtain_geom_lock(process,recdb,recdb_context,readmask & SNDE_COMPONENT_GEOM_ALL,writemask & SNDE_COMPONENT_GEOM_ALL);
       }
       // *** need to support temporary parameter and returning a value ***!!! 
     }
     */
       
-    virtual std::shared_ptr<mutableparameterizationstore> addparameterization(std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,std::shared_ptr<snde::parameterization> parameterization,std::string name,const wfmmetadata &metadata);
+    virtual std::shared_ptr<mutableparameterizationstore> addparameterization(std::shared_ptr<mutablerecdb> recdb,std::string recdb_context,std::shared_ptr<snde::parameterization> parameterization,std::string name,const recmetadata &metadata);
     /*
-    virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::string wfmdb_context,snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_uv_imagedata) //,std::shared_ptr<std::unordered_map<std::string,metadatum>> metadata)
+    virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(std::shared_ptr<iterablerecrefs> recdb_reclist,std::string recdb_context,snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_uv_imagedata) //,std::shared_ptr<std::unordered_map<std::string,metadatum>> metadata)
     {
       struct snde_partinstance ret=snde_partinstance{ .orientation=orientation,
 	                                              .partnum = idx(),
@@ -1060,7 +1060,7 @@ namespace snde {
 //    }
 */    
 
-    virtual void obtain_geom_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist=nullptr,std::string wfmdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
+    virtual void obtain_geom_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablerecrefs> recdb_reclist=nullptr,std::string recdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
     {
       /* writemask contains OR'd SNDE_COMPONENT_GEOM_xxx bits */
 
@@ -1162,7 +1162,7 @@ namespace snde {
 
 
 
-    virtual void obtain_uv_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist=nullptr,std::string wfmdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
+    virtual void obtain_uv_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablerecrefs> recdb_reclist=nullptr,std::string recdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
     {
       // Does nothing because we are not a parameterization
       
@@ -1250,7 +1250,7 @@ namespace snde {
     // ancestor mutablegeomstore (mutableinfostore)
     // this lock should be held when calling its methods
   public:
-    // "pieces" vector uses name (wfmdb path relative to this context) and orientation
+    // "pieces" vector uses name (recdb path relative to this context) and orientation
     // to set up multiple components within the assembly.
     // names can be repeated... From a metadata perspective
     // it would be like the name with an integer >= 2 concatenated, e.g. mypart2
@@ -1308,13 +1308,13 @@ namespace snde {
     
     virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>>
     explore_component_get_instances(std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>> &component_set,
-				    std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::string wfmdb_context,
+				    std::shared_ptr<iterablerecrefs> recdb_reclist,std::string recdb_context,
 				    snde_orientation3 orientation,
 				    std::shared_ptr<immutable_metadata> metadata,
-				    std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata);
+				    std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablerecrefs> recdb_reclist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata);
     
     /*
-    virtual rwlock_token_set obtain_lock(std::shared_ptr<lockingprocess> process,std::shared_ptr<mutablewfmdb> wfmdb=null,std::string wfmdb_context="",snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS|SNDE_INFOSTORE_INFOSTORE,snde_infostore_lock_mask_t writemask=0,bool temporary=false) // readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits. If temporary is set, then locks returned but not merged into process status.  
+    virtual rwlock_token_set obtain_lock(std::shared_ptr<lockingprocess> process,std::shared_ptr<mutablerecdb> recdb=null,std::string recdb_context="",snde_infostore_lock_mask_t readmask=SNDE_INFOSTORE_COMPONENTS|SNDE_INFOSTORE_INFOSTORE,snde_infostore_lock_mask_t writemask=0,bool temporary=false) // readmask/writemask contains OR'd SNDE_INFOSTORE_xxx bits. If temporary is set, then locks returned but not merged into process status.  
     {
       // attempt to obtain set of component pointers
       // including this component and all sub-components.
@@ -1330,7 +1330,7 @@ namespace snde {
       // Now the geometry (if applicable)
       if (readmask & SNDE_COMPONENT_GEOM_ALL || writemask & SNDE_COMPONENT_GEOM_ALL) { // if ANY geometry requested... 
 	for (auto & comp: component_set) {
-	  comp->obtain_geom_lock(process,wfmdb,wfmdb_context,readmask & SNDE_COMPONENT_GEOM_ALL,writemask & SNDE_COMPONENT_GEOM_ALL);
+	  comp->obtain_geom_lock(process,recdb,recdb_context,readmask & SNDE_COMPONENT_GEOM_ALL,writemask & SNDE_COMPONENT_GEOM_ALL);
 	  
 	}
       }
@@ -1339,7 +1339,7 @@ namespace snde {
     */
     
     /*
-    virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::string wfmdb_context,snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data)
+    virtual std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> get_instances(std::shared_ptr<iterablerecrefs> recdb_reclist,std::string recdb_context,snde_orientation3 orientation, std::shared_ptr<immutable_metadata> metadata, std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>(std::shared_ptr<part> partdata,std::vector<std::string> parameterization_data_names)> get_param_data)
     {
       std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>> instances;
 
@@ -1352,16 +1352,16 @@ namespace snde {
 	snde_orientation3 neworientation;
 	orientation_orientation_multiply(orientation,std::get<0>(piece.second),&neworientation);
 	
-	std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>>  newinstances=std::get<1>(piece.second)->get_instances(wfmdb_wfmlist,wfmdb_context,neworientation,reduced_metadata,get_param_data);
+	std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::shared_ptr<image_data>>>>  newinstances=std::get<1>(piece.second)->get_instances(recdb_reclist,recdb_context,neworientation,reduced_metadata,get_param_data);
 	instances.insert(instances.end(),newinstances.begin(),newinstances.end());
       }
       return instances;
     }
     */
     
-    virtual void obtain_geom_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist=nullptr,std::string wfmdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_infostore_lock_mask_t writemask=0,snde_infostore_lock_mask_t resizemask=0);
+    virtual void obtain_geom_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablerecrefs> recdb_reclist=nullptr,std::string recdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL,snde_infostore_lock_mask_t writemask=0,snde_infostore_lock_mask_t resizemask=0);
 
-    virtual void obtain_uv_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist=nullptr,std::string wfmdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
+    virtual void obtain_uv_lock(std::shared_ptr<lockingprocess> process, std::shared_ptr<iterablerecrefs> recdb_reclist=nullptr,std::string recdb_context="/",snde_infostore_lock_mask_t readmask=SNDE_COMPONENT_GEOM_ALL, snde_infostore_lock_mask_t writemask=0, snde_infostore_lock_mask_t resizemask=0)
     {
       // Does nothing because we are not a parameterization
       
@@ -1374,7 +1374,7 @@ namespace snde {
     }
 
 
-    static std::shared_ptr<assembly> from_partlist(std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,std::shared_ptr<std::vector<std::string>> partnames)
+    static std::shared_ptr<assembly> from_partlist(std::shared_ptr<mutablerecdb> recdb,std::string recdb_context,std::shared_ptr<std::vector<std::string>> partnames)
     {
       snde_orientation3 null_orientation;
       snde_null_orientation3(&null_orientation);

@@ -12,7 +12,7 @@
 
 #include "revision_manager.hpp"
 #include "data_to_rgba.hpp"
-#include "wfm_display.hpp"
+#include "rec_display.hpp"
 
 #ifndef SNDE_OPENSCENEGRAPH_DATA_HPP
 #define SNDE_OPENSCENEGRAPH_DATA_HPP
@@ -328,12 +328,12 @@ public:
   }
   
 
-  std::tuple<double,double> GetScalefactors(std::string wfmname)
+  std::tuple<double,double> GetScalefactors(std::string recname)
   {
     double horizscalefactor,vertscalefactor;
     
-    std::shared_ptr<display_axis> a = display->GetFirstAxis(wfmname);
-    std::shared_ptr<display_axis> b = display->GetSecondAxis(wfmname);
+    std::shared_ptr<display_axis> a = display->GetFirstAxis(recname);
+    std::shared_ptr<display_axis> b = display->GetSecondAxis(recname);
 
     std::shared_ptr<display_unit> u = a->unit;
     std::shared_ptr<display_unit> v = b->unit;
@@ -363,7 +363,7 @@ public:
     return std::make_tuple(horizscalefactor,vertscalefactor);
   }
   
-  osg::Matrixd GetChannelTransform(std::string wfmname,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index)
+  osg::Matrixd GetChannelTransform(std::string recname,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index)
   {
 
 
@@ -374,8 +374,8 @@ public:
     
     std::tie(horizontal_padding,vertical_padding) = GetPadding(drawareawidth,drawareaheight);
     
-    std::shared_ptr<display_axis> a = display->GetFirstAxis(wfmname);
-    std::shared_ptr<display_axis> b = display->GetSecondAxis(wfmname);
+    std::shared_ptr<display_axis> a = display->GetFirstAxis(recname);
+    std::shared_ptr<display_axis> b = display->GetSecondAxis(recname);
 
     // we assume a drawing area that goes from (-0.5,-0.5) in the lower-left corner
     // to (drawareawidth-0.5,drawareaheight-0.5) in the upper-right.
@@ -403,7 +403,7 @@ public:
       }
     }
 
-    std::tie(horizscalefactor,vertscalefactor)=GetScalefactors(wfmname);
+    std::tie(horizscalefactor,vertscalefactor)=GetScalefactors(recname);
 
 
     
@@ -421,7 +421,7 @@ public:
     
   
 
-  std::shared_ptr<osg_datacachebase> update_datastore_image(std::shared_ptr<geometry> geom,std::shared_ptr<mutablewfmdb> wfmdb, std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index,cl_context context, cl_device_id device, cl_command_queue queue)
+  std::shared_ptr<osg_datacachebase> update_datastore_image(std::shared_ptr<geometry> geom,std::shared_ptr<mutablerecdb> recdb, std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index,cl_context context, cl_device_id device, cl_command_queue queue)
   /****!!! Can only be called during a rendering_revman transaction (but 
        nothing shoudl be locked) */ 
   {
@@ -637,7 +637,7 @@ public:
       cacheentry->borderstateset->setAttributeAndModes(cacheentry->borderlinewidth,osg::StateAttribute::ON);
       cacheentry->bordergeom->setStateSet(cacheentry->borderstateset);
       osg::ref_ptr<osg::Vec4Array> BorderColorArray=new osg::Vec4Array();
-      BorderColorArray->push_back(osg::Vec4(WfmColorTable[displaychan->ColorIdx].R,WfmColorTable[displaychan->ColorIdx].G,WfmColorTable[displaychan->ColorIdx].B,1.0));
+      BorderColorArray->push_back(osg::Vec4(RecColorTable[displaychan->ColorIdx].R,RecColorTable[displaychan->ColorIdx].G,RecColorTable[displaychan->ColorIdx].B,1.0));
       cacheentry->bordergeom->setColorArray(BorderColorArray,osg::Array::BIND_OVERALL);
       cacheentry->bordergeom->setColorBinding(osg::Geometry::BIND_OVERALL);
       
@@ -668,7 +668,7 @@ public:
       std::weak_ptr<osg_dataimagecacheentry> cacheentryweak=std::weak_ptr<osg_dataimagecacheentry>(cacheentry);
       
       cacheentry->rgba_dep=CreateRGBADependency(rendering_revman,
-						wfmdb,
+						recdb,
 						datastore->fullname,
 						//datastore->typenum,
 						geom->manager,
@@ -748,7 +748,7 @@ public:
   
   /* Update our cache/OSG tree entries for a mutabledatastore */
 
-  std::shared_ptr<osg_datacachebase> update_datastore(std::shared_ptr<geometry> geom,std::shared_ptr<mutablewfmdb> wfmdb, std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index,cl_context context, cl_device_id device, cl_command_queue queue)
+  std::shared_ptr<osg_datacachebase> update_datastore(std::shared_ptr<geometry> geom,std::shared_ptr<mutablerecdb> recdb, std::shared_ptr<mutabledatastore> datastore,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index,cl_context context, cl_device_id device, cl_command_queue queue)
   /* Update our cache/OSG tree entries for a mutabledatastore */
   // geom needed because that is teh current location for the texture RGBA... it also references the array manager and lock manager ....
   /****!!! Can only be called during a rendering_revman transaction (but 
@@ -769,7 +769,7 @@ public:
 	horizunitsperdiv=axis->unit->scale;
       }
     }
-    // Perhaps evaluate/render Max and Min levels here (see scope_drawwfm.c)
+    // Perhaps evaluate/render Max and Min levels here (see scope_drawrec.c)
 
     snde_index NDim = datastore->dimlen.size();
     snde_index DimLen1=1;
@@ -778,18 +778,18 @@ public:
     }
 
     //if (!displaychan->Enabled) {
-    //  return nullptr; /* no point in update for a disabled waveform */
+    //  return nullptr; /* no point in update for a disabled recording */
     //}
     
     if (NDim<=1 && DimLen1==1) {
-      /* "single point" waveform */
-      fprintf(stderr,"openscenegraph_data: Single point waveform rendering not yet implemented\n");
+      /* "single point" recording */
+      fprintf(stderr,"openscenegraph_data: Single point recording rendering not yet implemented\n");
     } else if (NDim==1) {
-      // 1D waveform
-      fprintf(stderr,"openscenegraph_data: 1D waveform rendering not yet implemented\n");
+      // 1D recording
+      fprintf(stderr,"openscenegraph_data: 1D recording rendering not yet implemented\n");
     } else if (NDim > 1 && NDim <= 4) {
       // image data
-      cacheentry=update_datastore_image(geom,wfmdb,datastore,displaychan,drawareawidth,drawareaheight,layer_index,context,device,queue);
+      cacheentry=update_datastore_image(geom,recdb,datastore,displaychan,drawareawidth,drawareaheight,layer_index,context,device,queue);
     }
     
     
@@ -813,9 +813,9 @@ public:
     
   }
   
-  // update operates on a flattened list (from display_info::update()) instead of wfmdb directly!
-  // displaychans list should generally not include disabled waveforms 
-  void update(std::shared_ptr<geometry> geom,std::shared_ptr<mutablewfmdb> wfmdb,std::string selected,const std::vector<std::shared_ptr<display_channel>> & displaychans,size_t drawareawidth,size_t drawareaheight,cl_context context,cl_device_id device,cl_command_queue queue)
+  // update operates on a flattened list (from display_info::update()) instead of recdb directly!
+  // displaychans list should generally not include disabled recordings 
+  void update(std::shared_ptr<geometry> geom,std::shared_ptr<mutablerecdb> recdb,std::string selected,const std::vector<std::shared_ptr<display_channel>> & displaychans,size_t drawareawidth,size_t drawareaheight,cl_context context,cl_device_id device,cl_command_queue queue)
   // geom needed because that is the current location for the texture RGBA... it also references the array manager and lock manager ....
   /****!!! Can only be called during a rendering_revman transaction (but 
        nothing should be locked) */ 
@@ -831,7 +831,7 @@ public:
 	display->GetSecondAxis(selected)==selected_posn.Vert) {
       
       
-      std::shared_ptr<mutabledatastore> selected_datastore=std::dynamic_pointer_cast<mutabledatastore>(wfmdb->lookup(selected));
+      std::shared_ptr<mutabledatastore> selected_datastore=std::dynamic_pointer_cast<mutabledatastore>(recdb->lookup(selected));
       
       
       if (selected_datastore) {
@@ -884,9 +884,9 @@ public:
     std::shared_ptr<osg_datacachebase> cacheentry; 
     for (auto & displaychan : displaychans) {
       //if std::type_index(typeid(*(*displaychan)->chan_data))==std::type_index(typeid())
-      std::shared_ptr<mutableinfostore> chan_data = wfmdb->lookup(displaychan->FullName());
+      std::shared_ptr<mutableinfostore> chan_data = recdb->lookup(displaychan->FullName());
       if (chan_data && instanceof<mutabledatastore>(*chan_data)) {
-	cacheentry = update_datastore(geom,wfmdb,std::dynamic_pointer_cast<mutabledatastore>(chan_data),displaychan,drawareawidth,drawareaheight,layer_index,context,device,queue);
+	cacheentry = update_datastore(geom,recdb,std::dynamic_pointer_cast<mutabledatastore>(chan_data),displaychan,drawareawidth,drawareaheight,layer_index,context,device,queue);
 	cacheentry->touched=true; 
 	if (child_num >= getNumChildren() || getChild(child_num)!=cacheentry->group.get()) {
 	  // not in correct position in our osg::Group (superclass)

@@ -47,10 +47,10 @@ namespace snde {
   
   class shared_memory_allocator_posix: public memallocator {
   public:
-    // wfmname, wfmrevision, and base_shm_name are all immutable
+    // recname, recrevision, and base_shm_name are all immutable
     // once created
-    std::string wfmpath;
-    uint64_t wfmrevision;
+    std::string recpath;
+    uint64_t recrevision;
     std::string base_shm_name; // not including _{id}.dat suffix
 
     std::mutex _admin; // final lock in locking order; used internally only
@@ -58,7 +58,7 @@ namespace snde {
     std::unordered_map<memallocator_regionid,shared_memory_info_posix> _shm_info;
 
     
-    shared_memory_allocator_posix(std::string wfmpath,uint64_t wfmrevision);
+    shared_memory_allocator_posix(std::string recpath,uint64_t recrevision);
     
     virtual void *malloc(memallocator_regionid id,std::size_t nbytes);
     virtual void *calloc(memallocator_regionid id,std::size_t nbytes);

@@ -1,4 +1,4 @@
-#include "wfm_display.hpp"
+#include "rec_display.hpp"
 
 #ifndef SNDE_GEOMETRY_SCENE_HPP
 #define SNDE_GEOMETRY_SCENE_HPP
@@ -38,9 +38,9 @@ namespace snde {
     }
 
     static geometry_scene lock_scene(std::shared_ptr<lockmanager> locker,
-				     std::shared_ptr<mutablewfmdb> wfmdb,
-				     std::string wfmdb_context,
-				     std::string wfmdb_chan_name,
+				     std::shared_ptr<mutablerecdb> recdb,
+				     std::string recdb_context,
+				     std::string recdb_chan_name,
 				     std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>> extra_components,
 				     //std::function<std::tuple<std::shared_ptr<component>,std::shared_ptr<immutable_metadata>,std::set<std::string>>()> get_component_metadata_and_extra_channels,
 				     std::function<std::shared_ptr<image_data>(std::shared_ptr<mutabledatastore>,std::string)> get_image_data) // return pointers to image_data structures that will be included in the instances member of the returned geometry scene. The actual content of these image_data structures does not need to be ready. 
@@ -57,8 +57,8 @@ namespace snde {
     // Note also that this locks a single component. If you need multiple components, create
     // a private assembly that contains them. 
     //
-    // This locks the wfmdb entries and channels, but NOT the underlying data. The underlying
-    // data (geometrydata.h) is later in the locking order than the wfmdb entries and channels,
+    // This locks the recdb entries and channels, but NOT the underlying data. The underlying
+    // data (geometrydata.h) is later in the locking order than the recdb entries and channels,
     // so it can still be locked after this returns. 
     {
 
@@ -85,15 +85,15 @@ namespace snde {
       snde_orientation3 null_orientation;
       snde_null_orientation3(&null_orientation);
       
-      std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist;
+      std::shared_ptr<iterablerecrefs> recdb_reclist;
 	
-      std::tie(wfmdb_wfmlist,instances) =
+      std::tie(recdb_reclist,instances) =
 	obtain_graph_lock_instances(lockprocess,
-				    std::make_tuple(null_orientation,wfmdb_chan_name),
+				    std::make_tuple(null_orientation,recdb_chan_name),
 				    std::vector<std::string>(), // extra_channels
 				    extra_components,
 				    std::shared_ptr<immutable_metadata>(),
-				    [ wfmdb_context, get_image_data ] (std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names) -> std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>> {
+				    [ recdb_context, get_image_data ] (std::shared_ptr<iterablerecrefs> recdb_reclist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names) -> std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>> {
 				      std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>> images_out;
 				      
 				    
@@ -102,12 +102,12 @@ namespace snde {
 				      std::string use_param_name;
 				      // uv image data are stored in the channels given by the uv_imagedata_names parameter to this lambda
 				      
-				      for (auto & wfmname: uv_imagedata_names) {
-					fprintf(stderr,"Got uv_imagedata name: \"%s\"\n",wfmname.c_str());
-					std::string full_wfmname=wfmdb_path_join(wfmdb_context,wfmname);;
+				      for (auto & recname: uv_imagedata_names) {
+					fprintf(stderr,"Got uv_imagedata name: \"%s\"\n",recname.c_str());
+					std::string full_recname=recdb_path_join(recdb_context,recname);;
 					
 					
-					std::shared_ptr<mutableinfostore> uv_imagedata_info = wfmdb_wfmlist->lookup(full_wfmname);
+					std::shared_ptr<mutableinfostore> uv_imagedata_info = recdb_reclist->lookup(full_recname);
 					
 					
 					if (!uv_imagedata_info) {
@@ -127,7 +127,7 @@ namespace snde {
 					  fprintf(stderr,"lock_scene(): Unknown parameterization %s specified in channel %s\n",parameterization_name,uv_image_data->fullname);
 					  continue; 
 					}
-					std::shared_ptr<mutableinfostore> paraminfostore=wfmdb_wfmlist->lookup(wfmdb_path_join(wfmdb_context,parameterization_name));
+					std::shared_ptr<mutableinfostore> paraminfostore=recdb_reclist->lookup(recdb_path_join(recdb_context,parameterization_name));
 					std::shared_ptr<mutableparameterizationstore> paramstore;
 					if (paraminfostore) {					  
 					  paramstore=std::dynamic_pointer_cast<mutableparameterizationstore>(paraminfostore);
@@ -141,16 +141,16 @@ namespace snde {
 					
 					if (!use_param) {
 					  use_param=paramstore->param();
-					  use_param_name = wfmdb_path_join(wfmdb_context,parameterization_name);
+					  use_param_name = recdb_path_join(recdb_context,parameterization_name);
 					} else {
-					  if (wfmdb_path_join(wfmdb_context,parameterization_name) != use_param_name) {
+					  if (recdb_path_join(recdb_context,parameterization_name) != use_param_name) {
 					    fprintf(stderr,"lock_scene(): Warning: inconsistent parameterizations specified (including %s) in channel %s\n",parameterization_name,uv_image_data->fullname);
 					    continue; 
 					  }
 					}
 					
 					
-					std::shared_ptr<image_data> texinfo = get_image_data(uv_image_data,wfmname);
+					std::shared_ptr<image_data> texinfo = get_image_data(uv_image_data,recname);
 					
 					//std::shared_ptr<snde_image> teximage = texinfo->get_texture_image();
 					
@@ -182,8 +182,8 @@ namespace snde {
 				      return std::make_tuple(use_param,images_out);
 				      
 				    },
-				    wfmdb,
-				    wfmdb_context,
+				    recdb,
+				    recdb_context,
 				    SNDE_INFOSTORE_ALL,
 				    0);
       
@@ -208,12 +208,12 @@ namespace snde {
     
     /*
     static geometry_scene lock_scene(std::shared_ptr<lockmanager> locker,
-				     std::shared_ptr<mutablewfmdb> wfmdb,
+				     std::shared_ptr<mutablerecdb> recdb,
 				     std::function<std::shared_ptr<image_data>(std::shared_ptr<mutabledatastore>,std::string)> get_image_data,
 				     std::string chan_fullname,const std::set<std::string> &last_channels_to_lock=std::set<std::string>())
     {
       
-      return lock_scene(locker,wfmdb,[ wfmdb, chan_fullname ] () -> std::tuple<std::shared_ptr<component>,std::shared_ptr<immutable_metadata>,std::set<std::string>> {
+      return lock_scene(locker,recdb,[ recdb, chan_fullname ] () -> std::tuple<std::shared_ptr<component>,std::shared_ptr<immutable_metadata>,std::set<std::string>> {
 	  std::shared_ptr<mutableinfostore> infostore;
 	  std::shared_ptr<mutablegeomstore> geomstore;
 	  std::set<std::string> chan_names;
@@ -221,7 +221,7 @@ namespace snde {
 	  
 	  chan_names.emplace(chan_fullname);
 	  
-	  infostore=wfmdb->lookup(chan_fullname);
+	  infostore=recdb->lookup(chan_fullname);
 	  if (infostore) {
 	    geomstore=std::dynamic_pointer_cast<mutablegeomstore>(infostore);
 	    metadata=infostore->metadata.metadata();

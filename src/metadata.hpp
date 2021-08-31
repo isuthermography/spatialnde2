@@ -260,12 +260,12 @@ public:
     return retval;
   }
   
-class wfmmetadata {
+class recmetadata {
 public:
   std::shared_ptr<immutable_metadata> _metadata; // c++11 atomic shared pointer to immutable metadata map
   std::mutex admin; // must be locked during changes to _metadata (replacement of C++11 atomic shared_ptr)
   
-  wfmmetadata()
+  recmetadata()
     
   {
     std::shared_ptr<immutable_metadata> new_metadata;
@@ -276,7 +276,7 @@ public:
 
   
   // thread-safe copy constructor and copy assignment operators
-  wfmmetadata(const wfmmetadata &orig) /* copy constructor  */
+  recmetadata(const recmetadata &orig) /* copy constructor  */
   {
     std::shared_ptr<immutable_metadata> new_metadata;
     new_metadata=std::make_shared<immutable_metadata>(*orig.metadata());
@@ -286,7 +286,7 @@ public:
 
 
   // copy assignment operator
-  wfmmetadata& operator=(const wfmmetadata & orig)
+  recmetadata& operator=(const recmetadata & orig)
   {
     std::lock_guard<std::mutex> adminlock(admin);
     std::shared_ptr<immutable_metadata> new_metadata=std::make_shared<immutable_metadata>(*orig.metadata());
@@ -296,7 +296,7 @@ public:
   }
 
   // constructor from a std::unordered_map<string,metadatum>
-  wfmmetadata(const std::unordered_map<std::string,metadatum> & map)
+  recmetadata(const std::unordered_map<std::string,metadatum> & map)
   {
     std::shared_ptr<immutable_metadata> new_metadata=std::make_shared<immutable_metadata>(map);
     _end_atomic_update(new_metadata);    

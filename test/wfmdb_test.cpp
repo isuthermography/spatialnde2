@@ -1,6 +1,6 @@
 #include <thread>
 #include <cmath>
-#include "wfmstore.hpp"
+#include "recstore.hpp"
 
 using namespace snde;
 
@@ -9,28 +9,28 @@ using namespace snde;
 int main(int argc, char *argv[])
 {
   size_t len=100;
-  std::shared_ptr<snde::wfmdatabase> wfmdb=std::make_shared<snde::wfmdatabase>();
-  std::shared_ptr<snde::ndarray_waveform> test_wfm;
+  std::shared_ptr<snde::recdatabase> recdb=std::make_shared<snde::recdatabase>();
+  std::shared_ptr<snde::ndarray_recording> test_rec;
 
-  wfmdb->default_storage_manager = std::make_shared<waveform_storage_manager_shmem>();
-  wfmdb->compute_resources->compute_resources.push_back(std::make_shared<available_compute_resource_cpu>(wfmdb,wfmdb->compute_resources,SNDE_CR_CPU,std::thread::hardware_concurrency()));
+  recdb->default_storage_manager = std::make_shared<recording_storage_manager_shmem>();
+  recdb->compute_resources->compute_resources.push_back(std::make_shared<available_compute_resource_cpu>(recdb,recdb->compute_resources,SNDE_CR_CPU,std::thread::hardware_concurrency()));
  
-  snde::active_transaction transact(wfmdb); // Transaction RAII holder
+  snde::active_transaction transact(recdb); // Transaction RAII holder
   std::shared_ptr<snde::channelconfig> testchan_config=std::make_shared<snde::channelconfig>("test channel", "main", (void *)&main,false);
   
-  std::shared_ptr<snde::channel> testchan = wfmdb->reserve_channel(testchan_config);
-  test_wfm = ndarray_waveform::create_typed_waveform(wfmdb,testchan,(void *)&main,SNDE_WTN_FLOAT32);
+  std::shared_ptr<snde::channel> testchan = recdb->reserve_channel(testchan_config);
+  test_rec = ndarray_recording::create_typed_recording(recdb,testchan,(void *)&main,SNDE_RTN_FLOAT32);
   std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
 
-  test_wfm->metadata=std::make_shared<snde::immutable_metadata>();
-  test_wfm->mark_metadata_done();
-  test_wfm->allocate_storage(std::vector<snde_index>{len});
+  test_rec->metadata=std::make_shared<snde::immutable_metadata>();
+  test_rec->mark_metadata_done();
+  test_rec->allocate_storage(std::vector<snde_index>{len});
 
   for (size_t cnt=0;cnt < len; cnt++) {
-    test_wfm->assign_double({cnt},100.0*sin(cnt));
+    test_rec->assign_double({cnt},100.0*sin(cnt));
     
   }
-  test_wfm->mark_as_ready();
+  test_rec->mark_as_ready();
 
   globalrev->wait_complete();
   return 0;

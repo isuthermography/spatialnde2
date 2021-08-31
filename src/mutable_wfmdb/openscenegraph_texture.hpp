@@ -16,9 +16,9 @@
 #include "openclcachemanager.hpp"
 #include "opencl_utils.hpp"
 
-#include "mutablewfmstore.hpp"
+#include "mutablerecstore.hpp"
 
-#include "wfm_display.hpp"
+#include "rec_display.hpp"
 
 #include "data_to_rgba.hpp"
 
@@ -69,7 +69,7 @@ class osg_texturecacheentry : public std::enable_shared_from_this<osg_texturecac
 public:
   std::weak_ptr<geometry> geom;
   std::weak_ptr<trm> rendering_revman;
-  std::weak_ptr<mutablewfmdb> wfmdb;
+  std::weak_ptr<mutablerecdb> recdb;
 
   cl_context context;
   cl_device_id device;
@@ -134,10 +134,10 @@ public:
   osg_texturecacheentry & operator=(const osg_texturecacheentry &)=delete; // no copy assignment
 
   
-  osg_texturecacheentry(std::shared_ptr<geometry> geom,std::shared_ptr<trm> rendering_revman,std::shared_ptr<mutablewfmdb> wfmdb, cl_context context, cl_device_id device, cl_command_queue queue, osg_texturecachekey &key) :
+  osg_texturecacheentry(std::shared_ptr<geometry> geom,std::shared_ptr<trm> rendering_revman,std::shared_ptr<mutablerecdb> recdb, cl_context context, cl_device_id device, cl_command_queue queue, osg_texturecachekey &key) :
     geom(geom),
     rendering_revman(rendering_revman),
-    wfmdb(wfmdb),
+    recdb(recdb),
     context(context),
     device(device),
     queue(queue),
@@ -241,14 +241,14 @@ public:
 
     std::weak_ptr<osg_texturecacheentry> cacheentryweak = shared_from_this();
 
-    std::shared_ptr<mutablewfmdb> wfmdb_strong(wfmdb);
+    std::shared_ptr<mutablerecdb> recdb_strong(recdb);
     std::shared_ptr<trm> revman_strong(rendering_revman);
 
-    if (!wfmdb_strong || !revman_strong) return;
+    if (!recdb_strong || !revman_strong) return;
     
     if (!rgba_dep) {
       rgba_dep=CreateRGBADependency(revman_strong,
-				    wfmdb_strong,
+				    recdb_strong,
 				    datastore->fullname,
 				    geom_strong->manager,
 				    (void **)&geom_strong->geom.texbuffer,
@@ -335,7 +335,7 @@ public:
   std::map<osg_texturecachekey,osg_texturecacheentry> texture_cachedata;
   std::shared_ptr<geometry> snde_geom;
   std::shared_ptr<trm> rendering_revman;
-  std::shared_ptr<mutablewfmdb> wfmdb;
+  std::shared_ptr<mutablerecdb> recdb;
   cl_context context;
   cl_device_id device;
   cl_command_queue queue;
@@ -345,13 +345,13 @@ public:
 
   osg_texturecache(std::shared_ptr<geometry> snde_geom,
 		   std::shared_ptr<trm> rendering_revman,
-		   std::shared_ptr<mutablewfmdb> wfmdb,
+		   std::shared_ptr<mutablerecdb> recdb,
 		   cl_context context,
 		   cl_device_id device,
 		   cl_command_queue queue) :
     snde_geom(snde_geom),
     rendering_revman(rendering_revman),
-    wfmdb(wfmdb),
+    recdb(recdb),
     context(context),
     device(device),
     queue(queue)
@@ -373,7 +373,7 @@ public:
       osg_texturecachekey key(texturedata,displaychan);
       std::tie(cache_entry,junk) = texture_cachedata.emplace(std::piecewise_construct,
 							     std::forward_as_tuple(key),
-							     std::forward_as_tuple(snde_geom,rendering_revman,wfmdb,context,device,queue,key));
+							     std::forward_as_tuple(snde_geom,rendering_revman,recdb,context,device,queue,key));
 
       std::shared_ptr<osg_texturecache> shared_cache = shared_from_this();
       

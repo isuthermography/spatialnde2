@@ -75,7 +75,7 @@ int main(int argc, char **argv)
   // locking of resources) 
   geom=std::make_shared<geometry>(1e-6,manager);
 
-  std::shared_ptr<mutablewfmdb> wfmdb = std::make_shared<mutablewfmdb>();
+  std::shared_ptr<mutablerecdb> recdb = std::make_shared<mutablerecdb>();
   
   revision_manager=std::make_shared<trm>(); /* transactional revision manager */
 
@@ -99,7 +99,7 @@ int main(int argc, char **argv)
     //std::shared_ptr<std::vector<trm_arrayregion>> modified = std::make_shared<std::vector<trm_arrayregion>>();
 
     
-    part_infostores = x3d_load_geometry(geom,argv[1],wfmdb,"/",false,true); // !!!*** Try enable vertex reindexing !!!***
+    part_infostores = x3d_load_geometry(geom,argv[1],recdb,"/",false,true); // !!!*** Try enable vertex reindexing !!!***
     
     revnum=revision_manager->End_Transaction();
     revision_manager->Wait_Computation(revnum);
@@ -149,7 +149,7 @@ int main(int argc, char **argv)
     revision_manager->Start_Transaction();    
     //std::shared_ptr<std::vector<trm_arrayregion>> modified = std::make_shared<std::vector<trm_arrayregion>>();
 
-    projinfo_calc_depend = projinfo_calculation(wfmdb,"/",x3d_part_store->fullname,geom,revision_manager,x3d_part,x3d_param,context,device,queue);
+    projinfo_calc_depend = projinfo_calculation(recdb,"/",x3d_part_store->fullname,geom,revision_manager,x3d_part,x3d_param,context,device,queue);
     
     revnum=revision_manager->End_Transaction();
     revision_manager->Wait_Computation(revnum);

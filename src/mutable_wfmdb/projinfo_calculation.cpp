@@ -30,7 +30,7 @@ namespace snde {
 
   /* projinfo fundamentally connects the 3D vertex geometry with the 2D parameterization;
      as such, it is fundamentally dependent on both. */
-  std::shared_ptr<trm_dependency> projinfo_calculation(std::shared_ptr<mutablewfmdb> wfmdb,std::string wfmdb_context,std::string wfmname,std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<snde::part> partobj,std::shared_ptr<snde::parameterization> param,cl_context context,cl_device_id device,cl_command_queue queue)
+  std::shared_ptr<trm_dependency> projinfo_calculation(std::shared_ptr<mutablerecdb> recdb,std::string recdb_context,std::string recname,std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<snde::part> partobj,std::shared_ptr<snde::parameterization> param,cl_context context,cl_device_id device,cl_command_queue queue)
 {
   
 
@@ -56,7 +56,7 @@ namespace snde {
 					      // Function
 					      // struct input parameters are:
 					      // partobj, param
-					      [ geom,context,device,queue,wfmdb,wfmdb_context,wfmname ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
+					      [ geom,context,device,queue,recdb,recdb_context,recname ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
 						// actions is STDA_IDENTIFY_INPUTS or
 						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS or
 						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS|STDA_EXECUTE
@@ -83,7 +83,7 @@ namespace snde {
 						}
 						// Perform locking
 						
-						fprintf(stderr,"Begin projinfo calculation locking for %s\n",wfmname.c_str());
+						fprintf(stderr,"Begin projinfo calculation locking for %s\n",recname.c_str());
 						
 						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
 
@@ -104,11 +104,11 @@ namespace snde {
 								  std::vector<std::string>(), // no extra_channels
 								  std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
 								  nullptr, // no metadata
-										     [  ] (std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names) -> std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>> {
+										     [  ] (std::shared_ptr<iterablerecrefs> recdb_reclist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names) -> std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>> {
 										   return std::make_tuple(std::shared_ptr<parameterization>(),std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>());
 										     },
 
-								  nullptr,"",//wfmdb,wfmdb_context -- not needed because we have provided both roots directly 
+								  nullptr,"",//recdb,recdb_context -- not needed because we have provided both roots directly 
 								  SNDE_INFOSTORE_COMPONENTS|SNDE_INFOSTORE_PARAMETERIZATIONS|SNDE_COMPONENT_GEOM_PARTS|SNDE_UV_GEOM_UVS|((actions & STDA_EXECUTE) ? (SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES|SNDE_COMPONENT_GEOM_INPLANEMATS|SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_UV_EDGES|SNDE_UV_GEOM_UV_VERTICES) : 0),
 								  (actions & STDA_EXECUTE) ? (SNDE_UV_GEOM_INPLANE2UVCOORDS|SNDE_UV_GEOM_UVCOORDS2INPLANE) : 0);
 						

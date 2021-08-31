@@ -7,7 +7,7 @@ extern "C"
   #include <png.h>  
 }
 
-#include "mutablewfmstore.hpp"
+#include "mutablerecstore.hpp"
 
 #ifndef SNDE_PNGIMAGE_HPP
 #define SNDE_PNGIMAGE_HPP
@@ -22,7 +22,7 @@ namespace snde {
     // since it's new, we don't have to worry about locking it!
 
     
-    std::shared_ptr<mutableelementstore<T>> retval = std::make_shared<mutableelementstore<T>>(leafname,fullname,wfmmetadata(),manager,std::vector<snde_index>{width,height},std::vector<snde_index>{1,width});
+    std::shared_ptr<mutableelementstore<T>> retval = std::make_shared<mutableelementstore<T>>(leafname,fullname,recmetadata(),manager,std::vector<snde_index>{width,height},std::vector<snde_index>{1,width});
 
 
     size_t rowcnt;
@@ -78,7 +78,7 @@ namespace snde {
   
   static inline std::shared_ptr<mutabledatastore> ReadPNG(std::shared_ptr<arraymanager> manager,std::string leafname,std::string fullname,std::string filename)
   // Should probably be called in a transaction in most cases
-  // does not add returned datastore to wfmdb -- you have to do that!
+  // does not add returned datastore to recdb -- you have to do that!
   {
     FILE *infile;
     

@@ -1,6 +1,6 @@
-#include "wfmmath_compute_resource.hpp"
-#include "wfmstore.hpp"
-#include "wfmmath.hpp"
+#include "recmath_compute_resource.hpp"
+#include "recstore.hpp"
+#include "recmath.hpp"
 
 namespace snde {
   compute_resource_option::compute_resource_option(unsigned type, size_t metadata_bytes,size_t data_bytes,std::shared_ptr<void> parameter_block) :
@@ -56,17 +56,17 @@ namespace snde {
   
   void available_compute_resource_database::_queue_computation_internal(std::shared_ptr<pending_computation> &computation) // NOTE: Sets computation to nullptr once queued
   {
-    snde_debug(SNDE_DC_WFMMATH,"_queue_computation_internal");
+    snde_debug(SNDE_DC_RECMATH,"_queue_computation_internal");
 
     bool computation_wss_is_globalrev = false; 
     // we cheat a bit in getting the globalrev index: We try dynamically casting ready_wss, and if that fails we use the value from the prerequisite state
-    std::shared_ptr<globalrevision> globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(computation->wfmstate);
+    std::shared_ptr<globalrevision> globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(computation->recstate);
     if (!globalrev_ptr) {
       // try prerequisite_state
-      globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(computation->wfmstate->prerequisite_state());
+      globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(computation->recstate->prerequisite_state());
 
       if (!globalrev_ptr) {
-	throw snde_error("waveform_set_state does not appear to be associated with any global revision");
+	throw snde_error("recording_set_state does not appear to be associated with any global revision");
       }      
     } else {
       computation_wss_is_globalrev=true; 
@@ -80,9 +80,9 @@ namespace snde {
 
     
     // we can execute anything immutable, anything that is not part of a globalrev (i.e. ondemand), or once the prior globalrev is fully ready
-    // (really we just need to make sure all immutable waveforms in the prior globalrev are ready, but there isn't currently a good
+    // (really we just need to make sure all immutable recordings in the prior globalrev are ready, but there isn't currently a good
     // way to do that)
-    std::shared_ptr<waveform_set_state> prior_globalrev=computation->wfmstate->prerequisite_state(); // only actually prior_globalrev if computation_wss_is_globalrev
+    std::shared_ptr<recording_set_state> prior_globalrev=computation->recstate->prerequisite_state(); // only actually prior_globalrev if computation_wss_is_globalrev
 
 
     std::lock_guard<std::mutex> acrdb_admin(*admin);
@@ -120,19 +120,19 @@ namespace snde {
       
     } else {
       // blocked... we have to wait for previous revision to at least
-      // complete its mutable waveforms !!!*** NEED PROCESS FOR TRIGGERING REMOVAL FROM BLOCKED LIST
+      // complete its mutable recordings !!!*** NEED PROCESS FOR TRIGGERING REMOVAL FROM BLOCKED LIST
       blocked_list.emplace(globalrev_ptr->globalrev,computation);
     }
     computation=nullptr; // release shared pointer prior to releasing acrdb_admin lock. 
   }
 
 
-  void available_compute_resource_database::queue_computation(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<waveform_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn)
+  void available_compute_resource_database::queue_computation(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn)
   {
 
     bool ready_wss_is_globalrev = false;
 
-    snde_debug(SNDE_DC_WFMMATH,"queue_computation");
+    snde_debug(SNDE_DC_RECMATH,"queue_computation");
     
     // we cheat a bit in getting the globalrev index: We try dynamically casting ready_wss, and if that fails we use the value from the prerequisite state
     std::shared_ptr<globalrevision> globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(ready_wss);
@@ -141,7 +141,7 @@ namespace snde {
       globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(ready_wss->prerequisite_state());
       
       if (!globalrev_ptr) {
-	throw snde_error("waveform_set_state does not appear to be associated with any global revision");
+	throw snde_error("recording_set_state does not appear to be associated with any global revision");
       }      
     } else {
       ready_wss_is_globalrev=true; 
@@ -154,8 +154,8 @@ namespace snde {
       std::unique_lock<std::mutex> ready_wss_admin(ready_wss->admin);
       math_function_status &ready_wss_status = ready_wss->mathstatus.function_status.at(ready_fcn);
       execfunc = ready_wss_status.execfunc;
-      snde_debug(SNDE_DC_WFMMATH,"execfunc=0x%lx; wss=0x%lx",(unsigned long)execfunc.get(),(unsigned long)ready_wss.get());
-      snde_debug(SNDE_DC_WFMMATH,"ready_to_execute:%d",(int)ready_wss_status.ready_to_execute);
+      snde_debug(SNDE_DC_RECMATH,"execfunc=0x%lx; wss=0x%lx",(unsigned long)execfunc.get(),(unsigned long)ready_wss.get());
+      snde_debug(SNDE_DC_RECMATH,"ready_to_execute:%d",(int)ready_wss_status.ready_to_execute);
       if (ready_wss_status.ready_to_execute && execfunc->try_execution_ticket()) {
 	// we are taking care of execution
 	assert(ready_wss_status.execution_demanded); 
@@ -178,21 +178,21 @@ namespace snde {
 	  // constructor, the prior revision deriving from our self-dependency must be fully ready, and since
 	  // we're not executing, we must be fully ready too. 
 
-	  // grab waveform results from execfunc->execution_tracker->self_dependent_waveforms
-	  assert(ready_fcn->result_channel_paths.size()==execfunc->execution_tracker->self_dependent_waveforms.size());
+	  // grab recording results from execfunc->execution_tracker->self_dependent_recordings
+	  assert(ready_fcn->result_channel_paths.size()==execfunc->execution_tracker->self_dependent_recordings.size());
 
-	  // assign waveforms to all referencing wss waveforms (should all still exist)
+	  // assign recordings to all referencing wss recordings (should all still exist)
 	  for (auto && referencing_wss_weak: execfunc->referencing_wss) {
-	    std::shared_ptr<waveform_set_state> referencing_wss_strong(referencing_wss_weak);
+	    std::shared_ptr<recording_set_state> referencing_wss_strong(referencing_wss_weak);
 	    std::lock_guard<std::mutex> referencing_wss_admin(referencing_wss_strong->admin);
 	    
 	    for (size_t cnt=0;cnt < ready_fcn->result_channel_paths.size(); cnt++) {
-	      channel_state &referencing_wss_channel_state = referencing_wss_strong->wfmstatus.channel_map.at(*ready_fcn->result_channel_paths.at(cnt));
-	      assert(!referencing_wss_channel_state.wfm());
+	      channel_state &referencing_wss_channel_state = referencing_wss_strong->recstatus.channel_map.at(*ready_fcn->result_channel_paths.at(cnt));
+	      assert(!referencing_wss_channel_state.rec());
 
-	      referencing_wss_strong->wfmstatus.defined_waveforms.erase(referencing_wss_channel_state.config);
-	      referencing_wss_strong->wfmstatus.completed_waveforms.emplace(referencing_wss_channel_state.config,&referencing_wss_channel_state);
-	      referencing_wss_channel_state.end_atomic_wfm_update(execfunc->execution_tracker->self_dependent_waveforms.at(cnt));
+	      referencing_wss_strong->recstatus.defined_recordings.erase(referencing_wss_channel_state.config);
+	      referencing_wss_strong->recstatus.completed_recordings.emplace(referencing_wss_channel_state.config,&referencing_wss_channel_state);
+	      referencing_wss_channel_state.end_atomic_rec_update(execfunc->execution_tracker->self_dependent_recordings.at(cnt));
 	    }
 	  }
 	  
@@ -216,21 +216,21 @@ namespace snde {
 
 	  // ... in all referencing wss's
 	  for (auto && referencing_wss_weak: execfunc->referencing_wss) {
-	    std::shared_ptr<waveform_set_state> referencing_wss_strong(referencing_wss_weak);
+	    std::shared_ptr<recording_set_state> referencing_wss_strong(referencing_wss_weak);
 	    
 	    for (auto && result_channel_path_ptr: ready_fcn->result_channel_paths) {
-	      channel_state &chanstate = referencing_wss_strong->wfmstatus.channel_map.at(*result_channel_path_ptr);
-	      //chanstate.issue_math_notifications(wfmdb,ready_wss); // taken care of by notify_math_function_executed(), below
+	      channel_state &chanstate = referencing_wss_strong->recstatus.channel_map.at(*result_channel_path_ptr);
+	      //chanstate.issue_math_notifications(recdb,ready_wss); // taken care of by notify_math_function_executed(), below
 	      chanstate.issue_nonmath_notifications(referencing_wss_strong);
 	      
 	    }
 	    
-	    snde_debug(SNDE_DC_WFMMATH,"qc: already finished wss notify %lx",(unsigned long)referencing_wss_strong.get());
+	    snde_debug(SNDE_DC_RECMATH,"qc: already finished wss notify %lx",(unsigned long)referencing_wss_strong.get());
 	    // Issue function completion notification
-	    referencing_wss_strong->mathstatus.notify_math_function_executed(wfmdb,referencing_wss_strong,execfunc->inst,false); // note mdonly hardwired to false here
+	    referencing_wss_strong->mathstatus.notify_math_function_executed(recdb,referencing_wss_strong,execfunc->inst,false); // note mdonly hardwired to false here
 	  }
 	  
-	  snde_debug(SNDE_DC_WFMMATH,"qc: already finished");
+	  snde_debug(SNDE_DC_RECMATH,"qc: already finished");
 	  return;
 	}
 	std::shared_ptr<pending_computation> computation = std::make_shared<pending_computation>(execfunc,ready_wss,globalrev_ptr->globalrev,0);
@@ -241,7 +241,7 @@ namespace snde {
 	
       } else {
 	// Somebody else is taking care of computation (or not ready to execute)
-	snde_debug(SNDE_DC_WFMMATH,"qc: somebody else");
+	snde_debug(SNDE_DC_RECMATH,"qc: somebody else");
 	
 	// no need to do anything; just return
       }
@@ -267,9 +267,9 @@ namespace snde {
   }
 
   
-  pending_computation::pending_computation(std::shared_ptr<math_function_execution> function_to_execute,std::shared_ptr<waveform_set_state> wfmstate,uint64_t globalrev,uint64_t priority_reduction) :
+  pending_computation::pending_computation(std::shared_ptr<math_function_execution> function_to_execute,std::shared_ptr<recording_set_state> recstate,uint64_t globalrev,uint64_t priority_reduction) :
     function_to_execute(function_to_execute),
-    wfmstate(wfmstate),
+    recstate(recstate),
     globalrev(globalrev),
     priority_reduction(priority_reduction)
   {
@@ -277,16 +277,16 @@ namespace snde {
   }
 
 
-  available_compute_resource::available_compute_resource(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type) :
-    wfmdb(wfmdb),
+  available_compute_resource::available_compute_resource(std::shared_ptr<recdatabase> recdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type) :
+    recdb(recdb),
     acrd_admin(acrd->admin),
     type(type)
   {
     
   }
 
-  available_compute_resource_cpu::available_compute_resource_cpu(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type,size_t total_cpu_cores_available) :
-    available_compute_resource(wfmdb,acrd,type),
+  available_compute_resource_cpu::available_compute_resource_cpu(std::shared_ptr<recdatabase> recdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type,size_t total_cpu_cores_available) :
+    available_compute_resource(recdb,acrd,type),
     total_cpu_cores_available(total_cpu_cores_available)
   {
 
@@ -301,7 +301,7 @@ namespace snde {
     for (cnt=0; cnt < total_cpu_cores_available;cnt++) {
       functions_using_cores.push_back(nullptr);
       thread_triggers.emplace_back(std::make_shared<std::condition_variable>());
-      thread_actions.push_back(std::make_tuple((std::shared_ptr<waveform_set_state>)nullptr,(std::shared_ptr<math_function_execution>)nullptr,(std::shared_ptr<compute_resource_option_cpu>)nullptr));
+      thread_actions.push_back(std::make_tuple((std::shared_ptr<recording_set_state>)nullptr,(std::shared_ptr<math_function_execution>)nullptr,(std::shared_ptr<compute_resource_option_cpu>)nullptr));
       available_threads.emplace_back(std::thread([this](size_t n){ pool_code(n); },cnt));
 
       available_threads.at(cnt).detach(); // we won't be join()ing these threads
@@ -355,7 +355,7 @@ namespace snde {
 
   }
 
-  void available_compute_resource_cpu::_dispatch_thread(std::shared_ptr<waveform_set_state> wfmstate,std::shared_ptr<math_function_execution> function_to_execute,std::shared_ptr<compute_resource_option_cpu> compute_option_cpu,size_t first_thread_index)
+  void available_compute_resource_cpu::_dispatch_thread(std::shared_ptr<recording_set_state> recstate,std::shared_ptr<math_function_execution> function_to_execute,std::shared_ptr<compute_resource_option_cpu> compute_option_cpu,size_t first_thread_index)
   // Must be called with acrd_admin lock held
   {
     //printf("_dispatch_thread()!\n");
@@ -369,10 +369,10 @@ namespace snde {
       functions_using_cores.at(core_index) = function_to_execute; 
     }
     
-    std::tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<math_function_execution>,std::shared_ptr<compute_resource_option_cpu>> & this_thread_action = thread_actions.at(first_thread_index);
-    assert(this_thread_action==std::make_tuple((std::shared_ptr<waveform_set_state>)nullptr,(std::shared_ptr<math_function_execution>)nullptr,(std::shared_ptr<compute_resource_option_cpu>)nullptr));
+    std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>,std::shared_ptr<compute_resource_option_cpu>> & this_thread_action = thread_actions.at(first_thread_index);
+    assert(this_thread_action==std::make_tuple((std::shared_ptr<recording_set_state>)nullptr,(std::shared_ptr<math_function_execution>)nullptr,(std::shared_ptr<compute_resource_option_cpu>)nullptr));
     
-    this_thread_action = std::make_tuple(wfmstate,function_to_execute,compute_option_cpu);
+    this_thread_action = std::make_tuple(recstate,function_to_execute,compute_option_cpu);
     
     
   
@@ -418,7 +418,7 @@ namespace snde {
 	  if (compute_option_cpu->useful_cpu_cores <= free_cores || free_cores == total_cpu_cores_available) {	    
 	    // we have enough cores available (or all of them)
 	    std::shared_ptr<math_function_execution> function_to_execute=this_computation->function_to_execute;
-	    std::shared_ptr<waveform_set_state> wfmstate=this_computation->wfmstate;
+	    std::shared_ptr<recording_set_state> recstate=this_computation->recstate;
 
 	    prioritized_computations.erase(this_computation_it); // take charge of this computation
 	    this_computation = nullptr; // force pointer to expire so nobody else tries this computation;
@@ -426,7 +426,7 @@ namespace snde {
 	    std::shared_ptr<assigned_compute_resource_cpu> assigned_cpus = _assign_cpus(function_to_execute,std::min(compute_option_cpu->useful_cpu_cores,total_cpu_cores_available));
 	    function_to_execute->execution_tracker->compute_resource = assigned_cpus;
 	    
-	    _dispatch_thread(wfmstate,function_to_execute,compute_option_cpu,assigned_cpus->assigned_cpu_core_indices.at(0));
+	    _dispatch_thread(recstate,function_to_execute,compute_option_cpu,assigned_cpus->assigned_cpu_core_indices.at(0));
 
 
 	    no_actual_dispatch = false; // dispatched execution, so don't wait at next iteration. 
@@ -450,15 +450,15 @@ namespace snde {
       thread_triggers.at(threadidx)->wait(admin_lock);
       //printf("pool_code_wakeup!\n");
 
-      std::shared_ptr<waveform_set_state> wfmstate;
+      std::shared_ptr<recording_set_state> recstate;
       std::shared_ptr<math_function_execution> func;
       std::shared_ptr<compute_resource_option_cpu> compute_option_cpu;
       
-      std::tie(wfmstate,func,compute_option_cpu) = thread_actions.at(threadidx);
-      if (wfmstate) {
+      std::tie(recstate,func,compute_option_cpu) = thread_actions.at(threadidx);
+      if (recstate) {
 	//printf("Pool code got thread action\n");
 	// Remove parameters from thread_actions
-	thread_actions.at(threadidx)=std::make_tuple<std::shared_ptr<waveform_set_state>,std::shared_ptr<math_function_execution>,std::shared_ptr<compute_resource_option_cpu>>(nullptr,nullptr,nullptr);
+	thread_actions.at(threadidx)=std::make_tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>,std::shared_ptr<compute_resource_option_cpu>>(nullptr,nullptr,nullptr);
 
 	// not worrying about cpu affinity yet.
 
@@ -476,11 +476,11 @@ namespace snde {
 	  
 	  //// Get the mdonly and is_mutable flags from the math_function_status 
 	  //{
-	  //std::lock_guard<std::mutex> wss_admin(wfmstate->admin);
+	  //std::lock_guard<std::mutex> wss_admin(recstate->admin);
 	  
 	  
 	  
-	  //math_function_status &our_status = wfmstate->mathstatus.function_status.at(func->inst);
+	  //math_function_status &our_status = recstate->mathstatus.function_status.at(func->inst);
 	  //  mdonly = our_status.mdonly;
 	  //  is_mutable = our_status.is_mutable;
 	  // mdonly_executed = our_status.mdonly_executed; 
@@ -488,24 +488,24 @@ namespace snde {
 	  //}
 	
 	  if (!func->metadata_executed) {
-	    func->execution_tracker->perform_define_wfms();
+	    func->execution_tracker->perform_define_recs();
 
-	    // grab generated waveforms and move them from defined_waveforms to instantiated_waveforms list
+	    // grab generated recordings and move them from defined_recordings to instantiated_recordings list
 	    {
 	      std::lock_guard<std::mutex> wssadmin(func->wss->admin);
 	      for (auto && result_channel_path_ptr: func->inst->result_channel_paths) {
 		if (result_channel_path_ptr) {
 		  
-		  channel_state &chanstate = func->wss->wfmstatus.channel_map.at(*result_channel_path_ptr);
-		  if (chanstate.wfm()) {
-		    // have a waveform
-		    size_t erased_from_defined_waveforms = func->wss->wfmstatus.defined_waveforms.erase(chanstate.config);
+		  channel_state &chanstate = func->wss->recstatus.channel_map.at(*result_channel_path_ptr);
+		  if (chanstate.rec()) {
+		    // have a recording
+		    size_t erased_from_defined_recordings = func->wss->recstatus.defined_recordings.erase(chanstate.config);
 		    
-		    assert(erased_from_defined_waveforms==1); // waveform should have been listed in defined_waveforms
-		    func->wss->wfmstatus.instantiated_waveforms.emplace(chanstate.config,&chanstate);
+		    assert(erased_from_defined_recordings==1); // recording should have been listed in defined_recordings
+		    func->wss->recstatus.instantiated_recordings.emplace(chanstate.config,&chanstate);
 		  } else {
 		    // ***!!! If the math function failed to define
-		    // a waveform here, we should probably import
+		    // a recording here, we should probably import
 		    // from the previous globalrev !!!***
 		  }
 		}
@@ -519,11 +519,11 @@ namespace snde {
 	  if (mdonly) {
 	    func->metadataonly_complete = true; 
 	    
-	    // assign waveforms to all referencing wss waveforms (should all still exist)
+	    // assign recordings to all referencing wss recordings (should all still exist)
 	    // (only needed if we're not doing it below)
 	    // !!!*** This block should be refactored
 	    for (auto && referencing_wss_weak: func->referencing_wss) {
-	      std::shared_ptr<waveform_set_state> referencing_wss_strong(referencing_wss_weak);
+	      std::shared_ptr<recording_set_state> referencing_wss_strong(referencing_wss_weak);
 	      if (referencing_wss_strong == func->wss) {
 		continue; // no need to reassign our source
 	      }
@@ -531,14 +531,14 @@ namespace snde {
 	      std::lock_guard<std::mutex> referencing_wss_admin(referencing_wss_strong->admin);
 	      
 	      for (size_t cnt=0;cnt < func->inst->result_channel_paths.size(); cnt++) {
-		// none should have preassigned waveforms --not true because parallel update or end_transaction() could be going on
-		//assert(!referencing_wss->wfmstatus.channel_map.at(&result_channel_paths.at(cnt)).wfm());
-		channel_state &referencing_wss_channel_state=referencing_wss_strong->wfmstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt));
+		// none should have preassigned recordings --not true because parallel update or end_transaction() could be going on
+		//assert(!referencing_wss->recstatus.channel_map.at(&result_channel_paths.at(cnt)).rec());
+		channel_state &referencing_wss_channel_state=referencing_wss_strong->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt));
 		
-		referencing_wss_strong->wfmstatus.instantiated_waveforms.erase(referencing_wss_channel_state.config);
-		referencing_wss_strong->wfmstatus.metadataonly_waveforms.emplace(referencing_wss_channel_state.config,&referencing_wss_channel_state);
+		referencing_wss_strong->recstatus.instantiated_recordings.erase(referencing_wss_channel_state.config);
+		referencing_wss_strong->recstatus.metadataonly_recordings.emplace(referencing_wss_channel_state.config,&referencing_wss_channel_state);
 		
-		referencing_wss_channel_state.end_atomic_wfm_update(func->wss->wfmstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).wfm());
+		referencing_wss_channel_state.end_atomic_rec_update(func->wss->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).rec());
 	      }
 	    }
 	  }
@@ -550,10 +550,10 @@ namespace snde {
 	    func->fully_complete = true;
 	    
 	    
-	    // re-assign waveforms to all referencing wss waveforms (should all still exist) in case we have more followers than before
+	    // re-assign recordings to all referencing wss recordings (should all still exist) in case we have more followers than before
 	    // !!!*** This block should be refactored
 	    for (auto && referencing_wss_weak: func->referencing_wss) {
-	      std::shared_ptr<waveform_set_state> referencing_wss_strong(referencing_wss_weak);
+	      std::shared_ptr<recording_set_state> referencing_wss_strong(referencing_wss_weak);
 	      if (referencing_wss_strong == func->wss) {
 		continue; // no need to reassign our source
 	      }
@@ -561,14 +561,14 @@ namespace snde {
 	      std::lock_guard<std::mutex> referencing_wss_admin(referencing_wss_strong->admin);
 	      
 	      for (size_t cnt=0;cnt < func->inst->result_channel_paths.size(); cnt++) {
-		// none should have preassigned waveforms --not true because parallel update or end_transaction() could be going on
-		//assert(!referencing_wss->wfmstatus.channel_map.at(&result_channel_paths.at(cnt)).wfm());
-		channel_state & referencing_wss_channel_state = referencing_wss_strong->wfmstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt));
+		// none should have preassigned recordings --not true because parallel update or end_transaction() could be going on
+		//assert(!referencing_wss->recstatus.channel_map.at(&result_channel_paths.at(cnt)).rec());
+		channel_state & referencing_wss_channel_state = referencing_wss_strong->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt));
 		
-		referencing_wss_strong->wfmstatus.instantiated_waveforms.erase(referencing_wss_channel_state.config);
-		referencing_wss_strong->wfmstatus.completed_waveforms.emplace(referencing_wss_channel_state.config,&referencing_wss_channel_state);
+		referencing_wss_strong->recstatus.instantiated_recordings.erase(referencing_wss_channel_state.config);
+		referencing_wss_strong->recstatus.completed_recordings.emplace(referencing_wss_channel_state.config,&referencing_wss_channel_state);
 		
-		referencing_wss_channel_state.end_atomic_wfm_update(func->wss->wfmstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).wfm());
+		referencing_wss_channel_state.end_atomic_rec_update(func->wss->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).rec());
 	      }
 	    }
 	  
@@ -577,10 +577,10 @@ namespace snde {
 	  
 	  // Mark execution as no longer ongoing in the math_function_status 
 	  {
-	    std::unique_lock<std::mutex> wss_admin(wfmstate->admin);
+	    std::unique_lock<std::mutex> wss_admin(recstate->admin);
 	    std::unique_lock<std::mutex> func_admin(func->admin);
 	    
-	    math_function_status &our_status = wfmstate->mathstatus.function_status.at(func->inst);
+	    math_function_status &our_status = recstate->mathstatus.function_status.at(func->inst);
 	    if (mdonly && !func->mdonly) {
 	      // execution status changed from mdonly to non-mdonly behind our back...
 	      mdonly=false;
@@ -593,10 +593,10 @@ namespace snde {
 	      
 	      func->fully_complete = true;
 	      
-	      // re-assign waveforms to all referencing wss waveforms (should all still exist) in case we have more followers than before
+	      // re-assign recordings to all referencing wss recordings (should all still exist) in case we have more followers than before
 	      // !!!*** This block should be refactored
 	      for (auto && referencing_wss_weak: func->referencing_wss) {
-		std::shared_ptr<waveform_set_state> referencing_wss_strong(referencing_wss_weak);
+		std::shared_ptr<recording_set_state> referencing_wss_strong(referencing_wss_weak);
 		if (referencing_wss_strong == func->wss) {
 		  continue; // no need to reassign our source
 		}
@@ -604,15 +604,15 @@ namespace snde {
 		std::lock_guard<std::mutex> referencing_wss_admin(referencing_wss_strong->admin);
 		
 		for (size_t cnt=0;cnt < func->inst->result_channel_paths.size(); cnt++) {
-		  // none should have preassigned waveforms --not true because parallel update or end_transaction() could be going on
-		  //assert(!referencing_wss->wfmstatus.channel_map.at(&result_channel_paths.at(cnt)).wfm());
+		  // none should have preassigned recordings --not true because parallel update or end_transaction() could be going on
+		  //assert(!referencing_wss->recstatus.channel_map.at(&result_channel_paths.at(cnt)).rec());
 		  
-		  channel_state &referencing_wss_channel_state = referencing_wss_strong->wfmstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt));
+		  channel_state &referencing_wss_channel_state = referencing_wss_strong->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt));
 		  
-		  referencing_wss_strong->wfmstatus.instantiated_waveforms.erase(referencing_wss_channel_state.config);
-		  referencing_wss_strong->wfmstatus.completed_waveforms.emplace(referencing_wss_channel_state.config,&referencing_wss_channel_state);
+		  referencing_wss_strong->recstatus.instantiated_recordings.erase(referencing_wss_channel_state.config);
+		  referencing_wss_strong->recstatus.completed_recordings.emplace(referencing_wss_channel_state.config,&referencing_wss_channel_state);
 		
-		  referencing_wss_channel_state.end_atomic_wfm_update(func->wss->wfmstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).wfm());
+		  referencing_wss_channel_state.end_atomic_rec_update(func->wss->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).rec());
 		}
 	      }
 	    
@@ -625,8 +625,8 @@ namespace snde {
 	    
 	  }
 	  
-	  // clear execfunc->wss to eliminate reference loop once at least metadata execution is complete for an mdonly waveform
-	  // or once all execution is complete for a regular waveform
+	  // clear execfunc->wss to eliminate reference loop once at least metadata execution is complete for an mdonly recording
+	  // or once all execution is complete for a regular recording
 	  if (func->metadataonly_complete || func->fully_complete) {
 	    func->wss = nullptr;
 	    func->execution_tracker->wss = nullptr;
@@ -634,27 +634,27 @@ namespace snde {
 	  
 	  func->executing = false; // release the execution ticket
 	  
-	  std::shared_ptr<wfmdatabase> wfmdb_strong = wfmdb.lock();
+	  std::shared_ptr<recdatabase> recdb_strong = recdb.lock();
 	  
-	  snde_debug(SNDE_DC_WFMMATH,"Pool code completed math function");
+	  snde_debug(SNDE_DC_RECMATH,"Pool code completed math function");
 	  //fflush(stdout);
 	  
 	  
 	  // Need to do notifications that the math function finished in all referencing wss's
 	  for (auto && referencing_wss_weak: func->referencing_wss) {
-	    std::shared_ptr<waveform_set_state> referencing_wss_strong(referencing_wss_weak);
+	    std::shared_ptr<recording_set_state> referencing_wss_strong(referencing_wss_weak);
 	    
 	    for (auto && result_channel_path_ptr: func->inst->result_channel_paths) {
-	      channel_state &chanstate = referencing_wss_strong->wfmstatus.channel_map.at(*result_channel_path_ptr);
-	      //chanstate.issue_math_notifications(wfmdb,ready_wss); // taken care of by notify_math_function_executed(), below
+	      channel_state &chanstate = referencing_wss_strong->recstatus.channel_map.at(*result_channel_path_ptr);
+	      //chanstate.issue_math_notifications(recdb,ready_wss); // taken care of by notify_math_function_executed(), below
 	      chanstate.issue_nonmath_notifications(referencing_wss_strong);
 	      
 	    }
 	    
 	    // Issue function completion notification
-	    if (wfmdb_strong) {
-	      snde_debug(SNDE_DC_WFMMATH|SNDE_DC_NOTIFY,"pool code: wss notify %lx",(unsigned long)referencing_wss_strong.get());
-	      referencing_wss_strong->mathstatus.notify_math_function_executed(wfmdb_strong,referencing_wss_strong,func->inst,mdonly); 
+	    if (recdb_strong) {
+	      snde_debug(SNDE_DC_RECMATH|SNDE_DC_NOTIFY,"pool code: wss notify %lx",(unsigned long)referencing_wss_strong.get());
+	      referencing_wss_strong->mathstatus.notify_math_function_executed(recdb_strong,referencing_wss_strong,func->inst,mdonly); 
 	    }
 	  }
 
@@ -684,8 +684,8 @@ namespace snde {
   }
 
 #ifdef SNDE_OPENCL
-  available_compute_resource_opencl::available_compute_resource_opencl(std::shared_ptr<wfmdatabase> wfmdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type,cl_context opencl_context,cl_device_id *opencl_devices,size_t num_devices,size_t max_parallel) :
-    available_compute_resource(wfmdb,acrd,type),
+  available_compute_resource_opencl::available_compute_resource_opencl(std::shared_ptr<recdatabase> recdb,std::shared_ptr<available_compute_resource_database> acrd,unsigned type,cl_context opencl_context,cl_device_id *opencl_devices,size_t num_devices,size_t max_parallel) :
+    available_compute_resource(recdb,acrd,type),
     opencl_context(opencl_context),
     opencl_devices(opencl_devices),
     num_devices(num_devices),

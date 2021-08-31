@@ -4,22 +4,22 @@
 
 #include "lockmanager.hpp"
 #include "infostore_or_component.hpp"
-#include "wfmdb_paths.hpp"
-#include "mutablewfmstore.hpp"
+#include "recdb_paths.hpp"
+#include "mutablerecstore.hpp"
 
 namespace snde {
 
 
-  std::tuple<std::shared_ptr<iterablewfmrefs>,std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>>>
+  std::tuple<std::shared_ptr<iterablerecrefs>,std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>>>
   obtain_graph_lock_instances_multiple(std::shared_ptr<lockingprocess> process,
 					 std::vector<std::tuple<snde_orientation3,std::string>> named_roots,
 					 std::vector<std::tuple<snde_orientation3,std::shared_ptr<lockable_infostore_or_component>>> pointer_roots,
 					 std::vector<std::string> extra_channels,
 					 std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>> extra_components,  // NOTE: Does NOT traverse the graph of extra_components (unless reached by other means)
 					 std::shared_ptr<immutable_metadata> metadata,
-				       std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata,
-					 std::shared_ptr<mutablewfmdb> wfmdb,
-					 std::string wfmdb_context,
+				       std::function<std::tuple<std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>(std::shared_ptr<iterablerecrefs> recdb_reclist,std::shared_ptr<part> partdata,std::vector<std::string> uv_imagedata_names)> get_uv_imagedata,
+					 std::shared_ptr<mutablerecdb> recdb,
+					 std::string recdb_context,
 					 snde_infostore_lock_mask_t readmask,
 					 snde_infostore_lock_mask_t writemask)
   {
@@ -27,10 +27,10 @@ namespace snde {
     std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>> component_set=extra_components;
     rwlock_token_set temporary_lock_pool;
     std::vector<std::tuple<snde_partinstance,std::shared_ptr<part>,std::shared_ptr<parameterization>,std::map<snde_index,std::tuple<std::shared_ptr<mutabledatastore>,std::shared_ptr<image_data>>>>> instancearray;
-    std::shared_ptr<iterablewfmrefs> wfmdb_wfmlist;
+    std::shared_ptr<iterablerecrefs> recdb_reclist;
 
-    if (wfmdb) {
-      wfmdb_wfmlist=wfmdb->wfmlist();
+    if (recdb) {
+      recdb_reclist=recdb->reclist();
     }
       
     std::vector<std::tuple<snde_orientation3,std::shared_ptr<lockable_infostore_or_component>>> pointer_allroots=pointer_roots;
@@ -39,14 +39,14 @@ namespace snde {
       std::string root_name;
 
       std::tie(root_orient,root_name) = root;
-      std::string root_fullname = wfmdb_path_join(wfmdb_context,root_name);
+      std::string root_fullname = recdb_path_join(recdb_context,root_name);
       
-      std::shared_ptr<lockable_infostore_or_component> root_comp = wfmdb_wfmlist->lookup(root_fullname);
+      std::shared_ptr<lockable_infostore_or_component> root_comp = recdb_reclist->lookup(root_fullname);
 
       if (root_comp) {
 	pointer_allroots.push_back(std::make_tuple(root_orient,root_comp));
       } else {
-	fprintf(stderr,"infostore_or_component.cpp:obtain_graph_lock_instances_multiple(): locking root fullname \"%s\" not found in wfmdb\n",root_fullname);
+	fprintf(stderr,"infostore_or_component.cpp:obtain_graph_lock_instances_multiple(): locking root fullname \"%s\" not found in recdb\n",root_fullname);
       }
     }
     for (auto & root: pointer_allroots) {
@@ -69,7 +69,7 @@ namespace snde {
       std::shared_ptr<mutableinfostore> root_infostore=std::dynamic_pointer_cast<mutableinfostore>(root_comp);
       //if (root_infostore) { // if we are actually an infostore...
 	/* merge in metadata from this root and pass on. Entries in the preexisting metadata will override */
-	/*  **** This is now done in mutablewfmstore.hpp/explore_component_get_instances() ****
+	/*  **** This is now done in mutablerecstore.hpp/explore_component_get_instances() ****
 	std::shared_ptr<immutable_metadata> root_metadata = root_infostore->metadata.metadata();
 	
 	for (auto & string_metadatum: root_metadata->metadata) {
@@ -84,7 +84,7 @@ namespace snde {
       
       
       newinstancearray = root_comp->explore_component_get_instances(component_set,                 // accumulate all subcomponents into component_set, which is sorted
-								wfmdb_wfmlist,wfmdb_context,   // via owner_less, i.e. corresponding to the locking order
+								recdb_reclist,recdb_context,   // via owner_less, i.e. corresponding to the locking order
 								root_orient,
 								metadata,
 								get_uv_imagedata);
@@ -93,8 +93,8 @@ namespace snde {
     }
     
     for (auto & chan: extra_channels) {
-      std::string chan_fullname = wfmdb_path_join(wfmdb_context,chan);
-      component_set.emplace(wfmdb_wfmlist->lookup(chan_fullname));
+      std::string chan_fullname = recdb_path_join(recdb_context,chan);
+      component_set.emplace(recdb_reclist->lookup(chan_fullname));
     }
     
     
@@ -102,7 +102,7 @@ namespace snde {
     
     // First the components/infostores
     for (auto & comp: component_set) {
-      //rwlock_token_set tokens_from_this_component=comp->obtain_lock(process,wfmdb,wfmdb_context,readmask & SNDE_INFOSTORE_ALL,writemask & SNDE_INFOSTORE_ALL,temporary=true);
+      //rwlock_token_set tokens_from_this_component=comp->obtain_lock(process,recdb,recdb_context,readmask & SNDE_INFOSTORE_ALL,writemask & SNDE_INFOSTORE_ALL,temporary=true);
 
       process->get_locks_lockable_mask_temporary(temporary_lock_pool,comp,comp->lic_mask,readmask,writemask);
     }
@@ -113,10 +113,10 @@ namespace snde {
       
       do {
 	std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>> updated_component_set=extra_components;
-	std::shared_ptr<iterablewfmrefs> new_wfmdb_wfmlist;
+	std::shared_ptr<iterablerecrefs> new_recdb_reclist;
 
-	if (wfmdb) {
-	  new_wfmdb_wfmlist=wfmdb->wfmlist();
+	if (recdb) {
+	  new_recdb_reclist=recdb->reclist();
 	}
 
 	
@@ -127,14 +127,14 @@ namespace snde {
 	  std::string root_name;
 	  
 	  std::tie(root_orient,root_name) = root;
-	  std::string root_fullname = wfmdb_path_join(wfmdb_context,root_name);
+	  std::string root_fullname = recdb_path_join(recdb_context,root_name);
 	  
-	  std::shared_ptr<lockable_infostore_or_component> root_comp = new_wfmdb_wfmlist->lookup(root_fullname);
+	  std::shared_ptr<lockable_infostore_or_component> root_comp = new_recdb_reclist->lookup(root_fullname);
 	  
 	  if (root_comp) {	  
 	    pointer_allroots.push_back(std::make_tuple(root_orient,root_comp));
 	  } else {
-	    fprintf(stderr,"infostore_or_component.cpp:obtain_graph_lock_instances_multiple(): locking root fullname \"%s\" not found in wfmdb\n",root_fullname);
+	    fprintf(stderr,"infostore_or_component.cpp:obtain_graph_lock_instances_multiple(): locking root fullname \"%s\" not found in recdb\n",root_fullname);
 	  }
 	}
 	
@@ -150,7 +150,7 @@ namespace snde {
 	  std::tie(root_orient,root_comp) = root; 
 	  
 	  newinstancearray = root_comp->explore_component_get_instances(updated_component_set,                 // accumulate all subcomponents into component_set, which is sorted
-								    new_wfmdb_wfmlist,wfmdb_context,   // via owner_less, i.e. corresponding to the locking order
+								    new_recdb_reclist,recdb_context,   // via owner_less, i.e. corresponding to the locking order
 								    root_orient,
 								    metadata,
 								    get_uv_imagedata);
@@ -158,8 +158,8 @@ namespace snde {
 	  
 	}
 	for (auto & chan: extra_channels) {
-	  std::string chan_fullname = wfmdb_path_join(wfmdb_context,chan);
-	  updated_component_set.emplace(new_wfmdb_wfmlist->lookup(chan_fullname));
+	  std::string chan_fullname = recdb_path_join(recdb_context,chan);
+	  updated_component_set.emplace(new_recdb_reclist->lookup(chan_fullname));
 	}
 	
 	if (updated_component_set != component_set) {
@@ -176,7 +176,7 @@ namespace snde {
 	  
 	} else {
 	  consistent=true;
-	  wfmdb_wfmlist = new_wfmdb_wfmlist;
+	  recdb_reclist = new_recdb_reclist;
 	}
 	  
       } while (!consistent);
@@ -186,7 +186,7 @@ namespace snde {
     // Now the geometry (if applicable)
     if (readmask & SNDE_COMPONENT_GEOM_ALL || writemask & SNDE_COMPONENT_GEOM_ALL) { // if ANY geometry requested...
       for (auto & comp: component_set) {
-	comp->obtain_geom_lock(process,wfmdb_wfmlist,wfmdb_context,readmask & SNDE_COMPONENT_GEOM_ALL,writemask & SNDE_COMPONENT_GEOM_ALL);
+	comp->obtain_geom_lock(process,recdb_reclist,recdb_context,readmask & SNDE_COMPONENT_GEOM_ALL,writemask & SNDE_COMPONENT_GEOM_ALL);
       }
     }
     
@@ -194,11 +194,11 @@ namespace snde {
     if (readmask & SNDE_UV_GEOM_ALL || writemask & SNDE_UV_GEOM_ALL) {
       // if ANY uv parameterization data requested
       for (auto & comp: component_set) {
-	comp->obtain_uv_lock(process,wfmdb_wfmlist,wfmdb_context,readmask & SNDE_UV_GEOM_ALL,writemask & SNDE_UV_GEOM_ALL);
+	comp->obtain_uv_lock(process,recdb_reclist,recdb_context,readmask & SNDE_UV_GEOM_ALL,writemask & SNDE_UV_GEOM_ALL);
       }
     }
     
-    return std::make_tuple(wfmdb_wfmlist,instancearray);
+    return std::make_tuple(recdb_reclist,instancearray);
     
   }
   

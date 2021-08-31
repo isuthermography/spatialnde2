@@ -33,11 +33,11 @@ namespace snde {
   class imageprojection_image_data: public image_data {
   public:
     snde_image imageinfo;
-    std::shared_ptr<mutabledatastore> datawfm;
+    std::shared_ptr<mutabledatastore> datarec;
     
-    imageprojection_image_data(std::shared_ptr<mutabledatastore> datawfm) :
+    imageprojection_image_data(std::shared_ptr<mutabledatastore> datarec) :
       image_data(),
-      datawfm(datawfm),
+      datarec(datarec),
       imageinfo{ .imgbufoffset = SNDE_INDEX_INVALID }
     {
 
@@ -71,15 +71,15 @@ namespace snde {
 {
   // *** SHOULDN'T camcoords_to_wrlcoords BE A MUTABLE DATASTORE OR STRUCT DEPENDENCY SO THE PROJECTION CAN BE UPDATED AS THE POSE CHANGES? 
   
-  /* projection destinations are in the wfmdb, but also need to output weights channel! */
+  /* projection destinations are in the recdb, but also need to output weights channel! */
   /* *** Should we have a prefix or suffix parameter that will be attached to the channel names? */
 
 
 
   std::vector<trm_struct_depend> struct_inputs;
-  struct_inputs.emplace_back(wfm_dependency(revman,wfmdb,comp->wfmfullname)); // struct depend #0: component
-  struct_inputs.emplace_back(wfm_dependency(revman,wfmdb,to_project->wfmfullname)); // struct depend #1: to_project
-  struct_inputs.emplace_back(wfm_dependency(revman,wfmdb,camcoords_to_wrlcoords->wfmfullname)); // struct depend #2: camcoords_to_wrlcoords
+  struct_inputs.emplace_back(rec_dependency(revman,recdb,comp->recfullname)); // struct depend #0: component
+  struct_inputs.emplace_back(rec_dependency(revman,recdb,to_project->recfullname)); // struct depend #1: to_project
+  struct_inputs.emplace_back(rec_dependency(revman,recdb,camcoords_to_wrlcoords->recfullname)); // struct depend #2: camcoords_to_wrlcoords
 
   /// really we should probably specify dependence on the full geometry underlying our
   // component geom store comp....
@@ -91,7 +91,7 @@ namespace snde {
 
   // the image_data_array is a shared object owned by this dependency.
   // It is kept in memory by being a shared object passed by value into the lambdas.
-  // It stores image_data objects for each waveform we are projecting to, that
+  // It stores image_data objects for each recording we are projecting to, that
   // own the temporary accumulation buffers we are outputting to. 
   std::shared_ptr<std::unordered_map<std::string,std::shared_ptr<imageprojection_image_data>>> image_data_array=std::make_shared<std::unordered_map<std::string,std::shared_ptr<imageprojection_image_data>>>();
 
@@ -110,14 +110,14 @@ namespace snde {
 						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS or
 						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS|STDA_EXECUTE
 
-						std::shared_ptr<mutablewfmdb> wfmdb;
+						std::shared_ptr<mutablerecdb> recdb;
 						std::shared_ptr<mutableinfostore> comp,to_project,camcoords_to_wrlcoords;
-						std::tie(wfmdb,comp)=get_wfm_dependency(dep->struct_inputs[0]);
+						std::tie(recdb,comp)=get_rec_dependency(dep->struct_inputs[0]);
 						
-						std::tie(wfmdb,to_project)=get_wfm_dependency(dep->struct_inputs[1]);
-						std::tie(wfmdb,camcoords_to_wrlcoords)=get_wfm_dependency(dep->struct_inputs[2]);
+						std::tie(recdb,to_project)=get_rec_dependency(dep->struct_inputs[1]);
+						std::tie(recdb,camcoords_to_wrlcoords)=get_rec_dependency(dep->struct_inputs[2]);
 
-						if (!wfmdb || !comp || !to_project || !camcoords_to_wrlcoords) {
+						if (!recdb || !comp || !to_project || !camcoords_to_wrlcoords) {
 						  // some inputs no longer exist... clear out inputs and outputs (if applicable)
 						  std::vector<trm_arrayregion> new_inputs;						  
 						  std::vector<trm_struct_depend> new_struct_inputs;
@@ -149,35 +149,35 @@ namespace snde {
 						
 						
 						geometry_scene improj_scene = geometry_scene::lock_scene(locker,
-													 wfmdb,
-													 wfmdb_context,
+													 recdb,
+													 recdb_context,
 													 comp,
 													 extra_component_names,
 													 //[ comp,to_project,camcoords_to_wrlcoords ] () -> std::tuple<std::shared_ptr<component>,std::shared_ptr<immutable_metadata>,std::set<std::string>> {
-													 //  std::set<std::string> wfmnames;
-													 //  wfmnames.emplace(comp->fullname);
-													 //  wfmnames.emplace(to_project->fullname);
-													 //  wfmnames.emplace(camcoords_to_wrlcoords->fullname);
+													 //  std::set<std::string> recnames;
+													 //  recnames.emplace(comp->fullname);
+													 //  recnames.emplace(to_project->fullname);
+													 //  recnames.emplace(camcoords_to_wrlcoords->fullname);
 													 //
-													 //  return std::make_tuple(comp->comp,comp->metadata.metadata(),wfmnames);													  
+													 //  return std::make_tuple(comp->comp,comp->metadata.metadata(),recnames);													  
 													 //},
 													 // get_image_data()
-													 [ image_data_array ] (std::shared_ptr<mutabledatastore> datawfm,std::string datawfmname) -> std::shared_ptr<image_data> {
+													 [ image_data_array ] (std::shared_ptr<mutabledatastore> datarec,std::string datarecname) -> std::shared_ptr<image_data> {
 													   // This returns new or pre-existing image_data entries that will go in the instances field of improj_scene
-													   auto id_iter = image_data_array->find(datawfmname);
+													   auto id_iter = image_data_array->find(datarecname);
 													   if (id_iter != image_data_array->end()) {
-													     id_iter->second->datawfm=datawfm;
+													     id_iter->second->datarec=datarec;
 													     return id_iter->second;
 													   }
 
-													   std::shared_ptr<imageprojection_image_data> imagedat = std::make_shared<imageprojection_image_data>(datawfm);
-													   image_data_array->emplace(datawfmname,imagedat);
+													   std::shared_ptr<imageprojection_image_data> imagedat = std::make_shared<imageprojection_image_data>(datarec);
+													   image_data_array->emplace(datarecname,imagedat);
 													   return imagedat;
 													   
 													   // problem: We want to return an image_data instance
 													   // that owns an snde_image structure that owns
 													   // a piece of the data array,
-													   // but each wfm has its own data array...
+													   // but each rec has its own data array...
 													   //
 													   // Solution: We will return only an
 													   // accumulation buffer that can be merged
@@ -252,17 +252,17 @@ namespace snde {
 									 for (snde_index patchidx=0; patchidx < std::get<2>(improj_scene->instances[cnt])->numuvimages;patchidx++) {
 									   std::shared_ptr<imageprojection_image_data> imagedat = std::get<3>(improj_scene->instances[cnt]).at(patchidx);
 									   snde_index numelements;
-									   if (imagedat->datawfm->dimlen.size() < 2) {
+									   if (imagedat->datarec->dimlen.size() < 2) {
 									     numelements=0;
 									     *imagedat->imageinfo=snde_image{.step.coord={ 1.0, 1.0}};
 									   } else {
 									     
-									     imagedat->imageinfo->nx=imagedat->datawfm->dimlen[0];
-									     imagedat->imageinfo->step.coord[0]=imagedat->datawfm->metadata.GetMetaDatumDbl("Step1",1.0);
-									     imagedat->imageinfo->inival.coord[0]=imagedat->datawfm->metadata.GetMetaDatumDbl("IniVal1",-imagedat->imageinfo->step.coord[0]*imagedat->imageinfo->nx/2.0);
-									     imagedat->imageinfo->ny=imagedat->datawfm->dimlen[1];
-									     imagedat->imageinfo->step.coord[1]=imagedat->datawfm->metadata.GetMetaDatumDbl("Step2",-1.0);
-									     imagedat->imageinfo->inival.coord[1]=imagedat->datawfm->metadata.GetMetaDatumDbl("IniVal2",imagedat->imageinfo->step.coord[1]*imagedat->imageinfo->ny/2.0);
+									     imagedat->imageinfo->nx=imagedat->datarec->dimlen[0];
+									     imagedat->imageinfo->step.coord[0]=imagedat->datarec->metadata.GetMetaDatumDbl("Step1",1.0);
+									     imagedat->imageinfo->inival.coord[0]=imagedat->datarec->metadata.GetMetaDatumDbl("IniVal1",-imagedat->imageinfo->step.coord[0]*imagedat->imageinfo->nx/2.0);
+									     imagedat->imageinfo->ny=imagedat->datarec->dimlen[1];
+									     imagedat->imageinfo->step.coord[1]=imagedat->datarec->metadata.GetMetaDatumDbl("Step2",-1.0);
+									     imagedat->imageinfo->inival.coord[1]=imagedat->datarec->metadata.GetMetaDatumDbl("IniVal2",imagedat->imageinfo->step.coord[1]*imagedat->imageinfo->ny/2.0);
 									     numelements = imagedat->imageinfo->nx*imagedat->imageinfo->ny;
 									   }
 
