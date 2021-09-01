@@ -34,3 +34,6 @@ test_rec.mark_as_ready()
 globalrev.wait_complete();
 
 rec = globalrev.get_recording("/test channel")
+
+data = rec.cast_to_ndarray().data()
+print(data)

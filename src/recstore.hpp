@@ -129,6 +129,7 @@ namespace snde {
   // forward references
   class recdatabase;
   class channel;
+  class ndarray_recording;
   class globalrevision;
   class channel_state;
   class transaction;
@@ -192,7 +193,7 @@ namespace snde {
   }
 
   
-  class recording_base  {
+  class recording_base: public std::enable_shared_from_this<recording_base>  {
     // may be subclassed by creator
     // mutable in certain circumstances following the conventions of snde_recording
 
@@ -240,8 +241,11 @@ namespace snde {
     recording_base(const recording_base &orig) = delete;
     virtual ~recording_base(); // virtual destructor so we can be subclassed
 
+    std::shared_ptr<ndarray_recording> cast_to_ndarray();
+
     virtual std::shared_ptr<recording_set_state> _get_originating_wss_rec_admin_prelocked(); // version of get_originating_wss() to use if you have the recording database and recording's admin locks already locked.
     std::shared_ptr<recording_set_state> _get_originating_wss_recdb_admin_prelocked(); // version of get_originating_wss() to use if you have the recording database admin lock already locked.
+
 
     virtual std::shared_ptr<recording_set_state> get_originating_wss(); // Get the originating recording set state (often a globalrev). You should only call this if you are sure that originating wss must still exist (otherwise may generate a snde_error), such as before the creator has declared the recording "ready". This will lock the recording database and rec admin locks, so any locks currently held must precede both in the locking order
     virtual bool _transactionrec_transaction_still_in_progress_admin_prelocked(); // with the recording admin locked,  return if this is a transaction recording where the transaction is still in progress and therefore we can't get the recording_set_state
@@ -251,6 +255,8 @@ namespace snde {
     virtual rwlock_token_set lock_storage_for_write();
     virtual rwlock_token_set lock_storage_for_read();
     */
+
+    
     
     virtual void _mark_metadata_done_internal(/*std::shared_ptr<recording_set_state> wss,const std::string &channame*/);
     virtual void mark_metadata_done();  // call WITHOUT admin lock (or other locks?) held. 

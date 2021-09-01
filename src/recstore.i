@@ -16,6 +16,7 @@ namespace snde {
   // forward references
   class recdatabase;
   class channel;
+  class ndarray_recording;
   class globalrevision;
   class channel_state;
   class transaction;
@@ -89,9 +90,12 @@ namespace snde {
     recording_base(const recording_base &orig) = delete;
     virtual ~recording_base(); // virtual destructor so we can be subclassed
 
+    std::shared_ptr<ndarray_recording> cast_to_ndarray();
+
     virtual std::shared_ptr<recording_set_state> _get_originating_wss_rec_admin_prelocked(); // version of get_originating_wss() to use if you have the recording database and recording's admin locks already locked.
     std::shared_ptr<recording_set_state> _get_originating_wss_recdb_admin_prelocked(); // version of get_originating_wss() to use if you have the recording database admin lock already locked.
-
+    
+    
     virtual std::shared_ptr<recording_set_state> get_originating_wss(); // Get the originating recording set state (often a globalrev). You should only call this if you are sure that originating wss must still exist (otherwise may generate a snde_error), such as before the creator has declared the recording "ready". This will lock the recording database and rec admin locks, so any locks currently held must precede both in the locking order
     virtual bool _transactionrec_transaction_still_in_progress_admin_prelocked(); // with the recording admin locked,  return if this is a transaction recording where the transaction is still in progress and therefore we can't get the recording_set_state
 
@@ -193,6 +197,41 @@ namespace snde {
     
   };
 
+  %extend ndarray_recording {
+    PyObject *data()
+    {
+      PyArray_Descr *ArrayDescr = snde::rtn_numpytypemap.at(self->ndinfo()->typenum);
+
+      // make npy_intp dims and strides from layout.dimlen and layout.strides
+      std::vector<npy_intp> dims;
+      std::vector<npy_intp> strides;
+      std::copy(self->layout.dimlen.begin(),self->layout.dimlen.end(),std::back_inserter(dims));
+
+      for (auto && stride: self->layout.strides) {
+	strides.push_back(stride*self->ndinfo()->elementsize); // our strides are in numbers of elements vs numpy does it in bytes;
+      }
+      int flags = 0;
+      if (self->info_state != SNDE_RECS_READY && self->info_state != SNDE_RECS_OBSOLETE) {
+	flags = NPY_ARRAY_WRITEABLE; // only writeable if it's not marked as ready yet.
+      }
+
+      // Need to grab the GIL before Python calls because
+      // swig wrapped us with something that dropped it (!)
+      PyGILState_STATE gstate = PyGILState_Ensure();
+      PyArrayObject *obj = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type,ArrayDescr,self->layout.dimlen.size(),dims.data(),strides.data(),self->void_dataptr(),0,nullptr);
+
+      // memory_holder_obj contains a shared_ptr to "this", i.e. the ndarray_recording.  We will store this in the "base" property of obj so that as long as obj lives, so will the ndarray_recording, and hence its memory.
+      // (This code is similar to the code returned by _wrap_recording_base_cast_to_ndarray()
+      std::shared_ptr<snde::ndarray_recording> rawresult = std::dynamic_pointer_cast<snde::ndarray_recording>(self->shared_from_this());
+      assert(rawresult);
+      std::shared_ptr<snde::ndarray_recording> *smartresult = new std::shared_ptr<snde::ndarray_recording>(rawresult);
+      PyObject *memory_holder_obj = SWIG_NewPointerObj(SWIG_as_voidptr(smartresult), SWIGTYPE_p_std__shared_ptrT_snde__ndarray_recording_t, SWIG_POINTER_OWN/*|SWIG_POINTER_NOSHADOW*/);
+      PyArray_SetBaseObject(obj,memory_holder_obj); // steals reference to memory_holder_obj
+      PyGILState_Release(gstate);
+      return (PyObject *)obj;
+    }
+  }
+  
 
   class transaction {
   public:

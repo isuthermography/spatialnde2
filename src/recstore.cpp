@@ -202,6 +202,12 @@ namespace snde {
   }
 
 
+  std::shared_ptr<ndarray_recording> recording_base::cast_to_ndarray()
+  {
+    return std::dynamic_pointer_cast<ndarray_recording>(shared_from_this());
+  }
+
+
   std::shared_ptr<recording_set_state> recording_base::_get_originating_wss_rec_admin_prelocked() 
   // version of get_originating_wss() to use if you have (optionally the recdb and) the rec admin locks already locked.
   {
@@ -284,6 +290,8 @@ namespace snde {
     return _get_originating_wss_rec_admin_prelocked();
 
   }
+
+
   
   std::shared_ptr<recording_set_state> recording_base::get_originating_wss()
   // Get the originating recording set state (often a globalrev)

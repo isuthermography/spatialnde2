@@ -69,7 +69,12 @@ struct snde_ndarray_recording {
 
 
 // #defines for typenum
-// New type numbers need to be added to both create_typed_recording() definitions in recstore.cpp and to the typemaps in recstore.cpp
+// New type numbers need to be added to
+//   * definitions here in recording.h
+//   * definitions in recording.i (for SWIG)
+//   * create_typed_recording() definitions in recstore.cpp
+//   * typemaps near beginning of recstore.cpp
+//   * rtn_numpytypemap at end of spatialnde2.i
 #define SNDE_RTN_FLOAT32 0
 #define SNDE_RTN_FLOAT64 1
 #define SNDE_RTN_FLOAT16 2

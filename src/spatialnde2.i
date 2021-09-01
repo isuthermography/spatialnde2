@@ -72,9 +72,7 @@ typedef unsigned long size_t;
   #include <numpy/ndarrayobject.h>
 %}
 
-%init %{
-  import_array();
-%}
+
 
 
 // exception handling
@@ -101,7 +99,10 @@ typedef unsigned long size_t;
 #include <functional>
 #include <tuple>
 
-
+namespace snde {
+  static std::unordered_map<unsigned,PyArray_Descr*> rtn_numpytypemap;
+};
+ 
 #include "snde_error.hpp"
 %}
 
@@ -148,4 +149,51 @@ typedef unsigned long size_t;
 //%shared_ptr(snde::openclcachemanager);
 %template(StringVector) std::vector<std::string>;
 
+
+%init %{
+  import_array();
+
+  PyObject *Globals = PyDict_New(); // for creating numpy dtypes
+  PyObject *NumpyModule = PyImport_ImportModule("numpy");
+  if (!NumpyModule) {
+    throw snde::snde_error("Error importing numpy");
+  }
+  PyObject *np_dtype = PyObject_GetAttrString(NumpyModule,"dtype");
+  PyDict_SetItemString(Globals,"np",NumpyModule);
+  PyDict_SetItemString(Globals,"dtype",np_dtype);
+
+  
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_FLOAT32,PyArray_DescrFromType(NPY_FLOAT32));
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_FLOAT64,PyArray_DescrFromType(NPY_FLOAT64));
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_FLOAT16,PyArray_DescrFromType(NPY_FLOAT16));
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_UINT64,PyArray_DescrFromType(NPY_UINT64));
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_INT64,PyArray_DescrFromType(NPY_INT64));
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_UINT32,PyArray_DescrFromType(NPY_UINT32));
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_INT32,PyArray_DescrFromType(NPY_INT32));
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_UINT16,PyArray_DescrFromType(NPY_UINT16));
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_INT16,PyArray_DescrFromType(NPY_INT16));
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_UINT8,PyArray_DescrFromType(NPY_UINT8));
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_INT8,PyArray_DescrFromType(NPY_INT8));
+  // SNDE_RTN_RGBA32
+  PyObject *rgba32_dtype = PyRun_String("dtype([('r', np.uint8), ('g', np.uint8), ('b',np.uint8),('a',np.uint8)])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_RGBA32,(PyArray_Descr *)rgba32_dtype);
+  
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_COMPLEXFLOAT32,PyArray_DescrFromType(NPY_COMPLEX64));
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_COMPLEXFLOAT64,PyArray_DescrFromType(NPY_COMPLEX128));
+  // SNDE_RTN_COMPLEXFLOAT16
+  PyObject *complexfloat16_dtype = PyRun_String("dtype([('real', np.float16), ('imag', np.float16) ])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_COMPLEXFLOAT16,(PyArray_Descr *)complexfloat16_dtype);
+
+  // SNDE_RTN_RGBD64
+  PyObject *rgbd64_dtype = PyRun_String("dtype([('r', np.uint8), ('g', np.uint8), ('b',np.uint8),('a',np.uint8),('d',np.float32)])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_RGBD64,(PyArray_Descr *)rgbd64_dtype);
+
+  //  SNDE_RTN_STRING not applicable
+  //  SNDE_RTN_RECORDING not applicable
+
+  Py_DECREF(NumpyModule);
+  Py_DECREF(np_dtype);
+  Py_DECREF(Globals);
+
+%}
 
