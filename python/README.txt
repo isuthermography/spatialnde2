@@ -1,0 +1,1 @@
+The setup.py file in this directory is installed by cmake into your build directory. Run sudo python setup.py install from the cmake build directory after the cmake build is complete to install the python support. Be sure when running setup.py to use the same python installation configured during the cmake build

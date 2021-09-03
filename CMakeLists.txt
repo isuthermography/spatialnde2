@@ -31,10 +31,10 @@ ELSE()
 ENDIF()
 
 # Create a variable to enable/disable installing into site-packages
-set(INSTALL_INTO_PYTHON_SITE_PACKAGES ON CACHE BOOL "Install into the Python site-packages so that scripts run without setting PYTHONPATH")
+set(INSTALL_INTO_PYTHON_SITE_PACKAGES OFF CACHE BOOL "Install into the Python site-packages so that scripts run without setting PYTHONPATH (you can alternatively run the setup.py generated in the build directory manually)")
 
 if((NOT WIN32) AND (NOT APPLE))
-  set(INSTALL_BINARIES_INTO_INSTALL_PREFIX ON CACHE BOOL "Install binaries into the bin/ and lib/ or lib64/ directories under your selected prefix")
+  set(INSTALL_BINARIES_INTO_INSTALL_PREFIX OFF CACHE BOOL "Install binaries into the bin/ and lib/ or lib64/ directories under your selected prefix")
   include(GNUInstallDirs)
 endif()
 
@@ -294,6 +294,31 @@ IF (PythonInterp_FOUND)
     add_custom_target(OpenCL_Headers DEPENDS ${PYTHONGENERATEDHEADERS})
 ENDIF (PythonInterp_FOUND)
 
+
+IF (PythonInterp_FOUND)
+  set(PYTHONPKGFILES ${CMAKE_CURRENT_BINARY_DIR}/setup.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/_spatialnde2_python.so )
+
+
+  #message(STATUS "[SWIG_MODULE_spatialnde2_python_REAL_NAME: " ${SWIG_MODULE_spatialnde2_python_REAL_NAME} )
+  
+  add_custom_command(OUTPUT ${PYTHONPKGFILES}
+    DEPENDS python/setup.py spatialnde2_python
+            # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
+
+            COMMAND ${CMAKE_COMMAND} -E copy python/setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python.so ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+            COMMAND ${CMAKE_COMMAND} -E copy  ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py
+	    
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+	    )
+	  add_custom_target(Python_Setup ALL DEPENDS ${PYTHONPKGFILES})
+	  #add_custom_command(Python_Setup DEPENDS ${PYTHONPKGFILES})
+
+ENDIF (PythonInterp_FOUND)
+
+
 IF (OpenCL_FOUND AND PythonInterp_FOUND)
     # build opencl_example... requires Python to preprocess the testkernel
     #add_executable(opencl_example
@@ -464,20 +489,21 @@ install(FILES
 
 # SWIG
 install(TARGETS
-        ${SWIG_MODULE_spatialnde2_REAL_NAME}
+        spatialnde2_python
         DESTINATION ${APP_INSTALL_DIR}/python)
 install(
-	FILES "${PROJECT_BINARY_DIR}/spatialnde2.py"
+	FILES "${PROJECT_BINARY_DIR}/spatialnde2_python.py"
 	DESTINATION ${APP_INSTALL_DIR}/python)
 
 set(PYTHON_SITE_PACKAGES "${PROJECT_SOURCE_DIR}/INSTALL/python")
 if(INSTALL_INTO_PYTHON_SITE_PACKAGES)
-  install(TARGETS
-    ${SWIG_MODULE_spatialnde2_REAL_NAME}
-    DESTINATION ${PYTHON_SITE_PACKAGES})
-  install(
-    FILES "${PROJECT_BINARY_DIR}/spatialnde2.py"
-    DESTINATION ${PYTHON_SITE_PACKAGES})
+  #install(TARGETS
+  #  ${SWIG_MODULE_spatialnde2_REAL_NAME}
+  #  DESTINATION ${PYTHON_SITE_PACKAGES})
+  #install(
+  #  FILES "${PROJECT_BINARY_DIR}/spatialnde2.py"
+  #  DESTINATION ${PYTHON_SITE_PACKAGES})
+  install( CODE "execute_process(COMMAND ${PYTHON_EXECUTABLE} setup.py install )")
 endif()
 
 
