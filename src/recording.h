@@ -72,7 +72,7 @@ struct snde_ndarray_recording {
 // New type numbers need to be added to
 //   * definitions here in recording.h
 //   * definitions in recording.i (for SWIG)
-//   * create_typed_recording() definitions in recstore.cpp
+//   * create_typed_recording() definitions in recstore.cpp (both definitions of create_typed_recording()) 
 //   * typemaps near beginning of recstore.cpp
 //   * rtn_numpytypemap at end of spatialnde2.i
 #define SNDE_RTN_FLOAT32 0
@@ -93,5 +93,6 @@ struct snde_ndarray_recording {
 #define SNDE_RTN_RGBD64 15 /* as address goes from low to high: R (byte) G (byte) B (byte) A (byte) D (float32) */ 
 #define SNDE_RTN_STRING 16 // not usable for recordings, but used internally for math parameters. 
 #define SNDE_RTN_RECORDING 17 // not usable for recordings, but used internally for math parameters. 
+#define SNDE_RTN_COORD3_INT16 18 // x,y,z coordinates, with each being 16 bit signed integer
 
 #endif // SNDE_RECORDING_H

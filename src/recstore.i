@@ -36,9 +36,12 @@ namespace snde {
   extern const std::unordered_map<unsigned,std::string> rtn_ocltypemap; // Look up opencl type string based on typenum
 
   %typemap(in) void *owner_id {
-    $1 = (void *)$input;
+    $1 = (void *)$input; // stores address of the PyObject
   }
 
+  %typemap(out) void * {
+    $result = PyLong_FromVoidPtr($1);
+  }
   
   class recording_base  {
     // may be subclassed by creator

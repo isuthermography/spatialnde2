@@ -28,6 +28,7 @@ namespace snde {
       {typeid(snde_rgbd),SNDE_RTN_RGBD64},
       {typeid(std::string),SNDE_RTN_STRING},
       {typeid(std::shared_ptr<recording_base>),SNDE_RTN_RECORDING},      
+      {typeid(snde_coord3_int16),SNDE_RTN_COORD3_INT16},      
   });
   
   // rtn_typesizemap is indexed by SNDE_RTN_xxx
@@ -58,6 +59,7 @@ namespace snde {
       {SNDE_RTN_COMPLEXFLOAT16,4},
 #endif
       {SNDE_RTN_RGBD64,sizeof(snde_rgbd)},
+      {SNDE_RTN_COORD3_INT16,sizeof(snde_coord3_int16)},
     });
   
   const std::unordered_map<unsigned,std::string> rtn_typenamemap({ // Look up type name based on typenum
@@ -81,7 +83,7 @@ namespace snde {
       {SNDE_RTN_RGBD64,"SNDE_RTN_RGBD64"},
       {SNDE_RTN_STRING,"SNDE_RTN_STRING"},
       {SNDE_RTN_RECORDING,"SNDE_RTN_RECORDING"},      
-
+      {SNDE_RTN_COORD3_INT16,"SNDE_RTN_COORD3_INT16"},   
     });
   
 
@@ -104,6 +106,7 @@ namespace snde {
       {SNDE_RTN_COMPLEXFLOAT64,"struct { double real; double imag; }"},
       {SNDE_RTN_COMPLEXFLOAT16,"struct { half real; half imag; }"},
       {SNDE_RTN_RGBD64,"snde_rgbd"},
+      {SNDE_RTN_COORD3_INT16,"snde_coord3_int16"},
       
     });
   
@@ -474,6 +477,12 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     case SNDE_RTN_RGBD64:
       ret = std::make_shared<ndtyped_recording<snde_rgbd>>(recdb,chan,owner_id);
       break;
+
+    case SNDE_RTN_COORD3_INT16:
+      ret = std::make_shared<ndtyped_recording<snde_coord3_int16>>(recdb,chan,owner_id);
+      break;
+
+      
     default:
       throw snde_error("ndarray_recording::create_typed_recording(): Unknown type number %u",typenum);
     }
@@ -553,7 +562,11 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     case SNDE_RTN_RGBD64:
       ret = std::make_shared<ndtyped_recording<snde_rgbd>>(recdb,chanpath,calc_wss);
       break;
-      
+
+    case SNDE_RTN_COORD3_INT16:
+      ret = std::make_shared<ndtyped_recording<snde_coord3_int16>>(recdb,chanpath,calc_wss);
+      break;
+
     default:
       throw snde_error("ndarray_recording::create_typed_recording() (math): Unknown type number %u",typenum);
     }

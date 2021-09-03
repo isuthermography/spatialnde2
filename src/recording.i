@@ -78,3 +78,4 @@ struct snde_ndarray_recording {
 #define SNDE_RTN_RGBD64 15 /* as address goes from low to high: R (byte) G (byte) B (byte) A (byte) D (float32) */ 
 #define SNDE_RTN_STRING 16 // not usable for recordings, but used internally for math parameters. 
 #define SNDE_RTN_RECORDING 17 // not usable for recordings, but used internally for math parameters. 
+#define SNDE_RTN_COORD3_INT16 18 // x,y,z coordinates, with each being 16 bit signed integer
