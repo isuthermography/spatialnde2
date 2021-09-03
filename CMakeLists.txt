@@ -88,10 +88,10 @@ else()
   set(SHARED_LIBRARY_SUFFIX_PYTHON .so )
 endif()
 
-set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/recmath_compute_resource.cpp src/recmath.cpp src/recmath_parameter.cpp src/recstore.cpp src/recstore_storage.cpp src/recmath_cppfunction.cpp src/notify.cpp src/snde_error.cpp ) # src/infostore_or_component.cpp src/geometry.cpp src/revision_manager.cpp src/mutablerecstore.cpp )
+set(SPATIALNDE2_SOURCES snde/allocator.cpp snde/lockmanager.cpp snde/recmath_compute_resource.cpp snde/recmath.cpp snde/recmath_parameter.cpp snde/recstore.cpp snde/recstore_storage.cpp snde/recmath_cppfunction.cpp snde/notify.cpp snde/snde_error.cpp ) # snde/infostore_or_component.cpp snde/geometry.cpp snde/revision_manager.cpp snde/mutablerecstore.cpp )
 
 if (NOT WIN32)
-  set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} src/shared_memory_allocator_posix.cpp )
+  set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/shared_memory_allocator_posix.cpp )
 endif()
 
 
@@ -130,6 +130,7 @@ find_package(GLUT)
 # QT
 find_package(Qt5 REQUIRED Core Widgets Gui OpenGL UiTools )
 
+include_directories(BEFORE . )  # So that #include "snde/..." works during the build
 
 IF (PythonInterp_FOUND)
     message(STATUS ${PYTHON_VERSION_STRING})
@@ -149,11 +150,11 @@ IF (OpenCL_FOUND)
     add_definitions(-DSNDE_OPENCL)
     add_definitions(-DCL_TARGET_OPENCL_VERSION=120)
     # Build OpenCL support into library
-    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/opencl_utils.cpp src/openclcachemanager.cpp ) # src/data_to_rgba.cpp src/inplanemat_calculation.cpp src/projinfo_calculation.cpp src/boxes_calculation.cpp)
+    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  snde/opencl_utils.cpp snde/openclcachemanager.cpp ) # snde/data_to_rgba.cpp snde/inplanemat_calculation.cpp snde/projinfo_calculation.cpp snde/boxes_calculation.cpp)
     #IF (PythonInterp_FOUND) 
-    #  set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} src/normal_calculation.cpp)
+    #  set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/normal_calculation.cpp)
     #  IF (OpenSceneGraph_FOUND)
-    #    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  src/openscenegraph_geom.cpp)
+    #    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  snde/openscenegraph_geom.cpp)
     #  ENDIF (OpenSceneGraph_FOUND)
     #ENDIF (PythonInterp_FOUND)
     set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} ${OpenCL_LIBRARIES})
@@ -162,8 +163,8 @@ ENDIF (OpenCL_FOUND)
 
 #IF (Qt5_FOUND)
 #  include_directories(${Qt5Widgets_INCLUDE_DIRS} ${Qt5Core_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5OpenGL_INCLUDE_DIRS} ${Qt5UiTools_INCLUDE_DIRS} ) 
-#  QT5_WRAP_CPP(qtrecviewer_MOC src/qtrecviewer.cpp src/qtrecviewer.hpp)
-#  set(SPATIALNDE2_QT_SOURCES src/qtrecviewer.cpp ${qtrecviewer_MOC} )
+#  QT5_WRAP_CPP(qtrecviewer_MOC snde/qtrecviewer.cpp snde/qtrecviewer.hpp)
+#  set(SPATIALNDE2_QT_SOURCES snde/qtrecviewer.cpp ${qtrecviewer_MOC} )
 #ENDIF()
 
 IF (LibXml2_FOUND)
@@ -200,13 +201,13 @@ add_library(spatialnde2 SHARED ${SPATIALNDE2_SOURCES})
 
 
 IF (Qt5_FOUND)
-  qt5_add_resources(SPATIALNDE2_QT_RCC src/qtrecviewer.qrc )
+  qt5_add_resources(SPATIALNDE2_QT_RCC snde/qtrecviewer.qrc )
   add_library(spatialnde2_qt SHARED ${SPATIALNDE2_QT_SOURCES} ${SPATIALNDE2_QT_RCC})
 ENDIF()
 
 # SpatialNDE2 headers
-FILE(GLOB SPATIALNDE2_CPP_HEADERS "src/*.hpp")
-FILE(GLOB SPATIALNDE2_C_HEADERS "src/*.h")
+FILE(GLOB SPATIALNDE2_CPP_HEADERS "snde/*.hpp")
+FILE(GLOB SPATIALNDE2_C_HEADERS "snde/*.h")
 
 # Set RPATH
 # the RPATH to be used when installing, but only if it's not a system directory
@@ -274,7 +275,7 @@ ENDIF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
 
 
 IF (PythonInterp_FOUND)
-    set(PYTHONGENHEADERS src/snde_types.h src/geometry_types.h src/geometry_ops.h src/vecops.h ) #  src/testkernel.c src/osg_vertexarray.c src/osg_texvertexarray.c src/normal_calc.c src/projinfo_calc.c src/colormap.h src/scale_colormap.c src/dummy_scale_colormap.c )
+    set(PYTHONGENHEADERS snde/snde_types.h snde/geometry_types.h snde/geometry_ops.h snde/vecops.h ) #  snde/testkernel.c snde/osg_vertexarray.c snde/osg_texvertexarray.c snde/normal_calc.c snde/projinfo_calc.c snde/colormap.h snde/scale_colormap.c snde/dummy_scale_colormap.c )
   
     set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h ) # ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
 
@@ -282,18 +283,18 @@ IF (PythonInterp_FOUND)
             DEPENDS ${PYTHONGENHEADERS}
             # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
 
-            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/snde_types.h ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h
-            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/geometry_types.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h
-            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/geometry_ops.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h
-            COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/vecops.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h
-            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/testkernel.c ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
-            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/osg_vertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h
-            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/osg_texvertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h
-            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/normal_calc.c ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h
-            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/projinfo_calc.c ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h
-            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/colormap.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h
-            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h
-            #COMMAND ${PYTHON_EXECUTABLE} src/file2header.py src/dummy_scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h
+            COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/snde_types.h ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h
+            COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/geometry_types.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h
+            COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/geometry_ops.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h
+            COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/vecops.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h
+            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/testkernel.c ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
+            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/osg_vertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h
+            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/osg_texvertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h
+            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/normal_calc.c ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h
+            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/projinfo_calc.c ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h
+            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/colormap.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h
+            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h
+            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/dummy_scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 	    )
     add_custom_target(OpenCL_Headers DEPENDS ${PYTHONGENERATEDHEADERS})
@@ -307,7 +308,7 @@ IF (PythonInterp_FOUND)
   #message(STATUS "[SWIG_MODULE_spatialnde2_python_REAL_NAME: " ${SWIG_MODULE_spatialnde2_python_REAL_NAME} )
   
   add_custom_command(OUTPUT ${PYTHONPKGFILES}
-    DEPENDS python/setup.py spatialnde2_python
+    DEPENDS python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${PYTHONGENERATEDHEADERS}  
             # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
 
             COMMAND ${CMAKE_COMMAND} -E copy python/setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
@@ -317,6 +318,10 @@ IF (PythonInterp_FOUND)
             COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
             COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
             COMMAND ${CMAKE_COMMAND} -E copy  ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
+            COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_CPP_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
+            COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_C_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
+            COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
 	    
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 	    )
@@ -358,7 +363,7 @@ ENDIF()
 
 
 
-include_directories(src/)
+include_directories(snde/)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 # Build SWIG wrapper
@@ -397,20 +402,20 @@ IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
 	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_OPENCL)
 	ENDIF()
 	
-	SET_SOURCE_FILES_PROPERTIES(src/spatialnde2.i PROPERTIES CPLUSPLUS 1)
-	set(UseSWIG_TARGET_NAME_PREFERENCE "LEGACY")
+	SET_SOURCE_FILES_PROPERTIES(snde/spatialnde2.i PROPERTIES CPLUSPLUS 1)
+	set(UseSWIG_TARGET_NAME_PREFERENCE "STANDARD")
 
-	set(SPATIALNDE2_SWIG_SOURCES src/spatialnde2.i  )
-	set_property(SOURCE src/spatialnde2.i PROPERTY SWIG_MODULE_NAME spatialnde2_python)
+	set(SPATIALNDE2_SWIG_SOURCES snde/spatialnde2.i  )
+	set_property(SOURCE snde/spatialnde2.i PROPERTY SWIG_MODULE_NAME spatialnde2_python)
 	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${PYTHON_LIBRARIES} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools ${SPATIALNDE2_QT_LIBS} )
 
 	IF(NOT WIN32)
-	  set(SPATIALNDE2_SWIG_SOURCES ${SPATIALNDE2_SWIG_SOURCES} src/shared_memory_allocator_posix.cpp )
+	  set(SPATIALNDE2_SWIG_SOURCES ${SPATIALNDE2_SWIG_SOURCES} snde/shared_memory_allocator_posix.cpp )
 	  set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} rt ) # -lrt required for shm_open() etc.
 	ENDIF()
 	
 	IF (OpenCL_FOUND)
-	  set(SPATIALNDE2_SWIG_SOURCES ${SPATIALNDE2_SWIG_SOURCES} src/openclcachemanager.cpp src/opencl_utils.cpp)
+	  set(SPATIALNDE2_SWIG_SOURCES ${SPATIALNDE2_SWIG_SOURCES} snde/openclcachemanager.cpp snde/opencl_utils.cpp)
 	  set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${OpenCL_LIBRARIES})
 	ENDIF()
 	IF (LibXml2_FOUND AND Eigen3_FOUND)
@@ -418,7 +423,7 @@ IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
 	ENDIF()
     
 	SWIG_ADD_LIBRARY(spatialnde2_python LANGUAGE python SOURCES ${SPATIALNDE2_SWIG_SOURCES} )
-	SWIG_LINK_LIBRARIES(spatialnde2_python ${SWIG_SPATIALNDE2_LINK_LIBRARIES})
+	TARGET_LINK_LIBRARIES(spatialnde2_python ${SWIG_SPATIALNDE2_LINK_LIBRARIES})
 	
 	add_dependencies(spatialnde2 OpenCL_Headers)
     ELSE ()

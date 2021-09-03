@@ -1,4 +1,4 @@
-#include "bounding_hyperbox.h"
+#include "snde/bounding_hyperbox.h"
 
 namespace snde {
   // bounding_hyperboxes.hpp:

@@ -3,8 +3,8 @@
 #include <string>
 #include <memory>
 
-#include "revision_manager.hpp"
-#include "geometry.hpp"
+#include "snde/revision_manager.hpp"
+#include "snde/geometry.hpp"
 
 #ifndef SNDE_REVMAN_PARAMETERIZATION_HPP
 #define SNDE_REVMAN_PARAMETERIZATION_HPP

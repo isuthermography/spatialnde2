@@ -1,8 +1,8 @@
 #ifndef SNDE_QUATERNION_H
 #define SNDE_QUATERNION_H
 
-#include "geometry_types.h"
-#include "vecops.h"
+#include "snde/geometry_types.h"
+#include "snde/vecops.h"
 
 #ifdef _MSC_VER
 #define QUATERNION_INLINE  __inline

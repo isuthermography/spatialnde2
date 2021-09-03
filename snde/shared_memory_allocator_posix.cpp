@@ -4,8 +4,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "shared_memory_allocator_posix.hpp"
-#include "snde_error.hpp"
+#include "snde/shared_memory_allocator_posix.hpp"
+#include "snde/snde_error.hpp"
 
 namespace snde {
 

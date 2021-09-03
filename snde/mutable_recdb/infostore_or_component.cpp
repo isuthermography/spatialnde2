@@ -2,10 +2,10 @@
 #include <set>
 #include <string>
 
-#include "lockmanager.hpp"
-#include "infostore_or_component.hpp"
-#include "recdb_paths.hpp"
-#include "mutablerecstore.hpp"
+#include "snde/lockmanager.hpp"
+#include "snde/infostore_or_component.hpp"
+#include "snde/recdb_paths.hpp"
+#include "snde/mutablerecstore.hpp"
 
 namespace snde {
 

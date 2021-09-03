@@ -3,12 +3,12 @@
 
 #include <stdint.h>
 
-#include "geometry_types.h"
+#include "snde/geometry_types.h"
 
 #ifndef __cplusplus
 typedef void snde_immutable_metadata; // must treat metadata pointer as opaque from C
 #else
-#include "metadata.hpp"
+#include "snde/metadata.hpp"
 typedef snde::immutable_metadata snde_immutable_metadata;
 #endif
 

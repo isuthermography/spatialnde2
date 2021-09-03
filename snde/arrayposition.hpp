@@ -1,7 +1,7 @@
 #ifndef SNDE_ARRAYPOSITION_HPP
 #define SNDE_ARRAYPOSITION_HPP
 
-#include "array_index_ops.h"
+#include "snde/array_index_ops.h"
 
 #include <vector>
 

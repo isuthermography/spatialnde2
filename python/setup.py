@@ -7,7 +7,8 @@ from setuptools.command.install import install
 from distutils.command.build import build
 from distutils.command.build_ext import build_ext
 from distutils.sysconfig import get_config_var
-        
+import glob
+
 
 class build_ext_from_cmake(build_ext):
     def build_extension(self,ext):
@@ -20,10 +21,18 @@ class build_ext_from_cmake(build_ext):
         pass
     pass
 
-ext_modules=[Extension("spatialnde2._spatialnde2_python",sources=["spatialnde2/_spatialnde2_python"+os.path.splitext("junk."+get_config_var('EXT_SUFFIX'))[1]])] # The "source file" is the cmake-generated binary
+python_full_ext_suffix = get_config_var('EXT_SUFFIX') # extension suffix; generally including python version info 
+python_ext_suffix = os.path.splitext("junk."+python_full_ext_suffix)[1] # .so on Linux/MacOS or .pyd on Windows -- we need this because the CMake build doesn't include the python version information in its generated suffix
+platform_shlib_suffix = get_config_var('SHLIB_SUFFIX')
+
+ext_modules=[Extension("spatialnde2._spatialnde2_python",sources=["spatialnde2/_spatialnde2_python"+python_ext_suffix])] # The "source file" is the cmake-generated binary
+
+spatialnde2_dlls = [ dllname for dllname in os.listdir('spatialnde2') if (dllname.endswith(platform_shlib_suffix) and not dllname.startswith('_')) or dllname.endswith('.lib') ] # Get dlls and .libs but not the extension itself -- which has a name that starts with an underscore
 
 package_data = {
-    "spatialnde2": []
+    "spatialnde2": [
+        "snde/*", # All headers, installed into this location by cmake build process
+    ] + spatialnde2_dlls
 }
 
 setup(name="spatialnde2",

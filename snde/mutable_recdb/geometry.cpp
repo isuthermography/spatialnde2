@@ -2,11 +2,11 @@
 #include <memory>
 
 
-#include "geometry_types.h"
-#include "arraymanager.hpp"
-#include "geometrydata.h"
-#include "geometry.hpp"
-#include "mutablerecstore.hpp"
+#include "snde/geometry_types.h"
+#include "snde/arraymanager.hpp"
+#include "snde/geometrydata.h"
+#include "snde/geometry.hpp"
+#include "snde/mutablerecstore.hpp"
 
 namespace snde {
   //  component::component() {};

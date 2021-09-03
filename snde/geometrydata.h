@@ -198,7 +198,7 @@ extern "C" {
 
 
 //#ifdef __cplusplus
-//#include "geometry.hpp"
+//#include "snde/geometry.hpp"
 //typedef snde::geometry snde_geometry;
 //#else
 //typedef struct snde_geometry snde_geometry;

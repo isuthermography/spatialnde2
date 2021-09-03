@@ -1,4 +1,4 @@
-#include "mutablerecstore.hpp"
+#include "snde/mutablerecstore.hpp"
 
 namespace snde {
   

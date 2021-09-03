@@ -1,8 +1,8 @@
 #include <typeinfo>
 
-#include "recmath_parameter.hpp"
-#include "recmath.hpp"
-#include "recstore.hpp"
+#include "snde/recmath_parameter.hpp"
+#include "snde/recmath.hpp"
+#include "snde/recstore.hpp"
 
 namespace snde {
 

@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <math.h>
 
-#include "snde_types.h"
+#include "snde/snde_types.h"
 #endif
 
 

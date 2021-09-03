@@ -1,7 +1,7 @@
 // ***!!!! Should modify revision manager to better use common code
 // to determine inputs, determine output regions, and perform locking. 
 
-#include "opencl_utils.hpp"
+#include "snde/opencl_utils.hpp"
 
 
 #ifndef SNDE_NORMAL_CALCULATION_HPP

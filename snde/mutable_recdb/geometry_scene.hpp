@@ -1,4 +1,4 @@
-#include "rec_display.hpp"
+#include "snde/rec_display.hpp"
 
 #ifndef SNDE_GEOMETRY_SCENE_HPP
 #define SNDE_GEOMETRY_SCENE_HPP

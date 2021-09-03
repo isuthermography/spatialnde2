@@ -2,7 +2,7 @@
 #define SNDE_ALLOCATOR_H
 
 #ifdef __cplusplus
-#include "allocator.hpp"
+#include "snde/allocator.hpp"
 
 #else
   

@@ -1,9 +1,9 @@
-#include "recstore_storage.hpp"
+#include "snde/recstore_storage.hpp"
 
 #ifdef _WIN32
 // No win32 shared_memory_allocator yet
 #else
-#include "shared_memory_allocator_posix.hpp"
+#include "snde/shared_memory_allocator_posix.hpp"
 #endif
 
 namespace snde {

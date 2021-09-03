@@ -23,13 +23,13 @@
 #include <osgViewer/Viewer>
 #include <osgGA/TrackballManipulator>
 
-#include "rec_display.hpp"
-#include "colormap.h"
+#include "snde/rec_display.hpp"
+#include "snde/colormap.h"
 
-#include "openscenegraph_geom.hpp"
-#include "openscenegraph_data.hpp"
-#include "openscenegraph_renderer.hpp"
-#include "openscenegraph_picker.hpp"
+#include "snde/openscenegraph_geom.hpp"
+#include "snde/openscenegraph_data.hpp"
+#include "snde/openscenegraph_renderer.hpp"
+#include "snde/openscenegraph_picker.hpp"
 
 #ifndef SNDE_QTRECVIEWER_HPP
 #define SNDE_QTRECVIEWER_HPP

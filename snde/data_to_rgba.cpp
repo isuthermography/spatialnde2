@@ -1,4 +1,4 @@
-#include "data_to_rgba.hpp"
+#include "snde/data_to_rgba.hpp"
 
 namespace snde {
   

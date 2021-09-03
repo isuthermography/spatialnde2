@@ -16,8 +16,8 @@
 
 #include <CL/opencl.h>
 
-#include "allocator.hpp"
-#include "snde_error_opencl.hpp"
+#include "snde/allocator.hpp"
+#include "snde/snde_error_opencl.hpp"
 
 namespace snde {
 

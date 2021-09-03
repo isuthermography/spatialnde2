@@ -5,9 +5,9 @@
 #include <cstring>
 #include <cmath>
 
-#include "memallocator.hpp"
+#include "snde/memallocator.hpp"
 
-#include "lockmanager.hpp"
+#include "snde/lockmanager.hpp"
 
 namespace snde {
   

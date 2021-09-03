@@ -9,8 +9,8 @@
 
 #include <stdlib.h> // for qsort
 
-#include "snde_types.h"
-#include "geometry_types.h"
+#include "snde/snde_types.h"
+#include "snde/geometry_types.h"
 #endif // __OPENCL_VERSION__
 
 #define SNDE_AIO_STATIC_INLINE static inline

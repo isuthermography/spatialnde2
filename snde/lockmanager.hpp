@@ -15,10 +15,10 @@
 #include <set>
 #include <thread> // Remember to add -pthread to the flags
 
-#include "snde_error.hpp"
-#include "geometry_types.h"
-#include "lock_types.hpp"
-#include "rangetracker.hpp"
+#include "snde/snde_error.hpp"
+#include "snde/geometry_types.h"
+#include "snde/lock_types.hpp"
+#include "snde/rangetracker.hpp"
 
 /* general locking api information:
  * OLD High level locking order for mutablerecstore and transactional revision manager (TRM):  

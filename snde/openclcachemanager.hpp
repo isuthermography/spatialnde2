@@ -8,10 +8,10 @@
 #endif
 #include <CL/opencl.h>
 
-#include "arraymanager.hpp"
-#include "rangetracker.hpp"
-#include "snde_error_opencl.hpp"
-#include "opencl_utils.hpp"
+#include "snde/arraymanager.hpp"
+#include "snde/rangetracker.hpp"
+#include "snde/snde_error_opencl.hpp"
+#include "snde/opencl_utils.hpp"
 
 extern "C" void snde_opencl_callback(cl_event event, cl_int event_command_exec_status, void *user_data);
 

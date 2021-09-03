@@ -1,4 +1,4 @@
-#include "snde_error.hpp"
+#include "snde/snde_error.hpp"
 
 namespace snde {
 

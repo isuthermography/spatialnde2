@@ -1,6 +1,6 @@
-#include "recstore.hpp"
-#include "utils.hpp"
-#include "notify.hpp"
+#include "snde/recstore.hpp"
+#include "snde/utils.hpp"
+#include "snde/notify.hpp"
 
 namespace snde {
 

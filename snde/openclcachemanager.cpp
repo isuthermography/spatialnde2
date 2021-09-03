@@ -1,5 +1,5 @@
 
-#include "openclcachemanager.hpp"
+#include "snde/openclcachemanager.hpp"
 
 extern "C" void snde_opencl_callback(cl_event event, cl_int event_command_exec_status, void *user_data)
 {

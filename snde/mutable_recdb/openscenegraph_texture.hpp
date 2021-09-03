@@ -8,19 +8,19 @@
 #include <osg/Texture2D>
 #include <osg/MatrixTransform>
 
-#include "geometry_types.h"
-#include "geometrydata.h"
-#include "lockmanager.hpp"
-#include "geometry.hpp"
+#include "snde/geometry_types.h"
+#include "snde/geometrydata.h"
+#include "snde/lockmanager.hpp"
+#include "snde/geometry.hpp"
 
-#include "openclcachemanager.hpp"
-#include "opencl_utils.hpp"
+#include "snde/openclcachemanager.hpp"
+#include "snde/opencl_utils.hpp"
 
-#include "mutablerecstore.hpp"
+#include "snde/mutablerecstore.hpp"
 
-#include "rec_display.hpp"
+#include "snde/rec_display.hpp"
 
-#include "data_to_rgba.hpp"
+#include "snde/data_to_rgba.hpp"
 
 #ifndef SNDE_OPENSCENEGRAPH_TEXTURE_HPP
 #define SNDE_OPENSCENEGRAPH_TEXTURE_HPP

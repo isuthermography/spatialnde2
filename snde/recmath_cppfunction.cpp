@@ -1,4 +1,4 @@
-#include "recmath_cppfunction.hpp"
+#include "snde/recmath_cppfunction.hpp"
 
 namespace snde {
   

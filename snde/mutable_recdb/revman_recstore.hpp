@@ -4,8 +4,8 @@
 #include <string>
 #include <memory>
 
-#include "revision_manager.hpp"
-#include "mutablerecstore.hpp"
+#include "snde/revision_manager.hpp"
+#include "snde/mutablerecstore.hpp"
 
 #ifndef SNDE_REVMAN_RECSTORE_HPP
 #define SNDE_REVMAN_RECSTORE_HPP

@@ -1,28 +1,28 @@
 #include <Eigen/Dense>
 
 
-#include "snde_types_h.h"
+#include "snde/snde_types_h.h"
 
-#include "geometry_types_h.h"
-#include "vecops_h.h"
-#include "geometry_ops_h.h"
-#include "raytrace_h.h"
-#include "imageprojection_calc_c.h"
+#include "snde/geometry_types_h.h"
+#include "snde/vecops_h.h"
+#include "snde/geometry_ops_h.h"
+#include "snde/raytrace_h.h"
+#include "snde/imageprojection_calc_c.h"
 
-#include "revision_manager.hpp"
+#include "snde/revision_manager.hpp"
 
-#include "geometry_types.h"
-#include "geometrydata.h"
-#include "geometry.hpp"
+#include "snde/geometry_types.h"
+#include "snde/geometrydata.h"
+#include "snde/geometry.hpp"
 
-#include "openclcachemanager.hpp"
-#include "opencl_utils.hpp"
+#include "snde/openclcachemanager.hpp"
+#include "snde/opencl_utils.hpp"
 
 
-#include "revman_geometry.hpp"
-#include "revman_parameterization.hpp"
+#include "snde/revman_geometry.hpp"
+#include "snde/revman_parameterization.hpp"
 
-#include "imageprojection.hpp"
+#include "snde/imageprojection.hpp"
 
 namespace snde {
 

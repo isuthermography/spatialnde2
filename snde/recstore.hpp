@@ -117,12 +117,12 @@
 #include <future>
 #include <type_traits>
 
-#include "recording.h" // definition of snde_recording
+#include "snde/recording.h" // definition of snde_recording
 
-#include "arrayposition.hpp"
-#include "recstore_storage.hpp"
-#include "lockmanager.hpp"
-#include "recmath.hpp"
+#include "snde/arrayposition.hpp"
+#include "snde/recstore_storage.hpp"
+#include "snde/lockmanager.hpp"
+#include "snde/recmath.hpp"
 
 namespace snde {
 

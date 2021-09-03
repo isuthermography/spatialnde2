@@ -1,6 +1,6 @@
 #include <osgDB/WriteFile>
 
-#include "qtrecviewer.hpp"
+#include "snde/qtrecviewer.hpp"
 
 namespace snde {
   /*

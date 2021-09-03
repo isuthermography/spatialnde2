@@ -1,7 +1,7 @@
 #include <vector>
 #include <memory>
 
-#include "revman_parameterization.hpp"
+#include "snde/revman_parameterization.hpp"
 
 #ifndef SNDE_OPENSCENEGRAPH_PARAMETERIZATION_HPP
 #define SNDE_OPENSCENEGRAPH_PARAMETERIZATION_HPP

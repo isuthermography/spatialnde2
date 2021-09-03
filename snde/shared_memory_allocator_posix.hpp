@@ -4,9 +4,9 @@
 
 #include <cstdlib>
 
-#include "snde_types.h"
-#include "geometry_types.h"
-#include "memallocator.hpp"
+#include "snde/snde_types.h"
+#include "snde/geometry_types.h"
+#include "snde/memallocator.hpp"
 
 namespace snde {
 

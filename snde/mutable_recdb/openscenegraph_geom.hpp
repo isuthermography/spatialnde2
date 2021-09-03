@@ -14,29 +14,29 @@
 #include <osg/ValueObject>
 #include <osgViewer/Viewer>
 
-#include "revision_manager.hpp"
+#include "snde/revision_manager.hpp"
 
-//#include "geometry_types_h.h"
-//#include "osg_vertexarray_c.h"
+//#include "snde/geometry_types_h.h"
+//#include "snde/osg_vertexarray_c.h"
 
-#include "geometry_types.h"
-#include "geometrydata.h"
-#include "geometry.hpp"
+#include "snde/geometry_types.h"
+#include "snde/geometrydata.h"
+#include "snde/geometry.hpp"
 
-#include "openclcachemanager.hpp"
-#include "opencl_utils.hpp"
+#include "snde/openclcachemanager.hpp"
+#include "snde/opencl_utils.hpp"
 
-#include "normal_calculation.hpp"
+#include "snde/normal_calculation.hpp"
 
-#include "mutablerecstore.hpp"
+#include "snde/mutablerecstore.hpp"
 
-#include "revman_geometry.hpp"
+#include "snde/revman_geometry.hpp"
 
-#include "geometry_scene.hpp"
+#include "snde/geometry_scene.hpp"
 
-#include "openscenegraph_array.hpp"
-#include "openscenegraph_texture.hpp"
-#include "openscenegraph_parameterization.hpp"
+#include "snde/openscenegraph_array.hpp"
+#include "snde/openscenegraph_texture.hpp"
+#include "snde/openscenegraph_parameterization.hpp"
 
 #ifndef SNDE_OPENSCENEGRAPH_GEOM_HPP
 #define SNDE_OPENSCENEGRAPH_GEOM_HPP

@@ -7,12 +7,12 @@
 #include <iostream>
 */
 
-#include "snde_types.h"
-#include "geometry_types.h"
-#include "vecops.h"
-#include "geometry_ops.h"
+#include "snde/snde_types.h"
+#include "snde/geometry_types.h"
+#include "snde/vecops.h"
+#include "snde/geometry_ops.h"
 
-#include "openscenegraph_renderer.hpp"
+#include "snde/openscenegraph_renderer.hpp"
 
 
 #ifndef SNDE_OPENSCENEGRAPH_PICKER_HPP

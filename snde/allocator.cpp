@@ -1,8 +1,8 @@
 
 #include <cstdint>
 
-#include "geometry_types.h"
-#include "allocator.h"
+#include "snde/geometry_types.h"
+#include "snde/allocator.h"
 
 
 extern "C" {

@@ -10,9 +10,9 @@
 #include <algorithm>
 
 
-#include "revision_manager.hpp"
-#include "data_to_rgba.hpp"
-#include "rec_display.hpp"
+#include "snde/revision_manager.hpp"
+#include "snde/data_to_rgba.hpp"
+#include "snde/rec_display.hpp"
 
 #ifndef SNDE_OPENSCENEGRAPH_DATA_HPP
 #define SNDE_OPENSCENEGRAPH_DATA_HPP

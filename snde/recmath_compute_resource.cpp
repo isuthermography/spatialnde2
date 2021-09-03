@@ -1,6 +1,6 @@
-#include "recmath_compute_resource.hpp"
-#include "recstore.hpp"
-#include "recmath.hpp"
+#include "snde/recmath_compute_resource.hpp"
+#include "snde/recstore.hpp"
+#include "snde/recmath.hpp"
 
 namespace snde {
   compute_resource_option::compute_resource_option(unsigned type, size_t metadata_bytes,size_t data_bytes,std::shared_ptr<void> parameter_block) :

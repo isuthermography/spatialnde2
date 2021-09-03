@@ -1,6 +1,6 @@
-#include "recstore.hpp"
-#include "notify.hpp"
-#include "utils.hpp"
+#include "snde/recstore.hpp"
+#include "snde/notify.hpp"
+#include "snde/utils.hpp"
 
 
 

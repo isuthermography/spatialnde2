@@ -1,23 +1,23 @@
 #include <Eigen/Dense>
 
 
-#include "revision_manager.hpp"
+#include "snde/revision_manager.hpp"
 
-#include "snde_types.h"
-#include "geometry_types.h"
-#include "vecops.h"
-#include "geometry_ops.h"
-#include "geometrydata.h"
-#include "geometry.hpp"
+#include "snde/snde_types.h"
+#include "snde/geometry_types.h"
+#include "snde/vecops.h"
+#include "snde/geometry_ops.h"
+#include "snde/geometrydata.h"
+#include "snde/geometry.hpp"
 
-#include "openclcachemanager.hpp"
-#include "opencl_utils.hpp"
+#include "snde/openclcachemanager.hpp"
+#include "snde/opencl_utils.hpp"
 
 
-#include "revman_geometry.hpp"
-#include "revman_parameterization.hpp"
+#include "snde/revman_geometry.hpp"
+#include "snde/revman_parameterization.hpp"
 
-#include "boxes_calculation.hpp"
+#include "snde/boxes_calculation.hpp"
 
 namespace snde {
 

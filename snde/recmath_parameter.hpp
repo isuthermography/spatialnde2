@@ -5,8 +5,8 @@
 #include <memory>
 #include <unordered_map>
 
-#include "snde_error.hpp"
-#include "recdb_paths.hpp"
+#include "snde/snde_error.hpp"
+#include "snde/recdb_paths.hpp"
 
 namespace snde {
 

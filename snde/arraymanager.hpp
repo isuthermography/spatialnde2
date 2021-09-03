@@ -9,9 +9,9 @@
 #define snprintf _snprintf
 #endif
 
-#include "snde_error.hpp"
-#include "lockmanager.hpp"
-#include "allocator.hpp"
+#include "snde/snde_error.hpp"
+#include "snde/lockmanager.hpp"
+#include "snde/allocator.hpp"
 
 
 namespace snde {

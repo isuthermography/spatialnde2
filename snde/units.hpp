@@ -6,7 +6,7 @@
 #include <cmath>
 #include <regex>
 
-#include "stringtools.hpp"
+#include "snde/stringtools.hpp"
 
 #ifndef SNDE_UNITS_HPP
 #define SNDE_UNITS_HPP

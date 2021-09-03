@@ -7,14 +7,14 @@
 #include <typeindex>
 #include <complex>
 
-#include "gsl-lite.hpp"
+#include "snde/gsl-lite.hpp"
 
-#include "geometry_types.h"
-#include "arraymanager.hpp"
-#include "metadata.hpp"
-#include "lockmanager.hpp"
-#include "geometry.hpp"
-#include "recdb_paths.hpp"
+#include "snde/geometry_types.h"
+#include "snde/arraymanager.hpp"
+#include "snde/metadata.hpp"
+#include "snde/lockmanager.hpp"
+#include "snde/geometry.hpp"
+#include "snde/recdb_paths.hpp"
 
 
 #ifndef SNDE_MUTABLERECSTORE_HPP

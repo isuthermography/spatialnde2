@@ -2,15 +2,15 @@
 #include <cstdint>
 #include <utility>
 
-#include "geometry_types.h"
-#include "lockmanager.hpp"
-#include "arraymanager.hpp"
+#include "snde/geometry_types.h"
+#include "snde/lockmanager.hpp"
+#include "snde/arraymanager.hpp"
 
 #ifdef SNDE_MUTABLE_RECDB_SUPPORT
-#include "infostore_or_component.hpp"
+#include "snde/infostore_or_component.hpp"
 #endif
-//#include "geometry.hpp"
-//##include "mutablerecstore.hpp"
+//#include "snde/geometry.hpp"
+//##include "snde/mutablerecstore.hpp"
 
 
 using namespace snde;

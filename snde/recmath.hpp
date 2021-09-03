@@ -3,9 +3,9 @@
 
 #include <functional>
 
-#include "recmath_compute_resource.hpp"
-#include "recmath_parameter.hpp"
-#include "recdb_paths.hpp"
+#include "snde/recmath_compute_resource.hpp"
+#include "snde/recmath_parameter.hpp"
+#include "snde/recdb_paths.hpp"
 
 namespace snde {
   // NEED TO CONSIDER THREAD SAFETY ACCESS OF ALL THE STRUCTURES IN HERE !!! (DONE) ***

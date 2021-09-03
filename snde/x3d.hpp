@@ -15,18 +15,18 @@
 
 #include <Eigen/Dense>
 
-#include "arraymanager.hpp"
-#include "geometry_types.h"
-#include "geometrydata.h"
-#include "geometry.hpp"
-#include "snde_error.hpp"
-#include "pngimage.hpp"
-#include "path.hpp"
-#include "topology.hpp"
+#include "snde/arraymanager.hpp"
+#include "snde/geometry_types.h"
+#include "snde/geometrydata.h"
+#include "snde/geometry.hpp"
+#include "snde/snde_error.hpp"
+#include "snde/pngimage.hpp"
+#include "snde/path.hpp"
+#include "snde/topology.hpp"
 
-#include "revision_manager.hpp"
+#include "snde/revision_manager.hpp"
 
-#include "mutablerecstore.hpp"
+#include "snde/mutablerecstore.hpp"
 
 #ifndef SNDE_X3D_HPP
 #define SNDE_X3D_HPP

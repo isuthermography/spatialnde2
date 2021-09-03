@@ -1,8 +1,8 @@
-#include "osg_vertexarray_c.h"
-#include "osg_texvertexarray_c.h"
-#include "geometry_types_h.h"
+#include "snde/osg_vertexarray_c.h"
+#include "snde/osg_texvertexarray_c.h"
+#include "snde/geometry_types_h.h"
 
-#include "openscenegraph_geom.hpp"
+#include "snde/openscenegraph_geom.hpp"
 
 namespace snde {
 

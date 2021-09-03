@@ -155,8 +155,8 @@ immutable, then the global semantics are immutable and a lot of these problems g
 #include <typeinfo>
 #include <typeindex>
 #include <atomic>
-#include "gsl-lite.hpp"
-#include "arraymanager.hpp"
+#include "snde/gsl-lite.hpp"
+#include "snde/arraymanager.hpp"
 
 
 #ifndef SNDE_REVISION_MANAGER_HPP

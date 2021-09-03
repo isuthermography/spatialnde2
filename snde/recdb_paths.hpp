@@ -4,7 +4,7 @@
 #include <deque>
 #include <cassert>
 
-#include "utils.hpp"
+#include "snde/utils.hpp"
 
 #ifndef SNDE_RECDB_PATHS_HPP
 #define SNDE_RECDB_PATHS_HPP

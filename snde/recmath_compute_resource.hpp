@@ -17,8 +17,8 @@
 #include <CL/opencl.h>
 #endif // SNDE_OPENCL
 
-#include "snde_types.h"
-#include "geometry_types.h"
+#include "snde/snde_types.h"
+#include "snde/geometry_types.h"
 namespace snde {
 
   

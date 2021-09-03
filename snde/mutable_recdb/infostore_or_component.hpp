@@ -1,6 +1,6 @@
-#include "quaternion.h"
-#include "lockmanager.hpp"
-#include "metadata.hpp"
+#include "snde/quaternion.h"
+#include "snde/lockmanager.hpp"
+#include "snde/metadata.hpp"
 
 
 #ifndef SNDE_INFOSTORE_OR_COMPONENT_HPP

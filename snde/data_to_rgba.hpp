@@ -2,19 +2,19 @@
 #include <unordered_map>
 #include <cstdint>
 
-#include "geometry_types.h"
-#include "openclcachemanager.hpp"
-#include "opencl_utils.hpp"
-#include "revision_manager.hpp"
-#include "mutablerecstore.hpp"
-#include "rec_display.hpp"
-#include "revman_rec_display.hpp"
-#include "revman_recstore.hpp"
+#include "snde/geometry_types.h"
+#include "snde/openclcachemanager.hpp"
+#include "snde/opencl_utils.hpp"
+#include "snde/revision_manager.hpp"
+#include "snde/mutablerecstore.hpp"
+#include "snde/rec_display.hpp"
+#include "snde/revman_rec_display.hpp"
+#include "snde/revman_recstore.hpp"
 
-#include "geometry_types_h.h"
-#include "colormap_h.h"
-#include "scale_colormap_c.h"
-#include "dummy_scale_colormap_c.h"
+#include "snde/geometry_types_h.h"
+#include "snde/colormap_h.h"
+#include "snde/scale_colormap_c.h"
+#include "snde/dummy_scale_colormap_c.h"
 
 
 #ifndef SNDE_DATA_TO_RGBA_HPP

@@ -6,7 +6,7 @@
 
 #include <map>
 
-#include "snde_error.hpp"
+#include "snde/snde_error.hpp"
 
 namespace snde {
   static  std::map<cl_int,std::string> openclerrorstring = {

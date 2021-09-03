@@ -4,7 +4,7 @@
 #include <deque>
 #include <unordered_map>
 
-#include "geometry.hpp"
+#include "snde/geometry.hpp"
 
 #ifndef SNDE_TOPOLOGY_HPP
 

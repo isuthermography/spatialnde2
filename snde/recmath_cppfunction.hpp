@@ -9,8 +9,8 @@
 //#endif
 
 
-#include "recstore.hpp"
-#include "recmath.hpp"
+#include "snde/recstore.hpp"
+#include "snde/recmath.hpp"
 
 namespace snde {
   // The problem of how to define a function can be thought of as having several

@@ -7,7 +7,7 @@ extern "C"
   #include <png.h>  
 }
 
-#include "mutablerecstore.hpp"
+#include "snde/mutablerecstore.hpp"
 
 #ifndef SNDE_PNGIMAGE_HPP
 #define SNDE_PNGIMAGE_HPP

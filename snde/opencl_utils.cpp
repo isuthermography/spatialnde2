@@ -7,8 +7,8 @@
 
 #include <CL/opencl.h>
 
-#include "utils.hpp"
-#include "opencl_utils.hpp"
+#include "snde/utils.hpp"
+#include "snde/opencl_utils.hpp"
 
 #define MAX_DEVICES 1000
 #define MAX_PLATFORMS 1000

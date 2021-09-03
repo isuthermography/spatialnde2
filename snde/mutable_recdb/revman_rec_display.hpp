@@ -3,8 +3,8 @@
 #include <string>
 #include <memory>
 
-#include "revision_manager.hpp"
-#include "rec_display.hpp"
+#include "snde/revision_manager.hpp"
+#include "snde/rec_display.hpp"
 
 #ifndef SNDE_REVMAN_REC_DISPLAY_HPP
 #define SNDE_REVMAN_REC_DISPLAY_HPP

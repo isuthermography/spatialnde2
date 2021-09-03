@@ -6,22 +6,22 @@
 #include <string>
 #include <atomic>
 
-#include "geometry_types.h"
-#include "geometrydata.h"
-#include "quaternion.h"
-#include "metadata.hpp"
-#include "infostore_or_component.hpp"
+#include "snde/geometry_types.h"
+#include "snde/geometrydata.h"
+#include "snde/quaternion.h"
+#include "snde/metadata.hpp"
+#include "snde/infostore_or_component.hpp"
 
-#include "revision_manager.hpp"
-#include "normal_calculation.hpp"
-#include "inplanemat_calculation.hpp"
-#include "boxes_calculation.hpp"
-#include "projinfo_calculation.hpp"
+#include "snde/revision_manager.hpp"
+#include "snde/normal_calculation.hpp"
+#include "snde/inplanemat_calculation.hpp"
+#include "snde/boxes_calculation.hpp"
+#include "snde/projinfo_calculation.hpp"
 
-#include "arraymanager.hpp"
-#include "recdb_paths.hpp"
+#include "snde/arraymanager.hpp"
+#include "snde/recdb_paths.hpp"
 
-#include "stringtools.hpp"
+#include "snde/stringtools.hpp"
 
 
 

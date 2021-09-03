@@ -2,9 +2,9 @@
 #include <mutex>
 #include <typeindex>
 
-#include "units.hpp"
-#include "mutablerecstore.hpp"
-#include "revision_manager.hpp"
+#include "snde/units.hpp"
+#include "snde/mutablerecstore.hpp"
+#include "snde/revision_manager.hpp"
 
 #ifndef SNDE_REC_DISPLAY_HPP
 #define SNDE_REC_DISPLAY_HPP
