@@ -204,16 +204,16 @@ FILE(GLOB SPATIALNDE2_CPP_HEADERS "src/*.hpp")
 FILE(GLOB SPATIALNDE2_C_HEADERS "src/*.h")
 
 # Set RPATH
-# !!! *** Should more carefully define appropriate RPATH's
 # the RPATH to be used when installing, but only if it's not a system directory
 LIST(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_FULL_LIBDIR}" isSystemDir)
 IF("${isSystemDir}" STREQUAL "-1")
-  set(CMAKE_INSTALL_RPATH "${APP_INSTALL_DIR}/lib;${CMAKE_INSTALL_FULL_LIBDIR}")
+  set(CMAKE_INSTALL_RPATH "$ORIGIN;${APP_INSTALL_DIR}/lib;${CMAKE_INSTALL_FULL_LIBDIR}")
 ELSE()
-  set(CMAKE_INSTALL_RPATH "${APP_INSTALL_DIR}/lib")
+  set(CMAKE_INSTALL_RPATH "$ORIGIN;${APP_INSTALL_DIR}/lib")
   
 ENDIF()
 
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 	
 IF (OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PythonInterp_FOUND)
@@ -296,7 +296,7 @@ ENDIF (PythonInterp_FOUND)
 
 
 IF (PythonInterp_FOUND)
-  set(PYTHONPKGFILES ${CMAKE_CURRENT_BINARY_DIR}/setup.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/_spatialnde2_python.so )
+  set(PYTHONPKGFILES ${CMAKE_CURRENT_BINARY_DIR}/setup.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/_spatialnde2_python.so ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/libspatialnde2.so ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/libspatialnde2_qt.so )
 
 
   #message(STATUS "[SWIG_MODULE_spatialnde2_python_REAL_NAME: " ${SWIG_MODULE_spatialnde2_python_REAL_NAME} )
@@ -309,6 +309,8 @@ IF (PythonInterp_FOUND)
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
 
             COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python.so ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/libspatialnde2.so ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/libspatialnde2_qt.so ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
             COMMAND ${CMAKE_COMMAND} -E copy  ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py
 	    
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
@@ -393,9 +395,9 @@ IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
 	SET_SOURCE_FILES_PROPERTIES(src/spatialnde2.i PROPERTIES CPLUSPLUS 1)
 	set(UseSWIG_TARGET_NAME_PREFERENCE "LEGACY")
 
-	set(SPATIALNDE2_SWIG_SOURCES src/spatialnde2.i src/allocator.cpp  src/lockmanager.cpp src/recstore_storage.cpp src/recstore.cpp src/recmath_compute_resource.cpp src/recmath.cpp src/recmath_cppfunction.cpp src/snde_error.cpp src/notify.cpp src/shared_memory_allocator_posix.cpp )
+	set(SPATIALNDE2_SWIG_SOURCES src/spatialnde2.i  )
 	set_property(SOURCE src/spatialnde2.i PROPERTY SWIG_MODULE_NAME spatialnde2_python)
-	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${PYTHON_LIBRARIES})
+	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${PYTHON_LIBRARIES} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools ${SPATIALNDE2_QT_LIBS} )
 
 	IF(NOT WIN32)
 	  set(SPATIALNDE2_SWIG_SOURCES ${SPATIALNDE2_SWIG_SOURCES} src/shared_memory_allocator_posix.cpp )
