@@ -1,12 +1,15 @@
 import sys
 import os
 import os.path
+import re
 import shutil
 from setuptools import setup, Extension
 from setuptools.command.install import install
+import distutils
 from distutils.command.build import build
 from distutils.command.build_ext import build_ext
 from distutils.sysconfig import get_config_var
+import subprocess
 import glob
 
 
@@ -22,8 +25,8 @@ class build_ext_from_cmake(build_ext):
     pass
 
 
-# Extract GIT version
-if os.path.exists(".git") and distutils.spawn.find_executable("git") is not None:
+# Extract GIT version (use subprocess.call(['git','rev-parse']) to check if we are inside a git repo
+if distutils.spawn.find_executable("git") is not None and subprocess.call(['git','rev-parse'],stderr=subprocess.DEVNULL)==0:
     # Check if tree has been modified
     modified = subprocess.call(["git","diff-index","--quiet","HEAD","--"]) != 0
     
