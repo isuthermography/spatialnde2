@@ -21,6 +21,47 @@ class build_ext_from_cmake(build_ext):
         pass
     pass
 
+
+# Extract GIT version
+if os.path.exists(".git") and distutils.spawn.find_executable("git") is not None:
+    # Check if tree has been modified
+    modified = subprocess.call(["git","diff-index","--quiet","HEAD","--"]) != 0
+    
+    gitrev = subprocess.check_output(["git","rev-parse","HEAD"]).strip()
+
+    version = "git-%s" % (gitrev)
+
+    # See if we can get a more meaningful description from "git describe"
+    try:
+        versionraw=subprocess.check_output(["git","describe","--tags","--match=v*"],stderr=subprocess.STDOUT).decode('utf-8').strip()
+        # versionraw is like v0.1.0-50-g434343
+        # for compatibility with PEP 440, change it to
+        # something like 0.1.0+50.g434343
+        matchobj=re.match(r"""v([^.]+[.][^.]+[.][^-.]+)(-.*)?""",versionraw)
+        version=matchobj.group(1)
+        if matchobj.group(2) is not None:
+            version += '+'+matchobj.group(2)[1:].replace("-",".")
+            pass
+        pass
+    except subprocess.CalledProcessError:
+        # Ignore error, falling back to above version string
+        pass
+
+    if modified and version.find('+') >= 0:
+        version += ".modified"
+        pass
+    elif modified:
+        version += "+modified"
+        pass
+    pass
+else:
+    version = "UNKNOWN"
+    pass
+
+print("version = %s" % (version))
+
+
+
 python_full_ext_suffix = get_config_var('EXT_SUFFIX') # extension suffix; generally including python version info 
 python_ext_suffix = os.path.splitext("junk."+python_full_ext_suffix)[1] # .so on Linux/MacOS or .pyd on Windows -- we need this because the CMake build doesn't include the python version information in its generated suffix
 platform_shlib_suffix = get_config_var('SHLIB_SUFFIX')
@@ -38,6 +79,7 @@ package_data = {
 setup(name="spatialnde2",
       description="spatialnde2",
       author="Stephen D. Holland",
+      version=version,
       url="http://thermal.cnde.iastate.edu/spatialnde2.xhtml",
       ext_modules = ext_modules,
       zip_safe = False,
