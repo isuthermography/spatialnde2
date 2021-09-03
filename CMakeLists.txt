@@ -82,6 +82,11 @@ if (SIZEOF_SIZE_T MATCHES "8")
 endif()
 
 
+if (WIN32)
+  set(SHARED_LIBRARY_SUFFIX_PYTHON .pyd )
+else()
+  set(SHARED_LIBRARY_SUFFIX_PYTHON .so )
+endif()
 
 set(SPATIALNDE2_SOURCES src/allocator.cpp src/lockmanager.cpp src/recmath_compute_resource.cpp src/recmath.cpp src/recmath_parameter.cpp src/recstore.cpp src/recstore_storage.cpp src/recmath_cppfunction.cpp src/notify.cpp src/snde_error.cpp ) # src/infostore_or_component.cpp src/geometry.cpp src/revision_manager.cpp src/mutablerecstore.cpp )
 
@@ -296,7 +301,7 @@ ENDIF (PythonInterp_FOUND)
 
 
 IF (PythonInterp_FOUND)
-  set(PYTHONPKGFILES ${CMAKE_CURRENT_BINARY_DIR}/setup.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/_spatialnde2_python.so ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/libspatialnde2.so ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/libspatialnde2_qt.so )
+  set(PYTHONPKGFILES ${CMAKE_CURRENT_BINARY_DIR}/setup.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} )
 
 
   #message(STATUS "[SWIG_MODULE_spatialnde2_python_REAL_NAME: " ${SWIG_MODULE_spatialnde2_python_REAL_NAME} )
@@ -308,9 +313,9 @@ IF (PythonInterp_FOUND)
             COMMAND ${CMAKE_COMMAND} -E copy python/setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
 
-            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python.so ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
-            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/libspatialnde2.so ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
-            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/libspatialnde2_qt.so ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
             COMMAND ${CMAKE_COMMAND} -E copy  ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py
 	    
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
