@@ -229,6 +229,7 @@ namespace snde {
       // Need to grab the GIL before Python calls because
       // swig wrapped us with something that dropped it (!)
       PyGILState_STATE gstate = PyGILState_Ensure();
+      Py_IncRef((PyObject *)ArrayDescr); // because PyArray_NewFromDescr steals a reference to its descr parameter
       PyArrayObject *obj = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type,ArrayDescr,self->layout.dimlen.size(),dims.data(),strides.data(),self->void_dataptr(),0,nullptr);
 
       // memory_holder_obj contains a shared_ptr to "this", i.e. the ndarray_recording.  We will store this in the "base" property of obj so that as long as obj lives, so will the ndarray_recording, and hence its memory.
