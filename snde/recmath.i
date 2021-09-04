@@ -35,7 +35,7 @@ namespace snde {
     // Immutable once published; that said it may be replaced in the database due to a reloading operation. 
   public:
 
-    math_function(size_t num_results,const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
+    math_function(const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
 
     // Rule of 3
     math_function(const math_function &) = delete;
@@ -45,10 +45,7 @@ namespace snde {
 
     
     // Should we put the name (of the function, not the channel) here???
-    size_t num_results;
     std::list<std::tuple<std::string,unsigned>> param_names_types; // list of (name,type) tuples
-
-    std::vector<bool> result_mutability; // for each result, is it mutable (if we are in mutable mode)
     
     bool new_revision_optional; // set if the function sometimes chooses not to create a new revision. Causes an implicit self-dependency, because we have to wait for the prior revision to finish to find out if that version was actually different. Note that new_revision_optional implies that execution is optional but execution of a new_revision_optional math function does not guarantee it will actually create new revisions but may still reference prior revs. Execution of a non-new_revision_optional math function is guaranteed to define new recordings in each result channel. 
     bool pure_optionally_mutable; // set if the function is "pure" and can optionally operate on its previous output, only rewriting the modified area according to bounding_hyperboxes. If optionally_mutable is taken advantage of, there is an implicit self-dependency on the prior-revision
@@ -140,6 +137,7 @@ namespace snde {
     std::vector<std::shared_ptr<math_parameter>> parameters; 
     //std::list<std::shared_ptr<channel>> results; // Note that null entries are legitimate if results are being ignored.
     std::vector<std::shared_ptr<std::string>> result_channel_paths; // Note that null entries are legitimate if results are being ignored.
+    std::vector<bool> result_mutability; // for each result, is it mutable (if we are in mutable mode)
     
     std::string channel_path_context; // context for parameters and result_channel_paths, if any are relative. 
     bool disabled; // if this math function is temporarily disabled
