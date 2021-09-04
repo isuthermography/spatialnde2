@@ -52,7 +52,7 @@ namespace snde {
     // Immutable once published; that said it may be replaced in the database due to a reloading operation. 
   public:
 
-    math_function(size_t num_results,const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
+    math_function(const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
 
     // Rule of 3
     math_function(const math_function &) = delete;
@@ -61,7 +61,7 @@ namespace snde {
 
     
     // Should we put the name (of the function, not the channel) here???
-    size_t num_results;
+    //size_t num_results;
     std::list<std::tuple<std::string,unsigned>> param_names_types; // list of (name,type) tuples
 
     std::vector<bool> result_mutability; // for each result, is it mutable (if we are in mutable mode)

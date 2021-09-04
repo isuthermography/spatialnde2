@@ -10,12 +10,11 @@ namespace snde {
 
 
 
-  cpp_math_function::cpp_math_function(size_t num_results,
-				       std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
+  cpp_math_function::cpp_math_function(std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
 				       bool supports_cpu,
 				       bool supports_opencl,
 				       bool supports_cuda) :
-    math_function(num_results,std::list<std::tuple<std::string,unsigned>>(),initiate_execution),
+    math_function(std::list<std::tuple<std::string,unsigned>>(),initiate_execution),
     supports_cpu(supports_cpu),
     supports_opencl(supports_opencl),
     supports_cuda(supports_cuda)

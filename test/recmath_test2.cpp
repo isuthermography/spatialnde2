@@ -78,8 +78,7 @@ int main(int argc, char *argv[])
   recdb->compute_resources->compute_resources.push_back(std::make_shared<available_compute_resource_cpu>(recdb,recdb->compute_resources,SNDE_CR_CPU,std::thread::hardware_concurrency()));
   recdb->compute_resources->start();
 
-  std::shared_ptr<math_function> multiply_by_scalar_function = std::make_shared<cpp_math_function>(1,
-												   [] (std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst) {
+  std::shared_ptr<math_function> multiply_by_scalar_function = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst) {
 												     return make_cppfuncexec_floatingtypes<multiply_by_scalar>(wss,inst);
 												   },
 												   true,
