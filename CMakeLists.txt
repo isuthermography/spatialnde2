@@ -39,6 +39,7 @@ if((NOT WIN32) AND (NOT APPLE))
 endif()
 
 
+set(SPATIALNDE2_COMPILE_DEFINITIONS )
 
 ## Application is C++11 (now 14)
 set(CMAKE_CXX_STANDARD 14)
@@ -71,14 +72,14 @@ endif()
 include(CheckTypeSize)
 CHECK_TYPE_SIZE(long SIZEOF_LONG LANGUAGE CXX)
 if (SIZEOF_LONG MATCHES "8")
-  add_definitions(-DSIZEOF_LONG_IS_8)
+  set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSIZEOF_LONG_IS_8 ) 
 endif()
 
 
 # Workaround for swig to understand what size_t aliases
 CHECK_TYPE_SIZE(size_t SIZEOF_SIZE_T LANGUAGE CXX)
 if (SIZEOF_SIZE_T MATCHES "8")
-  add_definitions(-DSIZEOF_SIZE_T_IS_8)
+  set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSIZEOF_SIZE_T_IS_8 ) 
 endif()
 
 
@@ -98,7 +99,7 @@ endif()
 #add_definitions(-Dprivate=public)
 #add_definitions(-Dprotected=public)
 
-add_definitions(-DSNDE_LOCKMANAGER_COROUTINES_THREADED)
+set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_LOCKMANAGER_COROUTINES_THREADED)
 
 # SNDE_WCR_DISABLE_EXCEPTION_HANDLING can be used to make
 # exceptions in math functions cause an immediate exit/debugger entry/core dump
@@ -106,7 +107,9 @@ add_definitions(-DSNDE_LOCKMANAGER_COROUTINES_THREADED)
 
 IF(WIN32)
   #add_definitions(-fpermissive) # Allow casting on windows (unsigned long) in lockmanager and arraymanager  !!! Should fix the casts, probably
-  add_definitions(-D_hypot=hypot) # Added for swig on windows. !!! Which compiler specificallly
+  #add_definitions(-D_hypot=hypot) # Added for swig on windows. !!! Which compiler specificallly
+  set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -D_hypot=hypot)
+
 ENDIF(WIN32)
 
 # Find dependencies
@@ -147,8 +150,12 @@ ENDIF()
 IF (OpenCL_FOUND)
     include_directories(${OpenCL_INCLUDE_DIR})
 
-    add_definitions(-DSNDE_OPENCL)
-    add_definitions(-DCL_TARGET_OPENCL_VERSION=120)
+    #add_definitions(-DSNDE_OPENCL)
+    set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_OPENCL)
+    #add_definitions(-DCL_TARGET_OPENCL_VERSION=120)
+    set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DCL_TARGET_OPENCL_VERSION=120 )
+
+    
     # Build OpenCL support into library
     set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  snde/opencl_utils.cpp snde/openclcachemanager.cpp ) # snde/data_to_rgba.cpp snde/inplanemat_calculation.cpp snde/projinfo_calculation.cpp snde/boxes_calculation.cpp)
     #IF (PythonInterp_FOUND) 
@@ -224,10 +231,21 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 	
 IF (OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PythonInterp_FOUND)
   # Enable OSG support
-  add_definitions(-DSNDE_OPENSCENEGRAPH)
+  set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_OPENSCENEGRAPH )
+  #add_definitions(-DSNDE_OPENSCENEGRAPH)
 ENDIF()
 
-# Tests
+
+add_custom_target(compile_definitions ALL
+  DEPENDS spatialnde2
+  COMMAND ${CMAKE_COMMAND} -E echo ${SPATIALNDE2_COMPILE_DEFINITIONS} >${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt
+  )
+  
+
+add_definitions(${SPATIALNDE2_COMPILE_DEFINITIONS})
+
+
+# Tests 
 add_executable(allocator_test
         test/allocator_test.cpp)
 target_link_libraries(allocator_test ${SPATIALNDE2_LIBS})
@@ -280,7 +298,7 @@ IF (PythonInterp_FOUND)
     set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h ) # ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
 
     add_custom_command(OUTPUT ${PYTHONGENERATEDHEADERS}
-            DEPENDS ${PYTHONGENHEADERS}
+            DEPENDS ${PYTHONGENHEADERS} 
             # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
 
             COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/snde_types.h ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h
@@ -308,13 +326,14 @@ IF (PythonInterp_FOUND)
   #message(STATUS "[SWIG_MODULE_spatialnde2_python_REAL_NAME: " ${SWIG_MODULE_spatialnde2_python_REAL_NAME} )
   
   add_custom_command(OUTPUT ${PYTHONPKGFILES}
-    DEPENDS python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${PYTHONGENERATEDHEADERS}  
+    DEPENDS compile_definitions python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${PYTHONGENERATEDHEADERS}  
             # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
 
             COMMAND ${CMAKE_COMMAND} -E copy python/setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
 
             COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
             COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
             COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
             COMMAND ${CMAKE_COMMAND} -E copy  ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py
@@ -325,8 +344,8 @@ IF (PythonInterp_FOUND)
 	    
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 	    )
-	  add_custom_target(Python_Setup ALL DEPENDS ${PYTHONPKGFILES})
-	  #add_custom_command(Python_Setup DEPENDS ${PYTHONPKGFILES})
+	  add_custom_target(Python_Create_Setup ALL DEPENDS ${PYTHONPKGFILES})
+	  #add_custom_command(Python_Create_Setup DEPENDS ${PYTHONPKGFILES})
 
 ENDIF (PythonInterp_FOUND)
 
@@ -536,7 +555,11 @@ endif()
 install(TARGETS
         spatialnde2
         DESTINATION ${APP_INSTALL_DIR}/lib)
+install(FILES
+        ${CMAKE_BINARY_DIR}/compile_definitions.txt
+        DESTINATION ${APP_INSTALL_DIR})
 
+      
 IF (Qt5_FOUND)
   install(TARGETS
           spatialnde2_qt

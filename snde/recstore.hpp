@@ -603,7 +603,8 @@ namespace snde {
     std::shared_ptr<active_transaction> start_transaction();
     std::shared_ptr<globalrevision> end_transaction(std::shared_ptr<active_transaction> act_trans);
     // add_math_function() must be called within a transaction
-    void add_math_function(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager=nullptr);
+    void add_math_function(std::shared_ptr<instantiated_math_function> new_function,bool hidden); // Use separate functions with/without storage manager because swig screws up the overload
+    void add_math_function_storage_manager(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager);
 
     void register_new_rec(std::shared_ptr<recording_base> new_rec);
     void register_new_math_rec(void *owner_id,std::shared_ptr<recording_set_state> calc_wss,std::shared_ptr<recording_base> new_rec); // registers newly created math recording in the given wss (and extracts mutable flag for the given channel into the recording structure)). 

@@ -1048,7 +1048,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 	  if (result_chanpath_name_ptr) {
 	    // Found a dependent channel name
 	    // Could probably speed this up by copying result_channel_paths into a form whre it points directly at channelconfs. 
-	    std::shared_ptr<channelconfig> channelconf = all_channels_by_name.at(*result_chanpath_name_ptr);
+	    std::shared_ptr<channelconfig> channelconf = all_channels_by_name.at(recdb_path_join(instantiated_math_ptr->channel_path_context,*result_chanpath_name_ptr));
 	    
 	    std::unordered_set<std::shared_ptr<channelconfig>>::iterator maybechanged_it = maybechanged_channels.find(channelconf);
 	    // Is the dependenent channel in maybechanged_channels?... if so it is definitely changed, but not yet dispatched
@@ -1553,7 +1553,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 	for (auto && result_channel_path_ptr: changed_math_function->result_channel_paths) {
 	  
 	  if (result_channel_path_ptr) {
-	    channel_state &state = globalrev->recstatus.channel_map.at(*result_channel_path_ptr);
+	    channel_state &state = globalrev->recstatus.channel_map.at(recdb_path_join(changed_math_function->channel_path_context,*result_channel_path_ptr));
 	    
 	    uint64_t new_revision = ++state._channel->latest_revision; // latest_revision is atomic; correct ordering because a new transaction cannot start until we are done
 	    state.revision=std::make_shared<uint64_t>(new_revision);
@@ -1798,7 +1798,11 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 	  std::set<std::string> prereq_channels = parameter->get_prerequisites(/*globalrev,*/mathfunction->channel_path_context);
 	  for (auto && prereq_channel: prereq_channels) {
 
-	    // for each prerequisite channel, look at it's state. 
+	    // for each prerequisite channel, look at it's state.
+	    snde_debug(SNDE_DC_RECDB,"chan_map_size=%d",(int)globalrev->recstatus.channel_map.size());
+	    //snde_debug(SNDE_DC_RECDB,"prereq_channel=\"%s\"",prereq_channel.c_str());
+	    //snde_debug(SNDE_DC_RECDB,"chan_map_begin()=\"%s\"",globalrev->recstatus.channel_map.begin()->first.c_str());
+	    //snde_debug(SNDE_DC_RECDB,"chan_map_2nd=\"%s\"",(++globalrev->recstatus.channel_map.begin())->first.c_str());
 	    channel_state &prereq_chanstate = globalrev->recstatus.channel_map.at(prereq_channel);
 
 	    bool prereq_complete = false; 
@@ -2369,7 +2373,12 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     return act_trans->end_transaction();
   }
 
-  void recdatabase::add_math_function(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager) // storage_manager defaults to nullptr
+  void recdatabase::add_math_function(std::shared_ptr<instantiated_math_function> new_function,bool hidden)
+  {
+    add_math_function_storage_manager(new_function,hidden,nullptr);
+  }
+  
+  void recdatabase::add_math_function_storage_manager(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager) 
   {
 
     std::vector<std::tuple<std::string,std::shared_ptr<channel>>> paths_and_channels;

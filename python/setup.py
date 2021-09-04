@@ -75,6 +75,7 @@ spatialnde2_dlls = [ dllname for dllname in os.listdir('spatialnde2') if (dllnam
 
 package_data = {
     "spatialnde2": [
+        "compile_definitions.txt",
         "snde/*", # All headers, installed into this location by cmake build process
     ] + spatialnde2_dlls
 }

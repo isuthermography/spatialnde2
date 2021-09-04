@@ -14,7 +14,8 @@ int main(int argc, char *argv[])
 
   recdb->default_storage_manager = std::make_shared<recording_storage_manager_shmem>();
   recdb->compute_resources->compute_resources.push_back(std::make_shared<available_compute_resource_cpu>(recdb,recdb->compute_resources,SNDE_CR_CPU,std::thread::hardware_concurrency()));
- 
+  recdb->compute_resources->start();
+
   snde::active_transaction transact(recdb); // Transaction RAII holder
   std::shared_ptr<snde::channelconfig> testchan_config=std::make_shared<snde::channelconfig>("test channel", "main", (void *)&main,false);
   

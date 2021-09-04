@@ -24,9 +24,13 @@ snde_rawaccessible(snde::available_compute_resource_opencl);
 snde_rawaccessible(snde::assigned_compute_resource_opencl);
 #endif
 
+%template(snde_available_compute_resource_list) std::list<std::shared_ptr<snde::available_compute_resource>>;
+
+
 %{
   #include "recmath_compute_resource.hpp"  
 %}
+
 
 namespace snde {
 

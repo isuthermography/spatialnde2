@@ -35,7 +35,7 @@ public:
   {
     // define_recs code
     printf("define_recs()\n");
-    std::shared_ptr<ndtyped_recording<snde_float32>> result_rec = ndtyped_recording<snde_float32>::create_recording(*inst->result_channel_paths.at(0),wss);
+    std::shared_ptr<ndtyped_recording<snde_float32>> result_rec = ndtyped_recording<snde_float32>::create_recording(recdb_path_join(inst->channel_path_context,*inst->result_channel_paths.at(0)),wss);
     // ***!!! Should provide means to set allocation manager !!!***
     
     return std::make_shared<metadata_function_override_type>([ this,result_rec,recording,multiplier ]() {

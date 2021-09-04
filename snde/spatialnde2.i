@@ -99,11 +99,33 @@ typedef unsigned long size_t;
 #include <functional>
 #include <tuple>
 
+%}
+
+%{
+  namespace snde {
+    static std::shared_ptr<std::string> shared_string(std::string input)
+    {
+      return std::make_shared<std::string>(input);
+    }
+  };
+%}
+
+
 namespace snde {
-  static std::unordered_map<unsigned,PyArray_Descr*> rtn_numpytypemap;
+  static std::shared_ptr<std::string> shared_string(std::string input);
+  
+
 };
- 
+
+%template(shared_string_vector) std::vector<std::shared_ptr<std::string>>;
+
+%{
 #include "snde_error.hpp"
+
+  namespace snde {
+    static std::unordered_map<unsigned,PyArray_Descr*> rtn_numpytypemap;
+  };
+  
 %}
 
 
@@ -194,7 +216,7 @@ namespace snde {
 }
 
 // (Old specifc implementation of the above general implementation)
-//%tyxpemap(in) std::shared_ptr<snde::math_function> raw_shared_ptr {
+//%typemap(in) std::shared_ptr<snde::math_function> raw_shared_ptr {
 //  void *rawptr = PyLong_AsVoidPtr($input);
 //  if (!rawptr) {
 //    if (!PyErr_Occurred()) {
@@ -221,6 +243,7 @@ namespace snde {
 %include "recdb_paths.i"
 %include "recstore_storage.i"
 %include "recstore.i"
+%include "recmath_parameter.i"
 %include "recmath_compute_resource.i"
 %include "recmath.i"
 %include "recmath_cppfunction.i"
@@ -247,6 +270,9 @@ namespace snde {
 // Instantiate templates for shared ptrs
 //%shared_ptr(snde::openclcachemanager);
 %template(StringVector) std::vector<std::string>;
+
+%template(shared_ptr_string) std::shared_ptr<std::string>;
+
 
 
 %init %{

@@ -187,7 +187,7 @@ namespace snde {
 	    std::lock_guard<std::mutex> referencing_wss_admin(referencing_wss_strong->admin);
 	    
 	    for (size_t cnt=0;cnt < ready_fcn->result_channel_paths.size(); cnt++) {
-	      channel_state &referencing_wss_channel_state = referencing_wss_strong->recstatus.channel_map.at(*ready_fcn->result_channel_paths.at(cnt));
+	      channel_state &referencing_wss_channel_state = referencing_wss_strong->recstatus.channel_map.at(recdb_path_join(ready_fcn->channel_path_context,*ready_fcn->result_channel_paths.at(cnt)));
 	      assert(!referencing_wss_channel_state.rec());
 
 	      referencing_wss_strong->recstatus.defined_recordings.erase(referencing_wss_channel_state.config);
@@ -219,7 +219,7 @@ namespace snde {
 	    std::shared_ptr<recording_set_state> referencing_wss_strong(referencing_wss_weak);
 	    
 	    for (auto && result_channel_path_ptr: ready_fcn->result_channel_paths) {
-	      channel_state &chanstate = referencing_wss_strong->recstatus.channel_map.at(*result_channel_path_ptr);
+	      channel_state &chanstate = referencing_wss_strong->recstatus.channel_map.at(recdb_path_join(ready_fcn->channel_path_context,*result_channel_path_ptr));
 	      //chanstate.issue_math_notifications(recdb,ready_wss); // taken care of by notify_math_function_executed(), below
 	      chanstate.issue_nonmath_notifications(referencing_wss_strong);
 	      
@@ -462,8 +462,8 @@ namespace snde {
 
 	// not worrying about cpu affinity yet.
 
-	// Set the build-time variable SNDE_WCR_DISABLE_EXCEPTION_HANDLING to disable the try {} ... catch{} block in math execution so that you can capture the offending scenario in the debugger
-#ifndef SNDE_WCR_DISABLE_EXCEPTION_HANDLING
+	// Set the build-time variable SNDE_RCR_DISABLE_EXCEPTION_HANDLING to disable the try {} ... catch{} block in math execution so that you can capture the offending scenario in the debugger
+#ifndef SNDE_RCR_DISABLE_EXCEPTION_HANDLING
 	try {
 #endif
 	  // Need also our assigned_compute_resource (func->compute_resource)
@@ -496,7 +496,7 @@ namespace snde {
 	      for (auto && result_channel_path_ptr: func->inst->result_channel_paths) {
 		if (result_channel_path_ptr) {
 		  
-		  channel_state &chanstate = func->wss->recstatus.channel_map.at(*result_channel_path_ptr);
+		  channel_state &chanstate = func->wss->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*result_channel_path_ptr));
 		  if (chanstate.rec()) {
 		    // have a recording
 		    size_t erased_from_defined_recordings = func->wss->recstatus.defined_recordings.erase(chanstate.config);
@@ -533,7 +533,7 @@ namespace snde {
 	      for (size_t cnt=0;cnt < func->inst->result_channel_paths.size(); cnt++) {
 		// none should have preassigned recordings --not true because parallel update or end_transaction() could be going on
 		//assert(!referencing_wss->recstatus.channel_map.at(&result_channel_paths.at(cnt)).rec());
-		channel_state &referencing_wss_channel_state=referencing_wss_strong->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt));
+		channel_state &referencing_wss_channel_state=referencing_wss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt)));
 		
 		referencing_wss_strong->recstatus.instantiated_recordings.erase(referencing_wss_channel_state.config);
 		referencing_wss_strong->recstatus.metadataonly_recordings.emplace(referencing_wss_channel_state.config,&referencing_wss_channel_state);
@@ -563,7 +563,7 @@ namespace snde {
 	      for (size_t cnt=0;cnt < func->inst->result_channel_paths.size(); cnt++) {
 		// none should have preassigned recordings --not true because parallel update or end_transaction() could be going on
 		//assert(!referencing_wss->recstatus.channel_map.at(&result_channel_paths.at(cnt)).rec());
-		channel_state & referencing_wss_channel_state = referencing_wss_strong->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt));
+		channel_state & referencing_wss_channel_state = referencing_wss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt)));
 		
 		referencing_wss_strong->recstatus.instantiated_recordings.erase(referencing_wss_channel_state.config);
 		referencing_wss_strong->recstatus.completed_recordings.emplace(referencing_wss_channel_state.config,&referencing_wss_channel_state);
@@ -607,12 +607,12 @@ namespace snde {
 		  // none should have preassigned recordings --not true because parallel update or end_transaction() could be going on
 		  //assert(!referencing_wss->recstatus.channel_map.at(&result_channel_paths.at(cnt)).rec());
 		  
-		  channel_state &referencing_wss_channel_state = referencing_wss_strong->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt));
+		  channel_state &referencing_wss_channel_state = referencing_wss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt)));
 		  
 		  referencing_wss_strong->recstatus.instantiated_recordings.erase(referencing_wss_channel_state.config);
 		  referencing_wss_strong->recstatus.completed_recordings.emplace(referencing_wss_channel_state.config,&referencing_wss_channel_state);
 		
-		  referencing_wss_channel_state.end_atomic_rec_update(func->wss->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).rec());
+		  referencing_wss_channel_state.end_atomic_rec_update(func->wss->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt))).rec());
 		}
 	      }
 	    
@@ -645,7 +645,7 @@ namespace snde {
 	    std::shared_ptr<recording_set_state> referencing_wss_strong(referencing_wss_weak);
 	    
 	    for (auto && result_channel_path_ptr: func->inst->result_channel_paths) {
-	      channel_state &chanstate = referencing_wss_strong->recstatus.channel_map.at(*result_channel_path_ptr);
+	      channel_state &chanstate = referencing_wss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*result_channel_path_ptr));
 	      //chanstate.issue_math_notifications(recdb,ready_wss); // taken care of by notify_math_function_executed(), below
 	      chanstate.issue_nonmath_notifications(referencing_wss_strong);
 	      
@@ -673,12 +673,12 @@ namespace snde {
 	  // Notify that we are done
 	  notify_acr_of_changes_to_prioritized_computations();
 
-#ifndef SNDE_WCR_DISABLE_EXCEPTION_HANDLING
+#ifndef SNDE_RCR_DISABLE_EXCEPTION_HANDLING
 	} catch(const std::exception &exc) {
 	  // Only consider exceptions derived from std::exception because there's no general way to print anything else, so we might as well just crash in that case. 
 	  snde_warning("Exception caught in math thread pool: %s",exc.what());
 	}
-#endif // SNDE_WCR_DISABLE_EXCEPTION_HANDLING
+#endif // SNDE_RCR_DISABLE_EXCEPTION_HANDLING
       }
     }
   }
