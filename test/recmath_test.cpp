@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
     false,
     false,
     std::make_shared<math_definition>("c++ definition"),
-    "");
+    nullptr);
   
   
   

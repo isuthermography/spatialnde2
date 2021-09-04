@@ -598,7 +598,7 @@ namespace snde {
 								    bool ondemand,
 								    bool mdonly,
 								    std::shared_ptr<math_definition> definition,
-								    std::string extra_params);
+								    std::shared_ptr<math_instance_parameter> extra_params);
     
     // initiate_execution is now a function pointer member of our superclass
     //virtual std::shared_ptr<executing_math_function> initiate_execution(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated); // actually returns pointer to class recmath_cppfuncexec<...>
@@ -624,6 +624,7 @@ namespace snde {
 				   bool mdonly,
 				   std::shared_ptr<math_function> fcn,
 				   std::shared_ptr<math_definition> definition,
+				   std::shared_ptr<math_instance_parameter> extra_params,
 				   bool enable_cpu,bool enable_opencl,bool enable_cuda);
     
     // rule of 3

@@ -45,7 +45,7 @@ namespace snde {
 									     bool ondemand,
 									     bool mdonly,
 									     std::shared_ptr<math_definition> definition,
-									     std::string extra_params) // right now we ignore the extra param string
+									     std::shared_ptr<math_instance_parameter> extra_params) 
   {
     //std::shared_ptr<cpp_math_function> cpp_fcn=std::dynamic_pointer_cast<cpp_math_function>(fcn);
     return std::make_shared<instantiated_cpp_math_function>(parameters,
@@ -56,6 +56,7 @@ namespace snde {
 							    mdonly,
 							    shared_from_this(),
 							    definition,
+							    extra_params,
 							    supports_cpu,
 							    supports_opencl,
 							    supports_cuda); // so far just enable everything supported by the underlying function
@@ -69,8 +70,9 @@ namespace snde {
 								 bool mdonly,
 								 std::shared_ptr<math_function> fcn,
 								 std::shared_ptr<math_definition> definition,
+								 std::shared_ptr<math_instance_parameter> extra_params,
 								 bool enable_cpu,bool enable_opencl,bool enable_cuda) :
-    instantiated_math_function(parameters,result_channel_paths,channel_path_context,is_mutable,ondemand,mdonly,fcn,definition),
+    instantiated_math_function(parameters,result_channel_paths,channel_path_context,is_mutable,ondemand,mdonly,fcn,definition,extra_params),
     enable_cpu(enable_cpu),
     enable_opencl(enable_opencl),
     enable_cuda(enable_cuda)

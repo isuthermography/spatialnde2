@@ -48,6 +48,37 @@ namespace snde {
   class instantiated_math_function;
   class math_definition;
 
+  class math_instance_parameter {
+  public:
+    // this is a recursive dictionary/list structure -- this is just the abstract base class    
+  };
+  
+  class list_math_instance_parameter {
+  public:
+    std::vector<std::shared_ptr<math_instance_parameter>> list;
+  };
+    
+  class dictionary_math_instance_parameter {
+  public:
+    std::unordered_map<std::string,std::shared_ptr<math_instance_parameter>> dict;
+  };
+  
+  class string_math_instance_parameter {
+  public:
+    std::string value;
+  };
+  
+  class int_math_instance_parameter {
+  public:
+    int64_t value;
+  };
+  
+  class double_math_instance_parameter {
+  public:
+    double value;
+  };
+
+  
   class math_function : public std::enable_shared_from_this<math_function> { // a math function that is defined accessable so it can be instantiated
     // Immutable once published; that said it may be replaced in the database due to a reloading operation. 
   public:
@@ -84,7 +115,7 @@ namespace snde {
 								    bool ondemand,
 								    bool mdonly,
 								    std::shared_ptr<math_definition> definition,
-								    std::string extra_params)=0;
+								    std::shared_ptr<math_instance_parameter> extra_params)=0;
 								    
     // get_compute_options() returns a list of compute_resource_options, each of which has a compute_code pointer
     // NOTE: Somehow get_compute_options() or similar needs to consider the types of the parameter arrays and select
@@ -165,6 +196,7 @@ namespace snde {
     bool mdonly; // Note: This determines whether the instantiation is mdonly. For the execution to be mdonly, the mdonly flag in the math_function_status must be true as well. 
     std::shared_ptr<math_function> fcn;
     std::shared_ptr<math_definition> definition;
+    std::shared_ptr<math_instance_parameter> extra_params;
     
     std::shared_ptr<instantiated_math_function> original_function; // null originally 
     // Should point to allocation interface here? ... No. Allocation interface comes from the channelconfig's storage_manager
@@ -176,7 +208,8 @@ namespace snde {
 			       bool ondemand,
 			       bool mdonly,
 			       std::shared_ptr<math_function> fcn,
-			       std::shared_ptr<math_definition> definition);
+			       std::shared_ptr<math_definition> definition,
+			       std::shared_ptr<math_instance_parameter> extra_params);
 
     // Rule of 3
     instantiated_math_function(const instantiated_math_function &) = default;  // CC is present so subclass copy constructor can initialize us more easily

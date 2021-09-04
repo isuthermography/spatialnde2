@@ -26,7 +26,8 @@ namespace snde {
 							 bool ondemand,
 							 bool mdonly,
 							 std::shared_ptr<math_function> fcn,
-							 std::shared_ptr<math_definition> definition) :
+							 std::shared_ptr<math_definition> definition,
+							 std::shared_ptr<math_instance_parameter> extra_params) :
     parameters(parameters.begin(),parameters.end()),
     result_channel_paths(result_channel_paths.begin(),result_channel_paths.end()),
     channel_path_context(channel_path_context),
@@ -36,7 +37,8 @@ namespace snde {
     ondemand(ondemand),
     mdonly(mdonly),
     fcn(fcn),
-    definition(definition)
+    definition(definition),
+    extra_params(extra_params)
   {
 
     if (mdonly) {
