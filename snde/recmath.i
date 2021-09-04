@@ -6,6 +6,12 @@
 %shared_ptr(snde::instantiated_math_database);
 %shared_ptr(snde::math_function_execution);
 %shared_ptr(snde::executing_math_function);
+%shared_ptr(snde::math_instance_parameter);
+%shared_ptr(snde::list_math_instance_parameter);
+%shared_ptr(snde::dict_math_instance_parameter);
+%shared_ptr(snde::string_math_instance_parameter);
+%shared_ptr(snde::int_math_instance_parameter);
+%shared_ptr(snde::double_math_instance_parameter);
 %{
 
   #include "recmath.hpp"
@@ -42,7 +48,7 @@ namespace snde {
     std::vector<std::shared_ptr<math_instance_parameter>> list;
   };
     
-  class dictionary_math_instance_parameter {
+  class dict_math_instance_parameter {
   public:
     std::unordered_map<std::string,std::shared_ptr<math_instance_parameter>> dict;
   };

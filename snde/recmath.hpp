@@ -58,7 +58,7 @@ namespace snde {
     std::vector<std::shared_ptr<math_instance_parameter>> list;
   };
     
-  class dictionary_math_instance_parameter {
+  class dict_math_instance_parameter {
   public:
     std::unordered_map<std::string,std::shared_ptr<math_instance_parameter>> dict;
   };
