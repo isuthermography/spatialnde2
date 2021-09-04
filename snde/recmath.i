@@ -1,17 +1,34 @@
 %shared_ptr(snde::math_function);
+snde_rawaccessible(snde::math_function);
 %shared_ptr(snde::compute_code);
+snde_rawaccessible(snde::compute_code);
 %shared_ptr(snde::math_function_database);
+snde_rawaccessible(snde::math_function_database);
 %shared_ptr(snde::math_definition);
-%shared_ptr(snde::instantiated_math_function);
+snde_rawaccessible(snde::math_definition);
+// instantiated_math_function previously declared in recstore.i
+//%shared_ptr(snde::instantiated_math_function);
+//snde_rawaccessible(snde::instantiated_math_function);
 %shared_ptr(snde::instantiated_math_database);
+snde_rawaccessible(snde::instantiated_math_database);
 %shared_ptr(snde::math_function_execution);
+snde_rawaccessible(snde::math_function_execution);
 %shared_ptr(snde::executing_math_function);
+snde_rawaccessible(snde::executing_math_function);
 %shared_ptr(snde::math_instance_parameter);
+snde_rawaccessible(snde::math_instance_parameter);
 %shared_ptr(snde::list_math_instance_parameter);
+snde_rawaccessible(snde::list_math_instance_parameter);
 %shared_ptr(snde::dict_math_instance_parameter);
+snde_rawaccessible(snde::dict_math_instance_parameter);
 %shared_ptr(snde::string_math_instance_parameter);
+snde_rawaccessible(snde::string_math_instance_parameter);
 %shared_ptr(snde::int_math_instance_parameter);
+snde_rawaccessible(snde::int_math_instance_parameter);
 %shared_ptr(snde::double_math_instance_parameter);
+snde_rawaccessible(snde::double_math_instance_parameter);
+
+
 %{
 
   #include "recmath.hpp"
@@ -38,6 +55,7 @@ namespace snde {
   class math_definition;
   
 
+  
   class math_instance_parameter {
   public:
     // this is a recursive dictionary/list structure -- this is just the abstract base class    
@@ -113,6 +131,27 @@ namespace snde {
     // or configure code appropriately.
     //virtual std::shared_ptr<executing_math_function> initiate_execution(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)=0; // usually returns a sub-class
   };
+
+  // prototype extension code that is commented out here
+  // is now implemented by snde_rawaccessible() macro
+  // defined in spatialnde2.i
+  
+  //%feature("pythonappend") math_function::to_raw_shared_ptr() %{
+  //  val = self.this.ptr
+  //%}
+  //
+  //%extend math_function {
+  //  static std::shared_ptr<math_function> from_raw_shared_ptr(std::shared_ptr<math_function> raw_shared_ptr)
+  //  {
+  //    return raw_shared_ptr;
+  //  }
+  //
+  //  long to_raw_shared_ptr()
+  //  {
+  //    return 0; // actual work done by the "pythonappend"
+  //  }
+  //
+  //};
 
   // ***!!! compute_code is obsolete!!!***
   class compute_code {

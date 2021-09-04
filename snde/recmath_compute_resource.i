@@ -1,16 +1,27 @@
 %shared_ptr(snde::compute_resource_option)
+snde_rawaccessible(snde::compute_resource_option);
 %shared_ptr(snde::compute_resource_option_cpu)
+snde_rawaccessible(snde::compute_resource_option_cpu);
 %shared_ptr(snde::available_compute_resource_database)
+snde_rawaccessible(snde::available_compute_resource_database);
   %shared_ptr(snde::pending_computation)
+snde_rawaccessible(snde::pending_computation);
   %shared_ptr(snde::available_compute_resource)
+snde_rawaccessible(snde::available_compute_resource);
   %shared_ptr(snde::available_compute_resource_cpu)
+snde_rawaccessible(snde::available_compute_resource_cpu);
   %shared_ptr(snde::assigned_compute_resource)
+snde_rawaccessible(snde::assigned_compute_resource);
   %shared_ptr(snde::assigned_compute_resource_cpu)
+snde_rawaccessible(snde::assigned_compute_resource_cpu);
 
   #ifdef SNDE_OPENCL
 %shared_ptr(snde::compute_resource_option_opencl)
+snde_rawaccessible(snde::compute_resource_option_opencl);
   %shared_ptr(snde::available_compute_resource_opencl)
+snde_rawaccessible(snde::available_compute_resource_opencl);
   %shared_ptr(snde::assigned_compute_resource_opencl)
+snde_rawaccessible(snde::assigned_compute_resource_opencl);
 #endif
 
 %{

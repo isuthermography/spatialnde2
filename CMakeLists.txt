@@ -381,7 +381,20 @@ IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
 	message(STATUS ${PYTHON_LIBRARIES})
 	include(${SWIG_USE_FILE})
 	# BUG: If python version >= 3 need -py3 -DPY_VERSION_HEX=0x03060000 additional flags to SWIG command
-	set(CMAKE_SWIG_FLAGS "-threads" "-DSNDE_LOCKMANAGER_COROUTINES_THREADED")
+	set(CMAKE_SWIG_FLAGS "-threads" "-DSNDE_LOCKMANAGER_COROUTINES_THREADED" )
+	# We enforce a private SWIG_TYPE_TABLE because the swig type table
+	# isn't thread-safe and we are designed to be used in a highly
+	# threaded environment. This limits interoperability between
+	# spatialnde2 modules and other swig-wrapped modules, unfortunately
+	#
+	# See http://www.swig.org/Doc4.0/Modules.html#Modules_nn2 for
+	# details.
+	#
+	# Suggested workaround: Use the .from_raw_shared_ptr() and the
+	# .to_raw_shared_ptr() extension class methods to interoperate
+	# with other binding systems. 
+	set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-DSWIG_TYPE_TABLE=spatialnde2" )
+
 	IF (LibXml2_FOUND AND Eigen3_FOUND)
 	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_X3D)
 	ENDIF()

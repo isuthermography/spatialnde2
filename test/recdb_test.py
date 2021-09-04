@@ -1,6 +1,6 @@
 import multiprocessing 
 import math
-import spatialnde2_python as snde
+import spatialnde2 as snde
 
 
 rec_len=100;
@@ -36,4 +36,11 @@ globalrev.wait_complete();
 rec = globalrev.get_recording("/test channel")
 
 data = rec.cast_to_ndarray().data()
+
+# Demonstrate export to raw shared pointer and reconstruction
+# from raw shared pointer:
+rec2 = snde.recording_base.from_raw_shared_ptr(rec.to_raw_shared_ptr())
+
+assert((rec2.cast_to_ndarray().data() == rec.cast_to_ndarray().data()).all())
+
 print(data)

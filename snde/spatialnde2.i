@@ -106,6 +106,105 @@ namespace snde {
 #include "snde_error.hpp"
 %}
 
+
+// The macro snde_rawaccessible()  marks a C++ class
+// (that must also be marked with %shared_ptr()) as
+// accessible through short-term raw integer references to the
+// shared_ptr. The snde_rawaccessible() declaration
+// adds a method to_raw_shared_ptr() which returns
+// a python long which is the address of the shared_ptr
+// object owned by the the swig wrapper of the
+// object. This long is only valid as long as the
+// swig wrapper of the object remains valid.
+//
+// The snde_rawaccessible() declaration also adds a
+// classmethod from_raw_shared_ptr( python long ) which
+// takes an address of a shared_ptr object and creates
+// and returns a new Python wrapper with a new shared_ptr
+// that is initialized from the (shared pointer the
+// Python long points at)
+//
+// These methods make the object wrapping interoperable
+// with other means of accessing the same underlying
+// objects.
+//
+// For example if you are coding in Cython and have
+// created a math_function and want to return a
+// SWIG-wrapped version:
+//
+// from libc.stdint cimport uintptr_t
+// cdef shared_ptr[math_function] func
+// # (assign func here)
+// return spatialnde2.math_function.from_raw_shared_ptr(<uintptr_t>&func)
+//
+// Likewise if you have a math_function from swig
+// and want a Cython cdef:
+//
+// from cython.operator cimport dereference as deref
+// cdef shared_ptr[math_function] func = deref(<shared_ptr[math_function]*>swigwrapped_math_function.to_raw_shared_ptr())
+
+%define snde_rawaccessible(rawaccessible_class)
+
+// This typemap takes allows passing an integer which is the address
+// of a C++ shared_ptr structure to a raw_shared_ptr parameter.
+// It then initialized a C++ shared_ptr object from that shared_ptr
+// (we can't just use the typemap matching to make this work
+// because if we do that, the swig %shared_ptr() typemap overrides us)
+%typemap(in) std::shared_ptr< rawaccessible_class > raw_shared_ptr {
+  void *rawptr = PyLong_AsVoidPtr($input);
+  if (!rawptr) {
+    if (!PyErr_Occurred()) {
+      PyErr_SetString(PyExc_ValueError,"null pointer");
+    }
+    SWIG_fail; 
+  }
+  $1 = *((std::shared_ptr<$1_ltype::element_type> *)rawptr);
+}
+
+
+// This pythonappend does the work for to_raw_shared_ptr() below,
+// extracting the pointer to the shared_ptr object from the
+// swig wrapper. 
+//%feature("pythonappend") rawaccessible_class::to_raw_shared_ptr() %{
+//  val = self.this.ptr
+//%}
+
+
+// This extension provides the from_raw_shared_ptr() and to_raw_shared_ptr() methods
+  %extend rawaccessible_class {
+    static std::shared_ptr< rawaccessible_class > from_raw_shared_ptr(std::shared_ptr< rawaccessible_class > raw_shared_ptr)
+    {
+      return raw_shared_ptr;
+    }
+
+    uintptr_t to_raw_shared_ptr()
+    {
+      return 0; // actual work done by the uintptr_t out typemap, below
+    }
+
+  };
+
+%enddef
+
+ // out typemap used by to_raw_shared_ptr that steals
+ // argp1, which should be a pointer to a std::shared_ptr<T>
+ // (This is a bit hacky) 
+%typemap(out) uintptr_t {
+  $result = PyLong_FromVoidPtr(argp1);
+}
+
+// (Old specifc implementation of the above general implementation)
+//%tyxpemap(in) std::shared_ptr<snde::math_function> raw_shared_ptr {
+//  void *rawptr = PyLong_AsVoidPtr($input);
+//  if (!rawptr) {
+//    if (!PyErr_Occurred()) {
+//      PyErr_SetString(PyExc_ValueError,"null pointer");
+//    }
+//    SWIG_fail; 
+//  }
+//  $1 = *((std::shared_ptr<snde::math_function> *)rawptr);
+// }
+
 %include "geometry_types.i"
 %include "memallocator.i"
 %include "lock_types.i"

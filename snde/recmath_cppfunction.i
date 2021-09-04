@@ -1,6 +1,9 @@
 %shared_ptr(snde::recmath_cppfuncexec_base);
+snde_rawaccessible(snde::recmath_cppfuncexec_base);
 %shared_ptr(snde::cpp_math_function);
+snde_rawaccessible(snde::cpp_math_function);
 %shared_ptr(snde::instantiated_cpp_math_function);
+snde_rawaccessible(snde::instantiated_cpp_math_function);
   
 %{
   #include "recmath_cppfunction.hpp"

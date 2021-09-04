@@ -1,11 +1,19 @@
 %shared_ptr(snde::recording_base);
+snde_rawaccessible(snde::recording_base);
 %shared_ptr(snde::ndarray_recording);
+snde_rawaccessible(snde::ndarray_recording);
 %shared_ptr(snde::channelconfig);
+snde_rawaccessible(snde::channelconfig);
 %shared_ptr(snde::channel);
+snde_rawaccessible(snde::channel);
 %shared_ptr(snde::recording_set_state);
+snde_rawaccessible(snde::recording_set_state);
 %shared_ptr(snde::globalrevision);
+snde_rawaccessible(snde::globalrevision);
 %shared_ptr(snde::recdatabase);
+snde_rawaccessible(snde::recdatabase);
 %shared_ptr(snde::instantiated_math_function);
+snde_rawaccessible(snde::instantiated_math_function);
   
 %{
 #include "recstore.hpp"
