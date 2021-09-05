@@ -32,7 +32,7 @@ public:
     // define_recs code
     snde_debug(SNDE_DC_APP,"define_recs()");
     // Use of "this" in the next line for the same reason as the typedefs, above
-    std::shared_ptr<ndtyped_recording<T>> result_rec = ndtyped_recording<T>::create_recording(recdb_path_join(this->inst->channel_path_context,*this->inst->result_channel_paths.at(0)),this->wss);
+    std::shared_ptr<ndtyped_recording<T>> result_rec = ndtyped_recording<T>::create_recording(this->get_result_channel_path(0),this->wss);
     // ***!!! Should provide means to set allocation manager !!!***
     
     return std::make_shared<metadata_function_override_type>([ this,result_rec,recording,multiplier ]() {

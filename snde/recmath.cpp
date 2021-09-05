@@ -364,5 +364,14 @@ namespace snde {
 
   }
 
+  std::string executing_math_function::get_result_channel_path(size_t result_index)
+  {
+    return recdb_path_join(inst->channel_path_context,*inst->result_channel_paths.at(result_index));
+  }
+  
+  size_t executing_math_function::get_num_result_channels()
+  {
+    return inst->result_channel_paths.size();
+  }
 
 };

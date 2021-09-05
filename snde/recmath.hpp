@@ -409,7 +409,9 @@ namespace snde {
     
     virtual bool perform_decide_execution()=0; // perform_decide_execution asks the new_revision_optional executing math function to determine whether it needs to execute, potentially creating new revisions of its output
     virtual std::list<std::shared_ptr<compute_resource_option>> perform_compute_options()=0; // perform_compute_options asks the executing math function to perform its compute_options step (which should not be compute intensive)
-
+    virtual std::string get_result_channel_path(size_t result_index);
+    virtual size_t get_num_result_channels();
+    
     virtual void perform_define_recs()=0;
     virtual void perform_metadata()=0;
     virtual void perform_lock_alloc()=0;
