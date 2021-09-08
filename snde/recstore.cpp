@@ -2570,7 +2570,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 
     std::lock_guard<std::mutex> recdb_admin(admin);
 
-    if (first) {
+    if (!first) {
       first = latest_globalrev();
     }
 
