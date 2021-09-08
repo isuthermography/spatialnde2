@@ -5,11 +5,6 @@ import multiprocessing
 import math
 
 
-import hashlib
-import ctypes
-import numpy
-sys.setdlopenflags(os.RTLD_GLOBAL|os.RTLD_NOW)
-
 import spatialnde2 as snde
 from spatialnde2_example_external_cpp_function import scalar_multiply_function
 
