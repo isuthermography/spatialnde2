@@ -462,38 +462,66 @@ namespace snde {
     if (globalrev->globalrev == recdb_strong->monitoring_notify_globalrev+1) {
       // next globalrev for monitoring is ready
 
-      std::set<std::weak_ptr<monitor_globalrevs>,std::owner_less<std::weak_ptr<monitor_globalrevs>>> monitoring_deadptrs; 
+      std::shared_ptr<globalrevision> complete_globalrev = globalrev;
+      std::shared_ptr<globalrevision> last_complete_globalrev;
 
-      for (auto && monitor_globalrev_weak: recdb_strong->monitoring) {
-	std::shared_ptr<monitor_globalrevs> monitor_globalrev = monitor_globalrev_weak.lock();
-	if (!monitor_globalrev) {
-	  // dead ptr, mark it as to be removed
-	  monitoring_deadptrs.emplace(monitor_globalrev_weak);
-	} else {
-	  // perform notification
-	  {
-	    std::lock_guard<std::mutex> monitor_admin(monitor_globalrev->admin);
-	    monitor_globalrev->pending.emplace(globalrev->globalrev,globalrev);
-	  }
-	  monitor_globalrev->ready_globalrev.notify_all();
-	}	
+      while (complete_globalrev) {
+	std::set<std::weak_ptr<monitor_globalrevs>,std::owner_less<std::weak_ptr<monitor_globalrevs>>> monitoring_deadptrs;
+
+	last_complete_globalrev = complete_globalrev;
 	
-      }
+	for (auto && monitor_globalrev_weak: recdb_strong->monitoring) {
+	  std::shared_ptr<monitor_globalrevs> monitor_globalrev = monitor_globalrev_weak.lock();
+	  if (!monitor_globalrev) {
+	    // dead ptr, mark it as to be removed
+	    monitoring_deadptrs.emplace(monitor_globalrev_weak);
+	  } else {
+	    // perform notification
+	    {
+	      std::lock_guard<std::mutex> monitor_admin(monitor_globalrev->admin);
+	      monitor_globalrev->pending.emplace(complete_globalrev->globalrev,globalrev);
+	    }
+	    monitor_globalrev->ready_globalrev.notify_all();
+	  }	
+	  
+	}
+	
+	// remove all dead pointers from monitoring list
+	for (auto && monitoring_deadptr: monitoring_deadptrs) {
+	  recdb_strong->monitoring.erase(monitoring_deadptr);
+	}
+	
+	recdb_strong->monitoring_notify_globalrev = complete_globalrev->globalrev;
 
-      // remove all dead pointers from monitoring list
-      for (auto && monitoring_deadptr: monitoring_deadptrs) {
-	recdb_strong->monitoring.erase(monitoring_deadptr);
+	// Is the next globalrev done?
+	uint64_t nextrev_index = complete_globalrev->globalrev+1;
+
+	std::map<uint64_t,std::shared_ptr<globalrevision>>::iterator nextglob_it;
+	nextglob_it = recdb_strong->_globalrevs.find(nextrev_index);
+	if (nextglob_it != recdb_strong->_globalrevs.end()) {
+	  std::shared_ptr<globalrevision> next_globalrev = nextglob_it->second;
+	    
+	  bool all_ready = !next_globalrev->recstatus.defined_recordings.size() && !next_globalrev->recstatus.instantiated_recordings.size();
+
+	  if (all_ready) {
+	    complete_globalrev = next_globalrev;
+	  } else {
+	    complete_globalrev = nullptr;
+	  }
+	} else {
+	  complete_globalrev = nullptr;
+	}
+
+	// loop back, notifying about the next globalrev if it is ready. 
       }
       
-      recdb_strong->monitoring_notify_globalrev = globalrev->globalrev;
-
       // We can now remove any prior globalrevisions from the
       // recdatabase's _globalrevs map, as they are thoroughly
       // obsolete
-
+      
       std::map<uint64_t,std::shared_ptr<globalrevision>>::iterator _gr_it;
-
-      while ((_gr_it=recdb_strong->_globalrevs.begin()) != recdb_strong->_globalrevs.end() && _gr_it->first < globalrev->globalrev) {
+      
+      while ((_gr_it=recdb_strong->_globalrevs.begin()) != recdb_strong->_globalrevs.end() && _gr_it->first < last_complete_globalrev->globalrev) {
 	recdb_strong->_globalrevs.erase(_gr_it);
       }
     }
