@@ -452,15 +452,20 @@ namespace snde {
   {
     // This notification indicates that the attached globalrevision
     // has reached ready state
+
+
     std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
     if (!recdb_strong) return;
 
     std::lock_guard<std::mutex> recdb_admin(recdb_strong->admin);
 
+    snde_debug(SNDE_DC_RECDB,"_globalrev_complete_notify::perform_notify(); globalrev=%llu; notify_globalrev=%llu",(unsigned long long)globalrev->globalrev,(unsigned long long)recdb_strong->monitoring_notify_globalrev);
 
     // Perform any moniitoring notifications
     if (globalrev->globalrev == recdb_strong->monitoring_notify_globalrev+1) {
       // next globalrev for monitoring is ready
+
+      snde_debug(SNDE_DC_RECDB,"Issuing monitoring notifications");
 
       std::shared_ptr<globalrevision> complete_globalrev = globalrev;
       std::shared_ptr<globalrevision> last_complete_globalrev;
@@ -522,6 +527,7 @@ namespace snde {
       std::map<uint64_t,std::shared_ptr<globalrevision>>::iterator _gr_it;
       
       while ((_gr_it=recdb_strong->_globalrevs.begin()) != recdb_strong->_globalrevs.end() && _gr_it->first < last_complete_globalrev->globalrev) {
+	snde_debug(SNDE_DC_RECDB,"Globalrev %llu removed from database",(unsigned long long)_gr_it->first);
 	recdb_strong->_globalrevs.erase(_gr_it);
       }
     }

@@ -1190,6 +1190,10 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     }
     assert(recdb_strong->current_transaction);
 
+    if (transaction_ended) {
+      throw snde_error("A single transaction cannot be ended twice");
+    }
+
 
     std::shared_ptr<globalrevision> globalrev;
     std::map<std::string,std::shared_ptr<channelconfig>> all_channels_by_name;
@@ -1597,7 +1601,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     // Second, make sure if a channel was created, it has a recording present and gets put in the channel_map
     for (auto && updated_chan: recdb_strong->current_transaction->updated_channels) {
       std::shared_ptr<channelconfig> config = updated_chan->config();
-      std::shared_ptr<recording_base> new_rec;
+      std::shared_ptr<ndarray_recording> new_rec;
 
       if (config->math) {
 	continue; // math channels get their recordings defined automatically
@@ -1626,17 +1630,23 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
       cm_it->second._rec = new_rec;
       cm_it->second.updated=true; 
       cm_it->second.revision = std::make_shared<uint64_t>(new_rec->info->revision);
+
+      // assign blank waveform content
+      new_rec->metadata = std::make_shared<immutable_metadata>();
+      new_rec->mark_metadata_done();
+      new_rec->allocate_storage(std::vector<snde_index>());
+      new_rec->mark_as_ready();
       
-      // mark it as instantiated
+      // mark it as completed
       globalrev->recstatus.defined_recordings.erase(config);
-      globalrev->recstatus.instantiated_recordings.emplace(std::piecewise_construct,
-						std::forward_as_tuple(config),
-						std::forward_as_tuple(&cm_it->second));
+      globalrev->recstatus.completed_recordings.emplace(std::piecewise_construct,
+							std::forward_as_tuple(config),
+							std::forward_as_tuple(&cm_it->second));
       
       // remove this from channels_to_process, as it has been already been inserted into the channel_map
       possibly_changed_channels_to_process.erase(config);
     }
-
+  
     for (auto && possibly_changed_channel: possibly_changed_channels_to_process) {
       // Go through the set of possibly_changed channels which were not processed above
       // (These must be math dependencies))
@@ -1995,10 +2005,8 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     // once the previous globalrev is complete.
     if (previous_globalrev) {
       std::shared_ptr<_previous_globalrev_done_notify> prev_done_notify = std::make_shared<_previous_globalrev_done_notify>(recdb,previous_globalrev,globalrev);
-      {
-	std::lock_guard<std::mutex> prev_admin(previous_globalrev->admin);
-	previous_globalrev->recordingset_complete_notifiers.emplace(prev_done_notify);
-      }
+
+      prev_done_notify->apply_to_wss(previous_globalrev);
     }
 
     // Set up notification when this globalrev is complete
@@ -2011,6 +2019,9 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     complete_notify->apply_to_wss(globalrev);
 
 
+    // clear out datastructure
+    previous_globalrev = nullptr;
+    
     
     return globalrev;
   }
@@ -2355,6 +2366,18 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 
   }
 
+  long recording_set_state::get_reference_count()
+  {
+    std::weak_ptr<recording_set_state> weak_this = shared_from_this();
+
+    return weak_this.use_count();
+  }
+
+  size_t recording_set_state::num_complete_notifiers() // size of recordingset_complete_notifiers; useful for debugging memory leaks
+  {
+    std::lock_guard<std::mutex> rss_admin(admin);
+    return recordingset_complete_notifiers.size();
+  }
   
   globalrevision::globalrevision(uint64_t globalrev, std::shared_ptr<transaction> defining_transact, std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state) :
     recording_set_state(recdb,math_functions,channel_map_param,prereq_state),

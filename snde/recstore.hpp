@@ -555,7 +555,11 @@ namespace snde {
     // admin lock must be locked when calling this function. Returns
     std::shared_ptr<recording_set_state> prerequisite_state();
     void atomic_prerequisite_state_clear(); // sets the prerequisite state to nullptr
-    
+
+    long get_reference_count(); // get the shared_ptr reference count; useful for debugging memory leaks
+
+    size_t num_complete_notifiers(); // size of recordingset_complete_notifiers; useful for debugging memory leaks
+
   };
   
   class globalrevision: public recording_set_state { // should probably be derived from a class math_calculation_set or similar, so code can be reused for ondemand recordings
