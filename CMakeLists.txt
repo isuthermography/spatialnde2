@@ -27,7 +27,7 @@ ENDIF()
 IF(WIN32)
   SET(APP_INSTALL_DIR ${PROJECT_BINARY_DIR}/install CACHE PATH "Installation directory.  Must be writable by your user!")
 ELSE()
-  SET(APP_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/spatialnde2) # CACHE PATH "Installation directory.  Must be writable by your user!"
+  SET(APP_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/spatialnde2) # "Installation directory.  Must be writable by your user!"
 ENDIF()
 
 # Create a variable to enable/disable installing into site-packages
@@ -117,9 +117,27 @@ find_package(LibXml2)
 find_package(Eigen3 3.3)
 find_package(OpenCL)
 find_package(Threads REQUIRED)
-find_package(PythonInterp)
+
+
+# Always first go for the python found
+# in the command path. But allow this to be
+# overridden if need be
+find_program(PYTHON_EXECUTABLE
+  NAMES python python3
+  PATHS ENV PATH
+  DOC "Python executable, defining version and ABI to use for build"
+  NO_DEFAULT_PATH)
+set(PYTHON_MANUAL_COMPONENT_SELECTION FALSE CACHE BOOL "Manually select python installation components")
+if(PYTHON_MANUAL_COMPONENT_SELECTION)
+  set(Python3_ARTIFACTS_INTERACTIVE TRUE)
+endif()
+
+set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
+
+message(PYTHON_EXECUTABLE " " ${PYTHON_EXECUTABLE})
+
+find_package(Python3 COMPONENTS Interpreter Development)
 find_package(SWIG)
-find_package(PythonLibs)
 find_package(PNG)
 
 
@@ -135,9 +153,9 @@ find_package(Qt5 REQUIRED Core Widgets Gui OpenGL UiTools )
 
 include_directories(BEFORE . )  # So that #include "snde/..." works during the build
 
-IF (PythonInterp_FOUND)
-    message(STATUS ${PYTHON_VERSION_STRING})
-ENDIF (PythonInterp_FOUND)
+IF (Python3_FOUND)
+    message(STATUS "Python3: " ${Python3_VERSION})
+ENDIF (Python3_FOUND)
 
 set(SPATIALNDE2_LIBS spatialnde2 ${CMAKE_THREAD_LIBS_INIT})
 set(SPATIALNDE2_QT_LIBS spatialnde2 spatialnde2_qt ${CMAKE_THREAD_LIBS_INIT})
@@ -158,12 +176,12 @@ IF (OpenCL_FOUND)
     
     # Build OpenCL support into library
     set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  snde/opencl_utils.cpp snde/openclcachemanager.cpp ) # snde/data_to_rgba.cpp snde/inplanemat_calculation.cpp snde/projinfo_calculation.cpp snde/boxes_calculation.cpp)
-    #IF (PythonInterp_FOUND) 
+    #IF (Python3_FOUND) 
     #  set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/normal_calculation.cpp)
     #  IF (OpenSceneGraph_FOUND)
     #    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  snde/openscenegraph_geom.cpp)
     #  ENDIF (OpenSceneGraph_FOUND)
-    #ENDIF (PythonInterp_FOUND)
+    #ENDIF (Python3_FOUND)
     set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} ${OpenCL_LIBRARIES})
 
 ENDIF (OpenCL_FOUND)
@@ -183,9 +201,9 @@ IF (Eigen3_FOUND)
   include_directories(${EIGEN3_INCLUDE_DIR})
 ENDIF()
 
-IF (PythonLibs_FOUND)
-    include_directories(${PYTHON_INCLUDE_DIR})
-ENDIF(PythonLibs_FOUND)
+IF (Python3_FOUND)
+    include_directories(${Python3_INCLUDE_DIRS})
+ENDIF(Python3_FOUND)
 
 IF (OpenThreads_FOUND)
   include_directories(${OPENTHREADS_INCLUDE_DIR})
@@ -216,6 +234,10 @@ ENDIF()
 FILE(GLOB SPATIALNDE2_CPP_HEADERS "snde/*.hpp")
 FILE(GLOB SPATIALNDE2_C_HEADERS "snde/*.h")
 
+# SpatialNDE2 dataguzzler-python .dpi include files
+FILE(GLOB SPATIALNDE2_DPI_FILES "python/spatialnde2/*.dpi")
+
+
 # Set RPATH
 # the RPATH to be used when installing, but only if it's not a system directory
 LIST(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_FULL_LIBDIR}" isSystemDir)
@@ -229,7 +251,7 @@ ENDIF()
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 	
-IF (OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PythonInterp_FOUND)
+IF (OpenThreads_FOUND AND OpenSceneGraph_FOUND AND Python3_FOUND)
   # Enable OSG support
   set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_OPENSCENEGRAPH )
   #add_definitions(-DSNDE_OPENSCENEGRAPH)
@@ -292,7 +314,7 @@ IF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
 ENDIF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
 
 
-IF (PythonInterp_FOUND)
+IF (Python3_FOUND)
     set(PYTHONGENHEADERS snde/snde_types.h snde/geometry_types.h snde/geometry_ops.h snde/vecops.h ) #  snde/testkernel.c snde/osg_vertexarray.c snde/osg_texvertexarray.c snde/normal_calc.c snde/projinfo_calc.c snde/colormap.h snde/scale_colormap.c snde/dummy_scale_colormap.c )
   
     set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h ) # ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
@@ -301,56 +323,66 @@ IF (PythonInterp_FOUND)
             DEPENDS ${PYTHONGENHEADERS} 
             # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
 
-            COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/snde_types.h ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h
-            COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/geometry_types.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h
-            COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/geometry_ops.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h
-            COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/vecops.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h
-            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/testkernel.c ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
-            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/osg_vertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h
-            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/osg_texvertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h
-            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/normal_calc.c ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h
-            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/projinfo_calc.c ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h
-            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/colormap.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h
-            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h
-            #COMMAND ${PYTHON_EXECUTABLE} snde/file2header.py snde/dummy_scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h
+            COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/snde_types.h ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h
+            COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/geometry_types.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h
+            COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/geometry_ops.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h
+            COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/vecops.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h
+            #COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/testkernel.c ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
+            #COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/osg_vertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h
+            #COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/osg_texvertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h
+            #COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/normal_calc.c ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h
+            #COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/projinfo_calc.c ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h
+            #COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/colormap.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h
+            #COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h
+            #COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/dummy_scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 	    )
     add_custom_target(OpenCL_Headers DEPENDS ${PYTHONGENERATEDHEADERS})
-ENDIF (PythonInterp_FOUND)
+ENDIF (Python3_FOUND)
 
 
-IF (PythonInterp_FOUND)
+IF (Python3_FOUND)
   set(PYTHONPKGFILES ${CMAKE_CURRENT_BINARY_DIR}/setup.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} )
 
 
   #message(STATUS "[SWIG_MODULE_spatialnde2_python_REAL_NAME: " ${SWIG_MODULE_spatialnde2_python_REAL_NAME} )
   
   add_custom_command(OUTPUT ${PYTHONPKGFILES}
-    DEPENDS compile_definitions python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${PYTHONGENERATEDHEADERS}  
-            # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
+    DEPENDS compile_definitions python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS}  
+    # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
+    
+    COMMAND ${CMAKE_COMMAND} -E copy python/setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy  ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
+    COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_CPP_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
+    COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_C_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
+    COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_DPI_FILES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
+    
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    )
+  add_custom_target(Python_Create_Setup ALL DEPENDS ${PYTHONPKGFILES})
+  #add_custom_command(Python_Create_Setup DEPENDS ${PYTHONPKGFILES})
 
-            COMMAND ${CMAKE_COMMAND} -E copy python/setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
-
-            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
-            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
-            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
-            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
-            COMMAND ${CMAKE_COMMAND} -E copy  ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
-            COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_CPP_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
-            COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_C_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
-            COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
-	    
-            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-	    )
-	  add_custom_target(Python_Create_Setup ALL DEPENDS ${PYTHONPKGFILES})
-	  #add_custom_command(Python_Create_Setup DEPENDS ${PYTHONPKGFILES})
-
-ENDIF (PythonInterp_FOUND)
+  add_custom_target( InstallMessage ALL
+    COMMAND ${CMAKE_COMMAND} -E echo  " "
+    COMMAND ${CMAKE_COMMAND} -E echo  "Build is complete!"
+    COMMAND ${CMAKE_COMMAND} -E echo "Run:"
+    COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "  ${PYTHON_EXECUTABLE} setup.py build"
+    COMMAND ${CMAKE_COMMAND} -E echo "And ...perhaps as root or Administrator...:"
+    COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "  ${PYTHON_EXECUTABLE} setup.py install"
+    COMMAND ${CMAKE_COMMAND} -E echo "to install for Python" )
+  add_dependencies( InstallMessage compile_definitions Python_Create_Setup spatialnde2 spatialnde2_qt allocator_test recdb_test recmath_test recmath_test2 transform_eval_test matrixsolve_test )
+ENDIF (Python3_FOUND)
 
 
-IF (OpenCL_FOUND AND PythonInterp_FOUND)
+IF (OpenCL_FOUND AND Python3_FOUND)
     # build opencl_example... requires Python to preprocess the testkernel
     #add_executable(opencl_example
     #        example/opencl_example.cpp
@@ -359,7 +391,7 @@ IF (OpenCL_FOUND AND PythonInterp_FOUND)
     #target_link_libraries(opencl_example ${SPATIALNDE2_LIBS} ${OpenCL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 ENDIF()
 
-IF (OpenCL_FOUND AND PythonInterp_FOUND AND OpenSceneGraph_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND GLUT_FOUND AND PNG_FOUND)
+IF (OpenCL_FOUND AND Python3_FOUND AND OpenSceneGraph_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND GLUT_FOUND AND PNG_FOUND)
   #add_executable(x3d_viewer
   #  example/x3d_viewer.cpp
   #  )
@@ -374,7 +406,7 @@ IF (Qt5_FOUND AND OpenCL_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenScene
   #target_link_libraries(png_viewer ${SPATIALNDE2_QT_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${OpenCL_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
 ENDIF()
 
-IF (Qt5_FOUND AND PythonInterp_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND OpenCL_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PNG_FOUND)
+IF (Qt5_FOUND AND Python3_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND OpenCL_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PNG_FOUND)
   #add_executable(x3d_viewer_qt example/x3d_viewer_qt.cpp)
   #add_dependencies(x3d_viewer_qt OpenCL_Headers)
   #target_link_libraries(x3d_viewer_qt ${SPATIALNDE2_QT_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${OpenCL_LIBRARIES}  ${LIBXML2_LIBRARIES} ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
@@ -386,18 +418,32 @@ include_directories(snde/)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 # Build SWIG wrapper
-IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
+IF(SWIG_FOUND AND Python3_FOUND )
+    # Get numpy include/lib info
+    # (This is now provided by FindPython3.cmake if we want to use that instead)
     execute_process(
-            COMMAND ${PYTHON_EXECUTABLE} -c "import numpy; print(numpy.get_include())"
-            ERROR_VARIABLE NumPy_ERROR
-            RESULT_VARIABLE NumPy_RESULT # Returns 0 if numpy includes are found
-            OUTPUT_VARIABLE NumPy_INCLUDE_DIR
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
+      COMMAND ${Python3_EXECUTABLE} -c "import numpy; print(numpy.get_include())"
+      ERROR_VARIABLE NumPy_ERROR
+      RESULT_VARIABLE NumPy_RESULT # Returns 0 if numpy includes are found
+      OUTPUT_VARIABLE NumPy_INCLUDE_DIR
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      )
+
+    # Get python3 version hex
+    
+    execute_process(
+      COMMAND ${Python3_EXECUTABLE} -c "import sys;print(\"%02.2x\" % (sys.version_info.minor))"
+      ERROR_VARIABLE PyVerHex_ERROR
+      RESULT_VARIABLE PyVerHex_RESULT # Returns 0 if successful
+      OUTPUT_VARIABLE PyVerHex
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      )
+    #message("Python3_EXECUTABLE" ${Python3_EXECUTABLE})
+    #message("NumPy_INCLUDE_DIR" ${NumPy_INCLUDE_DIR})
     IF (NOT NumPy_RESULT)
         include_directories(${NumPy_INCLUDE_DIR})
 
-	message(STATUS ${PYTHON_LIBRARIES})
+	message(STATUS ${Python3_LIBRARIES})
 	include(${SWIG_USE_FILE})
 	# BUG: If python version >= 3 need -py3 -DPY_VERSION_HEX=0x03060000 additional flags to SWIG command
 	set(CMAKE_SWIG_FLAGS "-threads" "-DSNDE_LOCKMANAGER_COROUTINES_THREADED" )
@@ -418,10 +464,7 @@ IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
 	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_X3D)
 	ENDIF()
 
-	IF (PYTHON_VERSION_STRING GREATER 3)
-	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-py3" "-DPY_VERSION_HEX=0x03060000")
-	ENDIF (PYTHON_VERSION_STRING GREATER 3)
-	
+	set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-py3" "-DPY_VERSION_HEX=0x03${PyVerHex}0000")
 	if (SIZEOF_LONG MATCHES "8")
 	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-DSIZEOF_LONG_IS_8")
 	endif()
@@ -433,13 +476,15 @@ IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
 	IF (OpenCL_FOUND)
 	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_OPENCL)
 	ENDIF()
+	#message("CMAKE_SWIG_FLAGS: " "${CMAKE_SWIG_FLAGS}")
+
 	
 	SET_SOURCE_FILES_PROPERTIES(snde/spatialnde2.i PROPERTIES CPLUSPLUS 1)
 	set(UseSWIG_TARGET_NAME_PREFERENCE "STANDARD")
 
 	set(SPATIALNDE2_SWIG_SOURCES snde/spatialnde2.i  )
 	set_property(SOURCE snde/spatialnde2.i PROPERTY SWIG_MODULE_NAME spatialnde2_python)
-	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${PYTHON_LIBRARIES} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools ${SPATIALNDE2_QT_LIBS} )
+	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${Python3_LIBRARIES} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools ${SPATIALNDE2_QT_LIBS} )
 
 	IF(NOT WIN32)
 	  set(SPATIALNDE2_SWIG_SOURCES ${SPATIALNDE2_SWIG_SOURCES} snde/shared_memory_allocator_posix.cpp )
@@ -462,14 +507,14 @@ IF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
         message(WARNING "NumPy not found. Cannot build SWIG Python Wrapper.")
     ENDIF (NOT NumPy_RESULT)
   
-ENDIF(SWIG_FOUND AND PythonLibs_FOUND AND PythonInterp_FOUND)
+ENDIF(SWIG_FOUND AND Python3_FOUND)
 
-# Find out where the Python site-packages directory is
-IF(PythonLibs_FOUND AND PythonInterp_FOUND)
-    execute_process ( COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
-    OUTPUT_VARIABLE _AUTOGEN_PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
-      set(PYTHON_SITE_PACKAGES ${_AUTOGEN_PYTHON_SITE_PACKAGES} CACHE PATH "Directory containing site-packages")
-ENDIF()
+## Find out where the Python site-packages directory is
+#IF(Python3_FOUND)
+#    execute_process ( COMMAND ${Python3_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
+#    OUTPUT_VARIABLE _AUTOGEN_PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
+#      set(PYTHON_SITE_PACKAGES ${_AUTOGEN_PYTHON_SITE_PACKAGES} CACHE PATH "Directory containing site-packages")
+#ENDIF()
 
 
 
@@ -491,13 +536,13 @@ IF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
   #  DESTINATION ${APP_INSTALL_DIR}/test)
 ENDIF()
 
-IF (OpenCL_FOUND AND PythonInterp_FOUND)
+IF (OpenCL_FOUND AND Python3_FOUND)
   #install(TARGETS
   #  opencl_example
   #  DESTINATION ${APP_INSTALL_DIR}/example)
 ENDIF()
 
-IF (OpenCL_FOUND AND PythonInterp_FOUND AND OpenSceneGraph_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND GLUT_FOUND AND PNG_FOUND)
+IF (OpenCL_FOUND AND Python3_FOUND AND OpenSceneGraph_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND GLUT_FOUND AND PNG_FOUND)
   #install(TARGETS
   #  x3d_viewer
   #  DESTINATION ${APP_INSTALL_DIR}/example)
@@ -510,7 +555,7 @@ IF (Qt5_FOUND AND OpenCL_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenScene
   #  DESTINATION ${APP_INSTALL_DIR}/example)
 ENDIF()
 
-IF (Qt5_FOUND AND PythonInterp_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND OpenCL_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PNG_FOUND)
+IF (Qt5_FOUND AND Python3_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND OpenCL_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PNG_FOUND)
   #install(TARGETS
   #  x3d_viewer_qt
   #  DESTINATION ${APP_INSTALL_DIR}/example)
@@ -539,7 +584,7 @@ install(
 	FILES "${PROJECT_BINARY_DIR}/spatialnde2_python.py"
 	DESTINATION ${APP_INSTALL_DIR}/python)
 
-set(PYTHON_SITE_PACKAGES "${PROJECT_SOURCE_DIR}/INSTALL/python")
+#set(PYTHON_SITE_PACKAGES "${PROJECT_SOURCE_DIR}/INSTALL/python")
 if(INSTALL_INTO_PYTHON_SITE_PACKAGES)
   #install(TARGETS
   #  ${SWIG_MODULE_spatialnde2_REAL_NAME}
@@ -547,7 +592,7 @@ if(INSTALL_INTO_PYTHON_SITE_PACKAGES)
   #install(
   #  FILES "${PROJECT_BINARY_DIR}/spatialnde2.py"
   #  DESTINATION ${PYTHON_SITE_PACKAGES})
-  install( CODE "execute_process(COMMAND ${PYTHON_EXECUTABLE} setup.py install )")
+  install( CODE "execute_process(COMMAND ${Python3_EXECUTABLE} setup.py install )")
 endif()
 
 
@@ -579,12 +624,12 @@ endif()
 
 
 # Warning Messages
-IF (NOT PythonLibs_FOUND)
+IF (NOT Python3_FOUND)
     message(WARNING "Python Libs Not Found; SWIG Python wrapper will not be built")
-ENDIF (NOT PythonLibs_FOUND)
-IF (NOT PythonInterp_FOUND)
+ENDIF (NOT Python3_FOUND)
+IF (NOT Python3_FOUND)
     message(WARNING "Python Executable Not Found. Cannot build SWIG Python wrapper or opencl_example")
-ENDIF (NOT PythonInterp_FOUND)
+ENDIF (NOT Python3_FOUND)
 IF (NOT EIGEN3_FOUND)
     message(WARNING "Eigen3 Not Found. Cannot build X3D reader.")
 ENDIF (NOT EIGEN3_FOUND)

@@ -77,6 +77,7 @@ package_data = {
     "spatialnde2": [
         "compile_definitions.txt",
         "snde/*", # All headers, installed into this location by cmake build process
+        "*.dpi", # .dpi files for dataguzzler-python
     ] + spatialnde2_dlls
 }
 

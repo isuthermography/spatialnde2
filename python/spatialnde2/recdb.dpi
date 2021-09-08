@@ -1,0 +1,12 @@
+global snde
+global recdb
+
+import multiprocessing
+import spatialnde2 as snde
+
+recdb=snde.recdatabase()
+recdb.default_storage_manager = snde.recording_storage_manager_shmem()
+
+cpu_compute = snde.available_compute_resource_cpu(recdb,recdb.compute_resources,snde.SNDE_CR_CPU,multiprocessing.cpu_count())
+recdb.compute_resources.compute_resources.append(cpu_compute) #std::thread::hardware_concurrency()))
+recdb.compute_resources.start()
