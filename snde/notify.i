@@ -1,63 +1,12 @@
-#ifndef SNDE_NOTIFY_HPP
-#define SNDE_NOTIFY_HPP
+%shared_ptr(snde::channel_notify);
+%shared_ptr(snde::repetitive_channel_notify);
+%shared_ptr(snde::promise_channel_notify);
+%shared_ptr(snde::monitor_globalrevs);
 
-#include <unordered_set>
-#include <memory>
-#include <future>
+%{
+  #include "notify.hpp"
 
-/* 
-NOTIFICATION PRINCIPLES
-
-Rigorous notification is a core challenge here because of the parallelism and the difficulty in arranging 
-atomic operations with the necessary combinations of ordered locks. 
-
-So in general, the notification system should have the following characteristics:
-  * The characteristic being notified for is testable
-  * The testing can be done in any thread and context, so long as locks are not previously being held
-  * The characteristic being notified must be satisfied prior to or during (atomically) 
-    the initiation of the notification
-  * Redundant notifications should be ignored
-  * Since an event may occur after the characteristic is tested but before the request for notification 
-    is fully posted, when posting a notification, should always explicitly test right after posting. 
-  * A thread that is planning to perform a notification and that has verified that the notification is
-    appropriate can remove the notification request, taking responsibility itself for performing the
-    notification
-
-So the general process (Method A):
-  * (optional) Requestor checks criterion
-  * Requestor posts notification request
-  * Requestor checks criteron; delists notification if satisfied (and still posted)
-  * Event occurs in some thread "A" triggering criterion check, which is satsified
-  * Thread A delists the notification, then performs the notification
-Note that the above process may trigger an excess notification; therefore the recipient
-must be robust against duplicated notifications. 
-
-The only exceptions to the above are scenarios where the criterion check and the listing/delisting 
-can be performed atomically, in which case (Method B): 
-  * Requestor atomically checks criterion and posts notification request if not satisfied 
-  * Event occurs in some thread "A" triggering atomic criterion check (which is satsified) and delist
-    of the notification. 
-  * Thread A then performs the notification
-
-
-Recording database notification scenarios: 
-
-1. channel_notify and derivatives. This uses Method B with notifications in channel_state::_notify_about_this_channel_metadataonly
-   and channel_state::_notify_about_this_channel_ready. Criterion checking performed by channel_notify::_check_all_criteria_locked()
-   based on the internal completion flags in recordings and channel_state::issue_nonmath_notifications()
-2. Recording math notifications within a particular recording_set_state: Method A. These are used to trigger dependent functions and rely on
-   math_status::pending_functions, mdonly_pending_functions, completed_functions, and completed_mdonly_functions sets. 
-  * These are triggered by channel_state::issue_math_notifications()
-3. Recording math and channel notifications from a different recording_set_state: Method A:
-  * math_function_status::missing_external_channel_prerequisites and math_status::_external_dependencies_on_channel: channel_state::issue_math_notifications()
-  * math_function_status::missing_external_function_preqrequisites and math_status::_external_dependencies_on_function (this is currently solely self-dependencies): math_status::notify_math_function_executed()
-  
-
-
-
-*/
-
-
+%}
 namespace snde {
   // forward references
   class recording_state_set; //recstore.hpp
@@ -72,17 +21,17 @@ namespace snde {
     // may access/modify it so long as the recording_set_state admin lock is held (removing criteria that are already satisifed)
     // Internal members should generally be treated as private from an external API perspective
   public:
-    mutable std::mutex admin; // must be locked to read/modify recordingset_complete, metadataonly_channels and/or fullready_channels; last lock except for python GIL
+    //mutable std::mutex admin; // must be locked to read/modify recordingset_complete, metadataonly_channels and/or fullready_channels; last lock except for python GIL
     // (may also be interpreted by channel_notify subclasses as protecting subclass data)
     // Mutable so we can lock it even with a const reference
     bool recordingset_complete; // true if this notification is to occur only once the entire recording_set/globalrev is marked complete
 
     // These next two members: entries keep getting removed from the sets as the criteria are satisfied
-    std::unordered_set<std::string> metadataonly_channels; // specified channels must reach metadata only status (note: fullyready also satisifies criterion)
-    std::unordered_set<std::string> fullyready_channels; // specified channels must reach fully ready status
+    //std::unordered_set<std::string> metadataonly_channels; // specified channels must reach metadata only status (note: fullyready also satisifies criterion)
+    //std::unordered_set<std::string> fullyready_channels; // specified channels must reach fully ready status
 
     channel_notification_criteria();
-    channel_notification_criteria & operator=(const channel_notification_criteria &); 
+    //channel_notification_criteria & operator=(const channel_notification_criteria &); 
     channel_notification_criteria(const channel_notification_criteria &orig);
     ~channel_notification_criteria() = default;
     void add_recordingset_complete();
@@ -93,7 +42,7 @@ namespace snde {
     void add_metadataonly_channel(std::string); // satisfied once the specified channel achieves mdonly (if applied to an mdonly channel you may not get notified until the channel is fullyready)
   };
   
-  class channel_notify : public std::enable_shared_from_this<channel_notify> {
+  class channel_notify /* : public std::enable_shared_from_this<channel_notify> */ {
   public:
     // base class
     // derive from this class if you want to get notified
@@ -163,7 +112,7 @@ namespace snde {
     // with a .get_future() that you can
     // wait on  (be sure to drop all locks before waiting)
   public:
-    std::promise<void> promise;
+    //std::promise<void> promise;
 
     // After construction, need to call .apply_to_wss() method!!!
     promise_channel_notify(const std::vector<std::string> &mdonly_channels,const std::vector<std::string> &ready_channels,bool recordingset_complete);
@@ -177,67 +126,17 @@ namespace snde {
 
   };
   
-  class _unchanged_channel_notify: public channel_notify {
-  public:
-    // used internally to get notifications for subsequent globalrev that needs to have a reference to the version (that is not ready yet) in this recording.
-    std::weak_ptr<recdatabase> recdb;
-    std::shared_ptr<globalrevision> subsequent_globalrev;
-    channel_state &current_channelstate; 
-    channel_state &sg_channelstate; 
-    bool mdonly;
-
-    _unchanged_channel_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> subsequent_globalrev,channel_state & current_channelstate,channel_state & sg_channelstate,bool mdonly); // After construction, need to call .apply_to_wss() method!!!
-
-    virtual ~_unchanged_channel_notify()=default;
-    
-    virtual void perform_notify();
-  };
-  
-
-  class _previous_globalrev_done_notify: public channel_notify {
-  public:
-    // used internally to get notification that a previous globalrev is complete so as to remove entries from available_compute_resource_database blocked_list
-    std::weak_ptr<recdatabase> recdb;
-    std::shared_ptr<globalrevision> previous_globalrev;
-    std::shared_ptr<globalrevision> current_globalrev;
-    
-
-    _previous_globalrev_done_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> previous_globalrev,std::shared_ptr<globalrevision> current_globalrev);
-
-    virtual ~_previous_globalrev_done_notify()=default;
-    virtual void perform_notify();
-  };
-
-
-  class _globalrev_complete_notify: public channel_notify {
-  public:
-    // Used internally to detect when a globalrev is done
-    // so that any prior globalrevs can be removed from
-    // recdb->_globalrevs.
-    //
-    // Also so that we can notify any globalrev listeners.
-    
-    std::weak_ptr<recdatabase> recdb;
-    std::shared_ptr<globalrevision> globalrev;
-
-    _globalrev_complete_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> globalrev);
-
-    virtual ~_globalrev_complete_notify()=default;
-    virtual void perform_notify();
-
-  };
-
 
   
-  class monitor_globalrevs: public std::enable_shared_from_this<monitor_globalrevs> {
+  class monitor_globalrevs /* : public std::enable_shared_from_this<monitor_globalrevs> */{
     // created by recdatabase::start_monitoring_globalrevs()
   public:
     uint64_t next_globalrev_index;
     bool active;
-    std::mutex admin; // after the recdb admin lock in locking order; before the Python GIL
-    std::condition_variable ready_globalrev;
+    //std::mutex admin; // after the recdb admin lock in locking order; before the Python GIL
+    //std::condition_variable ready_globalrev;
 
-    std::map<uint64_t,std::shared_ptr<globalrevision>> pending; // pending global revisions that are ready but have not been waited for
+    //std::map<uint64_t,std::shared_ptr<globalrevision>> pending; // pending global revisions that are ready but have not been waited for
     
     monitor_globalrevs(std::shared_ptr<globalrevision> first);
 
@@ -253,4 +152,3 @@ namespace snde {
   
 };
 
-#endif // SNDE_NOTIFY_HPP

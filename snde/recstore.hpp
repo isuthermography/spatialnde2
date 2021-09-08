@@ -142,7 +142,9 @@ namespace snde {
 
   class channel_notify; // from notify.hpp
   class repetitive_channel_notify; // from notify.hpp
-  class promise_channel_notify; 
+  class promise_channel_notify;
+  class _globalrev_complete_notify;
+  class monitor_globalrevs;
   
   // constant data structures with recording type number information
   extern const std::unordered_map<std::type_index,unsigned> rtn_typemap; // look up typenum based on C++ typeid(type)
@@ -575,7 +577,7 @@ namespace snde {
 
   class recdatabase : public std::enable_shared_from_this<recdatabase> {
   public:
-    std::mutex admin; // Locks access to _channels and _deleted_channels and _math_functions, _globalrevs and repetitive_notifies. In locking order, precedes channel admin locks, available_compute_resource_database, globalrevision admin locks, recording admin locks, and Python GIL. 
+    std::mutex admin; // Locks access to _channels and _deleted_channels and _math_functions, _globalrevs, repetitive_notifies, and monitoring. In locking order, precedes channel admin locks, available_compute_resource_database, globalrevision admin locks, recording admin locks, and Python GIL. 
     std::map<std::string,std::shared_ptr<channel>> _channels; // Generally don't use the channel map directly. Grab the latestglobalrev and use the channel map from that. 
     std::map<std::string,std::shared_ptr<channel>> _deleted_channels; // Channels are put here after they are deleted. They can be moved back into the main list if re-created. 
     instantiated_math_database _math_functions; 
@@ -591,8 +593,11 @@ namespace snde {
 
 
     std::mutex transaction_lock; // ***!!! Before any dataguzzler-python module locks, etc.
-    std::shared_ptr<transaction> current_transaction; // only valid while transaction_lock is held. 
+    std::shared_ptr<transaction> current_transaction; // only valid while transaction_lock is held.
 
+    std::set<std::weak_ptr<monitor_globalrevs>,std::owner_less<std::weak_ptr<monitor_globalrevs>>> monitoring;
+    uint64_t monitoring_notify_globalrev; // latest globalrev for which monitoring has already been notified
+    
     recdatabase();
         
     // avoid using start_transaction() and end_transaction() from C++; instantiate the RAII wrapper class active_transaction instead
@@ -609,7 +614,7 @@ namespace snde {
     void register_new_rec(std::shared_ptr<recording_base> new_rec);
     void register_new_math_rec(void *owner_id,std::shared_ptr<recording_set_state> calc_wss,std::shared_ptr<recording_base> new_rec); // registers newly created math recording in the given wss (and extracts mutable flag for the given channel into the recording structure)). 
 
-    std::shared_ptr<globalrevision> latest_globalrev();
+    std::shared_ptr<globalrevision> latest_globalrev(); // safe to call with or without recdb admin lock held
 
     // Allocate channel with a specific name; returns nullptr if the name is inuse
     std::shared_ptr<channel> reserve_channel(std::shared_ptr<channelconfig> new_config);
@@ -620,6 +625,8 @@ namespace snde {
     // NOTE: python wrappers for wait_recordings and wait_recording_names need to drop dgpython thread context during wait and poll to check for connection drop
     //void wait_recordings(std::vector<std::shared_ptr<recording>> &);
     void wait_recording_names(std::shared_ptr<recording_set_state> wss,const std::vector<std::string> &metadataonly, const std::vector<std::string> fullyready);
+
+    std::shared_ptr<monitor_globalrevs> start_monitoring_globalrevs(std::shared_ptr<globalrevision> first = nullptr);
     
   };
 

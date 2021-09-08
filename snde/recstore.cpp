@@ -2000,6 +2000,18 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 	previous_globalrev->recordingset_complete_notifiers.emplace(prev_done_notify);
       }
     }
+
+    // Set up notification when this globalrev is complete
+    // So that we can remove obsolete entries from the _globalrevs
+    // database and so we can notify anyone monitoring
+    // that there is a ready globalrev.
+    
+    std::shared_ptr<_globalrev_complete_notify> complete_notify=std::make_shared<_globalrev_complete_notify>(recdb,globalrev);
+    
+    complete_notify->apply_to_wss(globalrev);
+
+
+    
     return globalrev;
   }
   
@@ -2354,7 +2366,8 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 
 
   recdatabase::recdatabase():
-    compute_resources(std::make_shared<available_compute_resource_database>())
+    compute_resources(std::make_shared<available_compute_resource_database>()),
+    monitoring_notify_globalrev(0)
   {
     std::shared_ptr<globalrevision> null_globalrev;
     std::atomic_store(&_latest_globalrev,null_globalrev);
@@ -2451,7 +2464,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     std::atomic_store(&wss_chan._rec,new_rec);
   }
 
-  std::shared_ptr<globalrevision> recdatabase::latest_globalrev()
+  std::shared_ptr<globalrevision> recdatabase::latest_globalrev() // safe to call with or without recdb admin lock held
   {
     return std::atomic_load(&_latest_globalrev);
   }
@@ -2527,6 +2540,39 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 
     std::future<void> criteria_satisfied = promise_notify->promise.get_future();
     criteria_satisfied.wait();
+  }
+
+  std::shared_ptr<monitor_globalrevs> recdatabase::start_monitoring_globalrevs(std::shared_ptr<globalrevision> first/* = nullptr*/)
+  {
+
+    std::lock_guard<std::mutex> recdb_admin(admin);
+
+    if (first) {
+      first = latest_globalrev();
+    }
+
+    std::shared_ptr<monitor_globalrevs> monitor=std::make_shared<monitor_globalrevs>(first);
+
+    // Any revisions sequentially starting at 'first' that are
+    // already ready must get placed into pending
+    
+    // It's OK to mess with monitor here without locking it because we haven't published it yet
+    std::map<uint64_t,std::shared_ptr<globalrevision>>::iterator rev_it;
+    uint64_t revcnt; 
+    for (revcnt = first->globalrev,rev_it = _globalrevs.find(first->globalrev);rev_it != _globalrevs.end();rev_it = _globalrevs.find(++revcnt)) {
+
+      if (revcnt <= monitoring_notify_globalrev) {
+	monitor->pending.emplace(*rev_it);
+      } else {
+	break; 
+      }
+    }
+
+    // Once in the monitoring queue, any time a subsequent globalrev becomes ready
+    // this monitoring object will be notified. 
+    monitoring.emplace(monitor);
+
+    return monitor; 
   }
 
   

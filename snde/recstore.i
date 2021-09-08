@@ -14,7 +14,7 @@ snde_rawaccessible(snde::globalrevision);
 snde_rawaccessible(snde::recdatabase);
 %shared_ptr(snde::instantiated_math_function);
 snde_rawaccessible(snde::instantiated_math_function);
-  
+
 %{
 #include "recstore.hpp"
 
@@ -40,6 +40,8 @@ namespace snde {
   class channel_notify; // from notify.hpp
   class repetitive_channel_notify; // from notify.hpp
   class promise_channel_notify; 
+  class _globalrev_complete_notify;
+  class monitor_globalrevs;
   
   extern const std::unordered_map<unsigned,std::string> rtn_typenamemap;
   extern const std::unordered_map<unsigned,size_t> rtn_typesizemap; // Look up element size bysed on typenum
@@ -47,6 +49,9 @@ namespace snde {
 
   %typemap(in) void *owner_id {
     $1 = (void *)$input; // stores address of the PyObject
+  }
+  %typecheck(SWIG_TYPECHECK_POINTER) (void *) {
+    $1 = 1; // always satisifed
   }
 
   %typemap(out) void * {
@@ -495,7 +500,11 @@ namespace snde {
 
 
     //std::mutex transaction_lock; // ***!!! Before any dataguzzler-python module locks, etc.
-    std::shared_ptr<transaction> current_transaction; // only valid while transaction_lock is held. 
+    std::shared_ptr<transaction> current_transaction; // only valid while transaction_lock is held.
+
+    std::set<std::weak_ptr<monitor_globalrevs>,std::owner_less<std::weak_ptr<monitor_globalrevs>>> monitoring;
+    uint64_t monitoring_notify_globalrev; // latest globalrev for which monitoring has already been notified
+
 
     recdatabase();
         
@@ -524,7 +533,9 @@ namespace snde {
     // NOTE: python wrappers for wait_recordings and wait_recording_names need to drop dgpython thread context during wait and poll to check for connection drop
     //void wait_recordings(std::vector<std::shared_ptr<recording>> &);
     void wait_recording_names(std::shared_ptr<recording_set_state> wss,const std::vector<std::string> &metadataonly, const std::vector<std::string> fullyready);
-    
+
+    std::shared_ptr<monitor_globalrevs> start_monitoring_globalrevs();
+
   };
 
   

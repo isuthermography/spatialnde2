@@ -247,6 +247,7 @@ namespace snde {
 %include "recmath_compute_resource.i"
 %include "recmath.i"
 %include "recmath_cppfunction.i"
+%include "notify.i"
 
 #ifdef SNDE_OPENCL
 %include "opencl_utils.i"
@@ -312,6 +313,9 @@ namespace snde {
   // SNDE_RTN_RGBD64
   PyObject *rgbd64_dtype = PyRun_String("dtype([('r', np.uint8), ('g', np.uint8), ('b',np.uint8),('a',np.uint8),('d',np.float32)])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_RGBD64,(PyArray_Descr *)rgbd64_dtype);
+
+  PyObject *coord3_int16_dtype = PyRun_String("dtype([('x', np.int16), ('y', np.int16), ('z',np.int16)])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_COORD3_INT16,(PyArray_Descr *)coord3_int16_dtype);
 
   //  SNDE_RTN_STRING not applicable
   //  SNDE_RTN_RECORDING not applicable
