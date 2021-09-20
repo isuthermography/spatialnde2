@@ -856,6 +856,9 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     //std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_metadataonly;
 
     // This should be called, not holding locks, (except perhaps dg_python context) after info->metadata is finalized
+
+    // NOTE: probably need to add call to storage manager at start here
+    // to synchronously flush any data out e.g. to a GPU or similar. 
     
     std::shared_ptr<recdatabase> recdb = recdb_weak.lock();
     if (!recdb) return;

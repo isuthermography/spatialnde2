@@ -266,6 +266,19 @@ namespace snde {
   };
 
 
+  class recording_group : public recording_base {
+  public:
+    // Group elements are not stored here; they are found by searching
+    // the channel_map of the recording_set_state or the _channels map
+    // of the recdatabase. Because the maps are ordered, you should be
+    // able to iterate through the group elements by starting with the
+    // group name (including trailing slash) and iterating forward until
+    // you get an entry not within the group. 
+    
+    std::shared_ptr<std::string> path_to_primary; // nullptr or the path (generally relative to this group) to the primary content of the group, which should be displayed when the user asks to view the content represented by the group. 
+    
+  };
+
   class ndarray_recording : public recording_base {
   public:
     arraylayout layout; // changes to layout must be propagated to info.ndim, info.base_index, info.dimlen, and info.strides
