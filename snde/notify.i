@@ -136,9 +136,11 @@ namespace snde {
     //std::mutex admin; // after the recdb admin lock in locking order; before the Python GIL
     //std::condition_variable ready_globalrev;
 
+    bool inhibit_mutable;
+    
     //std::map<uint64_t,std::shared_ptr<globalrevision>> pending; // pending global revisions that are ready but have not been waited for
     
-    monitor_globalrevs(std::shared_ptr<globalrevision> first);
+    monitor_globalrevs(std::shared_ptr<globalrevision> first,bool inhibit_mutable);
 
     // rule of 3
     monitor_globalrevs & operator=(const monitor_globalrevs &) = delete; 
@@ -146,6 +148,7 @@ namespace snde {
     virtual ~monitor_globalrevs()=default;
 
     std::shared_ptr<globalrevision> wait_next(std::shared_ptr<recdatabase> recdb);
+    std::tuple<std::shared_ptr<globalrevision>,std::shared_ptr<globalrev_mutable_lock>> wait_next_inhibit_mutable(std::shared_ptr<recdatabase> recdb);
     void close(std::shared_ptr<recdatabase> recdb); // permanently disable the monitoring
     
   };

@@ -8,6 +8,8 @@ snde_rawaccessible(snde::channelconfig);
 snde_rawaccessible(snde::channel);
 %shared_ptr(snde::recording_set_state);
 snde_rawaccessible(snde::recording_set_state);
+%shared_ptr(snde::globalrev_mutable_lock);
+snde_rawaccessible(snde::globalrev_mutable_lock);
 %shared_ptr(snde::globalrevision);
 snde_rawaccessible(snde::globalrevision);
 %shared_ptr(snde::recdatabase);
@@ -467,7 +469,21 @@ namespace snde {
 
     size_t num_complete_notifiers(); // size of recordingset_complete_notifiers; useful for debugging memory leaks
   };
-  
+
+  class globalrev_mutable_lock {
+  public:
+    // See comment above mutable_recordings_still_needed field of globalrevision, below for explanation of what this is for and how it works
+    globalrev_mutable_lock(std::weak_ptr<recdatabase> recdb,std::weak_ptr<globalrevision> globalrev);
+      
+    globalrev_mutable_lock & operator=(const globalrev_mutable_lock &) = delete; 
+    globalrev_mutable_lock(const globalrev_mutable_lock &orig) = delete;
+    ~globalrev_mutable_lock();
+
+
+    std::weak_ptr<recdatabase> recdb;
+    std::weak_ptr<globalrevision> globalrev; 
+  };
+
   class globalrevision: public recording_set_state { // should probably be derived from a class math_calculation_set or similar, so code can be reused for ondemand recordings
     // channel_map is mutable until the ready flag is set. Once the ready flag is set only mutable and data_requestonly recordings may be modified.
   public:
@@ -481,6 +497,10 @@ namespace snde {
     uint64_t globalrev;
     std::shared_ptr<transaction> defining_transact; // This keeps the transaction data structure (pointed to by weak pointers in the recordings created in the transaction) in memory at least as long as the globalrevision is current. 
 
+    std::shared_ptr<globalrev_mutable_lock> mutable_recordings_need_holder;
+    //std::atomic<bool> mutable_recordings_still_needed; 
+
+    
     globalrevision(uint64_t globalrev, std::shared_ptr<transaction> defining_transact, std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state);   
   };
   

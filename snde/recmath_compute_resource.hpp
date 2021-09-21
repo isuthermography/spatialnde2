@@ -157,7 +157,7 @@ namespace snde {
     std::vector<std::shared_ptr<math_function_execution>> functions_using_cores; // contains core assignments, total length should match total_cpu_cores_available.
 
     std::condition_variable computations_added_or_completed; // associated mutex is the admin lock of the available_compute_resource_database
-    std::thread dispatch_thread;
+    //std::thread dispatch_thread; (redundant?)
 
     // each pool thread should either be in available_threads or assigned_threads at any given time
     std::vector<std::thread> available_threads; // mapped according to functions_using_cores

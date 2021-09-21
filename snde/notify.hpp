@@ -193,22 +193,22 @@ namespace snde {
     virtual void perform_notify();
   };
   
-
-  class _previous_globalrev_done_notify: public channel_notify {
+  /*
+  class _previous_globalrev_nolongerneeded_notify: public channel_notify {
   public:
-    // used internally to get notification that a previous globalrev is complete so as to remove entries from available_compute_resource_database blocked_list
+    // used internally to get notification that a previous globalrev is complete and its mutable waveforms can now be overwritten so as to remove entries from available_compute_resource_database blocked_list
     std::weak_ptr<recdatabase> recdb;
     std::shared_ptr<globalrevision> previous_globalrev;
     std::shared_ptr<globalrevision> current_globalrev;
     
 
-    _previous_globalrev_done_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> previous_globalrev,std::shared_ptr<globalrevision> current_globalrev);
+    _previous_globalrev_nolongerneeded_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> previous_globalrev,std::shared_ptr<globalrevision> current_globalrev);
 
-    virtual ~_previous_globalrev_done_notify()=default;
+    virtual ~_previous_globalrev_nolongerneeded_notify()=default;
     virtual void perform_notify();
   };
 
-
+  */
   class _globalrev_complete_notify: public channel_notify {
   public:
     // Used internally to detect when a globalrev is done
@@ -226,7 +226,7 @@ namespace snde {
     virtual void perform_notify();
 
   };
-
+  
 
   
   class monitor_globalrevs: public std::enable_shared_from_this<monitor_globalrevs> {
@@ -237,9 +237,12 @@ namespace snde {
     std::mutex admin; // after the recdb admin lock in locking order; before the Python GIL
     std::condition_variable ready_globalrev;
 
-    std::map<uint64_t,std::shared_ptr<globalrevision>> pending; // pending global revisions that are ready but have not been waited for
+    bool inhibit_mutable; // prevent writing to mutable waveforms
+    // of new globalrevs this monitoring object has handled them.
     
-    monitor_globalrevs(std::shared_ptr<globalrevision> first);
+    std::map<uint64_t,std::tuple<std::shared_ptr<globalrevision>,std::shared_ptr<globalrev_mutable_lock>>> pending; // pending global revisions that are ready but have not been waited for
+    
+    monitor_globalrevs(std::shared_ptr<globalrevision> first,bool inhibit_mutable);
 
     // rule of 3
     monitor_globalrevs & operator=(const monitor_globalrevs &) = delete; 
@@ -247,6 +250,8 @@ namespace snde {
     virtual ~monitor_globalrevs()=default;
 
     std::shared_ptr<globalrevision> wait_next(std::shared_ptr<recdatabase> recdb);
+    std::tuple<std::shared_ptr<globalrevision>,std::shared_ptr<globalrev_mutable_lock>> wait_next_inhibit_mutable(std::shared_ptr<recdatabase> recdb);
+
     void close(std::shared_ptr<recdatabase> recdb); // permanently disable the monitoring
     
   };

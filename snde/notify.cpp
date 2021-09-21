@@ -409,7 +409,8 @@ namespace snde {
     }
   }
 
-  _previous_globalrev_done_notify::_previous_globalrev_done_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> previous_globalrev,std::shared_ptr<globalrevision> current_globalrev) :
+  /*
+  _previous_globalrev_nolongerneeded_notify::_previous_globalrev_nolongerneeded_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> previous_globalrev,std::shared_ptr<globalrevision> current_globalrev) :
     recdb(recdb),
     previous_globalrev(previous_globalrev),
     current_globalrev(current_globalrev)
@@ -417,28 +418,15 @@ namespace snde {
     criteria.add_recordingset_complete();
   }
     
-  void _previous_globalrev_done_notify::perform_notify()
+  void _previous_globalrev_nolongerneeded_notify::perform_notify()
   {
     {
       std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
       if (!recdb_strong) return; 
-      std::unique_lock<std::mutex> computeresources_admin(*recdb_strong->compute_resources->admin);
 
-      // go through compute_resources blocked_list, removing the blocked computations
-      // and queueing them up. 
-      std::multimap<uint64_t,std::shared_ptr<pending_computation>>::iterator blocked_it; 
-      while ((blocked_it = recdb_strong->compute_resources->blocked_list.begin()) != recdb_strong->compute_resources->blocked_list.end() && blocked_it->first <= previous_globalrev->globalrev) {
-	std::shared_ptr<pending_computation> blocked_computation = blocked_it->second;
-	recdb_strong->compute_resources->blocked_list.erase(blocked_it);
-	computeresources_admin.unlock();
-	recdb_strong->compute_resources->_queue_computation_internal(blocked_computation);
-	computeresources_admin.lock();
-      }
     }
-
-    // clear previous_globalrev's prerequisite state now that previous_globalrev is entirely ready
-    previous_globalrev->atomic_prerequisite_state_clear();
   }
+  */
   
   _globalrev_complete_notify::_globalrev_complete_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> globalrev) :
     recdb(recdb),
@@ -461,6 +449,9 @@ namespace snde {
 
     snde_debug(SNDE_DC_RECDB,"_globalrev_complete_notify::perform_notify(); globalrev=%llu; notify_globalrev=%llu",(unsigned long long)globalrev->globalrev,(unsigned long long)recdb_strong->monitoring_notify_globalrev);
 
+    globalrev->atomic_prerequisite_state_clear(); // once we are ready, we no longer care about any prerequisite state, so that can be free'd as needed. 
+
+
     // Perform any moniitoring notifications
     if (globalrev->globalrev == recdb_strong->monitoring_notify_globalrev+1) {
       // next globalrev for monitoring is ready
@@ -469,11 +460,19 @@ namespace snde {
 
       std::shared_ptr<globalrevision> complete_globalrev = globalrev;
       std::shared_ptr<globalrevision> last_complete_globalrev;
+      std::shared_ptr<globalrev_mutable_lock> globalrev_mutable_lock_null; // permanently a nullptr
 
       while (complete_globalrev) {
 	std::set<std::weak_ptr<monitor_globalrevs>,std::owner_less<std::weak_ptr<monitor_globalrevs>>> monitoring_deadptrs;
 
 	last_complete_globalrev = complete_globalrev;
+
+	std::shared_ptr<globalrev_mutable_lock> complete_globalrev_mutable_recordings_lock; 
+
+	{
+	  std::lock_guard<std::mutex> complete_globalrev_admin(complete_globalrev->admin);
+	  complete_globalrev_mutable_recordings_lock = complete_globalrev->mutable_recordings_need_holder;
+	}
 	
 	for (auto && monitor_globalrev_weak: recdb_strong->monitoring) {
 	  std::shared_ptr<monitor_globalrevs> monitor_globalrev = monitor_globalrev_weak.lock();
@@ -484,7 +483,12 @@ namespace snde {
 	    // perform notification
 	    {
 	      std::lock_guard<std::mutex> monitor_admin(monitor_globalrev->admin);
-	      monitor_globalrev->pending.emplace(complete_globalrev->globalrev,globalrev);
+	      if (monitor_globalrev->inhibit_mutable) {
+		monitor_globalrev->pending.emplace(complete_globalrev->globalrev,std::make_tuple(complete_globalrev,complete_globalrev_mutable_recordings_lock));
+	      } else {
+		// no need to inhibit modifications to mutable waveforms; pass nullptr in place of mutable_recordings_need_holder
+		monitor_globalrev->pending.emplace(complete_globalrev->globalrev,std::make_tuple(complete_globalrev,globalrev_mutable_lock_null));
+	      }
 	    }
 	    monitor_globalrev->ready_globalrev.notify_all();
 	  }	
@@ -495,6 +499,15 @@ namespace snde {
 	for (auto && monitoring_deadptr: monitoring_deadptrs) {
 	  recdb_strong->monitoring.erase(monitoring_deadptr);
 	}
+
+	// clear the reference in complete_globalrev to the mutable_recordings_need_holder
+	// now once all of the monitoring is done, the globalrev_mutable_lock gets destroyed,
+	// triggering the globalrev_mutablenotneeded_thread to requeue any blocked computations
+	{
+	  std::lock_guard<std::mutex> complete_globalrev_admin(complete_globalrev->admin);
+	  complete_globalrev->mutable_recordings_need_holder = nullptr;
+	}
+
 	
 	recdb_strong->monitoring_notify_globalrev = complete_globalrev->globalrev;
 
@@ -535,29 +548,38 @@ namespace snde {
     
   }
 
-  monitor_globalrevs::monitor_globalrevs(std::shared_ptr<globalrevision> first) :
+  monitor_globalrevs::monitor_globalrevs(std::shared_ptr<globalrevision> first,bool inhibit_mutable) :
     next_globalrev_index(first->globalrev),
+    inhibit_mutable(inhibit_mutable),
     active(true)
   {
     
   }
 
-  std::shared_ptr<globalrevision> monitor_globalrevs::wait_next(std::shared_ptr<recdatabase> recdb)
+  std::tuple<std::shared_ptr<globalrevision>,std::shared_ptr<globalrev_mutable_lock>> monitor_globalrevs::wait_next_inhibit_mutable(std::shared_ptr<recdatabase> recdb)
   {
     std::unique_lock<std::mutex> monitor_admin(admin);
     if (!active) {
       throw snde_error("Waiting on inactive globalrev monitor");
     }
 
-    std::map<uint64_t,std::shared_ptr<globalrevision>>::iterator nextpending;
+    std::map<uint64_t,std::tuple<std::shared_ptr<globalrevision>,std::shared_ptr<globalrev_mutable_lock>>>::iterator nextpending;
     while ((nextpending=pending.begin()) == pending.end()) {
       ready_globalrev.wait(monitor_admin);
     }
-
-    std::shared_ptr<globalrevision> retval = nextpending->second;
+    
+    std::tuple<std::shared_ptr<globalrevision>,std::shared_ptr<globalrev_mutable_lock>> retval = nextpending->second;
     pending.erase(nextpending);
-
+    
     return retval;
+  }
+
+
+  std::shared_ptr<globalrevision> monitor_globalrevs::wait_next(std::shared_ptr<recdatabase> recdb)
+  {
+    std::tuple<std::shared_ptr<globalrevision>,std::shared_ptr<globalrev_mutable_lock>> globalrev_mutablelock = wait_next_inhibit_mutable(recdb);
+
+    return std::get<0>(globalrev_mutablelock);
   }
   
   void monitor_globalrevs::close(std::shared_ptr<recdatabase> recdb)

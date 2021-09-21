@@ -1237,7 +1237,9 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
       globalrev = std::make_shared<globalrevision>(recdb_strong->current_transaction->globalrev,recdb_strong->current_transaction,recdb_strong,recdb_strong->_math_functions,initial_channel_map,previous_globalrev);
       //globalrev->recstatus.channel_map.reserve(recdb_strong->_channels.size());
 
+      globalrev->mutable_recordings_need_holder=std::make_shared<globalrev_mutable_lock>(recdb_strong,globalrev);
 
+  
       // initially all recordings in this globalrev are "defined"
       for (auto && channame_chanstate: globalrev->recstatus.channel_map) {
 	globalrev->recstatus.defined_recordings.emplace(std::piecewise_construct,
@@ -2004,13 +2006,13 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
       }
     }
 
-    // get notified so as to remove entries from available_compute_resource_database blocked_list
-    // once the previous globalrev is complete.
-    if (previous_globalrev) {
-      std::shared_ptr<_previous_globalrev_done_notify> prev_done_notify = std::make_shared<_previous_globalrev_done_notify>(recdb,previous_globalrev,globalrev);
-
-      prev_done_notify->apply_to_wss(previous_globalrev);
-    }
+    //// get notified so as to remove entries from available_compute_resource_database blocked_list
+    //// once the previous globalrev is complete.
+    //if (previous_globalrev) {
+    //  std::shared_ptr<_previous_globalrev_nolongerneeded_notify> prev_nolongerneeded_notify = std::make_shared<_previous_globalrev_nolongerneeded_notify>(recdb,previous_globalrev,globalrev);
+    //
+    //  prev_nolongerneeded_notify->apply_to_wss(previous_globalrev);
+    //}
 
     // Set up notification when this globalrev is complete
     // So that we can remove obsolete entries from the _globalrevs
@@ -2381,11 +2383,40 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     std::lock_guard<std::mutex> rss_admin(admin);
     return recordingset_complete_notifiers.size();
   }
+
+  globalrev_mutable_lock::globalrev_mutable_lock(std::weak_ptr<recdatabase> recdb,std::weak_ptr<globalrevision> globalrev) :
+    recdb(recdb),
+    globalrev(globalrev)
+  {
+
+  }
+
+  globalrev_mutable_lock::~globalrev_mutable_lock()
+  {
+    // This destructor being called indicates that
+    // the mutable data from this globalrev can now
+    // be allowed to change. We place this
+    // globalrev in the recdb's globalrev_mutablenotneeded_pending
+    // list and trigger the globalrev_mutablenotneeded_condition variable
+    std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
+    std::shared_ptr<globalrevision> globalrev_strong=globalrev.lock();
+    if (recdb_strong && globalrev_strong) {
+      globalrev_strong->mutable_recordings_still_needed=false;
+      
+      std::lock_guard<std::mutex> globalrev_mutablenotneeded_lockholder(recdb_strong->globalrev_mutablenotneeded_lock);
+      
+      recdb_strong->globalrev_mutablenotneeded_pending.push_back(globalrev_strong);
+      recdb_strong->globalrev_mutablenotneeded_condition.notify_all();
+      
+      
+    }
+  }
   
   globalrevision::globalrevision(uint64_t globalrev, std::shared_ptr<transaction> defining_transact, std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state) :
     recording_set_state(recdb,math_functions,channel_map_param,prereq_state),
     defining_transact(defining_transact),
-    globalrev(globalrev)
+    globalrev(globalrev),
+    mutable_recordings_still_needed(true)
   {
     
   }
@@ -2393,14 +2424,33 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 
   recdatabase::recdatabase():
     compute_resources(std::make_shared<available_compute_resource_database>()),
-    monitoring_notify_globalrev(0)
+    monitoring_notify_globalrev(0),
+    globalrev_mutablenotneeded_mustexit(false)
+
   {
     std::shared_ptr<globalrevision> null_globalrev;
     std::atomic_store(&_latest_globalrev,null_globalrev);
 
     _math_functions._rebuild_dependency_map();
+
+    // instantiate mutablenotneeded thread
+    globalrev_mutablenotneeded_thread = std::thread([this]() { globalrev_mutablenotneeded_code(); });
+    //globalrev_mutablenotneeded_thread.detach(); // we won't be join()ing this thread
+
   }
-  
+
+  recdatabase::~recdatabase()
+  {
+    // Trigger globalrev_mutablenotneeded thread to die, then join() it. 
+    {
+      std::lock_guard<std::mutex> globalrev_mutablenotneeded_lockholder(globalrev_mutablenotneeded_lock);
+      //fprintf(stderr,"recdatabase() setting exit flag\n");
+
+      globalrev_mutablenotneeded_mustexit=true;
+      globalrev_mutablenotneeded_condition.notify_all();
+    }
+    globalrev_mutablenotneeded_thread.join();
+  }
   
   std::shared_ptr<active_transaction> recdatabase::start_transaction()
   {
@@ -2568,7 +2618,16 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     criteria_satisfied.wait();
   }
 
-  std::shared_ptr<monitor_globalrevs> recdatabase::start_monitoring_globalrevs(std::shared_ptr<globalrevision> first/* = nullptr*/)
+  std::shared_ptr<monitor_globalrevs> recdatabase::start_monitoring_globalrevs(std::shared_ptr<globalrevision> first/* = nullptr*/,bool inhibit_mutable/* = false */)
+  // first is the first globalrev to return (nullptr means latest_globalrev()).
+  // inhibit_mutable means that this will prevent writing to mutable waveforms
+  // of new globalrevs until you have handled them. To use this
+  // functionality call the wait_next_inhibit_mutable() method instead of
+  // plain wait_next(), which returns a tuple. The 2nd element of the
+  // tuple represents a shared lock that prevents writing to mutable waveforms.
+  // Be warned that for the first revision or two the 2nd element may be
+  // nullptr, indicating that no such lock was able to be acquired. 
+    
   {
 
     std::lock_guard<std::mutex> recdb_admin(admin);
@@ -2577,7 +2636,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
       first = latest_globalrev();
     }
 
-    std::shared_ptr<monitor_globalrevs> monitor=std::make_shared<monitor_globalrevs>(first);
+    std::shared_ptr<monitor_globalrevs> monitor=std::make_shared<monitor_globalrevs>(first,inhibit_mutable);
 
     // Any revisions sequentially starting at 'first' that are
     // already ready must get placed into pending
@@ -2588,7 +2647,8 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     for (revcnt = first->globalrev,rev_it = _globalrevs.find(first->globalrev);rev_it != _globalrevs.end();rev_it = _globalrevs.find(++revcnt)) {
 
       if (revcnt <= monitoring_notify_globalrev) {
-	monitor->pending.emplace(*rev_it);
+	std::shared_ptr<globalrev_mutable_lock> null_mutable_lock;
+	monitor->pending.emplace(std::make_pair(rev_it->first,std::make_tuple(rev_it->second,null_mutable_lock)));
       } else {
 	break; 
       }
@@ -2601,5 +2661,61 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     return monitor; 
   }
 
+  void recdatabase::globalrev_mutablenotneeded_code()
+  {
+    std::unique_lock<std::mutex> globalrev_mutablenotneeded_lockholder(globalrev_mutablenotneeded_lock);
+    bool exit_flag=false;
+
+    //fprintf(stderr,"gmnnc() starting\n");
+
+    while (!exit_flag) {
+      //fprintf(stderr,"gmnnc() waiting\n");
+      globalrev_mutablenotneeded_condition.wait(globalrev_mutablenotneeded_lockholder);
+      std::list<std::shared_ptr<globalrevision>>::iterator pending_it;
+      //fprintf(stderr,"gmnnc() wakeup\n");
+
+      while ((pending_it = globalrev_mutablenotneeded_pending.begin()) != globalrev_mutablenotneeded_pending.end()) {
+	std::shared_ptr<globalrevision> globalrev_mutablenotneeded = *pending_it;
+	globalrev_mutablenotneeded_pending.erase(pending_it);
+	
+	globalrev_mutablenotneeded_lockholder.unlock();
+	//fprintf(stderr,"gmnnc() got pending\n");
+	
+	// got a globalrev where we no longer need to protect its version of mutable waveforms from update
+	{
+	  std::unique_lock<std::mutex> computeresources_admin(*compute_resources->admin);
+
+	  //fprintf(stderr,"gmnnc() cr_admin locked\n");
+
+	  // go through compute_resources blocked_list, removing the blocked computations corresponding to this globalrev
+	  // and queueing them up. 
+
+	  std::multimap<uint64_t,std::shared_ptr<pending_computation>>::iterator blocked_it; 
+	  while ((blocked_it = compute_resources->blocked_list.begin()) != compute_resources->blocked_list.end() && blocked_it->first <= globalrev_mutablenotneeded->globalrev) {
+	    std::shared_ptr<pending_computation> blocked_computation = blocked_it->second;
+
+	    //fprintf(stderr,"gmnnc() got element of blocked list\n");
+
+	    compute_resources->blocked_list.erase(blocked_it);
+	    computeresources_admin.unlock();
+	    compute_resources->_queue_computation_internal(blocked_computation); // note: blocked computation pointer is passed by reference and is nullified by this call, making the various weak references to it able to die once it comes off of the todo_list.  
+	    computeresources_admin.lock();
+	  }
+	
+
+	}
+	
+	globalrev_mutablenotneeded_lockholder.lock();
+      }
+      if (globalrev_mutablenotneeded_mustexit) {
+	exit_flag=true; 
+	//fprintf(stderr,"gmnnc() exit flag set\n");
+      } else {
+	//fprintf(stderr,"gmnnc() exit flag clear\n");
+      }
+    }
+    //fprintf(stderr,"gmnnc() exit\n");
+
+  }
   
 };

@@ -574,19 +574,41 @@ namespace snde {
     size_t num_complete_notifiers(); // size of recordingset_complete_notifiers; useful for debugging memory leaks
 
   };
+
+  class globalrev_mutable_lock {
+  public:
+    // See comment above mutable_recordings_still_needed field of globalrevision, below for explanation of what this is for and how it works
+    globalrev_mutable_lock(std::weak_ptr<recdatabase> recdb,std::weak_ptr<globalrevision> globalrev);
+      
+    globalrev_mutable_lock & operator=(const globalrev_mutable_lock &) = delete; 
+    globalrev_mutable_lock(const globalrev_mutable_lock &orig) = delete;
+    ~globalrev_mutable_lock();
+
+
+    std::weak_ptr<recdatabase> recdb;
+    std::weak_ptr<globalrevision> globalrev; 
+  };
   
   class globalrevision: public recording_set_state { // should probably be derived from a class math_calculation_set or similar, so code can be reused for ondemand recordings
     // channel_map is mutable until the ready flag is set. Once the ready flag is set only mutable and data_requestonly recordings may be modified.
   public:
     // These commented members are really part of the recording_set_state we are derived from
-    //std::mutex admin; // locks changes to recstatus, mathstatus, recstatus.channel_map and the _recordings reference maps/sets. Precedes recstatus.channel_map.rec.admin and Python GIL in locking order
+    //std::mutex admin; // locks changes to recstatus, mathstatus, recstatus.channel_map, the _recordings reference maps/sets, and the mutable_recordings_need_holder. Precedes recstatus.channel_map.rec.admin and Python GIL in locking order
     //std::atomic<bool> ready; // indicates that all recordings except ondemand and data_requestonly recordings are READY (mutable recordings may be OBSOLETE)
     //recording_status recstatus;
     //math_status mathstatus; // note math_status.math_functions is immutable
 
     
-    uint64_t globalrev;
-    std::shared_ptr<transaction> defining_transact; // This keeps the transaction data structure (pointed to by weak pointers in the recordings created in the transaction) in memory at least as long as the globalrevision is current. 
+    uint64_t globalrev; // immutable
+    std::shared_ptr<transaction> defining_transact; // This keeps the transaction data structure (pointed to by weak pointers in the recordings created in the transaction) in memory at least as long as the globalrevision is current.
+
+    // With the globalrevision object there is a single object of class globalrev_mutable_lock. This is created with the globalrevision
+    // and pointed to here (mutable_recordings_still_needed) until the globalrev is ready. Once ready, notify.cpp:_globalrev_complete_notify::perform_notify()
+    // places this pointer in the pending_map of each monitor_globalrevs. When the last shared_ptr expires, the globalrev_mutable_lock destructor
+    // is called, triggering the globalrev_monitoring_thread to wake up and queue the relevant computations from the
+    // blocked_list (recdatabase::globalrev_mutablenotneeded_code())
+    std::shared_ptr<globalrev_mutable_lock> mutable_recordings_need_holder;
+    std::atomic<bool> mutable_recordings_still_needed; 
 
     globalrevision(uint64_t globalrev, std::shared_ptr<transaction> defining_transact, std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state);   
   };
@@ -614,8 +636,19 @@ namespace snde {
 
     std::set<std::weak_ptr<monitor_globalrevs>,std::owner_less<std::weak_ptr<monitor_globalrevs>>> monitoring;
     uint64_t monitoring_notify_globalrev; // latest globalrev for which monitoring has already been notified
+
+
+    
+    std::thread globalrev_mutablenotneeded_thread;
+    std::mutex globalrev_mutablenotneeded_lock; // locks the condition vector, list, and bool immediately below.  Last in the locking order
+    std::condition_variable globalrev_mutablenotneeded_condition;
+    std::list<std::shared_ptr<globalrevision>> globalrev_mutablenotneeded_pending;
+    bool globalrev_mutablenotneeded_mustexit;
     
     recdatabase();
+    recdatabase & operator=(const recdatabase &) = delete; 
+    recdatabase(const recdatabase &orig) = delete;
+    ~recdatabase();
         
     // avoid using start_transaction() and end_transaction() from C++; instantiate the RAII wrapper class active_transaction instead
     // (start_transaction() and end_transaction() are intended for C and perhaps Python)
@@ -643,7 +676,9 @@ namespace snde {
     //void wait_recordings(std::vector<std::shared_ptr<recording>> &);
     void wait_recording_names(std::shared_ptr<recording_set_state> wss,const std::vector<std::string> &metadataonly, const std::vector<std::string> fullyready);
 
-    std::shared_ptr<monitor_globalrevs> start_monitoring_globalrevs(std::shared_ptr<globalrevision> first = nullptr);
+    std::shared_ptr<monitor_globalrevs> start_monitoring_globalrevs(std::shared_ptr<globalrevision> first = nullptr,bool inhibit_multiple = false);
+
+    void globalrev_mutablenotneeded_code(); 
     
   };
 

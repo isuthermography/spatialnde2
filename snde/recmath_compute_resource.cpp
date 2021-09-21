@@ -84,14 +84,15 @@ namespace snde {
     // way to do that)
     std::shared_ptr<recording_set_state> prior_globalrev=computation->recstate->prerequisite_state(); // only actually prior_globalrev if computation_wss_is_globalrev
 
-
+    std::shared_ptr<globalrevision> prior_globalrev_globalrev=std::dynamic_pointer_cast<globalrevision>(prior_globalrev);
+    
     std::lock_guard<std::mutex> acrdb_admin(*admin);
 
     // ***!!!! Really here we need to see if we want to run it in
     // mutable or immutable mode !!!***
     //if (!computation->function_to_execute->inst->fcn->mandatory_mutable || !computation_wss_is_globalrev || !prior_globalrev || prior_globalrev->ready) {
     
-    if (!computation->function_to_execute->is_mutable || !computation_wss_is_globalrev || !prior_globalrev || prior_globalrev->ready) {
+    if (!computation->function_to_execute->is_mutable || !computation_wss_is_globalrev || !prior_globalrev || (prior_globalrev->ready && (!prior_globalrev_globalrev || !prior_globalrev_globalrev->mutable_recordings_still_needed))) {
       todo_list.emplace(computation);
       
       // This is a really dumb loop that just assigns all matching resources
@@ -120,7 +121,16 @@ namespace snde {
       
     } else {
       // blocked... we have to wait for previous revision to at least
-      // complete its mutable recordings !!!*** NEED PROCESS FOR TRIGGERING REMOVAL FROM BLOCKED LIST
+      // complete its mutable recordings and then for any consumers
+      // of its mutable recordings to be finished. This is identified
+      // when the globalrevision's mutable_recordings_need_holder --
+      // which is passed out to all the monitor_globalrevs with the
+      // inhibit_mutable flag set -- expires, triggering the
+      // blocked_computations for that globalrev (stored in the
+      // recdatabase compute_resources blocked_list) to be queued
+      // in recstore.cpp: recdatabase::globalrev_mutablenotneeded_code()
+      // by calling this function again. 
+
       blocked_list.emplace(globalrev_ptr->globalrev,computation);
     }
     computation=nullptr; // release shared pointer prior to releasing acrdb_admin lock. 
@@ -128,6 +138,9 @@ namespace snde {
 
 
   void available_compute_resource_database::queue_computation(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn)
+  // Take an identified function ready_fcn that is ready to be computed
+  // (all inputs are complete) for execution in the context of ready_wss 
+  // and queue it for actual execution by the worker threads
   {
 
     bool ready_wss_is_globalrev = false;
