@@ -70,7 +70,7 @@ typedef unsigned long size_t;
 %numpy_typemaps(size_t, NPY_ULONG, size_t);
 #else
 %numpy_typemaps(size_t, NPY_ULONGLONG, size_t);
-endif
+#endif
 #else
 /* assume sizeof(size_t)==4) */
 #ifdef SIZEOF_LONG_IS_8

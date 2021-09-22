@@ -1,0 +1,65 @@
+On Windows, it is possible to quickly set up the entire build environment using
+Anaconda.  This provides a convenient environment for running Python code,
+including Dataguzzler, and ensures all required libraries and dependencies are
+installed and in the correct location.  
+
+Prerequisites:
+Microsoft Visual Studio 2015 Update 3 or later
+Anaconda3
+This repository or Git Bash to clone the repo from GitHub
+OpenCL Drivers (Optional -- For OpenCL Support)
+
+Steps:
+
+1) Download the source code from GitHub or another location.  You can also
+   clone the repo using Git Bash or another git client using the following:
+
+      git clone https://github.com/isuthermography/spatialnde2
+
+2) Open an Anaconda Command Prompt using the shortcut in the start menu
+
+3) Packages from conda-forge will be required.  Use of a new environment is
+   strongly encouraged.  The following command will establish a new environment
+   named SNDE with all of the required libraries and packages:
+
+     conda create -n SNDE python=3.8 numpy scipy matplotlib cython ipython pip opencv pyopencl pint hdf5 h5py lxml setuptools netcdf4 cmake openscenegraph pyopengl glfw freeglut glew mesa eigen swig -c conda-forge
+
+   Note:  not all of these packaages may be needed.  There may be other 
+          packages required for certain situations.
+
+4) Activate the conda environment 
+
+     conda activate SNDE
+
+   and cd to the folder where you placed the spatialnde2 source folder.
+
+5) Make a build folder and cd inside
+
+     mkdir build
+     cd build
+
+6) Run cmake and watch for errors
+
+     cmake ..
+
+7) Build with cmake and watch for errors
+
+     cmake --build . -- -p:Configuration=RelWithDebInfo
+
+8) Build and install python wrapper
+
+     python setup.py build
+     python setup.py install
+
+9) Build and install sample c++ wrapper
+
+     cd ..
+     cd spatialnde2_example_external_cpp_function
+     python setup.py build
+     python setup.py install
+
+10) Finished! You can check that everything is working with a quick test:
+
+     cd ..
+     cd test
+     python recmath_test2.py
