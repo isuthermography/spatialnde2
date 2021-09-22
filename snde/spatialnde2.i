@@ -65,7 +65,21 @@ typedef unsigned long size_t;
 #endif
 %}
 
-%numpy_typemaps(size_t,NPY_ULONG,size_t);
+#ifdef SIZEOF_SIZE_T_IS_8
+#ifdef SIZEOF_LONG_IS_8
+%numpy_typemaps(size_t, NPY_ULONG, size_t);
+#else
+%numpy_typemaps(size_t, NPY_ULONGLONG, size_t);
+endif
+#else
+/* assume sizeof(size_t)==4) */
+#ifdef SIZEOF_LONG_IS_8
+%numpy_typemaps(size_t, NPY_UINT, size_t);
+#else
+%numpy_typemaps(size_t, NPY_ULONG, size_t);
+#endif
+#endif
+
 %numpy_typemaps(cl_event,NPY_UINTP,size_t);
 
 %begin %{

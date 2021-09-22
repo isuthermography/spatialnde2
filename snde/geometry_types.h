@@ -203,8 +203,11 @@ static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata
 #ifdef __cplusplus
   // worst-case drop down to a single C++11 mutex: Note that this is per compilation unit,
   // so synchronization aross modules is not ensured!
-
+#ifdef _MSC_VER
+#pragma message("No atomic support available from C++ compiler; Dropping down to std::mutex (may be very slow)")
+#else
 #warning No atomic support available from C++ compiler; Dropping down to std::mutex (may be very slow)
+#endif
 #include <mutex>
 
   

@@ -135,7 +135,7 @@ public:
 %template(lockingposition_generator) std::pair<snde::lockingposition,snde::CountedPyObject>; 
 
 //%template(voidpp_posn_map) std::unordered_map<void **,size_t>;
-%template(voidpp_posn_map) std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void *>,std::allocator< std::pair< void **const,snde::lockindex_t > > >;
+//%template(voidpp_posn_map) std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void *>,std::allocator< std::pair< void **const,snde::lockindex_t > > >;
 
 %extend std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,snde::lockindex_t > > > {
   bool has_key(ArrayPtr key) {
@@ -148,7 +148,7 @@ public:
 
 // NOTE: This iterator std::unordered_map<void **,size_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,size_t > > >::iterator   is currently causing a memory leak message.... seems to be a swig bug...
 
-snde::lockindex_t voidpp_posn_map_iterator_posn(std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,snde::lockindex_t > > >::iterator);
+//snde::lockindex_t voidpp_posn_map_iterator_posn(std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,snde::lockindex_t > > >::iterator);
 
 %{
   snde::lockindex_t voidpp_posn_map_iterator_posn(std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,snde::lockindex_t > > >::iterator self) {
@@ -157,7 +157,7 @@ snde::lockindex_t voidpp_posn_map_iterator_posn(std::unordered_map<void **,snde:
 }
 %}
 
-snde::ArrayPtr voidpp_posn_map_iterator_ptr(std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,snde::lockindex_t > > >::iterator);
+//snde::ArrayPtr voidpp_posn_map_iterator_ptr(std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,snde::lockindex_t > > >::iterator);
 %{
   snde::ArrayPtr voidpp_posn_map_iterator_ptr(std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>,std::allocator< std::pair< void **const,snde::lockindex_t > > >::iterator self)
 {
