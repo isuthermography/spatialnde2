@@ -72,6 +72,11 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
   string( REPLACE "/DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
 endif()
 
+# Add bigobj flag for msbuild compiler (enabling compiling completely from the Anaconda prompt on Windows)
+IF(MSVC)
+    add_compile_options(-bigobj)
+ENDIF(MSVC)
+
 # Workaround to specify 64 bit integers not terms of int64_t/uint64_t to accommodate
 # https://github.com/swig/swig/issues/568
 # (used in geometry_types.h/geometry_types.i)
@@ -279,7 +284,7 @@ ENDIF()
 
 add_custom_target(compile_definitions ALL
   DEPENDS spatialnde2
-  COMMAND ${CMAKE_COMMAND} -E echo ${SPATIALNDE2_COMPILE_DEFINITIONS} >${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt
+  COMMAND ${CMAKE_COMMAND} -E echo ${SPATIALNDE2_COMPILE_DEFINITIONS} >"${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt"
   )
   
 
