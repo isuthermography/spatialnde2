@@ -67,7 +67,12 @@ print("version = %s" % (version))
 
 python_full_ext_suffix = get_config_var('EXT_SUFFIX') # extension suffix; generally including python version info 
 python_ext_suffix = os.path.splitext("junk."+python_full_ext_suffix)[1] # .so on Linux/MacOS or .pyd on Windows -- we need this because the CMake build doesn't include the python version information in its generated suffix
-platform_shlib_suffix = get_config_var('SHLIB_SUFFIX')
+# SHLIB_SUFFIX doesn't work on Windows -- distutils.ccompiler.new_compiler().shared_lib_extension is the closest Windows alternative
+if os.name == 'nt':
+    import distutils.ccompiler
+    platform_shlib_suffix = distutils.ccompiler.new_compiler().shared_lib_extension
+else:
+    platform_shlib_suffix = get_config_var('SHLIB_SUFFIX')
 
 ext_modules=[Extension("spatialnde2._spatialnde2_python",sources=["spatialnde2/_spatialnde2_python"+python_ext_suffix])] # The "source file" is the cmake-generated binary
 

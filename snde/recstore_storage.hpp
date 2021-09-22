@@ -2,6 +2,7 @@
 #define SNDE_RECSTORE_STORAGE_HPP
 
 #include <memory>
+#include <tuple>
 #include <string>
 
 #include "snde/snde_types.h"

@@ -1,3 +1,4 @@
+import sys
 import os
 import os.path
 import numpy as np
@@ -8,7 +9,7 @@ import spatialnde2 as snde
 ext_modules=cythonize(
     Extension("spatialnde2_example_external_cpp_function.scalar_multiply",
               sources=["spatialnde2_example_external_cpp_function/scalar_multiply.pyx"],
-              include_dirs=[os.path.dirname(snde.__file__)],
+              include_dirs=[os.path.dirname(snde.__file__), os.path.join(os.path.dirname(sys.executable), 'Library', 'include')],
               
               library_dirs=[os.path.dirname(snde.__file__)],
               extra_compile_args = open(os.path.join(os.path.dirname(snde.__file__),"compile_definitions.txt")).read().strip().split(" "),

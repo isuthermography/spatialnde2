@@ -69,7 +69,7 @@ namespace snde {
   // must be thread-safe
   {
 #ifdef _WIN32
-#warning No shared memory allocator available for Win32 yet. Using regular memory instead
+    #pragma message("No shared memory allocator available for Win32 yet. Using regular memory instead")
     std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<cmemallocator>();
     
 #else

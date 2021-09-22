@@ -8,6 +8,10 @@ cmake_policy(SET CMP0086 NEW)
 set(CMAKE_AUTOMOC OFF)
 #set(CMAKE_INCLUDE_CURRENT_DIR)
 
+# Force cmake to export all symbols for shared libraries on Windows
+# Note that some globals will still need explicit dllimport/dllexport
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
 # Set a build type if none specified
 if(NOT CMAKE_BUILD_TYPE)
   message(STATUS "Setting build type to 'RelWithDebInfo' since none specified")
@@ -43,7 +47,9 @@ set(SPATIALNDE2_COMPILE_DEFINITIONS )
 
 ## Application is C++11 (now 14)
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-ignored-attributes") # -fstack-protector-all")
+if(NOT MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-ignored-attributes") # -fstack-protector-all")
+endif()
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
 
 # Remove optimizations when using gcc and debugging
@@ -65,6 +71,11 @@ endif()
 if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
   string( REPLACE "/DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
 endif()
+
+# Add bigobj flag for msbuild compiler (enabling compiling completely from the Anaconda prompt on Windows)
+IF(MSVC)
+    add_compile_options(-bigobj)
+ENDIF(MSVC)
 
 # Workaround to specify 64 bit integers not terms of int64_t/uint64_t to accommodate
 # https://github.com/swig/swig/issues/568
@@ -184,6 +195,10 @@ IF (OpenCL_FOUND)
     #ENDIF (Python3_FOUND)
     set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} ${OpenCL_LIBRARIES})
 
+    # Need to include library directory on Windows/Anaconda since it isn't where you'd expect it to be
+    get_filename_component(OpenCL_LIB_DIR ${OpenCL_LIBRARY} DIRECTORY)
+    link_directories(${OpenCL_LIB_DIR})
+
 ENDIF (OpenCL_FOUND)
 
 #IF (Qt5_FOUND)
@@ -224,10 +239,19 @@ ENDIF()
 # SpatialNDE2 library
 add_library(spatialnde2 SHARED ${SPATIALNDE2_SOURCES})
 
+# Need a define for direct compiling of spatialnde2 for the items that need dllimport/dllexport on Windows
+target_compile_definitions(spatialnde2 PRIVATE SPATIALNDE2_SHAREDLIB_EXPORT)
+
+# Include OpenCL on spatialnde2 if found
+IF (OpenCL_FOUND)
+    target_link_libraries(spatialnde2 OpenCL)
+ENDIF (OpenCL_FOUND)
+
 
 IF (Qt5_FOUND)
   qt5_add_resources(SPATIALNDE2_QT_RCC snde/qtrecviewer.qrc )
   add_library(spatialnde2_qt SHARED ${SPATIALNDE2_QT_SOURCES} ${SPATIALNDE2_QT_RCC})
+  target_link_libraries(spatialnde2_qt Qt5::Core)
 ENDIF()
 
 # SpatialNDE2 headers
@@ -260,7 +284,7 @@ ENDIF()
 
 add_custom_target(compile_definitions ALL
   DEPENDS spatialnde2
-  COMMAND ${CMAKE_COMMAND} -E echo ${SPATIALNDE2_COMPILE_DEFINITIONS} >${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt
+  COMMAND ${CMAKE_COMMAND} -E echo ${SPATIALNDE2_COMPILE_DEFINITIONS} >"${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt"
   )
   
 
@@ -347,7 +371,32 @@ IF (Python3_FOUND)
 
   #message(STATUS "[SWIG_MODULE_spatialnde2_python_REAL_NAME: " ${SWIG_MODULE_spatialnde2_python_REAL_NAME} )
   
-  add_custom_command(OUTPUT ${PYTHONPKGFILES}
+
+  IF(WIN32)
+    add_custom_command(OUTPUT ${PYTHONPKGFILES}
+    DEPENDS compile_definitions python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS}  
+    # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
+    
+    COMMAND ${CMAKE_COMMAND} -E copy python/setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2.lib ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt.lib ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy  ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
+    COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_CPP_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
+    COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_C_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
+    COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_DPI_FILES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
+    
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    )
+  ELSE()
+    add_custom_command(OUTPUT ${PYTHONPKGFILES}
     DEPENDS compile_definitions python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS}  
     # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
     
@@ -367,6 +416,7 @@ IF (Python3_FOUND)
     
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
     )
+  ENDIF(WIN32)
   add_custom_target(Python_Create_Setup ALL DEPENDS ${PYTHONPKGFILES})
   #add_custom_command(Python_Create_Setup DEPENDS ${PYTHONPKGFILES})
 

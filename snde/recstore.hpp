@@ -110,6 +110,20 @@
 #ifndef SNDE_RECSTORE_HPP
 #define SNDE_RECSTORE_HPP
 
+// CMake's CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS is set, but some global variables still require 
+// explicit import and export flags to compile properly with MSVC and other compilers that
+// behave similarly.  Newer versions of GCC shouldn't care about the presence of dllimport
+// or dllexport, but it doesn't need it.
+#ifdef _WIN32
+    #ifdef SPATIALNDE2_SHAREDLIB_EXPORT
+        #define SNDE_API __declspec(dllexport)
+    #else
+        #define SNDE_API __declspec(dllimport)
+    #endif
+#else
+    #define SNDE_API
+#endif
+
 #include <unordered_set>
 #include <typeindex>
 #include <memory>
@@ -147,10 +161,10 @@ namespace snde {
   class monitor_globalrevs;
   
   // constant data structures with recording type number information
-  extern const std::unordered_map<std::type_index,unsigned> rtn_typemap; // look up typenum based on C++ typeid(type)
-  extern const std::unordered_map<unsigned,std::string> rtn_typenamemap;
-  extern const std::unordered_map<unsigned,size_t> rtn_typesizemap; // Look up element size bysed on typenum
-  extern const std::unordered_map<unsigned,std::string> rtn_ocltypemap; // Look up opencl type string based on typenum
+  SNDE_API extern const std::unordered_map<std::type_index,unsigned> rtn_typemap; // look up typenum based on C++ typeid(type)
+  SNDE_API extern const std::unordered_map<unsigned,std::string> rtn_typenamemap;
+  SNDE_API extern const std::unordered_map<unsigned,size_t> rtn_typesizemap; // Look up element size bysed on typenum
+  SNDE_API extern const std::unordered_map<unsigned,std::string> rtn_ocltypemap; // Look up opencl type string based on typenum
 
   // https://stackoverflow.com/questions/41494844/check-if-object-is-instance-of-class-with-template
   // https://stackoverflow.com/questions/43587405/constexpr-if-alternative

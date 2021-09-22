@@ -1,6 +1,20 @@
 #ifndef SNDE_ERROR_HPP
 #define SNDE_ERROR_HPP
 
+// CMake's CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS is set, but some global variables still require 
+// explicit import and export flags to compile properly with MSVC and other compilers that
+// behave similarly.  Newer versions of GCC shouldn't care about the presence of dllimport
+// or dllexport, but it doesn't need it.
+#ifdef _WIN32
+#ifdef SPATIALNDE2_SHAREDLIB_EXPORT
+#define SNDE_API __declspec(dllexport)
+#else
+#define SNDE_API __declspec(dllimport)
+#endif
+#else
+#define SNDE_API
+#endif
+
 #include <string>
 #include <stdexcept>
 #include <cstring>
@@ -170,7 +184,7 @@ namespace snde {
     fprintf(stderr,"SNDE WARNING: %s\n",warnstr.c_str());
   }
 
-  extern unsigned current_debugflags;
+  SNDE_API extern unsigned current_debugflags;
   
   template<typename ... Args>
   void snde_debug(unsigned dbgclass,std::string fmt, Args && ... args)
