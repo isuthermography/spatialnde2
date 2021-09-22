@@ -6,7 +6,7 @@ namespace snde {
 
 
 // rtn_typemap is indexed by typeid(type)
-  const std::unordered_map<std::type_index,unsigned> rtn_typemap({ // look up typenum based on C++ typeid(type)
+  SNDE_API const std::unordered_map<std::type_index,unsigned> rtn_typemap({ // look up typenum based on C++ typeid(type)
       {typeid(snde_float32), SNDE_RTN_FLOAT32},
       {typeid(snde_float64), SNDE_RTN_FLOAT64},
       // half-precision not generally
@@ -32,7 +32,7 @@ namespace snde {
   });
   
   // rtn_typesizemap is indexed by SNDE_RTN_xxx
-  const std::unordered_map<unsigned,size_t> rtn_typesizemap({ // Look up element size bysed on typenum
+  SNDE_API const std::unordered_map<unsigned,size_t> rtn_typesizemap({ // Look up element size bysed on typenum
       {SNDE_RTN_FLOAT32,sizeof(snde_float32)},
       {SNDE_RTN_FLOAT64,sizeof(snde_float64)},
       // half-precision not generally
@@ -62,7 +62,7 @@ namespace snde {
       {SNDE_RTN_COORD3_INT16,sizeof(snde_coord3_int16)},
     });
   
-  const std::unordered_map<unsigned,std::string> rtn_typenamemap({ // Look up type name based on typenum
+  SNDE_API const std::unordered_map<unsigned,std::string> rtn_typenamemap({ // Look up type name based on typenum
       {SNDE_RTN_FLOAT32,"SNDE_RTN_FLOAT32"},
       {SNDE_RTN_FLOAT64,"SNDE_RTN_FLOAT64"},
       // half-precision not generally
@@ -87,7 +87,7 @@ namespace snde {
     });
   
 
-  const std::unordered_map<unsigned,std::string> rtn_ocltypemap({ // Look up opencl type string based on typenum
+  SNDE_API const std::unordered_map<unsigned,std::string> rtn_ocltypemap({ // Look up opencl type string based on typenum
       {SNDE_RTN_FLOAT32,"float"},
       {SNDE_RTN_FLOAT64,"double"},
       // half-precision not generally
@@ -135,15 +135,14 @@ namespace snde {
     
     assert(info_structsize >= sizeof(snde_recording_base));
     
-    snde_recording_base info_prototype{
-      .name=strdup(chan->config()->channelpath.c_str()),
-      .revision=new_revision,
-      .state=info_state,
-      .metadata=nullptr,
-      .metadata_valid=false,
-      .deletable=false,
-      .immutable=true,
-    };
+    snde_recording_base info_prototype;
+    info_prototype.name = strdup(chan->config()->channelpath.c_str());
+    info_prototype.revision = new_revision;
+    info_prototype.state = info_state;
+    info_prototype.metadata = nullptr;
+    info_prototype.metadata_valid = false;
+    info_prototype.deletable = false;
+    info_prototype.immutable = true;
     *info = info_prototype;
     
   }
@@ -182,15 +181,14 @@ namespace snde {
     info = (snde_recording_base *)calloc(1,info_structsize);
     assert(info_structsize >= sizeof(snde_recording_base));
 
-    snde_recording_base info_prototype{
-      .name=strdup(chanpath.c_str()),
-      .revision=new_revision,
-      .state=info_state,
-      .metadata=nullptr,
-      .metadata_valid=false,
-      .deletable=false,
-      .immutable=true, // overridden below from data_mutable flag of the channelconfig 
-    };
+    snde_recording_base info_prototype;
+    info_prototype.name = strdup(chanpath.c_str());
+    info_prototype.revision = new_revision;
+    info_prototype.state = info_state;
+    info_prototype.metadata = nullptr;
+    info_prototype.metadata_valid = false;
+    info_prototype.deletable = false;
+    info_prototype.immutable = true; // overridden below from data_mutable flag of the channelconfig 
     *info = info_prototype;
 
     

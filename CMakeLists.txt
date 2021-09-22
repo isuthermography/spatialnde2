@@ -8,6 +8,10 @@ cmake_policy(SET CMP0086 NEW)
 set(CMAKE_AUTOMOC OFF)
 #set(CMAKE_INCLUDE_CURRENT_DIR)
 
+# Force cmake to export all symbols for shared libraries on Windows
+# Note that some globals will still need explicit dllimport/dllexport
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
 # Set a build type if none specified
 if(NOT CMAKE_BUILD_TYPE)
   message(STATUS "Setting build type to 'RelWithDebInfo' since none specified")
@@ -43,7 +47,9 @@ set(SPATIALNDE2_COMPILE_DEFINITIONS )
 
 ## Application is C++11 (now 14)
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-ignored-attributes") # -fstack-protector-all")
+if(NOT MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-ignored-attributes") # -fstack-protector-all")
+endif()
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
 
 # Remove optimizations when using gcc and debugging
@@ -184,6 +190,10 @@ IF (OpenCL_FOUND)
     #ENDIF (Python3_FOUND)
     set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} ${OpenCL_LIBRARIES})
 
+    # Need to include library directory on Windows/Anaconda since it isn't where you'd expect it to be
+    get_filename_component(OpenCL_LIB_DIR ${OpenCL_LIBRARY} DIRECTORY)
+    link_directories(${OpenCL_LIB_DIR})
+
 ENDIF (OpenCL_FOUND)
 
 #IF (Qt5_FOUND)
@@ -224,10 +234,19 @@ ENDIF()
 # SpatialNDE2 library
 add_library(spatialnde2 SHARED ${SPATIALNDE2_SOURCES})
 
+# Need a define for direct compiling of spatialnde2 for the items that need dllimport/dllexport on Windows
+target_compile_definitions(spatialnde2 PRIVATE SPATIALNDE2_SHAREDLIB_EXPORT)
+
+# Include OpenCL on spatialnde2 if found
+IF (OpenCL_FOUND)
+    target_link_libraries(spatialnde2 OpenCL)
+ENDIF (OpenCL_FOUND)
+
 
 IF (Qt5_FOUND)
   qt5_add_resources(SPATIALNDE2_QT_RCC snde/qtrecviewer.qrc )
   add_library(spatialnde2_qt SHARED ${SPATIALNDE2_QT_SOURCES} ${SPATIALNDE2_QT_RCC})
+  target_link_libraries(spatialnde2_qt Qt5::Core)
 ENDIF()
 
 # SpatialNDE2 headers

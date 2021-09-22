@@ -153,8 +153,10 @@ static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata
 
   
 #else
-#ifdef WIN32
-  #include <winnt.h>
+#ifdef _WIN32
+  #define WIN32_LEAN_AND_MEAN
+  #define NOMINMAX
+  #include <Windows.h>
 typedef LONG snde_atomicimagedata;
 
 static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata *var,float toadd)
