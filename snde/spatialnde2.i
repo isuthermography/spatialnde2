@@ -57,26 +57,44 @@ typedef unsigned long size_t;
 //numpy
 %include "numpy.i"
 
-// define numpy arrays of size_t
- // diagnose size mismatch on compile
-%{
-#ifndef _WIN32
-  static_assert(sizeof(size_t) == sizeof(unsigned long), "Mismatch of size_t");
-#endif
-%}
 
 #ifdef SIZEOF_SIZE_T_IS_8
 #ifdef SIZEOF_LONG_IS_8
 %numpy_typemaps(size_t, NPY_ULONG, size_t);
+// define numpy arrays of size_t
+// diagnose size mismatch on compile
+%{
+  static_assert(sizeof(size_t) == sizeof(unsigned long), "Mismatch of size_t");
+%}
+
 #else
 %numpy_typemaps(size_t, NPY_ULONGLONG, size_t);
+// define numpy arrays of size_t
+// diagnose size mismatch on compile
+%{
+  static_assert(sizeof(size_t) == sizeof(unsigned long long), "Mismatch of size_t");
+%}
+
+
 #endif
 #else
 /* assume sizeof(size_t)==4) */
 #ifdef SIZEOF_LONG_IS_8
 %numpy_typemaps(size_t, NPY_UINT, size_t);
+// define numpy arrays of size_t
+// diagnose size mismatch on compile
+%{
+  static_assert(sizeof(size_t) == sizeof(unsigned int), "Mismatch of size_t");
+%}
 #else
 %numpy_typemaps(size_t, NPY_ULONG, size_t);
+
+// define numpy arrays of size_t
+// diagnose size mismatch on compile
+%{
+  static_assert(sizeof(size_t) == sizeof(unsigned long), "Mismatch of size_t");
+%}
+
 #endif
 #endif
 
