@@ -75,7 +75,7 @@ namespace snde {
 
   class math_parameter_recording: public math_parameter {
   public:
-    std::string channel_name;
+    std::string channel_name; // ***!!! MUST BE COMBINED WITH channel_path_context from instantiated_math_function ***!!!
 
     math_parameter_recording(std::string channel_name);
     virtual std::shared_ptr<recording_base> get_recording(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings. parameter_index starting at 1, just for printing messages

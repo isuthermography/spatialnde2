@@ -68,7 +68,7 @@ namespace snde {
       
       std::lock_guard<std::mutex> wssadmin(wss->admin);
       math_function_status &mathstatus = wss->mathstatus.function_status.at(math_function_it->second);
-      mdonly = mathstatus.execfunc->mdonly;
+      mdonly = mathstatus.mdonly;
     }
     
     if (mdonly) {
@@ -405,7 +405,7 @@ namespace snde {
 
     std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
     if (recdb_strong) {
-      sg_channelstate.issue_math_notifications(recdb_strong,subsequent_globalrev);
+      sg_channelstate.issue_math_notifications(recdb_strong,subsequent_globalrev,false);
     }
   }
 

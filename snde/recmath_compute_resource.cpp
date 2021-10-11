@@ -166,7 +166,11 @@ namespace snde {
     {
       std::unique_lock<std::mutex> ready_wss_admin(ready_wss->admin);
       math_function_status &ready_wss_status = ready_wss->mathstatus.function_status.at(ready_fcn);
+
+      assert(ready_wss_status.execfunc); // execfunc should have been assigned (At the latest) by check_dep_fcn_ready(), which  should have been called before us. 
+      
       execfunc = ready_wss_status.execfunc;
+      
       snde_debug(SNDE_DC_RECMATH,"execfunc=0x%lx; wss=0x%lx",(unsigned long)execfunc.get(),(unsigned long)ready_wss.get());
       snde_debug(SNDE_DC_RECMATH,"ready_to_execute:%d",(int)ready_wss_status.ready_to_execute);
       if (ready_wss_status.ready_to_execute && execfunc->try_execution_ticket()) {
@@ -195,17 +199,17 @@ namespace snde {
 	  assert(ready_fcn->result_channel_paths.size()==execfunc->execution_tracker->self_dependent_recordings.size());
 
 	  // assign recordings to all referencing wss recordings (should all still exist)
-	  for (auto && referencing_wss_weak: execfunc->referencing_wss) {
-	    std::shared_ptr<recording_set_state> referencing_wss_strong(referencing_wss_weak);
-	    std::lock_guard<std::mutex> referencing_wss_admin(referencing_wss_strong->admin);
+	  for (auto && referencing_rss_weak: execfunc->referencing_rss) {
+	    std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
+	    std::lock_guard<std::mutex> referencing_rss_admin(referencing_rss_strong->admin);
 	    
 	    for (size_t cnt=0;cnt < ready_fcn->result_channel_paths.size(); cnt++) {
-	      channel_state &referencing_wss_channel_state = referencing_wss_strong->recstatus.channel_map.at(recdb_path_join(ready_fcn->channel_path_context,*ready_fcn->result_channel_paths.at(cnt)));
-	      assert(!referencing_wss_channel_state.rec());
+	      channel_state &referencing_rss_channel_state = referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(ready_fcn->channel_path_context,*ready_fcn->result_channel_paths.at(cnt)));
+	      assert(!referencing_rss_channel_state.rec());
 
-	      referencing_wss_strong->recstatus.defined_recordings.erase(referencing_wss_channel_state.config);
-	      referencing_wss_strong->recstatus.completed_recordings.emplace(referencing_wss_channel_state.config,&referencing_wss_channel_state);
-	      referencing_wss_channel_state.end_atomic_rec_update(execfunc->execution_tracker->self_dependent_recordings.at(cnt));
+	      referencing_rss_strong->recstatus.defined_recordings.erase(referencing_rss_channel_state.config);
+	      referencing_rss_strong->recstatus.completed_recordings.emplace(referencing_rss_channel_state.config,&referencing_rss_channel_state);
+	      referencing_rss_channel_state.end_atomic_rec_update(execfunc->execution_tracker->self_dependent_recordings.at(cnt));
 	    }
 	  }
 	  
@@ -228,19 +232,19 @@ namespace snde {
 	  // issue notifications
 
 	  // ... in all referencing wss's
-	  for (auto && referencing_wss_weak: execfunc->referencing_wss) {
-	    std::shared_ptr<recording_set_state> referencing_wss_strong(referencing_wss_weak);
+	  for (auto && referencing_rss_weak: execfunc->referencing_rss) {
+	    std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
 	    
 	    for (auto && result_channel_path_ptr: ready_fcn->result_channel_paths) {
-	      channel_state &chanstate = referencing_wss_strong->recstatus.channel_map.at(recdb_path_join(ready_fcn->channel_path_context,*result_channel_path_ptr));
+	      channel_state &chanstate = referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(ready_fcn->channel_path_context,*result_channel_path_ptr));
 	      //chanstate.issue_math_notifications(recdb,ready_wss); // taken care of by notify_math_function_executed(), below
-	      chanstate.issue_nonmath_notifications(referencing_wss_strong);
+	      chanstate.issue_nonmath_notifications(referencing_rss_strong);
 	      
 	    }
 	    
-	    snde_debug(SNDE_DC_RECMATH,"qc: already finished wss notify %lx",(unsigned long)referencing_wss_strong.get());
+	    snde_debug(SNDE_DC_RECMATH,"qc: already finished wss notify %lx",(unsigned long)referencing_rss_strong.get());
 	    // Issue function completion notification
-	    referencing_wss_strong->mathstatus.notify_math_function_executed(recdb,referencing_wss_strong,execfunc->inst,false); // note mdonly hardwired to false here
+	    referencing_rss_strong->mathstatus.notify_math_function_executed(recdb,referencing_rss_strong,execfunc->inst,false); // note mdonly hardwired to false here
 	  }
 	  
 	  snde_debug(SNDE_DC_RECMATH,"qc: already finished");
@@ -535,23 +539,23 @@ namespace snde {
 	    // assign recordings to all referencing wss recordings (should all still exist)
 	    // (only needed if we're not doing it below)
 	    // !!!*** This block should be refactored
-	    for (auto && referencing_wss_weak: func->referencing_wss) {
-	      std::shared_ptr<recording_set_state> referencing_wss_strong(referencing_wss_weak);
-	      if (referencing_wss_strong == func->wss) {
+	    for (auto && referencing_rss_weak: func->referencing_rss) {
+	      std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
+	      if (referencing_rss_strong == func->wss) {
 		continue; // no need to reassign our source
 	      }
 	      
-	      std::lock_guard<std::mutex> referencing_wss_admin(referencing_wss_strong->admin);
+	      std::lock_guard<std::mutex> referencing_rss_admin(referencing_rss_strong->admin);
 	      
 	      for (size_t cnt=0;cnt < func->inst->result_channel_paths.size(); cnt++) {
 		// none should have preassigned recordings --not true because parallel update or end_transaction() could be going on
-		//assert(!referencing_wss->recstatus.channel_map.at(&result_channel_paths.at(cnt)).rec());
-		channel_state &referencing_wss_channel_state=referencing_wss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt)));
+		//assert(!referencing_rss->recstatus.channel_map.at(&result_channel_paths.at(cnt)).rec());
+		channel_state &referencing_rss_channel_state=referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt)));
 		
-		referencing_wss_strong->recstatus.instantiated_recordings.erase(referencing_wss_channel_state.config);
-		referencing_wss_strong->recstatus.metadataonly_recordings.emplace(referencing_wss_channel_state.config,&referencing_wss_channel_state);
+		referencing_rss_strong->recstatus.instantiated_recordings.erase(referencing_rss_channel_state.config);
+		referencing_rss_strong->recstatus.metadataonly_recordings.emplace(referencing_rss_channel_state.config,&referencing_rss_channel_state);
 		
-		referencing_wss_channel_state.end_atomic_rec_update(func->wss->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).rec());
+		referencing_rss_channel_state.end_atomic_rec_update(func->wss->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).rec());
 	      }
 	    }
 	  }
@@ -565,23 +569,23 @@ namespace snde {
 	    
 	    // re-assign recordings to all referencing wss recordings (should all still exist) in case we have more followers than before
 	    // !!!*** This block should be refactored
-	    for (auto && referencing_wss_weak: func->referencing_wss) {
-	      std::shared_ptr<recording_set_state> referencing_wss_strong(referencing_wss_weak);
-	      if (referencing_wss_strong == func->wss) {
+	    for (auto && referencing_rss_weak: func->referencing_rss) {
+	      std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
+	      if (referencing_rss_strong == func->wss) {
 		continue; // no need to reassign our source
 	      }
 	      
-	      std::lock_guard<std::mutex> referencing_wss_admin(referencing_wss_strong->admin);
+	      std::lock_guard<std::mutex> referencing_rss_admin(referencing_rss_strong->admin);
 	      
 	      for (size_t cnt=0;cnt < func->inst->result_channel_paths.size(); cnt++) {
 		// none should have preassigned recordings --not true because parallel update or end_transaction() could be going on
-		//assert(!referencing_wss->recstatus.channel_map.at(&result_channel_paths.at(cnt)).rec());
-		channel_state & referencing_wss_channel_state = referencing_wss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt)));
+		//assert(!referencing_rss->recstatus.channel_map.at(&result_channel_paths.at(cnt)).rec());
+		channel_state & referencing_rss_channel_state = referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt)));
 		
-		referencing_wss_strong->recstatus.instantiated_recordings.erase(referencing_wss_channel_state.config);
-		referencing_wss_strong->recstatus.completed_recordings.emplace(referencing_wss_channel_state.config,&referencing_wss_channel_state);
+		referencing_rss_strong->recstatus.instantiated_recordings.erase(referencing_rss_channel_state.config);
+		referencing_rss_strong->recstatus.completed_recordings.emplace(referencing_rss_channel_state.config,&referencing_rss_channel_state);
 		
-		referencing_wss_channel_state.end_atomic_rec_update(func->wss->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).rec());
+		referencing_rss_channel_state.end_atomic_rec_update(func->wss->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).rec());
 	      }
 	    }
 	  
@@ -608,24 +612,24 @@ namespace snde {
 	      
 	      // re-assign recordings to all referencing wss recordings (should all still exist) in case we have more followers than before
 	      // !!!*** This block should be refactored
-	      for (auto && referencing_wss_weak: func->referencing_wss) {
-		std::shared_ptr<recording_set_state> referencing_wss_strong(referencing_wss_weak);
-		if (referencing_wss_strong == func->wss) {
+	      for (auto && referencing_rss_weak: func->referencing_rss) {
+		std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
+		if (referencing_rss_strong == func->wss) {
 		  continue; // no need to reassign our source
 		}
 		
-		std::lock_guard<std::mutex> referencing_wss_admin(referencing_wss_strong->admin);
+		std::lock_guard<std::mutex> referencing_rss_admin(referencing_rss_strong->admin);
 		
 		for (size_t cnt=0;cnt < func->inst->result_channel_paths.size(); cnt++) {
 		  // none should have preassigned recordings --not true because parallel update or end_transaction() could be going on
-		  //assert(!referencing_wss->recstatus.channel_map.at(&result_channel_paths.at(cnt)).rec());
+		  //assert(!referencing_rss->recstatus.channel_map.at(&result_channel_paths.at(cnt)).rec());
 		  
-		  channel_state &referencing_wss_channel_state = referencing_wss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt)));
+		  channel_state &referencing_rss_channel_state = referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt)));
 		  
-		  referencing_wss_strong->recstatus.instantiated_recordings.erase(referencing_wss_channel_state.config);
-		  referencing_wss_strong->recstatus.completed_recordings.emplace(referencing_wss_channel_state.config,&referencing_wss_channel_state);
+		  referencing_rss_strong->recstatus.instantiated_recordings.erase(referencing_rss_channel_state.config);
+		  referencing_rss_strong->recstatus.completed_recordings.emplace(referencing_rss_channel_state.config,&referencing_rss_channel_state);
 		
-		  referencing_wss_channel_state.end_atomic_rec_update(func->wss->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt))).rec());
+		  referencing_rss_channel_state.end_atomic_rec_update(func->wss->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt))).rec());
 		}
 	      }
 	    
@@ -654,20 +658,20 @@ namespace snde {
 	  
 	  
 	  // Need to do notifications that the math function finished in all referencing wss's
-	  for (auto && referencing_wss_weak: func->referencing_wss) {
-	    std::shared_ptr<recording_set_state> referencing_wss_strong(referencing_wss_weak);
+	  for (auto && referencing_rss_weak: func->referencing_rss) {
+	    std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
 	    
 	    for (auto && result_channel_path_ptr: func->inst->result_channel_paths) {
-	      channel_state &chanstate = referencing_wss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*result_channel_path_ptr));
+	      channel_state &chanstate = referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*result_channel_path_ptr));
 	      //chanstate.issue_math_notifications(recdb,ready_wss); // taken care of by notify_math_function_executed(), below
-	      chanstate.issue_nonmath_notifications(referencing_wss_strong);
+	      chanstate.issue_nonmath_notifications(referencing_rss_strong);
 	      
 	    }
 	    
 	    // Issue function completion notification
 	    if (recdb_strong) {
-	      snde_debug(SNDE_DC_RECMATH|SNDE_DC_NOTIFY,"pool code: wss notify %lx",(unsigned long)referencing_wss_strong.get());
-	      referencing_wss_strong->mathstatus.notify_math_function_executed(recdb_strong,referencing_wss_strong,func->inst,mdonly); 
+	      snde_debug(SNDE_DC_RECMATH|SNDE_DC_NOTIFY,"pool code: wss notify %lx",(unsigned long)referencing_rss_strong.get());
+	      referencing_rss_strong->mathstatus.notify_math_function_executed(recdb_strong,referencing_rss_strong,func->inst,mdonly); 
 	    }
 	  }
 

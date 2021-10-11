@@ -403,7 +403,7 @@ namespace snde {
     std::shared_ptr<recording_base> rec() const;
     std::shared_ptr<recording_base> recording_is_complete(bool mdonly); // uses only atomic members so safe to call in all circumstances. Set to mdonly if you only care that the metadata is complete. Normally call recording_is_complete(false). Returns recording pointer if recording is complete to the requested condition, otherwise nullptr. 
     void issue_nonmath_notifications(std::shared_ptr<recording_set_state> wss); // Must be called without anything locked. Issue notifications requested in _notify* and remove those notification requests
-    void issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> wss); // Must be called without anything locked. Check for any math updates from the new status of this recording
+    void issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> wss,bool channel_modified); // Must be called without anything locked. Check for any math updates from the new status of this recording
     
     void end_atomic_rec_update(std::shared_ptr<recording_base> new_recording);
 

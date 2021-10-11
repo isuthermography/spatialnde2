@@ -815,7 +815,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 	
 	math_function_status &mathstatus = wss->mathstatus.function_status.at(math_function_it->second);
 
-	if (mathstatus.execfunc->mdonly) {
+	if (mathstatus.mdonly) {
 	  // yes, an mdonly channel... move it from instantiated recordings to metadataonly_recordings
 	  mdonly=true;
 	  
@@ -840,7 +840,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     // Above replaced by chanstate.issue_nonmath_notifications
 
     //if (mdonly) {
-    chanstate->issue_math_notifications(recdb,wss);
+    chanstate->issue_math_notifications(recdb,wss,true);
     chanstate->issue_nonmath_notifications(wss);
     //}
     
@@ -960,7 +960,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 
 
     //assert(chanstate.notify_about_this_channel_metadataonly());
-    chanstate->issue_math_notifications(recdb,wss);
+    chanstate->issue_math_notifications(recdb,wss,true);
     chanstate->issue_nonmath_notifications(wss);
   }
 
@@ -1016,7 +1016,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     
   }
 
-  static void _identify_changed_channels(std::map<std::string,std::shared_ptr<channelconfig>> &all_channels_by_name,instantiated_math_database &mathdb, std::unordered_set<std::shared_ptr<instantiated_math_function>> &changed_math_functions,std::unordered_set<std::shared_ptr<channelconfig>> &maybechanged_channels,std::unordered_set<std::shared_ptr<channelconfig>> &changed_channels_dispatched,std::unordered_set<std::shared_ptr<channelconfig>> &changed_channels_need_dispatch,std::unordered_set<std::shared_ptr<channelconfig>>::iterator channel_to_dispatch_it ) // channel_to_dispatch should be in changed_channels_need_dispatch
+  static void _identify_changed_channels(std::map<std::string,std::shared_ptr<channelconfig>> &all_channels_by_name,instantiated_math_database &mathdb, std::unordered_set<std::shared_ptr<instantiated_math_function>> &unknownchanged_math_functions,std::unordered_set<std::shared_ptr<instantiated_math_function>> &changed_math_functions,std::unordered_set<std::shared_ptr<channelconfig>> &unknownchanged_channels,std::unordered_set<std::shared_ptr<channelconfig>> &changed_channels_dispatched,std::unordered_set<std::shared_ptr<channelconfig>> &changed_channels_need_dispatch,std::unordered_set<std::shared_ptr<instantiated_math_function>> &possiblychanged_math_functions,std::unordered_set<std::shared_ptr<channelconfig>>::iterator channel_to_dispatch_it ) // channel_to_dispatch should be in changed_channels_need_dispatch
   // mathdb must be immutable; (i.e. it must already be copied into the global revision)
   {
     // std::unordered_set iterators remain valid so long as the iterated element itself is not erased, and the set does not need rehashing.
@@ -1041,24 +1041,44 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 	  // ignore disabled and ondemand dependent channels (for now)
 	  continue; 
 	}
-	
-	// mark math function as changed if it isn't already
-	changed_math_functions.emplace(instantiated_math_ptr);
-	
-	for (auto && result_chanpath_name_ptr: instantiated_math_ptr->result_channel_paths) {
-	  if (result_chanpath_name_ptr) {
-	    // Found a dependent channel name
-	    // Could probably speed this up by copying result_channel_paths into a form whre it points directly at channelconfs. 
-	    std::shared_ptr<channelconfig> channelconf = all_channels_by_name.at(recdb_path_join(instantiated_math_ptr->channel_path_context,*result_chanpath_name_ptr));
-	    
-	    std::unordered_set<std::shared_ptr<channelconfig>>::iterator maybechanged_it = maybechanged_channels.find(channelconf);
-	    // Is the dependenent channel in maybechanged_channels?... if so it is definitely changed, but not yet dispatched
-	    if (maybechanged_it != maybechanged_channels.end()) {
-	      // put it in the changed dispatch set
-	      changed_channels_need_dispatch.emplace(*maybechanged_it);
-	      // remove it from the maybe changed set
-	      maybechanged_channels.erase(maybechanged_it);
-	    } 
+
+	std::unordered_set<std::shared_ptr<instantiated_math_function>>::iterator unknownchanged_it = unknownchanged_math_functions.find(instantiated_math_ptr);
+	if (instantiated_math_ptr->fcn->new_revision_optional) {
+	  // this math function is possiblychanged
+	  
+	  if (unknownchanged_it != unknownchanged_math_functions.end()) {
+	    unknownchanged_math_functions.erase(unknownchanged_it);
+	    possiblychanged_math_functions.emplace(instantiated_math_ptr);
+	  }	
+	} else {
+	  // mark math function as changed if it isn't already
+	  if (unknownchanged_it != unknownchanged_math_functions.end()) {
+	    unknownchanged_math_functions.erase(unknownchanged_it);
+	    changed_math_functions.emplace(instantiated_math_ptr);
+	  } else {
+	    // if listed as possibly-changed, bump up to definitely changed
+	    std::unordered_set<std::shared_ptr<instantiated_math_function>>::iterator possiblychanged_it = possiblychanged_math_functions.find(instantiated_math_ptr);
+	    if (possiblychanged_it != possiblychanged_math_functions.end()) {
+	      possiblychanged_math_functions.erase(possiblychanged_it);
+	      changed_math_functions.emplace(instantiated_math_ptr);
+	    }
+	  }
+	  
+	  for (auto && result_chanpath_name_ptr: instantiated_math_ptr->result_channel_paths) {
+	    if (result_chanpath_name_ptr) {
+	      // Found a dependent channel name
+	      // Could probably speed this up by copying result_channel_paths into a form where it points directly at channelconfs. 
+	      std::shared_ptr<channelconfig> channelconf = all_channels_by_name.at(recdb_path_join(instantiated_math_ptr->channel_path_context,*result_chanpath_name_ptr));
+	      
+	      std::unordered_set<std::shared_ptr<channelconfig>>::iterator unknownchanged_it = unknownchanged_channels.find(channelconf);
+	      // Is the dependenent channel in unknownchanged_channels?... if so it is definitely changed, but not yet dispatched
+	      if (unknownchanged_it != unknownchanged_channels.end()) {
+		// put it in the changed dispatch set
+		changed_channels_need_dispatch.emplace(*unknownchanged_it);
+		// remove it from the unknown changed set
+		unknownchanged_channels.erase(unknownchanged_it);
+	      } 
+	    }
 	  }
 	}
       }
@@ -1068,7 +1088,70 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
         
   }
 
-  static void mark_prospective_calculations(std::shared_ptr<recording_set_state> state,std::unordered_set<std::shared_ptr<channelconfig>> definitively_changed_channels)
+
+
+
+  static void _identify_possiblychanged_channels(std::map<std::string,std::shared_ptr<channelconfig>> &all_channels_by_name,instantiated_math_database &mathdb, std::unordered_set<std::shared_ptr<instantiated_math_function>> &unknownchanged_math_functions,std::unordered_set<std::shared_ptr<instantiated_math_function>> &changed_math_functions,std::unordered_set<std::shared_ptr<channelconfig>> &unknownchanged_channels,std::unordered_set<std::shared_ptr<channelconfig>> &changed_channels_dispatched,std::unordered_set<std::shared_ptr<channelconfig>> &possiblychanged_channels_dispatched,std::unordered_set<std::shared_ptr<channelconfig>> &possiblychanged_channels_need_dispatch,std::unordered_set<std::shared_ptr<instantiated_math_function>> &possiblychanged_math_functions,std::unordered_set<std::shared_ptr<channelconfig>>::iterator channel_to_dispatch_it ) // channel_to_dispatch should be in changed_channels_need_dispatch
+  // mathdb must be immutable; (i.e. it must already be copied into the global revision)
+  {
+    // std::unordered_set iterators remain valid so long as the iterated element itself is not erased, and the set does not need rehashing.
+    // Therefore the possiblychanged_channels_dispatched and possiblychanged_channels_need_dispatch set needs to have reserve() called on it first with the maximum possible growth.
+    
+    // We do add to changed_channels_need dispatch
+    //std::unordered_set<std::shared_ptr<channelconfig>>::iterator changed_chan;
+
+    std::shared_ptr<channelconfig> channel_to_dispatch = *channel_to_dispatch_it;
+    possiblychanged_channels_need_dispatch.erase(channel_to_dispatch_it);
+    possiblychanged_channels_dispatched.emplace(channel_to_dispatch);
+
+    // look up what is dependent on this channel
+    
+    auto dep_it = mathdb.all_dependencies_of_channel.find(channel_to_dispatch->channelpath);
+    if (dep_it != mathdb.all_dependencies_of_channel.end()) {
+      
+      std::unordered_set<std::shared_ptr<instantiated_math_function>> &dependent_math_functions=dep_it->second;
+      
+      for (auto && instantiated_math_ptr: dependent_math_functions) {
+	if (instantiated_math_ptr->ondemand || instantiated_math_ptr->disabled) {
+	  // ignore disabled and ondemand dependent channels (for now)
+	  continue; 
+	}
+
+	// mark math function as possibly changed if it isn't already
+	std::unordered_set<std::shared_ptr<instantiated_math_function>>::iterator unknownchanged_it = unknownchanged_math_functions.find(instantiated_math_ptr);
+	if (unknownchanged_it != unknownchanged_math_functions.end()) {
+	  unknownchanged_math_functions.erase(unknownchanged_it);
+	  possiblychanged_math_functions.emplace(instantiated_math_ptr);
+	}	
+
+	for (auto && result_chanpath_name_ptr: instantiated_math_ptr->result_channel_paths) {
+	  if (result_chanpath_name_ptr) {
+	    // Found a dependent channel name
+	    // Could probably speed this up by copying result_channel_paths into a form where it points directly at channelconfs. 
+	    std::shared_ptr<channelconfig> channelconf = all_channels_by_name.at(recdb_path_join(instantiated_math_ptr->channel_path_context,*result_chanpath_name_ptr));
+	    
+	    std::unordered_set<std::shared_ptr<channelconfig>>::iterator unknownchanged_it = unknownchanged_channels.find(channelconf);
+	    // Is the dependenent channel in unknownchanged_channels?... if so it is possibly changed, but not yet dispatched
+	    if (unknownchanged_it != unknownchanged_channels.end()) {
+	      // put it in the possiblychanged dispatch set
+	      possiblychanged_channels_need_dispatch.emplace(*unknownchanged_it);
+	      // remove it from the unknown changed set
+	      unknownchanged_channels.erase(unknownchanged_it);
+	    } 
+	    
+	  }
+	}
+      }
+    }
+    
+    
+        
+  }
+  
+
+
+  /*  
+  static void mark_prospective_calculations(std::shared_ptr<recording_set_state> state,std::unordered_set<std::shared_ptr<channelconfig>> definitelychanged_channels_to_process)
   // marks execution_demanded flag in the math_function_status for all math functions directly
   // dependent on the definitively_changed_channels.
   // (should this really be in recmath.cpp?)
@@ -1081,7 +1164,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 
     //std::unordered_set<std::shared_ptr<instantiated_math_function>> dependent_functions;
     
-    for (auto && changed_channelconfig_ptr : definitively_changed_channels) {
+    for (auto && changed_channelconfig_ptr : definitelychanged_channels_to_process) {
       
       //std::unordered_set<std::shared_ptr<instantiated_math_function>>  *dependent_functions_of_this_channel = nullptr;
 
@@ -1107,7 +1190,8 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     //  state->mathstatus.function_status.at(affected_math_function).execution_demanded = true; 
     //}
   }
-
+  */
+  
   static bool check_all_dependencies_mdonly(
 					    std::shared_ptr<recording_set_state> state,
 					    std::unordered_set<std::shared_ptr<instantiated_math_function>> &unchecked_functions,
@@ -1205,13 +1289,20 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     std::unordered_set<std::shared_ptr<channelconfig>> changed_channels_dispatched;
 
     // archive of definitively changed channels
-    std::unordered_set<std::shared_ptr<channelconfig>> definitively_changed_channels;
+    //std::unordered_set<std::shared_ptr<channelconfig>> definitively_changed_channels;
 
     // set of channels not yet known to be changed
-    std::unordered_set<std::shared_ptr<channelconfig>> maybechanged_channels;
+    std::unordered_set<std::shared_ptr<channelconfig>> unknownchanged_channels;
 
-    // set of math functions known to be changed
+    
+    // set of math functions not known to be changed or unchanged
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> unknownchanged_math_functions; 
+    
+    // set of math functions known to be (definitely) changed
     std::unordered_set<std::shared_ptr<instantiated_math_function>> changed_math_functions; 
+
+    // set of math functions known to be potentially changed, i.e. dynamic dependencies)
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> possiblychanged_math_functions; 
 
 
     // set of ready channels
@@ -1237,34 +1328,39 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 
       globalrev->mutable_recordings_need_holder=std::make_shared<globalrev_mutable_lock>(recdb_strong,globalrev);
 
+    }
   
-      // initially all recordings in this globalrev are "defined"
-      for (auto && channame_chanstate: globalrev->recstatus.channel_map) {
-	globalrev->recstatus.defined_recordings.emplace(std::piecewise_construct,
-						       std::forward_as_tuple(channame_chanstate.second.config),
-						       std::forward_as_tuple(&channame_chanstate.second));      
-      }
+    // initially all recordings in this globalrev are "defined"
+    for (auto && channame_chanstate: globalrev->recstatus.channel_map) {
+      globalrev->recstatus.defined_recordings.emplace(std::piecewise_construct,
+						      std::forward_as_tuple(channame_chanstate.second.config),
+						      std::forward_as_tuple(&channame_chanstate.second));      
+    }
     
-
+    
       
+    
+    // Build a temporary map of all channels 
+    for (auto && channelname_channelstate: globalrev->recstatus.channel_map) {
+      std::shared_ptr<channelconfig> config = channelname_channelstate.second.config;
+      all_channels_by_name.emplace(std::piecewise_construct,
+				   std::forward_as_tuple(config->channelpath),
+				   std::forward_as_tuple(config));
       
-      // Build a temporary map of the channels we still need to dispatch
-      for (auto && channelname_channelpointer: recdb_strong->_channels) {
-	std::shared_ptr<channelconfig> config = channelname_channelpointer.second->config();
-	all_channels_by_name.emplace(std::piecewise_construct,
-	std::forward_as_tuple(config->channelpath),
-	std::forward_as_tuple(config));
-
-	maybechanged_channels.emplace(config);
-
-      }
-      
+      unknownchanged_channels.emplace(config);
+	
+    }
+    
+  
+    // Build a temporary map of all functions
+    for (auto && instfcnptr_depset: globalrev->mathstatus.math_functions->all_dependencies_of_function) {
+      unknownchanged_math_functions.emplace(instfcnptr_depset.first);
     }
 
 
     // make sure hash tables won't rehash and screw up iterators or similar
-    changed_channels_dispatched.reserve(maybechanged_channels.size());
-    changed_channels_need_dispatch.reserve(maybechanged_channels.size());
+    changed_channels_dispatched.reserve(unknownchanged_channels.size());
+    changed_channels_need_dispatch.reserve(unknownchanged_channels.size());
 
     // mark all new channels/recordings in definitively_changed_channels as well as as changed_channels_need_dispatched
     for (auto && new_rec_chanpath_ptr: recdb_strong->current_transaction->new_recordings) {
@@ -1274,40 +1370,107 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
       std::shared_ptr<channelconfig> config = all_channels_by_name.at(chanpath);
       
       changed_channels_need_dispatch.emplace(config);
-      definitively_changed_channels.emplace(config);
-      maybechanged_channels.erase(config);
+      //definitively_changed_channels.emplace(config);
+      unknownchanged_channels.erase(config);
 
     }
     for (auto && updated_chan: recdb_strong->current_transaction->updated_channels) {
       std::shared_ptr<channelconfig> config = updated_chan->config();
 
-      std::unordered_set<std::shared_ptr<channelconfig>>::iterator mcc_it = maybechanged_channels.find(config);
+      std::unordered_set<std::shared_ptr<channelconfig>>::iterator mcc_it = unknownchanged_channels.find(config);
 
-      if (mcc_it != maybechanged_channels.end()) {
+      if (mcc_it != unknownchanged_channels.end()) {
 	changed_channels_need_dispatch.emplace(config);
-	definitively_changed_channels.emplace(config);
-	maybechanged_channels.erase(mcc_it);
+	//definitively_changed_channels.emplace(config);
+	unknownchanged_channels.erase(mcc_it);
       }
       if (config->math) {
 	// updated math channel (presumably with modified function)
 	changed_math_functions.emplace(config->math_fcn);
+	unknownchanged_math_functions.erase(config->math_fcn);
       }
     }
 
+    // Put all functions with dynamic_dependencies into changed_math_functions as they could well need to be run. 
+    for (auto && instmath_function__function_deps: globalrev->mathstatus.math_functions->all_dependencies_of_function) {
+      std::shared_ptr<instantiated_math_function> instmath_function = instmath_function__function_deps.first;
+
+      if (instmath_function->fcn->dynamic_dependency) {
+
+	std::unordered_set<std::shared_ptr<instantiated_math_function>>::iterator unknownchanged_it = unknownchanged_math_functions.find(instmath_function);
+	if (unknownchanged_it != unknownchanged_math_functions.end()) {
+	  unknownchanged_math_functions.erase(unknownchanged_it);
+	  possiblychanged_math_functions.emplace(instmath_function);
+	}
+      }
+    }
+
+    
     // Now empty out changed_channels_need_dispatch, adding into it any dependencies of currently referenced changed channels
     // This progressively identifies all (possibly) changed channels and changed math functions
-    
+
+    // definitely changed channels (accumulated in changed_channels_dispatched) are channels that are either directly modified
+    // or derive (perhaps indirectly) by non-new_revision_optional function(s) from a directly modified channel 
     std::unordered_set<std::shared_ptr<channelconfig>>::iterator channel_to_dispatch_it = changed_channels_need_dispatch.begin();
     while (channel_to_dispatch_it != changed_channels_need_dispatch.end()) {
-      _identify_changed_channels(all_channels_by_name,*globalrev->mathstatus.math_functions, changed_math_functions,maybechanged_channels,changed_channels_dispatched,changed_channels_need_dispatch,channel_to_dispatch_it );
+      _identify_changed_channels(all_channels_by_name,*globalrev->mathstatus.math_functions, unknownchanged_math_functions,changed_math_functions,unknownchanged_channels,changed_channels_dispatched,changed_channels_need_dispatch,possiblychanged_math_functions,channel_to_dispatch_it );
 
       channel_to_dispatch_it = changed_channels_need_dispatch.begin();
     }
+
+    // place to store channels that are possibly, but not definitely, changed, but have not been fully processed
+    std::unordered_set<std::shared_ptr<channelconfig>> possiblychanged_channels_need_dispatch;
+    // place to store channels that are possibly, but not definitely, changed, but have been fully processed
+    std::unordered_set<std::shared_ptr<channelconfig>> possiblychanged_channels_dispatched;
+
+    // make sure hash tables won't rehash and screw up iterators or similar
+    possiblychanged_channels_dispatched.reserve(unknownchanged_channels.size());
+    possiblychanged_channels_need_dispatch.reserve(unknownchanged_channels.size());
+
+
+    // Seed set of possibly changed channels from possibly changed math functions
+    for (auto && possiblychanged_math_function: possiblychanged_math_functions) {
+      for (auto && reschanpath_ptr: possiblychanged_math_function->result_channel_paths) {
+	if (reschanpath_ptr) {
+	  std::shared_ptr<channelconfig> possiblychanged_channel = all_channels_by_name.at(recdb_path_join(possiblychanged_math_function->channel_path_context,*reschanpath_ptr));
+	  std::unordered_set<std::shared_ptr<channelconfig>>::iterator unknownchanged_it = unknownchanged_channels.find(possiblychanged_channel);
+
+	  if (unknownchanged_it != unknownchanged_channels.end()) {
+	    // this channel is in unknownchanged. Move it to possiblychanged_channeld_need_dispatch
+	    possiblychanged_channels_need_dispatch.emplace(*unknownchanged_it);
+	    unknownchanged_channels.erase(unknownchanged_it);
+	  }
+	  
+	}
+      }
+    }
+
+    // Now recursively seek out any other possiblychanged_channels 
+    channel_to_dispatch_it = possiblychanged_channels_need_dispatch.begin();
+    while (channel_to_dispatch_it != possiblychanged_channels_need_dispatch.end()) {
+      _identify_possiblychanged_channels(all_channels_by_name,*globalrev->mathstatus.math_functions, unknownchanged_math_functions,changed_math_functions,unknownchanged_channels,changed_channels_dispatched,possiblychanged_channels_dispatched,possiblychanged_channels_need_dispatch,possiblychanged_math_functions,channel_to_dispatch_it );
+
+      channel_to_dispatch_it = possiblychanged_channels_need_dispatch.begin();
+    }
+    
+
+    // possibly_changed_channels (accumulated in possiblychanged_channels_dispatched) are channels that:
+    // (a) derive from a dynamic_dependency (listed in possiblychanged_math_functions)
+    // (b) derive by a new_revision_optional function from a directly_modified or possibly_changed channel
+    
+    // ***!!!*** need to distinguish between definitively_changed_channels and possibly_changed_channels
+    //   ***!!!*** Based on new_revision optional and dynamic_dependency.
+    //   ***!!!*** But decision has to be made in the proper sequence so that it is know before any
+    //   ***!!!*** outputs are used as inputs to other functions. 
     
     // now changed_channels_need_dispatch is empty, changed_channels_dispatched represents all changed or possibly-changed (i.e. math may decide presence of a new revision) channels,
-    // and maybechanged_channels represents channels which are known to be definitively unchanged (not dependent directly or indirectly on anything that may have changed)
-    std::unordered_set<std::shared_ptr<channelconfig>> &possibly_changed_channels_to_process=changed_channels_dispatched;
-    std::unordered_set<std::shared_ptr<channelconfig>> &unchanged_channels=maybechanged_channels;
+    // and unknownchanged_channels represents channels which are known to be definitively unchanged (not dependent directly or indirectly on anything that may have changed)
+    std::unordered_set<std::shared_ptr<channelconfig>> &definitelychanged_channels_to_process=changed_channels_dispatched;
+    std::unordered_set<std::shared_ptr<channelconfig>> &possiblychanged_channels_to_process=possiblychanged_channels_dispatched;
+    std::unordered_set<std::shared_ptr<channelconfig>> &unchanged_channels=unknownchanged_channels;
+
+    // have changed_math_functions, possiblychanged_math_functions. Anything unknown is now an unchanged_math_function
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> &unchanged_math_functions = unknownchanged_math_functions; 
 
 
     std::unordered_set<std::shared_ptr<instantiated_math_function>> unchanged_complete_math_functions;
@@ -1339,7 +1502,11 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     // any failed_mdonly_functions need to have their mdonly bool cleared in their math_function_status
     // and need to be moved from mdonly_pending_functions into pending_functions
     for (auto && failed_mdonly_function: failed_mdonly_functions) {
-      globalrev->mathstatus.function_status.at(failed_mdonly_function).execfunc->mdonly=false;
+      math_function_status &funcstatus = globalrev->mathstatus.function_status.at(failed_mdonly_function);
+      funcstatus.mdonly=false;
+      if (funcstatus.execfunc) {
+	funcstatus.execfunc->mdonly=false;
+      }
       globalrev->mathstatus.mdonly_pending_functions.erase(globalrev->mathstatus.mdonly_pending_functions.find(failed_mdonly_function));
       globalrev->mathstatus.pending_functions.emplace(failed_mdonly_function);
     }
@@ -1431,8 +1598,9 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
       }
     }
     
-
-    // we've now classified all of the math functions into changed_math_functions or unchanged math functions into unchanged_complete(maybe with mdonly) or unchanged_incomplete
+    
+    // All of the math functions were previously classified into changed_math_functions or unchanged_math_functions or possiblychanged_math_functions
+    // The above should have further classified unchanged_math_functions into unchanged_complete(maybe with mdonly) or unchanged_incomplete
   
     for (auto && unchanged_complete_math_function: unchanged_complete_math_functions) {
       // For all fully ready math functions with no inputs changed, mark them as complete
@@ -1449,10 +1617,11 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
       {
 	std::lock_guard<std::mutex> prev_gr_admin(previous_globalrev->admin);
 	execfunc = previous_globalrev->mathstatus.function_status.at(unchanged_complete_math_function).execfunc;
+	ucmf_status.mdonly = execfunc->mdonly;
       }
 
       ucmf_status.execfunc = execfunc;
-      // new globalrev needs to be added to execfunc->referencing_wss
+      // new globalrev needs to be added to execfunc->referencing_rss
       // but we're not ready to do this until we're ready to
       // publish this globalrev, so we do this later
       
@@ -1495,9 +1664,10 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 	std::lock_guard<std::mutex> prev_gr_admin(previous_globalrev->admin);
 
 	execfunc = previous_globalrev->mathstatus.function_status.at(unchanged_complete_math_function).execfunc;
+	ucmf_status.mdonly = execfunc->mdonly;
       }
       ucmf_status.execfunc = execfunc;
-      // new globalrev needs to be added to execfunc->referencing_wss
+      // new globalrev needs to be added to execfunc->referencing_rss
       // but we're not ready to do this until we're ready to
       // publish this globalrev, so we do this later
 
@@ -1527,9 +1697,17 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 	std::lock_guard<std::mutex> prev_gr_admin(previous_globalrev->admin);
 	
 	execfunc = previous_globalrev->mathstatus.function_status.at(unchanged_incomplete_math_function).execfunc;
+	if (execfunc) {
+	  uimf_status.mdonly = execfunc->mdonly;
+	  uimf_status.execfunc = execfunc;
+	} else {
+	  // set implicit self-dependency we can get another try when prior execfunc is actually set
+	  uimf_status.execfunc = nullptr;
+	  uimf_status.self_dependent=true;
+	  uimf_status.mdonly = unchanged_incomplete_math_function->mdonly; 
+	}
       }
-      uimf_status.execfunc = execfunc;
-      // new globalrev needs to be added to execfunc->referencing_wss
+      // new globalrev needs to be added to execfunc->referencing_rss
       // but we're not ready to do this until we're ready to
       // publish this globalrev, so we do this later
 
@@ -1541,6 +1719,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
       // create a new math_function_execution
       
       math_function_status &cmf_status = globalrev->mathstatus.function_status.at(changed_math_function);
+      cmf_status.execution_demanded=true; // function is changed, so execution is demanded
       bool mdonly = changed_math_function->mdonly;
       if (mdonly) {
 	if (passed_mdonly_functions.find(changed_math_function)==passed_mdonly_functions.end()) {
@@ -1548,28 +1727,55 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 	  mdonly=false;
 	}
       }
+      cmf_status.mdonly = mdonly;
       cmf_status.execfunc = std::make_shared<math_function_execution>(globalrev,changed_math_function,mdonly,changed_math_function->is_mutable);
       
       snde_debug(SNDE_DC_RECDB,"make execfunc=0x%lx; globalrev=0x%lx",(unsigned long)cmf_status.execfunc.get(),(unsigned long)globalrev.get());
 
-      if (!changed_math_function->fcn->new_revision_optional) {
-	// if not new_revision_optional then we define the new
-	// revision numbers for each of the channels now, so that
-	// they are are ordered properly and can execute in parallel
+      // since execution is mandatory we define the new
+      // revision numbers for each of the channels now, so that
+      // they are are ordered properly and can execute in parallel
 
-	for (auto && result_channel_path_ptr: changed_math_function->result_channel_paths) {
+      for (auto && result_channel_path_ptr: changed_math_function->result_channel_paths) {
+	
+	if (result_channel_path_ptr) {
+	  channel_state &state = globalrev->recstatus.channel_map.at(recdb_path_join(changed_math_function->channel_path_context,*result_channel_path_ptr));
 	  
-	  if (result_channel_path_ptr) {
-	    channel_state &state = globalrev->recstatus.channel_map.at(recdb_path_join(changed_math_function->channel_path_context,*result_channel_path_ptr));
-	    
-	    uint64_t new_revision = ++state._channel->latest_revision; // latest_revision is atomic; correct ordering because a new transaction cannot start until we are done
-	    state.revision=std::make_shared<uint64_t>(new_revision);
-	  }
+	  uint64_t new_revision = ++state._channel->latest_revision; // latest_revision is atomic; correct ordering because a new transaction cannot start until we are done
+	  state.revision=std::make_shared<uint64_t>(new_revision);
 	}
+	
       }
       
     }
 
+
+    // consider possibly changed math functions. These might be new_revision_optional with changed inputs, dynamic dependencies
+    // with unchanged inputs, or functions dependent on the above
+    for (auto && possiblychanged_math_function: possiblychanged_math_functions) {
+      // This math function could have been changed
+      
+      math_function_status &pcmf_status = globalrev->mathstatus.function_status.at(possiblychanged_math_function);
+      bool mdonly = possiblychanged_math_function->mdonly;
+      if (mdonly) {
+	if (passed_mdonly_functions.find(possiblychanged_math_function)==passed_mdonly_functions.end()) {
+	  // mdonly function did not pass -- something is dependent on it so it can't actually be mdonly
+	  mdonly=false;
+	}
+      }
+      pcmf_status.mdonly = mdonly;
+      // pcmf_status.execfunc is left as nullptr until such time as we know if we actually need to execute
+
+      // because we don't know if we are even going to try to execute, we mark a (somewhat unnecessary)
+      // self-dependency here so that when we go to decide, the prior revision will definitely have an
+      // execfunc we can copy. This flag will get us added into the self_dependencies list (below) 
+      
+      pcmf_status.self_dependent = true; 
+      
+      
+    }
+
+    
     
     // First, if we have an instantiated new recording, place this in the channel_map
     for (auto && new_rec_chanpath_ptr: recdb_strong->current_transaction->new_recordings) {
@@ -1598,7 +1804,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 						std::forward_as_tuple(config),
 						std::forward_as_tuple(&cm_it->second));
       
-      possibly_changed_channels_to_process.erase(config); // no further processing needed here
+      definitelychanged_channels_to_process.erase(config); // no further processing needed here
     }
     
     // Second, make sure if a channel was created, it has a recording present and gets put in the channel_map
@@ -1610,7 +1816,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 	continue; // math channels get their recordings defined automatically
       }
       
-      if (possibly_changed_channels_to_process.find(config)==possibly_changed_channels_to_process.end()) {
+      if (definitelychanged_channels_to_process.find(config)==definitelychanged_channels_to_process.end()) {
 	// already processed above because an explicit new recording was provided. All done here.
 	continue;
       }
@@ -1647,10 +1853,10 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 							std::forward_as_tuple(&cm_it->second));
       
       // remove this from channels_to_process, as it has been already been inserted into the channel_map
-      possibly_changed_channels_to_process.erase(config);
+      definitelychanged_channels_to_process.erase(config);
     }
   
-    for (auto && possibly_changed_channel: possibly_changed_channels_to_process) {
+    //for (auto && definitelychanged_channel: definitelychanged_channels_to_process) {
       // Go through the set of possibly_changed channels which were not processed above
       // (These must be math dependencies))
       // Since the math hasn't started, we don't have defined recordings yet
@@ -1659,8 +1865,8 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
       //auto cm_it = globalrev->recstatus.channel_map.emplace(std::piecewise_construct,
       //std::forward_as_tuple(possibly_changed_channel->channelpath),
       //							    std::forward_as_tuple(possibly_changed_channel,nullptr,false)).first; // mark updated as false (so far, at least)
-      auto cm_it = globalrev->recstatus.channel_map.find(possibly_changed_channel->channelpath);
-      assert(cm_it != globalrev->recstatus.channel_map.end());
+    //auto cm_it = globalrev->recstatus.channel_map.find(possibly_changed_channel->channelpath);
+    //assert(cm_it != globalrev->recstatus.channel_map.end());
       
       
       //// These recordings are defined but not instantiated
@@ -1668,14 +1874,17 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
       //						     std::forward_as_tuple(possibly_changed_channel),
       //						     std::forward_as_tuple(&cm_it->second));      
       
-    }
+    //}
   
 
-    // definitively_changed_channels drive the need to execute math functions,
-    // including insertion of implicit and explicit self-dependencies into the
-    // calculation graph. 
-    mark_prospective_calculations(globalrev,definitively_changed_channels);
+    // definitelychanged channels drive the need for mandatory execution of math functions,
+    //mark_prospective_calculations(globalrev,definitelychanged_channels_to_process);
 
+    // mark all changed_math_functions as execution_demanded (now done above)
+    //for (auto && inst_ptr : changed_math_functions) {
+    //  math_function_status &inst_status = globalrev->mathstatus.functionstatus.at(inst_ptr);
+    //  inst_status.execution_demanded=true;
+    //}
     // How do we splice implicit and explicit self-dependencies into the calculation graph???
     // Simple: We need to add to the _external_dependencies_on_[channel|function] of the previous_globalrev and
     // add to the missing_external_[channel|function]_prerequisites of this globalrev.
@@ -1685,9 +1894,10 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     for (auto && mathfunction_alldeps: globalrev->mathstatus.math_functions->all_dependencies_of_function) {
       // Enumerate all self-dependencies here
       std::shared_ptr<instantiated_math_function> mathfunction = mathfunction_alldeps.first;
-
-      if (!globalrev->mathstatus.function_status.at(mathfunction).complete) { // Complete marked above, if none of the direct or indirect inputs has changed. If complete, nothing else matters. 
-	if (mathfunction->fcn->self_dependent || mathfunction->fcn->mandatory_mutable || mathfunction->fcn->pure_optionally_mutable || mathfunction->fcn->new_revision_optional) {
+      math_function_status &mf_status = globalrev->mathstatus.function_status.at(mathfunction);
+      
+      if (!mf_status.complete) { // Complete marked above, if none of the direct or indirect inputs has changed. If complete, nothing else matters. 
+	if (mf_status.self_dependent) {
 	  // implicit or explicit self-dependency
 	  self_dependencies.push_back(mathfunction);
 	}
@@ -1795,14 +2005,15 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
       if (unchanged_incomplete_math_functions.find(mathfunction) != unchanged_incomplete_math_functions.end()) {
 	continue;
       }
-      
-      if (!globalrev->mathstatus.function_status.at(mathfunction).complete) {
-	// This math function is not complete
 
+      math_function_status &funcstatus = globalrev->mathstatus.function_status.at(mathfunction);
+      if (!funcstatus.complete) {
+	// This math function is not complete
+	
 	bool mathfunction_is_mdonly = false;
 	if (mathfunction->mdonly) { //// to genuinely be mdonly our instantiated_math_function must be marked as such AND we should be in the mdonly_pending_functions set of the math_status (now there is a specific flag)
 	  // mathfunction_is_mdonly = (globalrev->mathstatus.mdonly_pending_functions.find(mathfunction) != globalrev->mathstatus.mdonly_pending_functions.end());
-	  mathfunction_is_mdonly = globalrev->mathstatus.function_status.at(mathfunction).execfunc->mdonly;
+	  mathfunction_is_mdonly = funcstatus.mdonly;
 	}
 	// iterate over all parameters that are dependent on other channels
 	for (auto && parameter: mathfunction->parameters) {
@@ -1842,6 +2053,22 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 	      // Prerequisite is not complete; Need to mark this in the missing_prerequisites of the math_function_status
 	      globalrev->mathstatus.function_status.at(mathfunction).missing_prerequisites.emplace(prereq_chanstate.config);
 	    }
+	    if (prereq_complete) {
+	      bool prereq_modified = false; 
+	      std::shared_ptr<channelconfig> prereq_config = all_channels_by_name.at(prereq_channel);
+
+	      if (possiblychanged_channels_to_process.find(prereq_config) != possiblychanged_channels_to_process.end()) {
+		throw snde_error("end_transaction(): possiblychanged channel turns out to be complete");
+	      } else if (definitelychanged_channels_to_process.find(prereq_config) != definitelychanged_channels_to_process.end()) {
+		prereq_modified = true; 
+	      } else if (unchanged_channels.find(prereq_config) == unchanged_channels.end()) {
+		throw snde_error("end_transaction(): complete channel not in definitelychanged or unchanged.");		
+	      }
+
+	      if (prereq_modified) {
+		funcstatus.num_modified_prerequisites++; // this is a complete prerequisite that is modified. 
+	      }
+	    }
 	    
 	    
 	  }
@@ -1859,18 +2086,20 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     // locking it because we might get notification callbacks or similar if one of those external recordings becomes ready
 
     // Go through all our math functions and make sure we are
-    // in the referencing_wss set of their execfunc's
+    // in the referencing_rss set of their execfunc's
 
-    // iterate through all math functions, putting us in their referencing_wss
+    // iterate through all math functions, putting us in their referencing_rss
     {
       std::lock_guard<std::mutex> globalrev_admin(globalrev->admin);
       for (auto && inst_ptr_dep_set: globalrev->mathstatus.math_functions->all_dependencies_of_function) {
 
 	std::shared_ptr<math_function_execution> execfunc = globalrev->mathstatus.function_status.at(inst_ptr_dep_set.first).execfunc;
+
+	if (execfunc) {
 	
-	
-	std::lock_guard<std::mutex> ef_admin(execfunc->admin);
-	execfunc->referencing_wss.emplace(globalrev);
+	  std::lock_guard<std::mutex> ef_admin(execfunc->admin);
+	  execfunc->referencing_rss.emplace(globalrev);
+	}
       }
     }
 
@@ -1910,10 +2139,10 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> ready_to_execute;
 
     for (auto && readycheck : need_to_check_if_ready) {
-      std::lock_guard<std::mutex> globalrev_admin(globalrev->admin);
+      std::unique_lock<std::mutex> globalrev_admin(globalrev->admin);
       math_function_status &readycheck_status = globalrev->mathstatus.function_status.at(readycheck);
 
-      globalrev->mathstatus.check_dep_fcn_ready(globalrev,readycheck,&readycheck_status,ready_to_execute);
+      globalrev->mathstatus.check_dep_fcn_ready(recdb_strong,globalrev,readycheck,&readycheck_status,ready_to_execute,globalrev_admin);
     }
     
     // Go through unchanged_incomplete_channels and unchanged_incomplete_mdonly_channels and get notifies when these become complete
@@ -2137,10 +2366,15 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
   void channel_state::issue_nonmath_notifications(std::shared_ptr<recording_set_state> wss) // wss is used to lock this channel_state object
   // Must be called without anything locked. Issue notifications requested in _notify* and remove those notification requests,
   // based on the channel_state's current status
+  // Note that this might be called more than once for a given situation,
+  // but because the notifications it issues are one-shots, it will only
+  // pass on the notifications the first time. 
   {
 
-    // !!!*** This code is largely redundant with recording::mark_as_ready, and the excess should probably be removed ***!!!
-
+    // !!!*** This code is largely redundant with recording::mark_as_ready, and the excess should probably be consolidated  ***!!!
+    // Note that compared to recording::mark_as_ready this is also used in circumstances
+    // where an already completed recording is being assigned to a new
+    // recording_set_state
     
     // Issue metadataonly notifications
     if (recording_is_complete(true)) {
@@ -2193,8 +2427,37 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     }
   }
 
+
+
+  static void issue_math_notifications_check_dependent_channel(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> dep_fcn,std::shared_ptr<channelconfig> config,bool channel_modified, bool got_mdonly, bool got_fullyready,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute)
+  {
+    // dep_fcn is a shared_ptr to an instantiated_math_function
+    std::unique_lock<std::mutex> wss_admin(wss->admin);
+    
+    std::set<std::shared_ptr<channelconfig>>::iterator missing_prereq_it;
+    math_function_status &dep_fcn_status = wss->mathstatus.function_status.at(dep_fcn);
+    if (!dep_fcn_status.execution_demanded) {
+      return;  // ignore unless we are about execution
+    }
+    
+    // If the dependent function is mdonly then we only have to be mdonly. Otherwise we have to be fullyready
+    if (got_fullyready || (got_mdonly && dep_fcn_status.mdonly)) {
+      
+      // Remove us as a missing prerequisite
+      missing_prereq_it = dep_fcn_status.missing_prerequisites.find(config);
+      if (missing_prereq_it != dep_fcn_status.missing_prerequisites.end()) {
+	dep_fcn_status.missing_prerequisites.erase(missing_prereq_it);
+	if (channel_modified) {
+	  dep_fcn_status.num_modified_prerequisites++;
+	}
+      }
+      
+      wss->mathstatus.check_dep_fcn_ready(recdb,wss,dep_fcn,&dep_fcn_status,ready_to_execute,wss_admin);
+    }
+    
+  }
   
-  void channel_state::issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> wss) // wss is used to lock this channel_state object
+  void channel_state::issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> wss,bool channel_modified) // wss is used to lock this channel_state object
   // Must be called without anything locked. Issue notifications requested in _notify* and remove those notification requests,
   // based on the channel_state's current status
   {
@@ -2210,37 +2473,32 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
       auto dep_it = wss->mathstatus.math_functions->all_dependencies_of_channel.find(config->channelpath);
       if (dep_it != wss->mathstatus.math_functions->all_dependencies_of_channel.end()) {
 	for (auto && dep_fcn: dep_it->second) {
-	  // dep_fcn is a shared_ptr to an instantiated_math_function
-	  std::lock_guard<std::mutex> wss_admin(wss->admin);
-	  
-	  std::set<std::shared_ptr<channelconfig>>::iterator missing_prereq_it;
-	  math_function_status &dep_fcn_status = wss->mathstatus.function_status.at(dep_fcn);
-	  if (!dep_fcn_status.execution_demanded) {
-	    continue;  // ignore unless we are about execution
-	  }
-	  
-	  // If the dependent function is mdonly then we only have to be mdonly. Otherwise we have to be fullyready
-	  if (got_fullyready || (got_mdonly && dep_fcn_status.execfunc->mdonly)) {
-	    
-	    // Remove us as a missing prerequisite
-	    missing_prereq_it = dep_fcn_status.missing_prerequisites.find(config);
-	    if (missing_prereq_it != dep_fcn_status.missing_prerequisites.end()) {
-	    dep_fcn_status.missing_prerequisites.erase(missing_prereq_it);	  
-	    }
-	    
-	    wss->mathstatus.check_dep_fcn_ready(wss,dep_fcn,&dep_fcn_status,ready_to_execute);
-	  }
+    	  // dep_fcn is a shared_ptr to an instantiated_math_function
+	  issue_math_notifications_check_dependent_channel(recdb,wss,dep_fcn,config,channel_modified,got_mdonly,got_fullyready,ready_to_execute);
 	}
       }
 
-      auto extdep_it = wss->mathstatus.external_dependencies_on_channel()->find(config);
+      // consider extra dependencies arising from dynamic dependencies
+      std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> ext_internal_dep = wss->mathstatus.extra_internal_dependencies_on_channel();
 
-      if (extdep_it != wss->mathstatus.external_dependencies_on_channel()->end()) {
+      std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>::iterator ext_internal_dep_it = ext_internal_dep->find(config);
+      
+      if (ext_internal_dep_it != ext_internal_dep->end()) {
+	// found extra internal dependencies
+	for (auto && wss_extintdepfcn: ext_internal_dep_it->second ) {
+	  issue_math_notifications_check_dependent_channel(recdb,wss,wss_extintdepfcn,config,channel_modified,got_mdonly,got_fullyready,ready_to_execute);
+	}
+      }
+      
+      std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> ext_dep_on_channel = wss->mathstatus.external_dependencies_on_channel();
+      auto extdep_it = ext_dep_on_channel->find(config);
+
+      if (extdep_it != ext_dep_on_channel->end()) {
 	for (auto && wss_extdepfcn: extdep_it->second ) {
 	  std::shared_ptr<recording_set_state> &dependent_wss = std::get<0>(wss_extdepfcn);
 	  std::shared_ptr<instantiated_math_function> &dependent_func = std::get<1>(wss_extdepfcn);
 	  
-	  std::lock_guard<std::mutex> dependent_wss_admin(dependent_wss->admin);
+	  std::unique_lock<std::mutex> dependent_wss_admin(dependent_wss->admin);
 	  math_function_status &function_status = dependent_wss->mathstatus.function_status.at(dependent_func);
 	  std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<channelconfig>>>::iterator
 	    dependent_prereq_it = function_status.missing_external_channel_prerequisites.find(std::make_tuple(wss,config));
@@ -2249,7 +2507,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 	    function_status.missing_external_channel_prerequisites.erase(dependent_prereq_it);
 	  
 	  }
-	  dependent_wss->mathstatus.check_dep_fcn_ready(dependent_wss,dependent_func,&function_status,ready_to_execute);
+	  dependent_wss->mathstatus.check_dep_fcn_ready(recdb,dependent_wss,dependent_func,&function_status,ready_to_execute,dependent_wss_admin);
 	
 	}
       }

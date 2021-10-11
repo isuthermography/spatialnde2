@@ -48,6 +48,7 @@ namespace snde {
   class channel_state; // defined in recstore.hpp
 
   class math_status;
+  class math_function_status;
   class math_definition;
   class math_parameter;
   class instantiated_math_database;
@@ -112,6 +113,8 @@ namespace snde {
     bool mdonly_allowed; // set if it is OK to instantiate this function in metadataonly form. Note mdonly is incompatible with new_reivision_optional
     
     std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution;
+
+    std::shared_ptr<std::function<bool(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated, math_function_status *mathstatus_ptr)>> find_additional_deps;
     
     // WARNING: If there is no implict or explicit self-dependency multiple computations for the same math function
     // but different versions can happen in parallel. 
@@ -289,12 +292,13 @@ namespace snde {
   public:
     // Should this next map be replaced by a map of general purpose notifies that trigger when all missing prerequisites are satisified? (probably not but we still need the notification functionality)
     std::set<std::shared_ptr<channelconfig>> missing_prerequisites; // all missing (non-ready -- or !!!*** non-mdonly as appropriate) local (in this recording_set_state/globalrev) prerequisites of this function. Remove entries from the set as they become ready. When the set is empty, the math function represented by the key is dispatchable and should be marked as ready_to_execute
-    std::shared_ptr<math_function_execution> execfunc; // tracking of this particular execution. Later globalrevs that will use the result unchanged may also point to this. (Each pointing globalrev should be registered in the execfunc's referencing_wss set so that it can get callbacks on completion)
+    size_t num_modified_prerequisites; // count of the number of prerequisites no longer (or never) listed in missing_prerequisites that have indeed been modified. Used to determine whether execution is actually needed. Anybody modifying missing_prerequisites is responsible for updating this. Pre-initialize to 1 to always force execution. 
+    std::shared_ptr<math_function_execution> execfunc; // tracking of this particular execution. Later globalrevs that will use the result unchanged may also point to this. (Each pointing globalrev should be registered in the execfunc's referencing_rss set so that it can get callbacks on completion)
     
     std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<channelconfig>>> missing_external_channel_prerequisites; // all missing (non-ready...or !!!*** nonmdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Will be used e.g. for dependencies of on-demand recordings calculated in their own wss context
     std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_function_prerequisites; // all missing (non-ready... or !!!*** non-mdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Currently used solely for self-dependencies (which can't be mdonly)
 
-    // bool mdonly; // if this execution is actually mdonly. Now replaced with execfunc->mdonly
+    bool mdonly; // if this execution is actually mdonly. Now replaced with execfunc->mdonly
     //bool mdonly_executed; // if execution has completed at least through mdonly; Now replaced with execfunc->mdonly_executed
     //bool is_mutable; // if this execution does in-place mutation of one or more of its parameters. Now replaced with execfunc->is_mutable
     //bool execution_in_progress; // set while holding the wss's admin lock right before the executing_math_function is generated. Cleared when the executing_math_function is released. 
@@ -304,7 +308,7 @@ namespace snde {
     // bool metadataonly_complete; // if we are only executing to metadataonly, this is the complete flag.... move to execfunc->
     bool complete; // set to true once fully executed; Note that this can shift from true back to false for a formerly metadataonly math function where the full data has been requested
 
-    math_function_status();
+    math_function_status(bool self_dependent);
   };
 
   class math_status {
@@ -343,10 +347,12 @@ namespace snde {
     void notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> fcn,bool mdonly);
     
     // check_dep_fcn_ready() assumes dep_wss admin lock is already held
-    void check_dep_fcn_ready(std::shared_ptr<recording_set_state> dep_wss,
+    void check_dep_fcn_ready(std::shared_ptr<recdatabase> recdb,
+			     std::shared_ptr<recording_set_state> dep_wss,
 			     std::shared_ptr<instantiated_math_function> dep_fcn,
 			     math_function_status *mathstatus_ptr,
-			     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute_appendvec);
+			     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute_appendvec,
+			     std::unique_lock<std::mutex> &dep_rss_admin_holder);
 
   };
 
@@ -364,12 +370,12 @@ namespace snde {
     // return true. Once you have the execution ticket you can create a pending computation, assign the compute resource, etc.
 
   public:
-    //std::mutex admin; // guards referencing_wss and groups operations on the bools. Also acquire this before clearing wss. Last in the locking order except python GIL
+    //std::mutex admin; // guards referencing_rss and groups operations on the bools. Also acquire this before clearing wss. Last in the locking order except python GIL
 
     std::shared_ptr<recording_set_state> wss; // recording set state in which we are executing. Set to nullptr by owner of execution ticket after metadata phase to avoid a reference loop that will keep old recordings in memory. 
     std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
 
-    std::set<std::weak_ptr<recording_set_state>,std::owner_less<std::weak_ptr<recording_set_state>>> referencing_wss; // all recording set states that reference this executing_math_function
+    std::set<std::weak_ptr<recording_set_state>,std::owner_less<std::weak_ptr<recording_set_state>>> referencing_rss; // all recording set states that reference this executing_math_function
 
     %immutable;
     /*std::atomic<*/bool/*>*/ executing; // the execution ticket (see try_execution_ticket() method)
@@ -382,7 +388,7 @@ namespace snde {
        
     std::shared_ptr<executing_math_function> execution_tracker; // only valid once prerequisites are complete because we can't instantiate it until we have resolved the types of the parameters to identify which code to execute. 
 
-    math_function_execution(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool mdonly,bool is_mutable);  // automatically adds wss to referencing_wss set
+    math_function_execution(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool mdonly,bool is_mutable);  // automatically adds wss to referencing_rss set
     
     inline bool try_execution_ticket()
     // if this returns true, you have the execution ticket. Don't forget to assign executing=false when you are done. 
