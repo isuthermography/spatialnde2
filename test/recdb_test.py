@@ -17,30 +17,30 @@ testchan_config=snde.channelconfig("/test channel", "main", recdb,False)
   
 testchan = recdb.reserve_channel(testchan_config);
 
-test_rec = snde.ndarray_recording.create_typed_recording(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT32)
+test_rec = snde.multi_ndarray_recording.create_typed_recording(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT32)
 
 globalrev = transact.end_transaction()
 
-test_rec.metadata=snde.immutable_metadata()
-test_rec.mark_metadata_done()
+test_rec.rec.metadata=snde.immutable_metadata()
+test_rec.rec.mark_metadata_done()
 test_rec.allocate_storage([ rec_len ]);
 
 for cnt in range(rec_len):
     test_rec.assign_double([cnt],100.0*math.sin(cnt))
     pass
 
-test_rec.mark_as_ready()
+test_rec.rec.mark_as_ready()
 
 globalrev.wait_complete();
 
-rec = globalrev.get_recording("/test channel")
+rec = globalrev.get_recording_ref("/test channel")
 
-data = rec.cast_to_ndarray().data()
+data = rec.data()
 
 # Demonstrate export to raw shared pointer and reconstruction
 # from raw shared pointer:
-rec2 = snde.recording_base.from_raw_shared_ptr(rec.to_raw_shared_ptr())
+rec2 = snde.ndarray_recording_ref.from_raw_shared_ptr(rec.to_raw_shared_ptr())
 
-assert((rec2.cast_to_ndarray().data() == rec.cast_to_ndarray().data()).all())
+assert((rec2.data() == rec.data()).all())
 
 print(data)

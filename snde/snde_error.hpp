@@ -29,6 +29,8 @@
 
 namespace snde {
 
+
+  std::string demangle_type_name(const char *name);
   
   static inline std::string ssprintf(const std::string fmt,...)
   {

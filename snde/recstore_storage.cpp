@@ -61,7 +61,7 @@ namespace snde {
   
   
   std::tuple<std::shared_ptr<recording_storage>,snde_index>
-  recording_storage_manager_shmem::allocate_recording(std::string recording_path,
+  recording_storage_manager_shmem::allocate_recording(std::string recording_path, std::string array_name, // use "" for default behavior -- which is all that is supported anyway
 							   uint64_t recrevision,
 							   size_t elementsize,
 							   unsigned typenum, // MET_...

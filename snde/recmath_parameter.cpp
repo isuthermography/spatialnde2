@@ -34,6 +34,13 @@ namespace snde {
     throw snde_error("Cannot get recording value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
 
   }
+
+  std::shared_ptr<ndarray_recording_ref> math_parameter::get_ndarray_recording_ref(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings. parameter_index starting at 1, just for printing messages
+  {
+    throw snde_error("Cannot get recording value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
+
+  }
+  
   std::set<std::string> math_parameter::get_prerequisites(/*std::shared_ptr<recording_set_state> wss,*/ const std::string &channel_path_context) // obtain immediate dependencies of this parameter (absolute path channel names); typically only the recording
   {
     return std::set<std::string>(); // default to no prerequisites
@@ -84,7 +91,27 @@ namespace snde {
 
   math_parameter_recording::math_parameter_recording(std::string channel_name) :
     math_parameter(SNDE_MFPT_RECORDING),
-    channel_name(channel_name)
+    channel_name(channel_name),
+    array_index(0),
+    array_name("")
+  {
+
+  }
+
+  math_parameter_recording::math_parameter_recording(std::string channel_name,size_t array_index) :
+    math_parameter(SNDE_MFPT_RECORDING),
+    channel_name(channel_name),
+    array_index(array_index),
+    array_name("")
+  {
+
+  }
+
+  math_parameter_recording::math_parameter_recording(std::string channel_name,std::string array_name) :
+    math_parameter(SNDE_MFPT_RECORDING),
+    channel_name(channel_name),
+    array_index(0),
+    array_name(array_name)
   {
 
   }
@@ -108,5 +135,24 @@ namespace snde {
     }
     return rec; 
   }
+
   
+  std::shared_ptr<ndarray_recording_ref> math_parameter_recording::get_ndarray_recording_ref(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings because we shouldn't be called until our deps are ready.
+  // parameter_index human interpreted parameter number, starting at 1, for error messages only
+  {
+    std::shared_ptr<multi_ndarray_recording> rec=std::dynamic_pointer_cast<multi_ndarray_recording>(get_recording(wss,channel_path_context,fcn_def,parameter_index));
+
+    if (!rec) {
+      throw snde_error("Recording parameter %s relative to %s is not convertible to a multi_ndarray_recording",channel_path_context.c_str(),channel_name.c_str());
+    }
+
+    size_t index = array_index;
+
+    if (array_name.size() > 0) { // if array_name given, use it to look up index 
+      index = rec->name_mapping.at(array_name);
+    }
+    
+    return rec->reference_ndarray(index); 
+  }
+
 }

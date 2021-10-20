@@ -480,6 +480,7 @@ namespace snde {
 	// not worrying about cpu affinity yet.
 
 	// Set the build-time variable SNDE_RCR_DISABLE_EXCEPTION_HANDLING to disable the try {} ... catch{} block in math execution so that you can capture the offending scenario in the debugger
+	//#define SNDE_RCR_DISABLE_EXCEPTION_HANDLING
 #ifndef SNDE_RCR_DISABLE_EXCEPTION_HANDLING
 	try {
 #endif

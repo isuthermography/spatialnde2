@@ -14,6 +14,7 @@ namespace snde {
   class recording_base; // defined in recstore.hpp
   class recording_set_state; // defined in recstore.hpp
   class math_definition; // defined in recmath.hpp
+  class ndarray_recording_ref; // defined in recstore.hpp
   
   class math_parameter {
   public:
@@ -38,6 +39,7 @@ namespace snde {
     virtual int64_t get_int(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
     virtual double get_double(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
     virtual std::shared_ptr<recording_base> get_recording(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings because we shouldn't be called until dependencies are ready // parameter_index human interpreted parameter number, starting at 1, for error messages only
+    virtual std::shared_ptr<ndarray_recording_ref> get_ndarray_recording_ref(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings. parameter_index starting at 1, just for printing messages
 
     // default implementations that returns an empty set
     virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<recording_set_state> wss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the recording
@@ -74,11 +76,17 @@ namespace snde {
 
 
   class math_parameter_recording: public math_parameter {
-  public:
+  public: // Can refer to either an entire recording or a single ndarray. Which is implicit; if converted to a recording_base it will show the whole thing.
     std::string channel_name; // ***!!! MUST BE COMBINED WITH channel_path_context from instantiated_math_function ***!!!
-
+    size_t array_index;
+    std::string array_name; // overrides array_index if size(array_name) > 0
+    
     math_parameter_recording(std::string channel_name);
+    math_parameter_recording(std::string channel_name,size_t array_index);
+    math_parameter_recording(std::string channel_name,std::string array_name);
     virtual std::shared_ptr<recording_base> get_recording(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings. parameter_index starting at 1, just for printing messages
+    virtual std::shared_ptr<ndarray_recording_ref> get_ndarray_recording_ref(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings. parameter_index starting at 1, just for printing messages
+
     virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<recording_set_state> wss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the recording
     
   };

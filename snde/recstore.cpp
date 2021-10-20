@@ -28,6 +28,8 @@ namespace snde {
       {typeid(snde_rgbd),SNDE_RTN_RGBD64},
       {typeid(std::string),SNDE_RTN_STRING},
       {typeid(std::shared_ptr<recording_base>),SNDE_RTN_RECORDING},      
+      {typeid(std::shared_ptr<multi_ndarray_recording>),SNDE_RTN_RECORDING},      
+      {typeid(std::shared_ptr<ndarray_recording_ref>),SNDE_RTN_RECORDING_REF},      
       {typeid(snde_coord3_int16),SNDE_RTN_COORD3_INT16},      
   });
   
@@ -124,7 +126,6 @@ namespace snde {
     info_state(SNDE_RECS_INITIALIZING),
     metadata(nullptr),
     storage_manager(recdb->default_storage_manager),
-    storage(nullptr),
     recdb_weak(recdb), 
     defining_transact(recdb->current_transaction),
     _originating_wss()
@@ -154,7 +155,6 @@ namespace snde {
     info_state(SNDE_RECS_INITIALIZING),
     metadata(nullptr),
     storage_manager(recdb->default_storage_manager),
-    storage(nullptr),
     recdb_weak(recdb),
     defining_transact((std::dynamic_pointer_cast<globalrevision>(calc_wss)) ? (std::dynamic_pointer_cast<globalrevision>(calc_wss)->defining_transact):nullptr),
     _originating_wss(calc_wss)
@@ -203,9 +203,9 @@ namespace snde {
   }
 
 
-  std::shared_ptr<ndarray_recording> recording_base::cast_to_ndarray()
+  std::shared_ptr<multi_ndarray_recording> recording_base::cast_to_multi_ndarray()
   {
-    return std::dynamic_pointer_cast<ndarray_recording>(shared_from_this());
+    return std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this());
   }
 
 
@@ -347,398 +347,9 @@ namespace snde {
       return true; 
     }
   }
-  
-  ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum,size_t info_structsize) :
-    // This constructor is to be called by everything except the math engine
-    //  * Should be called by the owner of the given channel, as verified by owner_id
-    //  * Should be called within a transaction (i.e. the recdb transaction_lock is held by the existance of the transaction)
-    //  * Because within a transaction, recdb->current_transaction is valid
-    // This constructor automatically adds the new recording to the current transaction
-    recording_base(recdb,chan,owner_id,info_structsize),
-    layout(arraylayout(std::vector<snde_index>()))
-  {
-
-    assert(info_structsize >= sizeof(snde_ndarray_recording));
-
-    ndinfo()->dims_valid=false;
-    ndinfo()->data_valid=false;
-    ndinfo()->ndim=0;
-    ndinfo()->base_index=0;
-    ndinfo()->dimlen=nullptr;
-    ndinfo()->strides=nullptr;
-    ndinfo()->owns_dimlen_strides=false;
-    ndinfo()->typenum=typenum;
-    ndinfo()->elementsize=rtn_typesizemap.at(typenum);
-    ndinfo()->basearray = nullptr;
-    //ndinfo()->basearray_holder = nullptr;
-    
-  }
-
-ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> calc_wss,unsigned typenum,size_t info_structsize) :
-  // This constructor is reserved for the math engine
-  // Creates recording structure and adds to the pre-existing globalrev. 
-  recording_base(recdb,chanpath,calc_wss,info_structsize),
-  layout(arraylayout(std::vector<snde_index>()))
-  //mutable_lock(nullptr),  // for simply mutable math recordings will need to init with std::make_shared<rwlock>();
-  {
-    assert(info_structsize >= sizeof(snde_ndarray_recording));
-
-    ndinfo()->dims_valid=false;
-    ndinfo()->data_valid=false;
-    ndinfo()->ndim=0;
-    ndinfo()->base_index=0;
-    ndinfo()->dimlen=nullptr;
-    ndinfo()->strides=nullptr;
-    ndinfo()->owns_dimlen_strides=false;
-    ndinfo()->typenum=typenum;
-    ndinfo()->elementsize=rtn_typesizemap.at(typenum);
-    ndinfo()->basearray = nullptr;
-    //ndinfo()->basearray_holder = nullptr;
-
-  }
-
-  
-  ndarray_recording::~ndarray_recording()
-  {
-    // c pointers get freed automatically because they point into the c++ structs. 
-  }
 
 
-  /*static */ std::shared_ptr<ndarray_recording> ndarray_recording::create_typed_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum)
-  {
-    std::shared_ptr<ndarray_recording> ret; 
-    switch (typenum) {
-    case SNDE_RTN_FLOAT32:
-      ret = std::make_shared<ndtyped_recording<snde_float32>>(recdb,chan,owner_id);
-      break;
-
-    case SNDE_RTN_FLOAT64: 
-      ret = std::make_shared<ndtyped_recording<snde_float64>>(recdb,chan,owner_id);
-      break;
-
-#ifdef SNDE_HAVE_FLOAT16
-    case SNDE_RTN_FLOAT16: 
-      ret = std::make_shared<ndtyped_recording<snde_float16>>(recdb,chan,owner_id);
-      break;
-#endif
-
-    case SNDE_RTN_UINT64:
-      ret = std::make_shared<ndtyped_recording<uint64_t>>(recdb,chan,owner_id);
-      break;
-      
-    case SNDE_RTN_INT64:
-      ret = std::make_shared<ndtyped_recording<int64_t>>(recdb,chan,owner_id);
-      break;
-
-    case SNDE_RTN_UINT32:
-      ret = std::make_shared<ndtyped_recording<uint32_t>>(recdb,chan,owner_id);
-      break;
-      
-    case SNDE_RTN_INT32:
-      ret = std::make_shared<ndtyped_recording<int32_t>>(recdb,chan,owner_id);
-      break;
-
-    case SNDE_RTN_UINT16:
-      ret = std::make_shared<ndtyped_recording<uint16_t>>(recdb,chan,owner_id);
-      break;
-      
-    case SNDE_RTN_INT16:
-      ret = std::make_shared<ndtyped_recording<int16_t>>(recdb,chan,owner_id);
-      break;
-      
-    case SNDE_RTN_UINT8:
-      ret = std::make_shared<ndtyped_recording<uint8_t>>(recdb,chan,owner_id);
-      break;
-      
-    case SNDE_RTN_INT8:
-      ret = std::make_shared<ndtyped_recording<int8_t>>(recdb,chan,owner_id);
-      break;
-
-    case SNDE_RTN_RGBA32:
-      ret = std::make_shared<ndtyped_recording<snde_rgba>>(recdb,chan,owner_id);
-      break;
-
-    case SNDE_RTN_COMPLEXFLOAT32:
-      ret = std::make_shared<ndtyped_recording<std::complex<snde_float32>>>(recdb,chan,owner_id);
-      break;
-
-    case SNDE_RTN_COMPLEXFLOAT64:
-      ret = std::make_shared<ndtyped_recording<std::complex<snde_float64>>>(recdb,chan,owner_id);
-      break;
-
-#ifdef SNDE_HAVE_FLOAT16
-    case SNDE_RTN_COMPLEXFLOAT16:
-      ret = std::make_shared<ndtyped_recording<std::complex<snde_float16>>>(recdb,chan,owner_id);
-      break;
-#endif
-      
-    case SNDE_RTN_RGBD64:
-      ret = std::make_shared<ndtyped_recording<snde_rgbd>>(recdb,chan,owner_id);
-      break;
-
-    case SNDE_RTN_COORD3_INT16:
-      ret = std::make_shared<ndtyped_recording<snde_coord3_int16>>(recdb,chan,owner_id);
-      break;
-
-      
-    default:
-      throw snde_error("ndarray_recording::create_typed_recording(): Unknown type number %u",typenum);
-    }
-    recdb->register_new_rec(ret);
-    return ret;
-  }
-  /* static */ std::shared_ptr<ndarray_recording> ndarray_recording::create_typed_recording(std::shared_ptr<recdatabase> recdb,std::string chanpath,void *owner_id,std::shared_ptr<recording_set_state> calc_wss,unsigned typenum)
-  {
-
-    std::shared_ptr<ndarray_recording> ret; 
-
-    switch (typenum) {
-    case SNDE_RTN_FLOAT32:
-      ret = std::make_shared<ndtyped_recording<snde_float32>>(recdb,chanpath,calc_wss);
-      break;
-
-    case SNDE_RTN_FLOAT64: 
-      ret = std::make_shared<ndtyped_recording<snde_float64>>(recdb,chanpath,calc_wss);
-      break;
-
-#ifdef SNDE_HAVE_FLOAT16
-    case SNDE_RTN_FLOAT16: 
-      ret = std::make_shared<ndtyped_recording<snde_float16>>(recdb,chanpath,calc_wss);
-      break;
-#endif
-
-    case SNDE_RTN_UINT64:
-      ret = std::make_shared<ndtyped_recording<uint64_t>>(recdb,chanpath,calc_wss);
-      break;
-      
-    case SNDE_RTN_INT64:
-      ret = std::make_shared<ndtyped_recording<int64_t>>(recdb,chanpath,calc_wss);
-      break;
-
-    case SNDE_RTN_UINT32:
-      ret = std::make_shared<ndtyped_recording<uint32_t>>(recdb,chanpath,calc_wss);
-      break;
-      
-    case SNDE_RTN_INT32:
-      ret = std::make_shared<ndtyped_recording<int32_t>>(recdb,chanpath,calc_wss);
-      break;
-
-    case SNDE_RTN_UINT16:
-      ret = std::make_shared<ndtyped_recording<uint16_t>>(recdb,chanpath,calc_wss);
-      break;
-      
-    case SNDE_RTN_INT16:
-      ret = std::make_shared<ndtyped_recording<int16_t>>(recdb,chanpath,calc_wss);
-      break;
-      
-    case SNDE_RTN_UINT8:
-      ret = std::make_shared<ndtyped_recording<uint8_t>>(recdb,chanpath,calc_wss);
-      break;
-      
-    case SNDE_RTN_INT8:
-      ret = std::make_shared<ndtyped_recording<int8_t>>(recdb,chanpath,calc_wss);
-      break;
-
-    case SNDE_RTN_RGBA32:
-      ret = std::make_shared<ndtyped_recording<snde_rgba>>(recdb,chanpath,calc_wss);
-      break;
-
-    case SNDE_RTN_COMPLEXFLOAT32:
-      ret = std::make_shared<ndtyped_recording<std::complex<snde_float32>>>(recdb,chanpath,calc_wss);
-      break;
-
-    case SNDE_RTN_COMPLEXFLOAT64:
-      ret = std::make_shared<ndtyped_recording<std::complex<snde_float64>>>(recdb,chanpath,calc_wss);
-      break;
-
-#ifdef SNDE_HAVE_FLOAT16
-    case SNDE_RTN_COMPLEXFLOAT16:
-      ret = std::make_shared<ndtyped_recording<std::complex<snde_float16>>>(recdb,chanpath,calc_wss);
-      break;
-#endif
-      
-    case SNDE_RTN_RGBD64:
-      ret = std::make_shared<ndtyped_recording<snde_rgbd>>(recdb,chanpath,calc_wss);
-      break;
-
-    case SNDE_RTN_COORD3_INT16:
-      ret = std::make_shared<ndtyped_recording<snde_coord3_int16>>(recdb,chanpath,calc_wss);
-      break;
-
-    default:
-      throw snde_error("ndarray_recording::create_typed_recording() (math): Unknown type number %u",typenum);
-    }
-
-    recdb->register_new_math_rec(owner_id,calc_wss,ret);
-    return ret;
-  }
-
-  
-  void ndarray_recording::allocate_storage(std::vector<snde_index> dimlen, bool fortran_order) // fortran_order defaults to false
-  // must assign info.elementsize and info.typenum before calling allocate_storage()
-  // fortran_order only affects physical layout, not logical layout (interpretation of indices)
-  {
-    snde_index nelem=1;
-    snde_index base_index;
-    snde_index stride=1;
-    size_t dimnum;
-
-    for (dimnum=0;dimnum < dimlen.size();dimnum++) {
-      nelem *= dimlen.at(dimnum);
-    }
-    
-    std::tie(storage,base_index) = storage_manager->allocate_recording(info->name,info->revision,ndinfo()->elementsize,ndinfo()->typenum,nelem);
-    std::vector<snde_index> strides;
-
-    strides.reserve(dimlen.size());
-    
-    if (fortran_order) {
-      for (dimnum=0;dimnum < dimlen.size();dimnum++) {
-	strides.push_back(stride);
-	stride *= dimlen.at(dimnum);
-      }
-    } else {
-      // c order
-      for (dimnum=0;dimnum < dimlen.size();dimnum++) {
-	strides.insert(strides.begin(),stride);
-	stride *= dimlen.at(dimnum);
-      }
-      
-    }
-    
-    layout=arraylayout(dimlen,strides,base_index);
-    ndinfo()->basearray = storage->addr();
-    ndinfo()->base_index=layout.base_index;
-    ndinfo()->ndim=layout.dimlen.size();
-    ndinfo()->dimlen=layout.dimlen.data();
-    ndinfo()->strides=layout.strides.data();
-  }
-
-  void ndarray_recording::reference_immutable_recording(std::shared_ptr<ndarray_recording> rec,std::vector<snde_index> dimlen,std::vector<snde_index> strides,snde_index base_index)
-  {
-    snde_index first_index;
-    snde_index last_index;
-    size_t dimnum;
-
-    if (!rec->storage->finalized) {
-      throw snde_error("Recording %s trying to reference non-final data from recording %s",info->name,rec->info->name);      
-      
-    }
-    
-    ndinfo()->typenum = rec->ndinfo()->typenum;
-
-    if (ndinfo()->elementsize != 0 && ndinfo()->elementsize != rec->ndinfo()->elementsize) {
-      throw snde_error("Element size mismatch in recording %s trying to reference data from recording %s",info->name,rec->info->name);
-    }
-    ndinfo()->elementsize = rec->ndinfo()->elementsize;
-    
-    
-    first_index=base_index;
-    for (dimnum=0;dimnum < dimlen.size();dimnum++) {
-      if (strides.at(dimnum) < 0) { // this is somewhat academic because strides is currently snde_index, which is currently unsigned so can't possibly be negative. This test is here in case we make snde_index signed some time in the future... 
-	first_index += strides.at(dimnum)*(dimlen.at(dimnum))-1;
-      }
-    }
-    if (first_index < 0) {
-      throw snde_error("Referencing negative indices in recording %s trying to reference data from recording %s",info->name,rec->info->name);
-    }
-
-    last_index=base_index;
-    for (dimnum=0;dimnum < dimlen.size();dimnum++) {
-      if (strides.at(dimnum) > 0) { 
-	last_index += strides.at(dimnum)*(dimlen.at(dimnum))-1;
-      }
-    }
-    if (last_index >= rec->storage->nelem) {
-      throw snde_error("Referencing out-of-bounds indices in recording %s trying to reference data from recording %s",info->name,rec->info->name);
-    }
-
-    
-    storage = rec->storage;
-    layout=arraylayout(dimlen,strides,base_index);
-    
-    ndinfo()->base_index=layout.base_index;
-    ndinfo()->ndim=layout.dimlen.size();
-    ndinfo()->dimlen=layout.dimlen.data();
-    ndinfo()->strides=layout.strides.data();
-    
-  }
-
-
- 
-  double ndarray_recording::element_double(const std::vector<snde_index> &idx)
-  {
-    throw snde_error("Cannot access elements of untyped recording. Create recording with .create_typed_recording() instead.");
-  }
-  
-  void ndarray_recording::assign_double(const std::vector<snde_index> &idx,double val)
-  {
-    throw snde_error("Cannot access elements of untyped recording. Create recording with .create_typed_recording() instead.");
-  }
-  int64_t ndarray_recording::element_int(const std::vector<snde_index> &idx)
-  {
-    throw snde_error("Cannot access elements of untyped recording. Create recording with .create_typed_recording() instead.");
-  }
-  void ndarray_recording::assign_int(const std::vector<snde_index> &idx,int64_t val)
-  {
-    throw snde_error("Cannot access elements of untyped recording. Create recording with .create_typed_recording() instead.");
-  }
-  
-  uint64_t ndarray_recording::element_unsigned(const std::vector<snde_index> &idx)
-  {
-    throw snde_error("Cannot access elements of untyped recording. Create recording with .create_typed_recording() instead.");
-  }
-  
-  void ndarray_recording::assign_unsigned(const std::vector<snde_index> &idx,uint64_t val)
-  {
-    throw snde_error("Cannot access elements of untyped recording. Create recording with .create_typed_recording() instead.");
-  }
-  
-#if 0
-  // ***!!! This code is probably obsolete ***!!!
-  rwlock_token_set recording::lock_storage_for_write()
-  {
-    bool immutable;
-    {
-      std::lock_guard<std::mutex> adminlock(admin);
-      immutable=info->immutable;
-    }
-    if (immutable) {
-      // storage locking not required for recording data for recordings that (will) be immutable
-      return empty_rwlock_token_set();
-    } else {
-      assert(mutable_lock);
-      rwlock_lockable *reader = &mutable_lock->reader;
-      rwlock_token tok = std::make_shared<std::unique_lock<rwlock_lockable>>(*reader);
-      rwlock_token_set ret = std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
-      ret->emplace(reader,tok);
-      return ret; 
-    }
-  }
-
-  rwlock_token_set recording::lock_storage_for_read()
-  {
-    bool immutable;
-    {
-      std::lock_guard<std::mutex>(admin);
-      immutable=info->immutable;
-    }
-    if (immutable) {
-      // storage locking not required for recording data for recordings that (will) be immutable
-      return empty_rwlock_token_set();
-    } else {
-      assert(mutable_lock);
-      rwlock_lockable *writer = &mutable_lock->writer;
-      rwlock_token tok = std::make_shared<std::unique_lock<rwlock_lockable>>(*writer);
-      rwlock_token_set ret = std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
-      ret->emplace(writer,tok);
-      return ret; 
-    }
-    
-  }
-#endif // 0 (obsolete code)
-
-  /* std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> */ void recording_base::_mark_metadata_done_internal(/*std::shared_ptr<recording_set_state> wss,const std::string &channame*/)
+    /* std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> */ void recording_base::_mark_metadata_done_internal(/*std::shared_ptr<recording_set_state> wss,const std::string &channame*/)
   // internal use only. Should be called with the recording admin lock held
   {
 
@@ -963,6 +574,426 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     chanstate->issue_math_notifications(recdb,wss,true);
     chanstate->issue_nonmath_notifications(wss);
   }
+
+
+  
+  // after construction, must call .define_array() exactly once for each ndarray
+  multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,size_t num_ndarrays,size_t info_structsize) :
+    // This constructor is to be called by everything except the math engine
+    //  * Should be called by the owner of the given channel, as verified by owner_id
+    //  * Should be called within a transaction (i.e. the recdb transaction_lock is held by the existance of the transaction)
+    //  * Because within a transaction, recdb->current_transaction is valid
+    // This constructor automatically adds the new recording to the current transaction
+    recording_base(recdb,chan,owner_id,info_structsize),
+    layouts(std::vector<arraylayout>(num_ndarrays)),
+    storage(std::vector<std::shared_ptr<recording_storage>>(num_ndarrays))
+  {
+
+    assert(info_structsize >= sizeof(snde_multi_ndarray_recording));
+
+    mndinfo()->dims_valid=false;
+    mndinfo()->data_valid=false;
+    mndinfo()->num_arrays = num_ndarrays;
+    mndinfo()->arrays = (snde_ndarray_info *)calloc(sizeof(snde_ndarray_info)*num_ndarrays,1);
+    //ndinfo()->ndim=0;
+    //ndinfo()->base_index=0;
+    //ndinfo()->dimlen=nullptr;
+    //ndinfo()->strides=nullptr;
+    //ndinfo()->owns_dimlen_strides=false;
+    //ndinfo()->typenum=typenum;
+    //ndinfo()->elementsize=rtn_typesizemap.at(typenum);
+    //ndinfo()->basearray = nullptr;
+    //ndinfo()->basearray_holder = nullptr;
+    
+  }
+
+  // after construction, must call .define_array() exactly once for each ndarray
+multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> calc_wss,size_t num_ndarrays,size_t info_structsize) :
+  // This constructor is reserved for the math engine
+  // Creates recording structure and adds to the pre-existing globalrev. 
+  recording_base(recdb,chanpath,calc_wss,info_structsize),
+  layouts(std::vector<arraylayout>(num_ndarrays)),
+  storage(std::vector<std::shared_ptr<recording_storage>>(num_ndarrays))
+  //mutable_lock(nullptr),  // for simply mutable math recordings will need to init with std::make_shared<rwlock>();
+  {
+    assert(info_structsize >= sizeof(snde_multi_ndarray_recording));
+
+    mndinfo()->dims_valid=false;
+    mndinfo()->data_valid=false;
+    mndinfo()->num_arrays=num_ndarrays;
+    mndinfo()->arrays = (snde_ndarray_info *)calloc(sizeof(snde_ndarray_info)*num_ndarrays,1);
+
+    //define_array(0,typenum);
+    //ndinfo()->ndim=0;
+    //ndinfo()->base_index=0;
+    //ndinfo()->dimlen=nullptr;
+    //ndinfo()->strides=nullptr;
+    //ndinfo()->owns_dimlen_strides=false;
+    //ndinfo()->typenum=typenum;
+    //ndinfo()->elementsize=rtn_typesizemap.at(typenum);
+    //ndinfo()->basearray = nullptr;
+    //ndinfo()->basearray_holder = nullptr;
+
+  }
+
+  
+  multi_ndarray_recording::~multi_ndarray_recording()
+  {
+    // c pointers get freed automatically because they point into the c++ structs.
+    // except for info->arrays
+    free(mndinfo()->arrays);
+    mndinfo()->arrays=nullptr; 
+  }
+
+  void multi_ndarray_recording::define_array(size_t index,unsigned typenum)
+  // should be called exactly once for each index < mndinfo()->num_arrays
+  {
+    ndinfo(index)->ndim=0;
+    ndinfo(index)->base_index=0;
+    ndinfo(index)->dimlen=nullptr;
+    ndinfo(index)->strides=nullptr;
+    ndinfo(index)->owns_dimlen_strides=false;
+    ndinfo(index)->typenum=typenum;
+    ndinfo(index)->elementsize=rtn_typesizemap.at(typenum);
+    ndinfo(index)->basearray = nullptr;
+    //ndinfo()->basearray_holder = nullptr;
+
+    
+  }
+
+  /*static */ std::shared_ptr<ndarray_recording_ref> multi_ndarray_recording::create_typed_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum)
+  {
+    std::shared_ptr<multi_ndarray_recording> rec;
+    std::shared_ptr<ndarray_recording_ref> ref;
+
+    // ***!!! Should loock up maker method in a runtime-addable database ***!!!
+
+    rec=std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
+    rec->define_array(0,typenum);
+    
+    ref=rec->reference_ndarray(0);
+    recdb->register_new_rec(rec);
+    return ref;
+  }
+  /* static */ std::shared_ptr<ndarray_recording_ref> multi_ndarray_recording::create_typed_recording_math(std::shared_ptr<recdatabase> recdb,std::string chanpath,void *owner_id,std::shared_ptr<recording_set_state> calc_wss,unsigned typenum)
+  {
+    std::shared_ptr<multi_ndarray_recording> rec;
+    std::shared_ptr<ndarray_recording_ref> ref;
+
+    rec=std::make_shared<multi_ndarray_recording>(recdb,chanpath,calc_wss,1); 
+    rec->define_array(0,typenum);
+    ref=rec->reference_ndarray(0);
+
+    recdb->register_new_math_rec(owner_id,calc_wss,rec);
+    return ref;
+  }
+
+  std::shared_ptr<ndarray_recording_ref> multi_ndarray_recording::reference_ndarray(size_t index)
+  {
+
+    // ***!!! Should look up maker method in a runtime-addable database ***!!!
+    std::shared_ptr<ndarray_recording_ref> ref;
+    unsigned typenum=mndinfo()->arrays[index].typenum;
+
+    switch (typenum) {
+    case SNDE_RTN_FLOAT32:
+      ref = std::make_shared<ndtyped_recording_ref<snde_float32>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+      
+    case SNDE_RTN_FLOAT64: 
+      ref = std::make_shared<ndtyped_recording_ref<snde_float64>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+#ifdef SNDE_HAVE_FLOAT16
+    case SNDE_RTN_FLOAT16: 
+      ref = std::make_shared<ndtyped_recording_ref<snde_float16>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+#endif
+
+    case SNDE_RTN_UINT64:
+      ref = std::make_shared<ndtyped_recording_ref<uint64_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+      
+    case SNDE_RTN_INT64:
+      ref = std::make_shared<ndtyped_recording_ref<int64_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_UINT32:
+      ref = std::make_shared<ndtyped_recording_ref<uint32_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+      
+    case SNDE_RTN_INT32:
+      ref = std::make_shared<ndtyped_recording_ref<int32_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_UINT16:
+      ref = std::make_shared<ndtyped_recording_ref<uint16_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+      
+    case SNDE_RTN_INT16:
+      ref = std::make_shared<ndtyped_recording_ref<int16_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+      
+    case SNDE_RTN_UINT8:
+      ref = std::make_shared<ndtyped_recording_ref<uint8_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+      
+    case SNDE_RTN_INT8:
+      ref = std::make_shared<ndtyped_recording_ref<int8_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_RGBA32:
+      ref = std::make_shared<ndtyped_recording_ref<snde_rgba>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+      
+    case SNDE_RTN_COMPLEXFLOAT32:
+      ref = std::make_shared<ndtyped_recording_ref<std::complex<snde_float32>>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_COMPLEXFLOAT64:
+      ref = std::make_shared<ndtyped_recording_ref<std::complex<snde_float64>>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+      
+#ifdef SNDE_HAVE_FLOAT16
+    case SNDE_RTN_COMPLEXFLOAT16:
+      ref = std::make_shared<ndtyped_recording_ref<std::complex<snde_float16>>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+#endif
+      
+    case SNDE_RTN_RGBD64:
+      ref = std::make_shared<ndtyped_recording_ref<snde_rgbd>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_COORD3_INT16:
+      ref = std::make_shared<ndtyped_recording_ref<snde_coord3_int16>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+      
+      
+    default:
+      throw snde_error("multi_ndarray_recording::reference_ndarray(): Unknown type number %u",typenum);
+    }
+    return ref;
+  }
+
+  
+  void multi_ndarray_recording::allocate_storage(size_t array_index,std::vector<snde_index> dimlen, bool fortran_order) // fortran_order defaults to false
+  // must assign info.elementsize and info.typenum before calling allocate_storage()
+  // fortran_order only affects physical layout, not logical layout (interpretation of indices)
+  {
+    snde_index nelem=1;
+    snde_index base_index;
+    snde_index stride=1;
+    size_t dimnum;
+
+    for (dimnum=0;dimnum < dimlen.size();dimnum++) {
+      nelem *= dimlen.at(dimnum);
+    }
+
+    std::string array_name="";
+    if (name_mapping.size() > 0) {
+      array_name = name_reverse_mapping.at(array_index);
+    }
+    
+    std::tie(storage.at(array_index),base_index) = storage_manager->allocate_recording(info->name,array_name,info->revision,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem);
+    std::vector<snde_index> strides;
+
+    strides.reserve(dimlen.size());
+    
+    if (fortran_order) {
+      for (dimnum=0;dimnum < dimlen.size();dimnum++) {
+	strides.push_back(stride);
+	stride *= dimlen.at(dimnum);
+      }
+    } else {
+      // c order
+      for (dimnum=0;dimnum < dimlen.size();dimnum++) {
+	strides.insert(strides.begin(),stride);
+	stride *= dimlen.at(dimnum);
+      }
+      
+    }
+    
+    layouts.at(array_index)=arraylayout(dimlen,strides,base_index);
+    ndinfo(array_index)->basearray = storage.at(array_index)->addr();
+    ndinfo(array_index)->base_index=layouts.at(array_index).base_index;
+    ndinfo(array_index)->ndim=layouts.at(array_index).dimlen.size();
+    ndinfo(array_index)->dimlen=layouts.at(array_index).dimlen.data();
+    ndinfo(array_index)->strides=layouts.at(array_index).strides.data();
+  }
+
+  void multi_ndarray_recording::reference_immutable_recording(size_t array_index,std::shared_ptr<ndarray_recording_ref> rec,std::vector<snde_index> dimlen,std::vector<snde_index> strides,snde_index base_index)
+  {
+    snde_index first_index;
+    snde_index last_index;
+    size_t dimnum;
+
+    if (!rec->rec->storage.at(array_index)->finalized) {
+      throw snde_error("Recording %s trying to reference non-final data from recording %s",rec->rec->info->name,rec->rec->info->name);      
+      
+    }
+    
+    ndinfo(array_index)->typenum = rec->ndinfo()->typenum;
+
+    if (ndinfo(array_index)->elementsize != 0 && ndinfo(array_index)->elementsize != rec->ndinfo()->elementsize) {
+      throw snde_error("Element size mismatch in recording %s trying to reference data from recording %s",rec->rec->info->name,rec->rec->info->name);
+    }
+    ndinfo(array_index)->elementsize = rec->ndinfo()->elementsize;
+    
+    
+    first_index=base_index;
+    for (dimnum=0;dimnum < dimlen.size();dimnum++) {
+      if (strides.at(dimnum) < 0) { // this is somewhat academic because strides is currently snde_index, which is currently unsigned so can't possibly be negative. This test is here in case we make snde_index signed some time in the future... 
+	first_index += strides.at(dimnum)*(dimlen.at(dimnum))-1;
+      }
+    }
+    if (first_index < 0) {
+      throw snde_error("Referencing negative indices in recording %s trying to reference data from recording %s",rec->rec->info->name,rec->rec->info->name);
+    }
+
+    last_index=base_index;
+    for (dimnum=0;dimnum < dimlen.size();dimnum++) {
+      if (strides.at(dimnum) > 0) { 
+	last_index += strides.at(dimnum)*(dimlen.at(dimnum))-1;
+      }
+    }
+    if (last_index >= rec->storage->nelem) {
+      throw snde_error("Referencing out-of-bounds indices in recording %s trying to reference data from recording %s",rec->rec->info->name,rec->rec->info->name);
+    }
+
+    
+    storage.at(array_index) = rec->storage;
+    layouts.at(array_index)=arraylayout(dimlen,strides,base_index);
+    
+    ndinfo(array_index)->base_index=layouts.at(array_index).base_index;
+    ndinfo(array_index)->ndim=layouts.at(array_index).dimlen.size();
+    ndinfo(array_index)->dimlen=layouts.at(array_index).dimlen.data();
+    ndinfo(array_index)->strides=layouts.at(array_index).strides.data();
+    
+  }
+
+
+  double multi_ndarray_recording::element_double(size_t array_index,const std::vector<snde_index> &idx)
+  {
+    return reference_ndarray(array_index)->element_double(idx);
+  }
+  
+  void multi_ndarray_recording::assign_double(size_t array_index,const std::vector<snde_index> &idx,double val)
+  {
+    reference_ndarray(array_index)->assign_double(idx,val);
+  }
+  int64_t multi_ndarray_recording::element_int(size_t array_index,const std::vector<snde_index> &idx)
+  {
+    return reference_ndarray(array_index)->element_int(idx);
+  }
+  void multi_ndarray_recording::assign_int(size_t array_index,const std::vector<snde_index> &idx,int64_t val)
+  {
+    reference_ndarray(array_index)->assign_int(idx,val);
+  }
+  
+  uint64_t multi_ndarray_recording::element_unsigned(size_t array_index,const std::vector<snde_index> &idx)
+  {
+    return reference_ndarray(array_index)->element_unsigned(idx);
+  }
+  
+  void multi_ndarray_recording::assign_unsigned(size_t array_index,const std::vector<snde_index> &idx,uint64_t val)
+  {
+    reference_ndarray(array_index)->assign_unsigned(idx,val);
+  }
+
+
+
+  ndarray_recording_ref::ndarray_recording_ref(std::shared_ptr<multi_ndarray_recording> rec,size_t rec_index,unsigned typenum) :
+    rec(rec),
+    rec_index(rec_index),
+    typenum(typenum),
+    info_state(rec->info_state),
+    layout(rec->layouts.at(rec_index)),
+    storage(rec->storage.at(rec_index))
+  {
+    
+  }
+
+  ndarray_recording_ref::~ndarray_recording_ref()
+  {
+    
+  }
+
+  void ndarray_recording_ref::allocate_storage(std::vector<snde_index> dimlen, bool fortran_order)
+  {
+    rec->allocate_storage(rec_index,dimlen,fortran_order);
+  }
+
+  double ndarray_recording_ref::element_double(const std::vector<snde_index> &idx)
+  {
+    throw snde_error("Cannot access elements of untyped recording reference. Create typed reference with .reference_ndarray() instead.");
+  }
+  
+  void ndarray_recording_ref::assign_double(const std::vector<snde_index> &idx,double val)
+  {
+    throw snde_error("Cannot access elements of untyped recording reference. Create typed reference with .reference_ndarray()  instead.");
+  }
+  int64_t ndarray_recording_ref::element_int(const std::vector<snde_index> &idx)
+  {
+    throw snde_error("Cannot access elements of untyped recording reference. Create typed reference with .reference_ndarray()  instead.");
+  }
+  void ndarray_recording_ref::assign_int(const std::vector<snde_index> &idx,int64_t val)
+  {
+    throw snde_error("Cannot access elements of untyped recording reference. Create typed reference with .reference_ndarray()  instead.");
+  }
+  
+  uint64_t ndarray_recording_ref::element_unsigned(const std::vector<snde_index> &idx)
+  {
+    throw snde_error("Cannot access elements of untyped recording reference. Create typed reference with .reference_ndarray()  instead.");
+  }
+  
+  void ndarray_recording_ref::assign_unsigned(const std::vector<snde_index> &idx,uint64_t val)
+  {
+    throw snde_error("Cannot access elements of untyped recording reference. Create typed reference with .reference_ndarray() instead.");
+  }
+  
+#if 0
+  // ***!!! This code is probably obsolete ***!!!
+  rwlock_token_set recording::lock_storage_for_write()
+  {
+    bool immutable;
+    {
+      std::lock_guard<std::mutex> adminlock(admin);
+      immutable=info->immutable;
+    }
+    if (immutable) {
+      // storage locking not required for recording data for recordings that (will) be immutable
+      return empty_rwlock_token_set();
+    } else {
+      assert(mutable_lock);
+      rwlock_lockable *reader = &mutable_lock->reader;
+      rwlock_token tok = std::make_shared<std::unique_lock<rwlock_lockable>>(*reader);
+      rwlock_token_set ret = std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+      ret->emplace(reader,tok);
+      return ret; 
+    }
+  }
+
+  rwlock_token_set recording::lock_storage_for_read()
+  {
+    bool immutable;
+    {
+      std::lock_guard<std::mutex>(admin);
+      immutable=info->immutable;
+    }
+    if (immutable) {
+      // storage locking not required for recording data for recordings that (will) be immutable
+      return empty_rwlock_token_set();
+    } else {
+      assert(mutable_lock);
+      rwlock_lockable *writer = &mutable_lock->writer;
+      rwlock_token tok = std::make_shared<std::unique_lock<rwlock_lockable>>(*writer);
+      rwlock_token_set ret = std::make_shared<std::unordered_map<rwlock_lockable *,rwlock_token>>();
+      ret->emplace(writer,tok);
+      return ret; 
+    }
+    
+  }
+#endif // 0 (obsolete code)
 
 
   std::pair<std::shared_ptr<globalrevision>,bool> transaction::resulting_globalrevision()
@@ -1576,6 +1607,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
 	ready_channels.emplace(&channel_map_it->second);
 
 	// place in globalrev->recstatus.completed_recordings
+	globalrev->recstatus.defined_recordings.erase(unchanged_channel);
 	globalrev->recstatus.completed_recordings.emplace(std::piecewise_construct,
 							 std::forward_as_tuple((std::shared_ptr<channelconfig>)unchanged_channel),
 							 std::forward_as_tuple((channel_state *)&channel_map_it->second));
@@ -1810,7 +1842,8 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
     // Second, make sure if a channel was created, it has a recording present and gets put in the channel_map
     for (auto && updated_chan: recdb_strong->current_transaction->updated_channels) {
       std::shared_ptr<channelconfig> config = updated_chan->config();
-      std::shared_ptr<ndarray_recording> new_rec;
+      std::shared_ptr<multi_ndarray_recording> new_rec;
+      std::shared_ptr<ndarray_recording_ref> new_rec_ref;
 
       if (config->math) {
 	continue; // math channels get their recordings defined automatically
@@ -1826,7 +1859,8 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
       // new recording should be required but not present; create one
       assert(recdb_strong->current_transaction->new_recording_required.at(config->channelpath) && new_recording_it==recdb_strong->current_transaction->new_recordings.end());
       //new_rec = std::make_shared<recording_base>(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32); // constructor adds itself to current transaction
-      new_rec = ndarray_recording::create_typed_recording(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32);
+      new_rec_ref = multi_ndarray_recording::create_typed_recording(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32);
+      new_rec = new_rec_ref->rec;
       recordings_needing_finalization.emplace(new_rec); // Since we provided this, we need to make it ready, below
       
       // insert new recording into channel_map
@@ -1843,7 +1877,7 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
       // assign blank waveform content
       new_rec->metadata = std::make_shared<immutable_metadata>();
       new_rec->mark_metadata_done();
-      new_rec->allocate_storage(std::vector<snde_index>());
+      new_rec->allocate_storage(0,std::vector<snde_index>());
       new_rec->mark_as_ready();
       
       // mark it as completed
@@ -2611,6 +2645,33 @@ ndarray_recording::ndarray_recording(std::shared_ptr<recdatabase> recdb,std::str
       throw snde_error("get_recording(): channel %s not found.",fullpath.c_str());
     }
     return cm_it->second.rec();
+  }
+
+  std::shared_ptr<ndarray_recording_ref> recording_set_state::get_recording_ref(const std::string &fullpath,size_t array_index)
+  {
+    std::shared_ptr<recording_base> rec = get_recording(fullpath);
+    std::shared_ptr<multi_ndarray_recording> rec_ndarray = std::dynamic_pointer_cast<multi_ndarray_recording>(rec);
+
+    if (!rec_ndarray) {
+      throw snde_error("Recording channel %s is not a multi_ndarray",fullpath.c_str());
+    }
+
+    return rec_ndarray->reference_ndarray(array_index);
+   
+  }
+
+  std::shared_ptr<ndarray_recording_ref> recording_set_state::get_recording_ref(const std::string &fullpath,std::string array_name)
+  {
+    std::shared_ptr<recording_base> rec = get_recording(fullpath);
+    std::shared_ptr<multi_ndarray_recording> rec_ndarray = std::dynamic_pointer_cast<multi_ndarray_recording>(rec);
+
+    if (!rec_ndarray) {
+      throw snde_error("Recording channel %s is not a multi_ndarray",fullpath.c_str());
+    }
+
+    size_t array_index = rec_ndarray->name_mapping.at(array_name);
+    
+    return rec_ndarray->reference_ndarray(array_index);
   }
 
   

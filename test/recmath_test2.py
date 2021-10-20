@@ -38,21 +38,21 @@ testchan = recdb.reserve_channel(testchan_config);
 
 # demonstrate alternative ways to create the recording
 
-test_rec_32 = snde.ndarray_recording.create_typed_recording(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT32)
+test_rec_32 = snde.multi_ndarray_recording.create_typed_recording(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT32)
 
 globalrev = transact.end_transaction()
 
 transact2 = snde.active_transaction(recdb); # Transaction RAII holder
-test_rec_64 = snde.ndarray_recording.create_typed_recording(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT64)
+test_rec_64 = snde.multi_ndarray_recording.create_typed_recording(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT64)
 globalrev2 = transact2.end_transaction()
 
 
-test_rec_32.metadata=snde.immutable_metadata()
-test_rec_32.mark_metadata_done()
+test_rec_32.rec.metadata=snde.immutable_metadata()
+test_rec_32.rec.mark_metadata_done()
 test_rec_32.allocate_storage([ rec_len ]);
 
-test_rec_64.metadata=snde.immutable_metadata()
-test_rec_64.mark_metadata_done()
+test_rec_64.rec.metadata=snde.immutable_metadata()
+test_rec_64.rec.mark_metadata_done()
 test_rec_64.allocate_storage([ rec_len ]);
 
 for cnt in range(rec_len):
@@ -60,13 +60,13 @@ for cnt in range(rec_len):
     test_rec_64.assign_double([cnt],100.0*math.sin(cnt))
     pass
 
-test_rec_32.mark_as_ready()
-test_rec_64.mark_as_ready()
+test_rec_32.rec.mark_as_ready()
+test_rec_64.rec.mark_as_ready()
 
 globalrev.wait_complete();
 globalrev2.wait_complete();
 
-scaled_rec_32 = globalrev.get_recording("/scaled_channel").cast_to_ndarray()
+scaled_rec_32 = globalrev.get_recording_ref("/scaled_channel")
 data_32 = scaled_rec_32.data()
 
 for cnt in range(rec_len):
@@ -76,7 +76,7 @@ for cnt in range(rec_len):
     assert(abs(math_function_value-recalc_value) < 1e-4) # No functionality in Python to do single precision calculation for comparison
     pass
 
-scaled_rec_64 = globalrev2.get_recording("/scaled_channel").cast_to_ndarray()
+scaled_rec_64 = globalrev2.get_recording_ref("/scaled_channel")
 data_64 = scaled_rec_64.data()
 
 for cnt in range(rec_len):

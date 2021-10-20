@@ -40,20 +40,11 @@ struct snde_recording_base {
 #define SNDE_RECS_OBSOLETE 3
 
 
-struct snde_ndarray_recording {
-  // This structure and pointed data are fully mutable during the INITIALIZING state
-  // In METADATAREADY state metadata_valid should be set and metadata storage becomes immutable
-  // in READY state the rest of the structure and data pointed to is immutable except in the case of a mutable recording for the state variable, which could could change to OBSOLETE and the data pointed to, which could change as well once the state becomes OBSOLETE
-  // Note that in a threaded environment you can't safely read the state without an assocated lock, or you can read a mirrored atomic state variable, such as in class recording. 
-  struct snde_recording_base rec;
-  snde_bool dims_valid;
-  snde_bool data_valid;
-
-  // This info must be kept sync'd with class recording.layout
+struct snde_ndarray_info {
   snde_index ndim;
   snde_index base_index; // index in elements beyond (*basearray)
-  snde_index *dimlen; // pointer often from recording.layout.dimlen.get()
-  snde_index *strides; // pointer often from recording.layout.strides.get()
+  snde_index *dimlen; // pointer often from recording.layouts.at(index).dimlen.get()
+  snde_index *strides; // pointer often from recording.layouts.at(index).strides.get()
 
   snde_bool owns_dimlen_strides; // if set, dimlen and strides should be free()'d with this data structure.
 
@@ -64,6 +55,22 @@ struct snde_ndarray_recording {
   void **basearray; // double-pointer generally passed around, used for locking, etc. so that storage can be moved around if the recording is mutable. For independently-stored recordings this points at the _baseptr of the recording_storage_simple object. 
   
   //void *basearray_holder; // replaced by _baseptr of recording_storage_simple object 
+
+};
+
+struct snde_multi_ndarray_recording {
+  // This structure and pointed data are fully mutable during the INITIALIZING state
+  // In METADATAREADY state metadata_valid should be set and metadata storage becomes immutable
+  // in READY state the rest of the structure and data pointed to is immutable except in the case of a mutable recording for the state variable, which could could change to OBSOLETE and the data pointed to, which could change as well once the state becomes OBSOLETE
+  // Note that in a threaded environment you can't safely read the state without an assocated lock, or you can read a mirrored atomic state variable, such as ixon class recording. 
+  struct snde_recording_base rec;
+  snde_bool dims_valid;
+  snde_bool data_valid;
+
+  // This info must be kept sync'd with class recording.layouts
+  size_t num_arrays; // usually 1
+  struct snde_ndarray_info *arrays; // must be preallocated to the needed size before any ndarray_recording_ref's are created 
+  
 };
 
 
@@ -72,7 +79,7 @@ struct snde_ndarray_recording {
 // New type numbers need to be added to
 //   * definitions here in recording.h
 //   * definitions in recording.i (for SWIG)
-//   * create_typed_recording() definitions in recstore.cpp (both definitions of create_typed_recording()) 
+//   * reference_ndarray() definition in recstore.cpp 
 //   * typemaps near beginning of recstore.cpp
 //   * rtn_numpytypemap at end of spatialnde2.i
 #define SNDE_RTN_FLOAT32 0
@@ -93,6 +100,7 @@ struct snde_ndarray_recording {
 #define SNDE_RTN_RGBD64 15 /* as address goes from low to high: R (byte) G (byte) B (byte) A (byte) D (float32) */ 
 #define SNDE_RTN_STRING 16 // not usable for recordings, but used internally for math parameters. 
 #define SNDE_RTN_RECORDING 17 // not usable for recordings, but used internally for math parameters. 
-#define SNDE_RTN_COORD3_INT16 18 // x,y,z coordinates, with each being 16 bit signed integer
+#define SNDE_RTN_RECORDING_REF 18 // not usable for recordings, but used internally for math parameters. 
+#define SNDE_RTN_COORD3_INT16 19 // x,y,z coordinates, with each being 16 bit signed integer
 
 #endif // SNDE_RECORDING_H

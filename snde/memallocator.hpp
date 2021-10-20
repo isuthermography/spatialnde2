@@ -50,8 +50,8 @@ namespace snde {
     void *base_ptr; // will never move
     nonmoving_copy_or_reference_cmem(size_t offset,size_t length,void *orig_ptr) :
       nonmoving_copy_or_reference(offset,length),
-      base_ptr(malloc(length)),
-      basearray(&base_ptr)
+      basearray(&base_ptr),
+      base_ptr(malloc(length))
     {
       memcpy(base_ptr,((char *)orig_ptr)+offset,length);
     }

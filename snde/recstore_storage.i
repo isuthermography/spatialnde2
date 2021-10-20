@@ -85,7 +85,7 @@ namespace snde {
     recording_storage_manager& operator=(const recording_storage_manager &) = delete; 
     virtual ~recording_storage_manager() = default; // virtual destructor so we can subclass
     
-    virtual std::tuple<std::shared_ptr<recording_storage>,snde_index> allocate_recording(std::string recording_path,
+    virtual std::tuple<std::shared_ptr<recording_storage>,snde_index> allocate_recording(std::string recording_path,std::string array_name, // use "" for default array
 										       uint64_t recrevision,
 										       size_t elementsize,
 										       unsigned typenum, // MET_...
@@ -99,7 +99,7 @@ namespace snde {
   public:
     recording_storage_manager_shmem() = default;
     virtual ~recording_storage_manager_shmem() = default; 
-    virtual std::tuple<std::shared_ptr<recording_storage>,snde_index> allocate_recording(std::string recording_path,
+    virtual std::tuple<std::shared_ptr<recording_storage>,snde_index> allocate_recording(std::string recording_path, std::string array_name, // use "" for default array within recording
 										       uint64_t recrevision,
 										       size_t elementsize,
 										       unsigned typenum, // MET_...
