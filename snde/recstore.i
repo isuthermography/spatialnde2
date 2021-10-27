@@ -59,6 +59,11 @@ namespace snde {
     $1 = 1; // always satisifed
   }
 
+  //
+  //%typecheck(SWIG_TYPECHECK_POINTER) (std::shared_ptr<lockmanager>) {
+  //  $1 = SWIG_CheckState(SWIG_ConvertPtr($input, 0, SWIGTYPE_p_std__shared_ptrT_snde__lockmanager_t, 0));
+  //}
+  
   %typemap(out) void * {
     $result = PyLong_FromVoidPtr($1);
   }
@@ -552,6 +557,8 @@ namespace snde {
     std::shared_ptr<recording_set_state> _prerequisite_state; // C++11 atomic shared pointer. recording_set_state to be used for self-dependencies and any missing dependencies not present in this state. This is an atomic shared pointer (read with .prerequisite_state()) that is set to nullptr once a new globalrevision is ready, so as to allow prior recording revisions to be freed.
     std::unordered_set<std::shared_ptr<channel_notify>> recordingset_complete_notifiers; // Notifiers waiting on this recording set state being complete. Criteria will be removed as they are satisifed and entries will be removed as the notifications are performed.
 
+    std::shared_ptr<lockmanager> lockmgr; // pointer is immutable after initialization
+
     
     recording_set_state(std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state); // constructor
     // Rule of 3
@@ -624,6 +631,7 @@ namespace snde {
 
     std::shared_ptr<recording_storage_manager> default_storage_manager; // pointer is immutable once created; contents not necessarily immutable; see recstore_storage.hpp
 
+    std::shared_ptr<lockmanager> lockmgr; // pointer immutable after initialization; contents have their own admin lock, which is used strictly internally by them
 
     //std::mutex transaction_lock; // ***!!! Before any dataguzzler-python module locks, etc.
     std::shared_ptr<transaction> current_transaction; // only valid while transaction_lock is held.
@@ -632,7 +640,15 @@ namespace snde {
     uint64_t monitoring_notify_globalrev; // latest globalrev for which monitoring has already been notified
 
 
+    //recdatabase(std::shared_ptr<lockmanager> lockmgr=nullptr);
+    // default argument split into two separate entries here
+    // to work around swig bug with default parameter
     recdatabase();
+    recdatabase(std::shared_ptr<lockmanager> lockmgr);
+    
+    recdatabase & operator=(const recdatabase &) = delete; 
+    recdatabase(const recdatabase &orig) = delete;
+    ~recdatabase();
         
     // avoid using start_transaction() and end_transaction() from C++; instantiate the RAII wrapper class active_transaction instead
     // (start_transaction() and end_transaction() are intended for C and perhaps Python)

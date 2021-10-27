@@ -602,6 +602,8 @@ namespace snde {
     //ndinfo()->owns_dimlen_strides=false;
     //ndinfo()->typenum=typenum;
     //ndinfo()->elementsize=rtn_typesizemap.at(typenum);
+    //ndinfo()->requires_locking_read=false;
+    //ndinfo()->requires_locking_write=false;
     //ndinfo()->basearray = nullptr;
     //ndinfo()->basearray_holder = nullptr;
     
@@ -631,6 +633,8 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     //ndinfo()->owns_dimlen_strides=false;
     //ndinfo()->typenum=typenum;
     //ndinfo()->elementsize=rtn_typesizemap.at(typenum);
+    //ndinfo()->requires_locking_read=false;
+    //ndinfo()->requires_locking_write=false;
     //ndinfo()->basearray = nullptr;
     //ndinfo()->basearray_holder = nullptr;
 
@@ -655,6 +659,8 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     ndinfo(index)->owns_dimlen_strides=false;
     ndinfo(index)->typenum=typenum;
     ndinfo(index)->elementsize=rtn_typesizemap.at(typenum);
+    ndinfo(index)->requires_locking_read=false;
+    ndinfo(index)->requires_locking_write=false;
     ndinfo(index)->basearray = nullptr;
     //ndinfo()->basearray_holder = nullptr;
 
@@ -2620,7 +2626,8 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     ready(false),
     recstatus(channel_map_param),
     mathstatus(std::make_shared<instantiated_math_database>(math_functions),channel_map_param),
-    _prerequisite_state(nullptr)
+    _prerequisite_state(nullptr),
+    lockmgr(recdb->lockmgr)
   {
     std::atomic_store(&_prerequisite_state,prereq_state);
   }
@@ -2739,14 +2746,19 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
   }
 
 
-  recdatabase::recdatabase():
+  recdatabase::recdatabase(std::shared_ptr<lockmanager> lockmgr/*=nullptr*/):
     compute_resources(std::make_shared<available_compute_resource_database>()),
+    lockmgr(lockmgr),
     monitoring_notify_globalrev(0),
     globalrev_mutablenotneeded_mustexit(false)
 
   {
     std::shared_ptr<globalrevision> null_globalrev;
     std::atomic_store(&_latest_globalrev,null_globalrev);
+
+    if (!this->lockmgr) {
+      this->lockmgr = std::make_shared<lockmanager>();
+    }
 
     _math_functions._rebuild_dependency_map();
 

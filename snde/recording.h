@@ -42,14 +42,17 @@ struct snde_recording_base {
 
 struct snde_ndarray_info {
   snde_index ndim;
-  snde_index base_index; // index in elements beyond (*basearray)
+  snde_index base_index; // index in elements beyond (*basearray). Additions due to index and strides are beyond this. 
   snde_index *dimlen; // pointer often from recording.layouts.at(index).dimlen.get()
-  snde_index *strides; // pointer often from recording.layouts.at(index).strides.get()
+  snde_index *strides; // pointer often from recording.layouts.at(index).strides.get() // NOTE: For now, at least, since strides is an snde_index, strides may not be negative
 
   snde_bool owns_dimlen_strides; // if set, dimlen and strides should be free()'d with this data structure.
 
   unsigned typenum; /// See SNDE_RTN_... below (so far largely matches mutablerecstore.hpp typenum)
-  size_t elementsize; 
+  size_t elementsize;
+
+  snde_bool requires_locking_read;
+  snde_bool requires_locking_write;
 
   // physical data storage
   void **basearray; // double-pointer generally passed around, used for locking, etc. so that storage can be moved around if the recording is mutable. For independently-stored recordings this points at the _baseptr of the recording_storage_simple object. 

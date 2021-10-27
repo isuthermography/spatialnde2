@@ -3,7 +3,7 @@
 namespace snde {
   
   recmath_cppfuncexec_base::recmath_cppfuncexec_base(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
-    executing_math_function(wss,inst)
+    executing_math_function(wss,inst,(wss) ? wss->lockmgr:nullptr)
   {
     
   }

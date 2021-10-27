@@ -55,10 +55,26 @@ test_rec_64.rec.metadata=snde.immutable_metadata()
 test_rec_64.rec.mark_metadata_done()
 test_rec_64.allocate_storage([ rec_len ]);
 
+# locking is only required for certain recordings
+# with special storage under certain conditions,
+# however it is always good to explicitly request
+# the locks, as the locking is a no-op if
+# locking is not actually required.
+# Note that requiring locking for read is extremely rare
+# and won't apply to normal channels. Requiring locking
+# for write is relatively common. 
+locktokens = recdb.lockmgr.lock_recording_refs([
+    (test_rec_32, True), # first element is recording_ref, 2nd parameter is false for read, true for write
+    (test_rec_64, True),
+])
+
 for cnt in range(rec_len):
     test_rec_32.assign_double([cnt],100.0*math.sin(cnt))
     test_rec_64.assign_double([cnt],100.0*math.sin(cnt))
     pass
+
+# must unlock prior to mark_as_ready
+snde.unlock_rwlock_token_set(locktokens)
 
 test_rec_32.rec.mark_as_ready()
 test_rec_64.rec.mark_as_ready()
@@ -67,6 +83,11 @@ globalrev.wait_complete();
 globalrev2.wait_complete();
 
 scaled_rec_32 = globalrev.get_recording_ref("/scaled_channel")
+
+# verify it is OK to read these channels without locking
+assert(not scaled_rec_32.ndinfo().requires_locking_read)
+assert(not test_rec_32.ndinfo().requires_locking_read)
+
 data_32 = scaled_rec_32.data()
 
 for cnt in range(rec_len):
@@ -77,6 +98,9 @@ for cnt in range(rec_len):
     pass
 
 scaled_rec_64 = globalrev2.get_recording_ref("/scaled_channel")
+assert(not scaled_rec_64.ndinfo().requires_locking_read)
+assert(not test_rec_64.ndinfo().requires_locking_read)
+
 data_64 = scaled_rec_64.data()
 
 for cnt in range(rec_len):

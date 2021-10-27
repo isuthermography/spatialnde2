@@ -44,12 +44,27 @@ namespace snde2_fn_ex {
 	  // lock_alloc code
 	  
 	  result_rec->allocate_storage(recording->layout.dimlen);
+
+	  // locking is only required for certain recordings
+	  // with special storage under certain conditions,
+	  // however it is always good to explicitly request
+	  // the locks, as the locking is a no-op if
+	  // locking is not actually required. 
+	  snde::rwlock_token_set locktokens = this->lockmgr->lock_recording_refs({
+	      { recording, false }, // first element is recording_ref, 2nd parameter is false for read, true for write 
+	      { result_rec, true },
+	    });
 	  
-	  return std::make_shared<exec_function_override_type>([ this,result_rec,recording,multiplier ]() {
+
+	  
+	  return std::make_shared<exec_function_override_type>([ this,locktokens,result_rec,recording,multiplier ]() {
 	    // exec code
 	    for (snde_index pos=0;pos < recording->layout.dimlen.at(0);pos++){
 	      result_rec->element({pos}) = recording->element({pos}) * multiplier;
 	    }
+	    
+	    snde::unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
+
 	    result_rec->rec->mark_as_ready();
 	  }); 
 	});

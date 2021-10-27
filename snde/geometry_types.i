@@ -33,6 +33,21 @@ typedef char snde_bool;
 
 %template(snde_index_vector) std::vector<snde_index>;
 
+
+%typemap(in) snde_bool {
+  $1 = (snde_bool)PyObject_IsTrue($input);
+}
+
+%typemap(out) snde_bool {
+  if ($1) {
+    $result = Py_True;
+    Py_INCREF($result);
+  } else {
+    $result = Py_False;
+    Py_INCREF($result);
+  }
+}
+
 //#define SNDE_INDEX_INVALID (~((snde_index)0))
 
 // typecheck typemap for snde_index... This is needed because sometimes

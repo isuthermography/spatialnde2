@@ -515,9 +515,10 @@ namespace snde {
   }
 
   
-  executing_math_function::executing_math_function(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
+  executing_math_function::executing_math_function(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst,std::shared_ptr<lockmanager> lockmgr) :
     wss(wss),
-    inst(inst)
+    inst(inst),
+    lockmgr(lockmgr)
   {
     std::shared_ptr<recording_base> null_recording;
 

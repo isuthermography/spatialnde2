@@ -48,12 +48,25 @@ public:
 	  // lock_alloc code
 	  
 	  result_rec->allocate_storage(recording->layout.dimlen);
+
 	  
-	  return std::make_shared<exec_function_override_type>([ this,result_rec,recording,multiplier ]() {
+	  // locking is only required for certain recordings
+	  // with special storage under certain conditions,
+	  // however it is always good to explicitly request
+	  // the locks, as the locking is a no-op if
+	  // locking is not actually required. 
+	  rwlock_token_set locktokens = this->lockmgr->lock_recording_refs({
+	      { recording, false }, // first element is recording_ref, 2nd parameter is false for read, true for write 
+	      { result_rec, true },
+	    });
+
+	  
+	  return std::make_shared<exec_function_override_type>([ this,locktokens,result_rec,recording,multiplier ]() {
 	    // exec code
 	    for (snde_index pos=0;pos < recording->layout.dimlen.at(0);pos++){
 	      result_rec->element({pos}) = recording->element({pos}) * multiplier;
 	    }
+	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
 	    result_rec->rec->mark_as_ready();
 	  }); 
 	});
@@ -127,14 +140,32 @@ int main(int argc, char *argv[])
   test_rec_64->rec->metadata=std::make_shared<snde::immutable_metadata>();
   test_rec_64->rec->mark_metadata_done();
   test_rec_64->allocate_storage(std::vector<snde_index>{len});
-  
-  for (size_t cnt=0;cnt < len; cnt++) {
 
-    // demonstrating alternative array interfaces
-    test_rec_32->assign_double({cnt},100.0*sin(cnt));
+
+  // locking is only required for certain recordings
+  // with special storage under certain conditions,
+  // however it is always good to explicitly request
+  // the locks, as the locking is a no-op if
+  // locking is not actually required.
+  // Note that requiring locking for read is extremely rare
+  // and won't apply to normal channels. Requiring locking
+  // for write is relatively common. 
+  {
+    rwlock_token_set locktokens = recdb->lockmgr->lock_recording_refs({
+	{ test_rec_32, true }, // first element is recording_ref, 2nd parameter is false for read, true for write 
+	{ test_rec_64, true },
+      });
     
-    test_rec_64->element({cnt}) = -46.0*sin(cnt);
-    
+    for (size_t cnt=0;cnt < len; cnt++) {
+      
+      // demonstrating alternative array interfaces
+      test_rec_32->assign_double({cnt},100.0*sin(cnt));
+      
+      test_rec_64->element({cnt}) = -46.0*sin(cnt);
+      
+    }
+    // locktokens automatically dropped as it goes out of scope
+    // must drop before mark_as_ready()
   }
   test_rec_32->rec->mark_as_ready();
   test_rec_64->rec->mark_as_ready();
@@ -147,6 +178,9 @@ int main(int argc, char *argv[])
   std::shared_ptr<ndarray_recording_ref> scaled_rec_32 = globalrev->get_recording_ref("/scaled channel");
 
   
+  // verify it is OK to read these channels without locking
+  assert(!scaled_rec_32->ndinfo()->requires_locking_read);
+  assert(!test_rec_32->ndinfo()->requires_locking_read);
   for (size_t cnt=0;cnt < len; cnt++) {
     double math_function_value = scaled_rec_32->element_double({cnt});
     double recalc_value = (float)(test_rec_32->element_double({cnt})*scalefactor);
@@ -156,6 +190,10 @@ int main(int argc, char *argv[])
 
   
   std::shared_ptr<ndarray_recording_ref> scaled_rec_64 = globalrev2->get_recording_ref("/scaled channel");
+
+  // verify it is OK to read these channels without locking
+  assert(!scaled_rec_64->ndinfo()->requires_locking_read);
+  assert(!test_rec_64->ndinfo()->requires_locking_read);
   
   for (size_t cnt=0;cnt < len; cnt++) {
     double math_function_value = scaled_rec_64->element_double({cnt});

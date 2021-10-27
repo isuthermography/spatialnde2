@@ -129,7 +129,7 @@ namespace snde {
   //class component; // forward declaration
   //class parameterization; // forward declaration
   class lockingposition;
-
+  class ndarray_recording_ref; // forward declaration, recstore.hpp
 
 
 
@@ -882,6 +882,14 @@ typedef uint64_t snde_infostore_lock_mask_t;
     }
 
 
+    // use lock_recording_refs() to lock a bunch of ndarray_recording refs
+    // use brace initialization; the 2nd half of the pair is true for write locking:
+    //  mylock = lock_recording_refs({ {inputrec1,false},
+    //                                 {inputrec2,false},
+    //                                 {outputrec1,true} });
+    rwlock_token_set lock_recording_refs(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> recrefs);
+
+
     rwlock_token  _get_preexisting_lock_read_lockobj(rwlock_token_set all_locks,std::shared_ptr<rwlock> rwlockobj)
     /* returns NULL if there is no such preexisting read lock or
        there is no preexisting write lock that is convertable to a read lock */
@@ -1088,7 +1096,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
 	
       return token_set;
     }
-
+  
     rwlock_token_set get_locks_read_array_region(rwlock_token_set all_locks, void **array,snde_index indexstart,snde_index numelems)
     {
       rwlock_lockable *lockobj;
@@ -2311,7 +2319,6 @@ namespace snde {
 
   };
   
-
 
 
   

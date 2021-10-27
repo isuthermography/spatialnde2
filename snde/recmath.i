@@ -419,6 +419,7 @@ namespace snde {
   public:
     std::shared_ptr<recording_set_state> wss; // recording set state in which we are executing. Set to nullptr by owner of parent's execution ticket after metadata phase to avoid a reference loop that will keep old recordings in memory. 
     std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
+    std::shared_ptr<lockmanager> lockmgr;
 
 
     // should also have parameter values, references, etc. here
@@ -438,7 +439,7 @@ namespace snde {
     //std::vector<size_t> opencl_jobs;  // vector of indices into available_compute_resource_cpu::functions_using_devices representing assigned GPU jobs; from assigned_compute_resource_option_opencl
 
 
-    executing_math_function(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> fcn);
+    executing_math_function(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> fcn,std::shared_ptr<lockmanager> lockmgr);
 
     // Rule of 3
     executing_math_function(const executing_math_function &) = delete;

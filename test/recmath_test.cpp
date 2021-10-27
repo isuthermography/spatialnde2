@@ -13,7 +13,7 @@ class multiply_by_scalar: public recmath_cppfuncexec<std::shared_ptr<ndtyped_rec
 {
 public:
   multiply_by_scalar(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
-      recmath_cppfuncexec(wss,inst)
+    recmath_cppfuncexec(wss,inst)
   {
 
   }
@@ -52,12 +52,23 @@ public:
 	  // lock_alloc code
 	  
 	  result_rec->allocate_storage(recording->layout.dimlen);
+
+	  // locking is only required for certain recordings
+	  // with special storage under certain conditions,
+	  // however it is always good to explicitly request
+	  // the locks, as the locking is a no-op if
+	  // locking is not actually required. 
+	  rwlock_token_set locktokens = lockmgr->lock_recording_refs({
+	      { recording, false }, // first element is recording_ref, 2nd parameter is false for read, true for write 
+	      { result_rec, true },
+	    });
 	  
-	  return std::make_shared<exec_function_override_type>([ this,result_rec,recording,multiplier ]() {
+	  return std::make_shared<exec_function_override_type>([ this,locktokens, result_rec,recording,multiplier ]() {
 	    // exec code
 	    for (snde_index pos=0;pos < recording->layout.dimlen.at(0);pos++){
 	      result_rec->element({pos}) = recording->element({pos}) * multiplier;
 	    }
+	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
 	    result_rec->rec->mark_as_ready();
 	  }); 
 	});
@@ -116,9 +127,25 @@ int main(int argc, char *argv[])
   test_rec->rec->mark_metadata_done();
   test_rec->allocate_storage(std::vector<snde_index>{len});
 
-  for (size_t cnt=0;cnt < len; cnt++) {
-    test_rec->assign_double({cnt},100.0*sin(cnt));
-    
+  // locking is only required for certain recordings
+  // with special storage under certain conditions,
+  // however it is always good to explicitly request
+  // the locks, as the locking is a no-op if
+  // locking is not actually required.
+  // Note that requiring locking for read is extremely rare
+  // and won't apply to normal channels. Requiring locking
+  // for write is relatively common. 
+  {
+    rwlock_token_set locktokens = recdb->lockmgr->lock_recording_refs({
+	{ test_rec, true }, // first element is recording_ref, 2nd parameter is false for read, true for write 
+      });
+    for (size_t cnt=0;cnt < len; cnt++) {
+      test_rec->assign_double({cnt},100.0*sin(cnt));
+      
+    }
+    // locktokens automatically dropped as it goes out of scope
+    // must drop before mark_as_ready()
+
   }
   test_rec->rec->mark_as_ready();
 
@@ -130,6 +157,9 @@ int main(int argc, char *argv[])
   fflush(stdout);
   std::shared_ptr<ndarray_recording_ref> scaled_rec = globalrev->get_recording_ref("/scaled channel");
     
+  // verify it is OK to read these channels without locking
+  assert(!scaled_rec->ndinfo()->requires_locking_read);
+  assert(!test_rec->ndinfo()->requires_locking_read);
   for (size_t cnt=0;cnt < len; cnt++) {
     double math_function_value = scaled_rec->element_double({cnt});
     double recalc_value = (float)(test_rec->element_double({cnt})*scalefactor);

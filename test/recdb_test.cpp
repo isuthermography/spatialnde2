@@ -27,12 +27,28 @@ int main(int argc, char *argv[])
   test_rec->rec->mark_metadata_done();
   test_rec->allocate_storage(std::vector<snde_index>{len});
 
-  for (size_t cnt=0;cnt < len; cnt++) {
-    test_rec->assign_double({cnt},100.0*sin(cnt));
-    
+  // locking is only required for certain recordings
+  // with special storage under certain conditions,
+  // however it is always good to explicitly request
+  // the locks, as the locking is a no-op if
+  // locking is not actually required.
+  // Note that requiring locking for read is extremely rare
+  // and won't apply to normal channels. Requiring locking
+  // for write is relatively common. 
+  {
+    rwlock_token_set locktokens = recdb->lockmgr->lock_recording_refs({
+	{ test_rec, true }, // first element is recording_ref, 2nd parameter is false for read, true for write 
+      });
+
+    for (size_t cnt=0;cnt < len; cnt++) {
+      test_rec->assign_double({cnt},100.0*sin(cnt));
+      
+    }
+    // locktokens automatically dropped as it goes out of scope
+    // (must drop before mark_as_ready())
   }
   test_rec->rec->mark_as_ready();
-
+  
   globalrev->wait_complete();
   return 0;
 }

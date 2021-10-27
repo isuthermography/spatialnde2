@@ -11,6 +11,7 @@ import types as pytypes
 %shared_ptr(std::vector<snde::rangetracker<snde::markedregion>>);
 %shared_ptr(voidpp_voidpp_multimap_pyiterator)
 
+  
  //%shared_ptr(std::vector<void **>);
 %shared_ptr(std::unordered_map<void **,snde::lockindex_t,std::hash<void **>,std::equal_to<void **>>);
 %shared_ptr(std::unordered_map<snde::lockindex_t,void **>);
@@ -245,6 +246,7 @@ namespace snde{
   //class component; // forward declaration
   //class parameterization; // forward declaration
   class lockingposition;
+  class ndarray_recording_ref; // forward declaration, recstore.hpp
   
 struct arrayregion {
     void **array;
@@ -298,6 +300,66 @@ struct arrayregion {
 
   //typedef std::vector<void **> arrayvector;
 
+    // input typemap for list of (arrayref,bool) parameters to lockmanager::lock_recording_refs
+    
+%typemap(in) std::vector<std::pair<std::shared_ptr<snde::ndarray_recording_ref>,bool>> (PyObject *Iter,PyObject *Element,PyObject *Iter2,PyObject *Element_Ref, PyObject *Element_Bool,PyObject *Element_Overrun,void *ref_void_ptr,std::shared_ptr<ndarray_recording_ref> *ref_ptr,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> retval) {
+    Iter = PyObject_GetIter($input);
+    if (Iter) {
+      while ((Element = PyIter_Next(Iter))) {
+	Iter2 = PyObject_GetIter(Element);
+	if (Iter2) {
+	  Element_Ref = PyIter_Next(Iter2);
+	  if (Element_Ref) {
+	    int res0 = SWIG_ConvertPtr(Element_Ref, &ref_void_ptr,$descriptor(std::shared_ptr<ndarray_recording_ref>*),0);
+	    if (SWIG_IsOK(res0)) {
+	      ref_ptr = reinterpret_cast<std::shared_ptr<snde::ndarray_recording_ref> *>(ref_void_ptr);
+	      Element_Bool = PyIter_Next(Iter2);
+	      if (Element_Bool) {
+		bool boolval = PyObject_IsTrue(Element_Bool);
+
+		Element_Overrun = PyIter_Next(Iter2);
+		if (!Element_Overrun) {
+		  retval.push_back(std::make_pair(*ref_ptr,boolval));
+		} else {
+		  Py_DECREF(Element_Overrun);
+		  
+		  SWIG_exception_fail(SWIG_ArgError(res0), "Converting parameter to std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> (inner element overrun)");
+		  
+		}
+		
+		  
+		Py_DECREF(Element_Bool);
+	      } else {
+		SWIG_exception_fail(SWIG_ArgError(SWIG_TypeError), "Converting parameter to std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> (inner bool)");
+	      }
+	      
+	      
+	    } else {
+	      SWIG_exception_fail(SWIG_ArgError(res0), "Converting parameter to std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> (inner element to lockmanager)");
+	    }	    
+
+	    
+	    Py_DECREF(Element_Ref);
+	  } else {
+	    SWIG_exception_fail(SWIG_ArgError(SWIG_TypeError), "Converting parameter to std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> (inner element)");
+	  }
+	  
+	  Py_DECREF(Iter2);
+	} else {
+	  SWIG_exception_fail(SWIG_ArgError(SWIG_TypeError), "Converting parameter to std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> (inner)");
+	  
+	} 
+	
+	Py_DECREF(Element);
+      }
+      Py_DECREF(Iter);
+    } else {
+	SWIG_exception_fail(SWIG_ArgError(SWIG_TypeError), "Converting parameter to std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>>");
+    }
+    $1 = retval;
+}
+
+
   class lockmanager {
   public:
     //std::vector<void **> _arrays; /* get array pointer from index */
@@ -328,6 +390,14 @@ struct arrayregion {
     rwlock_token newallocation(rwlock_token_set all_locks,void **arrayptr,snde_index pos,snde_index size,snde_index elemsize);
     void freeallocation(void **arrayptr,snde_index pos, snde_index size,snde_index elemsize);
     void realloc_down_allocation(void **arrayptr, snde_index addr,snde_index orignelem, snde_index newnelem);
+
+
+    // use lock_recording_refs() to lock a bunch of ndarray_recording refs
+    // use brace initialization; the 2nd half of the pair is true for write locking:
+    //  mylock = lock_recording_refs({ {inputrec1,false},
+    //                                 {inputrec2,false},
+    //                                 {outputrec1,true} });
+    rwlock_token_set lock_recording_refs(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> recrefs);
 
 
     rwlock_token  _get_preexisting_lock_read_lockobj(rwlock_token_set all_locks,std::shared_ptr<rwlock> rwlockobj);
