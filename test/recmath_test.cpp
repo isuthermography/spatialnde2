@@ -88,7 +88,6 @@ int main(int argc, char *argv[])
   std::shared_ptr<snde::recdatabase> recdb=std::make_shared<snde::recdatabase>();
   std::shared_ptr<snde::ndarray_recording_ref> test_rec;
   
-  recdb->default_storage_manager = std::make_shared<recording_storage_manager_shmem>();
   recdb->compute_resources->compute_resources.push_back(std::make_shared<available_compute_resource_cpu>(recdb,recdb->compute_resources,SNDE_CR_CPU,std::thread::hardware_concurrency()));
   recdb->compute_resources->start();
   

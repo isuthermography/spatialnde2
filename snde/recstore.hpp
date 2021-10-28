@@ -781,7 +781,7 @@ namespace snde {
     bool globalrev_mutablenotneeded_mustexit;
 
     
-    recdatabase(std::shared_ptr<lockmanager> lockmgr=nullptr);
+    recdatabase(std::shared_ptr<recording_storage_manager> default_storage_manager=nullptr,std::shared_ptr<lockmanager> lockmgr=nullptr);
     recdatabase & operator=(const recdatabase &) = delete; 
     recdatabase(const recdatabase &orig) = delete;
     ~recdatabase();

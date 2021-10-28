@@ -640,11 +640,13 @@ namespace snde {
     uint64_t monitoring_notify_globalrev; // latest globalrev for which monitoring has already been notified
 
 
-    //recdatabase(std::shared_ptr<lockmanager> lockmgr=nullptr);
-    // default argument split into two separate entries here
+    //recdatabase(std::shared_ptr<recording_storage_manager> default_storage_manager=nullptr,std::shared_ptr<lockmanager> lockmgr=nullptr);
+    // default argument split into three separate entries here
     // to work around swig bug with default parameter
     recdatabase();
-    recdatabase(std::shared_ptr<lockmanager> lockmgr);
+    recdatabase(std::shared_ptr<recording_storage_manager> default_storage_manager);
+    recdatabase(std::shared_ptr<recording_storage_manager> default_storage_manager,std::shared_ptr<lockmanager> lockmgr);
+
     
     recdatabase & operator=(const recdatabase &) = delete; 
     recdatabase(const recdatabase &orig) = delete;

@@ -82,8 +82,9 @@ namespace snde {
     virtual std::shared_ptr<std::multimap<void **,void **>> arrays_managed_by_allocator();
 
 
-    virtual void add_allocated_array(void **arrayptr,size_t elemsize,snde_index totalnelem);
-    virtual void add_follower_array(void **allocatedptr,void **arrayptr,size_t elemsize);
+    virtual void add_allocated_array(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes = std::set<snde_index>());
+    virtual void add_follower_array(memallocator_regionid id,void **allocatedptr,void **arrayptr,size_t elemsize);
+
     
     virtual void add_unmanaged_array(void **arrayptr,size_t elemsize,snde_index totalnelem);
     virtual void mark_as_dirty(cachemanager *owning_cache_or_null,void **arrayptr,snde_index pos,snde_index len);

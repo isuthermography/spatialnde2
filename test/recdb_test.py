@@ -6,8 +6,6 @@ import spatialnde2 as snde
 rec_len=100;
 recdb=snde.recdatabase();
 
-recdb.default_storage_manager = snde.recording_storage_manager_shmem();
-
 cpu_compute = snde.available_compute_resource_cpu(recdb,recdb.compute_resources,snde.SNDE_CR_CPU,multiprocessing.cpu_count())
 recdb.compute_resources.compute_resources.append(cpu_compute.this) #std::thread::hardware_concurrency()))
  

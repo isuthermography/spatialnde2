@@ -28,6 +28,7 @@ namespace snde {
   struct arrayinfo {
     void **arrayptr;
     size_t elemsize;
+    memallocator_regionid id;
     bool destroyed; /* locked by allocatormutex */
   };
 
@@ -75,6 +76,12 @@ namespace snde {
     std::shared_ptr<lockmanager> _locker; // could be NULL if there is no locker
     std::deque<std::shared_ptr<std::function<void(snde_index)>>> pool_realloc_callbacks; // locked by allocatormutex
 
+    // These next 3 parameters are immutable once assigned
+    std::string recording_path;
+    uint64_t recrevision; 
+    memallocator_regionid id;
+
+
     bool destroyed;
     /* 
        Should lock things on allocation...
@@ -104,7 +111,7 @@ namespace snde {
     rangetracker<allocation> allocations_unmerged;
     snde_index _allocchunksize; // size of chunks we allocate, in numbers of elements
   
-    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes);
+    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes);
 
     allocator(const allocator &)=delete; /* copy constructor disabled */
     allocator& operator=(const allocator &)=delete; /* assignment disabled */
@@ -112,7 +119,7 @@ namespace snde {
     // accessor for atomic _arrays member
     std::shared_ptr<std::deque<struct arrayinfo>> arrays();
     
-    size_t add_other_array(void **arrayptr, size_t elsize);
+    size_t add_other_array(memallocator_regionid other_array_id,void **arrayptr, size_t elsize);
 
     size_t num_arrays(void);
     

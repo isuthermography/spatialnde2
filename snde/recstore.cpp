@@ -2,6 +2,10 @@
 #include "snde/utils.hpp"
 #include "snde/notify.hpp"
 
+#ifndef _WIN32
+#include "shared_memory_allocator_posix.hpp"
+#endif // !_WIN32
+
 namespace snde {
 
 
@@ -2746,8 +2750,9 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
   }
 
 
-  recdatabase::recdatabase(std::shared_ptr<lockmanager> lockmgr/*=nullptr*/):
+  recdatabase::recdatabase(std::shared_ptr<recording_storage_manager> default_storage_manager/*=nullptr*/,std::shared_ptr<lockmanager> lockmgr/*=nullptr*/):
     compute_resources(std::make_shared<available_compute_resource_database>()),
+    default_storage_manager(default_storage_manager),
     lockmgr(lockmgr),
     monitoring_notify_globalrev(0),
     globalrev_mutablenotneeded_mustexit(false)
@@ -2755,6 +2760,17 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
   {
     std::shared_ptr<globalrevision> null_globalrev;
     std::atomic_store(&_latest_globalrev,null_globalrev);
+
+    if (!this->default_storage_manager) {
+#ifdef _WIN32
+#pragma message("No shared memory allocator available for Win32 yet. Using regular memory instead")
+      std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<cmemallocator>();
+      
+#else
+      std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<shared_memory_allocator_posix>();
+#endif
+      this->default_storage_manager=std::make_shared<recording_storage_manager_simple>(lowlevel_alloc);
+    }
 
     if (!this->lockmgr) {
       this->lockmgr = std::make_shared<lockmanager>();

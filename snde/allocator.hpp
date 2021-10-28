@@ -103,6 +103,7 @@ namespace snde {
   struct arrayinfo {
     void **arrayptr;
     size_t elemsize;
+    memallocator_regionid id;
     bool destroyed; /* locked by allocatormutex */
   };
   
@@ -186,6 +187,11 @@ namespace snde {
     std::shared_ptr<lockmanager> _locker; // could be NULL if there is no locker
     std::deque<std::shared_ptr<std::function<void(snde_index)>>> pool_realloc_callbacks; // locked by allocatormutex
 
+    // These next 3 parameters are immutable once assigned
+    std::string recording_path;
+    uint64_t recrevision; 
+    memallocator_regionid id; // ID of primary array
+
     bool destroyed;
     /* 
        Should lock things on allocation...
@@ -220,7 +226,10 @@ namespace snde {
     
     snde_index _allocchunksize; // size of chunks we allocate, in numbers of elements
   
-    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes)
+    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes) :
+      recording_path(recording_path),
+      recrevision(recrevision),
+      id(id)
     {
       // must hold writelock on array
 
@@ -230,7 +239,7 @@ namespace snde {
       _locker=locker; // could be NULL if there is no locker
 
       std::shared_ptr<std::deque<struct arrayinfo>> new_arrays=std::make_shared<std::deque<struct arrayinfo>>();
-      new_arrays->push_back(arrayinfo{arrayptr,elemsize,false});
+      new_arrays->push_back(arrayinfo{arrayptr,elemsize,id,false});
       std::atomic_store(&_arrays,new_arrays);      
       
       
@@ -311,10 +320,10 @@ namespace snde {
 	_totalnchunks=2;
       }
       // Perform memory allocation 
-      *(*arrays())[0].arrayptr = _memalloc->malloc(0,_totalnchunks * _allocchunksize * elemsize);
+      *(*arrays()).at(0).arrayptr = _memalloc->malloc(recording_path,recrevision,id,_totalnchunks * _allocchunksize * elemsize);
 
       if (_locker) {
-	_locker->set_array_size((*arrays())[0].arrayptr,(*arrays())[0].elemsize,_totalnchunks*_allocchunksize);
+	_locker->set_array_size((*arrays()).at(0).arrayptr,(*arrays()).at(0).elemsize,_totalnchunks*_allocchunksize);
       }
 
       // Permanently allocate (and waste) first chunk
@@ -355,7 +364,7 @@ namespace snde {
 
 
 
-    size_t add_other_array(void **arrayptr, size_t elsize)
+    size_t add_other_array(memallocator_regionid other_array_id,void **arrayptr, size_t elsize)
     /* returns index */
     {
       std::lock_guard<std::mutex> lock(allocatormutex);
@@ -365,11 +374,11 @@ namespace snde {
       
       assert(!destroyed);
       size_t retval=new_arrays->size();
-      new_arrays->push_back(arrayinfo {arrayptr,elsize,false});
+      new_arrays->push_back(arrayinfo {arrayptr,elsize,other_array_id,false});
 
       if (*(*new_arrays)[0].arrayptr) {
 	/* if main array already allocated */
-	*arrayptr=_memalloc->calloc(retval,_totalnchunks*_allocchunksize * elsize);
+	*arrayptr=_memalloc->calloc(recording_path,recrevision,other_array_id,_totalnchunks*_allocchunksize * elsize);
       } else {
         *arrayptr = nullptr;
       }
@@ -399,7 +408,7 @@ namespace snde {
 	    /* removing our master array invalidates the entire allocator */
 	    destroyed=true; 
 	  }
-	  _memalloc->free(index,*ary->arrayptr);
+	  _memalloc->free(recording_path,recrevision,ary->id,*ary->arrayptr);
 	  //arrays.erase(ary);
 	  ary->destroyed=true; 
 	  return;
@@ -416,17 +425,17 @@ namespace snde {
       // Must hold write lock on entire array
       // must hold allocatormutex... therefore arrays() won't change although it's still unsafe to read _arrays directly
       _totalnchunks = newnchunks;
-      //*arrays[0].arrayptr = _memalloc->realloc(*arrays[0].arrayptr,_totalnchunks * _allocchunksize * _elemsize);
+      //*arrays[0].arrayptr = _memalloc->realloc(*arrays.at(0).arrayptr,_totalnchunks * _allocchunksize * _elemsize);
 
       /* resize all arrays  */
       for (size_t cnt=0;cnt < arrays()->size();cnt++) {
-	if ((*arrays())[cnt].destroyed) continue;
-	*(*arrays())[cnt].arrayptr= _memalloc->realloc(cnt,*(*arrays())[cnt].arrayptr,_totalnchunks * _allocchunksize * (*arrays())[cnt].elemsize);
+	if ((*arrays()).at(cnt).destroyed) continue;
+	*arrays()->at(cnt).arrayptr= _memalloc->realloc(recording_path,recrevision,arrays()->at(cnt).id,*arrays()->at(cnt).arrayptr,arrays()->at(cnt).elemsize);
       
 	if (_locker) {
 	  size_t arraycnt;
 	  for (arraycnt=0;arraycnt < arrays()->size();arraycnt++) {
-	    _locker->set_array_size((*arrays())[arraycnt].arrayptr,(*arrays())[arraycnt].elemsize,_totalnchunks*_allocchunksize);
+	    _locker->set_array_size(arrays()->at(arraycnt).arrayptr,arrays()->at(arraycnt).elemsize,_totalnchunks*_allocchunksize);
 	  }
 	}
 	
@@ -541,7 +550,7 @@ namespace snde {
 	for (arraycnt=0;arraycnt < curarrays->size();arraycnt++) {
 	  rwlock_token token;
 	  rwlock_token_set token_set;
-	  auto &thisarray=(*curarrays)[arraycnt];
+	  auto &thisarray=curarrays->at(arraycnt);
 
 	  token_set=empty_rwlock_token_set();
 	  token=_locker->newallocation(all_locks,thisarray.arrayptr,retpos,nelem,thisarray.elemsize);
@@ -654,7 +663,7 @@ namespace snde {
 	size_t arraycnt;
 	auto curarrays=arrays();
 	for (arraycnt=0;arraycnt < curarrays->size();arraycnt++) {
-	  auto &thisarray=(*curarrays)[arraycnt];
+	  auto &thisarray=curarrays->at(arraycnt);
 	  
 	  _locker->freeallocation(thisarray.arrayptr,addr,nelem,thisarray.elemsize);
 	}
@@ -720,7 +729,7 @@ namespace snde {
 	size_t arraycnt;
 	auto curarrays=arrays();
 	for (arraycnt=0;arraycnt < curarrays->size();arraycnt++) {
-	  auto &thisarray=(*curarrays)[arraycnt];
+	  auto &thisarray=curarrays->at(arraycnt);
 	  
 	  _locker->realloc_down_allocation(thisarray.arrayptr,addr,orignelem,newnelem);
 	}
@@ -735,10 +744,10 @@ namespace snde {
 
       // free all arrays
       for (size_t cnt=0;cnt < arrays()->size();cnt++) {
-	if (*(*arrays())[cnt].arrayptr) {
-	  if (!(*arrays())[cnt].destroyed) {
-	    _memalloc->free(cnt,*(*arrays())[cnt].arrayptr);
-	    *((*arrays())[cnt].arrayptr) = NULL;
+	if (*arrays()->at(cnt).arrayptr) {
+	  if (!arrays()->at(cnt).destroyed) {
+	    _memalloc->free(recording_path,recrevision,arrays()->at(cnt).id,*arrays()->at(cnt).arrayptr);
+	    *(arrays()->at(cnt).arrayptr) = NULL;
 	  }
 	}
       }

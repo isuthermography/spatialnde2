@@ -58,22 +58,23 @@ namespace snde {
     // virtual destructor required so we can be subclassed
     virtual ~memallocator()=default;
 
-    virtual void *malloc(memallocator_regionid id,std::size_t nbytes)=0;
-    virtual void *calloc(memallocator_regionid id,std::size_t nbytes)=0;
-    virtual void *realloc(memallocator_regionid id,void *ptr,std::size_t newsize)=0;
-    virtual std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(memallocator_regionid id, void *ptr, std::size_t offset, std::size_t length);
-    virtual void free(memallocator_regionid id,void *ptr)=0;
+
+    virtual void *malloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes)=0;
+    virtual void *calloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes)=0;
+    virtual void *realloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr,std::size_t newsize)=0;
+
+    virtual std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void *ptr, std::size_t offset, std::size_t length);
+    virtual void free(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr)=0;
   };
 
   class cmemallocator: public memallocator {
   public:
-    void *malloc(memallocator_regionid id,std::size_t nbytes);
-    void *calloc(memallocator_regionid id,std::size_t nbytes);
-
-    void *realloc(memallocator_regionid id,void *ptr,std::size_t newsize);
-    std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(memallocator_regionid id, void *ptr, std::size_t offset, std::size_t nbytes);
+    void *malloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes);
+    void *calloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes);
+    void *realloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr,std::size_t newsize);
+    std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void *ptr, std::size_t offset, std::size_t nbytes);
     
-    void free(memallocator_regionid id,void *ptr);
+    void free(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr);
 
     ~cmemallocator();
   };
