@@ -13,21 +13,23 @@ namespace snde {
   class nonmoving_copy_or_reference_posix: public nonmoving_copy_or_reference {
   public:
     // immutable once published
-    void *baseptr;
+    void **basearray;
+    void *shiftedptr;
     void *mmapaddr;
     size_t mmaplength;
-    size_t ptroffset;
+    size_t ptrshift;
     
-    nonmoving_copy_or_reference_posix(snde_index offset,snde_index length,void *mmapaddr, size_t mmaplength, size_t ptroffset);
+    nonmoving_copy_or_reference_posix(void **basearray,snde_index shift,snde_index length,void *mmapaddr, size_t mmaplength, size_t ptrshift);
     
     // rule of 3
     nonmoving_copy_or_reference_posix(const nonmoving_copy_or_reference_posix &) = delete;
     nonmoving_copy_or_reference_posix& operator=(const nonmoving_copy_or_reference_posix &) = delete; 
     virtual ~nonmoving_copy_or_reference_posix();  // virtual destructor required so we can be subclassed
     
+    virtual void **get_shiftedarray();
     virtual void **get_basearray();
-    virtual void set_basearray();
-    virtual void *get_baseptr();
+    virtual void set_shiftedarray();
+    virtual void *get_shiftedptr();
   };
 
   class shared_memory_info_posix {
@@ -78,7 +80,7 @@ namespace snde {
     virtual void *malloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes);
     virtual void *calloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes);
     virtual void *realloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr,std::size_t newsize);
-    virtual std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void *ptr, std::size_t offset, std::size_t length);
+    virtual std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void **basearray,void *ptr, std::size_t shift, std::size_t length);
     virtual void free(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr);
 
     virtual ~shared_memory_allocator_posix();

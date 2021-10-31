@@ -27,11 +27,11 @@ namespace snde {
     // When this object is destroyed, the copy or reference is no longer valid.
     // member variables are immutable once published; get_ptr is thread safe
   public:
-    size_t offset;
+    size_t shift;
     size_t length; // bytes
 
-    nonmoving_copy_or_reference(size_t offset,size_t length) :
-      offset(offset),
+    nonmoving_copy_or_reference(size_t shift,size_t length) :
+      shift(shift),
       length(length)
     {
 
@@ -41,37 +41,39 @@ namespace snde {
     nonmoving_copy_or_reference& operator=(const nonmoving_copy_or_reference &) = delete; 
     virtual ~nonmoving_copy_or_reference()=default;  // virtual destructor required so we can be subclassed
     
-    virtual void *get_baseptr()=0;
+    virtual void *get_shiftedptr()=0;
     virtual void **get_basearray()=0;
   };
 
   class nonmoving_copy_or_reference_cmem: public nonmoving_copy_or_reference {
   public:
-    void **basearray; // pointer to the maintained pointer for the data
-    void *base_ptr; // will never move
-    nonmoving_copy_or_reference_cmem(size_t offset,size_t length,void *orig_ptr) :
-      nonmoving_copy_or_reference(offset,length),
-      basearray(&base_ptr),
-      base_ptr(malloc(length))
+    void **shiftedarray; // pointer to the maintained pointer for the data
+    void *shifted_ptr; // will never move
+    void **basearray; // for locking, etc. 
+    nonmoving_copy_or_reference_cmem(size_t shift,size_t length,void **basearray,void *orig_ptr) :
+      nonmoving_copy_or_reference(shift,length),
+      shiftedarray(&shifted_ptr),
+      shifted_ptr(malloc(length)),
+      basearray(basearray)
     {
-      memcpy(base_ptr,((char *)orig_ptr)+offset,length);
+      memcpy(shifted_ptr,((char *)orig_ptr)+shift,length);
     }
     // rule of 3
     nonmoving_copy_or_reference_cmem(const nonmoving_copy_or_reference_cmem &) = delete;
     nonmoving_copy_or_reference_cmem& operator=(const nonmoving_copy_or_reference_cmem &) = delete; 
     virtual ~nonmoving_copy_or_reference_cmem()  // virtual destructor required so we can be subclassed
     {
-      std::free(base_ptr);
-      base_ptr=nullptr; 
+      std::free(shifted_ptr);
+      shifted_ptr=nullptr; 
     }
 
     virtual void **get_basearray()
     {
       return basearray;
     }
-    virtual void *get_baseptr()
+    virtual void *get_shiftedptr()
     {
-      return base_ptr;
+      return shifted_ptr;
     }
     
   };
@@ -79,7 +81,15 @@ namespace snde {
   
   class memallocator {
   public:
-    memallocator() = default;
+    bool requires_locking_read; // if set, this memallocator hooks in with the lockmanager and requires that a memory block be locked prior to reading. This offers the potential to support VRAM buffers that are mapped to the CPU or host-memory GPU buffers. Note that the infrastructure in the lockmanager to call back the memallocator to make the memory available to CPU is not in place as of this writing
+    bool requires_locking_write; // if set, this memallocator hooks in with the lockmanager and requires that a memory block be locked prior to reading. This offers the potential to support VRAM buffers that are mapped to the CPU or host-memory GPU buffers
+    
+    memallocator(bool requires_locking_read,bool requires_locking_write) :
+      requires_locking_read(requires_locking_read),
+      requires_locking_write(requires_locking_write)
+    {
+
+    }
     
     // Rule of 3
     memallocator(const memallocator &) = delete;
@@ -90,12 +100,28 @@ namespace snde {
     virtual void *malloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes)=0;
     virtual void *calloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes)=0;
     virtual void *realloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr,std::size_t newsize)=0;
-    virtual std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void *ptr, std::size_t offset, std::size_t length)=0;
+    virtual std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void **basearray,void *ptr, std::size_t offset, std::size_t length)=0;
     virtual void free(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr)=0;
   };
 
   class cmemallocator: public memallocator {
   public:
+
+
+    cmemallocator() :
+      memallocator(false,false)
+    {
+
+    }
+    
+    // Rule of 3
+    cmemallocator(const cmemallocator &) = delete;
+    cmemallocator& operator=(const cmemallocator &) = delete; 
+    // virtual destructor required so we can be subclassed
+    ~cmemallocator() {
+
+    }
+
     void *malloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes) {
       return std::malloc(nbytes);
     }
@@ -107,11 +133,11 @@ namespace snde {
     void *realloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr,std::size_t newsize) {
       return std::realloc(ptr,newsize);
     }
-    std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void *ptr, std::size_t offset, std::size_t nbytes)
+    std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void **basearray,void *ptr, std::size_t offset, std::size_t nbytes)
     {
       void *copyptr = std::malloc(nbytes);
       memcpy(copyptr,((char *)ptr)+offset,nbytes);
-      return std::make_shared<nonmoving_copy_or_reference_cmem>(offset,nbytes,ptr);
+      return std::make_shared<nonmoving_copy_or_reference_cmem>(offset,nbytes,basearray,ptr);
     }
 
     
@@ -119,9 +145,6 @@ namespace snde {
       return std::free(ptr);
     }
 
-    ~cmemallocator() {
-
-    }
   };
 
 

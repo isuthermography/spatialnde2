@@ -375,21 +375,31 @@ namespace snde {
     virtual void allocate_storage(size_t array_index,std::vector<snde_index> dimlen, bool fortran_order=false);
 
     // alternative to allocating storage: Referencing an existing recording
-    virtual void reference_immutable_recording(size_t array_index,std::shared_ptr<ndarray_recording_ref> rec,std::vector<snde_index> dimlen,std::vector<snde_index> strides,snde_index base_index);
+    virtual void reference_immutable_recording(size_t array_index,std::shared_ptr<ndarray_recording_ref> rec,std::vector<snde_index> dimlen,std::vector<snde_index> strides);
 
     
-    inline void *void_dataptr(size_t array_index)
+    inline void *void_shifted_arrayptr(size_t array_index)
+    // returns base of allocation (basearray + base_index) as a void pointer
     {
-      return *ndinfo(array_index)->basearray;
+      struct snde_ndarray_info *info=ndinfo(array_index);
+      if (info->shiftedarray) {
+	return info->shiftedarray;
+      }
+      return (((char *)(*info->basearray)) + info->base_index*info->elementsize);
       //return * storage[array_index]->addr();
     }
     
     inline void *element_dataptr(size_t array_index,const std::vector<snde_index> &idx)  // returns a pointer to an element, which is of size ndinfo()->elementsize
     {
       snde_ndarray_info *array_ndinfo = ndinfo(array_index);
-      char *base_charptr = (char *) (*array_ndinfo->basearray);
+      char *cur_charptr;
+
+      if (array_ndinfo->shiftedarray) {
+	cur_charptr=(char *)array_ndinfo->shiftedarray;
+      } else {
+	cur_charptr = ((char *)(*array_ndinfo->basearray)) + array_ndinfo->base_index*array_ndinfo->elementsize;
+      }
       
-      char *cur_charptr = base_charptr + array_ndinfo->elementsize*array_ndinfo->base_index;
       for (size_t dimnum=0;dimnum < array_ndinfo->ndim;dimnum++) {
 	snde_index thisidx = idx.at(dimnum);
 	assert(thisidx < array_ndinfo->dimlen[dimnum]);
@@ -400,9 +410,10 @@ namespace snde {
     }
 
     inline size_t element_offset(size_t array_index,const std::vector<snde_index> &idx)
+    // element_offset in terms of elements, not including base_index
     {      
       snde_ndarray_info *array_ndinfo = ndinfo(array_index);
-      size_t cur_offset = array_ndinfo->base_index;
+      size_t cur_offset = 0; //array_ndinfo->base_index;
       
       for (size_t dimnum=0;dimnum < array_ndinfo->ndim;dimnum++) {
 	snde_index thisidx = idx.at(dimnum);
@@ -449,17 +460,25 @@ namespace snde {
     inline snde_ndarray_info *ndinfo() {return &((snde_multi_ndarray_recording *)rec->info)->arrays[rec_index];}
 
 
-    inline void *void_dataptr()
+    inline void *void_shifted_arrayptr()
     {
-      return *ndinfo()->basearray;
+      if (ndinfo()->shiftedarray) {
+	return ndinfo()->shiftedarray;
+      } 
+      return (void *)(((char *)(*ndinfo()->basearray)) + ndinfo()->base_index*ndinfo()->elementsize);
     }
     
     inline void *element_dataptr(const std::vector<snde_index> &idx)  // returns a pointer to an element, which is of size ndinfo()->elementsize
     {
       snde_ndarray_info *array_ndinfo = ndinfo();
-      char *base_charptr = (char *) (*array_ndinfo->basearray);
+      char *cur_charptr;
       
-      char *cur_charptr = base_charptr + array_ndinfo->elementsize*array_ndinfo->base_index;
+      if (array_ndinfo->shiftedarray) {
+	cur_charptr=(char *)array_ndinfo->shiftedarray;
+      } else {
+	cur_charptr = ((char *)(*array_ndinfo->basearray)) + array_ndinfo->base_index*array_ndinfo->elementsize;
+      }
+      
       for (size_t dimnum=0;dimnum < array_ndinfo->ndim;dimnum++) {
 	snde_index thisidx = idx.at(dimnum);
 	assert(thisidx < array_ndinfo->dimlen[dimnum]);
@@ -470,9 +489,10 @@ namespace snde {
     }
 
     inline size_t element_offset(const std::vector<snde_index> &idx)
+    // element_offset in terms of elements, not including base_index
     {      
       snde_ndarray_info *array_ndinfo = ndinfo();
-      size_t cur_offset = array_ndinfo->base_index;
+      size_t cur_offset = 0; //array_ndinfo->base_index;
       
       for (size_t dimnum=0;dimnum < array_ndinfo->ndim;dimnum++) {
 	snde_index thisidx = idx.at(dimnum);
@@ -856,9 +876,9 @@ namespace snde {
       return std::make_shared<ndtyped_recording_ref>(new_rec,0);
     }
     
-    inline T *dataptr() { return (T*)void_dataptr(); }
+    inline T *shifted_arrayptr() { return (T*)void_shifted_arrayptr(); }
 
-    inline T& element(const std::vector<snde_index> &idx) { return *(dataptr()+element_offset(idx)); }
+    inline T& element(const std::vector<snde_index> &idx) { return *(shifted_arrayptr()+element_offset(idx)); }
     
     // rule of 3
     ndtyped_recording_ref & operator=(const ndtyped_recording_ref &) = delete; 
@@ -881,7 +901,7 @@ namespace snde {
     typename std::enable_if<std::is_arithmetic<U>::value,double>::type _element_double(const std::vector<snde_index> &idx) // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
     {
       size_t offset = element_offset(idx);
-      return (double)dataptr()[offset];
+      return (double)shifted_arrayptr()[offset];
     }
 
     // element_double for nonarithmetic types
@@ -896,7 +916,7 @@ namespace snde {
     typename std::enable_if<std::is_arithmetic<U>::value,void>::type _assign_double(const std::vector<snde_index> &idx,double val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
     {
       size_t offset = element_offset(idx);
-      dataptr()[offset]=(T)val;      
+      shifted_arrayptr()[offset]=(T)val;      
     }
 
     // assign_double for nonarithmetic types
@@ -912,7 +932,7 @@ namespace snde {
     typename std::enable_if<std::is_arithmetic<U>::value,int64_t>::type _element_int(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
     {
       size_t offset = element_offset(idx);
-      return (int64_t)dataptr()[offset];
+      return (int64_t)shifted_arrayptr()[offset];
     }
 
     // element_int for non-arithmetic types
@@ -927,7 +947,7 @@ namespace snde {
     typename std::enable_if<std::is_arithmetic<U>::value,void>::type  _assign_int(const std::vector<snde_index> &idx,int64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
     {
       size_t offset = element_offset(idx);
-      dataptr()[offset]=(T)val;
+      shifted_arrayptr()[offset]=(T)val;
     }
 
     // assign_int for non-arithmetic types
@@ -942,7 +962,7 @@ namespace snde {
     typename std::enable_if<std::is_arithmetic<U>::value,uint64_t>::type _element_unsigned(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
     {
       size_t offset = element_offset(idx);
-      return (uint64_t)dataptr()[offset];
+      return (uint64_t)shifted_arrayptr()[offset];
     }
     
     // element_unsigned for non-arithmetic types
@@ -958,7 +978,7 @@ namespace snde {
     typename std::enable_if<std::is_arithmetic<U>::value,void>::type _assign_unsigned(const std::vector<snde_index> &idx,uint64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
     {
       size_t offset = element_offset(idx);
-      dataptr()[offset]=(T)val;
+      shifted_arrayptr()[offset]=(T)val;
     }
 
 

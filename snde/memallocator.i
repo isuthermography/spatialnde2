@@ -17,7 +17,7 @@ namespace snde {
     // When this object is destroyed, the copy or reference is no longer valid.
     // member variables are immutable once published; get_ptr is thread safe
   public:
-    size_t offset;
+    size_t shift;
     size_t length; // bytes
 
     nonmoving_copy_or_reference(size_t offset,size_t length);
@@ -27,14 +27,15 @@ namespace snde {
     virtual ~nonmoving_copy_or_reference();  // virtual destructor required so we can be subclassed
 
     
-    virtual void *get_baseptr()=0;
+    virtual void *get_shiftedptr()=0;
     virtual void **get_basearray()=0;
   };
 
   class nonmoving_copy_or_reference_cmem: public nonmoving_copy_or_reference {
   public:
-    void **basearray; // pointer to the maintained pointer for the data
-    void *base_ptr; // will never move
+    void **shiftedarray; // pointer to the maintained pointer for the data
+    void *shifted_ptr; // will never move
+    void **basearray; // for locking, etc. 
 
     nonmoving_copy_or_reference_cmem(size_t offset,size_t length,void *ptr);
     // rule of 3
@@ -43,7 +44,7 @@ namespace snde {
     virtual ~nonmoving_copy_or_reference_cmem();  // virtual destructor required so we can be subclassed
 
     
-    virtual void *get_baseptr()=0;
+    virtual void *get_shiftedptr()=0;
     virtual void **get_basearray()=0;
   };
 
@@ -63,7 +64,7 @@ namespace snde {
     virtual void *calloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes)=0;
     virtual void *realloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr,std::size_t newsize)=0;
 
-    virtual std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void *ptr, std::size_t offset, std::size_t length);
+    virtual std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void **basearray,void *ptr, std::size_t offset, std::size_t length);
     virtual void free(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr)=0;
   };
 
@@ -72,7 +73,7 @@ namespace snde {
     void *malloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes);
     void *calloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes);
     void *realloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr,std::size_t newsize);
-    std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void *ptr, std::size_t offset, std::size_t nbytes);
+    std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void **basearray,void *ptr, std::size_t offset, std::size_t nbytes);
     
     void free(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr);
 

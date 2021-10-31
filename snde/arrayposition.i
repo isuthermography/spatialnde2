@@ -5,12 +5,11 @@
 namespace snde {
   class arraylayout {
   public:
-    snde_index base_index;
     std::vector<snde_index> dimlen; // multidimensional shape...
     std::vector<snde_index> strides; // stride for each dimension... see numpy manual for detailed discussion. strides[0] being smallest is fortran layout; strides[last] being smallest is C layout
     
-    arraylayout(std::vector<snde_index> dimlen,bool fortran_layout=false,snde_index base_index=0);
-    arraylayout(std::vector<snde_index> dimlen,std::vector<snde_index> strides,snde_index base_index=0);
+    arraylayout(std::vector<snde_index> dimlen,bool fortran_layout=false);
+    arraylayout(std::vector<snde_index> dimlen,std::vector<snde_index> strides);
     bool is_c_contiguous();
     
     bool is_f_contiguous();

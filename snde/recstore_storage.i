@@ -27,21 +27,29 @@ namespace snde {
     memallocator_regionid id;
 
     void **_basearray; // pointer to lockable address for recording array (lockability if recording is mutable)
+    void *shiftedarray; // if not NULL, overrides *basearray. Includes base_index already added in.
     size_t elementsize;
+    snde_index base_index;
     unsigned typenum; // MET_...
     snde_index nelem;
+    snde_bool requires_locking_read;
+    snde_bool requires_locking_write;
     bool finalized; // if set, this is an immutable recording and its values have been set. Does NOT mean the data is valid indefinitely, as this could be a reference that loses validity at some point. 
     
     // constructor
-    recording_storage(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,unsigned typenum,snde_index nelem,bool finalized);
+    recording_storage(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized);
     
     // Rule of 3
     recording_storage(const recording_storage &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
     recording_storage& operator=(const recording_storage &) = delete; 
     virtual ~recording_storage()=default; // virtual destructor so we can subclass
 
-    virtual void **addr()=0; // return pointer to recording base address pointer
-    virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference(snde_index offset, snde_index length)=0; // NOTE: The returned storage can only be trusted if (a) the originating recording is immutable, or (b) the originating recording is mutable but has not been changed since obtain_nonmoving_copy_or_reference() was called. i.e. can only be used as long as the originating recording is unchanged. Note that this is used only for getting a direct reference within a larger (perhaps mutable) allocation, such as space for a texture or mesh geometry. If you are just referencing a range of elements of a finalized waveofrm you can just reference the recording_storage shared pointer with a suitable base_index, stride array, and dimlen array. 
+    virtual void *dataaddr_or_null()=0; // return pointer to recording base address pointer for memory access or nullptr if it should be accessed via lockableaddr() because it might yet move in the future. Has base_index already added in
+    virtual void *cur_dataaddr()=0; // return pointer with shift built-in.
+    virtual void **lockableaddr()=0; // return pointer to recording base address pointer for locking
+
+    virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference()=0; // NOTE: The returned storage can only be trusted if (a) the originating recording is immutable, or (b) the originating recording is mutable but has not been changed since obtain_nonmoving_copy_or_reference() was called. i.e. can only be used as long as the originating recording is unchanged. Note that this is used only for getting a direct reference within a larger (perhaps mutable) allocation, such as space for a texture or mesh geometry. If you are just referencing a range of elements of a finalized waveofrm you can just reference the recording_storage shared pointer with a suitable base_index, stride array, and dimlen array. 
+
     
   };
 
@@ -59,10 +67,15 @@ namespace snde {
     std::shared_ptr<memallocator> lowlevel_alloc; // low-level allocator
     void *_baseptr; // this is what _basearray points at; access through superclass addr() method
 
-    recording_storage_simple(std::string recording_path,uint64_t recrevision,memallocator_regionid id,size_t elementsize,unsigned typenum,snde_index nelem,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr);
-    virtual ~recording_storage_simple() = default; // _baseptr contents freed when all references to lowlevel_alloc go away
-    virtual void **addr();
-    virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference(snde_index offset, snde_index length);
+    // don't create this yourself, get it from recording_storage_manager_simple
+    recording_storage_simple(std::string recording_path,uint64_t recrevision,memallocator_regionid id,size_t elementsize,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr);
+    recording_storage_simple(const recording_storage_simple &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
+    recording_storage_simple& operator=(const recording_storage_simple &) = delete; 
+    virtual ~recording_storage_simple(); // frees  _baseptr 
+    virtual void *dataaddr_or_null();
+    virtual void *cur_dataaddr();
+    virtual void **lockableaddr();
+    virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference();
   };
 
   class recording_storage_reference: public recording_storage {
@@ -74,8 +87,10 @@ namespace snde {
 
     recording_storage_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id,snde_index nelem,std::shared_ptr<recording_storage> orig,std::shared_ptr<nonmoving_copy_or_reference> ref);
     virtual ~recording_storage_reference() = default; 
-    virtual void **addr();
-    virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference(snde_index offset, snde_index length);
+    virtual void *dataaddr_or_null();
+    virtual void *cur_dataaddr();
+    virtual void **lockableaddr();
+    virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference();
   };
 
   class recording_storage_manager {
@@ -89,11 +104,12 @@ namespace snde {
     recording_storage_manager& operator=(const recording_storage_manager &) = delete; 
     virtual ~recording_storage_manager() = default; // virtual destructor so we can subclass
     
-    virtual std::tuple<std::shared_ptr<recording_storage>,snde_index> allocate_recording(std::string recording_path,std::string array_name, // use "" for default array
-										       uint64_t recrevision,
-										       size_t elementsize,
-										       unsigned typenum, // MET_...
-										       snde_index nelem)=0; // returns (storage pointer,base_index); note that the recording_storage nelem may be different from what was requested.
+    virtual std::shared_ptr<recording_storage>  allocate_recording(std::string recording_path,std::string array_name, // use "" for default array
+								   uint64_t recrevision,
+								   size_t elementsize,
+								   unsigned typenum, // MET_...
+								   snde_index nelem,
+								   bool is_mutable)=0; // returns (storage pointer,base_index); note that the recording_storage nelem may be different from what was requested.
     
   };
 
@@ -103,11 +119,12 @@ namespace snde {
   public:
     recording_storage_manager_simple(std::shared_ptr<memallocator> lowlevel_alloc);
     virtual ~recording_storage_manager_simple() = default; 
-    virtual std::tuple<std::shared_ptr<recording_storage>,snde_index> allocate_recording(std::string recording_path, std::string array_name, // use "" for default array within recording
-										       uint64_t recrevision,
-										       size_t elementsize,
-										       unsigned typenum, // MET_...
-										       snde_index nelem); // returns (storage pointer,base_index); note that the recording_storage nelem may be different from what was requested.
+    virtual std::shared_ptr<recording_storage> allocate_recording(std::string recording_path,std::string array_name, // use "" for default array within recording
+								  uint64_t recrevision,
+								  size_t elementsize,
+								  unsigned typenum, // MET_...
+								  snde_index nelem,
+								  bool is_mutable); // returns (storage pointer,base_index); note that the recording_storage nelem may be different from what was requested.
     
     
   };

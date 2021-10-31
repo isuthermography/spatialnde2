@@ -640,6 +640,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     //ndinfo()->requires_locking_read=false;
     //ndinfo()->requires_locking_write=false;
     //ndinfo()->basearray = nullptr;
+    //ndinfo()->shiftedarray = nullptr;
     //ndinfo()->basearray_holder = nullptr;
 
   }
@@ -666,6 +667,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     ndinfo(index)->requires_locking_read=false;
     ndinfo(index)->requires_locking_write=false;
     ndinfo(index)->basearray = nullptr;
+    ndinfo(index)->shiftedarray = nullptr;
     //ndinfo()->basearray_holder = nullptr;
 
     
@@ -804,7 +806,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
       array_name = name_reverse_mapping.at(array_index);
     }
     
-    std::tie(storage.at(array_index),base_index) = storage_manager->allocate_recording(info->name,array_name,info->revision,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem);
+    storage.at(array_index) = storage_manager->allocate_recording(info->name,array_name,info->revision,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem,!info->immutable);
     std::vector<snde_index> strides;
 
     strides.reserve(dimlen.size());
@@ -823,15 +825,19 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
       
     }
     
-    layouts.at(array_index)=arraylayout(dimlen,strides,base_index);
-    ndinfo(array_index)->basearray = storage.at(array_index)->addr();
-    ndinfo(array_index)->base_index=layouts.at(array_index).base_index;
+    layouts.at(array_index)=arraylayout(dimlen,strides);
+    ndinfo(array_index)->basearray = storage.at(array_index)->lockableaddr();
+    ndinfo(array_index)->base_index=storage.at(array_index)->base_index;
     ndinfo(array_index)->ndim=layouts.at(array_index).dimlen.size();
     ndinfo(array_index)->dimlen=layouts.at(array_index).dimlen.data();
     ndinfo(array_index)->strides=layouts.at(array_index).strides.data();
+    ndinfo(array_index)->requires_locking_read=storage.at(array_index)->requires_locking_read;
+    ndinfo(array_index)->requires_locking_write=storage.at(array_index)->requires_locking_write;
+    ndinfo(array_index)->shiftedarray = storage.at(array_index)->dataaddr_or_null();
+    
   }
 
-  void multi_ndarray_recording::reference_immutable_recording(size_t array_index,std::shared_ptr<ndarray_recording_ref> rec,std::vector<snde_index> dimlen,std::vector<snde_index> strides,snde_index base_index)
+  void multi_ndarray_recording::reference_immutable_recording(size_t array_index,std::shared_ptr<ndarray_recording_ref> rec,std::vector<snde_index> dimlen,std::vector<snde_index> strides)
   {
     snde_index first_index;
     snde_index last_index;
@@ -850,7 +856,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     ndinfo(array_index)->elementsize = rec->ndinfo()->elementsize;
     
     
-    first_index=base_index;
+    first_index=0;
     for (dimnum=0;dimnum < dimlen.size();dimnum++) {
       if (strides.at(dimnum) < 0) { // this is somewhat academic because strides is currently snde_index, which is currently unsigned so can't possibly be negative. This test is here in case we make snde_index signed some time in the future... 
 	first_index += strides.at(dimnum)*(dimlen.at(dimnum))-1;
@@ -860,7 +866,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
       throw snde_error("Referencing negative indices in recording %s trying to reference data from recording %s",rec->rec->info->name,rec->rec->info->name);
     }
 
-    last_index=base_index;
+    last_index=0;
     for (dimnum=0;dimnum < dimlen.size();dimnum++) {
       if (strides.at(dimnum) > 0) { 
 	last_index += strides.at(dimnum)*(dimlen.at(dimnum))-1;
@@ -872,12 +878,16 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
 
     
     storage.at(array_index) = rec->storage;
-    layouts.at(array_index)=arraylayout(dimlen,strides,base_index);
-    
-    ndinfo(array_index)->base_index=layouts.at(array_index).base_index;
+    layouts.at(array_index)=arraylayout(dimlen,strides);
+
+    ndinfo(array_index)->basearray = storage.at(array_index)->lockableaddr();
+    ndinfo(array_index)->base_index=storage.at(array_index)->base_index;
     ndinfo(array_index)->ndim=layouts.at(array_index).dimlen.size();
     ndinfo(array_index)->dimlen=layouts.at(array_index).dimlen.data();
     ndinfo(array_index)->strides=layouts.at(array_index).strides.data();
+    ndinfo(array_index)->requires_locking_read=storage.at(array_index)->requires_locking_read;
+    ndinfo(array_index)->requires_locking_write=storage.at(array_index)->requires_locking_write;
+    ndinfo(array_index)->shiftedarray = storage.at(array_index)->dataaddr_or_null();
     
   }
 
@@ -2880,7 +2890,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     channel_state & wss_chan = calc_wss->recstatus.channel_map.at(new_rec->info->name);
     assert(wss_chan.config->owner_id == owner_id);
     assert(wss_chan.config->math);
-    new_rec->info->immutable = wss_chan.config->data_mutable;
+    new_rec->info->immutable = !wss_chan.config->data_mutable;
     
     std::atomic_store(&wss_chan._rec,new_rec);
   }

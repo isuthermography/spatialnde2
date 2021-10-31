@@ -45,7 +45,8 @@ struct snde_ndarray_info {
 
   // physical data storage
   void **basearray; // double-pointer generally passed around, used for locking, etc. so that storage can be moved around if the recording is mutable. For independently-stored recordings this points at the _baseptr of the recording_storage_simple object. 
-  
+
+  void *shiftedarray;
   //void *basearray_holder; // replaced by _baseptr of recording_storage_simple object 
 
 };

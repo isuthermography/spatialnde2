@@ -411,7 +411,7 @@ namespace snde {
 	
 	
     
-    // NOTE: any captured variables passed to lock_alloc_function should be "smart" so that they don't leak if subsequent lambdas are never called because we returned false
+    // NOTE: any captured variables passed by decide_execution to lock_alloc_function should be "smart" so that they don't leak if subsequent lambdas are never called because we returned false
     // NOTE: If you choose to override decide_execution, the decision should be made
     // quickly without going through the full calculations. 
     virtual std::pair<bool,std::shared_ptr<compute_options_function_override_type>> decide_execution(Ts...) // only used if new_revision_optional set in the math_function
@@ -548,6 +548,7 @@ namespace snde {
 
     
     // don't override if you implement decide_execution() and return a suitable lock_alloc() from that.
+    // NOTE: it is OK for lock_alloc to be a no-op and do your locking/allocation inline in the execution
     virtual std::shared_ptr<exec_function_override_type>lock_alloc(Ts... ts) {
       throw snde_error("lock_alloc method must be provided or returned from metadata function");
 

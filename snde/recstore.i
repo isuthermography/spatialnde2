@@ -200,43 +200,13 @@ namespace snde {
     virtual void allocate_storage(size_t array_index,std::vector<snde_index> dimlen, bool fortran_order=false);
 
     // alternative to allocating storage: Referencing an existing recording
-    virtual void reference_immutable_recording(size_t array_index,std::shared_ptr<ndarray_recording_ref> rec,std::vector<snde_index> dimlen,std::vector<snde_index> strides,snde_index base_index);
+    virtual void reference_immutable_recording(size_t array_index,std::shared_ptr<ndarray_recording_ref> rec,std::vector<snde_index> dimlen,std::vector<snde_index> strides);
 
     
-    inline void *void_dataptr(size_t array_index)
-    {
-      return *ndinfo(array_index)->basearray;
-    }
+    inline void *void_shifted_arrayptr(size_t array_index);
     
-    inline void *element_dataptr(size_t array_index,const std::vector<snde_index> &idx)  // returns a pointer to an element, which is of size ndinfo()->elementsize
-    {
-      snde_ndarray_info *array_ndinfo = ndinfo(array_index);
-      char *base_charptr = (char *) (*array_ndinfo->basearray);
-      
-      char *cur_charptr = base_charptr + array_ndinfo->elementsize*array_ndinfo->base_index;
-      for (size_t dimnum=0;dimnum < array_ndinfo->ndim;dimnum++) {
-	snde_index thisidx = idx.at(dimnum);
-	assert(thisidx < array_ndinfo->dimlen[dimnum]);
-	cur_charptr += array_ndinfo->strides[dimnum]*array_ndinfo->elementsize*thisidx;
-      }
-      
-      return (void *)cur_charptr;
-    }
-
-    inline size_t element_offset(size_t array_index,const std::vector<snde_index> &idx)
-    {      
-      snde_ndarray_info *array_ndinfo = ndinfo(array_index);
-      size_t cur_offset = array_ndinfo->base_index;
-      
-      for (size_t dimnum=0;dimnum < array_ndinfo->ndim;dimnum++) {
-	snde_index thisidx = idx.at(dimnum);
-	assert(thisidx < array_ndinfo->dimlen[dimnum]);
-	cur_offset += array_ndinfo->strides[dimnum]*thisidx;
-      }
-      
-      return cur_offset;
-      
-    }
+    inline void *element_dataptr(size_t array_index,const std::vector<snde_index> &idx);  // returns a pointer to an element, which is of size ndinfo()->elementsize
+    inline size_t element_offset(size_t array_index,const std::vector<snde_index> &idx);
     double element_double(size_t array_index,const std::vector<snde_index> &idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
     void assign_double(size_t array_index,const std::vector<snde_index> &idx,double val); // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
 
@@ -275,10 +245,7 @@ namespace snde {
     inline snde_ndarray_info *ndinfo() {return &((snde_multi_ndarray_recording *)rec->info)->arrays[rec_index];}
 
 
-    inline void *void_dataptr()
-    {
-      return *ndinfo()->basearray;
-    }
+    inline void *void_shifted_arrayptr();
     
     inline void *element_dataptr(const std::vector<snde_index> &idx)  // returns a pointer to an element, which is of size ndinfo()->elementsize
     {
@@ -345,7 +312,7 @@ namespace snde {
       // swig wrapped us with something that dropped it (!)
       PyGILState_STATE gstate = PyGILState_Ensure();
       Py_IncRef((PyObject *)ArrayDescr); // because PyArray_NewFromDescr steals a reference to its descr parameter
-      PyArrayObject *obj = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type,ArrayDescr,self->layout.dimlen.size(),dims.data(),strides.data(),self->void_dataptr(),0,nullptr);
+      PyArrayObject *obj = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type,ArrayDescr,self->layout.dimlen.size(),dims.data(),strides.data(),self->void_shifted_arrayptr(),0,nullptr);
 
       // memory_holder_obj contains a shared_ptr to "this", i.e. the ndarray_recording.  We will store this in the "base" property of obj so that as long as obj lives, so will the ndarray_recording, and hence its memory.
       // (This code is similar to the code returned by _wrap_recording_base_cast_to_ndarray()

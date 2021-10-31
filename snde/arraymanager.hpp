@@ -72,7 +72,7 @@ namespace snde {
     /* in this simple manager, allocators _memalloc and locker are presumed to be fixed
        after single-threaded startup, so we don't worry about thread safety */
     //std::unordered_map<void **,std::shared_ptr<allocator>> allocators;
-    std::shared_ptr<memallocator> _memalloc; /* must be fixed and unchanged after initialization */
+    std::shared_ptr<memallocator> _memalloc; /* must be fixed and unchanged after initialization (reason for leading underscore is unclear (?))*/
     std::shared_ptr<lockmanager> locker; /* must be fixed and unchanged after initialization */
     std::shared_ptr<allocator_alignment> alignment_requirements; /* must be fixed and unchanged after initialization */
 

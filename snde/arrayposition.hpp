@@ -8,18 +8,15 @@
 namespace snde {
   class arraylayout {
   public:
-    snde_index base_index;
     std::vector<snde_index> dimlen; // multidimensional shape...
     std::vector<snde_index> strides; // stride for each dimension... see numpy manual for detailed discussion. strides[0] being smallest is fortran layout; strides[last] being smallest is C layout
 
-    arraylayout() :
-      base_index(0)
+    arraylayout() 
     {
 
     }
     
-    arraylayout(std::vector<snde_index> dimlen,bool fortran_layout=false,snde_index base_index=0) :
-      base_index(base_index),
+    arraylayout(std::vector<snde_index> dimlen,bool fortran_layout=false) :
       dimlen(dimlen),
       strides(dimlen.size(),0)
     {
@@ -41,8 +38,7 @@ namespace snde {
       }
     }
     
-    arraylayout(std::vector<snde_index> dimlen,std::vector<snde_index> strides,snde_index base_index=0) :
-      base_index(base_index),
+    arraylayout(std::vector<snde_index> dimlen,std::vector<snde_index> strides) :
       dimlen(dimlen),
       strides(strides)
     {

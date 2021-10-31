@@ -33,9 +33,9 @@ namespace snde {
   }
 
   
-  nonmoving_copy_or_reference_posix::nonmoving_copy_or_reference_posix(snde_index offset, snde_index length,void *mmapaddr, size_t mmaplength, size_t ptroffset) : nonmoving_copy_or_reference(offset,length),mmapaddr(mmapaddr),mmaplength(mmaplength),ptroffset(ptroffset)
+  nonmoving_copy_or_reference_posix::nonmoving_copy_or_reference_posix(void **basearray,snde_index shift, snde_index length,void *mmapaddr, size_t mmaplength, size_t ptrshift) : nonmoving_copy_or_reference(shift,length),basearray(basearray),mmapaddr(mmapaddr),mmaplength(mmaplength),ptrshift(ptrshift)
   {
-    set_basearray();
+    set_shiftedarray();
 
   }
 
@@ -47,20 +47,26 @@ namespace snde {
     mmapaddr=nullptr;
   }
   
-  void **nonmoving_copy_or_reference_posix::get_basearray()
+  void **nonmoving_copy_or_reference_posix::get_shiftedarray()
   {
-    return &baseptr;
+    return &shiftedptr;
     
   }
 
-  void nonmoving_copy_or_reference_posix::set_basearray()
+  void **nonmoving_copy_or_reference_posix::get_basearray()
+  {
+    return basearray;
+    
+  }
+
+  void nonmoving_copy_or_reference_posix::set_shiftedarray()
   // must be called once mmapaddr is finalized
   {
-    baseptr = get_baseptr();
+    shiftedptr = get_shiftedptr();
   }
-  void *nonmoving_copy_or_reference_posix::get_baseptr()
+  void *nonmoving_copy_or_reference_posix::get_shiftedptr()
   {
-    return (void *)(((char *)mmapaddr)+ptroffset);
+    return (void *)(((char *)mmapaddr)+ptrshift);
     
   }
   
@@ -79,7 +85,7 @@ namespace snde {
   }
 
   shared_memory_allocator_posix::shared_memory_allocator_posix() :
-    memallocator()
+    memallocator(false,false)
   {
 
     
@@ -162,7 +168,7 @@ namespace snde {
   }
   
   
-  std::shared_ptr<nonmoving_copy_or_reference> shared_memory_allocator_posix::obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void *ptr, std::size_t offset, std::size_t length)
+  std::shared_ptr<nonmoving_copy_or_reference> shared_memory_allocator_posix::obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void **basearray,void *ptr, std::size_t shift, std::size_t length)
   {
 
     long page_size;
@@ -177,16 +183,16 @@ namespace snde {
     shared_memory_info_posix &this_info = _shm_info.find(std::make_tuple(recording_path,recrevision,id))->second;
     assert(this_info.addr==ptr);
     
-    size_t offsetpages = offset/page_size;
-    size_t ptroffset = offset-offsetpages*page_size;
-    size_t mmaplength=length + ptroffset;
+    size_t shiftpages = shift/page_size;
+    size_t ptrshift = shift-shiftpages*page_size;
+    size_t mmaplength=length + ptrshift;
     
-    void *mmapaddr = mmap(nullptr,mmaplength,PROT_READ|PROT_WRITE,MAP_SHARED,this_info.fd,offsetpages*page_size);
+    void *mmapaddr = mmap(nullptr,mmaplength,PROT_READ|PROT_WRITE,MAP_SHARED,this_info.fd,shiftpages*page_size);
     if (mmapaddr==MAP_FAILED) {
-      throw posix_error("shared_memory_allocator_posix::obtain_nonmoving_copy_or_reference mmap(%s,%llu,%llu)",this_info.shm_name.c_str(),(unsigned long long)mmaplength,(unsigned long long)(offsetpages*page_size));
+      throw posix_error("shared_memory_allocator_posix::obtain_nonmoving_copy_or_reference mmap(%s,%llu,%llu)",this_info.shm_name.c_str(),(unsigned long long)mmaplength,(unsigned long long)(shiftpages*page_size));
       
     }
-    return std::make_shared<nonmoving_copy_or_reference_posix>(offset,length,mmapaddr,mmaplength,ptroffset);
+    return std::make_shared<nonmoving_copy_or_reference_posix>(basearray,shift,length,mmapaddr,mmaplength,ptrshift);
     
   }
 
