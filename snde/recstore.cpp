@@ -129,7 +129,7 @@ namespace snde {
     info{nullptr},
     info_state(SNDE_RECS_INITIALIZING),
     metadata(nullptr),
-    storage_manager(recdb->default_storage_manager),
+    storage_manager(nullptr), // defined in end_transaction()
     recdb_weak(recdb), 
     defining_transact(recdb->current_transaction),
     _originating_wss()
@@ -151,26 +151,79 @@ namespace snde {
     *info = info_prototype;
     
   }
+
+  static std::shared_ptr<recording_storage_manager> select_storage_manager_for_recording_during_transaction(std::shared_ptr<recdatabase> recdb,std::string chanpath)
+  {
+    // normally use select_storage_manager_for_recording (below) but if we create a recording during the transaction, the rss isn't created yet
+    // so instead we walk the recdb's list of channels
+
+    // Go up through hierarchy searching for a storage manager.
+    // Drop down to the default if we hit the root
+    std::string base=chanpath;
+    std::string leaf;
+
+    std::lock_guard<std::mutex> recdb_admin(recdb->admin);
+    
+    do {
+      std::map<std::string,std::shared_ptr<channel>>::iterator channel_it=recdb->_channels.find(base);
+      if (channel_it != recdb->_channels.end()) {
+	// this folder/directory has an explicit channel entry
+	
+	std::shared_ptr<channelconfig> config = channel_it->second->config();
+	if (config->storage_manager) {
+	  return config->storage_manager;
+	}
+      }
+      std::tie(base,leaf)=recdb_path_split(base);
+    } while ((base.size() > 0) && !(base == "/" && leaf.size()==0));
+    
+    return recdb->default_storage_manager;
+    
+    
+  }
   
-  recording_base::recording_base(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> calc_wss,size_t info_structsize) :
+  static std::shared_ptr<recording_storage_manager> select_storage_manager_for_recording(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> rss)
+  {
+    // Go up through hierarchy searching for a storage manager.
+    // Drop down to the default if we hit the root
+    std::string base=chanpath;
+    std::string leaf;
+
+    do {
+      std::map<std::string,channel_state>::iterator channel_map_it=rss->recstatus.channel_map.find(base);
+      if (channel_map_it != rss->recstatus.channel_map.end()) {
+	// this folder/directory has an explicit channel entry
+	
+	std::shared_ptr<channelconfig> config = channel_map_it->second.config;
+	if (config->storage_manager) {
+	  return config->storage_manager;
+	}
+      }
+      std::tie(base,leaf)=recdb_path_split(base);
+    } while ((base.size() > 0) && !(base == "/" && leaf.size()==0));
+    
+    return recdb->default_storage_manager;
+  }
+  
+  recording_base::recording_base(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,size_t info_structsize) :
     // This constructor is reserved for the math engine
     // Creates recording structure and adds to the pre-existing globalrev.
     info{nullptr},
     info_state(SNDE_RECS_INITIALIZING),
     metadata(nullptr),
-    storage_manager(recdb->default_storage_manager),
+    storage_manager(select_storage_manager_for_recording(recdb,chanpath,calc_rss)),
     recdb_weak(recdb),
-    defining_transact((std::dynamic_pointer_cast<globalrevision>(calc_wss)) ? (std::dynamic_pointer_cast<globalrevision>(calc_wss)->defining_transact):nullptr),
-    _originating_wss(calc_wss)
+    defining_transact((std::dynamic_pointer_cast<globalrevision>(calc_rss)) ? (std::dynamic_pointer_cast<globalrevision>(calc_rss)->defining_transact):nullptr),
+    _originating_wss(calc_rss)
   {
 
     uint64_t new_revision=0;
 
-    if (std::dynamic_pointer_cast<globalrevision>(calc_wss)) {
-      // if calc_wss is really a globalrevision (i.e. not an ondemand calculation)
+    if (std::dynamic_pointer_cast<globalrevision>(calc_rss)) {
+      // if calc_rss is really a globalrevision (i.e. not an ondemand calculation)
       // then we need to define a new revision of this recording
             
-      channel_state &state = calc_wss->recstatus.channel_map.at(chanpath);
+      channel_state &state = calc_rss->recstatus.channel_map.at(chanpath);
       assert(!state.config->ondemand);
 
       // if the new_revision_optional flag is set, then we have to define the new revision now;
@@ -614,10 +667,10 @@ namespace snde {
   }
 
   // after construction, must call .define_array() exactly once for each ndarray
-multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> calc_wss,size_t num_ndarrays,size_t info_structsize) :
+multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,size_t num_ndarrays,size_t info_structsize) :
   // This constructor is reserved for the math engine
   // Creates recording structure and adds to the pre-existing globalrev. 
-  recording_base(recdb,chanpath,calc_wss,info_structsize),
+  recording_base(recdb,chanpath,calc_rss,info_structsize),
   layouts(std::vector<arraylayout>(num_ndarrays)),
   storage(std::vector<std::shared_ptr<recording_storage>>(num_ndarrays))
   //mutable_lock(nullptr),  // for simply mutable math recordings will need to init with std::make_shared<rwlock>();
@@ -687,16 +740,16 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     recdb->register_new_rec(rec);
     return ref;
   }
-  /* static */ std::shared_ptr<ndarray_recording_ref> multi_ndarray_recording::create_typed_recording_math(std::shared_ptr<recdatabase> recdb,std::string chanpath,void *owner_id,std::shared_ptr<recording_set_state> calc_wss,unsigned typenum)
+  /* static */ std::shared_ptr<ndarray_recording_ref> multi_ndarray_recording::create_typed_recording_math(std::shared_ptr<recdatabase> recdb,std::string chanpath,void *owner_id,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum)
   {
     std::shared_ptr<multi_ndarray_recording> rec;
     std::shared_ptr<ndarray_recording_ref> ref;
 
-    rec=std::make_shared<multi_ndarray_recording>(recdb,chanpath,calc_wss,1); 
+    rec=std::make_shared<multi_ndarray_recording>(recdb,chanpath,calc_rss,1); 
     rec->define_array(0,typenum);
     ref=rec->reference_ndarray(0);
 
-    recdb->register_new_math_rec(owner_id,calc_wss,rec);
+    recdb->register_new_math_rec(owner_id,calc_rss,rec);
     return ref;
   }
 
@@ -805,6 +858,73 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     if (name_mapping.size() > 0) {
       array_name = name_reverse_mapping.at(array_index);
     }
+
+    if (!storage_manager) {
+      std::shared_ptr<recdatabase> recdb_strong=recdb_weak.lock();
+      if (!recdb_strong) return; // if recdb is vanishing we are dead too
+      
+      std::shared_ptr<recording_set_state> originating_wss_strong;
+
+      {
+	std::unique_lock<std::mutex> recdb_admin(recdb_strong->admin);
+	std::unique_lock<std::mutex> rec_admin(admin); // lock recording
+
+	originating_wss_strong = _originating_wss.lock();
+	if (!originating_wss_strong && invalid_weak_ptr_is_expired(_originating_wss)) {
+	  throw snde_error("Attempting to get expired originating recording set state (channel %s revision %llu", info->name,(unsigned long long)info->revision);
+	
+	}
+	if (!originating_wss_strong) {
+	  // in this case originating_wss was never assigned. We need to extract it
+	  
+	  bool defining_transact_is_expired = false;
+	  std::shared_ptr<transaction> defining_transact_strong=defining_transact.lock();
+	  if (!defining_transact_strong) {
+	    defining_transact_is_expired = invalid_weak_ptr_is_expired(defining_transact);
+	    if (defining_transact_is_expired) {
+	      throw snde_error("Attempting to get (expired transaction) originating recording set state (channel %s revision %llu", info->name,(unsigned long long)info->revision);
+	      
+	    } else {
+	      throw snde_error("Attempting to allocate storage for recording set state (channel %s revision %llu) for non-transaction and non-wss recording with no storage_manager set", info->name,(unsigned long long)info->revision);
+	      
+	    }
+	    
+	    
+	  }
+	  
+	  // defining_transact_strong is valid
+	  std::shared_ptr<globalrevision> originating_globalrev;
+	  bool originating_globalrev_expired;
+	  std::tie(originating_globalrev,originating_globalrev_expired) = defining_transact_strong->resulting_globalrevision();
+	  
+	  
+	  if (!originating_globalrev) {
+	    if (originating_globalrev_expired) {
+	      throw snde_error("Attempting to get (expired globalrev) originating recording set state (channel %s revision %llu", info->name,(unsigned long long)info->revision);
+	      
+	    } else {
+	      // if originating_globalrev has never been set, then the transaction must still be in progress. 
+	      // Check the channel config
+	      
+	      // drop the locks, as select_storage_manager will need to reacquire them and they will not be needed from here on 
+	      rec_admin.unlock();
+	      recdb_admin.unlock();
+	      storage_manager=select_storage_manager_for_recording_during_transaction(recdb_strong,info->name);
+	    
+	    }
+	  }
+	  
+	  originating_wss_strong = originating_globalrev;
+	}
+      } // locks dropped at this point
+
+      
+      if (!storage_manager) {
+	storage_manager = select_storage_manager_for_recording(recdb_strong,info->name,originating_wss_strong);
+      }
+    }
+    //  that whole mess above was just getting us a guaranteed storage manager
+    
     
     storage.at(array_index) = storage_manager->allocate_recording(info->name,array_name,info->revision,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem,!info->immutable);
     std::vector<snde_index> strides;
@@ -1417,6 +1537,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     for (auto && new_rec_chanpath_ptr: recdb_strong->current_transaction->new_recordings) {
 
       const std::string &chanpath=new_rec_chanpath_ptr.first;
+      const std::shared_ptr<recording_base> &rec = new_rec_chanpath_ptr.second;
       
       std::shared_ptr<channelconfig> config = all_channels_by_name.at(chanpath);
       
@@ -1424,6 +1545,12 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
       //definitively_changed_channels.emplace(config);
       unknownchanged_channels.erase(config);
 
+      // For new recordings, set the storage manager if not already set
+      if (!rec->storage_manager) {
+	rec->storage_manager = select_storage_manager_for_recording(recdb_strong,chanpath,globalrev);
+      }
+      
+      
     }
     for (auto && updated_chan: recdb_strong->current_transaction->updated_channels) {
       std::shared_ptr<channelconfig> config = updated_chan->config();
@@ -2884,10 +3011,10 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
   }
 
 
-  void recdatabase::register_new_math_rec(void *owner_id,std::shared_ptr<recording_set_state> calc_wss,std::shared_ptr<recording_base> new_rec)
+  void recdatabase::register_new_math_rec(void *owner_id,std::shared_ptr<recording_set_state> calc_rss,std::shared_ptr<recording_base> new_rec)
   // registers newly created math recording in the given wss (and extracts mutable flag for the given channel). Also checks owner_id
   {
-    channel_state & wss_chan = calc_wss->recstatus.channel_map.at(new_rec->info->name);
+    channel_state & wss_chan = calc_rss->recstatus.channel_map.at(new_rec->info->name);
     assert(wss_chan.config->owner_id == owner_id);
     assert(wss_chan.config->math);
     new_rec->info->immutable = !wss_chan.config->data_mutable;

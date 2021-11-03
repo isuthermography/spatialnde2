@@ -10,6 +10,38 @@
 #define SNDE_RECDB_PATHS_HPP
 
 namespace snde {
+
+  static inline std::pair<std::string,std::string> recdb_path_split(std::string full_path)
+  {
+    size_t sz=full_path.size();
+    size_t backpos;
+
+    //for (endpos=full_path.size()-1;endpos >= 0;endpos--) {
+    // ... but modified to be OK with unsigned indexes
+    // where endpos = full_path.size()-backpos
+    // so  backpos = full_path.size()-endpos i.e. backpos starts with 1
+    // endpos >= 0 --> full_path.size()-backpos >= 0
+    // so full_path.size() >= backpos
+    for (backpos=1;backpos <= sz;backpos++) {
+      if (full_path.at(sz-backpos)=='/') {
+	break; 
+      }
+    }
+    
+    if (backpos > sz) {
+      // loop ran through, never found a '/'
+      return std::make_pair("",full_path);
+    }
+
+    if (backpos==sz && sz==1) {
+      // just bare leading slash: return ("/","")
+      return std::make_pair("/","");
+    }
+    
+    return std::make_pair(full_path.substr(0,sz-backpos),full_path.substr(sz-backpos+1,backpos-1));
+      
+  }
+  
   
   static inline std::string recdb_path_context(std::string full_path)
   {

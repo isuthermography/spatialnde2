@@ -584,7 +584,7 @@ namespace snde {
     bool math; // math channel
 
 
-    std::shared_ptr<recording_storage_manager> storage_manager; // storage manager for newly defined recordings... Note that while the pointer is immutable, the pointed storage_manager is NOT immutable. 
+    std::shared_ptr<recording_storage_manager> storage_manager; // storage manager for newly defined recordings or nullptr to implicitly refer to an upper level or the default... Note that while the pointer is immutable, the pointed storage_manager is NOT immutable. 
     
     // The following only apply to math channels
     std::shared_ptr<instantiated_math_function> math_fcn; // If math is set, then this channel is one of the outputs of the given math_fcn  math_fcn is also immutable once published
