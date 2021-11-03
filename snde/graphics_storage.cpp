@@ -3,9 +3,12 @@
 
 namespace snde {
 
-  graphics_storage::graphics_storage(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized) :
-    recording_storage(recording_path,recrevision,id,basearray,elementsize,base_index,typenum,nelem,requires_locking_read,requires_locking_write,finalized)
-    
+  graphics_storage::graphics_storage(std::shared_ptr<arraymanager> manager,std::shared_ptr<memallocator> memalloc,std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized) :
+    recording_storage(recording_path,recrevision,id,basearray,elementsize,base_index,typenum,nelem,requires_locking_read,requires_locking_write,finalized),
+    manager(manager),
+    memalloc(memalloc)
+
+    // Note: Called with array locks held
   {
     
   }
@@ -13,17 +16,21 @@ namespace snde {
 
   void *graphics_storage::dataaddr_or_null()
   {
-    if (ref) {
-      return ref->get_shiftedptr();
+    std::shared_ptr<nonmoving_copy_or_reference> ref_ptr=ref();
+    
+    if (ref_ptr) {
+      return ref_ptr->get_shiftedptr();
     } else {
       return shiftedarray;
     }
     
   }
   void *graphics_storage::cur_dataaddr()
+  // warning -- may need to be locked for read or write as appropriate
   {
-    if (ref) {
-      return ref->get_shiftedptr();
+    std::shared_ptr<nonmoving_copy_or_reference> ref_ptr=ref();
+    if (ref_ptr) {
+      return ref_ptr->get_shiftedptr();
     } else {
       if (shiftedarray) {
 	return shiftedarray;
@@ -40,11 +47,44 @@ namespace snde {
   }
   
   std::shared_ptr<recording_storage> graphics_storage::obtain_nonmoving_copy_or_reference()
+  // Note: May (generally should be) called with the underlying data array locked for read to prevent ptr from being modified under us
   {
-    std::shared_ptr<recording_storage_reference> reference = std::make_shared<recording_storage_reference>(recording_path,recrevision,id,nelem,shared_from_this(),ref);
+
+    std::shared_ptr<nonmoving_copy_or_reference> ref_ptr=ref();
+
+    if (!ref_ptr) {
+      
+      rwlock_token_set all_locks;
+      
+      // lock for read here to make the read of *_basearray safe
+      if (requires_locking_read) {
+	std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(manager->locker);
+	std::shared_ptr<lockholder> holder = std::make_shared<lockholder>();
+	holder->store(lockprocess->get_locks_read_array(_basearray));
+	all_locks = lockprocess->finish();
+	
+      }
+      ref_ptr=memalloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,id,_basearray,*_basearray,elementsize*base_index,elementsize*nelem);
+
+      // locks released as context expires. 
+    }
+    
+    std::shared_ptr<recording_storage_reference> reference = std::make_shared<recording_storage_reference>(recording_path,recrevision,id,nelem,shared_from_this(),ref_ptr);
 
     return reference;
   }
+
+  std::shared_ptr<nonmoving_copy_or_reference> graphics_storage::ref()
+  {
+    return std::atomic_load(&_ref);
+  }
+  
+  void graphics_storage::assign_ref(std::shared_ptr<nonmoving_copy_or_reference> ref)
+  {
+    std::atomic_store(&_ref,ref);
+  }
+
+  
 
   template <typename L,typename T>
   void graphics_storage_manager::add_arrays_given_sizes(memallocator_regionid *nextid,const std::set<snde_index> &elemsizes,L **leaderptr,T **arrayptr,const std::string &arrayname)
@@ -241,19 +281,60 @@ namespace snde {
   }
 
 
-  // !!!*** how does math func grab space in a follower array???
-  std::shared_ptr<recording_storage> graphics_storage_manager::allocate_recording(std::string recording_path,std::string array_name, // use "" for default array
-										  uint64_t recrevision,
-										  size_t elementsize,
-										  unsigned typenum, // MET_...
-										  snde_index nelem,
-										  bool is_mutable) // returns (storage pointer,base_index); note that the recording_storage nelem may be different from what was requested.
+  //  math funcs use this to  grab space in a follower array
+  // NOTE: This doesn't currently prevent two math functions from
+  // grabbing the same follower array -- which could lead to corruption
+  std::shared_ptr<recording_storage> graphics_storage_manager::get_follower_storage(std::string recording_path,std::string leader_array_name,
+										    std::string follower_array_name,
+										    uint64_t recrevision,
+										    snde_index base_index, // as allocated for leader_array
+										    size_t elementsize,
+										    unsigned typenum, // MET_...
+										    snde_index nelem,
+										    bool is_mutable)
+  {
+    void **leader_arrayaddr = arrayaddr_from_name.at(leader_array_name);
+    void **follower_arrayaddr = arrayaddr_from_name.at(follower_array_name);
+    
+    if (elemsize_from_name.at(follower_array_name) != elementsize) {
+      throw snde_error("Mismatch between graphics array field %s element size with allocation: %u vs. %u",follower_array_name,(unsigned)elemsize_from_name.at(follower_array_name),(unsigned)elementsize);
+    }
+
+
+    std::shared_ptr<graphics_storage> retval = std::make_shared<graphics_storage>(manager,manager->_memalloc,recording_path,recrevision,arrayid_from_name.at(follower_array_name),follower_arrayaddr,elementsize,base_index,typenum,nelem,is_mutable || manager->_memalloc->requires_locking_read,is_mutable || manager->_memalloc->requires_locking_write,false);
+
+    // see also parallel code in allocate_recording_lockprocesss, below
+    if (!retval->requires_locking_write) {
+      // switch pointer to a nonmoving copy or reference
+
+      // assign _ref: 
+      retval->assign_ref(manager->_memalloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,retval->id,retval->_basearray,*retval->_basearray,elementsize*base_index,elementsize*nelem));
+      
+    } else if (!retval->requires_locking_read) {
+      // unimplemented so-far. This is the case of locking required for write, but not read,
+      // as (for example) lock required on write to ensure graphics cache synchronization, or not writing to
+      // graphics buffer while the entire buffer is mapped for read, etc. 
+      // Will require finalization hook of some sort to switch the pointer to a non-moving copy or reference
+      // Must not forget to also update the struct snde_array_info of the recording!!!
+      assert(0);
+    }
+
+    return retval;
+    
+  }
+  
+  
+  std::shared_ptr<recording_storage> graphics_storage_manager::allocate_recording_lockprocess(std::string recording_path,std::string array_name, // use "" for default array
+											      uint64_t recrevision,
+											      size_t elementsize,
+											      unsigned typenum, // MET_...
+											      snde_index nelem,
+											      bool is_mutable,
+											      std::shared_ptr<lockingprocess> lockprocess,
+											      std::shared_ptr<lockholder> holder) // returns (storage pointer,base_index); note that the recording_storage nelem may be different from what was requested.
   {
     // Will need to mark array as locking required for write, at least....
 
-    std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(manager->locker);
-    std::shared_ptr<lockholder> holder = std::make_shared<lockholder>();
-    rwlock_token_set all_locks;
 
     void **arrayaddr = arrayaddr_from_name.at(array_name);
     if (elemsize_from_name.at(array_name) != elementsize) {
@@ -263,23 +344,28 @@ namespace snde {
     
     holder->store_alloc(lockprocess->alloc_array_region(manager,arrayaddr,nelem,""));
 
-    all_locks = lockprocess->finish();
 
     snde_index addr = holder->get_alloc(arrayaddr,"");
     
     
-    unlock_rwlock_token_set(all_locks);
 
-    std::shared_ptr<graphics_storage> retval = std::make_shared<graphics_storage>(recording_path,recrevision,arrayid_from_name.at(array_name),arrayaddr,elementsize,addr,typenum,nelem,is_mutable || manager->_memalloc->requires_locking_read,is_mutable || manager->_memalloc->requires_locking_write,false);
+    std::shared_ptr<graphics_storage> retval = std::make_shared<graphics_storage>(manager,manager->_memalloc,recording_path,recrevision,arrayid_from_name.at(array_name),arrayaddr,elementsize,addr,typenum,nelem,is_mutable || manager->_memalloc->requires_locking_read,is_mutable || manager->_memalloc->requires_locking_write,false);
 
     // if not(requires_locking_write) we must switch the pointer to a nonmoving_copy_or_reference NOW because otherwise the array might be moved around as we try to write.
     // if not(requires_locking_read) we must switch the pointer to a nonmoving_copy_or_reference on finalization
 
+    // see also parallel code in get_follower_storage, above
     if (!retval->requires_locking_write) {
-      retval->ref = manager->_memalloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,retval->id,retval->_basearray,*retval->_basearray,elementsize*addr,elementsize*nelem);
+      // switch pointer to a nonmoving copy or reference
+
+      // assign _ref: 
+      retval->assign_ref(manager->_memalloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,retval->id,retval->_basearray,*retval->_basearray,elementsize*addr,elementsize*nelem));
       
     } else if (!retval->requires_locking_read) {
-      // unimplemented so-far. Will require finalization hook of some sort
+      // unimplemented so-far. This is the case of locking required for write, but not read,
+      // as (for example) lock required on write to ensure graphics cache synchronization, or not writing to
+      // graphics buffer while the entire buffer is mapped for read, etc. 
+      // Will require finalization hook of some sort to switch the pointer to a non-moving copy or reference
       // Must not forget to also update the struct snde_array_info of the recording!!!
       assert(0);
     }
@@ -287,6 +373,35 @@ namespace snde {
     
     return retval;
     
+  }
+
+  
+  std::shared_ptr<recording_storage> graphics_storage_manager::allocate_recording(std::string recording_path,std::string array_name, // use "" for default array
+										  uint64_t recrevision,
+										  size_t elementsize,
+										  unsigned typenum, // MET_...
+										  snde_index nelem,
+										  bool is_mutable) // returns (storage pointer,base_index); note that the recording_storage nelem may be different from what was requested.
+  {
+    std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(manager->locker);
+    std::shared_ptr<lockholder> holder = std::make_shared<lockholder>();
+    rwlock_token_set all_locks;
+    std::shared_ptr<recording_storage> retstorage;
+
+    retstorage = allocate_recording_lockprocess(recording_path,array_name, // use "" for default array
+						recrevision,
+						elementsize,
+						typenum, // MET_...
+						nelem,
+						is_mutable,
+						lockprocess,
+						holder);
+    
+    
+    all_locks = lockprocess->finish();
+    unlock_rwlock_token_set(all_locks);
+    
+    return retstorage;
   }
   
 };

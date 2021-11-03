@@ -4,6 +4,7 @@
 #include <memory>
 #include <tuple>
 #include <string>
+#include <atomic>
 
 #include "snde/snde_types.h"
 #include "snde/geometry_types.h"
@@ -28,23 +29,23 @@ namespace snde {
     // The relevant data is shadowed in
     // ((struct multi_ndarray_recording *)recording->info)->arrays[index]
   public:
-    std::string recording_path;
-    uint64_t recrevision;
-    memallocator_regionid id;
+    std::string recording_path; // immutable once constructed
+    uint64_t recrevision;  // immutable once constructed
+    memallocator_regionid id;  //immutable once constructed
     
     void **_basearray; // pointer to lockable address for recording array (lockable if recording is mutable or requires_locking_read or requires_locking_write). Don't use directly, get via lockableaddr() method
-    void *shiftedarray; // if not NULL, overrides *basearray. Includes base_index already added in.
-    size_t elementsize;
-    snde_index base_index;
-    unsigned typenum; // MET_...
-    snde_index nelem;
+    std::atomic<void *> shiftedarray; // if not NULL, overrides *basearray. Includes base_index already added in.
+    size_t elementsize; // immutable once constructed
+    snde_index base_index; //immutable once constructed 
+    unsigned typenum; // MET_...  // immutable once constructed
+    snde_index nelem;  // immutable once constructed
 
     snde_bool requires_locking_read;
     snde_bool requires_locking_write;
 
     
     
-    bool finalized; // if set, this is an immutable recording and its values have been set. Does NOT mean the data is valid indefinitely, as this could be a reference that loses validity at some point. 
+    std::atomic<bool> finalized; // if set, this is an immutable recording and its values have been set. Does NOT mean the data is valid indefinitely, as this could be a reference that loses validity at some point. 
     
     // constructor
     recording_storage(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized);

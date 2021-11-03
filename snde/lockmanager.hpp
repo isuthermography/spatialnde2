@@ -47,7 +47,7 @@ Solution: atomic lists that can be traversed, sort the results, lock, then verif
  *** NEW, UPDATED LOCKING ORDER for mostly-immutable recording database: 
  1. Entry into a transaction (StartTransaction()/EndTransaction() or equiv)
  1.5 dataguzzler-python module locks; 
- 2. Any locks required to traverse the mostly immutable recdb (hopefully few/none)
+ 2. Any locks required to traverse the mostly immutable recdb (hopefully few/none) (consisting of 2.4-2.7, below)
    * StartTransaction() defines a new global revision for the calling thread
      to mess with. Other threads will still get the prior revision and the 
      structures should generally be immutable so little/no locking required.
@@ -55,11 +55,12 @@ Solution: atomic lists that can be traversed, sort the results, lock, then verif
  2.4 The recdatabase admin lock 
  2.5 Any single recdatabase channel admin lock, or the available_compute_resource_database admin lock, or any single globalrevision admin lock
  2.7 Any recording admin lock. 
- 3. Mutable data arrays. This includes transient locking to do allocations
+ 3. Data array locks such as mutable data arrays. This includes transient locking to do allocations
     for new mutable OR IMMUTABLE sub-arrays.
     Ordering is by geometry structure or data array structure address, 
     and within Ordering is by location within the geometry structure
- 4. Any "last" locks such as the Python GIL
+ 4. Internal locks of other subsystems such as memory allocator, etc. 
+ 5. Any "last" locks such as the Python GIL
 
 Note that the above means that any code called from Python that is doing
 locking needs to DROP THE GIL FIRST, acquire locks and then re-acquire the

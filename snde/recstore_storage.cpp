@@ -21,6 +21,8 @@ namespace snde {
     requires_locking_read(requires_locking_read),
     requires_locking_write(requires_locking_write),
     finalized(finalized)
+    // Note: Called with array locks held
+
   {
 
   }
