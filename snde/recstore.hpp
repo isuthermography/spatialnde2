@@ -157,6 +157,7 @@ namespace snde {
 
   class channel_notify; // from notify.hpp
   class repetitive_channel_notify; // from notify.hpp
+  class cached_recording; // from cached_recording.hpp
   class promise_channel_notify;
   class _globalrev_complete_notify;
   class monitor_globalrevs;
@@ -241,7 +242,7 @@ namespace snde {
   public:
     std::mutex admin; 
     struct snde_recording_base *info; // owned by this class and allocated with malloc; often actually a sublcass such as snde_multi_ndarray_recording
-    std::atomic_int info_state; // atomic mirror of info->state
+    std::atomic_int info_state; // atomic mirror of info->state ***!!! This is referenced by the ndarray_recording_ref->info_state
     std::shared_ptr<immutable_metadata> metadata; // pointer may not be changed once info_state reaches METADATADONE. The pointer in info is the .get() value of this pointer. 
 
     std::shared_ptr<recording_storage_manager> storage_manager; // pointer initialized to a default by recording constructor, then used by the allocate_storage() method. Any assignment must be prior to that. may not be used afterward; see recording_storage in recstore_storage.hpp for details on pointed structure.
@@ -254,6 +255,8 @@ namespace snde {
     std::weak_ptr<transaction> defining_transact; // This pointer should be valid for a recording defined as part of a transaction; nullptr for an ondemand math recording, for example. Weak ptr should be convertible to strong as long as the originating_wss is still current.
     
     std::weak_ptr<recording_set_state> _originating_wss; // locked by admin mutex; if expired than originating_wss has been freed. if nullptr then this was defined as part of a transaction that was may still be going on when the recording was defined. Use get_originating_wss() which handles locking and getting the originating_wss from the defining_transact
+
+    std::unordered_map<std::string,std::shared_ptr<cached_recording>> cache; // cache map, indexed by module doing caching, to an abstract base class. Access to the unordered_map protected by admin lock.
 
     // Need typed template interface !!! ***
     
@@ -316,7 +319,7 @@ namespace snde {
 
   class multi_ndarray_recording : public recording_base {
   public:
-    std::vector<arraylayout> layouts; // changes to layouts must be propagated to info.arrays[idx].ndim, info.arrays[idx]base_index, info.arrays[idx].dimlen, and info.arrays[idx].strides NOTE THAT THIS MUST BE PREALLOCATED TO THE NEEDED SIZE BEFORE ANY ndarray_recording_ref()'s ARE CREATED!
+    std::vector<arraylayout> layouts; // changes to layouts must be propagated to info.arrays[idx].ndim, info.arrays[idx]base_index, info.arrays[idx].dimlen, and info.arrays[idx].strides NOTE THAT THIS MUST BE PREALLOCATED TO THE NEEDED SIZE BEFORE ANY ndarray_recording_ref()'s ARE CREATED! ... ALSO THE ELEMENTS OF THIS VECTOR ARE DIRECTLY REFERENCED BY ndarray_recording_ref->layout
 
     std::unordered_map<std::string,size_t> name_mapping; // mapping from array name to array index. Names should not begin with a digit.
     // if name_mapping is non-empty then name_reverse_mapping
@@ -325,7 +328,7 @@ namespace snde {
     
     //std::shared_ptr<rwlock> mutable_lock; // for simply mutable recordings; otherwise nullptr
 
-    std::vector<std::shared_ptr<recording_storage>> storage; // pointers immutable once initialized  by allocate_storage() or reference_immutable_recording().  immutable afterward; see recording_storage in recstore_storage.hpp for details on pointed structure.
+    std::vector<std::shared_ptr<recording_storage>> storage; // pointers immutable once initialized  by allocate_storage() or reference_immutable_recording().  immutable afterward; see recording_storage in recstore_storage.hpp for details on pointed structure. ... ALSO THE ELEMENTS OF THIS VECTOR ARE DIRECTLY REFERENCED BY ndarray_recording_ref->storage
 
 
     // This constructor is to be called by everything except the math engine to create a multi_ndarray_recording with multiple ndarrays
@@ -364,8 +367,10 @@ namespace snde {
     
     // static factory methods for creating recordings with single runtime-determined types
     // for regular (non-math) use. Automatically registers the new recording
+    // ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
     static std::shared_ptr<ndarray_recording_ref> create_typed_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
-    static std::shared_ptr<ndarray_recording_ref> create_typed_recording_math(std::shared_ptr<recdatabase> recdb,std::string chanpath,void *owner_id,std::shared_ptr<recording_set_state> calc_wss,unsigned typenum); // math use only
+    static std::shared_ptr<ndarray_recording_ref> create_typed_recording_math(std::shared_ptr<recdatabase> recdb,std::string chanpath,void *owner_id,std::shared_ptr<recording_set_state> calc_wss,unsigned typenum); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
+
     
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(size_t index=0);
 
@@ -424,6 +429,9 @@ namespace snde {
       return cur_offset;
       
     }
+
+
+    
     double element_double(size_t array_index,const std::vector<snde_index> &idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
     void assign_double(size_t array_index,const std::vector<snde_index> &idx,double val); // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
 
@@ -441,10 +449,11 @@ namespace snde {
   public:
     std::shared_ptr<multi_ndarray_recording> rec; // the referenced recording
     size_t rec_index; // index of referenced ndarray within recording.
-    unsigned typenum;
-    std::atomic_int &info_state; // reference to rec->info_state
-    arraylayout &layout; // reference  to rec->layouts.at(rec_index)
-    std::shared_ptr<recording_storage> &storage;
+    unsigned &typenum; // reference into rec->ndarray(rec_index)->typenum
+    std::atomic_int &info_state; // reference into rec->info_state
+    arraylayout &layout; // reference  into rec->layouts.at(rec_index)
+    std::shared_ptr<recording_storage> &storage; // reference into rec->storage.at(rec_index)
+
 
     ndarray_recording_ref(std::shared_ptr<multi_ndarray_recording> rec,size_t rec_index,unsigned typenum);
 
@@ -503,14 +512,48 @@ namespace snde {
       return cur_offset;
       
     }
+
+
+    inline size_t element_offset(snde_index idx,bool fortran_order=false)
+    // element_offset in terms of elements, not including base_index,
+    // for unwrapped index idx, interpreted by fortran or C convention
+    // (see also ndtyped_recording_ref::element)
+    {      
+      std::vector<snde_index> vidx;
+      vidx.reserve(layout.dimlen.size());
+
+      if (fortran_order) {
+	for (size_t dimnum=0;dimnum < layout.dimlen.size();dimnum++) {
+	  vidx.push_back(idx % layout.dimlen[dimnum]);
+	  idx /= layout.dimlen[dimnum];
+	}
+      } else {
+	for (size_t dimnum=0;dimnum < layout.dimlen.size();dimnum++) {
+	  vidx.insert(vidx.begin(),idx % layout.dimlen[layout.dimlen.size()-dimnum-1]);
+	  idx /= layout.dimlen[layout.dimlen.size()-dimnum-1];
+	}
+
+      }
+      return element_offset(vidx);
+    }
+
+    
+    virtual std::shared_ptr<ndarray_recording_ref> assign_recording_type(unsigned typenum); // returns a new fully-typed reference. 
+    
     virtual double element_double(const std::vector<snde_index> &idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    virtual double element_double(snde_index idx, bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
     virtual void assign_double(const std::vector<snde_index> &idx,double val); // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    virtual void assign_double(snde_index idx,double val,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
 
     virtual int64_t element_int(const std::vector<snde_index> &idx); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    virtual int64_t element_int(snde_index idx,bool fortran_order=false); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
     virtual void assign_int(const std::vector<snde_index> &idx,int64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    virtual void assign_int(snde_index idx,int64_t val,bool fortran_order=false); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
 
     virtual uint64_t element_unsigned(const std::vector<snde_index> &idx); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    virtual uint64_t element_unsigned(snde_index idx,bool fortran_order=false); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
     virtual void assign_unsigned(const std::vector<snde_index> &idx,uint64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    virtual void assign_unsigned(snde_index idx,uint64_t val,bool fortran_order=false); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
     
 
 
@@ -540,6 +583,27 @@ namespace snde {
   };
 
 
+  // helper function used by active_transaction::end_transaction() and recstore_display_transforms::update()
+  void build_rss_from_functions_and_channels(std::shared_ptr<recdatabase> recdb,
+					     std::shared_ptr<recording_set_state> previous_rss,
+					     std::shared_ptr<recording_set_state> new_rss,
+					     const std::map<std::string,std::shared_ptr<channelconfig>> &all_channels_by_name,
+					     // set of channels definitely changed, according to whether we've dispatched them in our graph search
+					     // for possibly dependent channels 
+					     std::unordered_set<std::shared_ptr<channelconfig>> *changed_channels_need_dispatch,
+					     std::unordered_set<std::shared_ptr<channelconfig>> *changed_channels_dispatched,
+					     // set of channels not yet known to be changed
+					     std::unordered_set<std::shared_ptr<channelconfig>> *unknownchanged_channels,
+					     // set of math functions not known to be changed or unchanged
+					     std::unordered_set<std::shared_ptr<instantiated_math_function>> *unknownchanged_math_functions,
+					     // set of math functions known to be (definitely) changed
+					     std::unordered_set<std::shared_ptr<instantiated_math_function>> *changed_math_functions,
+					     std::unordered_set<std::shared_ptr<channelconfig>> *explicitly_updated_channels,
+    std::unordered_set<channel_state *> *ready_channels, // references into the new_rss->recstatus.channel_map
+					     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> *ready_to_execute,
+					     bool *all_ready);
+
+  
   class active_transaction /* : public std::enable_shared_from_this<active_transaction> */ {
     // RAII interface to transaction
     // Don't use this directly from dataguzzler-python, because there
@@ -654,7 +718,7 @@ namespace snde {
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_metadataonly; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes metadataonly; set to nullptr at end of channel becoming metadataonly. 
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_ready; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes ready; set to nullptr at end of channel becoming ready. 
 
-    channel_state(std::shared_ptr<channel> chan,std::shared_ptr<recording_base> rec,bool updated);
+    channel_state(std::shared_ptr<channel> chan,std::shared_ptr<channelconfig> config,std::shared_ptr<recording_base> rec,bool updated);
 
     channel_state(const channel_state &orig); // copy constructor used for initializing channel_map from prototype defined in end_transaction()
 
@@ -715,10 +779,19 @@ namespace snde {
     virtual ~recording_set_state()=default;
 
     void wait_complete(); // wait for all the math in this recording_set_state or globalrev to reach nominal completion (metadataonly or ready, as configured)
+
+    // get_xxxx throws an exception if the recording is not present
+    // check_for_xxxx returns nullptr if the recording is not present
     std::shared_ptr<recording_base> get_recording(const std::string &fullpath);
+    std::shared_ptr<recording_base> check_for_recording(const std::string &fullpath);
+    
     std::shared_ptr<ndarray_recording_ref> get_recording_ref(const std::string &fullpath,size_t array_index=0);
     std::shared_ptr<ndarray_recording_ref> get_recording_ref(const std::string &fullpath,std::string array_name);
 
+    std::shared_ptr<ndarray_recording_ref> check_for_recording_ref(const std::string &fullpath,size_t array_index=0);
+    std::shared_ptr<ndarray_recording_ref> check_for_recording_ref(const std::string &fullpath,std::string array_name);
+
+    
     // admin lock must be locked when calling this function. Returns
     std::shared_ptr<recording_set_state> prerequisite_state();
     void atomic_prerequisite_state_clear(); // sets the prerequisite state to nullptr
@@ -879,6 +952,28 @@ namespace snde {
     inline T *shifted_arrayptr() { return (T*)void_shifted_arrayptr(); }
 
     inline T& element(const std::vector<snde_index> &idx) { return *(shifted_arrayptr()+element_offset(idx)); }
+
+    inline T& element(snde_index idx,bool fortran_order=false) {
+      // reference element by unwrapped index idx, interpreted by
+      // fortran or C convention
+      // (see also ndarray_recording_ref::element_offset())
+      std::vector<snde_index> vidx;
+      vidx.reserve(layout.dimlen.size());
+
+      if (fortran_order) {
+	for (size_t dimnum=0;dimnum < layout.dimlen.size();dimnum++) {
+	  vidx.push_back(idx % layout.dimlen[dimnum]);
+	  idx /= layout.dimlen[dimnum];
+	}
+      } else {
+	for (size_t dimnum=0;dimnum < layout.dimlen.size();dimnum++) {
+	  vidx.insert(vidx.begin(),idx % layout.dimlen[layout.dimlen.size()-dimnum-1]);
+	  idx /= layout.dimlen[layout.dimlen.size()-dimnum-1];
+	}
+
+      }
+      return element(vidx);
+    }
     
     // rule of 3
     ndtyped_recording_ref & operator=(const ndtyped_recording_ref &) = delete; 
@@ -903,10 +998,21 @@ namespace snde {
       size_t offset = element_offset(idx);
       return (double)shifted_arrayptr()[offset];
     }
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,double>::type _element_double(snde_index idx,bool fortran_order) // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      size_t offset = element_offset(idx,fortran_order);
+      return (double)shifted_arrayptr()[offset];
+    }
 
     // element_double for nonarithmetic types
     template <typename U = T>
     typename std::enable_if<!std::is_arithmetic<U>::value,double>::type _element_double(const std::vector<snde_index> &idx) // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      throw snde_error("Cannot extract floating point value from non-arithmetic type");
+    }
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,double>::type _element_double(snde_index idx,bool fortran_order) // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
     {
       throw snde_error("Cannot extract floating point value from non-arithmetic type");
     }
@@ -918,10 +1024,21 @@ namespace snde {
       size_t offset = element_offset(idx);
       shifted_arrayptr()[offset]=(T)val;      
     }
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,void>::type _assign_double(snde_index idx,double val,bool fortran_order) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      size_t offset = element_offset(idx,fortran_order);
+      shifted_arrayptr()[offset]=(T)val;      
+    }
 
     // assign_double for nonarithmetic types
     template <typename U = T>
     typename std::enable_if<!std::is_arithmetic<U>::value,void>::type _assign_double(const std::vector<snde_index> &idx,double val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      throw snde_error("Cannot assign floating point value from non-arithmetic type");
+    }
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,void>::type _assign_double(snde_index idx,double val,bool fortran_order) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
     {
       throw snde_error("Cannot assign floating point value from non-arithmetic type");
     }
@@ -934,10 +1051,21 @@ namespace snde {
       size_t offset = element_offset(idx);
       return (int64_t)shifted_arrayptr()[offset];
     }
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,int64_t>::type _element_int(snde_index idx,bool fortran_order) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      size_t offset = element_offset(idx,fortran_order);
+      return (int64_t)shifted_arrayptr()[offset];
+    }
 
     // element_int for non-arithmetic types
     template <typename U = T>
     typename std::enable_if<!std::is_arithmetic<U>::value,int64_t>::type _element_int(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      throw snde_error("Cannot extract integer value from non-arithmetic type");
+    }
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,int64_t>::type _element_int(snde_index idx,bool fortran_order) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
     {
       throw snde_error("Cannot extract integer value from non-arithmetic type");
     }
@@ -949,10 +1077,21 @@ namespace snde {
       size_t offset = element_offset(idx);
       shifted_arrayptr()[offset]=(T)val;
     }
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,void>::type  _assign_int(snde_index idx,int64_t val,bool fortran_order) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      size_t offset = element_offset(idx,fortran_order);
+      shifted_arrayptr()[offset]=(T)val;
+    }
 
     // assign_int for non-arithmetic types
     template <typename U = T>
     typename std::enable_if<!std::is_arithmetic<U>::value,void>::type  _assign_int(const std::vector<snde_index> &idx,int64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      throw snde_error("Cannot assign integer value to non-arithmetic type");
+    }
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,void>::type  _assign_int(snde_index idx,int64_t val,bool fortran_order) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
     {
       throw snde_error("Cannot assign integer value to non-arithmetic type");
     }
@@ -964,10 +1103,21 @@ namespace snde {
       size_t offset = element_offset(idx);
       return (uint64_t)shifted_arrayptr()[offset];
     }
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,uint64_t>::type _element_unsigned(snde_index idx,bool fortran_order) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      size_t offset = element_offset(idx,fortran_order);
+      return (uint64_t)shifted_arrayptr()[offset];
+    }
     
     // element_unsigned for non-arithmetic types
     template <typename U = T>
     typename std::enable_if<!std::is_arithmetic<U>::value,uint64_t>::type _element_unsigned(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      throw snde_error("Cannot extract integer value from non-arithmetic type");
+    }
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,uint64_t>::type _element_unsigned(snde_index idx,bool fortran_order) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
     {
       throw snde_error("Cannot extract integer value from non-arithmetic type");
     }
@@ -982,6 +1132,15 @@ namespace snde {
     }
 
 
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,void>::type _assign_unsigned(snde_index idx,uint64_t val,bool fortran_order) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      size_t offset = element_offset(idx,fortran_order);
+      shifted_arrayptr()[offset]=(T)val;
+    }
+
+    
+
     // assign_unsigned for non-arithmetic types
     template <typename U = T>
     typename std::enable_if<!std::is_arithmetic<U>::value,void>::type _assign_unsigned(const std::vector<snde_index> &idx,uint64_t val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
@@ -989,33 +1148,74 @@ namespace snde {
       throw snde_error("Cannot assign integer value to non-arithmetic type");
     }
 
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value,void>::type _assign_unsigned(snde_index idx,uint64_t val,bool fortran_order) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      throw snde_error("Cannot assign integer value to non-arithmetic type");
+    }
+
+
+    
 
     // ... and here are the non-template wrappers
     double element_double(const std::vector<snde_index> &idx)
     {
       return _element_double(idx);
     }
+
+    double element_double(snde_index idx,bool fortran_order=false)
+    {
+      return _element_double(idx,fortran_order);
+    }
+
     void assign_double(const std::vector<snde_index> &idx,double val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
     {
       _assign_double(idx,val);
     }
-    
+
+    void assign_double(snde_index idx,double val,bool fortran_order=false) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      _assign_double(idx,val,fortran_order);
+    }
+
     int64_t element_int(const std::vector<snde_index> &idx)
     {
       return _element_int(idx);
     }
+
+    int64_t element_int(snde_index idx,bool fortran_order=false)
+    {
+      return _element_int(idx,fortran_order);
+    }
+
     void assign_int(const std::vector<snde_index> &idx,int64_t val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
     {
       _assign_int(idx,val);
+    }
+
+    void assign_int(snde_index idx,int64_t val,bool fortran_order=false) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      _assign_int(idx,val,fortran_order);
     }
 
     uint64_t element_unsigned(const std::vector<snde_index> &idx)
     {
       return _element_unsigned(idx);
     }
+
+    uint64_t element_unsigned(snde_index idx,bool fortran_order=false)
+    {
+      return _element_unsigned(idx,fortran_order);
+    }
+
     void assign_unsigned(const std::vector<snde_index> &idx,uint64_t val) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
     {
       _assign_unsigned(idx,val);
+    }
+
+    void assign_unsigned(snde_index idx,uint64_t val,bool fortran_order=false) // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      _assign_unsigned(idx,val,fortran_order);
     }
 
   };

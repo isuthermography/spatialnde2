@@ -37,6 +37,7 @@ namespace snde {
 #define SNDE_MFPT_DBL 2
   // 3 is for an ancillary string
 #define SNDE_MFPT_RECORDING 4
+#define SNDE_MFPT_INDEXVEC 5 // vector of indices
 
   // forward declarations
   class channelconfig; // defined in recstore.hpp
@@ -54,32 +55,47 @@ namespace snde {
   
   class math_instance_parameter {
   public:
-    // this is a recursive dictionary/list structure -- this is just the abstract base class    
+    // this is a recursive dictionary/list structure -- this is just the abstract base class
+    
+    virtual bool operator==(const math_instance_parameter &ref)=0; // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref)=0;
+
   };
   
   class list_math_instance_parameter {
   public:
     std::vector<std::shared_ptr<math_instance_parameter>> list;
+    virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref);
+
   };
     
   class dict_math_instance_parameter {
   public:
     std::unordered_map<std::string,std::shared_ptr<math_instance_parameter>> dict;
+    virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref);
   };
   
   class string_math_instance_parameter {
   public:
     std::string value;
+    virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref);
   };
   
   class int_math_instance_parameter {
   public:
     int64_t value;
+    virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref);
   };
   
   class double_math_instance_parameter {
   public:
     double value;
+    virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref);
   };
 
   
@@ -181,6 +197,9 @@ namespace snde {
     std::string definition_command;
 
     math_definition(std::string definition_command);
+
+    bool operator==(const math_definition &ref); // used in comparisons of instantiated_math_functions
+    bool operator!=(const math_definition &ref);
   };
   
   class instantiated_math_function: public std::enable_shared_from_this<instantiated_math_function>  {
@@ -206,7 +225,10 @@ namespace snde {
     std::shared_ptr<math_definition> definition;
     std::shared_ptr<math_instance_parameter> extra_params;
     
-    std::shared_ptr<instantiated_math_function> original_function; // null originally 
+    std::shared_ptr<instantiated_math_function> original_function; // null originally
+    // WARNING: If you add more member variables, you also need to check
+    // equality of them in operator==() !!!***
+    
     // Should point to allocation interface here? ... No. Allocation interface comes from the channelconfig's storage_manager
 
     instantiated_math_function(const std::vector<std::shared_ptr<math_parameter>> & parameters,
@@ -223,7 +245,8 @@ namespace snde {
     instantiated_math_function(const instantiated_math_function &) = default;  // CC is present so subclass copy constructor can initialize us more easily
     instantiated_math_function& operator=(const instantiated_math_function &) = delete;
     virtual ~instantiated_math_function()=default;  // virtual destructor required so we can be subclassed
-
+    virtual bool operator==(const instantiated_math_function &ref); // May want to be defined by subclasses... used to compare newly created display functions with prior display functions to see if they need updated.
+    virtual bool operator!=(const instantiated_math_function &ref); // May want to be defined by subclasses... used to compare newly created display functions with prior display functions to see if they need updated.
 
     //virtual bool check_dependencies(recording_status &recordingstatus, math_status &mathstatus)=0; 
     // virtual clone method -- must be implemented in all subclasses. If .definition is non nullptr and definition_change is set, it clears the copy and points original_function at the old .definition

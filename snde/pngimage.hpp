@@ -1,3 +1,6 @@
+#ifndef SNDE_PNGIMAGE_HPP
+#define SNDE_PNGIMAGE_HPP
+
 #include <cstdio>
 
 
@@ -7,28 +10,26 @@ extern "C"
   #include <png.h>  
 }
 
-#include "snde/mutablerecstore.hpp"
+#include "snde/recstore.hpp"
 
-#ifndef SNDE_PNGIMAGE_HPP
-#define SNDE_PNGIMAGE_HPP
 
 
 namespace snde {
   template <typename T>
-  std::shared_ptr<mutableelementstore<T>> _store_pngimage_data(std::shared_ptr<arraymanager> manager,std::string leafname,std::string fullname,png_structp png,png_infop info,png_infop endinfo,size_t width,size_t height)
+  void  _store_pngimage_data(std::shared_ptr<ndarray_recording_ref> recref_untyped,png_structp png,png_infop info,png_infop endinfo,size_t width,size_t height)
   {
     //std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
     //std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(output_manager->locker); // new locking process
     // since it's new, we don't have to worry about locking it!
 
-    
-    std::shared_ptr<mutableelementstore<T>> retval = std::make_shared<mutableelementstore<T>>(leafname,fullname,recmetadata(),manager,std::vector<snde_index>{width,height},std::vector<snde_index>{1,width});
+    std::shared_ptr<ndtyped_recording_ref<T>> recref=std::dynamic_pointer_cast<ndtyped_recording_ref<T>>(recref_untyped->assign_recording_type(rtn_typemap.at(typeid(T))));
 
+    recref->allocate_storage({width,height},/*fortran_order=*/true);
 
     size_t rowcnt;
     png_bytep *row_ptrs = new png_bytep[height];
     for (rowcnt=0;rowcnt < height;rowcnt++) {
-      row_ptrs[rowcnt] = png_bytep ((*((T **)retval->basearray))+width*rowcnt);
+      row_ptrs[rowcnt] = png_bytep (recref->shifted_arrayptr()+width*rowcnt);
     }
     png_read_image(png,row_ptrs);
     delete[] row_ptrs;
@@ -42,43 +43,43 @@ namespace snde {
     png_get_pHYs(png,info,&res_x,&res_y,&unit_type);
     fprintf(stderr,"res_x=%d; res_y=%d; unit_type=%d\n",res_x,res_y,unit_type);
 
+    std::shared_ptr<constructible_metadata> md=std::make_shared<constructible_metadata>();
+
+    
     if (unit_type==PNG_RESOLUTION_METER && res_x) {
-      retval->metadata.AddMetaDatum(metadatum("Step1",1.0/res_x));
-      retval->metadata.AddMetaDatum(metadatum("IniVal1",-(width*1.0)/res_x/2.0));
-      retval->metadata.AddMetaDatum(metadatum("Units1","meters"));      
+      md->AddMetaDatum(metadatum("Step1",1.0/res_x));
+      md->AddMetaDatum(metadatum("IniVal1",-(width*1.0)/res_x/2.0));
+      md->AddMetaDatum(metadatum("Units1","meters"));      
     } else {
-      retval->metadata.AddMetaDatum(metadatum("Step1",1.0));
-      retval->metadata.AddMetaDatum(metadatum("IniVal1",-(width*1.0)/2.0));
-      retval->metadata.AddMetaDatum(metadatum("Units1","pixels"));      
+      md->AddMetaDatum(metadatum("Step1",1.0));
+      md->AddMetaDatum(metadatum("IniVal1",-(width*1.0)/2.0));
+      md->AddMetaDatum(metadatum("Units1","pixels"));      
     }
-    retval->metadata.AddMetaDatum(metadatum("Coord1","X Position"));
+    md->AddMetaDatum(metadatum("Coord1","X Position"));
 
     /* Note for Y axis we put inival positive and step negative so that first pixel 
        in in the upper-left corner, even with our convention  that
        the origin is in the lower-left */
     if (unit_type==PNG_RESOLUTION_METER && res_y) {
-      retval->metadata.AddMetaDatum(metadatum("Step2",-1.0/res_y));
-      retval->metadata.AddMetaDatum(metadatum("IniVal2",(height*1.0)/res_y/2.0));
-      retval->metadata.AddMetaDatum(metadatum("Units2","meters"));
+      md->AddMetaDatum(metadatum("Step2",-1.0/res_y));
+      md->AddMetaDatum(metadatum("IniVal2",(height*1.0)/res_y/2.0));
+      md->AddMetaDatum(metadatum("Units2","meters"));
       fprintf(stderr,"Got Y resolution in meters\n");
     } else {
-      retval->metadata.AddMetaDatum(metadatum("Step2",-1.0));
-      retval->metadata.AddMetaDatum(metadatum("IniVal2",(height*1.0)/2.0));
-      retval->metadata.AddMetaDatum(metadatum("Units2","pixels"));      
+      md->AddMetaDatum(metadatum("Step2",-1.0));
+      md->AddMetaDatum(metadatum("IniVal2",(height*1.0)/2.0));
+      md->AddMetaDatum(metadatum("Units2","pixels"));      
       fprintf(stderr,"Got Y resolution in arbitrary\n");
     }
-    retval->metadata.AddMetaDatum(metadatum("Coord2","Y Position"));
+    md->AddMetaDatum(metadatum("Coord2","Y Position"));
 
-    manager->mark_as_dirty(nullptr,(void **)retval->basearray,0,width*height);
+    recref->rec->metadata = MergeMetadata(recref->rec->metadata,md);
     
-    return retval; 
   }
 
   
   
-  static inline std::shared_ptr<mutabledatastore> ReadPNG(std::shared_ptr<arraymanager> manager,std::string leafname,std::string fullname,std::string filename)
-  // Should probably be called in a transaction in most cases
-  // does not add returned datastore to recdb -- you have to do that!
+  static inline void ReadPNG(std::shared_ptr<ndarray_recording_ref> recref_untyped,std::string filename)
   {
     FILE *infile;
     
@@ -90,14 +91,13 @@ namespace snde {
     png_bytep *row_p;
     short int number = 0x1;
     bool is_little_endian = (bool)*((char*)&number);
-    std::shared_ptr<mutabledatastore> retval;
     
     double gamma;
     png_uint_32 width,height;
     int bit_depth=0, color_type=0,interlace_method=0,compression_method=0,filter_method=0;
     
     infile=fopen(filename.c_str(),"rb");
-    if (!infile) return nullptr;
+    if (!infile) return;
     png=png_create_read_struct(PNG_LIBPNG_VER_STRING,NULL,NULL,NULL);
 
     // should png_set_error_fn(...)
@@ -160,10 +160,10 @@ namespace snde {
     case PNG_COLOR_TYPE_GRAY:
       if (bit_depth==8) {
 	width = png_get_rowbytes(png,info)/sizeof(uint8_t);
-	retval=_store_pngimage_data<uint8_t>(manager,leafname,fullname,png,info,endinfo,width,height);
+	_store_pngimage_data<uint8_t>(recref_untyped,png,info,endinfo,width,height);
       } else if (bit_depth==16) {
 	width = png_get_rowbytes(png,info)/sizeof(uint16_t);
-	retval=_store_pngimage_data<uint16_t>(manager,leafname,fullname,png,info,endinfo,width,height);
+	_store_pngimage_data<uint16_t>(recref_untyped,png,info,endinfo,width,height);
 	
       } else {
 	assert(0); // invalid depth
@@ -175,7 +175,7 @@ namespace snde {
       
       if (bit_depth==8) {
 	width = png_get_rowbytes(png,info)/sizeof(snde_rgba);
-	retval=_store_pngimage_data<snde_rgba>(manager,leafname,fullname,png,info,endinfo,width,height);
+	_store_pngimage_data<snde_rgba>(recref_untyped,png,info,endinfo,width,height);
 	
       } else {
 	assert(0); // invalid depth
@@ -190,7 +190,6 @@ namespace snde {
     png_destroy_read_struct(&png,&info,&endinfo);
     fclose(infile);
     
-    return retval;
   }
 
 }

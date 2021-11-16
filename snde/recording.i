@@ -76,23 +76,25 @@ struct snde_multi_ndarray_recording {
 //   * reference_ndarray() definition in recstore.cpp 
 //   * typemaps near beginning of recstore.cpp
 //   * rtn_numpytypemap at end of spatialnde2.i
-#define SNDE_RTN_FLOAT32 0
-#define SNDE_RTN_FLOAT64 1
-#define SNDE_RTN_FLOAT16 2
-#define SNDE_RTN_UINT64 3
-#define SNDE_RTN_INT64 4
-#define SNDE_RTN_UINT32 5
-#define SNDE_RTN_INT32 6
-#define SNDE_RTN_UINT16 7
-#define SNDE_RTN_INT16 8
-#define SNDE_RTN_UINT8 9
-#define SNDE_RTN_INT8 10
-#define SNDE_RTN_RGBA32 11 /* R stored in lowest address... Like OpenGL with GL_RGBA and GL_UNSIGNED_BYTE, or snde_rgba type */ 
-#define SNDE_RTN_COMPLEXFLOAT32 12
-#define SNDE_RTN_COMPLEXFLOAT64 13
-#define SNDE_RTN_COMPLEXFLOAT16 14
-#define SNDE_RTN_RGBD64 15 /* as address goes from low to high: R (byte) G (byte) B (byte) A (byte) D (float32) */ 
-#define SNDE_RTN_STRING 16 // not usable for recordings, but used internally for math parameters. 
-#define SNDE_RTN_RECORDING 17 // not usable for recordings, but used internally for math parameters. 
-#define SNDE_RTN_RECORDING_REF 18 // not usable for recordings, but used internally for math parameters. 
-#define SNDE_RTN_COORD3_INT16 19 // x,y,z coordinates, with each being 16 bit signed integer
+#define SNDE_RTN_UNASSIGNED 0
+#define SNDE_RTN_FLOAT32 1
+#define SNDE_RTN_FLOAT64 2
+#define SNDE_RTN_FLOAT16 3
+#define SNDE_RTN_UINT64 4
+#define SNDE_RTN_INT64 5
+#define SNDE_RTN_UINT32 6
+#define SNDE_RTN_INT32 7
+#define SNDE_RTN_UINT16 8
+#define SNDE_RTN_INT16 9
+#define SNDE_RTN_UINT8 10
+#define SNDE_RTN_INT8 11
+#define SNDE_RTN_RGBA32 12 /* R stored in lowest address... Like OpenGL with GL_RGBA and GL_UNSIGNED_BYTE, or snde_rgba type */ 
+#define SNDE_RTN_COMPLEXFLOAT32 13
+#define SNDE_RTN_COMPLEXFLOAT64 14
+#define SNDE_RTN_COMPLEXFLOAT16 15
+#define SNDE_RTN_RGBD64 16 /* as address goes from low to high: R (byte) G (byte) B (byte) A (byte) D (float32) */ 
+#define SNDE_RTN_STRING 17 // not usable for recordings, but used internally for math parameters. 
+#define SNDE_RTN_RECORDING 18 // not usable for recordings, but used internally for math parameters. 
+#define SNDE_RTN_RECORDING_REF 19 // not usable for recordings, but used internally for math parameters. 
+#define SNDE_RTN_COORD3_INT16 20 // x,y,z coordinates, with each being 16 bit signed integer
+#define SNDE_RTN_INDEXVEC 21 // std::vector<snde_index>... used for math function params only

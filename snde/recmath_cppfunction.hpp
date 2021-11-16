@@ -715,6 +715,11 @@ namespace snde {
     instantiated_cpp_math_function(const instantiated_cpp_math_function &)=default; // for use in clone() method
     instantiated_cpp_math_function& operator=(const instantiated_cpp_math_function &) = delete; 
     virtual ~instantiated_cpp_math_function()=default;  // virtual destructor required so we can be subclassed
+
+    // If we had any elements that would distinguish us by functionality we would have to implement comparison operators to accommodate comparisons of rendering functions
+    //virtual operator==(const instantiated_math_function &ref);
+    //virtual operator!=(const instantiated_math_function &ref);
+
     
     virtual std::shared_ptr<instantiated_math_function> clone(bool definition_change=true); // only clone with definition_change=false for enable/disable of the function
   };

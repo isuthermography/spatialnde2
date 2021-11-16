@@ -1,17 +1,21 @@
+#ifndef SNDE_REC_DISPLAY_HPP
+#define SNDE_REC_DISPLAY_HPP
+
 #include <memory>
 #include <mutex>
 #include <typeindex>
 
 #include "snde/units.hpp"
-#include "snde/mutablerecstore.hpp"
-#include "snde/revision_manager.hpp"
+#include "snde/rec_display_colormap.hpp"
+#include "snde/recstore.hpp"
 
-#ifndef SNDE_REC_DISPLAY_HPP
-#define SNDE_REC_DISPLAY_HPP
+//#include "snde/mutablerecstore.hpp"
+//#include "snde/revision_manager.hpp"
 
 namespace snde {
 
-class display_channel; // forward declaration
+  class display_channel; // forward declaration
+  class instantiated_math_function; // recmath.hpp
   
 struct display_unit {
   display_unit(units unit,
@@ -33,8 +37,21 @@ struct display_unit {
 
 struct display_axis {
 
-  display_axis(std::string axis,
-	       std::string abbrev,
+  std::mutex admin; // protects CenterCoord; other members should be immutable
+  std::string axis;
+  std::string abbrev;
+  std::shared_ptr<display_unit> unit;
+  bool has_abbrev;
+
+  double CenterCoord; // horizontal coordinate (in axis units) of the center of the display
+  double DefaultOffset;
+  double DefaultUnitsPerDiv; // Should be 1.0, 2.0, or 5.0 times a power of 10
+
+  // double MousePosn;
+
+
+    display_axis(const std::string &axis,
+	       const std::string &abbrev,
 	       std::shared_ptr<display_unit> unit,
 	       bool has_abbrev,
 	       double CenterCoord,
@@ -50,17 +67,7 @@ struct display_axis {
   {
 
   }
-  std::mutex admin; // protects CenterCoord; other members should be immutable
-  std::string axis;
-  std::string abbrev;
-  std::shared_ptr<display_unit> unit;
-  bool has_abbrev;
 
-  double CenterCoord; // horizontal coordinate (in axis units) of the center of the display
-  double DefaultOffset;
-  double DefaultUnitsPerDiv; // Should be 1.0, 2.0, or 5.0 times a power of 10
-
-  // double MousePosn;
 };
 
 
@@ -110,7 +117,7 @@ struct display_channel: public std::enable_shared_from_this<display_channel> {
   // may be accessed from transform threads, not just the GUI thread
 
   
-  display_channel(std::string FullName,//std::shared_ptr<mutableinfostore> chan_data,
+  display_channel(const std::string FullName,//std::shared_ptr<mutableinfostore> chan_data,
 		  float Scale,float Position,float VertCenterCoord,bool VertZoomAroundAxis,float Offset,float Alpha,
 		  size_t ColorIdx,bool Enabled, size_t DisplayFrame,size_t DisplaySeq,
 		  size_t ColorMap) :
@@ -132,14 +139,20 @@ struct display_channel: public std::enable_shared_from_this<display_channel> {
 
   }
 
-  inline std::string FullName()
+  inline std::shared_ptr<std::string> FullName()
   {
     std::shared_ptr<std::string> NamePtr=atomic_load(&_FullName);
 
-    return *NamePtr; 
+    return NamePtr; 
   }
 
-  void UpdateFullName(std::string new_FullName)
+  void set_enabled(bool Enabled)
+  {
+    std::lock_guard<std::mutex> dc_lock(admin);
+    this->Enabled=Enabled;
+  }
+
+  void UpdateFullName(const std::string &new_FullName)
   {
     std::shared_ptr<std::string> New_NamePtr = std::make_shared<std::string>(new_FullName);
     std::atomic_store(&_FullName,New_NamePtr);
@@ -228,7 +241,7 @@ struct RecColor {
   };
   
 
-static std::string PrintWithSIPrefix(double val, std::string unitabbrev, int sigfigs)
+static std::string PrintWithSIPrefix(double val, const std::string &unitabbrev, int sigfigs)
   {
     std::string buff="";
     
@@ -276,6 +289,7 @@ static std::string PrintWithSIPrefix(double val, std::string unitabbrev, int sig
 class display_info {
 public:
   
+  std::mutex admin; // locks access to below structure. Late in the locking order but prior to GIL. 
   std::vector<std::shared_ptr<display_unit>>  UnitList;
   std::vector<std::shared_ptr<display_axis>>  AxisList;
   size_t NextColor;
@@ -285,16 +299,23 @@ public:
   double pixelsperdiv;
   display_posn selected_posn; 
   
-  std::shared_ptr<mutablerecdb> recdb;
-  
-  std::mutex admin;
-
-  
+  std::weak_ptr<recdatabase> recdb;
+  std::shared_ptr<globalrevision> current_globalrev;
+ 
   std::unordered_map<std::string,std::shared_ptr<display_channel>> channel_info;
+  std::vector<std::string> channel_layer_order; // index is nominal order, string is full channel name
 
-  display_info(std::shared_ptr<mutablerecdb> recdb) :
+  std::shared_ptr<math_function> colormapping_function;
+  
+  display_info(std::shared_ptr<recdatabase> recdb) :
     recdb(recdb),
-    selected_posn(display_posn{.HorizPosn=0.0})
+    selected_posn(display_posn{
+      nullptr,
+      0.0,
+      nullptr,
+      0.0,
+    }),
+    colormapping_function(define_colormap_recording_function())
   {
     NextColor=0;
 
@@ -345,6 +366,12 @@ public:
     pixelsperdiv=1.0; // will need to be updated by set_pixelsperdiv
   }
 
+  void set_current_globalrev(std::shared_ptr<globalrevision> globalrev)
+  {
+    std::lock_guard<std::mutex> adminlock(admin);
+    this->current_globalrev=globalrev;
+  }
+
   void set_selected_posn(const display_posn &markerposn)
   {
     std::lock_guard<std::mutex> adminlock(admin);
@@ -359,7 +386,7 @@ public:
     return selected_posn;
   }
   
-  std::shared_ptr<display_channel> lookup_channel(std::string recfullname)
+  std::shared_ptr<display_channel> lookup_channel(const std::string &recfullname)
   {
     std::unique_lock<std::mutex> adminlock(admin);
     auto iter = channel_info.find(recfullname);
@@ -368,15 +395,10 @@ public:
       // not found in list
       admin.unlock();
       // Does the rec exist in the recdb?
-      std::shared_ptr<mutableinfostore> infostore = recdb->lookup(recfullname);
 
-      if (infostore) {
-	// create an entry if found in recdb
-	return  _add_new_channel(recfullname,infostore);
-      } else {
-	// return null if not found in recdb
-	return nullptr;
-      }
+      std::shared_ptr<recording_base> rec;
+      rec = current_globalrev->get_recording(recfullname);
+      return  _add_new_channel(recfullname,rec);
     }
     return iter->second;
   }
@@ -390,13 +412,14 @@ public:
   }
 
 
-  std::shared_ptr<display_channel> _add_new_channel(std::string fullname,std::shared_ptr<mutableinfostore> info)
+  std::shared_ptr<display_channel> _add_new_channel(const std::string &fullname,std::shared_ptr<recording_base> rec)
+  // must be called with admin lock locked. 
   {
     
     
     size_t _NextColor,NewNextColor;
     {
-      std::lock_guard<std::mutex> adminlock(admin);
+      //std::lock_guard<std::mutex> adminlock(admin);
       _NextColor=NextColor;
       NewNextColor = (NextColor + 1) % (sizeof(RecColorTable)/sizeof(RecColorTable[0]));
       NextColor=NewNextColor;
@@ -406,13 +429,16 @@ public:
     std::shared_ptr<display_channel> new_display_channel=std::make_shared<display_channel>(fullname,/*info, */  1.0,0.0,0.0,false,0.0,1.0,_NextColor,true,0,0,0);
     
     
-    std::lock_guard<std::mutex> adminlock(admin);
-    channel_info[fullname]=new_display_channel;
+    //std::lock_guard<std::mutex> adminlock(admin);
+    channel_info.emplace(fullname,new_display_channel);
+    channel_layer_order.push_back(fullname);
     return new_display_channel;
   }
     
-  std::vector<std::shared_ptr<display_channel>> update(std::string selected, bool include_disabled,bool include_hidden)
+  std::vector<std::shared_ptr<display_channel>> update(std::shared_ptr<globalrevision> globalrev,const std::string &selected, bool selected_only,bool include_disabled,bool include_hidden)
 
+  // for now globalrev is assumed to be fully ready (!)
+    
   // if include_disabled is set, disabled channels will be included
   // if selected is not the empty string, it will be moved to the front of the list
   // to be rendered on top 
@@ -423,66 +449,91 @@ public:
 
     std::vector<std::shared_ptr<display_channel>> retval;
     std::shared_ptr<display_channel> selected_chan=nullptr;
+
+    std::unordered_set<std::string> channels_considered;
     
-    std::shared_ptr<iterablerecrefs> reclist=recdb->reclist();
+    set_current_globalrev(globalrev);
 
-    // go through reclist forwards, assembling reclist
-    // so last entries in reclist will be on top
-    // (except for selected_chan which will be last, if given).
-    for (auto reciter=reclist->begin();reciter != reclist->end();reciter++) {
+
+    std::lock_guard<std::mutex> adminlock(admin);
+
+    
+    // go through reclist backwards, assembling reclist
+    // so last entries in reclist will be first 
+    // (except for selected_chan which will be very first, if given).
+
+    std::vector<std::string>::reverse_iterator cl_next_iter;
+    
+    for (auto cl_name_iter=channel_layer_order.rbegin();cl_name_iter != channel_layer_order.rend();cl_name_iter=cl_next_iter) {
+      cl_next_iter = cl_name_iter+1;
+      const std::string &cl_name = *cl_name_iter;
       
-      std::shared_ptr<mutableinfostore> info=*reciter;
-      std::string fullname=reciter.get_full_name();
+      auto ci_iter = channel_info.find(cl_name);
+      auto reciter = globalrev->recstatus.channel_map.find(cl_name);
 
-      // do we have this rec in our channel_info database?
-      bool found_rec=false;
-      {
-	std::lock_guard<std::mutex> adminlock(admin);
-	auto ci_iter = channel_info.find(fullname);
-	if (ci_iter != channel_info.end() /* && ci_iter->second->chan_data==info*/) {
-	  if (include_disabled || ci_iter->second->Enabled) {
-	    if (selected.size() > 0 && info==recdb->lookup(selected)) {
-	      retval.insert(retval.begin(),ci_iter->second);
-	      //assert(!selected_chan);
-	      //selected_chan = ci_iter->second;
-	    } else {
-	      retval.push_back(ci_iter->second);
-	    }
+      if (reciter==globalrev->recstatus.channel_map.end()) {
+	// channel is gone; remove from channel_info
+	channel_info.erase(cl_name);
+
+	//auto clo_iter = std::find(channel_layer_order.begin(),channel_layer_order.end(),cl_name);
+	//assert(clo_iter != channel_layer_order.end()); // if this trips, then somehow channel_info and channel_layer_order weren't kept parallel
+
+	channel_layer_order.erase(cl_next_iter.base()); // cl_next_iter points to the previous element of the sequence, but the .base() returns an iterator pointing at the subsequent element, so we erase the element we wanted to. Also note that this erasure invalidates all subsequent iterators (but the only one we are going to use is cl_next_iter, which isn't subsequent. 
+      } else {
+
+	assert(ci_iter != channel_info.end()); // if this trips, then somehow channel_info and channel_layer_order weren't kept parallel
+
+	channels_considered.emplace(cl_name);
+	
+	std::shared_ptr<recording_base> rec=reciter->second.rec();
+	const std::string &fullname=reciter->first;
+	
+	if ((include_disabled || ci_iter->second->Enabled) || (selected_only && fullname==selected)) {
+	  if (selected.size() > 0 && fullname == selected) {
+	    retval.insert(retval.begin(),ci_iter->second);
+	    //assert(!selected_chan);
+	    //selected_chan = ci_iter->second;
+	  } else if (!selected_only) {
+	    retval.push_back(ci_iter->second);
+	    //retval.insert(retval.begin(),ci_iter->second);
 	  }
-	  found_rec=true;
 	}
+	
+	
       }
+    }
 
-      if (!found_rec) {
 
-	std::shared_ptr<display_channel> new_display_channel=_add_new_channel(fullname,info);
-	if (include_disabled || new_display_channel->Enabled) {
-	  if (selected.size() > 0 && info==recdb->lookup(selected)) {
+    for (auto reciter = globalrev->recstatus.channel_map.begin(); reciter != globalrev->recstatus.channel_map.end(); reciter++) {
+      
+      const std::string &fullname=reciter->first;
+      channel_state &chanstate=reciter->second;
+      if (channels_considered.find(fullname) != channels_considered.end()) {
+	// not already in our list
+	std::shared_ptr<display_channel> new_display_channel=_add_new_channel(fullname,chanstate.rec());
+	
+	if ((include_disabled || new_display_channel->Enabled) || (selected_only && fullname==selected)) {
+	  if (selected.size() > 0 && fullname == selected) {
 	    retval.insert(retval.begin(),new_display_channel);
 	    //assert(!selected_chan);
 	    //selected_chan = new_display_channel;
-	  }
-	  if (new_display_channel != selected_chan) {
+	  } else if (!selected_only) {
 	    retval.push_back(new_display_channel);
 	  }
 	  
 	}
-
+	
 	
       }
-      
     }
-
-    //    if (selected_chan) {
-    //  retval.push_back(selected_chan);
-    //}
+      
     
     return retval;
   }
   
   
   
-  std::shared_ptr<display_unit> FindUnit(std::string name)
+  std::shared_ptr<display_unit> FindUnit(const std::string &name)
   {
     units u=units::parseunits(name);
 
@@ -502,7 +553,7 @@ public:
   }
 
 
-  std::shared_ptr<display_axis> FindAxis(std::string axisname,std::string unitname)
+  std::shared_ptr<display_axis> FindAxis(const std::string &axisname,const std::string &unitname)
   {
     units u=units::parseunits(unitname);
 
@@ -524,62 +575,83 @@ public:
     return ax_ptr;
   }
 
-  std::shared_ptr<display_axis> GetFirstAxis(std::string fullname /*std::shared_ptr<mutableinfostore> rec */)
+  std::shared_ptr<display_axis> GetFirstAxis(const std::string &fullname /*std::shared_ptr<mutableinfostore> rec */)
   {
-    std::shared_ptr<mutableinfostore> rec;
-    rec = recdb->lookup(fullname);
-    if (!rec) return FindAxis("Time","seconds");
+    std::shared_ptr<ndarray_recording_ref> rec;
+    try {
+      rec = current_globalrev->get_recording_ref(fullname);
+    } catch (snde_error &) {
+      // no such reference
+      return FindAxis("Time","seconds");
+    }
     
-    std::string AxisName = rec->metadata.GetMetaDatumStr("Coord1","Time");
-    std::string UnitName = rec->metadata.GetMetaDatumStr("Units1","seconds");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("Coord1","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("Units1","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
 
-  std::shared_ptr<display_axis> GetSecondAxis(std::string fullname)
+  std::shared_ptr<display_axis> GetSecondAxis(const std::string &fullname)
   {
-    std::shared_ptr<mutableinfostore> rec;
-    rec = recdb->lookup(fullname);
-    if (!rec) return FindAxis("Time","seconds");
+    std::shared_ptr<ndarray_recording_ref> rec;
+    try {
+      rec = current_globalrev->get_recording_ref(fullname);
+    } catch (snde_error &) {
+      // no such reference
+      return FindAxis("Time","seconds");
+    }
 
-    std::string AxisName = rec->metadata.GetMetaDatumStr("Coord2","Time");
-    std::string UnitName = rec->metadata.GetMetaDatumStr("Units2","seconds");
+
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("Coord2","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("Units2","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
 
-  std::shared_ptr<display_axis> GetThirdAxis(std::string fullname)
+  std::shared_ptr<display_axis> GetThirdAxis(const std::string &fullname)
   {
-    std::shared_ptr<mutableinfostore> rec;
-    rec = recdb->lookup(fullname);
-    if (!rec) return FindAxis("Time","seconds");
+    std::shared_ptr<ndarray_recording_ref> rec;
+    try {
+      rec = current_globalrev->get_recording_ref(fullname);
+    } catch (snde_error &) {
+      // no such reference
+      return FindAxis("Time","seconds");
+    }
 
-    std::string AxisName = rec->metadata.GetMetaDatumStr("Coord3","Time");
-    std::string UnitName = rec->metadata.GetMetaDatumStr("Units3","seconds");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("Coord3","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("Units3","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
 
-  std::shared_ptr<display_axis> GetFourthAxis(std::string fullname)
+  std::shared_ptr<display_axis> GetFourthAxis(const std::string &fullname)
   {
-    std::shared_ptr<mutableinfostore> rec;
-    rec = recdb->lookup(fullname);
-    if (!rec) return FindAxis("Time","seconds");
+    std::shared_ptr<ndarray_recording_ref> rec;
+    try {
+      rec = current_globalrev->get_recording_ref(fullname);
+    } catch (snde_error &) {
+      // no such reference
+      return FindAxis("Time","seconds");
+    }
 
-    std::string AxisName = rec->metadata.GetMetaDatumStr("Coord4","Time");
-    std::string UnitName = rec->metadata.GetMetaDatumStr("Units4","seconds");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("Coord4","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("Units4","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
 
-  std::shared_ptr<display_axis> GetAmplAxis(std::string fullname)
+  std::shared_ptr<display_axis> GetAmplAxis(const std::string &fullname)
   {
-    std::shared_ptr<mutableinfostore> rec;
-    rec = recdb->lookup(fullname);
-    if (!rec) return FindAxis("Voltage","Volts");
+    std::shared_ptr<ndarray_recording_ref> rec;
+    try {
+      rec = current_globalrev->get_recording_ref(fullname);
+    } catch (snde_error &) {
+      // no such reference
+      return FindAxis("Time","seconds");
+    }
 
-    std::string AxisName = rec->metadata.GetMetaDatumStr("AmplCoord","Voltage");
-    std::string UnitName = rec->metadata.GetMetaDatumStr("AmplUnits","Volts");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("AmplCoord","Voltage");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("AmplUnits","Volts");
 
     return FindAxis(AxisName,UnitName);
   }
@@ -587,51 +659,49 @@ public:
   void SetVertScale(std::shared_ptr<display_channel> c,double scalefactor,bool pixelflag)
   {
     std::shared_ptr<display_axis> a;
+    const std::shared_ptr<std::string> chan_name = c->FullName();
     
-    std::shared_ptr<mutableinfostore> chan_data;
-    chan_data = recdb->lookup(c->FullName());
-    if (!chan_data) return;
-    
-    std::shared_ptr<mutabledatastore> datastore;
-    
-    {
-      std::lock_guard<std::mutex> adminlock(admin);
-      datastore=std::dynamic_pointer_cast<mutabledatastore>(/* c-> */ chan_data);
+    std::shared_ptr<ndarray_recording_ref> chan_data;
+    try {
+      chan_data = current_globalrev->get_recording_ref(*chan_name);
+    } catch (snde_error &) {
+      // no such reference
+      return;
     }
-    if (datastore) {
-      size_t ndim=datastore->dimlen.size();
 
-      /*  set the scaling of whatever unit is used on the vertical axis of this channel */
-      if (ndim==1) {
-	a = GetAmplAxis(c->FullName());
-	//if (pixelflag) {
-	//  c->UnitsPerDiv=scalefactor/pixelsperdiv;
-	//} else {
-	std::lock_guard<std::mutex> adminlock(c->admin);
-	c->Scale=scalefactor;	  
-	//}
+    size_t ndim=chan_data->layout.dimlen.size();
+
+    /*  set the scaling of whatever unit is used on the vertical axis of this channel */
+    if (ndim==1) {
+      a = GetAmplAxis(*chan_name);
+      //if (pixelflag) {
+      //  c->UnitsPerDiv=scalefactor/pixelsperdiv;
+      //} else {
+      std::lock_guard<std::mutex> adminlock(c->admin);
+      c->Scale=scalefactor;	  
+      //}
 	
-	return;
-      } else if (ndim==0) {
-	return;
-      } else if (ndim >= 2) {
-	/* image or image array */
-	a=GetSecondAxis(c->FullName());
-	//if (pixelflag)
-	//  a->unit->scale=scalefactor/pixelsperdiv;
-	//else
-	std::lock_guard<std::mutex> adminlock(a->unit->admin);
-	a->unit->scale=scalefactor;
-	return;
-      } else {
-	assert(0);
-	return;
-      }
-
-      
+      return;
+    } else if (ndim==0) {
+      return;
+    } else if (ndim >= 2) {
+      /* image or image array */
+      a=GetSecondAxis(*chan_name);
+      //if (pixelflag)
+      //  a->unit->scale=scalefactor/pixelsperdiv;
+      //else
+      std::lock_guard<std::mutex> adminlock(a->unit->admin);
+      a->unit->scale=scalefactor;
+      return;
+    } else {
+      assert(0);
+      return;
     }
+    
+    
   }
-
+  
+  
   std::tuple<bool,double,bool> GetVertScale(std::shared_ptr<display_channel> c)
   // returns (success,scalefactor,pixelflag)
   {
@@ -639,54 +709,52 @@ public:
     double scalefactor;
     bool success=false;
 
-    std::shared_ptr<mutableinfostore> chan_data;
-    chan_data = recdb->lookup(c->FullName());
-    if (!chan_data) return std::make_tuple(false,0.0,false);    ;
-
-    std::shared_ptr<mutabledatastore> datastore;
-
-    {
-      std::lock_guard<std::mutex> adminlock(admin);
-      datastore=std::dynamic_pointer_cast<mutabledatastore>(/*c->*/ chan_data);
+    const std::shared_ptr<std::string> chan_name = c->FullName();
+    
+    std::shared_ptr<ndarray_recording_ref> chan_data;
+    try {
+      chan_data = current_globalrev->get_recording_ref(*chan_name);
+    } catch (snde_error &) {
+      // no such reference
+      return std::make_tuple(false,0.0,false);
     }
-    if (datastore) {
-      size_t ndim=datastore->dimlen.size();
+    
+    size_t ndim=chan_data->layout.dimlen.size();
 
-      /* return the units/div of whatever unit is used on the vertical axis of this channel */
-      if (ndim==1) {
-	a = GetAmplAxis(c->FullName());
-	//if (a->unit->pixelflag) {
-	//  scalefactor=c->UnitsPerDiv*pixelsperdiv;
-	///} else {
-	{
-	  std::lock_guard<std::mutex> adminlock(c->admin);
-	  scalefactor=c->Scale;
-	}
-	  //}
-	std::lock_guard<std::mutex> adminlock(a->admin);
-	return std::make_tuple(true,scalefactor,a->unit->pixelflag);
-      } else if (ndim==0) {
-	//return std::make_tuple(true,1.0,false);
-	return std::make_tuple(false,0.0,false);
-      } else if (ndim >= 2) {
-	/* image or image array */
-	a=GetSecondAxis(c->FullName());
-	//if (a->unit->pixelflag)
-	//  scalefactor=a->unit->scale*pixelsperdiv;
-	//else
-	{
-	  std::lock_guard<std::mutex> adminlock(a->unit->admin);
-	  scalefactor=a->unit->scale;
-	  return std::make_tuple(true,scalefactor,a->unit->pixelflag);
-	}
-      } else {
-	assert(0);
-	return std::make_tuple(false,0.0,false);
+    /* return the units/div of whatever unit is used on the vertical axis of this channel */
+    if (ndim==1) {
+      a = GetAmplAxis(*chan_name);
+      //if (a->unit->pixelflag) {
+      //  scalefactor=c->UnitsPerDiv*pixelsperdiv;
+      ///} else {
+      {
+	std::lock_guard<std::mutex> adminlock(c->admin);
+	scalefactor=c->Scale;
       }
+      //}
+      std::lock_guard<std::mutex> adminlock(a->admin);
+      return std::make_tuple(true,scalefactor,a->unit->pixelflag);
+    } else if (ndim==0) {
+      //return std::make_tuple(true,1.0,false);
+      return std::make_tuple(false,0.0,false);
+    } else if (ndim >= 2) {
+      /* image or image array */
+      a=GetSecondAxis(*chan_name);
+      //if (a->unit->pixelflag)
+      //  scalefactor=a->unit->scale*pixelsperdiv;
+      //else
+      {
+	std::lock_guard<std::mutex> adminlock(a->unit->admin);
+	scalefactor=a->unit->scale;
+	return std::make_tuple(true,scalefactor,a->unit->pixelflag);
+      }
+    } else {
+      assert(0);
+      return std::make_tuple(false,0.0,false);
     }
     return std::make_tuple(false,0.0,false);    
   }
-
+  
 
   
   double GetVertUnitsPerDiv(std::shared_ptr<display_channel> c)
@@ -694,60 +762,78 @@ public:
     std::shared_ptr<display_axis> a;
     double scalefactor;
     double UnitsPerDiv;
-    std::shared_ptr<mutabledatastore> datastore;
-
-    std::shared_ptr<mutableinfostore> chan_data;
-    chan_data = recdb->lookup(c->FullName());
-    if (!chan_data) return 0.0;
 
     
-    {
-      std::lock_guard<std::mutex> adminlock(c->admin);
-      datastore=std::dynamic_pointer_cast<mutabledatastore>(/*c->*/chan_data);
+    const std::shared_ptr<std::string> chan_name = c->FullName();
+    
+    std::shared_ptr<ndarray_recording_ref> chan_data;
+    try {
+      chan_data = current_globalrev->get_recording_ref(*chan_name);
+    } catch (snde_error &) {
+      // no such reference
+      return 0.0;
     }
-    
-    if (datastore) {
-      size_t ndim=datastore->dimlen.size();
 
-      /* return the units/div of whatever unit is used on the vertical axis of this channel */
-      if (ndim==1) {
-	a = GetAmplAxis(c->FullName());
-	{
-	  std::lock_guard<std::mutex> adminlock(c->admin);
-	  scalefactor=c->Scale;
-	}
+
+    size_t ndim=chan_data->layout.dimlen.size();
+
+    /* return the units/div of whatever unit is used on the vertical axis of this channel */
+    if (ndim==1) {
+      a = GetAmplAxis(*chan_name);
+      {
+	std::lock_guard<std::mutex> adminlock(c->admin);
+	scalefactor=c->Scale;
+      }
 	
+      UnitsPerDiv=scalefactor;
+      
+      std::lock_guard<std::mutex> adminlock(a->admin);
+      if (a->unit->pixelflag) {
+	UnitsPerDiv *= pixelsperdiv;
+      } 
+      return UnitsPerDiv;
+    } else if (ndim==0) {
+      return 1.0;
+    } else if (ndim >= 2) {
+      /* image or image array */
+      a=GetSecondAxis(*chan_name);
+      {
+	std::lock_guard<std::mutex> adminlock(a->unit->admin);
+	scalefactor=a->unit->scale;
 	UnitsPerDiv=scalefactor;
-	
-	std::lock_guard<std::mutex> adminlock(a->admin);
 	if (a->unit->pixelflag) {
 	  UnitsPerDiv *= pixelsperdiv;
-	} 
-	return UnitsPerDiv;
-      } else if (ndim==0) {
-	return 1.0;
-      } else if (ndim >= 2) {
-	/* image or image array */
-	a=GetSecondAxis(c->FullName());
-	{
-	  std::lock_guard<std::mutex> adminlock(a->unit->admin);
-	  scalefactor=a->unit->scale;
-	  UnitsPerDiv=scalefactor;
-	  if (a->unit->pixelflag) {
-	    UnitsPerDiv *= pixelsperdiv;
-	  }
 	}
-	return UnitsPerDiv;
-      } else {
-	assert(0);
-	return 0.0;
       }
+      return UnitsPerDiv;
+    } else {
+      assert(0);
+      return 0.0;
     }
+    
     return 0.0;
   }
 };
 
+
+  struct display_requirement {
+    std::string channelpath;
+    int mode; // see SNDE_DRM_XXXX
+    std::string renderable_channelpath;
+    std::shared_ptr<instantiated_math_function> renderable_function;
+  };
+
+#define SNDE_DRM_INVALID 0 // undetermined/invalid display mode
+#define SNDE_DRM_RAW 1 // raw data OK (used for passing 1D waveforms to the renderer)
+#define SNDE_DRM_RGBAIMAGE 2 // render as an RGBA image or texture
+#define SNDE_DRM_GEOMETRY 3 // render as 3D geometry
   
+  // Go through the vector of channels we want to display,
+  // and figure out
+  // (a) all channels that will be necessary, and
+  // (b) the math function (if necessary) to render to rgba, and
+  // (c) the name of the renderable rgba channel
+  std::vector<display_requirement> traverse_display_requirements(std::shared_ptr<display_info> display,std::shared_ptr<globalrevision> globalrev,const std::vector<std::shared_ptr<display_channel>> &displaychans);
 
 }
 #endif // SNDE_REC_DISPLAY_HPP

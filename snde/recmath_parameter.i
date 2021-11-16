@@ -10,6 +10,9 @@ snde_rawaccessible(snde::math_parameter_int_const);
 %shared_ptr(snde::math_parameter_double_const);
 snde_rawaccessible(snde::math_parameter_double_const);
 
+%shared_ptr(snde::math_parameter_indexvec_const);
+snde_rawaccessible(snde::math_parameter_indexvec_const);
+
 %shared_ptr(snde::math_parameter_recording);
 snde_rawaccessible(snde::math_parameter_recording);
 
@@ -36,6 +39,9 @@ namespace snde {
     math_parameter& operator=(const math_parameter &) = delete; 
     virtual ~math_parameter()=default;  // virtual destructor required so we can be subclassed
 
+    virtual bool operator==(const math_parameter &ref)=0; // used for comparing parameters to instantiated_math_functions
+    virtual bool operator!=(const math_parameter &ref)=0;
+
     // default implementations that just raise runtime_error
     // function definition and parameter index are just for the error message
     // NOTE: To add support for more parameter types,
@@ -47,6 +53,8 @@ namespace snde {
     virtual std::string get_string(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
     virtual int64_t get_int(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
     virtual double get_double(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
+    virtual std::vector<snde_index> get_indexvec(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
+
     virtual std::shared_ptr<recording_base> get_recording(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings because we shouldn't be called until dependencies are ready // parameter_index human interpreted parameter number, starting at 1, for error messages only
 
     // default implementations that returns an empty set
@@ -79,6 +87,15 @@ namespace snde {
 
     math_parameter_double_const(double double_constant);
     virtual double get_double(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
+    
+  };
+
+  class math_parameter_indexvec_const: public math_parameter {
+  public:
+    std::vector<snde_index> indexvec;
+
+    math_parameter_indexvec_const(const std::vector<snde_index> & indexvec);
+    virtual std::vector<snde_index> get_indexvec(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
     
   };
 

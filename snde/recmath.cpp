@@ -2,6 +2,114 @@
 #include "snde/recstore.hpp"
 
 namespace snde {
+
+  bool list_math_instance_parameter::operator==(const math_instance_parameter &ref) // used for comparing extra parameters to instantiated_math_functions
+  {
+
+    const list_math_instance_parameter *lref = dynamic_cast<const list_math_instance_parameter *>(&ref);
+
+    if (!lref) {
+      return false;
+    }
+    
+    if (list.size() != lref->list.size()) {
+      return false;
+    }
+
+    for (size_t idx=0;idx < list.size();idx++) {
+      if (*list[idx] != *lref->list[idx]) {
+	return false;
+      }
+    }
+    return true;
+    
+  }
+  
+  bool list_math_instance_parameter::operator!=(const math_instance_parameter &ref)
+  {
+    return !(*this==ref);
+  }
+  
+  bool dict_math_instance_parameter::operator==(const math_instance_parameter &ref) // used for comparing extra parameters to instantiated_math_functions
+  {
+
+    const dict_math_instance_parameter *dref = dynamic_cast<const dict_math_instance_parameter *>(&ref);
+    
+    if (!dref) {
+      return false;
+    }
+
+    
+    if (dict.size() != dref->dict.size()) {
+      return false;
+    }
+    
+    for (auto && str_subparam: dict) {
+      auto ref_iter = dref->dict.find(str_subparam.first);
+      if (ref_iter == dref->dict.end()) {
+	return false;
+      }
+      if (*ref_iter->second != *str_subparam.second) {
+	return false;
+      }
+    }
+
+    return true;
+  }
+  bool dict_math_instance_parameter::operator!=(const math_instance_parameter &ref)
+  {
+    return !(*this==ref);
+  }
+  
+  bool string_math_instance_parameter::operator==(const math_instance_parameter &ref) // used for comparing extra parameters to instantiated_math_functions
+  {
+    const string_math_instance_parameter *sref = dynamic_cast<const string_math_instance_parameter *>(&ref);
+
+    if (!sref) {
+      return false;
+    }
+
+    return value == sref->value;
+  }
+  
+  bool string_math_instance_parameter::operator!=(const math_instance_parameter &ref)
+  {
+    return !(*this==ref);
+  }
+  
+  bool int_math_instance_parameter::operator==(const math_instance_parameter &ref) // used for comparing extra parameters to instantiated_math_functions
+  {
+
+    const int_math_instance_parameter *iref = dynamic_cast<const int_math_instance_parameter *>(&ref);
+
+    if (!iref) {
+      return false;
+    }
+
+    return value==iref->value;
+  }
+  
+  bool int_math_instance_parameter::operator!=(const math_instance_parameter &ref)
+  {
+    return !(*this==ref);
+  }
+  
+  bool double_math_instance_parameter::operator==(const math_instance_parameter &ref) // used for comparing extra parameters to instantiated_math_functions
+  {
+    const double_math_instance_parameter *dref = dynamic_cast<const double_math_instance_parameter *>(&ref);
+
+    if (!dref) {
+      return false;
+    }
+    return value==dref->value;
+  }
+  
+  bool double_math_instance_parameter::operator!=(const math_instance_parameter &ref)
+  {
+    return !(*this==ref);
+  }
+
+  
   math_function::math_function(const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution) :
     param_names_types(param_names_types),
     initiate_execution(initiate_execution)
@@ -20,6 +128,17 @@ namespace snde {
 
   }
 
+  bool math_definition::operator==(const math_definition &ref)
+  {
+    return definition_command==ref.definition_command;
+  }
+
+  bool math_definition::operator!=(const math_definition &ref)
+  {
+    return !(*this==ref);
+  }
+
+  
   instantiated_math_function::instantiated_math_function(const std::vector<std::shared_ptr<math_parameter>> & parameters,
 							 const std::vector<std::shared_ptr<std::string>> & result_channel_paths,
 							 std::string channel_path_context,
@@ -70,6 +189,84 @@ namespace snde {
     }
     return copy;
   }
+
+  bool instantiated_math_function::operator==(const instantiated_math_function &ref)
+  {
+
+    if (parameters.size() != ref.parameters.size()) {
+      return false;
+    }
+
+    for (size_t pnum=0;pnum < parameters.size();pnum++) {
+      if (*parameters[pnum] != *ref.parameters[pnum]) {
+	return false;
+      }
+    }
+
+    if (result_channel_paths.size() != ref.result_channel_paths.size()) {
+      return false;
+    }
+    
+    for (size_t rnum=0;rnum < result_channel_paths.size();rnum++) {
+      if (*result_channel_paths[rnum] != *ref.result_channel_paths[rnum]) {
+	return false;
+      }
+    }
+
+    if (result_mutability != ref.result_mutability) {
+      return false;
+    }
+
+    if (channel_path_context != ref.channel_path_context) {
+      return false;
+    }
+
+    if (disabled != ref.disabled) {
+      return false;
+    }
+
+    if (is_mutable != ref.is_mutable) {
+      return false;
+    }
+
+
+    if (self_dependent != ref.self_dependent) {
+      return false;
+    }
+
+    if (ondemand != ref.ondemand) {
+      return false;
+    }
+
+    if (mdonly != ref.mdonly) {
+      return false;
+    }
+
+    if (fcn != ref.fcn) {
+      // Note that here we compare the (smart) math_function pointers,
+      // not the structure contents -- so this test will fail
+      // if the math_function object got redefined
+      return false;
+    }
+
+    if (*definition != *ref.definition) {
+      // use math_definition::operator==()
+      return false;
+    }
+
+    if (*extra_params != *ref.extra_params) {
+      // use math_instance_parameter::operator()
+      return false;
+    }
+
+    return true;
+  }
+
+  bool instantiated_math_function::operator!=(const instantiated_math_function &ref)
+  {
+    return !(*this==ref);
+  }
+
 
   // rebuild all_dependencies_of_channel hash table. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main recording database, and the main recording database admin lock must be locked when this is called. 
   void instantiated_math_database::_rebuild_dependency_map()

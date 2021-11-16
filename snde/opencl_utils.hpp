@@ -14,20 +14,30 @@
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 #endif
 
-#include <CL/opencl.h>
+//#include <CL/opencl.h>
+
+#ifdef __APPLE__
+#include <OpenCL/opencl.hpp>
+#else
+#include <CL/opencl.hpp>
+#endif
+
+
 
 #include "snde/allocator.hpp"
 #include "snde/snde_error_opencl.hpp"
 
 namespace snde {
 
-  std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string query,bool need_doubleprec,void (*pfn_notify)(const char *errinfo,const void *private_info, size_t cb, void *user_data),void *user_data);
+  std::tuple<cl::Context,std::vector<cl::Device>,std::string> get_opencl_context(std::string query,bool need_doubleprec,void (*pfn_notify)(const char *errinfo,const void *private_info, size_t cb, void *user_data),void *user_data);
 
-  std::tuple<cl_program, std::string> get_opencl_program(cl_context context, cl_device_id device, std::vector<const char *> program_source);
-  std::tuple<cl_program, std::string> get_opencl_program(cl_context context, cl_device_id device, std::vector<std::string> program_source);
+  std::tuple<cl::Program, std::string> get_opencl_program(cl::Context context, cl::Device device, std::vector<const char *> program_source);
+  std::tuple<cl::Program, std::string> get_opencl_program(cl::Context context, cl::Device device, std::vector<std::string> program_source);
 
-  void add_opencl_alignment_requirement(std::shared_ptr<allocator_alignment> alignment,cl_device_id device);
+  void add_opencl_alignment_requirement(std::shared_ptr<allocator_alignment> alignment,cl::Device device);
 
+
+#if 0 // this stuff is obsolste
   struct _snde_cl_retain_command_queue {
     static void retain(cl_command_queue queue)
     {
@@ -95,37 +105,39 @@ namespace snde {
   };
 
   typedef clobj_wrapper<cl_command_queue,_snde_cl_retain_command_queue,_snde_cl_release_command_queue> cl_command_queue_wrapped;
+#endif // 0 (obsolete)
+
   
   struct context_device { // used internal to class opencl_program as map key
-    cl_context context;
-    cl_device_id device; 
+    cl::Context context;
+    cl::Device device; 
 
-    context_device(cl_context context,cl_device_id device) :
+    context_device(cl::Context context,cl::Device device) :
       context(context),
       device(device)
     {
-      clRetainContext(this->context); /* increase refcnt */
-      clRetainDevice(this->device);      
+      //clRetainContext(this->context); /* increase refcnt */
+      //clRetainDevice(this->device);      
     }
     
-    context_device(const context_device &orig) /* copy constructor */
-    {
-      context=orig.context;
-      clRetainContext(context);
-      device=orig.device;
-      clRetainDevice(device);
-    }
+    //context_device(const context_device &orig) /* copy constructor */
+    //{
+    //  context=orig.context;
+    //  clRetainContext(context);
+    //  device=orig.device;
+    //  clRetainDevice(device);
+    //}
     
-    context_device & operator=(const context_device &orig) /* copy assignment operator */
-    {
-      clReleaseContext(context);
-      context=orig.context;
-      clRetainContext(context);
-      device=orig.device;
-      clRetainDevice(device);
-      
-      return *this;
-    }
+    //context_device & operator=(const context_device &orig) /* copy assignment operator */
+    //{
+    //  clReleaseContext(context);
+    //  context=orig.context;
+    //  clRetainContext(context);
+    //  device=orig.device;
+    //  clRetainDevice(device);
+    //  
+    //  return *this;
+    // }
 
     // equality operator for std::unordered_map
     bool operator==(const context_device b) const
@@ -133,10 +145,10 @@ namespace snde {
       return b.context==context&& b.device==device;
     }
     
-    ~context_device() {
-      clReleaseContext(context);
-      clReleaseDevice(device);
-    }
+    //~context_device() {
+    //  clReleaseContext(context);
+    //  clReleaseDevice(device);
+    //}
   };
   
   // Need to provide hash and equality implementation for context_device so
@@ -147,8 +159,8 @@ namespace snde {
     size_t operator()(const context_device & x) const
     {
       return
-	std::hash<void *>{}((void *)x.context) +
-			     std::hash<void *>{}((void *)x.device);
+	std::hash<void *>{}((void *)x.context.get()) +
+			     std::hash<void *>{}((void *)x.device.get());
     }
   };
   
@@ -166,7 +178,7 @@ namespace snde {
     std::string kern_fcn_name;
     std::vector<std::string> program_source;
     
-    std::unordered_map<context_device,cl_program,context_device_hash,context_device_equal> program_dict;
+    std::unordered_map<context_device,cl::Program,context_device_hash,context_device_equal> program_dict;
   public:
     opencl_program(std::string kern_fcn_name,std::vector<std::string> program_source_strings) :
       kern_fcn_name(kern_fcn_name),
@@ -181,14 +193,14 @@ namespace snde {
     //    program_source.push_back(cstr);
     //}  
     //
-    cl_kernel get_kernel(cl_context context, cl_device_id device)
+    cl::Kernel get_kernel(cl::Context context, cl::Device device)
     // We create a new kernel every time because kernels aren't thread-safe
     // due to the nature of clSetKernelArg
     // be sure to call clReleaseKernel() on the kernel you get from this when you are done with it!
     {
       std::lock_guard<std::mutex> program_lock(program_mutex);
       cl_int clerror=0;
-      cl_program program;
+      cl::Program program;
       context_device cd(context,device);
       
       if (!program_dict.count(cd)) {
@@ -207,13 +219,13 @@ namespace snde {
       
       program=program_dict[cd];
       
-      cl_kernel kernel;
+      cl::Kernel kernel;
       
       // Create the OpenCL kernel object
-      kernel=clCreateKernel(program,kern_fcn_name.c_str(),&clerror);
-      if (!kernel) {
-	throw openclerror(clerror,"Error creating OpenCL kernel");
-      }
+      kernel=cl::Kernel(program,kern_fcn_name.c_str()); // ,&clerror);
+      //if (!kernel) {
+      //throw openclerror(clerror,"Error creating OpenCL kernel");
+      //}
       
       //kern_dict[cd]=kernel;
       

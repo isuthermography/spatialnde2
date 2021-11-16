@@ -28,6 +28,13 @@ namespace snde {
     throw snde_error("Cannot get double value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
 
   }
+
+  std::vector<snde_index> math_parameter::get_indexvec(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  {
+    throw snde_error("Cannot get index vector value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
+
+  }
+
   
   std::shared_ptr<recording_base> math_parameter::get_recording(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings
   {
@@ -61,7 +68,25 @@ namespace snde {
     return string_constant;
   }
 
+  bool math_parameter_string_const::operator==(const math_parameter &ref) // used for comparing parameters to instantiated_math_functions
+  {
+    const math_parameter_string_const *sref = dynamic_cast<const math_parameter_string_const *>(&ref);
 
+    if (!sref) {
+      return false;
+    }
+
+    return string_constant == sref->string_constant;
+
+  }
+  
+  bool math_parameter_string_const::operator!=(const math_parameter &ref)
+  {
+    return !(*this==ref);
+  }
+
+
+  
 
   math_parameter_int_const::math_parameter_int_const(int64_t int_constant) :
     math_parameter(SNDE_MFPT_INT),
@@ -76,6 +101,25 @@ namespace snde {
     return int_constant;
   }
   
+  bool math_parameter_int_const::operator==(const math_parameter &ref) // used for comparing parameters to instantiated_math_functions
+  {
+    const math_parameter_int_const *iref = dynamic_cast<const math_parameter_int_const *>(&ref);
+
+    if (!iref) {
+      return false;
+    }
+
+    return int_constant == iref->int_constant;
+
+  }
+  
+  bool math_parameter_int_const::operator!=(const math_parameter &ref)
+  {
+    return !(*this==ref);
+  }
+
+  
+  
   math_parameter_double_const::math_parameter_double_const(double double_constant) :
     math_parameter(SNDE_MFPT_DBL),
     double_constant(double_constant)
@@ -89,6 +133,56 @@ namespace snde {
     return double_constant;
   }
 
+
+  bool math_parameter_double_const::operator==(const math_parameter &ref) // used for comparing parameters to instantiated_math_functions
+  {
+    const math_parameter_double_const *dref = dynamic_cast<const math_parameter_double_const *>(&ref);
+
+    if (!dref) {
+      return false;
+    }
+    
+    return double_constant == dref->double_constant;
+
+  }
+  
+  bool math_parameter_double_const::operator!=(const math_parameter &ref)
+  {
+    return !(*this==ref);
+  }
+
+  
+  math_parameter_indexvec_const::math_parameter_indexvec_const(const std::vector<snde_index> & indexvec) :
+    math_parameter(SNDE_MFPT_INDEXVEC),
+    indexvec(indexvec)
+  {
+
+  }
+
+  std::vector<snde_index> math_parameter_indexvec_const::get_indexvec(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  {
+    return indexvec;
+  }
+
+  
+  bool math_parameter_indexvec_const::operator==(const math_parameter &ref) // used for comparing parameters to instantiated_math_functions
+  {
+    const math_parameter_indexvec_const *iref = dynamic_cast<const math_parameter_indexvec_const *>(&ref);
+
+    if (!iref) {
+      return false;
+    }
+
+    return indexvec == iref->indexvec;
+
+  }
+  
+  bool math_parameter_indexvec_const::operator!=(const math_parameter &ref)
+  {
+    return !(*this==ref);
+  }
+
+  
   math_parameter_recording::math_parameter_recording(std::string channel_name) :
     math_parameter(SNDE_MFPT_RECORDING),
     channel_name(channel_name),
@@ -116,6 +210,23 @@ namespace snde {
 
   }
 
+
+  bool math_parameter_recording::operator==(const math_parameter &ref) // used for comparing parameters to instantiated_math_functions
+  {
+    const math_parameter_recording *rref = dynamic_cast<const math_parameter_recording *>(&ref);
+
+    if (!rref) {
+      return false;
+    }
+
+    return channel_name == rref->channel_name && array_index == rref->array_index && array_name==rref->array_name;
+
+  }
+  
+  bool math_parameter_recording::operator!=(const math_parameter &ref)
+  {
+    return !(*this==ref);
+  }
 
   std::set<std::string> math_parameter_recording::get_prerequisites(/*std::shared_ptr<recording_set_state> wss,*/ const std::string &channel_path_context)
   {

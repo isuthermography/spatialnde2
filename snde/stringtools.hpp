@@ -1,5 +1,7 @@
 #ifndef SNDE_STRINGTOOLS_HPP
 #define SNDE_STRINGTOOLS_HPP
+
+#include <cassert>
 namespace snde {
 
 

@@ -284,7 +284,7 @@ namespace snde {
 
 #ifdef SNDE_OPENCL
 %include "opencl_utils.i"
-%include "openclcachemanager.i"
+ //%include "openclcachemanager.i"
 #endif
 
  //#ifdef SNDE_X3D
@@ -321,7 +321,7 @@ namespace snde {
   PyDict_SetItemString(Globals,"np",NumpyModule);
   PyDict_SetItemString(Globals,"dtype",np_dtype);
 
-  
+  // SNDE_RTN_UNASSIGNED: Not valid for Numpy  
   snde::rtn_numpytypemap.emplace(SNDE_RTN_FLOAT32,PyArray_DescrFromType(NPY_FLOAT32));
   snde::rtn_numpytypemap.emplace(SNDE_RTN_FLOAT64,PyArray_DescrFromType(NPY_FLOAT64));
   snde::rtn_numpytypemap.emplace(SNDE_RTN_FLOAT16,PyArray_DescrFromType(NPY_FLOAT16));

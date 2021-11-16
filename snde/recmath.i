@@ -59,32 +59,55 @@ namespace snde {
   
   class math_instance_parameter {
   public:
-    // this is a recursive dictionary/list structure -- this is just the abstract base class    
+    // this is a recursive dictionary/list structure -- this is just the abstract base class
+    virtual bool operator==(const math_instance_parameter &ref)=0; // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref)=0;
+
   };
   
   class list_math_instance_parameter {
   public:
     std::vector<std::shared_ptr<math_instance_parameter>> list;
+
+    virtual bool operator==(const math_instance_parameter &ref)=0; // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref)=0;
+
   };
     
   class dict_math_instance_parameter {
   public:
     std::unordered_map<std::string,std::shared_ptr<math_instance_parameter>> dict;
+    
+    virtual bool operator==(const math_instance_parameter &ref)=0; // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref)=0;
+
   };
   
   class string_math_instance_parameter {
   public:
     std::string value;
+
+    virtual bool operator==(const math_instance_parameter &ref)=0; // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref)=0;
+
   };
   
   class int_math_instance_parameter {
   public:
     int64_t value;
+
+    virtual bool operator==(const math_instance_parameter &ref)=0; // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref)=0;
+
   };
   
   class double_math_instance_parameter {
   public:
     double value;
+
+    virtual bool operator==(const math_instance_parameter &ref)=0; // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref)=0;
+
   };
 
 

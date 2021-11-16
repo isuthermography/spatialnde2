@@ -207,8 +207,11 @@ namespace snde {
     
     inline void *element_dataptr(size_t array_index,const std::vector<snde_index> &idx);  // returns a pointer to an element, which is of size ndinfo()->elementsize
     inline size_t element_offset(size_t array_index,const std::vector<snde_index> &idx);
+
     double element_double(size_t array_index,const std::vector<snde_index> &idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
-    void assign_double(size_t array_index,const std::vector<snde_index> &idx,double val); // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+
+    void assign_double(size_t array_index,const std::vector<snde_index> &idx,double val); // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published.
+
 
     int64_t element_int(size_t array_index,const std::vector<snde_index> &idx); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
     void assign_int(size_t array_index,const std::vector<snde_index> &idx,int64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
@@ -276,15 +279,30 @@ namespace snde {
       return cur_offset;
       
     }
+    inline size_t element_offset(snde_index idx,bool fortran_order);
+    inline size_t element_offset(snde_index idx);
+
     virtual double element_double(const std::vector<snde_index> &idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    virtual double element_double(snde_index idx, bool fortran_order); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    virtual double element_double(snde_index idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
     virtual void assign_double(const std::vector<snde_index> &idx,double val); // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    virtual void assign_double(snde_index idx,double val,bool fortran_order); // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    virtual void assign_double(snde_index idx,double val); // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
 
     virtual int64_t element_int(const std::vector<snde_index> &idx); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    virtual int64_t element_int(snde_index idx,bool fortran_order); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    virtual int64_t element_int(snde_index idx); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
     virtual void assign_int(const std::vector<snde_index> &idx,int64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    virtual void assign_int(snde_index idx,int64_t val,bool fortran_order); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    virtual void assign_int(snde_index idx,int64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
 
     virtual uint64_t element_unsigned(const std::vector<snde_index> &idx); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    virtual uint64_t element_unsigned(snde_index idx,bool fortran_order); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    virtual uint64_t element_unsigned(snde_index idx); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
     virtual void assign_unsigned(const std::vector<snde_index> &idx,uint64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
-    
+    virtual void assign_unsigned(snde_index idx,uint64_t val,bool fortran_order); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    virtual void assign_unsigned(snde_index idx,uint64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+
 
 
   };
@@ -469,7 +487,7 @@ namespace snde {
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_metadataonly; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes metadataonly; set to nullptr at end of channel becoming metadataonly. 
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_ready; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes ready; set to nullptr at end of channel becoming ready. 
 
-    channel_state(std::shared_ptr<channel> chan,std::shared_ptr<recording_base> rec,bool updated);
+    channel_state(std::shared_ptr<channel> chan,std::shared_ptr<channelconfig> config,std::shared_ptr<recording_base> rec,bool updated);
 
     channel_state(const channel_state &orig); // copy constructor used for initializing channel_map from prototype defined in end_transaction()
 

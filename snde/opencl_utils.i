@@ -18,7 +18,7 @@ typedef struct _cl_context *          cl_context;
 typedef struct _cl_device_id *          cl_device_id;
 typedef struct _cl_mem *          cl_mem;
 
-%typemap(typecheck,precedence=SWIG_TYPECHECK_POINTER) cl_mem {
+%typemap(typecheck,precedence=SWIG_TYPECHECK_POINTER) cl::Buffer {
   PyObject *pyopencl=NULL;
   PyObject *clMemoryObject=NULL;
   pyopencl = PyImport_ImportModule("pyopencl");
@@ -32,20 +32,20 @@ typedef struct _cl_mem *          cl_mem;
   Py_XDECREF(pyopencl);
 }
 
-%typemap(in) cl_mem (PyObject *clMem_int_ptr=NULL) {
+%typemap(in) cl::Buffer (PyObject *clMem_int_ptr=NULL) {
   
   clMem_int_ptr=PyObject_GetAttrString($input,"int_ptr");
   
 #if PY_VERSION_HEX < 0x03000000
-  $1=(cl_mem)((uintptr_t)PyInt_AsUnsignedLongLongMask(clMem_int_ptr));
+  $1=cl::Buffer((cl_mem)((uintptr_t)PyInt_AsUnsignedLongLongMask(clMem_int_ptr)),true);
 #else
-  $1=(cl_mem)((uintptr_t)PyLong_AsUnsignedLongLongMask(clMem_int_ptr));
+  $1=cl::Buffer((cl_mem)((uintptr_t)PyLong_AsUnsignedLongLongMask(clMem_int_ptr)),true);
 #endif
 
   Py_XDECREF(clMem_int_ptr);
 }
 
-%typemap(typecheck,precedence=SWIG_TYPECHECK_POINTER) cl_kernel {
+%typemap(typecheck,precedence=SWIG_TYPECHECK_POINTER) cl::Kernel {
   PyObject *pyopencl=NULL;
   PyObject *clKernel=NULL;
   pyopencl = PyImport_ImportModule("pyopencl");
@@ -59,20 +59,20 @@ typedef struct _cl_mem *          cl_mem;
   Py_XDECREF(pyopencl);
 }
 
-%typemap(in) cl_kernel (PyObject *clKernel_int_ptr=NULL) {
+%typemap(in) cl::Kernel (PyObject *clKernel_int_ptr=NULL) {
   
   clKernel_int_ptr=PyObject_GetAttrString($input,"int_ptr");
   
 #if PY_VERSION_HEX < 0x03000000
-  $1=(cl_kernel)((uintptr_t)PyInt_AsUnsignedLongLongMask(clKernel_int_ptr));
+  $1=cl::Kernel((cl_kernel)((uintptr_t)PyInt_AsUnsignedLongLongMask(clKernel_int_ptr)),true);
 #else
-  $1=(cl_kernel)((uintptr_t)PyLong_AsUnsignedLongLongMask(clKernel_int_ptr));
+  $1=cl::Kernel((cl_kernel)((uintptr_t)PyLong_AsUnsignedLongLongMask(clKernel_int_ptr)),true);
 #endif
-
+  
   Py_XDECREF(clKernel_int_ptr);
 }
 
-%typemap(typecheck,precedence=SWIG_TYPECHECK_POINTER) cl_command_queue {
+%typemap(typecheck,precedence=SWIG_TYPECHECK_POINTER) cl::CommandQueue {
   PyObject *pyopencl=NULL;
   PyObject *clCommandQueue=NULL;
   pyopencl = PyImport_ImportModule("pyopencl");
@@ -86,14 +86,14 @@ typedef struct _cl_mem *          cl_mem;
   Py_XDECREF(pyopencl);
 }
 
-%typemap(in) cl_command_queue (PyObject *clCommandQueue_int_ptr=NULL) {
+%typemap(in) cl::CommandQueue (PyObject *clCommandQueue_int_ptr=NULL) {
   
   clCommandQueue_int_ptr=PyObject_GetAttrString($input,"int_ptr");
   
 #if PY_VERSION_HEX < 0x03000000
-  $1=(cl_command_queue)((uintptr_t)PyInt_AsUnsignedLongLongMask(clCommandQueue_int_ptr));
+  $1=cl::CommandQueue((cl_command_queue)((uintptr_t)PyInt_AsUnsignedLongLongMask(clCommandQueue_int_ptr)),true);
 #else
-  $1=(cl_command_queue)((uintptr_t)PyLong_AsUnsignedLongLongMask(clCommandQueue_int_ptr));
+  $1=cl::CommandQueue((cl_command_queue)((uintptr_t)PyLong_AsUnsignedLongLongMask(clCommandQueue_int_ptr)),true);
 #endif
   
 
@@ -101,14 +101,14 @@ typedef struct _cl_mem *          cl_mem;
 }
 
 
-%typemap(in) cl_event (PyObject *clEvent_int_ptr=NULL) {
+%typemap(in) cl::Event (PyObject *clEvent_int_ptr=NULL) {
   
   clEvent_int_ptr=PyObject_GetAttrString($input,"int_ptr");
   
 #if PY_VERSION_HEX < 0x03000000
-  $1=(cl_event)((uintptr_t)PyInt_AsUnsignedLongLongMask(clEvent_int_ptr));
+  $1=cl::Event((cl_event)((uintptr_t)PyInt_AsUnsignedLongLongMask(clEvent_int_ptr)),true);
 #else
-  $1=(cl_event)((uintptr_t)PyLong_AsUnsignedLongLongMask(clEvent_int_ptr));
+  $1=cl::Event((cl_event)((uintptr_t)PyLong_AsUnsignedLongLongMask(clEvent_int_ptr)),true);
 
 #endif
 
@@ -117,7 +117,7 @@ typedef struct _cl_mem *          cl_mem;
 
 // need typecheck typemap for cl_event to support overloaded
 // RemBuffers() method
-%typemap(typecheck,precedence=SWIG_TYPECHECK_POINTER) cl_event  {
+%typemap(typecheck,precedence=SWIG_TYPECHECK_POINTER) cl::Event  {
   PyObject *pyopencl=NULL;
   PyObject *clEvent=NULL;
   pyopencl = PyImport_ImportModule("pyopencl");
@@ -132,54 +132,54 @@ typedef struct _cl_mem *          cl_mem;
 
 }
 
-%typemap(in) cl_context (PyObject *clContext_int_ptr=NULL) {
+%typemap(in) cl::Context (PyObject *clContext_int_ptr=NULL) {
   
   clContext_int_ptr=PyObject_GetAttrString($input,"int_ptr");
   
 #if PY_VERSION_HEX < 0x03000000
-  $1=(cl_context)((uintptr_t)PyInt_AsUnsignedLongLongMask(clContext_int_ptr));
+  $1=cl::Context((cl_context)((uintptr_t)PyInt_AsUnsignedLongLongMask(clContext_int_ptr)),true);
 #else
-  $1=(cl_context)((uintptr_t)PyLong_AsUnsignedLongLongMask(clContext_int_ptr));
+  $1=cl::Context((cl_context)((uintptr_t)PyLong_AsUnsignedLongLongMask(clContext_int_ptr)),true);
 #endif
 
   Py_XDECREF(clContext_int_ptr);
 }
 
-%typemap(in) cl_device_id (PyObject *clDevice_int_ptr=NULL) {
+%typemap(in) cl::Device (PyObject *clDevice_int_ptr=NULL) {
   
   clDevice_int_ptr=PyObject_GetAttrString($input,"int_ptr");
   
 #if PY_VERSION_HEX < 0x03000000
-  $1=(cl_device_id)((uintptr_t)PyInt_AsUnsignedLongLongMask(clDevice_int_ptr));
+  $1=cl::Device((cl_device_id)((uintptr_t)PyInt_AsUnsignedLongLongMask(clDevice_int_ptr)),true);
 #else
-  $1=(cl_device_id)((uintptr_t)PyLong_AsUnsignedLongLongMask(clDevice_int_ptr));
+  $1=cl::Device((cl_device_id)((uintptr_t)PyLong_AsUnsignedLongLongMask(clDevice_int_ptr)),true);
 #endif  
 
   Py_XDECREF(clDevice_int_ptr);
 }
 
-%typemap(out) cl_mem (PyObject *pyopencl=NULL,PyObject *clMem=NULL,PyObject *clMem_from_int_ptr=NULL) {
+%typemap(out) cl::Buffer (PyObject *pyopencl=NULL,PyObject *clMem=NULL,PyObject *clMem_from_int_ptr=NULL) {
   pyopencl = PyImport_ImportModule("pyopencl");
   if (!pyopencl) SWIG_fail; /* raise exception up */
   clMem=PyObject_GetAttrString(pyopencl,"MemoryObject");
   clMem_from_int_ptr=PyObject_GetAttrString(clMem,"from_int_ptr");
   
   
-  $result=PyObject_CallFunction(clMem_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)$1),Py_False);
+  $result=PyObject_CallFunction(clMem_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)($1.get())),Py_True);
 
   Py_XDECREF(clMem_from_int_ptr);
   Py_XDECREF(clMem);
   Py_XDECREF(pyopencl);
 }
 
-%typemap(out) cl_event (PyObject *pyopencl=NULL,PyObject *clEvent=NULL,PyObject *clEvent_from_int_ptr=NULL) {
+%typemap(out) cl::Event (PyObject *pyopencl=NULL,PyObject *clEvent=NULL,PyObject *clEvent_from_int_ptr=NULL) {
   pyopencl = PyImport_ImportModule("pyopencl");
   if (!pyopencl) SWIG_fail; /* raise exception up */
   clEvent=PyObject_GetAttrString(pyopencl,"Event");
   clEvent_from_int_ptr=PyObject_GetAttrString(clEvent,"from_int_ptr");
   
   
-  $result=PyObject_CallFunction(clEvent_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)$1),Py_False);
+  $result=PyObject_CallFunction(clEvent_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)($1.get())),Py_True);
 
   Py_XDECREF(clEvent_from_int_ptr);
   Py_XDECREF(clEvent);
@@ -187,7 +187,7 @@ typedef struct _cl_mem *          cl_mem;
 }
 
 
-%typemap(out) cl_command_queue (PyObject *pyopencl=NULL,PyObject *clQueue=NULL,PyObject *clQueue_from_int_ptr=NULL) {
+%typemap(out) cl::CommandQueue (PyObject *pyopencl=NULL,PyObject *clQueue=NULL,PyObject *clQueue_from_int_ptr=NULL) {
   // eats the returned reference
   pyopencl = PyImport_ImportModule("pyopencl");
   if (!pyopencl) SWIG_fail; /* raise exception up */
@@ -195,7 +195,7 @@ typedef struct _cl_mem *          cl_mem;
   clQueue_from_int_ptr=PyObject_GetAttrString(clQueue,"from_int_ptr");
   
   
-  $result=PyObject_CallFunction(clQueue_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)$1),Py_False);
+  $result=PyObject_CallFunction(clQueue_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)($1.get())),Py_True);
 
   Py_XDECREF(clQueue_from_int_ptr);
   Py_XDECREF(clQueue);
@@ -204,8 +204,8 @@ typedef struct _cl_mem *          cl_mem;
 
 
 
-// %typemap(out) std::vector<cl_event> is for functions returning such a vector.... we steal ownership of the cl_events
-%typemap(out) std::vector<cl_event> (PyObject *pyopencl=NULL,PyObject *clEvent=NULL,PyObject *clEvent_from_int_ptr=NULL,size_t cnt) {
+// %typemap(out) std::vector<cl_event> is for functions returning such a vector.
+%typemap(out) std::vector<cl::Event> (PyObject *pyopencl=NULL,PyObject *clEvent=NULL,PyObject *clEvent_from_int_ptr=NULL,size_t cnt) {
   pyopencl = PyImport_ImportModule("pyopencl");
   if (!pyopencl) SWIG_fail; /* raise exception up */
   clEvent=PyObject_GetAttrString(pyopencl,"Event");
@@ -214,7 +214,7 @@ typedef struct _cl_mem *          cl_mem;
   $result = PyTuple_New($1.size());
 
   for (cnt=0;cnt < $1.size();cnt++) {
-    PyTuple_SetItem($result,cnt,PyObject_CallFunction(clEvent_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)$1.operator[](cnt)),Py_False));
+    PyTuple_SetItem($result,cnt,PyObject_CallFunction(clEvent_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)($1.operator[](cnt).get())),Py_True));
     
   }
 
@@ -223,7 +223,7 @@ typedef struct _cl_mem *          cl_mem;
   Py_XDECREF(pyopencl);
 }
 
-%typemap(out) std::pair<std::vector<cl_event>,std::vector<cl_event>> (PyObject *pyopencl=NULL,PyObject *clEvent=NULL,PyObject *clEvent_from_int_ptr=NULL,size_t cnt,PyObject *FirstVector=NULL,PyObject *SecondVector=NULL) {
+%typemap(out) std::pair<std::vector<cl::Event>,std::vector<cl::Event>> (PyObject *pyopencl=NULL,PyObject *clEvent=NULL,PyObject *clEvent_from_int_ptr=NULL,size_t cnt,PyObject *FirstVector=NULL,PyObject *SecondVector=NULL) {
   pyopencl = PyImport_ImportModule("pyopencl");
   if (!pyopencl) SWIG_fail; /* raise exception up */
   clEvent=PyObject_GetAttrString(pyopencl,"Event");
@@ -237,12 +237,12 @@ typedef struct _cl_mem *          cl_mem;
   PyTuple_SetItem($result,1,SecondVector);
 
   for (cnt=0;cnt < $1.first.size();cnt++) {
-    PyTuple_SetItem(FirstVector,cnt,PyObject_CallFunction(clEvent_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)$1.first.operator[](cnt)),Py_False));
+    PyTuple_SetItem(FirstVector,cnt,PyObject_CallFunction(clEvent_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)($1.first.operator[](cnt).get())),Py_True));
     
   }
 
   for (cnt=0;cnt < $1.second.size();cnt++) {
-    PyTuple_SetItem(SecondVector,cnt,PyObject_CallFunction(clEvent_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)$1.second.operator[](cnt)),Py_False));    
+    PyTuple_SetItem(SecondVector,cnt,PyObject_CallFunction(clEvent_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)($1.second.operator[](cnt).get())),Py_True));    
   }
 
   
@@ -254,7 +254,7 @@ typedef struct _cl_mem *          cl_mem;
 
 
 // %typemap(out) std::vector<cl_event> * is for member access such a vector.... we increment the reference count of such events
-%typemap(out) std::vector<cl_event> * (PyObject *pyopencl=NULL,PyObject *clEvent=NULL,PyObject *clEvent_from_int_ptr=NULL,size_t cnt) {
+%typemap(out) std::vector<cl::Event> * (PyObject *pyopencl=NULL,PyObject *clEvent=NULL,PyObject *clEvent_from_int_ptr=NULL,size_t cnt) {
   pyopencl = PyImport_ImportModule("pyopencl");
   if (!pyopencl) SWIG_fail; /* raise exception up */
   clEvent=PyObject_GetAttrString(pyopencl,"Event");
@@ -263,7 +263,7 @@ typedef struct _cl_mem *          cl_mem;
   $result = PyTuple_New($1->size());
 
   for (cnt=0;cnt < $1->size();cnt++) {
-    PyTuple_SetItem($result,cnt,PyObject_CallFunction(clEvent_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)$1->operator[](cnt)),Py_True));
+    PyTuple_SetItem($result,cnt,PyObject_CallFunction(clEvent_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)($1->operator[](cnt).get())),Py_True));
     
   }
 
@@ -273,14 +273,14 @@ typedef struct _cl_mem *          cl_mem;
 }
 
 
-%typemap(out) cl_context (PyObject *pyopencl=NULL,PyObject *clContext=NULL,PyObject *clContext_from_int_ptr=NULL) {
+%typemap(out) cl::Context (PyObject *pyopencl=NULL,PyObject *clContext=NULL,PyObject *clContext_from_int_ptr=NULL) {
   pyopencl = PyImport_ImportModule("pyopencl");
   if (!pyopencl) SWIG_fail; /* raise exception up */
   clContext=PyObject_GetAttrString(pyopencl,"Context");
   clContext_from_int_ptr=PyObject_GetAttrString(clContext,"from_int_ptr");
   
   
-  $result=PyObject_CallFunction(clContext_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)$1),Py_False);
+  $result=PyObject_CallFunction(clContext_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)($1.get())),Py_True);
 
   Py_XDECREF(clContext_from_int_ptr);
   Py_XDECREF(clContext);
@@ -288,7 +288,7 @@ typedef struct _cl_mem *          cl_mem;
 }
 
 
-%typemap(out) std::tuple< cl_context,cl_device_id,std::string > (PyObject *pyopencl=NULL,PyObject *clContext=NULL,PyObject *clContext_from_int_ptr=NULL,PyObject *clDevice=NULL,PyObject *clDevice_from_int_ptr=NULL) {
+%typemap(out) std::tuple< cl::Context,cl::Device,std::string > (PyObject *pyopencl=NULL,PyObject *clContext=NULL,PyObject *clContext_from_int_ptr=NULL,PyObject *clDevice=NULL,PyObject *clDevice_from_int_ptr=NULL) {
   pyopencl = PyImport_ImportModule("pyopencl");
   if (!pyopencl) SWIG_fail; /* raise exception up */
   clContext=PyObject_GetAttrString(pyopencl,"Context");
@@ -299,8 +299,8 @@ typedef struct _cl_mem *          cl_mem;
   
   $result = PyTuple_New(3);
   // Substituted code for converting cl_context here came
-  PyTuple_SetItem($result,0,PyObject_CallFunction(clContext_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)std::get<0>(*&$1)),Py_False));
-  PyTuple_SetItem($result,1,PyObject_CallFunction(clDevice_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)std::get<1>(*&$1)),Py_False));
+  PyTuple_SetItem($result,0,PyObject_CallFunction(clContext_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)(std::get<0>(*&$1).get())),Py_True));
+  PyTuple_SetItem($result,1,PyObject_CallFunction(clDevice_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)(std::get<1>(*&$1).get())),Py_True));
   
   PyTuple_SetItem($result,2,SWIG_From_std_string(static_cast< std::string >(std::get<2>(*&$1))));
 
@@ -314,9 +314,9 @@ typedef struct _cl_mem *          cl_mem;
 
 namespace snde {
 
-  std::tuple<cl_context,cl_device_id,std::string> get_opencl_context(std::string query,bool need_doubleprec,void (*pfn_notify)(const char *errinfo,const void *private_info, size_t cb, void *user_data),void *user_data);
+  std::tuple<cl::Context,std::vector<cl::Device>,std::string> get_opencl_context(std::string query,bool need_doubleprec,void (*pfn_notify)(const char *errinfo,const void *private_info, size_t cb, void *user_data),void *user_data);
 
-  void add_opencl_alignment_requirement(std::shared_ptr<allocator_alignment> alignment,cl_device_id device);
+  void add_opencl_alignment_requirement(std::shared_ptr<allocator_alignment> alignment,cl::Device device);
 
 };
 // Old (nonpyopencl) version below... 
