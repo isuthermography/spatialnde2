@@ -103,7 +103,7 @@ namespace snde {
     // Immutable once published; that said it may be replaced in the database due to a reloading operation. 
   public:
 
-    math_function(const std::list<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
+    math_function(const std::vector<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
 
     // Rule of 3
     math_function(const math_function &) = delete;
@@ -113,7 +113,7 @@ namespace snde {
     
     // Should we put the name (of the function, not the channel) here???
     //size_t num_results;
-    std::list<std::tuple<std::string,unsigned>> param_names_types; // list of (name,type) tuples
+    std::vector<std::tuple<std::string,unsigned>> param_names_types; // list of (name,type) tuples
 
     
     bool new_revision_optional; // set if the function sometimes chooses not to create a new revision. Causes an implicit self-dependency, because we have to wait for the prior revision to finish to find out if that version was actually different. Note that new_revision_optional implies that execution is optional but execution of a new_revision_optional math function does not guarantee it will actually create new revisions but may still reference prior revs. Execution of a non-new_revision_optional math function is guaranteed to define new recordings in each result channel. 
@@ -437,8 +437,12 @@ namespace snde {
     // self_dependent_recordings is auto-created by the constructor
     std::vector<std::shared_ptr<recording_base>> self_dependent_recordings; // only valid (size() > 0) with implicit/explict self dependency. entries will be nullptr first time through anyway. Entries may also be nullptr if the function output is being ignored rather than stored in the recording database. ***!!! Must be set to nullptr after execution to avoid keeping old recordings alive ***!!!
 
-    // compute_resource is assigned post-creation
-    std::shared_ptr<assigned_compute_resource> compute_resource; // pointed structure locked by acrd's admin lock
+    // compute_resource is assigned post-creation and will be compatible with the selected_compute_option
+    // These should be finalized and safe to read from any thread once we are in the define_recs function.
+    // Until that time they should be treated as locked with the assigned_compute_resource_database admin lock. 
+    std::shared_ptr<assigned_compute_resource> compute_resource; 
+    std::shared_ptr<compute_resource_option> selected_compute_option; // This is one of the entries returned by the compute_options step. 
+    
     // These next two elements are locked by the parent available_compute_resources_database admin lock
     // THEY HAE BEEN REPLACED BY THE ASSIGNED COMPUTE RESOURCE
     //std::vector<size_t> cpu_cores;  // vector of indices into available_compute_resource_cpu::functions_using_cores representing assigned CPU cores; from assigned_compute_resource_option_cpu and/or assigned_compute_resource_option_opencl
@@ -454,7 +458,7 @@ namespace snde {
 
     
     virtual bool perform_decide_execution()=0; // perform_decide_execution asks the new_revision_optional executing math function to determine whether it needs to execute, potentially creating new revisions of its output
-    virtual std::list<std::shared_ptr<compute_resource_option>> perform_compute_options()=0; // perform_compute_options asks the executing math function to perform its compute_options step (which should not be compute intensive)
+    virtual std::vector<std::shared_ptr<compute_resource_option>> perform_compute_options()=0; // perform_compute_options asks the executing math function to perform its compute_options step (which should not be compute intensive)
     virtual std::string get_result_channel_path(size_t result_index);
     virtual size_t get_num_result_channels();
     

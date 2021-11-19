@@ -35,6 +35,7 @@ namespace snde {
   std::tuple<cl::Program, std::string> get_opencl_program(cl::Context context, cl::Device device, std::vector<std::string> program_source);
 
   void add_opencl_alignment_requirement(std::shared_ptr<allocator_alignment> alignment,cl::Device device);
+  void add_opencl_alignment_requirements(std::shared_ptr<allocator_alignment> alignment,const std::vector<cl::Device> &devices);
 
 
 #if 0 // this stuff is obsolste

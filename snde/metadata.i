@@ -1,4 +1,4 @@
-%shared_ptr(snde::immutable_metadata)
+%shared_ptr(snde::constructible_metadata)
 %shared_ptr(snde::recmetadata)
 %{
 
@@ -158,6 +158,13 @@ public:
 
 
   typedef const constructible_metadata immutable_metadata; 
+
+%pythoncode %{
+
+immutable_metadata=constructible_metadata;
+
+%}
+
   
 class recmetadata {
 public:

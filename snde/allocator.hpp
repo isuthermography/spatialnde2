@@ -1,6 +1,7 @@
 #ifndef SNDE_ALLOCATOR_HPP
 #define SNDE_ALLOCATOR_HPP
 
+#include <mutex>
 #include <cstdint>
 #include <cstring>
 #include <cmath>
@@ -35,19 +36,28 @@ namespace snde {
   
   class allocator_alignment {
   public:
+    std::mutex admin; // locks access to members. Last in locking order
     std::vector<unsigned> address_alignment; /* required address alignments, in bytes */
+    std::shared_ptr<unsigned> cached_alignment;
 
-    allocator_alignment()
+    allocator_alignment() 
     {
       address_alignment.push_back(8); /* always require at least 8-byte (64-bit) alignment */      
     }
     void add_requirement(unsigned alignment)
     {
+      std::lock_guard<std::mutex> adminlock(admin);
       address_alignment.push_back(alignment);
+      cached_alignment = nullptr; 
     }
 
     unsigned get_alignment()
     {
+      std::lock_guard<std::mutex> adminlock(admin);
+
+      if (cached_alignment) {
+	return *cached_alignment;
+      }
       // alignment is least common multiple of the various elements of address_alignment
       //std::vector<std::vector<unsigned>> factors;
       std::vector<std::map<unsigned,unsigned>> factors_powers; 
@@ -95,8 +105,41 @@ namespace snde {
 	}
       }
       //fprintf(stderr,"alignment result: %d\n",result);
+      cached_alignment=std::make_shared<unsigned>(result);
       return result;
     }
+
+
+    static void *alignment_shift(void *ptr,unsigned alignment) // alignment should be from get_alignment(). ptr must have at least this much extra space available
+    
+    {
+      if (!alignment) {
+	return ptr;
+      }
+      
+      // check for power of 2
+      if ( (alignment & (alignment-1))==0) {
+	// power of 2 alignments, use std::align
+	size_t space = 1+alignment;
+	std::align(alignment,1,ptr,space);
+	return ptr; 
+      }
+
+      // Otherwise cast to uintptr_t and do pointer math
+      uintptr_t ptrval = (uintptr_t)ptr;
+      uintptr_t modulus = (ptrval % alignment);
+
+      if (!modulus) {
+	return ptr; // already aligned
+      }
+
+      ptrval += (alignment-modulus); 
+      assert(!(ptrval % alignment));
+
+      ptr = (void *)ptrval;
+      return ptr; 
+    }
+    
   };
 
   
@@ -249,7 +292,10 @@ namespace snde {
 
       if (alignment) {
 	// satisfy alignment requirement on _allocchunksize
-	our_alignment = *alignment;
+	//our_alignment = *alignment;
+	std::lock_guard<std::mutex> alignadmin(alignment->admin);
+	our_alignment.address_alignment = alignment->address_alignment;
+	
       }
       our_alignment.add_requirement(_allocchunksize*elemsize);
       
@@ -265,8 +311,9 @@ namespace snde {
       std::map<unsigned,unsigned> elemsizeprimefactors = prime_factorization(elemsize);
 
       
-      sub_alignment = our_alignment; // copy our_alignment
-
+      //sub_alignment = our_alignment; // copy our_alignment
+      sub_alignment.address_alignment=our_alignment.address_alignment;
+      
       // now divide factors from elemsize out of sub_alignment
       for (snde_index align_idx=0;align_idx < sub_alignment.address_alignment.size();align_idx++) {
 	std::map<unsigned,unsigned> alignprimefactors = prime_factorization(sub_alignment.address_alignment.at(align_idx));

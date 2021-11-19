@@ -363,8 +363,8 @@ namespace snde {
     std::tuple<Ts...> parameters;
       
     recmath_cppfuncexec(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
-      parameters(rmcfe_get_parameters<Ts...>(wss,inst)),
       recmath_cppfuncexec_base(wss,inst),
+      parameters(rmcfe_get_parameters<Ts...>(wss,inst)),
       compute_options_function(nullptr),
       define_recs_function(nullptr),
       metadata_function(nullptr),
@@ -383,7 +383,7 @@ namespace snde {
     typedef std::function<std::shared_ptr<exec_function_override_type>()> lock_alloc_function_override_type; 
     typedef std::function<std::shared_ptr<lock_alloc_function_override_type>()> metadata_function_override_type;
     typedef std::function<std::shared_ptr<metadata_function_override_type>()> define_recs_function_override_type;
-    typedef std::function<std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>>()> compute_options_function_override_type; 
+    typedef std::function<std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>>()> compute_options_function_override_type; 
     typedef std::function<std::pair<bool,std::shared_ptr<compute_options_function_override_type>>()> decide_execution_function_override_type; 
     
     // The function pointers stored here (if they are valid) override the methods below.
@@ -442,15 +442,15 @@ namespace snde {
     }
 
     // likewise if you override compute_options, this one should not do much and finish quickly
-    virtual std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(Ts...)
+    virtual std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(Ts...)
     {
-      std::list<std::shared_ptr<compute_resource_option>> option_list = { std::make_shared<compute_resource_option_cpu>(SNDE_CR_CPU,0,0,nullptr,0,1,1) };
+      std::vector<std::shared_ptr<compute_resource_option>> option_list = { std::make_shared<compute_resource_option_cpu>(0,0,0.0,1,1) };
       return std::make_pair(option_list,nullptr);
     }
 
     // call compute_options, passing parameters from tuple (see stackoverflow link, above)
     template <std::size_t... Indexes>
-    std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> call_compute_options(std::tuple<Ts...>& tup,std::index_sequence<Indexes...>)
+    std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> call_compute_options(std::tuple<Ts...>& tup,std::index_sequence<Indexes...>)
     {
       if (compute_options_function) {
 	return (*compute_options_function)();
@@ -461,14 +461,14 @@ namespace snde {
     }
     
     template <std::size_t... Indexes>
-    std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> call_compute_options(std::tuple<Ts...>& tup)
+    std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> call_compute_options(std::tuple<Ts...>& tup)
     {
       return call_compute_options(tup,std::index_sequence_for<Ts...>{});
     }
         
-    virtual std::list<std::shared_ptr<compute_resource_option>> perform_compute_options()
+    virtual std::vector<std::shared_ptr<compute_resource_option>> perform_compute_options()
     {
-      std::list<std::shared_ptr<compute_resource_option>> opts;
+      std::vector<std::shared_ptr<compute_resource_option>> opts;
       std::tie(opts,define_recs_function)=call_compute_options(parameters);
 
       return opts;

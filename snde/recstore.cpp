@@ -3085,12 +3085,48 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
   }
 
 
+  recdatabase::recdatabase(std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> lockmgr/*=nullptr*/):
+    compute_resources(std::make_shared<available_compute_resource_database>()),
+    default_storage_manager(nullptr),
+    lockmgr(lockmgr),
+    monitoring_notify_globalrev(0),
+    globalrev_mutablenotneeded_mustexit(false)
+
+    // !!!*** Please note alternate constructor below
+  {
+    std::shared_ptr<globalrevision> null_globalrev;
+    std::atomic_store(&_latest_globalrev,null_globalrev);
+
+#ifdef _WIN32
+#pragma message("No shared memory allocator available for Win32 yet. Using regular memory instead")
+    std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<cmemallocator>();
+    
+#else
+    std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<shared_memory_allocator_posix>();
+#endif
+    this->default_storage_manager=std::make_shared<recording_storage_manager_simple>(lowlevel_alloc,alignment_requirements);
+    
+    if (!this->lockmgr) {
+      this->lockmgr = std::make_shared<lockmanager>();
+    }
+
+    _math_functions._rebuild_dependency_map();
+
+    // instantiate mutablenotneeded thread
+    globalrev_mutablenotneeded_thread = std::thread([this]() { globalrev_mutablenotneeded_code(); });
+    //globalrev_mutablenotneeded_thread.detach(); // we won't be join()ing this thread
+
+    
+  }
+
+  
   recdatabase::recdatabase(std::shared_ptr<recording_storage_manager> default_storage_manager/*=nullptr*/,std::shared_ptr<lockmanager> lockmgr/*=nullptr*/):
     compute_resources(std::make_shared<available_compute_resource_database>()),
     default_storage_manager(default_storage_manager),
     lockmgr(lockmgr),
     monitoring_notify_globalrev(0),
     globalrev_mutablenotneeded_mustexit(false)
+    // !!!*** Please note alternate constructor above 
 
   {
     std::shared_ptr<globalrevision> null_globalrev;
@@ -3104,7 +3140,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
 #else
       std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<shared_memory_allocator_posix>();
 #endif
-      this->default_storage_manager=std::make_shared<recording_storage_manager_simple>(lowlevel_alloc);
+      this->default_storage_manager=std::make_shared<recording_storage_manager_simple>(lowlevel_alloc,nullptr);
     }
 
     if (!this->lockmgr) {

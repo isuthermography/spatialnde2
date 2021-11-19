@@ -202,7 +202,8 @@ namespace snde {
 #define SNDE_DC_NOTIFY (1<<2)
 #define SNDE_DC_LOCKING (1<<3)
 #define SNDE_DC_APP (1<<4)
-#define SNDE_DC_ALL ((1<<5)-1)
+#define SNDE_DC_COMPUTE_DISPATCH (1<<4)
+#define SNDE_DC_ALL ((1<<6)-1)
   
 }
 #endif /* SNDE_ERROR_HPP */

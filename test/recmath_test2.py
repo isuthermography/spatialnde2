@@ -11,10 +11,11 @@ from spatialnde2_example_external_cpp_function import scalar_multiply_function
 rec_len=100
 scalefactor=4.5
 
-recdb=snde.recdatabase()
+alignment_requirements = snde.allocator_alignment()
+recdb=snde.recdatabase(alignment_requirements);
 
-cpu_compute = snde.available_compute_resource_cpu(recdb,recdb.compute_resources,snde.SNDE_CR_CPU,multiprocessing.cpu_count())
-recdb.compute_resources.compute_resources.append(cpu_compute) #std::thread::hardware_concurrency()))
+cpu_compute = snde.available_compute_resource_cpu(recdb,multiprocessing.cpu_count())
+recdb.compute_resources.add_resource(cpu_compute) 
 recdb.compute_resources.start()
 
 

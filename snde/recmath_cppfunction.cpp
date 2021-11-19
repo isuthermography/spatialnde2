@@ -14,7 +14,7 @@ namespace snde {
 				       bool supports_cpu,
 				       bool supports_opencl,
 				       bool supports_cuda) :
-    math_function(std::list<std::tuple<std::string,unsigned>>(),initiate_execution),
+    math_function(std::vector<std::tuple<std::string,unsigned>>(),initiate_execution),
     supports_cpu(supports_cpu),
     supports_opencl(supports_opencl),
     supports_cuda(supports_cuda)

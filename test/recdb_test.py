@@ -4,10 +4,12 @@ import spatialnde2 as snde
 
 
 rec_len=100;
-recdb=snde.recdatabase();
 
-cpu_compute = snde.available_compute_resource_cpu(recdb,recdb.compute_resources,snde.SNDE_CR_CPU,multiprocessing.cpu_count())
-recdb.compute_resources.compute_resources.append(cpu_compute.this) #std::thread::hardware_concurrency()))
+alignment_requirements = snde.allocator_alignment()
+recdb=snde.recdatabase(alignment_requirements);
+
+cpu_compute = snde.available_compute_resource_cpu(recdb,multiprocessing.cpu_count())
+recdb.compute_resources.add_resource(cpu_compute) 
  
 transact = snde.active_transaction(recdb); # Transaction RAII holder
 
@@ -19,7 +21,7 @@ test_rec = snde.multi_ndarray_recording.create_typed_recording(recdb,testchan,re
 
 globalrev = transact.end_transaction()
 
-test_rec.rec.metadata=snde.immutable_metadata()
+test_rec.rec.metadata=snde.constructible_metadata()
 test_rec.rec.mark_metadata_done()
 test_rec.allocate_storage([ rec_len ]);
 

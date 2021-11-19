@@ -34,11 +34,11 @@ int main(int argc, char **argv)
     exit(1);
   }
 
-  std::tie(context,device,clmsgs) = get_opencl_context("::",true,NULL,NULL);
+  std::tie(context,device,clmsgs) = get_opencl_context(":GPU:",true,NULL,NULL);
 
   fprintf(stderr,"%s",clmsgs.c_str());
 
-
+  
   
 
   std::shared_ptr<memallocator> lowlevel_alloc;

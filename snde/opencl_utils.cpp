@@ -333,6 +333,15 @@ namespace snde {
   }
   alignment->add_requirement(align_value/8);
 }
+
+  void add_opencl_alignment_requirements(std::shared_ptr<allocator_alignment> alignment,const std::vector<cl::Device> &devices)
+  {
+
+    for (auto && device: devices) {
+      add_opencl_alignment_requirement(alignment,device);
+    }
+    
+  }
   
 }
 

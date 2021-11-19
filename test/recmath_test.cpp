@@ -1,8 +1,12 @@
 #include <thread>
 #include <cmath>
 
-#include "recstore.hpp"
-#include "recmath_cppfunction.hpp"
+#include "snde/recstore.hpp"
+#include "snde/recmath_cppfunction.hpp"
+
+#ifdef SNDE_OPENCL
+#include "snde/opencl_utils.hpp"
+#endif // SNDE_OPENCL
 
 using namespace snde;
 
@@ -23,14 +27,30 @@ public:
     return std::make_pair(true,nullptr);
   }
 
-  std::pair<std::list<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(std::shared_ptr<ndtyped_recording_ref<snde_float32>> recording, snde_float64 multiplier)
+  std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(std::shared_ptr<ndtyped_recording_ref<snde_float32>> recording, snde_float64 multiplier)
   // This is just a representation of the default
   {
-    std::list<std::shared_ptr<compute_resource_option>> option_list = { std::make_shared<compute_resource_option_cpu>(SNDE_CR_CPU,0,0,nullptr,0,1,1) };
+    snde_index numentries = recording->layout.flattened_length();
+    std::vector<std::shared_ptr<compute_resource_option>> option_list =
+      {
+	std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+						      numentries*sizeof(snde_float32)*2, // data_bytes for transfer
+						      numentries, // flops
+						      1, // max effective cpu cores
+						      1), // useful_cpu_cores (min # of cores to supply
+#ifdef SNDE_OPENCL
+	std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes 
+							 numentries*sizeof(snde_float32)*2, // data_bytes for transfer
+							 0, // cpu_flops
+							 numentries, // gpu_flops
+							 1, // max effective cpu cores
+							 1), // useful_cpu_cores (min # of cores to supply
+#endif // SNDE_OPENCL
+      };
     return std::make_pair(option_list,nullptr);
   }
-
-
+  
+  
   std::shared_ptr<metadata_function_override_type> define_recs(std::shared_ptr<ndtyped_recording_ref<snde_float32>> recording, snde_float64 multiplier) 
   {
     // define_recs code
@@ -65,11 +85,31 @@ public:
 	  
 	  return std::make_shared<exec_function_override_type>([ this,locktokens, result_rec,recording,multiplier ]() {
 	    // exec code
-	    for (snde_index pos=0;pos < recording->layout.dimlen.at(0);pos++){
-	      result_rec->element({pos}) = recording->element({pos}) * multiplier;
+#ifdef SNDE_OPENCL
+	    std::shared_ptr<assigned_compute_resource_opencl> opencl_resource=std::dynamic_pointer_cast<assigned_compute_resource_opencl>(compute_resource);
+	    if (opencl_resource) {
+
+	      fprintf(stderr,"Should execute in OpenCL\n");
+	      for (snde_index pos=0;pos < recording->layout.dimlen.at(0);pos++){
+		result_rec->element({pos}) = recording->element({pos}) * multiplier;
+	      }
+	      
+
+	    } else {	    
+	      fprintf(stderr,"Not executing in OpenCL\n");
+#endif // SNDE_OPENCL
+	    
+	      for (snde_index pos=0;pos < recording->layout.dimlen.at(0);pos++){
+		result_rec->element({pos}) = recording->element({pos}) * multiplier;
+	      }
+	      
+#ifdef SNDE_OPENCL
 	    }
+#endif // SNDE_OPENCL
+	    
 	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
 	    result_rec->rec->mark_as_ready();
+	    
 	  }); 
 	});
       });
@@ -85,10 +125,43 @@ public:
 int main(int argc, char *argv[])
 {
   size_t len=100;
-  std::shared_ptr<snde::recdatabase> recdb=std::make_shared<snde::recdatabase>();
-  std::shared_ptr<snde::ndarray_recording_ref> test_rec;
+
+  std::shared_ptr<allocator_alignment> alignment_requirements = std::make_shared<allocator_alignment>();
+
+#ifdef SNDE_OPENCL
+  cl::Context context;
+  std::vector<cl::Device> devices;
+  std::string clmsgs;
+
+  // The first parameter to get_opencl_context can be used to match a specific device, e.g. "Intel(R) OpenCL HD Graphics:GPU:Intel(R) Iris(R) Xe Graphics"
+  // with the colon-separated fields left blank.
+  // Set the second (boolean) parameter to limit to devices that can
+  // handle double-precision
+  std::tie(context,devices,clmsgs) = get_opencl_context("::",true,nullptr,nullptr);
+  // NOTE: If using Intel graphics compiler (IGC) you can enable double
+  // precision emulation even on single precision hardware with the
+  // environment variable OverrideDefaultFP64Settings=1
+  // https://github.com/intel/compute-runtime/blob/master/opencl/doc/FAQ.md#feature-double-precision-emulation-fp64
+  fprintf(stderr,"%s",clmsgs.c_str());
+
   
-  recdb->compute_resources->compute_resources.push_back(std::make_shared<available_compute_resource_cpu>(recdb,recdb->compute_resources,SNDE_CR_CPU,std::thread::hardware_concurrency()));
+  // Each OpenCL device can impose an alignment requirement...
+  add_opencl_alignment_requirements(alignment_requirements,devices);
+  
+#endif // SNDE_OPENCL
+  
+  std::shared_ptr<snde::recdatabase> recdb=std::make_shared<snde::recdatabase>(alignment_requirements);
+  std::shared_ptr<snde::ndarray_recording_ref> test_rec;
+
+  std::shared_ptr<available_compute_resource_cpu> cpu = std::make_shared<available_compute_resource_cpu>(recdb,std::thread::hardware_concurrency());
+  recdb->compute_resources->add_resource(cpu);
+
+#ifdef SNDE_OPENCL
+  
+  recdb->compute_resources->add_resource(std::make_shared<available_compute_resource_opencl>(recdb,cpu,context,devices,8)); // limit to 8 parallel jobs per GPU to limit contention
+
+#endif // SNDE_OPENCL
+  
   recdb->compute_resources->start();
   
   std::shared_ptr<math_function> multiply_by_scalar_function = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst) {

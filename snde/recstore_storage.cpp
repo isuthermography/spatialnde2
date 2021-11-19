@@ -1,4 +1,5 @@
 #include "snde/recstore_storage.hpp"
+#include "snde/allocator.hpp"
 
 #ifdef _WIN32
 // No win32 shared_memory_allocator yet
@@ -98,8 +99,9 @@ namespace snde {
   }
 
 
-  recording_storage_manager_simple::recording_storage_manager_simple(std::shared_ptr<memallocator> lowlevel_alloc) :
-    lowlevel_alloc(lowlevel_alloc)
+  recording_storage_manager_simple::recording_storage_manager_simple(std::shared_ptr<memallocator> lowlevel_alloc,std::shared_ptr<allocator_alignment> alignment_requirements) :
+    lowlevel_alloc(lowlevel_alloc),
+    alignment_requirements(alignment_requirements)
   {
 
   }
@@ -115,7 +117,14 @@ namespace snde {
   // must be thread-safe
   {
     
-    void *baseptr = lowlevel_alloc->calloc(recording_path,recrevision,0,nelem*elementsize);  // freed in destructor for recording_storage_simple
+    size_t alignment_extra=0;
+    if (alignment_requirements) {
+      alignment_extra=alignment_requirements->get_alignment();
+    }
+    
+    void *baseptr = lowlevel_alloc->calloc(recording_path,recrevision,0,nelem*elementsize+alignment_extra);  // freed in destructor for recording_storage_simple
+    // enforce alignment requirements
+    baseptr = allocator_alignment::alignment_shift(baseptr,alignment_extra);
 
     std::shared_ptr<recording_storage_simple> retval = std::make_shared<recording_storage_simple>(recording_path,recrevision,0,elementsize,typenum,nelem,is_mutable || lowlevel_alloc->requires_locking_read,is_mutable || lowlevel_alloc->requires_locking_write,false,lowlevel_alloc,baseptr);
 

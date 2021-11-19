@@ -68,7 +68,10 @@ namespace snde {
 
     math_parameter_string_const(std::string string_constant);
     virtual std::string get_string(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
-    
+
+    virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
+    virtual bool operator!=(const math_parameter &ref);
+
   };
 
 
@@ -78,7 +81,10 @@ namespace snde {
 
     math_parameter_int_const(int64_t int_constant);
     virtual int64_t get_int(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
-    
+
+    virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
+    virtual bool operator!=(const math_parameter &ref);
+
   };
 
   class math_parameter_double_const: public math_parameter {
@@ -88,6 +94,9 @@ namespace snde {
     math_parameter_double_const(double double_constant);
     virtual double get_double(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
     
+    virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
+    virtual bool operator!=(const math_parameter &ref);
+
   };
 
   class math_parameter_indexvec_const: public math_parameter {
@@ -96,7 +105,10 @@ namespace snde {
 
     math_parameter_indexvec_const(const std::vector<snde_index> & indexvec);
     virtual std::vector<snde_index> get_indexvec(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
-    
+
+    virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
+    virtual bool operator!=(const math_parameter &ref);
+
   };
 
 
@@ -107,7 +119,10 @@ namespace snde {
     math_parameter_recording(std::string channel_name);
     virtual std::shared_ptr<recording_base> get_recording(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings. parameter_index starting at 1, just for printing messages
     virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<recording_set_state> wss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the recording
-    
+
+    virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
+    virtual bool operator!=(const math_parameter &ref);
+
   };
 
   // ***!!! Could have more classes here to implement e.g. parameters derived from metadata, expressions involving metadata, etc. 

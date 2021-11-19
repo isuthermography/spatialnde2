@@ -16,6 +16,7 @@
 
 #include "snde/arraymanager.hpp"
 #include "snde/pngimage.hpp"
+#include "snde/allocator.hpp"
 
 #include "snde/rec_display.hpp"
 #include "snde/recstore_display_transforms.hpp"
@@ -46,9 +47,13 @@ void png_viewer_display()
 
     rendercache->mark_obsolete();
 
-    // Theoretically should grab all locks that might be needed at this point, following the correct
-    // locking order
+    // ***!!! Theoretically should grab all locks that might be needed at this point, following the correct locking order
 
+    // This would be by iterating over the display_requirements
+    // and either verifying that none of them have require_locking
+    // or by accumulating needed lock specs into an ordered set
+    // or ordered map, and then locking them in the proepr order. 
+    
     double left = png_rec->rec->metadata->GetMetaDatumDbl("IniVal1",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("Step1",1.0)/2.0;
     double right = png_rec->rec->metadata->GetMetaDatumDbl("IniVal1",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("Step1",1.0)*(png_rec->layout.dimlen.at(0)-0.5);
     double bottom = png_rec->rec->metadata->GetMetaDatumDbl("IniVal2",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("Step2",1.0)/2.0;
@@ -163,15 +168,16 @@ int main(int argc, char **argv)
   
   
   std::shared_ptr<memallocator> lowlevel_alloc;
-  std::shared_ptr<allocator_alignment> alignment_requirements;
   std::shared_ptr<arraymanager> manager;
   std::shared_ptr<geometry> geom;
 
-  recdb=std::make_shared<snde::recdatabase>();
+  std::shared_ptr<allocator_alignment> alignment_requirements = std::make_shared<allocator_alignment>();
+
+  recdb=std::make_shared<snde::recdatabase>(alignment_requirements);
   std::shared_ptr<snde::ndarray_recording_ref> test_rec;
 
 
-  recdb->compute_resources->compute_resources.push_back(std::make_shared<available_compute_resource_cpu>(recdb,recdb->compute_resources,SNDE_CR_CPU,std::thread::hardware_concurrency()));
+  recdb->compute_resources->add_resource(std::make_shared<available_compute_resource_cpu>(recdb,std::thread::hardware_concurrency()));
   recdb->compute_resources->start();
   
   snde::active_transaction transact(recdb); // Transaction RAII holder

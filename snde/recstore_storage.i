@@ -117,7 +117,10 @@ namespace snde {
   class recording_storage_manager_simple: public recording_storage_manager {
     // allocate_recording method should be thread-safe
   public:
-    recording_storage_manager_simple(std::shared_ptr<memallocator> lowlevel_alloc);
+    std::shared_ptr<memallocator> lowlevel_alloc;
+    std::shared_ptr<allocator_alignment> alignment_requirements;
+    
+    recording_storage_manager_simple(std::shared_ptr<memallocator> lowlevel_alloc,std::shared_ptr<allocator_alignment> alignment_requirements);
     virtual ~recording_storage_manager_simple() = default; 
     virtual std::shared_ptr<recording_storage> allocate_recording(std::string recording_path,std::string array_name, // use "" for default array within recording
 								  uint64_t recrevision,
