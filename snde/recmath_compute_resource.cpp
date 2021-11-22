@@ -910,6 +910,30 @@ namespace snde {
 
   int available_compute_resource_opencl::get_dispatch_priority() // Get the dispatch priority of this compute resource. Smaller or more negative numbers are higher priority. See SNDE_ACRP_XXXX, above
   {
+    // Check to see if all of the devices are actually CPU
+    bool all_devices_actually_cpu=true;
+    bool any_devices_actually_cpu=false;
+    
+    for (auto && device: opencl_devices) {
+      cl_device_type gottype = device.getInfo<CL_DEVICE_TYPE>();
+
+      if ((gottype & CL_DEVICE_TYPE_CPU) && !(gottype & CL_DEVICE_TYPE_GPU)) {
+	any_devices_actually_cpu=true; 
+      } else {
+	all_devices_actually_cpu=false;
+      }
+    }
+
+    if (all_devices_actually_cpu && any_devices_actually_cpu) {
+      snde_warning("available_compute_resource_opencl: all OpenCL compute devices are actually CPU type. Treating as low-priority fallback.");
+      return SNDE_ACRP_CPU_AS_GPU;
+    }
+
+    if (any_devices_actually_cpu) {
+      snde_warning("available_compute_resource_opencl: some OpenCL compute devices are actually CPU type.");
+      
+    }
+    
     return SNDE_ACRP_GPU_GENERALAPI;
   }
 

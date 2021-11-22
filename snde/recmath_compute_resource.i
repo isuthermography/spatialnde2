@@ -176,6 +176,7 @@ namespace snde {
 #define SNDE_ACRP_GPU_SPECIALIZEDAPI 0 // specialized API such as HIP/CUDA. If we have an implementation in such an API and a compute resource that can handle it, then we almost certainly want to use it. 
 #define SNDE_ACRP_GPU_GENERALAPI 1 // Portable API such as OpenCL/SYCL
 #define SNDE_ACRP_CPU 2 // CPU priority is always lower (higher number) so that GPU implementations take priority if there is a suitable GPU available and not contended for 
+#define SNDE_ACRP_CPU_AS_GPU 5 // Very lowest priority is CPU fallback for GPU code 
 
   class available_compute_resource_cpu: public available_compute_resource {
   public:

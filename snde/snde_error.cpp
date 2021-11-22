@@ -8,6 +8,7 @@
 namespace snde {
 
   SNDE_API unsigned current_debugflags=0;
+  //SNDE_API unsigned current_debugflags=SNDE_DC_COMPUTE_DISPATCH;
   //SNDE_API unsigned current_debugflags=SNDE_DC_RECDB|SNDE_DC_NOTIFY;
   //SNDE_API unsigned current_debugflags=SNDE_DC_ALL;
 

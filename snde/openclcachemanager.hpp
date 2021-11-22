@@ -94,7 +94,7 @@ namespace snde {
   public:
     cl::Context context; /* when on openclcachemanager's arrayinfomap, held in memory by clRetainContext() */
     cl::Device device;
-    /* could insert some flag to indicate use of zero-copy memory */
+    /* could insert some flag to indicate use of zero-copy memory (maybe not; this is the map key) */
     void **arrayptr;
     
     openclarrayinfo(cl::Context context, cl::Device device,void **arrayptr);
