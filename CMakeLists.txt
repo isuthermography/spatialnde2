@@ -20,6 +20,11 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 
+# Select coordinate precision: single vs. double
+set(SNDE_DOUBLEPREC_COORDS OFF CACHE BOOL "Use double precision for geometric coordinates rather than single precision" )
+
+
+
 # Set installation location rules
 
 IF(APPLE)    # Apple
@@ -44,6 +49,10 @@ endif()
 
 
 set(SPATIALNDE2_COMPILE_DEFINITIONS )
+
+IF(SNDE_DOUBLEPREC_COORDS)
+  set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_DOUBLEPREC_COORDS ) 
+ENDIF()
 
 ## Application is C++11 (now 14)
 set(CMAKE_CXX_STANDARD 14)

@@ -22,7 +22,12 @@ extern "C" {
      python definitions at bottom of geometry_types.i */
 #ifdef __OPENCL_VERSION__
 /* if this is an opencl kernel */
+#ifdef SNDE_DOUBLEPREC_COORDS
 typedef double snde_coord;
+#else // SNDE_DOUBLEPREC_COORDS
+typedef float snde_coord;
+#endif // SNDE_DOUBLEPREC_COORDS
+  
 typedef float snde_rendercoord;
 typedef float snde_imagedata;
  
@@ -58,7 +63,12 @@ typedef float snde_imagedata;
 //typedef cl_char snde_bool;
 
 //#else
+#ifdef SNDE_DOUBLEPREC_COORDS
 typedef double snde_coord;
+#else // SNDE_DOUBLEPREC_COORDS
+typedef float snde_coord;
+#endif // SNDE_DOUBLEPREC_COORDS
+
 typedef float snde_rendercoord;
 typedef float snde_imagedata;
 
@@ -277,6 +287,7 @@ typedef struct {
   uint8_t g;
   uint8_t b;
   uint8_t a;
+#ifndef __OPENCL_VERSION__
 #ifdef __cplusplus
   operator double() const // need operator(double) because we don't (yet) have template code to check for existance of such a cast method. 
   {
@@ -293,7 +304,8 @@ typedef struct {
     }
     
   }  
-#endif
+#endif // __cplusplus
+#endif // __OPENCL_VERSION__
 } snde_rgba;
 
 
@@ -303,6 +315,7 @@ typedef struct {
   uint8_t b;
   uint8_t a;
   snde_float32 d;
+#ifndef __OPENCL_VERSION__
 #ifdef __cplusplus
   operator double() const // need operator(double) because we don't (yet) have template code to check for existance of such a cast method. 
   {
@@ -319,7 +332,8 @@ typedef struct {
     }
     
   }  
-#endif
+#endif // __cplusplus
+#endif // __OPENCL_VERSION__
 } snde_rgbd;
 
   

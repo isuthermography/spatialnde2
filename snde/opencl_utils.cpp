@@ -293,6 +293,11 @@ namespace snde {
     //clerror=clBuildProgram(program,1,&device,"",NULL,NULL);
     std::string build_log_str="";
     std::string buildoptions="";
+
+#ifdef SNDE_DOUBLEPREC_COORDS
+    buildoptions += "-D SNDE_DOUBLEPREC_COORDS "
+#endif
+    
     if (build_with_doubleprec) {
       buildoptions +="-D SNDE_OCL_HAVE_DOUBLE ";
     }

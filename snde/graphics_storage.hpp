@@ -10,6 +10,8 @@ namespace snde {
 
   class graphics_storage_manager; // forward reference
 
+  bool snde_doubleprec_coords(); // returns true if SNDE_DOUBLEPREC_COORDS is defined
+  
   class graphics_storage: public recording_storage {
   public:
     // inherited from class recording_storage:

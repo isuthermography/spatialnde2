@@ -2,7 +2,16 @@
 #include "graphics_storage.hpp"
 
 namespace snde {
-
+  
+  bool snde_doubleprec_coords()
+  {
+#ifdef SNDE_DOUBLEPREC_COORDS
+    return true;
+#else
+    return false;
+#endif
+  }
+  
   graphics_storage::graphics_storage(std::shared_ptr<graphics_storage_manager> graphman,std::shared_ptr<arraymanager> manager,std::shared_ptr<memallocator> memalloc,std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized) :
     recording_storage(recording_path,recrevision,id,basearray,elementsize,base_index,typenum,nelem,manager->locker,requires_locking_read,requires_locking_write,finalized),
     manager(manager),
