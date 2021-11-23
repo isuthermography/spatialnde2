@@ -47,8 +47,9 @@ namespace snde {
     unsigned typenum; // MET_...  // immutable once constructed
     std::atomic<snde_index> nelem;  // immutable once constructed for immutable arrays. Might change for mutable arrays. 
 
-    
-    std::unordered_map<std::string,std::shared_ptr<cached_recording>> cache; // cache map, indexed by name of module doing caching (unique by get_cache_name()), to an abstract base class. Access to the unordered_map protected by admin lock.
+
+    std::mutex cache_lock;
+    std::unordered_map<std::string,std::shared_ptr<cached_recording>> cache; // cache map, indexed by name of module doing caching (unique by get_cache_name()), to an abstract base class. Access to the unordered_map protected by cache_lock.
 
 
     

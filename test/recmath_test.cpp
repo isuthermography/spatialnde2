@@ -9,6 +9,7 @@
 #ifdef SNDE_OPENCL
 #include "snde/opencl_utils.hpp"
 #include "snde/openclcachemanager.hpp"
+#include "snde/recmath_compute_resource_opencl.hpp"
 #endif // SNDE_OPENCL
 
 using namespace snde;
@@ -60,7 +61,8 @@ public:
 							 0, // cpu_flops
 							 numentries, // gpu_flops
 							 1, // max effective cpu cores
-							 1), // useful_cpu_cores (min # of cores to supply
+							 1, // useful_cpu_cores (min # of cores to supply
+							 false), // requires_doubleprec 
 #endif // SNDE_OPENCL
       };
     return std::make_pair(option_list,nullptr);
@@ -105,7 +107,7 @@ public:
 	    std::shared_ptr<assigned_compute_resource_opencl> opencl_resource=std::dynamic_pointer_cast<assigned_compute_resource_opencl>(compute_resource);
 	    if (opencl_resource) {
 
-	      fprintf(stderr,"Should execute in OpenCL\n");
+	      fprintf(stderr,"Executing in OpenCL!\n");
 	      cl::Kernel mbs_kern = multiply_by_scalar_opencl.get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
 	      OpenCLBuffers Buffers(opencl_resource->oclcache,opencl_resource->context,opencl_resource->devices.at(0),locktokens);
 	      
@@ -161,24 +163,32 @@ int main(int argc, char *argv[])
   std::shared_ptr<allocator_alignment> alignment_requirements = std::make_shared<allocator_alignment>();
 
 #ifdef SNDE_OPENCL
-  cl::Context context;
-  std::vector<cl::Device> devices;
-  std::string clmsgs;
+  cl::Context context,context_dbl;
+  std::vector<cl::Device> devices,devices_dbl;
+  std::string clmsgs,clmsgs_dbl;
 
   // The first parameter to get_opencl_context can be used to match a specific device, e.g. "Intel(R) OpenCL HD Graphics:GPU:Intel(R) Iris(R) Xe Graphics"
   // with the colon-separated fields left blank.
   // Set the second (boolean) parameter to limit to devices that can
   // handle double-precision
-  std::tie(context,devices,clmsgs) = get_opencl_context("::",true,nullptr,nullptr);
+  std::tie(context,devices,clmsgs) = get_opencl_context("::",false,nullptr,nullptr);
   // NOTE: If using Intel graphics compiler (IGC) you can enable double
   // precision emulation even on single precision hardware with the
   // environment variable OverrideDefaultFP64Settings=1
   // https://github.com/intel/compute-runtime/blob/master/opencl/doc/FAQ.md#feature-double-precision-emulation-fp64
-  fprintf(stderr,"%s",clmsgs.c_str());
+  fprintf(stderr,"Primary:\n%s\n\n",clmsgs.c_str());
 
   
   // Each OpenCL device can impose an alignment requirement...
   add_opencl_alignment_requirements(alignment_requirements,devices);
+
+  if (!opencl_check_doubleprec(devices)) {
+    // fallback context, devices supporting double precision
+    std::tie(context_dbl,devices_dbl,clmsgs_dbl) = get_opencl_context("::",true,nullptr,nullptr);
+    fprintf(stderr,"Fallback:\n%s\n\n",clmsgs_dbl.c_str());
+    
+    add_opencl_alignment_requirements(alignment_requirements,devices_dbl);
+  }
   
 #endif // SNDE_OPENCL
   
@@ -192,6 +202,9 @@ int main(int argc, char *argv[])
   
   recdb->compute_resources->add_resource(std::make_shared<available_compute_resource_opencl>(recdb,cpu,context,devices,8)); // limit to 8 parallel jobs per GPU to limit contention
 
+  if (!opencl_check_doubleprec(devices)) {
+    recdb->compute_resources->add_resource(std::make_shared<available_compute_resource_opencl>(recdb,cpu,context_dbl,devices_dbl,8)); // limit to 8 parallel jobs per GPU to limit contention
+  }
 #endif // SNDE_OPENCL
   
   recdb->compute_resources->start();

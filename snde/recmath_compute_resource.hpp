@@ -13,9 +13,6 @@
 #include <cstdlib>
 
 
-#ifdef SNDE_OPENCL
-#include <CL/opencl.hpp>
-#endif // SNDE_OPENCL
 
 #include "snde/snde_types.h"
 #include "snde/geometry_types.h"
@@ -38,12 +35,10 @@ namespace snde {
   class instantiated_math_function; // defined in recmath.hpp
   class executing_math_function; // defined in recmath.hpp
   class math_function_execution; // defined in recmath.hpp
-  class openclcachemanager; // defined in openclcachemanager.hpp
   
   class available_compute_resource;
   class assigned_compute_resource;
   class assigned_compute_resource_cpu;
-  class assigned_compute_resource_opencl;
   class pending_computation;
 
 
@@ -65,6 +60,8 @@ namespace snde {
     compute_resource_option& operator=(const compute_resource_option &) = delete; 
     virtual ~compute_resource_option()=default;  // virtual destructor required so we can be subclassed
 
+    virtual bool compatible_with(std::shared_ptr<available_compute_resource> available)=0;
+
     unsigned type; // SNDE_CR_...
 
     // transfer requirement estimate -- intended to decide about transfer to a cluster node or similar
@@ -82,25 +79,10 @@ namespace snde {
     snde_float64 flops;  // not currently used
     size_t max_effective_cpu_cores;  // not currently used
     size_t useful_cpu_cores; // recommended number of cpu cores to use
+
+    virtual bool compatible_with(std::shared_ptr<available_compute_resource> available);
+
   };
-  
-#ifdef SNDE_OPENCL
-  class compute_resource_option_opencl: public compute_resource_option {
-  public:
-    compute_resource_option_opencl(size_t metadata_bytes,
-				   size_t data_bytes,
-				   snde_float64 cpu_flops,
-				   snde_float64 gpu_flops,
-				   // Right now we just assume each function using
-				   // a gpu takes up a single gpu slot
-				   size_t max_useful_cpu_cores,
-				   size_t useful_cpu_cores);
-    snde_float64 cpu_flops; 
-    snde_float64 gpu_flops; 
-    size_t max_effective_cpu_cores; 
-    size_t useful_cpu_cores;
-  };
-#endif // SNDE_OPENCL
 
 
   class _compute_resource_option_cpu_combined: public compute_resource_option_cpu {
@@ -127,30 +109,6 @@ namespace snde {
   };
 
 
-
-  
-  class _compute_resource_option_cpu_combined_opencl: public _compute_resource_option_cpu_combined {
-    // This class is used internally by e.g. compute_resource_option_opencl, where once the OpenCL
-    // option has been dispatched, it needs a CPU core to dispatch as well. So it gets one of these
-    // structures as a wrapper and placed at the front of the priority list.
-  public:
-    _compute_resource_option_cpu_combined_opencl(size_t metadata_bytes,
-						 size_t data_bytes,
-						 snde_float64 flops,
-						 size_t max_effective_cpu_cores,
-						 size_t useful_cpu_cores,
-						 std::shared_ptr<compute_resource_option> orig,
-						 std::shared_ptr<assigned_compute_resource> orig_assignment);
-
-    _compute_resource_option_cpu_combined_opencl(const _compute_resource_option_cpu_combined_opencl &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
-    _compute_resource_option_cpu_combined_opencl& operator=(const _compute_resource_option_cpu_combined_opencl &) = delete; 
-    virtual ~_compute_resource_option_cpu_combined_opencl()=default;  // virtual destructor required so we can be subclassed
-
-    
-    virtual std::shared_ptr<assigned_compute_resource> combine_cpu_assignment(std::shared_ptr<assigned_compute_resource_cpu> assigned_cpus);
-    
-
-  };
 
   
   // available_compute_resource_database is the
@@ -228,7 +186,7 @@ namespace snde {
 
     virtual void start()=0; // set the compute resource going
     virtual bool dispatch_code(std::unique_lock<std::mutex> &acrd_admin_lock)=0;
-    virtual int get_dispatch_priority()=0; // Get the dispatch priority of this compute resource. Smaller or more negative numbers are higher priority. See SNDE_ACRP_XXXX, below
+    virtual std::tuple<int,bool,std::string> get_dispatch_priority()=0; // Get the dispatch priority of this compute resource. Smaller or more negative numbers are higher priority. See SNDE_ACRP_XXXX, below. returns (dispatch_priority,fallback_flag,fallback_message)
     
     //virtual std::vector<std::shared_ptr<executing_math_function>> currently_executing_functions()=0; // Subclass extract functions that are actually executing right now. 
   };
@@ -259,35 +217,13 @@ namespace snde {
 
     virtual void start(); // set the compute resource going
     virtual bool dispatch_code(std::unique_lock<std::mutex> &acrd_admin_lock);
-    virtual int get_dispatch_priority(); // Get the dispatch priority of this compute resource. Smaller or more negative numbers are higher priority. See SNDE_ACRP_XXXX, above
+    virtual std::tuple<int,bool,std::string> get_dispatch_priority(); // Get the dispatch priority of this compute resource. Smaller or more negative numbers are higher priority. See SNDE_ACRP_XXXX, above. Returns (dispatch_priority,fallback_flag,fallback_message).
     size_t _number_of_free_cpus(); // Must call with ACRD admin lock locked
     std::shared_ptr<assigned_compute_resource_cpu> _assign_cpus(std::shared_ptr<math_function_execution> function_to_execute,size_t number_of_cpus);
     void _dispatch_threads_from_pool(std::shared_ptr<recording_set_state> recstate,std::shared_ptr<math_function_execution> function_to_execute,std::shared_ptr<assigned_compute_resource_cpu> assigned_cpu_resource, size_t first_thread_index);
     void pool_code(size_t threadidx);
   };
 
-#ifdef SNDE_OPENCL
-  class available_compute_resource_opencl: public available_compute_resource {
-  public: 
-    available_compute_resource_opencl(std::shared_ptr<recdatabase> recdb,std::shared_ptr<available_compute_resource_cpu> controlling_cpu,cl::Context opencl_context,const std::vector<cl::Device> &opencl_devices,size_t max_parallel,std::shared_ptr<openclcachemanager> oclcache=nullptr);
-    virtual void start(); // set the compute resource going
-    virtual bool dispatch_code(std::unique_lock<std::mutex> &acrd_admin_lock);
-    virtual int get_dispatch_priority(); // Get the dispatch priority of this compute resource. Smaller or more negative numbers are higher priority. See SNDE_ACRP_XXXX, above
-    virtual size_t _number_of_free_gpus();
-    virtual std::shared_ptr<assigned_compute_resource_opencl> _assign_gpu(std::shared_ptr<math_function_execution> function_to_execute);
-    
-
-    std::shared_ptr<available_compute_resource_cpu> controlling_cpu;
-    cl::Context opencl_context;
-    std::vector<cl::Device> opencl_devices;
-    size_t max_parallel; // max parallel jobs on a single device
-    std::shared_ptr<openclcachemanager> oclcache;
-    std::vector<std::shared_ptr<math_function_execution>> functions_using_devices; // length num_devices*max_parallel; indexing order: device0para0, device1para0, ... device0para1, device1para1,...
-
-    std::vector<cl::CommandQueue> queues; // length num_devices*max_parallel, as with functions_using_devices
-
-  };
-#endif // SNDE_OPENCL
 
   // The assigned_compute_resource structures
   // are passed to the recmath class compute_code virtual methods to
@@ -322,27 +258,6 @@ namespace snde {
 
     
   };
-
-#ifdef SNDE_OPENCL
-  class assigned_compute_resource_opencl : public assigned_compute_resource {
-  public:
-    assigned_compute_resource_opencl(std::shared_ptr<available_compute_resource> resource,const std::vector<size_t> &assigned_cpu_core_indices,const std::vector<size_t> &assigned_opencl_job_indices,cl::Context context,const std::vector<cl::Device> &devices,const std::vector<cl::CommandQueue> &queues,std::shared_ptr<openclcachemanager> oclcache);
-    //size_t number_of_cpu_cores;
-    std::vector<size_t> assigned_opencl_job_indices;
-    
-    cl::Context context;
-    std::vector<cl::Device> devices; // devices corresponding to above-assigned opencl_job_indices
-    std::vector<cl::CommandQueue> queues; // devices corresponding to above-assigned opencl_job_indices
-    std::shared_ptr<openclcachemanager> oclcache;
-    std::shared_ptr<assigned_compute_resource_cpu> cpu_assignment; // contains assigned_cpu_core_indices
-
-    
-    virtual ~assigned_compute_resource_opencl()=default;  // virtual destructor required so we can be subclassed. Some subclasses use destructor to release resources
-
-    virtual void release_assigned_resources(std::unique_lock<std::mutex> &acrd_admin_holder); // resources referenced below no longer meaningful once this is called. Must be called with acrd admin lock locked
-
-  };
-#endif // SNDE_OPENCL
 
 
 

@@ -31,9 +31,13 @@ namespace snde {
 
   std::tuple<cl::Context,std::vector<cl::Device>,std::string> get_opencl_context(std::string query,bool need_doubleprec,void (*pfn_notify)(const char *errinfo,const void *private_info, size_t cb, void *user_data),void *user_data);
 
-  std::tuple<cl::Program, std::string> get_opencl_program(cl::Context context, cl::Device device, std::vector<const char *> program_source);
-  std::tuple<cl::Program, std::string> get_opencl_program(cl::Context context, cl::Device device, std::vector<std::string> program_source);
+  bool opencl_check_doubleprec(const std::vector<cl::Device> &devices);
 
+
+  std::tuple<cl::Program, std::string> get_opencl_program(cl::Context context, cl::Device device, cl::Program::Sources program_source /* This is actual std::vector<std::string> */,bool build_with_doubleprec);
+
+
+  
   void add_opencl_alignment_requirement(std::shared_ptr<allocator_alignment> alignment,cl::Device device);
   void add_opencl_alignment_requirements(std::shared_ptr<allocator_alignment> alignment,const std::vector<cl::Device> &devices);
 
@@ -207,9 +211,14 @@ namespace snde {
       if (!program_dict.count(cd)) {
 	
 	std::string build_log;
+
+	// check for double precision support
+	std::string DevExt=device.getInfo<CL_DEVICE_EXTENSIONS>();
+	bool has_doubleprec = (DevExt.find("cl_khr_fp64") != std::string::npos);
+
 	
 	// Create the OpenCL program object from the source code (convenience routine). 
-	std::tie(program,build_log) = get_opencl_program(context,device,program_source);
+	std::tie(program,build_log) = get_opencl_program(context,device,program_source,has_doubleprec);
 
 	if (build_log.size() > 0) {
 	  fprintf(stderr,"OpenCL build log:\n%s\n",build_log.c_str());

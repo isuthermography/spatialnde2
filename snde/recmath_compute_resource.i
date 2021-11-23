@@ -15,14 +15,6 @@ snde_rawaccessible(snde::assigned_compute_resource);
   %shared_ptr(snde::assigned_compute_resource_cpu)
 snde_rawaccessible(snde::assigned_compute_resource_cpu);
 
-#ifdef SNDE_OPENCL
-%shared_ptr(snde::compute_resource_option_opencl)
-snde_rawaccessible(snde::compute_resource_option_opencl);
-  %shared_ptr(snde::available_compute_resource_opencl)
-snde_rawaccessible(snde::available_compute_resource_opencl);
-  %shared_ptr(snde::assigned_compute_resource_opencl)
-snde_rawaccessible(snde::assigned_compute_resource_opencl);
-#endif
 
 %template(snde_available_compute_resource_list) std::list<std::shared_ptr<snde::available_compute_resource>>;
 
@@ -50,7 +42,6 @@ namespace snde {
   class instantiated_math_function; // defined in recmath.hpp
   class executing_math_function; // defined in recmath.hpp
   class math_function_execution; // defined in recmath.hpp
-  class openclcachemanager;
   
   class available_compute_resource;
   class assigned_compute_resource_cpu;
@@ -67,6 +58,8 @@ namespace snde {
     compute_resource_option& operator=(const compute_resource_option &) = delete; 
     virtual ~compute_resource_option()=default;  // virtual destructor required so we can be subclassed
 
+    virtual bool compatible_with(std::shared_ptr<available_compute_resource> available)=0;
+    
     unsigned type; // SNDE_CR_...
 
     // transfer requirement estimate -- intended to decide about transfer to a cluster node or similar
@@ -86,23 +79,6 @@ namespace snde {
     size_t useful_cpu_cores; // recommended number of cpu cores to use
   };
   
-#ifdef SNDE_OPENCL
-  class compute_resource_option_opencl: public compute_resource_option {
-  public:
-    compute_resource_option_opencl(size_t metadata_bytes,
-				   size_t data_bytes,
-				   snde_float64 cpu_flops,
-				   snde_float64 gpu_flops,
-				   // Right now we just assume each function using
-				   // a gpu takes up a single gpu slot
-				   size_t max_useful_cpu_cores,
-				   size_t useful_cpu_cores);
-    snde_float64 cpu_flops; 
-    snde_float64 gpu_flops; 
-    size_t max_effective_cpu_cores; 
-    size_t useful_cpu_cores;
-  };
-#endif // SNDE_OPENCL
   
   class available_compute_resource_database {
     // Represents the full set of compute resources available
@@ -203,22 +179,6 @@ namespace snde {
     void pool_code(size_t threadidx);
   };
 
-#ifdef SNDE_OPENCL
-  class available_compute_resource_opencl: public available_compute_resource {
-    available_compute_resource_opencl(std::shared_ptr<recdatabase> recdb,std::shared_ptr<available_compute_resource_cpu> controlling_cpu,cl::Context opencl_context,const std::vector<cl::Device> &opencl_devices,size_t max_parallel,std::shared_ptr<openclcachemanager> oclcache=nullptr);
-    virtual void start(); // set the compute resource going
-    virtual bool dispatch_code(std::unique_lock<std::mutex> &acrd_admin_lock);
-
-    std::shared_ptr<available_compute_resource_cpu> controlling_cpu;
-    cl::Context opencl_context;
-    std::vector<cl::Device> opencl_devices;
-    size_t max_parallel; // max parallel jobs on a single device
-    std::vector<std::shared_ptr<math_function_execution>> functions_using_devices; // length num_devices*max_parallel; indexing order: device0para0, device1para0, ... device0para1, device1para1,...
-
-    std::vector<cl::CommandQueue> queues; // length num_devices*max_parallel, as with functions_using_devices
-
-  };
-#endif // SNDE_OPENCL
 
   // The assigned_compute_resource structures
   // are passed to the recmath class compute_code virtual methods to
@@ -249,21 +209,6 @@ namespace snde {
     
   };
 
-#ifdef SNDE_OPENCL
-  class assigned_compute_resource_opencl : public assigned_compute_resource {
-  public:
-    assigned_compute_resource_opencl(std::shared_ptr<available_compute_resource> resource,const std::vector<size_t> &assigned_cpu_core_indices,const std::vector<size_t> &assigned_opencl_job_indices,cl::Context context,const std::vector<cl::Device> &devices,const std::vector<cl::CommandQueue> &queues,std::shared_ptr<openclcachemanager> oclcache);
-    //size_t number_of_cpu_cores;
-    std::vector<size_t> assigned_opencl_job_indices;
-    
-    cl::Context context;
-    std::vector<cl::Device> devices; // devices corresponding to above-assigned opencl_job_indices
-    std::vector<cl::CommandQueue> queues; // devices corresponding to above-assigned opencl_job_indices
-    std::shared_ptr<assigned_compute_resource_cpu> cpu_assignment; // contains assigned_cpu_core_indices
-    virtual void release_assigned_resources(std::unique_lock<std::mutex> &acrd_admin_holder); // resources referenced below no longer meaningful once this is called. Must be called with acrd admin lock locked
-      
-  };
-#endif // SNDE_OPENCL
 
 
 

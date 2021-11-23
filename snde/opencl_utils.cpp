@@ -253,9 +253,29 @@ namespace snde {
   
     return std::make_tuple(context,selected_devices,summary);
   }
-  
 
-  std::tuple<cl::Program, std::string> get_opencl_program(cl::Context context, cl::Device device, cl::Program::Sources program_source /* This is actual std::vector<std::string> */)
+
+  bool opencl_check_doubleprec(const std::vector<cl::Device> &devices)
+  {
+    bool some_have_doubleprec = false;
+    size_t devnum;
+    
+    // check for double precision support
+
+    for (devnum=0; devnum < devices.size();devnum++) {
+      std::string DevExt=devices.at(devnum).getInfo<CL_DEVICE_EXTENSIONS>();
+      bool has_doubleprec = (DevExt.find("cl_khr_fp64") != std::string::npos);
+
+      if (has_doubleprec) {
+	some_have_doubleprec=true;
+      }
+    }
+    return some_have_doubleprec;
+  }
+
+
+  
+  std::tuple<cl::Program, std::string> get_opencl_program(cl::Context context, cl::Device device, cl::Program::Sources program_source /* This is actual std::vector<std::string> */,bool build_with_doubleprec)
   {
     
     cl_int clerror=0;
@@ -272,8 +292,13 @@ namespace snde {
     
     //clerror=clBuildProgram(program,1,&device,"",NULL,NULL);
     std::string build_log_str="";
+    std::string buildoptions="";
+    if (build_with_doubleprec) {
+      buildoptions +="-D SNDE_OCL_HAVE_DOUBLE ";
+    }
+    
     try {
-      program.build(device);
+      program.build(device,buildoptions.c_str());
     } catch (const cl::BuildError &e) {
       cl::BuildLogType buildlogs = e.getBuildLog();
       fprintf(stderr,"OpenCL Program build error!: size=%u\n",(unsigned)buildlogs.size());

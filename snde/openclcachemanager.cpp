@@ -383,6 +383,16 @@ namespace snde {
     } else {
       oclbuffer=buffer->second.lock();//buffer_map.at(arrayinfo);
     }
+
+
+    {
+      std::lock_guard<std::mutex> cache_lock_holder(storage->cache_lock);
+      // putting a shared_ptr to the oclbuffer on the recording_storage cache
+      // ensures that it will stick around as long as the recording
+      // stays in memory (unless/until we implement a cache cleaner
+      // to go out and clean it up)
+      storage->cache.emplace(name,oclbuffer);
+    }
     
     return oclbuffer;
   }

@@ -25,7 +25,9 @@ extern "C" {
 
 
 #ifdef __OPENCL_VERSION__
+#ifdef SNDE_OCL_HAVE_DOUBLE
 typedef double snde_float64;
+#endif // SNDE_OCL_HAVE_DOUBLE
 typedef float snde_float32;
 typedef unsigned char uint8_t;
 typedef unsigned int uint32_t;
