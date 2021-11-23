@@ -59,8 +59,12 @@ Solution: atomic lists that can be traversed, sort the results, lock, then verif
     for new mutable OR IMMUTABLE sub-arrays.
     Ordering is by geometry structure or data array structure address, 
     and within Ordering is by location within the geometry structure
- 4. Internal locks of other subsystems such as memory allocator, etc. 
- 5. Any "last" locks such as the Python GIL
+ 4. Recording storage locks
+ 5. cache manager locks
+ 6. Allocator locks.
+ 7. Internal locks of other subsystems, etc.
+ 8. Lockmanager internal locks 
+ 9. Any "last" locks such as the Python GIL
 
 Note that the above means that any code called from Python that is doing
 locking needs to DROP THE GIL FIRST, acquire locks and then re-acquire the

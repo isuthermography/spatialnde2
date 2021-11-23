@@ -2,6 +2,10 @@
 #include "snde/recstore.hpp"
 #include "snde/recmath.hpp"
 
+#ifdef SNDE_OPENCL
+#include "snde/openclcachemanager.hpp"
+#endif // SNDE_OPENCL
+
 namespace snde {
   compute_resource_option::compute_resource_option(unsigned type, size_t metadata_bytes,size_t data_bytes) :
     type(type),
@@ -810,7 +814,6 @@ namespace snde {
 	  if (acrd_strong) {
 	    acrd_strong->notify_acrd_of_changes_to_prioritized_computations();
 	  }
-	  
 #ifndef SNDE_RCR_DISABLE_EXCEPTION_HANDLING
 	} catch(const std::exception &exc) {
 	  // Only consider exceptions derived from std::exception because there's no general way to print anything else, so we might as well just crash in that case. 
@@ -822,16 +825,22 @@ namespace snde {
   }
 
 #ifdef SNDE_OPENCL
-  available_compute_resource_opencl::available_compute_resource_opencl(std::shared_ptr<recdatabase> recdb,std::shared_ptr<available_compute_resource_cpu> controlling_cpu,cl::Context opencl_context,const std::vector<cl::Device> &opencl_devices,size_t max_parallel) :
+  available_compute_resource_opencl::available_compute_resource_opencl(std::shared_ptr<recdatabase> recdb,std::shared_ptr<available_compute_resource_cpu> controlling_cpu,cl::Context opencl_context,const std::vector<cl::Device> &opencl_devices,size_t max_parallel,std::shared_ptr<openclcachemanager> oclcache/*=nullptr*/) :
     available_compute_resource(recdb,SNDE_CR_OPENCL),
     controlling_cpu(controlling_cpu),
     opencl_context(opencl_context),
     opencl_devices(opencl_devices),
     max_parallel(max_parallel),
+    oclcache( (oclcache) ? (oclcache):std::make_shared<openclcachemanager>()),
     functions_using_devices(max_parallel*opencl_devices.size())
-
-  {
     
+  {
+    size_t devnum,paranum;
+    for (paranum=0; paranum < max_parallel; paranum++) {
+      for (devnum=0; devnum < opencl_devices.size();devnum++) {
+	queues.push_back(cl::CommandQueue(opencl_context,opencl_devices[devnum],0));
+      }
+    }
   }
 
   void available_compute_resource_opencl::start() // set the compute resource going
@@ -957,6 +966,7 @@ namespace snde {
     size_t job_index=0;
     std::vector<size_t> job_assignments;
     std::vector<cl::Device> device_assignments;
+    std::vector<cl::CommandQueue> queue_assignments;
 
     for (auto && exec_fcn: functions_using_devices) {
       if (!exec_fcn) {
@@ -964,6 +974,7 @@ namespace snde {
 	// assign it...
 	job_assignments.push_back(job_index);
 	device_assignments.push_back(opencl_devices.at(job_index % max_parallel));
+	queue_assignments.push_back(queues.at(job_index));
 	
 	break; 
 
@@ -973,7 +984,7 @@ namespace snde {
 
     assert(job_assignments.size() > 0); // should have been able to assign everything
     
-    return std::make_shared<assigned_compute_resource_opencl>(shared_from_this(),std::vector<size_t>(),job_assignments,opencl_context,device_assignments);
+    return std::make_shared<assigned_compute_resource_opencl>(shared_from_this(),std::vector<size_t>(),job_assignments,opencl_context,device_assignments,queue_assignments,oclcache);
 
   }
 
@@ -1014,11 +1025,13 @@ namespace snde {
 
   
 #ifdef SNDE_OPENCL
-  assigned_compute_resource_opencl::assigned_compute_resource_opencl(std::shared_ptr<available_compute_resource> resource,const std::vector<size_t> &assigned_cpu_core_indices,const std::vector<size_t> &assigned_opencl_job_indices,cl::Context opencl_context,const std::vector<cl::Device> &opencl_devices) :
+  assigned_compute_resource_opencl::assigned_compute_resource_opencl(std::shared_ptr<available_compute_resource> resource,const std::vector<size_t> &assigned_cpu_core_indices,const std::vector<size_t> &assigned_opencl_job_indices,cl::Context context,const std::vector<cl::Device> &devices,const std::vector<cl::CommandQueue> &queues,std::shared_ptr<openclcachemanager> oclcache) :
     assigned_compute_resource(SNDE_CR_OPENCL,resource),
     assigned_opencl_job_indices(assigned_opencl_job_indices),
-    opencl_context(opencl_context),
-    opencl_devices(opencl_devices),
+    context(context),
+    devices(devices),
+    queues(queues),
+    oclcache(oclcache),
     cpu_assignment(nullptr) // will be filled in later once the CPU module has dispatched
   {
     

@@ -100,7 +100,7 @@ else()
   set(SHARED_LIBRARY_SUFFIX_PYTHON .so )
 endif()
 
-set(SPATIALNDE2_SOURCES snde/allocator.cpp snde/lockmanager.cpp snde/recmath_compute_resource.cpp snde/recmath.cpp snde/recmath_parameter.cpp snde/recstore.cpp snde/recstore_storage.cpp snde/recmath_cppfunction.cpp snde/notify.cpp snde/snde_error.cpp snde/graphics_storage.cpp snde/rec_display.cpp snde/recstore_display_transforms.cpp snde/rec_display_colormap.cpp snde/graphics_recording.cpp ) # snde/infostore_or_component.cpp snde/geometry.cpp snde/revision_manager.cpp snde/mutablerecstore.cpp )
+set(SPATIALNDE2_SOURCES snde/allocator.cpp snde/lockmanager.cpp snde/recmath_compute_resource.cpp snde/recmath.cpp snde/recmath_parameter.cpp snde/recstore.cpp snde/recstore_storage.cpp snde/recmath_cppfunction.cpp snde/notify.cpp snde/snde_error.cpp snde/graphics_storage.cpp snde/rec_display.cpp snde/recstore_display_transforms.cpp snde/rec_display_colormap.cpp snde/graphics_recording.cpp snde/cached_recording.cpp ) # snde/infostore_or_component.cpp snde/geometry.cpp snde/revision_manager.cpp snde/mutablerecstore.cpp )
 
 if (NOT WIN32)
   set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/shared_memory_allocator_posix.cpp )
@@ -171,6 +171,7 @@ ENDIF()
 
 
 include_directories(BEFORE . )  # So that #include "snde/..." works during the build
+include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/include )  # So that #include "snde/..." works during the build for python generated headers
 
 IF (Python3_FOUND)
     message(STATUS "Python3: " ${Python3_VERSION})
@@ -199,7 +200,7 @@ IF (OpenCL_FOUND)
 
     
     # Build OpenCL support into library
-    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  snde/opencl_utils.cpp ) #snde/openclcachemanager.cpp ) # snde/data_to_rgba.cpp snde/inplanemat_calculation.cpp snde/projinfo_calculation.cpp snde/boxes_calculation.cpp)
+    set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES}  snde/opencl_utils.cpp snde/openclcachemanager.cpp ) # snde/data_to_rgba.cpp snde/inplanemat_calculation.cpp snde/projinfo_calculation.cpp snde/boxes_calculation.cpp)
     #IF (Python3_FOUND) 
     #  set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/normal_calculation.cpp)
     #  IF (OpenSceneGraph_FOUND)
@@ -360,16 +361,16 @@ ENDIF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
 IF (Python3_FOUND)
     set(PYTHONGENHEADERS snde/snde_types.h snde/geometry_types.h snde/geometry_ops.h snde/vecops.h ) #  snde/testkernel.c snde/osg_vertexarray.c snde/osg_texvertexarray.c snde/normal_calc.c snde/projinfo_calc.c snde/colormap.h snde/scale_colormap.c snde/dummy_scale_colormap.c )
   
-    set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h ) # ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
+    set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/include/snde/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/vecops_h.h ) # ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
 
     add_custom_command(OUTPUT ${PYTHONGENERATEDHEADERS}
             DEPENDS ${PYTHONGENHEADERS} 
             # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
 
-            COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/snde_types.h ${CMAKE_CURRENT_BINARY_DIR}/snde_types_h.h
-            COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/geometry_types.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_types_h.h
-            COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/geometry_ops.h ${CMAKE_CURRENT_BINARY_DIR}/geometry_ops_h.h
-            COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/vecops.h ${CMAKE_CURRENT_BINARY_DIR}/vecops_h.h
+            COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/snde_types.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/snde_types_h.h
+            COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/geometry_types.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/geometry_types_h.h
+            COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/geometry_ops.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/geometry_ops_h.h
+            COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/vecops.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/vecops_h.h
             #COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/testkernel.c ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
             #COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/osg_vertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h
             #COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/osg_texvertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h
@@ -413,6 +414,7 @@ IF (Python3_FOUND)
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_CPP_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_C_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
+    COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_DPI_FILES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     
@@ -435,6 +437,7 @@ IF (Python3_FOUND)
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_CPP_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_C_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
+    COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_DPI_FILES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     

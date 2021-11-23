@@ -3104,7 +3104,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
 #else
     std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<shared_memory_allocator_posix>();
 #endif
-    this->default_storage_manager=std::make_shared<recording_storage_manager_simple>(lowlevel_alloc,alignment_requirements);
+    this->default_storage_manager=std::make_shared<recording_storage_manager_simple>(lowlevel_alloc,lockmgr,alignment_requirements);
     
     if (!this->lockmgr) {
       this->lockmgr = std::make_shared<lockmanager>();
@@ -3140,7 +3140,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
 #else
       std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<shared_memory_allocator_posix>();
 #endif
-      this->default_storage_manager=std::make_shared<recording_storage_manager_simple>(lowlevel_alloc,nullptr);
+      this->default_storage_manager=std::make_shared<recording_storage_manager_simple>(lowlevel_alloc,lockmgr,nullptr);
     }
 
     if (!this->lockmgr) {

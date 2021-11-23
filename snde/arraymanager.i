@@ -1,4 +1,4 @@
-%shared_ptr(snde::cachemanager);
+//%shared_ptr(snde::cachemanager);
 %shared_ptr(snde::arraymanager);
 %shared_ptr(std::unordered_map<void **,void **>);
 %shared_ptr(std::multimap<void **,void **>);
@@ -35,12 +35,6 @@ namespace snde {
   typedef void **ArrayPtr;
   static inline ArrayPtr ArrayPtr_fromint(unsigned long long intval); 
   
-  class cachemanager /* : public std::enable_shared_from_this<cachemanager> */ { /* abstract base class for cache managers */
-  public:
-    virtual void mark_as_dirty(std::shared_ptr<arraymanager> manager,void **arrayptr,snde_index pos,snde_index numelem) {};
-    virtual ~cachemanager() {};
-    
-  };
 
   std::string AddrStr(void **ArrayPtr);
   
@@ -87,8 +81,8 @@ namespace snde {
 
     
     virtual void add_unmanaged_array(void **arrayptr,size_t elemsize,snde_index totalnelem);
-    virtual void mark_as_dirty(cachemanager *owning_cache_or_null,void **arrayptr,snde_index pos,snde_index len);
-    virtual void dirty_alloc(std::shared_ptr<lockholder> holder,void **arrayptr,std::string allocid, snde_index numelem);
+    //virtual void mark_as_dirty(cachemanager *owning_cache_or_null,void **arrayptr,snde_index pos,snde_index len);
+    //virtual void dirty_alloc(std::shared_ptr<lockholder> holder,void **arrayptr,std::string allocid, snde_index numelem);
     virtual snde_index get_elemsize(void **arrayptr);
     virtual snde_index get_total_nelem(void **arrayptr);
 
@@ -108,10 +102,10 @@ namespace snde {
     virtual void remove_unmanaged_array(void **basearray);
 
     virtual void cleararrays(void *structaddr, size_t structlen);    
-    virtual std::shared_ptr<snde::cachemanager> get_cache(std::string name);
+    //virtual std::shared_ptr<snde::cachemanager> get_cache(std::string name);
 
-    virtual bool has_cache(std::string name);
-    virtual void set_undefined_cache(std::string name,std::shared_ptr<snde::cachemanager> cache);
+    //virtual bool has_cache(std::string name);
+    //virtual void set_undefined_cache(std::string name,std::shared_ptr<snde::cachemanager> cache);
     virtual ~arraymanager();
   };
 

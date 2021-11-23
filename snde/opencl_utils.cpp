@@ -271,8 +271,17 @@ namespace snde {
     //}
     
     //clerror=clBuildProgram(program,1,&device,"",NULL,NULL);
-    program.build(device);
-    
+    std::string build_log_str="";
+    try {
+      program.build(device);
+    } catch (const cl::BuildError &e) {
+      cl::BuildLogType buildlogs = e.getBuildLog();
+      fprintf(stderr,"OpenCL Program build error!: size=%u\n",(unsigned)buildlogs.size());
+      for (size_t cnt=0; cnt < buildlogs.size(); cnt++) {
+	build_log_str += buildlogs.at(cnt).second;
+	build_log_str += "\n\n";
+      }
+    }
     //size_t build_log_size=0;
     //char *build_log=NULL;
     //clGetProgramBuildInfo(program,device,CL_PROGRAM_BUILD_LOG,0,NULL,&build_log_size);
@@ -281,10 +290,12 @@ namespace snde {
     //clGetProgramBuildInfo(program,device,CL_PROGRAM_BUILD_LOG,build_log_size,(void *)build_log,NULL);
     
     //std::string build_log_str(build_log);
-    std::string build_log_str = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
+    if (build_log_str.size()==0) {
+      build_log_str = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
+    }
       
 
-      if (build_log_str.size() > 0) { // include source if there were errors/warnings
+    if (build_log_str.size() > 0) { // include source if there were errors/warnings
       build_log_str += "Source follows:\n";
       for (size_t pscnt=0;pscnt < program_source.size();pscnt++) {
 	build_log_str += program_source[pscnt];

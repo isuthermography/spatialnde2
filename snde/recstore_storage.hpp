@@ -5,15 +5,20 @@
 #include <tuple>
 #include <string>
 #include <atomic>
+#include <set>
 
 #include "snde/snde_types.h"
 #include "snde/geometry_types.h"
 
 #include "snde/memallocator.hpp"
+#include "snde/cached_recording.hpp" // for cachemanager
 
 namespace snde {
 
-  class allocator_alignment;
+  class cached_recording; // from cached_recording.hpp
+  class cachemanager; // cached_recording.hpp
+  class allocator_alignment; // from allocator.hpp
+  class lockmanager;  // lockmanager.hpp
   
   class recording_storage: public std::enable_shared_from_this<recording_storage> {
     // recording storage locked through lockmanager, except
@@ -36,21 +41,25 @@ namespace snde {
     memallocator_regionid id;  //immutable once constructed
     
     void **_basearray; // pointer to lockable address for recording array (lockable if recording is mutable or requires_locking_read or requires_locking_write). Don't use directly, get via lockableaddr() method
-    std::atomic<void *> shiftedarray; // if not NULL, overrides *basearray. Includes base_index already added in.
+    std::atomic<void *> shiftedarray; // if not NULL, overrides *basearray. Includes base_index already added in. But basearray is still used for access when needed in the same address space as other data 
     size_t elementsize; // immutable once constructed
     snde_index base_index; //immutable once constructed 
     unsigned typenum; // MET_...  // immutable once constructed
-    snde_index nelem;  // immutable once constructed
+    std::atomic<snde_index> nelem;  // immutable once constructed for immutable arrays. Might change for mutable arrays. 
 
+    
+    std::unordered_map<std::string,std::shared_ptr<cached_recording>> cache; // cache map, indexed by name of module doing caching (unique by get_cache_name()), to an abstract base class. Access to the unordered_map protected by admin lock.
+
+
+    
+    std::shared_ptr<lockmanager> lockmgr; // may be nullptr if requires_locking_read and requires_locking_write are both false. 
     snde_bool requires_locking_read;
     snde_bool requires_locking_write;
 
-    
-    
-    std::atomic<bool> finalized; // if set, this is an immutable recording and its values have been set. Does NOT mean the data is valid indefinitely, as this could be a reference that loses validity at some point. 
+    std::atomic<bool> finalized; // if set, this is an immutable recording and its values have been set. Does NOT mean the data is valid indefinitely, as this could be a reference that loses validity at some point.
     
     // constructor
-    recording_storage(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized);
+    recording_storage(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized);
     
     // Rule of 3
     recording_storage(const recording_storage &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
@@ -60,9 +69,16 @@ namespace snde {
     virtual void *dataaddr_or_null()=0; // return pointer to recording base address pointer for memory access or nullptr if it should be accessed via lockableaddr() because it might yet move in the future. Has base_index already added in
     virtual void *cur_dataaddr()=0; // return pointer with shift built-in.
     virtual void **lockableaddr()=0; // return pointer to recording base address pointer for locking
+    virtual snde_index lockablenelem()=0;
 
-    virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference()=0; // NOTE: The returned storage can only be trusted if (a) the originating recording is immutable, or (b) the originating recording is mutable but has not been changed since obtain_nonmoving_copy_or_reference() was called. i.e. can only be used as long as the originating recording is unchanged. Note that this is used only for getting a direct reference within a larger (perhaps mutable) allocation, such as space for a texture or mesh geometry. If you are just referencing a range of elements of a finalized waveofrm you can just reference the recording_storage shared pointer with a suitable base_index, stride array, and dimlen array. 
     
+    virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference()=0; // NOTE: The returned storage can only be trusted if (a) the originating recording is immutable, or (b) the originating recording is mutable but has not been changed since obtain_nonmoving_copy_or_reference() was called. i.e. can only be used as long as the originating recording is unchanged. Note that this is used only for getting a direct reference within a larger (perhaps mutable) allocation, such as space for a texture or mesh geometry. If you are just referencing a range of elements of a finalized waveofrm you can just reference the recording_storage shared pointer with a suitable base_index, stride array, and dimlen array. 
+
+
+    // ***!!! Need a way to register and notify caches that the data in a mutable array has changed. ***!!!
+    // ***!!! It would be nice to be able to mark a "rectangle" as invalid too !!!***
+    virtual void mark_as_invalid(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)=0; // pos and numelem are relative to __this_recording__
+    virtual void add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr)=0; // gets mark_as_invalid() and notify_storage_expiration() notifications
   };
 
   class recording_storage_simple: public recording_storage {
@@ -79,15 +95,25 @@ namespace snde {
     std::shared_ptr<memallocator> lowlevel_alloc; // low-level allocator
     void *_baseptr; // this is what _basearray points at; access through superclass addr() method
 
+
+    std::mutex follower_cachemanagers_lock; 
+    std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>> follower_cachemanagers;
+
+    
     // don't create this yourself, get it from recording_storage_manager_simple
-    recording_storage_simple(std::string recording_path,uint64_t recrevision,memallocator_regionid id,size_t elementsize,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr);
+    recording_storage_simple(std::string recording_path,uint64_t recrevision,memallocator_regionid id,size_t elementsize,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr);
     recording_storage_simple(const recording_storage_simple &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
     recording_storage_simple& operator=(const recording_storage_simple &) = delete; 
-    virtual ~recording_storage_simple(); // frees  _baseptr 
+    virtual ~recording_storage_simple(); // frees  _baseptr, notifies followers 
     virtual void *dataaddr_or_null();
     virtual void *cur_dataaddr();
     virtual void **lockableaddr();
+    virtual snde_index lockablenelem();
     virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference();
+
+    virtual void mark_as_invalid(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
+    virtual void add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr);
+    
   };
 
   class recording_storage_reference: public recording_storage {
@@ -102,10 +128,14 @@ namespace snde {
     virtual void *dataaddr_or_null();
     virtual void *cur_dataaddr();
     virtual void **lockableaddr();
+    virtual snde_index lockablenelem();
     virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference();
+    virtual void mark_as_invalid(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
+    virtual void add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr);
+
   };
 
-  class recording_storage_manager {
+  class recording_storage_manager : public std::enable_shared_from_this<recording_storage_manager> {
   public:
     // allocate_recording method should be thread-safe
     
@@ -130,9 +160,10 @@ namespace snde {
     // allocate_recording method should be thread-safe
   public:
     std::shared_ptr<memallocator> lowlevel_alloc;
+    std::shared_ptr<lockmanager> lockmgr; 
     std::shared_ptr<allocator_alignment> alignment_requirements;
     
-    recording_storage_manager_simple(std::shared_ptr<memallocator> lowlevel_alloc,std::shared_ptr<allocator_alignment> alignment_requirements);
+    recording_storage_manager_simple(std::shared_ptr<memallocator> lowlevel_alloc,std::shared_ptr<lockmanager> lockmgr,std::shared_ptr<allocator_alignment> alignment_requirements);
     virtual ~recording_storage_manager_simple() = default; 
     virtual std::shared_ptr<recording_storage> allocate_recording(std::string recording_path,std::string array_name, // use "" for default array within recording
 								  uint64_t recrevision,

@@ -3,21 +3,22 @@
 
 extern "C" void snde_opencl_callback(cl_event c_event, cl_int event_command_exec_status, void *user_data)
 {
-  std::function<void(cl_event,cl_int)> *function_ptr=(std::function<void(cl_event,cl_int)> *)user_data;
+  std::function<void(cl::Event,cl_int)> *function_ptr=(std::function<void(cl::Event,cl_int)> *)user_data;
 
-  (*function_ptr)(c_event,event_command_exec_status);
-
+  (*function_ptr)(cl::Event(c_event,true),event_command_exec_status);
+  
   delete function_ptr;
 }
 
 namespace snde {
 
-  opencldirtyregion::opencldirtyregion(snde_index regionstart,snde_index regionend)
+  opencldirtyregion::opencldirtyregion(snde_index regionstart,snde_index regionend,std::shared_ptr<recording_storage> owning_storage) :
+    regionstart(regionstart),
+    regionend(regionend),
+    owning_storage(owning_storage),
+    FlushDoneEvent(cl::Event()), // initialized to null
+    FlushDoneEventComplete(false)
   {
-    this->regionstart=regionstart;
-    this->regionend=regionend;
-    FlushDoneEvent=cl::Event(); // initialize to null
-    FlushDoneEventComplete=false;
     //fprintf(stderr,"Create opencldirtyregion(%d,%d)\n",regionstart,regionend);
   }
   
@@ -26,7 +27,7 @@ namespace snde {
     return false; // ***!!! Should probably implement this
   }
 
-  std::shared_ptr<opencldirtyregion> opencldirtyregion::sp_breakup(snde_index breakpoint)
+  std::shared_ptr<opencldirtyregion> opencldirtyregion::sp_breakup(snde_index breakpoint,std::shared_ptr<recording_storage> storage)
   /* breakup method ends this region at breakpoint and returns
      a new region starting at from breakpoint to the prior end */
   {
@@ -38,7 +39,7 @@ namespace snde {
     assert(!FlushDoneEvent.get());
     assert(breakpoint > regionstart && breakpoint < regionend);
     
-    newregion=std::make_shared<opencldirtyregion>(breakpoint,regionend);
+    newregion=std::make_shared<opencldirtyregion>(breakpoint,regionend,storage);
     this->regionend=breakpoint;
     
     return newregion;
@@ -81,28 +82,36 @@ namespace snde {
     return newregion;
   }
 
-  openclarrayinfo::openclarrayinfo(cl::Context context, cl::Device device,void **arrayptr)
+  openclarrayinfo::openclarrayinfo(cl::Context context, void **arrayptr) :
+    context(context),
+    //device(device),
+    arrayptr(arrayptr)
   {
-    this->context=context;
-    this->device=device;
     //clRetainContext(this->context); /* increase refcnt */
     //clRetainDevice(this->device);
-    this->arrayptr=arrayptr;
   }
 
   // equality operator for std::unordered_map
   bool openclarrayinfo::operator==(const openclarrayinfo b) const
   {
-    return b.context==context && b.arrayptr==arrayptr && b.device==device;
+    return b.context==context && b.arrayptr==arrayptr; // && b.device==device;
   }
 
   size_t openclarrayinfo_hash::operator()(const snde::openclarrayinfo & x) const
   {
-    return std::hash<void *>{}((void *)x.context.get()) + std::hash<void *>{}((void *)x.device.get()) + std::hash<void *>{}((void *)x.arrayptr);
+    return std::hash<void *>{}((void *)x.context.get()) /* + std::hash<void *>{}((void *)x.device.get())*/ + std::hash<void *>{}((void *)x.arrayptr);
   }
 
 
-  _openclbuffer::_openclbuffer(cl::Context context,std::shared_ptr<allocator> alloc,snde_index total_nelem,size_t elemsize,void **arrayptr, std::mutex *arraymanageradminmutex)
+  openclcacheentry::openclcacheentry(cl::Context context,
+			       std::shared_ptr<allocator> alloc, // nullptr OK
+			       snde_index total_nelem,
+			       size_t elemsize,void **arrayptr,
+			       std::mutex *cachemanageradminmutex) :
+    alloc(alloc),
+    numelem(total_nelem),
+    elemsize(elemsize),
+    arrayptr(arrayptr)
   {
     /* initialize buffer in context with specified size */
     /* caller should hold array manager's admin lock; 
@@ -128,17 +137,20 @@ namespace snde {
     /* Need to register for notification of realloc
        so we can re-allocate the buffer! */
     if (alloc) {
-      pool_realloc_callback=std::make_shared<std::function<void(snde_index)>>([this,context,arraymanageradminmutex](snde_index total_nelem) {
+      pool_realloc_callback=std::make_shared<std::function<void(snde_index)>>([this,context,cachemanageradminmutex](snde_index total_nelem) {
 	/* Note: we're not managing context, but presumably the openclarrayinfo that is our key in buffer_map will prevent the context from being freed */
+	// Whatever triggered the realloc had better have a write lock (or equivalent) on the array in which case nothing else should be reading 
+	// or writing so this stuff should be safe. 
 	
-	std::lock_guard<std::mutex> lock(*arraymanageradminmutex);
-	snde_index numelem;
+	std::lock_guard<std::mutex> lock(*cachemanageradminmutex); // protects invalidity field
 	cl_int lambdaerrcode_ret=CL_SUCCESS;
-	numelem=total_nelem; /* determine new # of elements */
 	//clReleaseMemObject(buffer); /* free old buffer */
 	
 	/* allocate new buffer */
-	buffer=cl::Buffer(context,CL_MEM_READ_WRITE,numelem*this->elemsize,nullptr); // /* *this->arrayptr */, &lambdaerrcode_ret);
+	//buffer=cl::Buffer(context,CL_MEM_READ_WRITE,numelem*this->elemsize,nullptr); // /* *this->arrayptr */, &lambdaerrcode_ret);
+	buffer=cl::Buffer(); // just leave an empty buffer
+	numelem=total_nelem; /* determine new # of elements */
+	
 	
 	// if (lambdaerrcode_ret != CL_SUCCESS) {
 	//  throw openclerror(lambdaerrcode_ret,"Error expanding buffer to size %d",(long)(numelem*this->elemsize));
@@ -153,7 +165,7 @@ namespace snde {
     
   }
   
-  _openclbuffer::~_openclbuffer()
+  openclcacheentry::~openclcacheentry()
   {
     std::shared_ptr<allocator> alloc_strong = alloc.lock();
     if (alloc_strong) { /* if allocator already freed, it would take care of its reference to the callback */ 
@@ -164,16 +176,16 @@ namespace snde {
     //buffer=NULL;
   }
 
-  void _openclbuffer::mark_as_gpu_modified(snde_index pos,snde_index nelem)
+  void openclcacheentry::mark_as_gpu_modified(std::shared_ptr<recording_storage> storage,snde_index pos,snde_index nelem)
   {
     /* ***!!!!! Should really check here to make sure that we're not modifying
        any dirtyregions elements that are marked as done or have a FlushDoneEvent */
-    _dirtyregions.mark_region(pos,nelem);
+    _dirtyregions.mark_region(pos,nelem,storage);
   }
 
-  openclcachemanager::openclcachemanager(std::shared_ptr<arraymanager> manager) :
-    manager(manager)
+  openclcachemanager::openclcachemanager() 
   {
+    name = get_cache_name("OpenCL CMGR");
     //_memalloc=memalloc;
     //locker = std::make_shared<lockmanager>();
   }
@@ -202,64 +214,103 @@ namespace snde {
   }
 
   
-  void openclcachemanager::mark_as_dirty_except_buffer(std::shared_ptr<_openclbuffer> exceptbuffer,void **arrayptr,snde_index pos,snde_index numelem)
+  void openclcachemanager::mark_as_invalid_except_buffer(std::shared_ptr<openclcacheentry> exceptbuffer,void **arrayptr,snde_index pos,snde_index numelem)
   /* marks an array region (with exception of particular buffer) as needing to be updated from CPU copy */
   /* This is typically used after our CPU copy has been updated from exceptbuffer, to push updates out to all of the other buffers */
   {
     std::unique_lock<std::mutex> adminlock(admin);
     
-    std::unordered_map<openclarrayinfo,std::shared_ptr<_openclbuffer>,openclarrayinfo_hash/*,openclarrayinfo_equal*/>::iterator buffer;
+    std::unordered_map<openclarrayinfo,std::weak_ptr<openclcacheentry>,openclarrayinfo_hash/*,openclarrayinfo_equal*/>::iterator buffer;
     
     /* Mark all of our buffers with this region as invalid */
     for (auto & arrayinfo : buffers_by_array[arrayptr]) {
       
       buffer=buffer_map.find(arrayinfo);
+      std::shared_ptr<openclcacheentry> buffer_strong = buffer->second.lock();
       
-      if (exceptbuffer == nullptr || exceptbuffer.get() != buffer->second.get()) {
-	
-	buffer->second->invalidity.mark_region(pos,pos+numelem);
+      if (buffer_strong) {
+	if (exceptbuffer == nullptr || exceptbuffer.get() != buffer_strong.get()) {
+
+	  if (numelem==SNDE_INDEX_INVALID) {
+	    buffer_strong->invalidity.mark_region(pos,SNDE_INDEX_INVALID);
+
+	  } else {
+	    buffer_strong->invalidity.mark_region(pos,pos+numelem);
+	  }
+	}
       }
     }
     
     
-    // buffer.second is a shared_ptr to an _openclbuffer
+    // buffer.second is a shared_ptr to an openclcacheentry
     
   }
   
-  void openclcachemanager::mark_as_gpu_modified(cl::Context context, cl::Device device, void **arrayptr,snde_index pos,snde_index len)
+  void openclcachemanager::mark_as_gpu_modified(cl::Context context, std::shared_ptr<recording_storage> storage)
   {
-    openclarrayinfo arrayinfo=openclarrayinfo(context,device,arrayptr);
+    void **arrayptr = storage->lockableaddr();
+    openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr);
     
     std::unique_lock<std::mutex> adminlock(admin);
     
-    std::shared_ptr<_openclbuffer> buffer=buffer_map.at(arrayinfo);
-    buffer->mark_as_gpu_modified(pos,len);
+    std::weak_ptr<openclcacheentry> buffer=buffer_map.at(arrayinfo);
+
+    std::shared_ptr<openclcacheentry> buffer_strong=buffer.lock();
+
+    assert(buffer_strong); // if we're marking as GPU modified, the buffer had better not have expired!
+    buffer_strong->mark_as_gpu_modified(storage,storage->base_index/*+pos*/,storage->nelem/*len*/);
     
   }
 
 
   /* marks an array region as needing to be updated from CPU copy */
-  void openclcachemanager::mark_as_dirty(std::shared_ptr<arraymanager> specified_manager,void **arrayptr,snde_index pos,snde_index numelem)
+  void openclcachemanager::mark_as_invalid(void **arrayptr,snde_index base_index,snde_index pos,snde_index numelem)
   {
+
+    //void **arrayptr=storage->lockableaddr();
+    //snde_index nelem=storage->lockablenelem();
+
+    //assert(numelem <= storage->nelem);
     /* This is typically used if the CPU copy is updated directly */
-    std::shared_ptr<arraymanager> manager_strong(manager);
-    assert(specified_manager==manager_strong);
-    mark_as_dirty_except_buffer(nullptr,arrayptr,pos,numelem);
+    mark_as_invalid_except_buffer(nullptr,arrayptr,base_index + pos,numelem);
+  }
+  
+  void openclcachemanager::notify_storage_expiration(void **arrayptr, snde_index base_index, snde_index nelem)
+  {
+    //void **arrayptr=storage->lockableaddr();
+    //snde_index nelem=storage->lockablenelem();
+
+    std::lock_guard<std::mutex> adminlock(admin);
+
+    if (base_index==0) {
+      // We only manage entire arrays here
+      std::unordered_map<void **,std::vector<openclarrayinfo>>::iterator bba_it = buffers_by_array.find(arrayptr);
+      
+      if (bba_it != buffers_by_array.end()) {
+
+	for (auto && arrayinfo: bba_it->second) {
+
+	  // arrayinfo is an openclarrayinfo
+	  std::unordered_map<openclarrayinfo,std::weak_ptr<openclcacheentry>,openclarrayinfo_hash/* ,openclarrayinfo_equal*/>::iterator buffer_it = buffer_map.find(arrayinfo);
+	  if (buffer_it != buffer_map.end()) {
+	    buffer_map.erase(buffer_it); // remove expiring/expired pointer
+	  }
+	}
+      }
+    }
   }
 
 
-
-  void openclcachemanager::_TransferInvalidRegions(cl::Context context, cl::Device device,std::shared_ptr<_openclbuffer> oclbuffer,void **arrayptr,snde_index firstelem,snde_index numelem,std::vector<cl::Event> &ev)
+  void openclcachemanager::_TransferInvalidRegions(cl::Context context, cl::Device device,std::shared_ptr<openclcacheentry> oclbuffer,void **arrayptr,snde_index firstelem,snde_index numelem,std::vector<cl::Event> &ev)
     // internal use only... initiates transfers of invalid regions prior to setting up a read buffer
     // WARNING: operates in-place on prerequisite event vector ev
     // assumes admin lock is held
   {
     
-    std::shared_ptr<arraymanager> manager_strong(manager); /* as manager references us, it should always exist while we do. This will throw an exception if it doesn't */
     rangetracker<openclregion>::iterator invalidregion;
     
     if (numelem==SNDE_INDEX_INVALID) {
-      numelem=(*manager_strong->allocators())[arrayptr].alloc->total_nelem()-firstelem;
+      numelem=oclbuffer->numelem-firstelem;
     }
     
     /* transfer any relevant areas that are invalid and not currently pending */
@@ -303,24 +354,26 @@ namespace snde {
     _get_queue(context,device).flush();
   }
   
-  std::shared_ptr<_openclbuffer> openclcachemanager::_GetBufferObject(cl::Context context, cl::Device device,void **arrayptr)
+  std::shared_ptr<openclcacheentry> openclcachemanager::_GetBufferObject(std::shared_ptr<recording_storage> storage,cl::Context context, cl::Device device,snde_index nelem,snde_index elemsize,void **arrayptr)
+  // manager may be nullptr if this array doesn't have allocations within it
   {
     // internal use only; assumes admin lock is held;
     
     //fprintf(stderr,"_GetBufferObject(0x%lx,0x%lx,0x%lx)... buffer_map.size()=%u, tid=0x%lx admin->__owner=0x%lx\n",(unsigned long)context,(unsigned long)device,(unsigned long)arrayptr,(unsigned)buffer_map.size(),(unsigned long)((pid_t)syscall(SYS_gettid)),(unsigned long) admin._M_mutex.__data.__owner);
     
-    std::shared_ptr<_openclbuffer> oclbuffer;
-    openclarrayinfo arrayinfo=openclarrayinfo(context,device,arrayptr);
-    std::shared_ptr<arraymanager> manager_strong(manager); /* as manager references us, it should always exist while we do. This will throw an exception if it doesn't */
-    allocationinfo thisalloc = (*manager_strong->allocators()).at(arrayptr);
+    std::shared_ptr<openclcacheentry> oclbuffer;
+
+    std::shared_ptr<allocator> alloc;
+    openclarrayinfo arrayinfo=openclarrayinfo(context,storage->lockableaddr());
+    //allocationinfo thisalloc = (*manager->allocators()).at(arrayptr);
     //std::shared_ptr<allocator> alloc=thisalloc.alloc;
     
-    std::unordered_map<openclarrayinfo,std::shared_ptr<_openclbuffer>,openclarrayinfo_hash/*,openclarrayinfo_equal*/>::iterator buffer;
+    std::unordered_map<openclarrayinfo,std::weak_ptr<openclcacheentry>,openclarrayinfo_hash/*,openclarrayinfo_equal*/>::iterator buffer;
     buffer=buffer_map.find(arrayinfo);
-    if (buffer == buffer_map.end()) {
+    if (buffer == buffer_map.end() || (!buffer->second.lock())) {
       /* need to create buffer */
-      oclbuffer=std::make_shared<_openclbuffer>(context,thisalloc.alloc,thisalloc.totalnelem(),thisalloc.elemsize,arrayptr,&admin);
-      buffer_map[arrayinfo]=oclbuffer;
+      oclbuffer=std::make_shared<openclcacheentry>(context,alloc,nelem,elemsize,arrayptr,&admin);
+      buffer_map.emplace(arrayinfo,oclbuffer);
       
       //fprintf(stderr,"_GetBufferObject(0x%lx,0x%lx,0x%lx) created buffer_map entry. buffer_map.size()=%u, tid=0x%lx admin->__owner=0x%lx\n",(unsigned long)context,(unsigned long)device,(unsigned long)arrayptr,(unsigned)buffer_map.size(),(unsigned long)((pid_t)syscall(SYS_gettid)),(unsigned long) admin._M_mutex.__data.__owner);
       
@@ -328,48 +381,54 @@ namespace snde {
       buffers_for_this_array.push_back(arrayinfo);
       
     } else {
-      oclbuffer=buffer_map.at(arrayinfo);
+      oclbuffer=buffer->second.lock();//buffer_map.at(arrayinfo);
     }
     
     return oclbuffer;
   }
 
 
-  std::tuple<rwlock_token_set,cl::Buffer,std::vector<cl::Event>> openclcachemanager::GetOpenCLSubBuffer(rwlock_token_set alllocks,cl::Context context, cl::Device device, void **arrayptr,snde_index startelem,snde_index numelem,bool write,bool write_only/*=false*/)
+  std::tuple<rwlock_token_set,cl::Buffer,std::vector<cl::Event>,std::shared_ptr<openclcacheentry>> openclcachemanager::_GetOpenCLSubBuffer(std::shared_ptr<recording_storage> storage,rwlock_token_set alllocks,cl::Context context, cl::Device device,snde_index substartelem,snde_index subnumelem,bool write,bool write_only/*=false*/)
+  // It is assumed that the caller has the data adequately locked, if needed. 
   {
+
+    snde_index elemsize=storage->elementsize; 
+    void **arrayptr=storage->lockableaddr();
+    snde_index nelem=storage->lockablenelem();
+      
     std::unique_lock<std::mutex> adminlock(admin);
+      
+    openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr);
     
-    openclarrayinfo arrayinfo=openclarrayinfo(context,device,arrayptr);
-    
-    std::shared_ptr<arraymanager> manager_strong(manager); /* as manager references us, it should always exist while we do. This will throw an exception if it doesn't */
-    std::shared_ptr<allocator> alloc=(*manager_strong->allocators())[arrayptr].alloc;
     std::vector<cl::Event> ev;
     
-    std::shared_ptr<_openclbuffer> oclbuffer=_GetBufferObject(context,device,arrayptr);
+    std::shared_ptr<openclcacheentry> oclbuffer=_GetBufferObject(storage,context,device,nelem,elemsize,arrayptr);
     
     rangetracker<openclregion>::iterator invalidregion;
     
     
     /* make sure we will wait for any currently pending transfers overlapping with this subbuffer*/
     for (invalidregion=oclbuffer->invalidity.begin();invalidregion != oclbuffer->invalidity.end();invalidregion++) {
-      if (invalidregion->second->fill_event.get() && region_overlaps(*invalidregion->second,startelem,startelem+numelem)) {
+      if (invalidregion->second->fill_event.get() && region_overlaps(*invalidregion->second,substartelem,substartelem+subnumelem)) {
 	ev.emplace_back(invalidregion->second->fill_event); 
 	
       }
     }
     
     rwlock_token_set regionlocks;
-    if (write) {
-      regionlocks=manager_strong->locker->get_preexisting_locks_write_array_region(alllocks,arrayptr,startelem,numelem);
-    } else {
-      regionlocks=manager_strong->locker->get_preexisting_locks_read_array_region(alllocks,arrayptr,startelem,numelem);	
+
+    if (alllocks) {
+      if (write) {
+	regionlocks=storage->lockmgr->get_preexisting_locks_write_array_region(alllocks,arrayptr,substartelem,subnumelem);
+      } else {
+	regionlocks=storage->lockmgr->get_preexisting_locks_read_array_region(alllocks,arrayptr,substartelem,subnumelem);	
+      }
     }
-    
     
     if (!write_only) {
       /* No need to enqueue transfers if kernel is strictly write */
       
-      _TransferInvalidRegions(context,device,oclbuffer,arrayptr,startelem,numelem,ev);
+      _TransferInvalidRegions(context,device,oclbuffer,arrayptr,substartelem,subnumelem,ev);
       
       
     }
@@ -386,18 +445,19 @@ namespace snde {
       flags=CL_MEM_READ_ONLY;
     }
     cl_int errcode=CL_SUCCESS;
-    cl_buffer_region region = { startelem*oclbuffer->elemsize, numelem*oclbuffer->elemsize };
+    cl_buffer_region region = { substartelem*elemsize, subnumelem*elemsize };
     cl::Buffer subbuffer = oclbuffer->buffer.createSubBuffer(flags,CL_BUFFER_CREATE_TYPE_REGION,&region);
     //if (errcode != CL_SUCCESS) {
     //throw openclerror(errcode,"Error creating subbuffer");
     //}
-    
-    return std::make_tuple(regionlocks,subbuffer,ev);
+
+
+    return std::make_tuple(regionlocks,subbuffer,ev,oclbuffer);
   }
 
 
 
-  std::tuple<rwlock_token_set,cl::Buffer,std::vector<cl::Event>> openclcachemanager::GetOpenCLBuffer(rwlock_token_set alllocks,cl::Context context, cl::Device device, void **arrayptr,bool write,bool write_only/*=false*/) /* indexed by arrayidx */
+  std::tuple<rwlock_token_set,cl::Buffer,std::vector<cl::Event>,std::shared_ptr<openclcacheentry>> openclcachemanager::_GetOpenCLBuffer(std::shared_ptr<recording_storage> storage,rwlock_token_set alllocks,cl::Context context, cl::Device device, bool write,bool write_only/*=false*/) /* indexed by arrayidx */
 /* cl_mem_flags flags,snde_index firstelem,snde_index numelem */ /* numelems may be SNDE_INDEX_INVALID to indicate all the way to the end */
 
 
@@ -478,19 +538,34 @@ namespace snde {
     */
     {
 
+
+      snde_index elemsize=storage->elementsize; 
+      void **arrayptr=storage->lockableaddr();
+      snde_index nelem=storage->lockablenelem();
+
+      snde_index substartelem=storage->base_index;
+      snde_index subnumelem=storage->nelem;
+
+      if (substartelem != 0 || subnumelem != nelem) {
+	// need a sub-buffer instead
+	return _GetOpenCLSubBuffer(storage,alllocks,context,device,substartelem,subnumelem,write,write_only);
+	
+      }
+      
+      
       std::unique_lock<std::mutex> adminlock(admin);
       
 
-      std::shared_ptr<arraymanager> manager_strong(manager); /* as manager references us, it should always exist while we do. This will throw an exception if it doesn't */
+      //std::shared_ptr<arraymanager> manager_strong(manager); /* as manager references us, it should always exist while we do. This will throw an exception if it doesn't */
 
-      std::shared_ptr<allocator> alloc=(*manager_strong->allocators())[arrayptr].alloc;
-      std::shared_ptr<_openclbuffer> oclbuffer;
+      //std::shared_ptr<allocator> alloc=(*manager_strong->allocators())[arrayptr].alloc;
+      std::shared_ptr<openclcacheentry> oclbuffer;
       std::vector<cl::Event> ev;
       rangetracker<openclregion>::iterator invalidregion;
       //size_t arrayidx=manager_strong->locker->get_array_idx(arrayptr);
 
     
-      oclbuffer=_GetBufferObject(context,device,arrayptr);
+      oclbuffer=_GetBufferObject(storage,context,device,nelem,elemsize,arrayptr);
       /* Need to enqueue transfer (if necessary) and return an event set that can be waited for and that the
 	 clEnqueueKernel can be dependent on */
       
@@ -558,13 +633,14 @@ namespace snde {
 
       
       rwlock_token_set regionlocks;
-      if (write) {
-	regionlocks=manager_strong->locker->get_preexisting_locks_read_array_region(alllocks,arrayptr,0,SNDE_INDEX_INVALID);
-
-      } else {
-	regionlocks=manager_strong->locker->get_preexisting_locks_read_array_region(alllocks,arrayptr,0,SNDE_INDEX_INVALID);
+      if (alllocks) {
+	if (write && storage->requires_locking_write) {
+	  regionlocks=storage->lockmgr->get_preexisting_locks_read_array_region(alllocks,arrayptr,0,SNDE_INDEX_INVALID);
+	  
+	} else if (!write && storage->requires_locking_read) {	  
+	  regionlocks=storage->lockmgr->get_preexisting_locks_read_array_region(alllocks,arrayptr,0,SNDE_INDEX_INVALID);
+	}
       }
-      
       //rwlock_token_set writelocks=empty_rwlock_token_set();
 
       //for (auto & markedregion: (*arraywriteregions)[arrayidx]) {
@@ -603,12 +679,23 @@ namespace snde {
       
       //clRetainMemObject(oclbuffer->buffer); /* ref count for returned cl_mem pointer */
       
-      return std::make_tuple(regionlocks,oclbuffer->buffer,ev);
+      return std::make_tuple(regionlocks,oclbuffer->buffer,ev,oclbuffer);
     }
 
+  std::tuple<rwlock_token_set,cl::Buffer,std::vector<cl::Event>> openclcachemanager::GetOpenCLBuffer(std::shared_ptr<recording_storage> storage,rwlock_token_set alllocks,cl::Context context, cl::Device device, bool write,bool write_only/*=false*/)
+  {
+    rwlock_token_set retlocks;
+    cl::Buffer buf;
+    std::vector<cl::Event> new_fill_events;
+    std::shared_ptr<openclcacheentry> cacheentry;
 
+    std::tie(retlocks,buf,new_fill_events,cacheentry) = _GetOpenCLBuffer(storage,alllocks,context,device,write,write_only);
 
-  std::pair<std::vector<cl::Event>,std::vector<cl::Event>> openclcachemanager::FlushWrittenOpenCLBuffer(cl::Context context,cl::Device device,void **arrayptr,std::vector<cl::Event> explicit_prerequisites)
+    return std::make_tuple(retlocks,buf,new_fill_events);
+  }
+
+  std::pair<std::vector<cl::Event>,std::vector<cl::Event>> openclcachemanager::FlushWrittenOpenCLBuffer(cl::Context context,cl::Device device,std::shared_ptr<recording_storage> storage,std::vector<cl::Event> explicit_prerequisites)
+  // Flush changes made by an opencl kernel to our in-CPU-memory copy; then notify any other caches about the change. 
     {
       // Gather in implicit prerequisites
       // (any pending transfers to this buffer)
@@ -619,23 +706,25 @@ namespace snde {
       std::vector<cl::Event> wait_events;
       std::vector<cl::Event> result_events;
 
-      std::vector<std::pair<cl::Event,void *>> callback_requests; 
+      std::vector<std::pair<cl::Event,std::function<void(cl::Event,cl_int)> *>> callback_requests; 
       rangetracker<openclregion>::iterator invalidregion;
+
+      void **arrayptr = storage->lockableaddr();
       
-      std::shared_ptr<arraymanager> manager_strong(manager); /* as manager references us, it should always exist while we do. This will throw an exception if it doesn't */
 
       //size_t arrayidx=manager_strong->locker->get_array_idx(arrayptr);
 
       //std::shared_ptr<allocator> alloc=(*manager_strong->allocators())[arrayptr].alloc;
 
       /* create arrayinfo key */
-      openclarrayinfo arrayinfo=openclarrayinfo(context,device,arrayptr);
+      openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr);
      
       std::unique_lock<std::mutex> adminlock(admin);
 
-      std::shared_ptr<_openclbuffer> oclbuffer;
+      std::shared_ptr<openclcacheentry> oclbuffer;
 
-      oclbuffer=buffer_map.at(arrayinfo); /* buffer should exist because should have been created in GetOpenCLBuffer() */
+      oclbuffer=buffer_map.at(arrayinfo).lock(); /* buffer should exist because should have been created in GetOpenCLBuffer() */
+      assert(oclbuffer); // Should be present because if we've just been writing to it, then it should be locked in memory!
 
       /* check for pending events and accumulate them into wait list */
       /* ... all transfers in to this buffer should be complete before we allow a transfer out */
@@ -659,7 +748,7 @@ namespace snde {
 	snde_index numelem;
 	
 	if (dirtyregion.second->regionend==SNDE_INDEX_INVALID) {
-	  numelem=(*manager_strong->allocators())[arrayptr].alloc->total_nelem()-dirtyregion.second->regionstart;
+	  numelem=storage->lockablenelem()-dirtyregion.second->regionstart;
 	} else {
 	  numelem=dirtyregion.second->regionend-dirtyregion.second->regionstart;
 	}
@@ -700,49 +789,52 @@ namespace snde {
 	     if it is processed inline) */
 
 	  std::shared_ptr<opencldirtyregion> dirtyregionptr=dirtyregion.second;
-	  std::shared_ptr<openclcachemanager> shared_this=std::dynamic_pointer_cast<openclcachemanager>(shared_from_this());
-	  
-	  callback_requests.emplace_back(std::make_pair(newevent,(void *)new std::function<void(cl_event,cl_int)>([ shared_this, manager_strong, arrayptr, dirtyregionptr, oclbuffer ](cl_event c_event, cl_int event_command_exec_status) {
-		/* NOTE: This callback may occur in a separate thread */
-		/* it indicates that the data transfer is complete */
-	    cl::Event event(c_event,true);
-	    if (event_command_exec_status != CL_COMPLETE) {
-	      throw openclerror(event_command_exec_status,"Error in waited event (from executing clEnqueueReadBuffer()) ");
+	  std::shared_ptr<recording_storage> dirtystorage = dirtyregion.second->owning_storage.lock();
+
+	  if (dirtystorage) {
+	    std::shared_ptr<openclcachemanager> shared_this=std::dynamic_pointer_cast<openclcachemanager>(shared_from_this());
+	    
+	    callback_requests.emplace_back(std::make_pair(newevent,new std::function<void(cl::Event,cl_int)>([ shared_this, dirtystorage, arrayptr, dirtyregionptr, oclbuffer ](cl::Event event, cl_int event_command_exec_status) { // matching delete is in snde_opencl_callback()
+	      /* NOTE: This callback may occur in a separate thread */
+	      /* it indicates that the data transfer is complete */
+	      if (event_command_exec_status != CL_COMPLETE) {
+		throw openclerror(event_command_exec_status,"Error in waited event (from executing clEnqueueReadBuffer()) ");
+		
+	      }
 	      
-	    }
+	      std::unique_lock<std::mutex> adminlock(shared_this->admin);
+	      /* copy the info out of dirtyregionptr while we hold the admin lock */
+	      //opencldirtyregion dirtyregion=*dirtyregionptr;
+	      snde_index dirtyregionstart=dirtyregionptr->regionstart;
+	      snde_index dirtyregionend=dirtyregionptr->regionend;
+	      
+	      adminlock.unlock();
+	      /* We must now notify others that this has been modified */
+	      
+	      /* Others include other buffers (e.g. other contexts) of our own cache manager... */
+	      
+	      shared_this->mark_as_invalid_except_buffer(oclbuffer,arrayptr,dirtyregionstart,dirtyregionend-dirtyregionstart);
+
+	      assert(dirtyregionstart >= dirtystorage->base_index);
+	      assert(dirtyregionend <= dirtystorage->base_index+dirtystorage->nelem);
+	      dirtystorage->mark_as_invalid(shared_this,dirtyregionstart-dirtystorage->base_index,dirtyregionend-dirtyregionstart);
+	      
+	      
+	      /* We must now mark this region as modified... i.e. that notifications to others have been completed */
+	      adminlock.lock();
+	      
+	      dirtyregionptr->FlushDoneEventComplete=true;
+	      dirtyregionptr->complete_condition.notify_all();
+	      //clReleaseEvent(dirtyregionptr->FlushDoneEvent);
+	      dirtyregionptr->FlushDoneEvent=cl::Event(); // NULL;
+	      //fprintf(stderr,"FlushDoneEventComplete\n");
 	    
-	    std::unique_lock<std::mutex> adminlock(shared_this->admin);
-	    /* copy the info out of dirtyregionptr while we hold the admin lock */
-	    //opencldirtyregion dirtyregion=*dirtyregionptr;
-	    snde_index dirtyregionstart=dirtyregionptr->regionstart;
-	    snde_index dirtyregionend=dirtyregionptr->regionend;
-	    
-	    adminlock.unlock();
-	    /* We must now notify others that this has been modified */
-	    
-	    /* Others include other buffers of our own cache manager... */
-	    
-	    shared_this->mark_as_dirty_except_buffer(oclbuffer,arrayptr,dirtyregionstart,dirtyregionend-dirtyregionstart);
-	    
-	    /* and other cache managers... */
-	    manager_strong->mark_as_dirty(shared_this.get(),arrayptr,dirtyregionstart,dirtyregionend-dirtyregionstart);
+	      
+	    })));
 	    
 	    
-	    /* We must now mark this region as modified... i.e. that notifications to others have been completed */
-	    adminlock.lock();
-	    
-	    dirtyregionptr->FlushDoneEventComplete=true;
-	    dirtyregionptr->complete_condition.notify_all();
-	    //clReleaseEvent(dirtyregionptr->FlushDoneEvent);
-	    dirtyregionptr->FlushDoneEvent=cl::Event(); // NULL;
-	    //fprintf(stderr,"FlushDoneEventComplete\n");
-	    
-	    
-	  })));
-	  
-	  
-	  result_events.emplace_back(newevent); /* add new event to our set, eating our referencee */
-	  
+	    result_events.emplace_back(newevent); /* add new event to our set, eating our referencee */
+	  }
 	}
       }
 	
@@ -752,7 +844,7 @@ namespace snde {
       /* Trigger notifications to others once transfer is complete and we can release our admin lock */
       adminlock.unlock();
       for (auto & event_func : callback_requests) {
-	event_func.first.setCallback(CL_COMPLETE,snde_opencl_callback,event_func.second );
+	event_func.first.setCallback(CL_COMPLETE,snde_opencl_callback,(void *)event_func.second );
 	
       }
       
@@ -793,7 +885,7 @@ namespace snde {
     }
 
 
-  std::pair<std::vector<cl::Event>,std::shared_ptr<std::thread>> openclcachemanager::ReleaseOpenCLBuffer(rwlock_token_set locks,cl::Context context, cl::Device device, cl::Buffer mem, void **arrayptr, cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete)
+  std::pair<std::vector<cl::Event>,std::shared_ptr<std::thread>> openclcachemanager::ReleaseOpenCLBuffer(rwlock_token_set locks,cl::Context context, cl::Device device, cl::Buffer mem,std::shared_ptr<recording_storage> storage, cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete)
     {
       /* Call this when you are done using the buffer. If you had 
 	 a write lock it will queue a transfer that will 
@@ -812,14 +904,24 @@ namespace snde {
       std::vector<cl::Event> all_finished;
       std::shared_ptr<std::thread> unlock_thread;
 
-      /* make copy of locks to delegate to threads... create pointers so it is definitely safe to delegate */
-      rwlock_token_set *locks_copy1 = new rwlock_token_set(clone_rwlock_token_set(locks));
-      rwlock_token_set *locks_copy2 = new rwlock_token_set(clone_rwlock_token_set(locks));
-
-      release_rwlock_token_set(locks); /* release our reference to original */
+      void **arrayptr = storage->lockableaddr();
 
       
-      std::shared_ptr<arraymanager> manager_strong(manager); /* as manager references us, it should always exist while we do. This will throw an exception if it doesn't */
+      /* make copy of locks to delegate to threads... create pointers so it is definitely safe to delegate */
+      rwlock_token_set *locks_copy1;
+      rwlock_token_set *locks_copy2;
+
+      if (locks) {
+	locks_copy1 = new rwlock_token_set(clone_rwlock_token_set(locks));
+	locks_copy2 = new rwlock_token_set(clone_rwlock_token_set(locks));
+	
+	release_rwlock_token_set(locks); /* release our reference to original */
+      } else {
+	locks_copy1 = new rwlock_token_set(empty_rwlock_token_set());
+	locks_copy2 = new rwlock_token_set(empty_rwlock_token_set());
+      }
+      
+      //std::shared_ptr<arraymanager> manager_strong(manager); /* as manager references us, it should always exist while we do. This will throw an exception if it doesn't */
       //size_t arrayidx=manager_strong->locker->get_array_idx(arrayptr);
 
       
@@ -833,7 +935,7 @@ namespace snde {
       
       
       std::vector<cl::Event> prerequisite_events(output_data_complete); /* transfer prequisites in */
-      output_data_complete.clear();
+      //output_data_complete.clear();
       prerequisite_events.emplace_back(input_data_not_needed);
       
       std::vector<cl::Event> wait_events,flush_events;
@@ -843,7 +945,7 @@ namespace snde {
       // to other caches. Once all FlushDoneEvents are complete, perform the unlocking.
 
       // (does nothing of substance if there is nothing dirty)
-      std::tie(wait_events,flush_events)=FlushWrittenOpenCLBuffer(context,device,arrayptr,prerequisite_events);
+      std::tie(wait_events,flush_events)=FlushWrittenOpenCLBuffer(context,device,storage,prerequisite_events);
       /* Note now that wait_events and flush_events we have ownership of, whereas all of the prerequisite_events we didn't */
 	
       // FlushWrittenOpenCLBuffer should have triggered the FlushDoneEvents and done the
@@ -852,10 +954,11 @@ namespace snde {
       
       std::unique_lock<std::mutex> adminlock(admin);
       
-      std::shared_ptr<_openclbuffer> oclbuffer;
+      std::weak_ptr<openclcacheentry> oclbuffer;
+      std::shared_ptr<openclcacheentry> oclbuffer_strong;
       
       /* create arrayinfo key */
-      openclarrayinfo arrayinfo=openclarrayinfo(context,device,arrayptr);
+      openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr);
       
       oclbuffer=buffer_map.at(arrayinfo); /* buffer should exist because should have been created in GetOpenCLBuffer() */
 
@@ -870,50 +973,54 @@ namespace snde {
       //}
 
 
-      // .. if there is anything dirty...
+      oclbuffer_strong=oclbuffer.lock();
       bool dirtyflag=false;
-      rangetracker<opencldirtyregion>::iterator dirtyregion;
-      for (dirtyregion=oclbuffer->_dirtyregions.begin();dirtyregion != oclbuffer->_dirtyregions.end();dirtyregion++) {
-	if (!dirtyregion->second->FlushDoneEventComplete) {
-	  dirtyflag=true;
+
+      if (oclbuffer_strong) {
+	// .. if there is anything dirty...
+	rangetracker<opencldirtyregion>::iterator dirtyregion;
+	for (dirtyregion=oclbuffer_strong->_dirtyregions.begin();dirtyregion != oclbuffer_strong->_dirtyregions.end();dirtyregion++) {
+	  if (!dirtyregion->second->FlushDoneEventComplete) {
+	    dirtyflag=true;
+	  }
+	  
 	}
-	
       }
       // release adminlock so we can start the thread on a copy (don't otherwise need adminlock from here on) 
       adminlock.unlock();
 
       if (dirtyflag) {
-
+	
 	/* start thread that will hold our locks until all dirty regions are no longer dirty */
 	std::shared_ptr<openclcachemanager> shared_this=std::dynamic_pointer_cast<openclcachemanager>(shared_from_this());
-	unlock_thread=std::make_shared<std::thread>( [ shared_this,oclbuffer,locks_copy1 ]() {
-	    
-	    //std::vector<std::shared_ptr<opencldirtyregion>>::iterator dirtyregion;
-	    rangetracker<opencldirtyregion>::iterator dirtyregion;
-	    std::unique_lock<std::mutex> lock(shared_this->admin);
-	    
-	    // Keep on waiting on the first dirty region, removing it once it is complete,
-	    // until there is nothing left
-	    for (dirtyregion=oclbuffer->_dirtyregions.begin();dirtyregion != oclbuffer->_dirtyregions.end();dirtyregion=oclbuffer->_dirtyregions.begin()) {
-	      if (dirtyregion->second->FlushDoneEventComplete) {
-		oclbuffer->_dirtyregions.erase(dirtyregion);
-	      } else {
-		dirtyregion->second->complete_condition.wait(lock);
-	      }
-	      
+	unlock_thread=std::make_shared<std::thread>( [ shared_this,oclbuffer_strong,locks_copy1 ]() {
+	  
+	  //std::vector<std::shared_ptr<opencldirtyregion>>::iterator dirtyregion;
+	  rangetracker<opencldirtyregion>::iterator dirtyregion;
+	  std::unique_lock<std::mutex> lock(shared_this->admin);
+	  
+	  // Keep on waiting on the first dirty region, removing it once it is complete,
+	  // until there is nothing left
+	  for (dirtyregion=oclbuffer_strong->_dirtyregions.begin();dirtyregion != oclbuffer_strong->_dirtyregions.end();dirtyregion=oclbuffer_strong->_dirtyregions.begin()) {
+	    if (dirtyregion->second->FlushDoneEventComplete) {
+	      oclbuffer_strong->_dirtyregions.erase(dirtyregion);
+	    } else {
+	      dirtyregion->second->complete_condition.wait(lock);
 	    }
 	    
-	    /* call verify_rwlock_token_set() or similar here, 
-	       so that if somehow the set was unlocked prior, we can diagnose the error */
-	    
-	    if (!check_rwlock_token_set(*locks_copy1)) {
-	      throw std::runtime_error("Opencl buffer locks released prematurely");
-	    }
-	    
-	    release_rwlock_token_set(*locks_copy1); /* release write lock */
-	    
-	    delete locks_copy1;
-	    //delete dirtyregions_copy;  
+	  }
+	  
+	  /* call verify_rwlock_token_set() or similar here, 
+	     so that if somehow the set was unlocked prior, we can diagnose the error */
+	  
+	  if (!check_rwlock_token_set(*locks_copy1)) {
+	    throw std::runtime_error("Opencl buffer locks released prematurely");
+	  }
+	  
+	  release_rwlock_token_set(*locks_copy1); /* release write lock */
+	  
+	  delete locks_copy1;
+	  //delete dirtyregions_copy;  
 	    
 	});
       } else {
@@ -956,10 +1063,9 @@ namespace snde {
       if (input_data_not_needed.get()) {
 	
 	/* in this case locks_copy2 delegated on to callback */	
-	input_data_not_needed.setCallback(CL_COMPLETE,snde_opencl_callback,(void *)new std::function<void(cl_event,cl_int)>([ locks_copy2 ](cl_event c_event, cl_int event_command_exec_status) {
+	input_data_not_needed.setCallback(CL_COMPLETE,snde_opencl_callback,(void *)new std::function<void(cl::Event,cl_int)>([ locks_copy2 ](cl::Event event, cl_int event_command_exec_status) { // matching delete is in snde_opencl_callback()
 	      /* NOTE: This callback may occur in a separate thread */
 	      /* it indicates that the input data is no longer needed */
-	  cl::Event event(c_event,true);
 	  if (event_command_exec_status != CL_COMPLETE) {
 	    throw openclerror(event_command_exec_status,"Error from input_data_not_needed prerequisite ");
 	    
@@ -986,22 +1092,26 @@ namespace snde {
 
 
 
-  OpenCLBuffer_info::OpenCLBuffer_info(std::shared_ptr<arraymanager> manager,
+  OpenCLBuffer_info::OpenCLBuffer_info(//std::shared_ptr<arraymanager> manager,
 				       //cl::CommandQueue transferqueue,  /* adds new reference */
 				       cl::Buffer mem, /* adds new reference */
-				       void **arrayptr,
+				       //void **arrayptr,
+				       std::shared_ptr<recording_storage> storage,
 				       //rwlock_token_set readlocks,
-				       rwlock_token_set locks)
+				       rwlock_token_set locks,
+				       std::shared_ptr<openclcacheentry> cacheentry)
     {
-      this->manager=manager;
-      this->cachemanager=get_opencl_cache_manager(manager);
+      // this->manager=manager;
+      //this->cachemanager=get_opencl_cache_manager(manager);
       //clRetainCommandQueue(transferqueue);
       //this->transferqueue=transferqueue;
       //clRetainMemObject(mem);
       this->mem=mem;
-      this->arrayptr=arrayptr;
+      //this->arrayptr=arrayptr;
+      this->storage=storage;
       //this->readlocks=readlocks;
       this->locks=locks;
+      this->cacheentry=cacheentry;
     }
 
 
@@ -1018,7 +1128,8 @@ namespace snde {
   }
 
 
-  OpenCLBuffers::OpenCLBuffers(cl::Context context,cl::Device device,rwlock_token_set all_locks) :
+  OpenCLBuffers::OpenCLBuffers(std::shared_ptr<openclcachemanager> cachemgr,cl::Context context,cl::Device device,rwlock_token_set all_locks) :
+    cachemgr(cachemgr),
     context(context),
     device(device),
     all_locks(all_locks)
@@ -1067,7 +1178,8 @@ namespace snde {
 
 
 
-  void OpenCLBuffers::AddSubBuffer(std::shared_ptr<arraymanager> manager, void **arrayptr,snde_index indexstart,snde_index numelem,bool write,bool write_only/*=false*/)
+  void OpenCLBuffers::AddBuffer(std::shared_ptr<recording_storage> storage,bool write,bool write_only/*=false*/)
+  // (works on sub-buffers or full buffers)
     {
 
       //// accumulate preexisting locks + locks in all buffers together
@@ -1079,17 +1191,12 @@ namespace snde {
       rwlock_token_set locks;
       cl::Buffer mem;
       std::vector<cl::Event> new_fill_events;
-      std::shared_ptr<openclcachemanager> cachemanager=get_opencl_cache_manager(manager);
+      std::shared_ptr<openclcacheentry> cacheentry;
       //void **allocatedptr;
 
       //allocatedptr=manager->allocation_arrays.at(arrayptr);
 
-      if (indexstart==0 && numelem==SNDE_INDEX_INVALID) {
-	std::tie(locks,mem,new_fill_events) = cachemanager->GetOpenCLBuffer(all_locks,context,device,arrayptr,write,write_only);
-      } else {
-	std::tie(locks,mem,new_fill_events) = cachemanager->GetOpenCLSubBuffer(all_locks,context,device,arrayptr,indexstart,numelem,write,write_only);
-
-      }
+      std::tie(locks,mem,new_fill_events,cacheentry) = cachemgr->_GetOpenCLBuffer(storage,all_locks,context,device,write,write_only); // (alternatively gets a sub-buffer if need be)
       
       /* move fill events into our master list */
       fill_events.insert(fill_events.end(),new_fill_events.begin(),new_fill_events.end());
@@ -1099,12 +1206,12 @@ namespace snde {
       //					       mem,
       //					       arrayptr,
       //					       locks)));
+      void **arrayptr = storage->lockableaddr();
       buffers.emplace(std::piecewise_construct,
-		      std::forward_as_tuple(arrayptr,indexstart,numelem),
-		      std::forward_as_tuple(manager,	        
-					    mem,
-					    arrayptr,
-					    locks));
+		      std::forward_as_tuple(arrayptr,storage->base_index,storage->nelem),
+		      std::forward_as_tuple(mem,
+					    storage,
+					    locks,cacheentry));
       //clReleaseMemObject(mem); /* remove extra reference */
   
       
@@ -1112,82 +1219,126 @@ namespace snde {
       //locks.push_back(buffers[name][1]); 
     }
 
-  void OpenCLBuffers::AddBuffer(std::shared_ptr<arraymanager> manager, void **arrayptr,bool write,bool write_only/*=false*/)
-  {
-    AddSubBuffer(manager,arrayptr,0,SNDE_INDEX_INVALID,write,write_only);
-  }
+  //void OpenCLBuffers::AddBuffer(std::shared_ptr<recording_storage> storage, bool write,bool write_only/*=false*/)
+  //{
+  //  AddSubBuffer(storage,0,SNDE_INDEX_INVALID,write,write_only);
+  //}
 
 
-  cl_int OpenCLBuffers::AddSubBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl::Kernel kernel,cl_uint arg_index,void **arrayptr,snde_index indexstart,snde_index numelem,bool write,bool write_only/*=false*/)
+  cl_int OpenCLBuffers::AddBufferAsKernelArg(std::shared_ptr<recording_storage> storage,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only/*=false*/)
   {
-    AddSubBuffer(manager,arrayptr,indexstart,numelem,write,write_only);
+    AddBuffer(storage,write,write_only);
+    void **arrayptr = storage->lockableaddr();
+    snde_index indexstart = storage->base_index;
+    snde_index numelem = storage->nelem;
     return SetBufferAsKernelArg(kernel,arg_index,arrayptr,indexstart,numelem);
   }
   
-  cl_int OpenCLBuffers::AddBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl::Kernel kernel,cl_uint arg_index,void **arrayptr,bool write,bool write_only/*=false*/)
+  cl_int OpenCLBuffers::AddBufferAsKernelArg(std::shared_ptr<ndarray_recording_ref> ref,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only)
   {
-    AddBuffer(manager,arrayptr,write,write_only);
-    return SetBufferAsKernelArg(kernel,arg_index,arrayptr,0,SNDE_INDEX_INVALID);
+    return AddBufferAsKernelArg(ref->storage,kernel,arg_index,write,write_only);
   }
+
+  //cl_int OpenCLBuffers::AddBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl::Kernel kernel,cl_uint arg_index,void **arrayptr,bool write,bool write_only/*=false*/)
+  //{
+  //  AddBuffer(manager,arrayptr,write,write_only);
+  //  return SetBufferAsKernelArg(kernel,arg_index,arrayptr,0,SNDE_INDEX_INVALID);
+  //}
   
 
   /* This indicates that the array has been written to by an OpenCL kernel, 
      and that therefore it needs to be copied back into CPU memory */
-  void OpenCLBuffers::BufferDirty(void **arrayptr)
+  void OpenCLBuffers::BufferDirty(std::shared_ptr<recording_storage> storage)
+  // Works on buffers and subbuffers
   {
-    OpenCLBuffer_info &info=buffers.at(OpenCLBufferKey(arrayptr,0,SNDE_INDEX_INVALID));
+
+    void **arrayptr = storage->lockableaddr();
+    snde_index indexstart = storage->base_index;
+    snde_index numelem = storage->nelem;
+    //snde_index total_nelem = storage->lockablenelem();
+
+    
+    OpenCLBuffer_info &info=buffers.at(OpenCLBufferKey(arrayptr,storage->base_index,storage->nelem));
     
     
-    snde_index numelem=(*info.manager->allocators())[arrayptr].alloc->total_nelem();
-    info.cachemanager->mark_as_gpu_modified(context,device,arrayptr,0,numelem);
+    cachemgr->mark_as_gpu_modified(context,storage);
     
   }
+  
+  void OpenCLBuffers::BufferDirty(std::shared_ptr<ndarray_recording_ref> ref)
+  {
+    BufferDirty(ref->storage);
+  }
+  
+  /* This indicates that part the array has been written to by an OpenCL kernel, 
+     and that therefore it needs to be copied back into CPU memory */
+  /*
+  void OpenCLBuffers::BufferDirty(std::shared_ptr<recording_storage> storage,snde_index pos, snde_index len)
+  // Works on buffers and subbuffers
+  {
+
+    void **arrayptr = storage->lockableaddr();
+    snde_index indexstart = storage->base_index;
+    snde_index numelem = storage->nelem;
+    //snde_index total_nelem = storage->lockablenelem();
+    
+    OpenCLBuffer_info &info=buffers.at(OpenCLBufferKey(arrayptr,storage->base_index,storage->nelem));
+    
+    assert(len <= storage->nelem);
+    
+    cachemgr->mark_as_gpu_modified(context,arrayptr,storage->base_index+pos,len);
+    
+    }*/
 
 
-  void OpenCLBuffers::SubBufferDirty(void **arrayptr,snde_index sb_pos,snde_index sb_len)
+  //void OpenCLBuffers::SubBufferDirty(void **arrayptr,snde_index sb_pos,snde_index sb_len)
+  ///* This indicates that the array region has been written to by an OpenCL kernel, 
+  //   and that therefore it needs to be copied back into CPU memory */
+  // {
+  //  OpenCLBuffer_info &info=buffers.at(OpenCLBufferKey(arrayptr,sb_pos,sb_len));
+  // 
+  //  info.cachemanager->mark_as_gpu_modified(context,device,arrayptr,sb_pos,sb_len);
+  // 
+  //}
+  //
+  //void OpenCLBuffers::SubBufferDirty(void **arrayptr,snde_index sb_pos,snde_index sb_len,snde_index dirtypos,snde_index dirtylen)
   /* This indicates that the array region has been written to by an OpenCL kernel, 
      and that therefore it needs to be copied back into CPU memory */
+  //{
+  //  OpenCLBuffer_info &info=buffers.at(OpenCLBufferKey(arrayptr,sb_pos,sb_len));
+  //  
+  //  info.cachemanager->mark_as_gpu_modified(context,device,arrayptr,sb_pos+dirtypos,dirtylen);
+  //}
+
+
+
+  std::pair<std::vector<cl::Event>,std::vector<cl::Event>> OpenCLBuffers::FlushBuffer(std::shared_ptr<recording_storage> storage,std::vector<cl::Event> explicit_prerequisites)
   {
-    OpenCLBuffer_info &info=buffers.at(OpenCLBufferKey(arrayptr,sb_pos,sb_len));
+    void **arrayptr = storage->lockableaddr();
+    OpenCLBuffer_info &info=buffers.at(OpenCLBufferKey(arrayptr,storage->base_index,storage->nelem));
     
-    info.cachemanager->mark_as_gpu_modified(context,device,arrayptr,sb_pos,sb_len);
-    
-  }
-
-  void OpenCLBuffers::SubBufferDirty(void **arrayptr,snde_index sb_pos,snde_index sb_len,snde_index dirtypos,snde_index dirtylen)
-  /* This indicates that the array region has been written to by an OpenCL kernel, 
-     and that therefore it needs to be copied back into CPU memory */
-  {
-    OpenCLBuffer_info &info=buffers.at(OpenCLBufferKey(arrayptr,sb_pos,sb_len));
-    
-    info.cachemanager->mark_as_gpu_modified(context,device,arrayptr,sb_pos+dirtypos,dirtylen);
-  }
-
-
-
-  std::pair<std::vector<cl::Event>,std::vector<cl::Event>> OpenCLBuffers::FlushBuffer(void **arrayptr,snde_index sb_pos,snde_index sb_len,std::vector<cl::Event> explicit_prerequisites)
-  {
-    OpenCLBuffer_info &info=buffers.at(OpenCLBufferKey(arrayptr,sb_pos,sb_len));
-    
-    return info.cachemanager->FlushWrittenOpenCLBuffer(context,device,arrayptr,explicit_prerequisites);
+    return cachemgr->FlushWrittenOpenCLBuffer(context,device,storage,explicit_prerequisites);
   }
 
 
 
-  void OpenCLBuffers::RemSubBuffer(void **arrayptr,snde_index startidx,snde_index numelem,cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait)
+  void OpenCLBuffers::RemBuffer(std::shared_ptr<recording_storage> storage,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait)
     /* Either specify wait=true, then you can explicitly unlock_rwlock_token_set() your locks because you know they're done, 
        or specify wait=false in which case things may finish later. The only way to make sure they are finished is 
        to obtain a new lock on the same items */
       
     {
       /* Remove and unlock buffer */
-      OpenCLBufferKey Key(arrayptr,startidx,numelem);
+
+      
+      
+      OpenCLBufferKey Key(storage->lockableaddr(),storage->base_index,storage->nelem);
       OpenCLBuffer_info &info=buffers.at(Key);
       
       std::vector<cl::Event> all_finished;
       std::shared_ptr<std::thread> wrapupthread;
-      std::tie(all_finished,wrapupthread)=info.cachemanager->ReleaseOpenCLBuffer(info.locks,context,device,info.mem,arrayptr,input_data_not_needed,output_data_complete);
-
+      std::tie(all_finished,wrapupthread)=cachemgr->ReleaseOpenCLBuffer(info.locks,context,device,info.mem,storage,input_data_not_needed,output_data_complete);
+      
       if (wait) {
 	cl::Event::waitForEvents(all_finished);
 	if (wrapupthread && wrapupthread->joinable()) {
@@ -1209,10 +1360,11 @@ namespace snde {
     }
 
 
-  void OpenCLBuffers::RemBuffer(void **arrayptr,cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait)
-  {
-    RemSubBuffer(arrayptr,0,SNDE_INDEX_INVALID,input_data_not_needed,output_data_complete,wait);
-  }
+
+  //void OpenCLBuffers::RemBuffer(void **arrayptr,cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait)
+  //{
+  //  RemSubBuffer(arrayptr,0,SNDE_INDEX_INVALID,input_data_not_needed,output_data_complete,wait);
+  //}
   
   void OpenCLBuffers::RemBuffers(cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait)
   {
@@ -1221,7 +1373,7 @@ namespace snde {
       std::unordered_map<OpenCLBufferKey,OpenCLBuffer_info>::iterator thisbuffer=nextbuffer;
       nextbuffer++;
       
-      RemSubBuffer(thisbuffer->first.array,thisbuffer->first.firstelem,thisbuffer->first.numelem,input_data_not_needed,output_data_complete,wait);
+      RemBuffer(thisbuffer->second.storage,input_data_not_needed,output_data_complete,wait);
       
       
     }

@@ -9,6 +9,20 @@ outfilename = sys.argv[2]
 infh = open(infilename, "r")
 buf = infh.read()
 infh.close()
+
+# Make needed output directories
+curdir = os.path.split(outfilename)[0]
+
+dirstack = []
+while not os.path.exists(curdir):
+    dirstack.append(curdir)
+    curdir = os.path.split(curdir)[0]
+    pass
+
+for dir_to_make in dirstack[::-1]:
+    os.mkdir(dir_to_make)
+    pass
+
 outfh = open(outfilename, "w")
 
 preproc_symbol = "SNDE_"+os.path.split(outfilename)[1].replace(".","_").upper()

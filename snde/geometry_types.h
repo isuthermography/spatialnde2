@@ -1,13 +1,11 @@
-
-
 #ifndef SNDE_GEOMETRY_TYPES
 #define SNDE_GEOMETRY_TYPES
 
 #ifndef __OPENCL_VERSION__
 // if this is not an OpenCL kernel
-#include <assert.h>
-#include <stdint.h>
-#include <string.h>
+
+#include "snde_types.h"
+
 #endif
 
 #if (defined(_MSC_VER) && !defined(__cplusplus))
@@ -24,17 +22,9 @@ extern "C" {
      python definitions at bottom of geometry_types.i */
 #ifdef __OPENCL_VERSION__
 /* if this is an opencl kernel */
-typedef double snde_float64;
 typedef double snde_coord;
-typedef float snde_float32;
 typedef float snde_rendercoord;
 typedef float snde_imagedata;
-typedef ulong snde_index;
-typedef uint snde_shortindex;
-typedef long snde_ioffset;
-typedef unsigned char snde_bool;
-typedef unsigned char uint8_t;
-typedef unsigned int uint32_t;
  
   typedef union {
     unsigned int intval;
@@ -68,9 +58,7 @@ typedef unsigned int uint32_t;
 //typedef cl_char snde_bool;
 
 //#else
-typedef double snde_float64;
 typedef double snde_coord;
-typedef float snde_float32;
 typedef float snde_rendercoord;
 typedef float snde_imagedata;
 
@@ -235,20 +223,6 @@ static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata
 #endif
 #endif
   
-typedef uint32_t snde_shortindex;
-typedef unsigned char snde_bool;
-
-  // Don't specify 64 bit integers in terms of int64_t/uint64_t to work around
-  // https://github.com/swig/swig/issues/568
-  //typedef uint64_t snde_index;
-  //typedef int64_t snde_ioffset;
-#ifdef SIZEOF_LONG_IS_8
-  typedef unsigned long snde_index;
-  typedef long snde_ioffset;
-#else
-  typedef unsigned long long snde_index;
-  typedef long long snde_ioffset;
-#endif
 
 #define M_PI_SNDE_COORD M_PI // change to M_PI_F if you change snde_coord to float
 

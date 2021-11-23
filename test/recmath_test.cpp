@@ -4,14 +4,29 @@
 #include "snde/recstore.hpp"
 #include "snde/recmath_cppfunction.hpp"
 
+#include "snde/snde_types_h.h"
+
 #ifdef SNDE_OPENCL
 #include "snde/opencl_utils.hpp"
+#include "snde/openclcachemanager.hpp"
 #endif // SNDE_OPENCL
 
 using namespace snde;
 
 
 const double scalefactor=4.5;
+
+#ifdef SNDE_OPENCL
+static opencl_program multiply_by_scalar_opencl("multiply_by_scalar", { snde_types_h, R"RAW(
+__kernel void multiply_by_scalar(__global const snde_float32 *input,
+                                 snde_float32 factor,
+                                 __global snde_float32 *output)
+{
+  snde_index elemnum = get_global_id(0);
+  output[elemnum] = input[elemnum]*factor;
+}
+)RAW"});
+#endif // SNDE_OPENCL
 
 class multiply_by_scalar: public recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<snde_float32>>,snde_float64>
 {
@@ -38,6 +53,7 @@ public:
 						      numentries, // flops
 						      1, // max effective cpu cores
 						      1), // useful_cpu_cores (min # of cores to supply
+	
 #ifdef SNDE_OPENCL
 	std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes 
 							 numentries*sizeof(snde_float32)*2, // data_bytes for transfer
@@ -90,11 +106,27 @@ public:
 	    if (opencl_resource) {
 
 	      fprintf(stderr,"Should execute in OpenCL\n");
-	      for (snde_index pos=0;pos < recording->layout.dimlen.at(0);pos++){
-		result_rec->element({pos}) = recording->element({pos}) * multiplier;
-	      }
+	      cl::Kernel mbs_kern = multiply_by_scalar_opencl.get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
+	      OpenCLBuffers Buffers(opencl_resource->oclcache,opencl_resource->context,opencl_resource->devices.at(0),locktokens);
 	      
-
+	      Buffers.AddBufferAsKernelArg(recording,mbs_kern,0,false);
+	      snde_float32 factor = multiplier;
+	      mbs_kern.setArg(1,sizeof(factor),&factor);
+	      Buffers.AddBufferAsKernelArg(result_rec,mbs_kern,2,true,true);
+	      snde_index numelem = recording->layout.flattened_length();
+	      //mbs_kern.setArg(3,sizeof(numelem),&numelem);
+	      cl::Event kerndone;
+	      std::vector<cl::Event> FillEvents=Buffers.FillEvents();
+	      cl_int err = opencl_resource->queues.at(0).enqueueNDRangeKernel(mbs_kern,{},{ numelem },{},&FillEvents,&kerndone);
+	      if (err != CL_SUCCESS) {
+		throw openclerror(err,"Error enqueueing kernel");
+	      }
+	      opencl_resource->queues.at(0).flush(); /* trigger execution */
+	      // mark that the kernel has modified result_rec
+	      Buffers.BufferDirty(result_rec);
+	      // wait for kernel execution and transfers to complete
+	      Buffers.RemBuffers(kerndone,kerndone,true);
+	      
 	    } else {	    
 	      fprintf(stderr,"Not executing in OpenCL\n");
 #endif // SNDE_OPENCL

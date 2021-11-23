@@ -157,10 +157,13 @@ namespace snde {
 
   class channel_notify; // from notify.hpp
   class repetitive_channel_notify; // from notify.hpp
-  class cached_recording; // from cached_recording.hpp
   class promise_channel_notify;
   class _globalrev_complete_notify;
   class monitor_globalrevs;
+  class recording_storage; // recstore_storage.hpp
+  class recording_storage_manager; // recstore_storage.hpp
+  class allocator_alignment; // allocator.hpp
+
   
   // constant data structures with recording type number information
   SNDE_API extern const std::unordered_map<std::type_index,unsigned> rtn_typemap; // look up typenum based on C++ typeid(type)
@@ -255,8 +258,6 @@ namespace snde {
     std::weak_ptr<transaction> defining_transact; // This pointer should be valid for a recording defined as part of a transaction; nullptr for an ondemand math recording, for example. Weak ptr should be convertible to strong as long as the originating_wss is still current.
     
     std::weak_ptr<recording_set_state> _originating_wss; // locked by admin mutex; if expired than originating_wss has been freed. if nullptr then this was defined as part of a transaction that was may still be going on when the recording was defined. Use get_originating_wss() which handles locking and getting the originating_wss from the defining_transact
-
-    std::unordered_map<std::string,std::shared_ptr<cached_recording>> cache; // cache map, indexed by module doing caching, to an abstract base class. Access to the unordered_map protected by admin lock.
 
     // Need typed template interface !!! ***
     

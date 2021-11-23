@@ -9,7 +9,7 @@
 
 namespace snde {
 
-  recording_storage::recording_storage(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized) :
+  recording_storage::recording_storage(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized) :
     recording_path(recording_path),
     recrevision(recrevision),
     id(id),
@@ -19,6 +19,7 @@ namespace snde {
     base_index(base_index),
     typenum(typenum),
     nelem(nelem),
+    lockmgr(lockmgr),
     requires_locking_read(requires_locking_read),
     requires_locking_write(requires_locking_write),
     finalized(finalized)
@@ -28,8 +29,8 @@ namespace snde {
 
   }
 
-  recording_storage_simple::recording_storage_simple(std::string recording_path,uint64_t recrevision,memallocator_regionid id,size_t elementsize,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr) :
-    recording_storage(recording_path,recrevision,id,nullptr,elementsize,0,typenum,nelem,requires_locking_read,requires_locking_write,finalized),
+  recording_storage_simple::recording_storage_simple(std::string recording_path,uint64_t recrevision,memallocator_regionid id,size_t elementsize,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr) :
+    recording_storage(recording_path,recrevision,id,nullptr,elementsize,0,typenum,nelem,lockmgr,requires_locking_read,requires_locking_write,finalized),
     lowlevel_alloc(lowlevel_alloc),
     _baseptr(baseptr)
   {
@@ -38,6 +39,17 @@ namespace snde {
 
   recording_storage_simple::~recording_storage_simple()
   {
+    {
+      //std::lock_guard<std::mutex> cmgr_lock(follower_cachemanagers_lock);
+      // Don't need the lock because we are expiring!!!
+      for (auto && cachemgr: follower_cachemanagers) {
+	std::shared_ptr<cachemanager> cmgr_strong=cachemgr.lock();
+	if (cmgr_strong) {
+	  cmgr_strong->notify_storage_expiration(lockableaddr(),base_index,nelem);
+	}
+      }
+    }
+    
     // free allocation from recording_storage_manager_simple::allocate_recording()
     lowlevel_alloc->free(recording_path,recrevision,id,_baseptr);
   }
@@ -60,6 +72,11 @@ namespace snde {
     return _basearray;
   }
 
+  snde_index recording_storage_simple::lockablenelem()
+  {
+    return nelem;
+  }
+
   std::shared_ptr<recording_storage> recording_storage_simple::obtain_nonmoving_copy_or_reference()
   {
     //assert(orig_id==0);  // recording_storage_simple only has id's of 0
@@ -69,8 +86,33 @@ namespace snde {
     return reference;
   }
 
+  void recording_storage_simple::mark_as_invalid(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)
+  // pos and numelem are relative to __this_recording__
+  {
+    std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>> fc_copy;
+    {
+      std::lock_guard<std::mutex> cmgr_lock(follower_cachemanagers_lock);
+      fc_copy=follower_cachemanagers;
+    }
+    for (auto && cmgr: fc_copy) {
+      std::shared_ptr<cachemanager> cmgr_strong=cmgr.lock();
+      if (cmgr_strong) {
+	if (cmgr_strong != already_knows) {
+	  cmgr_strong->mark_as_invalid(lockableaddr(),base_index,pos,nelem);
+	}
+      }
+    }
+  }
+  
+  void recording_storage_simple::add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr)
+  {
+    std::lock_guard<std::mutex> cmgr_lock(follower_cachemanagers_lock);
+    follower_cachemanagers.emplace(cachemgr);
+  }
+
+
   recording_storage_reference::recording_storage_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id,snde_index nelem,std::shared_ptr<recording_storage> orig,std::shared_ptr<nonmoving_copy_or_reference> ref) :
-    recording_storage(recording_path,recrevision,id,nullptr,orig->elementsize,orig->base_index,orig->typenum,nelem,orig->requires_locking_read,orig->requires_locking_write,true), // always finalized because it is immutable
+    recording_storage(recording_path,recrevision,id,nullptr,orig->elementsize,orig->base_index,orig->typenum,nelem,orig->lockmgr,orig->requires_locking_read,orig->requires_locking_write,true), // always finalized because it is immutable
     orig(orig),
     ref(ref)
   {
@@ -90,6 +132,10 @@ namespace snde {
   {
     return orig->_basearray; // always lock original if needed
   }
+  snde_index recording_storage_reference::lockablenelem()
+  {
+    return orig->nelem;
+  }
 
   std::shared_ptr<recording_storage> recording_storage_reference::obtain_nonmoving_copy_or_reference()
   {
@@ -98,9 +144,20 @@ namespace snde {
     return orig->obtain_nonmoving_copy_or_reference(/*ref->offset/elementsize + offset_elements,*/);
   }
 
+  void recording_storage_reference::mark_as_invalid(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)
+  {
+    throw snde_error("Cannot mark an immutable reference as invalid");
+  }
+  
+  void recording_storage_reference::add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr)
+  {
+    orig->add_follower_cachemanager(cachemgr);
+  }
 
-  recording_storage_manager_simple::recording_storage_manager_simple(std::shared_ptr<memallocator> lowlevel_alloc,std::shared_ptr<allocator_alignment> alignment_requirements) :
+
+  recording_storage_manager_simple::recording_storage_manager_simple(std::shared_ptr<memallocator> lowlevel_alloc,std::shared_ptr<lockmanager> lockmgr,std::shared_ptr<allocator_alignment> alignment_requirements) :
     lowlevel_alloc(lowlevel_alloc),
+    lockmgr(lockmgr),
     alignment_requirements(alignment_requirements)
   {
 
@@ -126,7 +183,11 @@ namespace snde {
     // enforce alignment requirements
     baseptr = allocator_alignment::alignment_shift(baseptr,alignment_extra);
 
-    std::shared_ptr<recording_storage_simple> retval = std::make_shared<recording_storage_simple>(recording_path,recrevision,0,elementsize,typenum,nelem,is_mutable || lowlevel_alloc->requires_locking_read,is_mutable || lowlevel_alloc->requires_locking_write,false,lowlevel_alloc,baseptr);
+    if ((is_mutable || lowlevel_alloc->requires_locking_read || lowlevel_alloc->requires_locking_write) && !lockmgr) {
+      throw snde_error("recording_storage_manager_simple::allocate_recording(): Mutable recordings or those using allocators that require locking require a lock manager");
+    }
+
+    std::shared_ptr<recording_storage_simple> retval = std::make_shared<recording_storage_simple>(recording_path,recrevision,0,elementsize,typenum,nelem,lockmgr,is_mutable || lowlevel_alloc->requires_locking_read,is_mutable || lowlevel_alloc->requires_locking_write,false,lowlevel_alloc,baseptr);
 
 
     return retval;

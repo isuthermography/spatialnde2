@@ -38,6 +38,7 @@ namespace snde {
   class instantiated_math_function; // defined in recmath.hpp
   class executing_math_function; // defined in recmath.hpp
   class math_function_execution; // defined in recmath.hpp
+  class openclcachemanager; // defined in openclcachemanager.hpp
   
   class available_compute_resource;
   class assigned_compute_resource;
@@ -268,7 +269,7 @@ namespace snde {
 #ifdef SNDE_OPENCL
   class available_compute_resource_opencl: public available_compute_resource {
   public: 
-    available_compute_resource_opencl(std::shared_ptr<recdatabase> recdb,std::shared_ptr<available_compute_resource_cpu> controlling_cpu,cl::Context opencl_context,const std::vector<cl::Device> &opencl_devices,size_t max_parallel);
+    available_compute_resource_opencl(std::shared_ptr<recdatabase> recdb,std::shared_ptr<available_compute_resource_cpu> controlling_cpu,cl::Context opencl_context,const std::vector<cl::Device> &opencl_devices,size_t max_parallel,std::shared_ptr<openclcachemanager> oclcache=nullptr);
     virtual void start(); // set the compute resource going
     virtual bool dispatch_code(std::unique_lock<std::mutex> &acrd_admin_lock);
     virtual int get_dispatch_priority(); // Get the dispatch priority of this compute resource. Smaller or more negative numbers are higher priority. See SNDE_ACRP_XXXX, above
@@ -280,7 +281,10 @@ namespace snde {
     cl::Context opencl_context;
     std::vector<cl::Device> opencl_devices;
     size_t max_parallel; // max parallel jobs on a single device
-    std::vector<std::shared_ptr<math_function_execution>> functions_using_devices; // length num_devices*max_parallel; indexing order: device0para0, device1para0, ... device0para1, device1para1,... 
+    std::shared_ptr<openclcachemanager> oclcache;
+    std::vector<std::shared_ptr<math_function_execution>> functions_using_devices; // length num_devices*max_parallel; indexing order: device0para0, device1para0, ... device0para1, device1para1,...
+
+    std::vector<cl::CommandQueue> queues; // length num_devices*max_parallel, as with functions_using_devices
 
   };
 #endif // SNDE_OPENCL
@@ -322,13 +326,16 @@ namespace snde {
 #ifdef SNDE_OPENCL
   class assigned_compute_resource_opencl : public assigned_compute_resource {
   public:
-    assigned_compute_resource_opencl(std::shared_ptr<available_compute_resource> resource,const std::vector<size_t> &assigned_cpu_core_indices,const std::vector<size_t> &assigned_opencl_job_indices,cl::Context opencl_context,const std::vector<cl::Device> &opencl_devices);
+    assigned_compute_resource_opencl(std::shared_ptr<available_compute_resource> resource,const std::vector<size_t> &assigned_cpu_core_indices,const std::vector<size_t> &assigned_opencl_job_indices,cl::Context context,const std::vector<cl::Device> &devices,const std::vector<cl::CommandQueue> &queues,std::shared_ptr<openclcachemanager> oclcache);
     //size_t number_of_cpu_cores;
     std::vector<size_t> assigned_opencl_job_indices;
     
-    cl::Context opencl_context;
-    std::vector<cl::Device> opencl_devices; // devices corresponding to above-assigned opencl_job_indices
+    cl::Context context;
+    std::vector<cl::Device> devices; // devices corresponding to above-assigned opencl_job_indices
+    std::vector<cl::CommandQueue> queues; // devices corresponding to above-assigned opencl_job_indices
+    std::shared_ptr<openclcachemanager> oclcache;
     std::shared_ptr<assigned_compute_resource_cpu> cpu_assignment; // contains assigned_cpu_core_indices
+
     
     virtual ~assigned_compute_resource_opencl()=default;  // virtual destructor required so we can be subclassed. Some subclasses use destructor to release resources
 

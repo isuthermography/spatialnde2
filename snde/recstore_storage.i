@@ -10,6 +10,11 @@
 #include "recstore_storage.hpp"
   %}
 namespace snde {
+  class cached_recording; // from cached_recording.hpp
+  class cachemanager; // cached_recording.hpp
+  class allocator_alignment; // from allocator.hpp
+  class lockmanager;  // lockmanager.hpp
+
   
   class recording_storage /*: public std::enable_shared_from_this<recording_storage> */ {
     // recording storage locked through lockmanager, except
@@ -32,6 +37,8 @@ namespace snde {
     snde_index base_index;
     unsigned typenum; // MET_...
     snde_index nelem;
+
+    std::shared_ptr<lockmanager> lockmgr; // may be nullptr if requires_locking_read and requires_locking_write are both false. 
     snde_bool requires_locking_read;
     snde_bool requires_locking_write;
     bool finalized; // if set, this is an immutable recording and its values have been set. Does NOT mean the data is valid indefinitely, as this could be a reference that loses validity at some point. 
@@ -47,6 +54,7 @@ namespace snde {
     virtual void *dataaddr_or_null()=0; // return pointer to recording base address pointer for memory access or nullptr if it should be accessed via lockableaddr() because it might yet move in the future. Has base_index already added in
     virtual void *cur_dataaddr()=0; // return pointer with shift built-in.
     virtual void **lockableaddr()=0; // return pointer to recording base address pointer for locking
+    virtual snde_index lockablenelem()=0;
 
     virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference()=0; // NOTE: The returned storage can only be trusted if (a) the originating recording is immutable, or (b) the originating recording is mutable but has not been changed since obtain_nonmoving_copy_or_reference() was called. i.e. can only be used as long as the originating recording is unchanged. Note that this is used only for getting a direct reference within a larger (perhaps mutable) allocation, such as space for a texture or mesh geometry. If you are just referencing a range of elements of a finalized waveofrm you can just reference the recording_storage shared pointer with a suitable base_index, stride array, and dimlen array. 
 
@@ -68,14 +76,19 @@ namespace snde {
     void *_baseptr; // this is what _basearray points at; access through superclass addr() method
 
     // don't create this yourself, get it from recording_storage_manager_simple
-    recording_storage_simple(std::string recording_path,uint64_t recrevision,memallocator_regionid id,size_t elementsize,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr);
+    recording_storage_simple(std::string recording_path,uint64_t recrevision,memallocator_regionid id,size_t elementsize,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr);
     recording_storage_simple(const recording_storage_simple &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
     recording_storage_simple& operator=(const recording_storage_simple &) = delete; 
     virtual ~recording_storage_simple(); // frees  _baseptr 
     virtual void *dataaddr_or_null();
     virtual void *cur_dataaddr();
     virtual void **lockableaddr();
+    virtual snde_index lockablenelem();
     virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference();
+
+    //virtual void mark_as_invalid(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
+    //virtual void add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr);
+
   };
 
   class recording_storage_reference: public recording_storage {
@@ -120,7 +133,7 @@ namespace snde {
     std::shared_ptr<memallocator> lowlevel_alloc;
     std::shared_ptr<allocator_alignment> alignment_requirements;
     
-    recording_storage_manager_simple(std::shared_ptr<memallocator> lowlevel_alloc,std::shared_ptr<allocator_alignment> alignment_requirements);
+    recording_storage_manager_simple(std::shared_ptr<memallocator> lowlevel_alloc,std::shared_ptr<lockmanager> lockmgr,std::shared_ptr<allocator_alignment> alignment_requirements);
     virtual ~recording_storage_manager_simple() = default; 
     virtual std::shared_ptr<recording_storage> allocate_recording(std::string recording_path,std::string array_name, // use "" for default array within recording
 								  uint64_t recrevision,
