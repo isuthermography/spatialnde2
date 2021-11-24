@@ -56,9 +56,18 @@ namespace snde {
   
   
   available_compute_resource_database::available_compute_resource_database() :
-    admin(std::make_shared<std::mutex>())
+    admin(std::make_shared<std::mutex>()),
+    started(false)
   {
 
+  }
+
+  
+  void available_compute_resource_database::set_cpu_resource(std::shared_ptr<available_compute_resource_cpu> cpu_resource)
+  {
+    assert(!cpu);
+    cpu=cpu_resource;
+    add_resource(cpu);
   }
 
   void available_compute_resource_database::add_resource(std::shared_ptr<available_compute_resource> new_resource)
@@ -315,6 +324,16 @@ namespace snde {
   void available_compute_resource_database::start()
   // start all of the compute_resources
   {
+    {
+      std::lock_guard<std::mutex> acrd_admin(*admin);
+
+      if (started) {
+	throw snde_error("compute_resources are already running!");
+      }
+
+      started = true; 
+
+    }
     std::multimap<int,std::shared_ptr<available_compute_resource>> compute_resources_copy;
     {
       std::lock_guard<std::mutex> acrd_admin(*admin);

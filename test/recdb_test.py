@@ -5,11 +5,11 @@ import spatialnde2 as snde
 
 rec_len=100;
 
-alignment_requirements = snde.allocator_alignment()
-recdb=snde.recdatabase(alignment_requirements);
+recdb=snde.recdatabase();
+snde.setup_cpu(recdb,multiprocessing.cpu_count())
+snde.setup_storage_manager(recdb)
+recdb.startup()
 
-cpu_compute = snde.available_compute_resource_cpu(recdb,multiprocessing.cpu_count())
-recdb.compute_resources.add_resource(cpu_compute) 
  
 transact = snde.active_transaction(recdb); # Transaction RAII holder
 

@@ -4,6 +4,7 @@
 #include "recstore.hpp"
 #include "recmath_cppfunction.hpp"
 #include "allocator.hpp"
+#include "snde/recstore_setup.hpp"
 
 using namespace snde;
 
@@ -85,13 +86,15 @@ int main(int argc, char *argv[])
 {
   size_t len=100;
 
-  std::shared_ptr<allocator_alignment> alignment_requirements = std::make_shared<allocator_alignment>();
-  std::shared_ptr<snde::recdatabase> recdb=std::make_shared<snde::recdatabase>(alignment_requirements);
+  std::shared_ptr<snde::recdatabase> recdb=std::make_shared<snde::recdatabase>();
+  setup_cpu(recdb,std::thread::hardware_concurrency());
+  setup_storage_manager(recdb);
+  recdb->startup();
+
+  
   std::shared_ptr<snde::ndtyped_recording_ref<snde_float32>> test_rec_32;
   std::shared_ptr<snde::ndtyped_recording_ref<snde_float64>> test_rec_64;
 
-  recdb->compute_resources->add_resource(std::make_shared<available_compute_resource_cpu>(recdb,std::thread::hardware_concurrency()));
-  recdb->compute_resources->start();
 
   std::shared_ptr<math_function> multiply_by_scalar_function = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst) {
 												     return make_cppfuncexec_floatingtypes<multiply_by_scalar>(wss,inst);

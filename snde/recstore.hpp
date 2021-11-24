@@ -844,7 +844,7 @@ namespace snde {
 
   class recdatabase : public std::enable_shared_from_this<recdatabase> {
   public:
-    std::mutex admin; // Locks access to _channels and _deleted_channels and _math_functions, _globalrevs, repetitive_notifies, and monitoring. In locking order, precedes channel admin locks, available_compute_resource_database, globalrevision admin locks, recording admin locks, and Python GIL. 
+    std::mutex admin; // Locks access to _channels and _deleted_channels and _math_functions, _globalrevs, repetitive_notifies,  and monitoring. In locking order, precedes channel admin locks, available_compute_resource_database, globalrevision admin locks, recording admin locks, and Python GIL. 
     std::map<std::string,std::shared_ptr<channel>> _channels; // Generally don't use the channel map directly. Grab the latestglobalrev and use the channel map from that. 
     std::map<std::string,std::shared_ptr<channel>> _deleted_channels; // Channels are put here after they are deleted. They can be moved back into the main list if re-created. 
     instantiated_math_database _math_functions; 
@@ -853,12 +853,15 @@ namespace snde {
     std::shared_ptr<globalrevision> _latest_globalrev; // atomic shared pointer -- access with latest_globalrev() method;
     std::vector<std::shared_ptr<repetitive_channel_notify>> repetitive_notifies; 
 
+    std::shared_ptr<allocator_alignment> alignment_requirements; // Pointer is immutable; pointed structure has its own locking
     std::shared_ptr<available_compute_resource_database> compute_resources; // has its own admin lock.
     
 
     std::shared_ptr<recording_storage_manager> default_storage_manager; // pointer is immutable once created; contents not necessarily immutable; see recstore_storage.hpp
 
     std::shared_ptr<lockmanager> lockmgr; // pointer immutable after initialization; contents have their own admin lock, which is used strictly internally by them
+
+    std::atomic<bool> started;
 
     std::mutex transaction_lock; // ***!!! Before any dataguzzler-python module locks, etc.
     std::shared_ptr<transaction> current_transaction; // only valid while transaction_lock is held.
@@ -875,12 +878,15 @@ namespace snde {
     bool globalrev_mutablenotneeded_mustexit;
 
     
-    recdatabase(std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> lockmgr=nullptr);
-    recdatabase(std::shared_ptr<recording_storage_manager> default_storage_manager,std::shared_ptr<lockmanager> lockmgr=nullptr);
+    recdatabase(std::shared_ptr<lockmanager> lockmgr=nullptr);
     recdatabase & operator=(const recdatabase &) = delete; 
     recdatabase(const recdatabase &orig) = delete;
     ~recdatabase();
         
+    void add_alignment_requirement(size_t nbytes); // note all alignment requirements (e.g. from GPU's) must be added before initializing storage managers
+
+    void startup(); // gets the math engine running, etc. 
+
     // avoid using start_transaction() and end_transaction() from C++; instantiate the RAII wrapper class active_transaction instead
     // (start_transaction() and end_transaction() are intended for C and perhaps Python)
 

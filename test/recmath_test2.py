@@ -11,12 +11,10 @@ from spatialnde2_example_external_cpp_function import scalar_multiply_function
 rec_len=100
 scalefactor=4.5
 
-alignment_requirements = snde.allocator_alignment()
-recdb=snde.recdatabase(alignment_requirements);
-
-cpu_compute = snde.available_compute_resource_cpu(recdb,multiprocessing.cpu_count())
-recdb.compute_resources.add_resource(cpu_compute) 
-recdb.compute_resources.start()
+recdb=snde.recdatabase();
+snde.setup_cpu(recdb,multiprocessing.cpu_count())
+snde.setup_storage_manager(recdb)
+recdb.startup()
 
 
 scaled_channel_function = scalar_multiply_function.instantiate([ snde.math_parameter_recording("/test_channel"), snde.math_parameter_double_const(scalefactor) ],

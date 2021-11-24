@@ -1,6 +1,7 @@
 #include "snde/recstore.hpp"
 #include "snde/utils.hpp"
 #include "snde/notify.hpp"
+#include "snde/allocator.hpp"
 
 #ifndef _WIN32
 #include "shared_memory_allocator_posix.hpp"
@@ -3085,10 +3086,12 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
   }
 
 
-  recdatabase::recdatabase(std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> lockmgr/*=nullptr*/):
+  recdatabase::recdatabase(std::shared_ptr<lockmanager> lockmgr/*=nullptr*/):
+    alignment_requirements(std::make_shared<allocator_alignment>()),
     compute_resources(std::make_shared<available_compute_resource_database>()),
     default_storage_manager(nullptr),
     lockmgr(lockmgr),
+    started(false),
     monitoring_notify_globalrev(0),
     globalrev_mutablenotneeded_mustexit(false)
 
@@ -3097,14 +3100,6 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     std::shared_ptr<globalrevision> null_globalrev;
     std::atomic_store(&_latest_globalrev,null_globalrev);
 
-#ifdef _WIN32
-#pragma message("No shared memory allocator available for Win32 yet. Using regular memory instead")
-    std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<cmemallocator>();
-    
-#else
-    std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<shared_memory_allocator_posix>();
-#endif
-    this->default_storage_manager=std::make_shared<recording_storage_manager_simple>(lowlevel_alloc,lockmgr,alignment_requirements);
     
     if (!this->lockmgr) {
       this->lockmgr = std::make_shared<lockmanager>();
@@ -3120,40 +3115,6 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
   }
 
   
-  recdatabase::recdatabase(std::shared_ptr<recording_storage_manager> default_storage_manager/*=nullptr*/,std::shared_ptr<lockmanager> lockmgr/*=nullptr*/):
-    compute_resources(std::make_shared<available_compute_resource_database>()),
-    default_storage_manager(default_storage_manager),
-    lockmgr(lockmgr),
-    monitoring_notify_globalrev(0),
-    globalrev_mutablenotneeded_mustexit(false)
-    // !!!*** Please note alternate constructor above 
-
-  {
-    std::shared_ptr<globalrevision> null_globalrev;
-    std::atomic_store(&_latest_globalrev,null_globalrev);
-
-    if (!this->default_storage_manager) {
-#ifdef _WIN32
-#pragma message("No shared memory allocator available for Win32 yet. Using regular memory instead")
-      std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<cmemallocator>();
-      
-#else
-      std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<shared_memory_allocator_posix>();
-#endif
-      this->default_storage_manager=std::make_shared<recording_storage_manager_simple>(lowlevel_alloc,lockmgr,nullptr);
-    }
-
-    if (!this->lockmgr) {
-      this->lockmgr = std::make_shared<lockmanager>();
-    }
-
-    _math_functions._rebuild_dependency_map();
-
-    // instantiate mutablenotneeded thread
-    globalrev_mutablenotneeded_thread = std::thread([this]() { globalrev_mutablenotneeded_code(); });
-    //globalrev_mutablenotneeded_thread.detach(); // we won't be join()ing this thread
-
-  }
 
   recdatabase::~recdatabase()
   {
@@ -3167,9 +3128,37 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     }
     globalrev_mutablenotneeded_thread.join();
   }
+
+  void recdatabase::add_alignment_requirement(size_t nbytes)
+  {
+    alignment_requirements->add_requirement(nbytes);
+  }
+
+  void recdatabase::startup()
+  {
+    {
+      if (started) {
+	throw snde_error("recdatabase::startup(): recdb already running!");
+      }
+      started = true; 
+    }
+    
+    if (!compute_resources->cpu) {
+      throw snde_error("CPU not setup (use setup_cpu())");
+    }
+    if (!default_storage_manager) {
+
+      throw snde_error("Default storage manager not setup (use setup_storage_manager())");
+    }
+    compute_resources->start();
+  }
   
   std::shared_ptr<active_transaction> recdatabase::start_transaction()
   {
+    if (!started) {
+      throw snde_error("recdatabase::start_transaction(): Recording database has not been started (use start() method)");
+    }
+    
     return std::make_shared<active_transaction>(shared_from_this());
   }
   

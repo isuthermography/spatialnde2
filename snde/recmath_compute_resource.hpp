@@ -37,6 +37,7 @@ namespace snde {
   class math_function_execution; // defined in recmath.hpp
   
   class available_compute_resource;
+  class available_compute_resource_cpu;
   class assigned_compute_resource;
   class assigned_compute_resource_cpu;
   class pending_computation;
@@ -119,6 +120,9 @@ namespace snde {
     // for recording math calculations
   public:
     std::shared_ptr<std::mutex> admin; // locks compute_resources and todo_list, including all pending_computations but not their embedded executing_math_function; After the recdatabase; in the locking order precedes just Python GIL
+
+    std::shared_ptr<available_compute_resource_cpu> cpu;
+    
     std::multimap<int,std::shared_ptr<available_compute_resource>> compute_resources; // map key is priority
 
     // everything in todo_list is queued in with one or more of the compute_resources
@@ -130,8 +134,11 @@ namespace snde {
 
     std::condition_variable computations_added_or_completed; // associated mutex is the admin lock of the available_compute_resource_database
 
+    bool started; // has the computation engine been started? 
+
     available_compute_resource_database();
 
+    void set_cpu_resource(std::shared_ptr<available_compute_resource_cpu> cpu_resource); // add the CPU resource and set it in its place
     void add_resource(std::shared_ptr<available_compute_resource> new_resource);
 
     bool _queue_computation_into_database_acrdb_locked(uint64_t globalrev,std::shared_ptr<pending_computation> computation,const std::vector<std::shared_ptr<compute_resource_option>> &compute_options); // returns true if we successfully queued it into at least one place. 

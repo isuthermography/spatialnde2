@@ -29,6 +29,8 @@
 
 namespace snde {
 
+  class recdatabase;
+
   std::tuple<cl::Context,std::vector<cl::Device>,std::string> get_opencl_context(std::string query,bool need_doubleprec,void (*pfn_notify)(const char *errinfo,const void *private_info, size_t cb, void *user_data),void *user_data);
 
   bool opencl_check_doubleprec(const std::vector<cl::Device> &devices);
@@ -38,8 +40,8 @@ namespace snde {
 
 
   
-  void add_opencl_alignment_requirement(std::shared_ptr<allocator_alignment> alignment,cl::Device device);
-  void add_opencl_alignment_requirements(std::shared_ptr<allocator_alignment> alignment,const std::vector<cl::Device> &devices);
+  void add_opencl_alignment_requirement(std::shared_ptr<recdatabase> recdb,cl::Device device);
+  void add_opencl_alignment_requirements(std::shared_ptr<recdatabase> recdb,const std::vector<cl::Device> &devices);
 
 
 #if 0 // this stuff is obsolste

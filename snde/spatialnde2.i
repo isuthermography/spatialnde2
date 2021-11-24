@@ -6,7 +6,10 @@
 %pythonbegin %{
 import sys
 %}
- 
+
+%pythoncode %{
+snde_error = _spatialnde2_python.snde_error
+%}
 
 // Workaround for swig to understand what size_t aliases
 #ifdef SIZEOF_SIZE_T_IS_8
@@ -27,6 +30,18 @@ typedef unsigned long size_t;
 
 /* warning suppression */
 //#pragma SWIG nowarn=509,454,341
+
+
+// Exception handling
+%exception {
+  try {
+    $action
+  } catch (const snde::snde_error &serr) {
+    PyErr_SetString(snde_error_exc,serr.what());
+    SWIG_fail;
+  }
+}
+
 
 
 // Perform includes
@@ -153,7 +168,11 @@ namespace snde {
 %template(shared_string_vector) std::vector<std::shared_ptr<std::string>>;
 
 %{
-#include "snde_error.hpp"
+#define SWIG_FILE_WITH_INIT
+#include "snde/snde_error.hpp"
+  
+
+  static PyObject *snde_error_exc;
 
   namespace snde {
     static std::unordered_map<unsigned,PyArray_Descr*> rtn_numpytypemap;
@@ -281,9 +300,11 @@ namespace snde {
 %include "recmath.i"
 %include "recmath_cppfunction.i"
 %include "notify.i"
+%include "recstore_setup.i"
 
 #ifdef SNDE_OPENCL
 %include "opencl_utils.i"
+%include "recstore_setup_opencl.i"
  //%include "openclcachemanager.i"
 #endif
 
@@ -296,7 +317,6 @@ namespace snde {
 
 //#include "geometry_types_h.h"
 //#include "testkernel_c.h"
-
 %}
 
 
@@ -312,6 +332,10 @@ namespace snde {
 %init %{
   import_array();
 
+  snde_error_exc = PyErr_NewException("spatialnde2.snde_error",NULL,NULL);
+  Py_INCREF(snde_error_exc);
+  PyModule_AddObject(m,"snde_error",snde_error_exc);
+  
   PyObject *Globals = PyDict_New(); // for creating numpy dtypes
   PyObject *NumpyModule = PyImport_ImportModule("numpy");
   if (!NumpyModule) {

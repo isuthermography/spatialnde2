@@ -13,6 +13,7 @@
 
 #include "snde/utils.hpp"
 #include "snde/opencl_utils.hpp"
+#include "snde/recstore.hpp"
 
 #define MAX_DEVICES 1000
 #define MAX_PLATFORMS 1000
@@ -87,7 +88,7 @@ namespace snde {
 	std::string PlatName=platforms.at(platformnum).getInfo<CL_PLATFORM_NAME>();
 	std::string PlatVend=platforms.at(platformnum).getInfo<CL_PLATFORM_VENDOR>();
 	if (Platform && strlen(Platform)) {
-	  fprintf(stderr,"Platform=\"%s\"\n",Platform);
+	  //fprintf(stderr,"Platform=\"%s\"\n",Platform);
 	  platform_rating=-1;
 	  
 	  if (!strcmp(Platform,PlatName.c_str())) {
@@ -155,7 +156,7 @@ namespace snde {
 	
 	bool has_doubleprec = (DevExt.find("cl_khr_fp64") != std::string::npos);
 	
-	fprintf(stderr,"Platform: %s (rating %d); Device: %s (rating %d, type_rating %d) has_doubleprec=%d\n",PlatName.c_str(),platform_rating,DevName.c_str(),device_rating,type_rating,(int)has_doubleprec);
+	//fprintf(stderr,"Platform: %s (rating %d); Device: %s (rating %d, type_rating %d) has_doubleprec=%d\n",PlatName.c_str(),platform_rating,DevName.c_str(),device_rating,type_rating,(int)has_doubleprec);
 	
 	
 	doubleprec_rating=0;
@@ -211,8 +212,9 @@ namespace snde {
     buf=NULL;
     
     if (!ratings.size()) {
-      fprintf(stderr,"No available OpenCL devices matched the given criteria (all rating categories >= 0)\n");
-      exit(1);
+      //fprintf(stderr,"No available OpenCL devices matched the given criteria (all rating categories >= 0)\n");
+      //exit(1);
+      return std::make_tuple(cl::Context(),std::vector<cl::Device>(),std::string("No available OpenCL devices matched the given criteria (all rating categories >= 0)"));
     }
     
     cl::Device device;
@@ -356,7 +358,7 @@ namespace snde {
   */
 
   
-  void add_opencl_alignment_requirement(std::shared_ptr<allocator_alignment> alignment,cl::Device device)
+  void add_opencl_alignment_requirement(std::shared_ptr<recdatabase> recdb,cl::Device device)
 {
   cl_uint align_value=0;
   cl_int err;
@@ -372,14 +374,14 @@ namespace snde {
     throw openclerror(CL_SUCCESS,"OpenCL device memory alignment is not a multiple of 8 bits");
     
   }
-  alignment->add_requirement(align_value/8);
+  recdb->add_alignment_requirement(align_value/8);
 }
 
-  void add_opencl_alignment_requirements(std::shared_ptr<allocator_alignment> alignment,const std::vector<cl::Device> &devices)
+  void add_opencl_alignment_requirements(std::shared_ptr<recdatabase> recdb,const std::vector<cl::Device> &devices)
   {
 
     for (auto && device: devices) {
-      add_opencl_alignment_requirement(alignment,device);
+      add_opencl_alignment_requirement(recdb,device);
     }
     
   }

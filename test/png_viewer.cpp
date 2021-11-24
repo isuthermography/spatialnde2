@@ -18,6 +18,7 @@
 #include "snde/pngimage.hpp"
 #include "snde/allocator.hpp"
 
+#include "snde/recstore_setup.hpp"
 #include "snde/rec_display.hpp"
 #include "snde/recstore_display_transforms.hpp"
 #include "snde/openscenegraph_image_renderer.hpp"
@@ -171,14 +172,14 @@ int main(int argc, char **argv)
   std::shared_ptr<arraymanager> manager;
   std::shared_ptr<geometry> geom;
 
-  std::shared_ptr<allocator_alignment> alignment_requirements = std::make_shared<allocator_alignment>();
 
-  recdb=std::make_shared<snde::recdatabase>(alignment_requirements);
+  recdb=std::make_shared<snde::recdatabase>();
+  setup_cpu(recdb,std::thread::hardware_concurrency());
+  setup_storage_manager(recdb);
+  recdb->startup();
+
+  
   std::shared_ptr<snde::ndarray_recording_ref> test_rec;
-
-
-  recdb->compute_resources->add_resource(std::make_shared<available_compute_resource_cpu>(recdb,std::thread::hardware_concurrency()));
-  recdb->compute_resources->start();
   
   snde::active_transaction transact(recdb); // Transaction RAII holder
 
