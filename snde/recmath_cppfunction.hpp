@@ -118,7 +118,7 @@ namespace snde {
   public:
 
     // executing_math_function defines these class members:
-    //   std::shared_ptr<recording_set_state> wss; // recording set state in which we are executing
+    //   std::shared_ptr<recording_set_state> rss; // recording set state in which we are executing
     //   std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
     //   bool is_mutable;
     //   bool mdonly; 
@@ -126,7 +126,7 @@ namespace snde {
 
     // !!!*** May still need self_dependent_recordings but perhaps not here... (moved to executing_math_function
 
-    recmath_cppfuncexec_base(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst);
+    recmath_cppfuncexec_base(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst);
 
     recmath_cppfuncexec_base(const recmath_cppfuncexec_base &) = delete;
     recmath_cppfuncexec_base& operator=(const recmath_cppfuncexec_base &) = delete; 
@@ -144,20 +144,20 @@ namespace snde {
   // first, declare the template
   template <typename... Rest>
   struct rmcfe_tuple_builder_helper {
-    std::tuple<std::tuple<Rest...>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index);
+    std::tuple<std::tuple<Rest...>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index);
   };
   
   // recursive definition
   template <typename T,typename... Rest>
   struct rmcfe_tuple_builder_helper<T,Rest...> {
-    std::tuple<std::tuple<T,Rest...>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    std::tuple<std::tuple<T,Rest...>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::tuple<T> this_tuple;
       std::tuple<Rest...> rest_tuple;
       size_t nextparam_index,endparam_index;
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam,endparam;
-      std::tie(this_tuple,nextparam,nextparam_index) = rmcfe_tuple_builder_helper<T>().rmcfe_tuple_builder(wss,thisparam,end,channel_path_context,definition,thisparam_index); // call full specialization
-      std::tie(rest_tuple,endparam,endparam_index) = rmcfe_tuple_builder_helper<Rest...>().rmcfe_tuple_builder(wss,nextparam,end,channel_path_context,definition,nextparam_index);
+      std::tie(this_tuple,nextparam,nextparam_index) = rmcfe_tuple_builder_helper<T>().rmcfe_tuple_builder(rss,thisparam,end,channel_path_context,definition,thisparam_index); // call full specialization
+      std::tie(rest_tuple,endparam,endparam_index) = rmcfe_tuple_builder_helper<Rest...>().rmcfe_tuple_builder(rss,nextparam,end,channel_path_context,definition,nextparam_index);
       
       return std::make_tuple(std::tuple_cat(this_tuple,rest_tuple),endparam,endparam_index);
     }
@@ -166,7 +166,7 @@ namespace snde {
   // full specialization for each concrete parameter type
   template <>
   struct rmcfe_tuple_builder_helper<std::string> {  
-    std::tuple<std::tuple<std::string>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    std::tuple<std::tuple<std::string>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
@@ -176,14 +176,14 @@ namespace snde {
       nextparam++;
       
       // return statement implements the following:
-      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(wss,firstparam,end,channel_path_context);
-      return std::make_tuple(std::make_tuple((*thisparam)->get_string(wss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_string(rss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
     }
   };
 
   template <>
   struct rmcfe_tuple_builder_helper<int64_t> {
-    std::tuple<std::tuple<int64_t>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    std::tuple<std::tuple<int64_t>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       if (thisparam==end) {
@@ -191,14 +191,14 @@ namespace snde {
       }
       nextparam++;
       // return statement implements the following:
-      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(wss,firstparam,end,channel_path_context);
-      return std::make_tuple(std::make_tuple((*thisparam)->get_int(wss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_int(rss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
     }
   };
 
   template <>
   struct rmcfe_tuple_builder_helper<double> {
-    std::tuple<std::tuple<double>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    std::tuple<std::tuple<double>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
@@ -208,15 +208,15 @@ namespace snde {
       nextparam++;
       
       // return statement implements the following:
-      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(wss,firstparam,end,channel_path_context);
-      return std::make_tuple(std::make_tuple((*thisparam)->get_double(wss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_double(rss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
     }
   };
   
   // specialization for a recording_base
   template <>
   struct rmcfe_tuple_builder_helper<std::shared_ptr<recording_base>> {
-    std::tuple<std::tuple<std::shared_ptr<recording_base>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    std::tuple<std::tuple<std::shared_ptr<recording_base>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
@@ -225,15 +225,15 @@ namespace snde {
       }
       nextparam++;
       // return statement implements the following:
-      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(wss,thisparam,end,channel_path_context);
-      return std::make_tuple(std::make_tuple((*thisparam)->get_recording(wss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,thisparam,end,channel_path_context);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_recording(rss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
     }
   };
   
   // specialization for an multi_ndarray_recording
   template <>
   struct rmcfe_tuple_builder_helper<std::shared_ptr<multi_ndarray_recording>> {
-    std::tuple<std::tuple<std::shared_ptr<multi_ndarray_recording>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    std::tuple<std::tuple<std::shared_ptr<multi_ndarray_recording>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
@@ -242,13 +242,13 @@ namespace snde {
       }
       nextparam++;
 
-      std::shared_ptr<multi_ndarray_recording> mnr = std::dynamic_pointer_cast<multi_ndarray_recording>((*thisparam)->get_recording(wss,channel_path_context,definition,thisparam_index));
+      std::shared_ptr<multi_ndarray_recording> mnr = std::dynamic_pointer_cast<multi_ndarray_recording>((*thisparam)->get_recording(rss,channel_path_context,definition,thisparam_index));
       if (!mnr) {
 	throw snde_error("Recording parameter %s relative to %s is not convertible to a multi_ndarray_recording",channel_path_context.c_str(),std::dynamic_pointer_cast<math_parameter_recording>(*thisparam)->channel_name.c_str());
       }
 
       // return statement implements the following:
-      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(wss,firstparam,end,channel_path_context);
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
       return std::make_tuple(std::make_tuple(mnr),nextparam,thisparam_index+1);
     }
   };
@@ -257,7 +257,7 @@ namespace snde {
     // partial specialization for an ndarray_recording_ref
   template <>
   struct rmcfe_tuple_builder_helper<std::shared_ptr<ndarray_recording_ref>> {
-    std::tuple<std::tuple<std::shared_ptr<ndarray_recording_ref>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    std::tuple<std::tuple<std::shared_ptr<ndarray_recording_ref>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
@@ -266,10 +266,10 @@ namespace snde {
       }
       nextparam++;
 
-      std::shared_ptr<ndarray_recording_ref> ret = (*thisparam)->get_ndarray_recording_ref(wss,channel_path_context,definition,thisparam_index);
+      std::shared_ptr<ndarray_recording_ref> ret = (*thisparam)->get_ndarray_recording_ref(rss,channel_path_context,definition,thisparam_index);
       
       // return statement implements the following:
-      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(wss,firstparam,end,channel_path_context);
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
       return std::make_tuple(std::make_tuple(ret),nextparam,thisparam_index+1);
     }
   };
@@ -279,7 +279,7 @@ namespace snde {
   // partial specialization for an ndtyped_recording_ref<T>
   template <typename T>
   struct rmcfe_tuple_builder_helper<std::shared_ptr<ndtyped_recording_ref<T>>> {
-    std::tuple<std::tuple<std::shared_ptr<ndtyped_recording_ref<T>>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    std::tuple<std::tuple<std::shared_ptr<ndtyped_recording_ref<T>>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
 
@@ -290,8 +290,8 @@ namespace snde {
       }
       nextparam++;
       // return statement implements the following:
-      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(wss,firstparam,end,channel_path_context);
-      std::shared_ptr<ndarray_recording_ref> nrr = (*thisparam)->get_ndarray_recording_ref(wss,channel_path_context,definition,thisparam_index);
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
+      std::shared_ptr<ndarray_recording_ref> nrr = (*thisparam)->get_ndarray_recording_ref(rss,channel_path_context,definition,thisparam_index);
 
       ret = std::dynamic_pointer_cast<ndtyped_recording_ref<T>>(nrr);
       if (!ret) {
@@ -307,21 +307,21 @@ namespace snde {
   // specialization for a blank at the end, which g++ seemss to want (?)
   template <>
   struct rmcfe_tuple_builder_helper<> {
-    std::tuple<std::tuple<>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> wss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    std::tuple<std::tuple<>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
     
       if (thisparam!=end) {
 	throw snde_error("Too many parameters provided to satisfy integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       // return statement implements the following:
-      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(wss,firstparam,end,channel_path_context);
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
       return std::make_tuple(std::make_tuple(),thisparam,thisparam_index);
     }
   };
 
   
   template <typename... Ts>
-  std::tuple<Ts...> rmcfe_get_parameters(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst)
+  std::tuple<Ts...> rmcfe_get_parameters(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst)
   {
     // extract the parameters from the recording_set_state, store them in parameters tuple
     std::vector<std::shared_ptr<math_parameter>>::iterator param_extract_last;
@@ -331,7 +331,7 @@ namespace snde {
       return std::tuple<Ts...>();
     }
     
-    std::tuple<std::tuple<Ts...>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> parameters_param_extract_last = rmcfe_tuple_builder_helper<Ts...>().rmcfe_tuple_builder(wss,inst->parameters.begin(),inst->parameters.end(),inst->channel_path_context,inst->definition,1);
+    std::tuple<std::tuple<Ts...>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> parameters_param_extract_last = rmcfe_tuple_builder_helper<Ts...>().rmcfe_tuple_builder(rss,inst->parameters.begin(),inst->parameters.end(),inst->channel_path_context,inst->definition,1);
     
     param_extract_last = std::get<1>(parameters_param_extract_last);
     if (param_extract_last != inst->parameters.end()) {
@@ -362,9 +362,9 @@ namespace snde {
 
     std::tuple<Ts...> parameters;
       
-    recmath_cppfuncexec(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
-      recmath_cppfuncexec_base(wss,inst),
-      parameters(rmcfe_get_parameters<Ts...>(wss,inst)),
+    recmath_cppfuncexec(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) :
+      recmath_cppfuncexec_base(rss,inst),
+      parameters(rmcfe_get_parameters<Ts...>(rss,inst)),
       compute_options_function(nullptr),
       define_recs_function(nullptr),
       metadata_function(nullptr),
@@ -620,11 +620,11 @@ namespace snde {
   // that auto-detects whether its first input is snde_float32 or
   // snde_float64 and runs the correct version automatically
   template <template<class> class CppFuncClass>
-  std::shared_ptr<executing_math_function> make_cppfuncexec_floatingtypes(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst)
+  std::shared_ptr<executing_math_function> make_cppfuncexec_floatingtypes(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst)
   {
     if (!inst) {
       // initial call with no instantiation to probe parameters; just use float32 case
-      return std::make_shared<CppFuncClass<snde_float32>>(wss,inst);
+      return std::make_shared<CppFuncClass<snde_float32>>(rss,inst);
 
     }
     
@@ -636,7 +636,7 @@ namespace snde {
 
     assert(firstparam_rec);
     
-    std::shared_ptr<ndarray_recording_ref> firstparam_rec_val = firstparam_rec->get_ndarray_recording_ref(wss,inst->channel_path_context,inst->definition,1);
+    std::shared_ptr<ndarray_recording_ref> firstparam_rec_val = firstparam_rec->get_ndarray_recording_ref(rss,inst->channel_path_context,inst->definition,1);
 
     if (!firstparam_rec_val) { // Won't ever happen because get_ndarray_recording_ref() now throws the exception itself
       throw snde_error("In attempting to call math function %s, first parameter %s is not an ndarray recording",inst->definition->definition_command.c_str(),firstparam_rec->channel_name.c_str());
@@ -644,14 +644,14 @@ namespace snde {
 
     switch (firstparam_rec_val->ndinfo()->typenum) {
     case SNDE_RTN_FLOAT32:
-      return std::make_shared<CppFuncClass<snde_float32>>(wss,inst);
+      return std::make_shared<CppFuncClass<snde_float32>>(rss,inst);
 
     case SNDE_RTN_FLOAT64:
-      return std::make_shared<CppFuncClass<snde_float64>>(wss,inst);
+      return std::make_shared<CppFuncClass<snde_float64>>(rss,inst);
 
 #ifdef SNDE_HAVE_FLOAT16
     case SNDE_RTN_FLOAT16:
-      return std::make_shared<CppFuncClass<snde_float16>>(wss,inst);    
+      return std::make_shared<CppFuncClass<snde_float16>>(rss,inst);    
 #endif
       
     default:
@@ -665,7 +665,7 @@ namespace snde {
     bool supports_cpu;
     bool supports_opencl;
     bool supports_cuda;
-    cpp_math_function(std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
+    cpp_math_function(std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
 		      bool supports_cpu,
 		      bool supports_opencl,
 		      bool supports_cuda);
@@ -685,11 +685,11 @@ namespace snde {
 								    std::shared_ptr<math_instance_parameter> extra_params);
     
     // initiate_execution is now a function pointer member of our superclass
-    //virtual std::shared_ptr<executing_math_function> initiate_execution(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated); // actually returns pointer to class recmath_cppfuncexec<...>
+    //virtual std::shared_ptr<executing_math_function> initiate_execution(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated); // actually returns pointer to class recmath_cppfuncexec<...>
 
     // !!!*** How to concisely extract parameter types from template instantiated by
     // initiate_execution?
-    // Idea: Have it construct a structure with wss and instantiated set to nullptr,
+    // Idea: Have it construct a structure with rss and instantiated set to nullptr,
     // then interrogate that. 
   };
   

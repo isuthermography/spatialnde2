@@ -186,7 +186,7 @@ int main(int argc, char **argv)
   pngchan_config=std::make_shared<snde::channelconfig>("png channel", "main", (void *)&main,false);
   std::shared_ptr<snde::channel> pngchan = recdb->reserve_channel(pngchan_config);
   
-  png_rec = multi_ndarray_recording::create_typed_recording(recdb,pngchan,(void *)&main,SNDE_RTN_UNASSIGNED);
+  png_rec = create_recording_ref(recdb,pngchan,(void *)&main,SNDE_RTN_UNASSIGNED);
   
   std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
 

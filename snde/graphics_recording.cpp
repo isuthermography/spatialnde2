@@ -6,8 +6,8 @@ namespace snde {
   // pointcloud_recording is only compatible with the
   // graphics_storage_manager that defines special storage for
   // certain arrays, including "vertices"
-  pointcloud_recording::pointcloud_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,size_t num_ndarrays,size_t info_structsize/*=sizeof(struct snde_multi_ndarray_recording)*/) :
-    multi_ndarray_recording(recdb,chan,owner_id,1,info_structsize)
+  pointcloud_recording::pointcloud_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays) :
+    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
   {
     name_mapping.emplace(std::make_pair("vertices",0));
     name_reverse_mapping.emplace(std::make_pair(0,"vertices"));

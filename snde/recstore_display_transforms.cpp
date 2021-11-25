@@ -255,7 +255,7 @@ namespace snde {
     //if (previous_globalrev) {
     //  std::shared_ptr<_previous_globalrev_nolongerneeded_notify> prev_nolongerneeded_notify = std::make_shared<_previous_globalrev_nolongerneeded_notify>(recdb,previous_globalrev,globalrev);
     //
-    //  prev_nolongerneeded_notify->apply_to_wss(previous_globalrev);
+    //  prev_nolongerneeded_notify->apply_to_rss(previous_globalrev);
     //}
 
     // Set up notification when this globalrev is complete
@@ -265,7 +265,7 @@ namespace snde {
     
     //std::shared_ptr<_globalrev_complete_notify> complete_notify=std::make_shared<_globalrev_complete_notify>(recdb,globalrev);
     
-    //complete_notify->apply_to_wss(globalrev);
+    //complete_notify->apply_to_rss(globalrev);
 
 
 

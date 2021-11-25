@@ -12,43 +12,43 @@ namespace snde {
 
   }
 
-  std::string math_parameter::get_string(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  std::string math_parameter::get_string(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   {
     throw snde_error("Cannot get string value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
   }
   
-  int64_t math_parameter::get_int(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  int64_t math_parameter::get_int(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   {
     throw snde_error("Cannot get integer value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
     
   }
   
-  double math_parameter::get_double(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  double math_parameter::get_double(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   {
     throw snde_error("Cannot get double value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
 
   }
 
-  std::vector<snde_index> math_parameter::get_indexvec(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  std::vector<snde_index> math_parameter::get_indexvec(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   {
     throw snde_error("Cannot get index vector value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
 
   }
 
   
-  std::shared_ptr<recording_base> math_parameter::get_recording(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings
+  std::shared_ptr<recording_base> math_parameter::get_recording(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings
   {
     throw snde_error("Cannot get recording value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
 
   }
 
-  std::shared_ptr<ndarray_recording_ref> math_parameter::get_ndarray_recording_ref(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings. parameter_index starting at 1, just for printing messages
+  std::shared_ptr<ndarray_recording_ref> math_parameter::get_ndarray_recording_ref(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings. parameter_index starting at 1, just for printing messages
   {
     throw snde_error("Cannot get recording value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
 
   }
   
-  std::set<std::string> math_parameter::get_prerequisites(/*std::shared_ptr<recording_set_state> wss,*/ const std::string &channel_path_context) // obtain immediate dependencies of this parameter (absolute path channel names); typically only the recording
+  std::set<std::string> math_parameter::get_prerequisites(/*std::shared_ptr<recording_set_state> rss,*/ const std::string &channel_path_context) // obtain immediate dependencies of this parameter (absolute path channel names); typically only the recording
   {
     return std::set<std::string>(); // default to no prerequisites
   }
@@ -62,7 +62,7 @@ namespace snde {
   }
 
 
-  std::string math_parameter_string_const::get_string(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  std::string math_parameter_string_const::get_string(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
     return string_constant;
@@ -95,7 +95,7 @@ namespace snde {
 
   }
   
-  int64_t math_parameter_int_const::get_int(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  int64_t math_parameter_int_const::get_int(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
     return int_constant;
@@ -127,7 +127,7 @@ namespace snde {
 
   }
 
-  double math_parameter_double_const::get_double(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  double math_parameter_double_const::get_double(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
     return double_constant;
@@ -159,7 +159,7 @@ namespace snde {
 
   }
 
-  std::vector<snde_index> math_parameter_indexvec_const::get_indexvec(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  std::vector<snde_index> math_parameter_indexvec_const::get_indexvec(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   {
     return indexvec;
   }
@@ -228,30 +228,30 @@ namespace snde {
     return !(*this==ref);
   }
 
-  std::set<std::string> math_parameter_recording::get_prerequisites(/*std::shared_ptr<recording_set_state> wss,*/ const std::string &channel_path_context)
+  std::set<std::string> math_parameter_recording::get_prerequisites(/*std::shared_ptr<recording_set_state> rss,*/ const std::string &channel_path_context)
   {
     std::set<std::string> retval;
     retval.emplace(channel_name);
     return retval;
   }
 
-  std::shared_ptr<recording_base> math_parameter_recording::get_recording(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings because we shouldn't be called until our deps are ready.
+  std::shared_ptr<recording_base> math_parameter_recording::get_recording(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings because we shouldn't be called until our deps are ready.
   // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
     std::shared_ptr<recording_base> rec;
     std::string fullpath = recdb_path_join(channel_path_context,channel_name);
     {
-      //std::lock_guard<std::mutex> wsslock(wss->admin); // Think this locking is actually unnecessary
-      rec=wss->recstatus.channel_map.at(fullpath).rec();
+      //std::lock_guard<std::mutex> rsslock(rss->admin); // Think this locking is actually unnecessary
+      rec=rss->recstatus.channel_map.at(fullpath).rec();
     }
     return rec; 
   }
 
   
-  std::shared_ptr<ndarray_recording_ref> math_parameter_recording::get_ndarray_recording_ref(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings because we shouldn't be called until our deps are ready.
+  std::shared_ptr<ndarray_recording_ref> math_parameter_recording::get_ndarray_recording_ref(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings because we shouldn't be called until our deps are ready.
   // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
-    std::shared_ptr<multi_ndarray_recording> rec=std::dynamic_pointer_cast<multi_ndarray_recording>(get_recording(wss,channel_path_context,fcn_def,parameter_index));
+    std::shared_ptr<multi_ndarray_recording> rec=std::dynamic_pointer_cast<multi_ndarray_recording>(get_recording(rss,channel_path_context,fcn_def,parameter_index));
 
     if (!rec) {
       throw snde_error("Recording parameter %s relative to %s is not convertible to a multi_ndarray_recording",channel_path_context.c_str(),channel_name.c_str());

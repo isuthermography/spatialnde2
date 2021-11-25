@@ -82,8 +82,11 @@ static bool _tdr_traversetexture(std::shared_ptr<display_info> display,std::shar
 
     _tdr_traversecomponent(display,globalrev,channels_modes_imgs,_tdr_tc_join_assem_and_compnames(chanpath, texed_rec->part_name));
 
-    _tdr_traverseparameterization(display,globalrev,channels_modes_imgs,_tdr_tc_join_assem_and_compnames(chanpath, texed_rec->parameterization_name));
+    if (texed_rec->parameterization_name) {
+      _tdr_traverseparameterization(display,globalrev,channels_modes_imgs,_tdr_tc_join_assem_and_compnames(chanpath, *texed_rec->parameterization_name));
+    }
 
+    
     // (***!!! May need to support metadata-based texture overrides here)
     for (auto && facenum_texref: texed_rec->texture_refs) {
 

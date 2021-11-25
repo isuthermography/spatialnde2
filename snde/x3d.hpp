@@ -24,9 +24,6 @@
 #include "snde/path.hpp"
 #include "snde/topology.hpp"
 
-#include "snde/revision_manager.hpp"
-
-#include "snde/mutablerecstore.hpp"
 
 #ifndef SNDE_X3D_HPP
 #define SNDE_X3D_HPP
@@ -76,24 +73,24 @@ namespace snde {
   class x3d_appearance;
 
 
-  class x3derror : public std::runtime_error {
+  class x3derror : public snde_error {
   public:
     char *msg;
     xmlParserSeverities severity;
     xmlTextReaderLocatorPtr locator;
 
     template<typename ... Args>
-    x3derror(xmlParserSeverities severity, xmlTextReaderLocatorPtr locator,std::string fmt, Args && ... args) : std::runtime_error(ssprintf("X3D XML Error: %s",cssprintf(fmt,std::forward<Args>(args) ...))) { /* cssprintf will leak memory, but that's OK because this is an error and should only happen once  */
+    x3derror(xmlParserSeverities severity, xmlTextReaderLocatorPtr locator,std::string fmt, Args && ... args) : snde_error(std::string("X3D XML Error: ")+fmt,std::forward<Args>(args) ...) { /* cssprintf will leak memory, but that's OK because this is an error and should only happen once  */
       this->severity=severity;
       this->locator=locator;
     }
     template<typename ... Args>
-    x3derror(std::string fmt, Args && ... args) : std::runtime_error(ssprintf("X3D XML Error: %s",cssprintf(fmt,std::forward<Args>(args) ...))) { /* cssprintf will leak memory, but that's OK because this is an error and should only happen once  */
+    x3derror(std::string fmt, Args && ... args) : snde_error(std::string("X3D XML Error: ")+fmt,std::forward<Args>(args) ...) { /* cssprintf will leak memory, but that's OK because this is an error and should only happen once  */
       this->severity=(xmlParserSeverities)0;
       this->locator=NULL;
     }
   };
-
+  
   //extern "C"
   static void snde_x3d_error_func(void *arg, const char *msg, xmlParserSeverities severity, xmlTextReaderLocatorPtr locator) {
     throw x3derror(severity,locator,"%s",msg);
@@ -1195,7 +1192,7 @@ namespace snde {
 
 
   
- std::shared_ptr<std::vector<std::shared_ptr<mutableinfostore>>> x3d_load_geometry(std::shared_ptr<geometry> geom,std::vector<std::shared_ptr<x3d_shape>> shapes,std::shared_ptr<mutablerecdb> recdb,std::string recdb_context,std::string context_fname,bool reindex_vertices,bool reindex_tex_vertices)
+  std::vector<std::shared_ptr<textured_part_recording>> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::vector<std::shared_ptr<x3d_shape>> shapes,std::string ownername,void *owner,std::string recdb_context,std::string context_fname,bool reindex_vertices,bool reindex_tex_vertices)
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
@@ -1217,13 +1214,15 @@ namespace snde {
     
   {
     
-    std::shared_ptr<std::vector<std::shared_ptr<mutableinfostore>>> parts_parameterizations=std::make_shared<std::vector<std::shared_ptr<mutableinfostore>>>();
     //std::shared_ptr<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>> part_obj_metadata=std::make_shared<std::vector<std::pair<std::shared_ptr<part>,std::unordered_map<std::string,metadatum>>>>();
 
+    std::vector<std::shared_ptr<textured_part_recording>> retval;
+    
     size_t shapecnt=0;
     for (auto & shape: shapes) {
       
       /* build vertex list */
+      std::string texture_chanpath="";
       
       // create metadata where we can store extra parameters going along with this shape
       std::unordered_map<std::string,metadatum> metadata;
@@ -1284,26 +1283,31 @@ namespace snde {
       };
       // Grab texture image, if available
       
-      std::shared_ptr<mutableinfostore> texture_rec_super=nullptr;
-      std::shared_ptr<mutabledatastore> texture_rec=nullptr;
+      std::shared_ptr<ndarray_recording_ref> texture_rec=nullptr;
       if (texture && texture->url.size() > 0 && recdb) {
 	//teximage_data=get_texture_image(geom,texture->url);
 	if (texture->url[0]=='#') {
 	  // URL Fragment... get from existing channel
-	  texture_rec_super = recdb->reclist()->lookup(texture->url.substr(1));
-	  if (texture_rec_super) texture_rec=std::dynamic_pointer_cast<mutabledatastore>(texture_rec_super);
+	  texture_chanpath = texture->url.substr(1); // This variable is used later when we set up the parameterization
 	} else {
 	  // Attempt to load URL from file.... currently support .pngs only
 	  std::shared_ptr<std::string> texture_fname = url2pathname(texture->url);
 	  if (texture_fname && texture_fname->size() > 4 && !texture_fname->compare(texture_fname->size()-4,4,".png")) {
 	    // .png file
 	    std::string texture_path = pathjoin(stripfilepart(context_fname),*texture_fname);
-	    
-	    texture_rec = ReadPNG(geom->manager,strippathpart(*texture_fname),strippathpart(*texture_fname),texture_path);
+	    texture_chanpath = recdb_path_join(recdb_context,stripdirpart(texture_fname); // This variable is used later when we set up the parameterization
+
+	    texturechan_config=std::make_shared<snde::channelconfig>(strippathpart(*texture_fname), ownername, (void *)owner,false);
+	    std::shared_ptr<snde::channel> texturechan = recdb->reserve_channel(texturechan_config);
+
+	    texture_rec = create_recording_ref(recdb,texture_chan,(void *)owner,SNDE_RTN_UNASSIGNED);
+
+	    ReadPNG(texture_rec,texture_path);
 	    fprintf(stderr,"x3d: adding uv_parameterization metadata\n");
 
 	    texture_rec->metadata.AddMetaDatum(metadatum("uv_parameterization","intrinsic"));
-	    recdb->addinfostore(texture_rec);
+	    texture_rec->rec->mark_metadata_done();
+	    texture_rec->rec->mark_as_ready();
 	  }
 	  
 	}
@@ -1311,7 +1315,7 @@ namespace snde {
       
       Eigen::Matrix<double,3,3> TexCoordsToParameterizationCoords=Eigen::Matrix<double,3,3>::Identity();
       
-      if (texture_rec and texture_rec->dimlen.size() >= 2) {
+      if (texture_rec and texture_rec->layout.dimlen.size() >= 2) {
 	// uv_imagedata_channels should be comma-separated list
 	fprintf(stderr,"x3d: adding uv_imagedata_channels metadata\n");
 	metadata.emplace(std::make_pair<std::string,metadatum>("uv_imagedata_channels",metadatum("uv_imagedata_channels",texture_rec->fullname)));
@@ -1368,43 +1372,43 @@ namespace snde {
       // !!!*** Need to Use TexCoordsToParameterizationCoords to scale texture coordinates into meaningful units
       
       
-      std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
+      std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(graphman->manager->locker); // new locking process
       std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
       rwlock_token_set all_locks;
 
       
       // Allocate enough storage for vertices, edges, and triangles
-      holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.parts,1,""));
+      holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.parts,1,""));
       
-      holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.topos,topos.size(),""));
+      holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.topos,topos.size(),""));
 
-      holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.triangles,coordIndex.size(),""));
-      holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.edges,3*coordIndex.size(),""));
-      holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.vertices,coords->point.size(),""));
+      holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.triangles,coordIndex.size(),""));
+      holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.edges,3*coordIndex.size(),""));
+      holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.vertices,coords->point.size(),""));
       // Edgelist may need to be big enough to store # of edges*2 +  # of vertices
       snde_index vertex_edgelist_maxsize=coords->point.size()*7;
-      holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.vertex_edgelist,vertex_edgelist_maxsize,""));
+      holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.vertex_edgelist,vertex_edgelist_maxsize,""));
 
       snde_index uv_vertex_edgelist_maxsize=0;
       // allocate for parameterization
       if (texCoords) {
 	assert(coordIndex.size()==texCoordIndex.size());
-	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uvs,1,""));
+	holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.uvs,1,""));
 
-	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_patches,1,""));
+	holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.uv_patches,1,""));
 	
 	
 	// we don't know the size of uv_topos and uv_topo_indices we will need, so lock the entire array for write
 	// ... this is OK because uv_topos and uv_topo_indices don't have any follower arrays
-	holder->store(lockprocess->get_locks_write_array((void **)&geom->geom.uv_topos));
-	holder->store(lockprocess->get_locks_write_array((void **)&geom->geom.uv_topo_indices));
+	holder->store(lockprocess->get_locks_write_array((void **)&graphman->geom.uv_topos));
+	holder->store(lockprocess->get_locks_write_array((void **)&graphman->geom.uv_topo_indices));
 	
-	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_triangles,texCoordIndex.size(),""));
-	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_edges,3*texCoordIndex.size(),""));
-	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_vertices,texCoords->point.size(),""));
+	holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.uv_triangles,texCoordIndex.size(),""));
+	holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.uv_edges,3*texCoordIndex.size(),""));
+	holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.uv_vertices,texCoords->point.size(),""));
 	// Edgelist may need to be big enough to store # of edges*2 +  # of vertices
 	uv_vertex_edgelist_maxsize=texCoords->point.size()*7;
-	holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_vertex_edgelist,uv_vertex_edgelist_maxsize,""));
+	holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.uv_vertex_edgelist,uv_vertex_edgelist_maxsize,""));
 	//if (texture) {
 	//  holder->store_alloc(lockprocess->alloc_array_region(geom->manager,(void **)&geom->geom.uv_images,1,""));	  
 	//}
@@ -1412,28 +1416,28 @@ namespace snde {
       
       all_locks=lockprocess->finish();
       
-      snde_index firstpart = holder->get_alloc((void **)&geom->geom.parts,"");
-      memset(&geom->geom.parts[firstpart],0,sizeof(*geom->geom.parts));
+      snde_index firstpart = holder->get_alloc((void **)&graphman->geom.parts,"");
+      memset(&geom->geom.parts[firstpart],0,sizeof(*graphman->geom.parts));
 
           
       
-      snde_index firsttri = holder->get_alloc((void **)&geom->geom.triangles,"");
+      snde_index firsttri = holder->get_alloc((void **)&graphman->geom.triangles,"");
       
-      snde_index firsttopo = holder->get_alloc((void **)&geom->geom.topos,"");
+      snde_index firsttopo = holder->get_alloc((void **)&graphman->geom.topos,"");
       // Copy our topos vector into allocated space
-      memcpy(&geom->geom.topos[firsttopo],topos.data(),sizeof(*geom->geom.topos)*topos.size());
+      memcpy(&geom->geom.topos[firsttopo],topos.data(),sizeof(*graphman->geom.topos)*topos.size());
       
-      snde_index firstedge = holder->get_alloc((void **)&geom->geom.edges,"");
+      snde_index firstedge = holder->get_alloc((void **)&graphman->geom.edges,"");
       /* edge modified region marked with realloc_down() call below */
 
-      snde_index firstvertex = holder->get_alloc((void **)&geom->geom.vertices,"");
+      snde_index firstvertex = holder->get_alloc((void **)&graphman->geom.vertices,"");
       /* vertices modified region marked with realloc_down() call below */
 
       
-      snde_index first_vertex_edgelist = holder->get_alloc((void **)&geom->geom.vertex_edgelist,"");
+      snde_index first_vertex_edgelist = holder->get_alloc((void **)&graphman->geom.vertex_edgelist,"");
       /* vertex_edgelist modified region marked with realloc_down() call below */
 
-      snde_index first_vertex_edgelist_index = holder->get_alloc((void **)&geom->geom.vertex_edgelist_indices,""); // should be identical to firstvertex because vertices manages this array
+      snde_index first_vertex_edgelist_index = holder->get_alloc((void **)&graphman->geom.vertex_edgelist_indices,""); // should be identical to firstvertex because vertices manages this array
       /* vertex_edgelist_indices marked with realloc_down() call under vertices below */
       assert(first_vertex_edgelist_index==firstvertex);
       
@@ -1453,8 +1457,8 @@ namespace snde {
 
       
       if (texCoords) {
-	firstuv = holder->get_alloc((void **)&geom->geom.uvs,"");
-	geom->geom.uvs[firstuv]=snde_parameterization{ .first_uv_topo=SNDE_INDEX_INVALID,
+	firstuv = holder->get_alloc((void **)&graphman->geom.uvs,"");
+	graphman->geom.uvs[firstuv]=snde_parameterization{ .first_uv_topo=SNDE_INDEX_INVALID,
 						       .num_uv_topos=SNDE_INDEX_INVALID,
 						       .first_uv_topoidx=SNDE_INDEX_INVALID,
 						       .num_uv_topoidxs=SNDE_INDEX_INVALID,
@@ -1478,8 +1482,8 @@ namespace snde {
 						       //.numuvboxcoords=SNDE_INDEX_INVALID
 	};
 	
-	geom->geom.uvs[firstuv].firstuvpatch = holder->get_alloc((void **)&geom->geom.uv_patches,"");
-	geom->geom.uv_patches[geom->geom.uvs[firstuv].firstuvpatch]=snde_parameterization_patch{
+	graphman->geom.uvs[firstuv].firstuvpatch = holder->get_alloc((void **)&graphman->geom.uv_patches,"");
+	graphman->geom.uv_patches[graphman->geom.uvs[firstuv].firstuvpatch]=snde_parameterization_patch{
 												.firstuvbox=SNDE_INDEX_INVALID,
 												.numuvboxes=0,
 												.firstuvboxpoly=SNDE_INDEX_INVALID,
@@ -1488,16 +1492,16 @@ namespace snde {
 												//.numuvboxcoords=0
 	};
 	
-	firstuvtri = holder->get_alloc((void **)&geom->geom.uv_triangles,"");
+	firstuvtri = holder->get_alloc((void **)&graphman->geom.uv_triangles,"");
 	
-	firstuvedge = holder->get_alloc((void **)&geom->geom.uv_edges,"");
+	firstuvedge = holder->get_alloc((void **)&graphman->geom.uv_edges,"");
 	
 	/* edge modified region marked with realloc_down() call below */
-	firstuvvertex = holder->get_alloc((void **)&geom->geom.uv_vertices,"");
+	firstuvvertex = holder->get_alloc((void **)&graphman->geom.uv_vertices,"");
 	/* vertices modified region marked with realloc_down() call below */
-	first_uv_vertex_edgelist = holder->get_alloc((void **)&geom->geom.uv_vertex_edgelist,"");
+	first_uv_vertex_edgelist = holder->get_alloc((void **)&graphman->geom.uv_vertex_edgelist,"");
 	/* vertex_edgelist modified region marked with realloc_down() call below */
-	first_uv_vertex_edgelist_index = holder->get_alloc((void **)&geom->geom.uv_vertex_edgelist_indices,""); // should be identical to firstvertex because vertices manages this array
+	first_uv_vertex_edgelist_index = holder->get_alloc((void **)&graphman->geom.uv_vertex_edgelist_indices,""); // should be identical to firstvertex because vertices manages this array
 	/* vertex_edgelist_indices marked with realloc_down() call under uv_vertices below */
 	assert(first_uv_vertex_edgelist_index==firstuvvertex);
       
@@ -1545,7 +1549,7 @@ namespace snde {
 	
 	// realloc and shrink geom->geom.vertices allocation
 	// to size num_vertices
-	geom->manager->realloc_down((void **)&geom->geom.vertices,firstvertex,coords->point.size(),num_vertices);
+	graphman->manager->realloc_down((void **)&graphman->geom.vertices,firstvertex,coords->point.size(),num_vertices);
 	
       } else {
 	num_vertices=coords->point.size();
@@ -1565,11 +1569,11 @@ namespace snde {
 	}
       }
       // mark vertices and vertex_edgelist_indices as modified by the CPU
-      geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.vertices,firstvertex,num_vertices);     
-      geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.vertex_edgelist_indices,first_vertex_edgelist_index,num_vertices);
+      graphman->manager->mark_as_invalid(nullptr,(void **)&graphman->geom.vertices,firstvertex,num_vertices);     
+      geom->manager->mark_as_invalid(nullptr,(void **)&graphman->geom.vertex_edgelist_indices,first_vertex_edgelist_index,num_vertices);
 
-      geom->geom.parts[firstpart].firstvertex=firstvertex;
-      geom->geom.parts[firstpart].numvertices=num_vertices;
+      graphman->geom.parts[firstpart].firstvertex=firstvertex;
+      graphman->geom.parts[firstpart].numvertices=num_vertices;
       
       // Now vertices are numbered as in coords->point (if not reindex_vertices)
       // or can be looked up by vertexnum_bycoord and vertexnum_byorignum (if reindex_vertices)
@@ -1591,7 +1595,7 @@ namespace snde {
       for (trinum=0;trinum < numtris;trinum++) {
 
 	// Mark face #
-	geom->geom.triangles[firsttri+trinum].face=0; // no topological analysis (yet) of 3D geometry... just 2D texture
+	graphman->geom.triangles[firsttri+trinum].face=0; // no topological analysis (yet) of 3D geometry... just 2D texture
 	// determine vertices
 	for (vertcnt=0;vertcnt < 3;vertcnt++) {
 	  origvertex[vertcnt]=coordIndex[trinum*coordindex_step + vertcnt];
@@ -1671,21 +1675,21 @@ namespace snde {
 	      edgenum_byvertices.emplace(std::make_pair(std::make_pair(vertex[edgecnt],vertex[(edgecnt + 1) % 3]),next_edgenum));
 	      
 	      // Store in data array
-	      geom->geom.edges[firstedge+next_edgenum].vertex[0]=vertex[edgecnt];
-	      geom->geom.edges[firstedge+next_edgenum].vertex[1]=vertex[(edgecnt+1) % 3];
-	      geom->geom.edges[firstedge+next_edgenum].tri_a=trinum;
-	      geom->geom.edges[firstedge+next_edgenum].tri_b=SNDE_INDEX_INVALID;
+	      graphman->geom.edges[firstedge+next_edgenum].vertex[0]=vertex[edgecnt];
+	      graphman->geom.edges[firstedge+next_edgenum].vertex[1]=vertex[(edgecnt+1) % 3];
+	      graphman->geom.edges[firstedge+next_edgenum].tri_a=trinum;
+	      graphman->geom.edges[firstedge+next_edgenum].tri_b=SNDE_INDEX_INVALID;
 	      
-	      geom->geom.edges[firstedge+next_edgenum].tri_a_prev_edge=prev_edgenum;
+	      graphman->geom.edges[firstedge+next_edgenum].tri_a_prev_edge=prev_edgenum;
 	      if (prev_edgenum==SNDE_INDEX_INVALID) {
 		// don't have a previous because this is our first time through
 		first_edgenum=next_edgenum;
 		first_edge_tri_a=true;
 	      } else {
 		if (prev_edge_tri_a) {
-		  geom->geom.edges[firstedge+prev_edgenum].tri_a_next_edge=next_edgenum;
+		  graphman->geom.edges[firstedge+prev_edgenum].tri_a_next_edge=next_edgenum;
 		} else {
-		  geom->geom.edges[firstedge+prev_edgenum].tri_b_next_edge=next_edgenum;
+		  graphman->geom.edges[firstedge+prev_edgenum].tri_b_next_edge=next_edgenum;
 		}
 	      }
 	      
@@ -1694,7 +1698,7 @@ namespace snde {
 	      prev_edge_tri_a=true;
 	      
 	      /* Store the triangle */
-	      geom->geom.triangles[firsttri+trinum].edges[edgecnt]=next_edgenum;
+	      graphman->geom.triangles[firsttri+trinum].edges[edgecnt]=next_edgenum;
 	      
 	      next_edgenum++;
 	      
@@ -1706,21 +1710,21 @@ namespace snde {
 	    snde_index this_edgenum = edge_iter->second;
 	    
 	    // Store in data array
-	    if (geom->geom.edges[firstedge+this_edgenum].tri_b != SNDE_INDEX_INVALID) {
+	    if (graphman->geom.edges[firstedge+this_edgenum].tri_b != SNDE_INDEX_INVALID) {
 	      throw x3derror("Edge involving original vertices #%lu and %lu is shared by more than two triangles",(unsigned long)origvertex[edgecnt],(unsigned long)origvertex[(edgecnt+1)%3]);
 	    }
-	    geom->geom.edges[firstedge+this_edgenum].tri_b=trinum;
+	    graphman->geom.edges[firstedge+this_edgenum].tri_b=trinum;
 	    
-	    geom->geom.edges[firstedge+this_edgenum].tri_b_prev_edge=prev_edgenum;
+	    graphman->geom.edges[firstedge+this_edgenum].tri_b_prev_edge=prev_edgenum;
 	    if (prev_edgenum==SNDE_INDEX_INVALID) {
 	      // don't have a previous because this is our first time through
 	      first_edgenum=this_edgenum;
 	      first_edge_tri_a=false;
 	    } else {
 	      if (prev_edge_tri_a) {
-		geom->geom.edges[firstedge+prev_edgenum].tri_a_next_edge=this_edgenum;
+		graphman->geom.edges[firstedge+prev_edgenum].tri_a_next_edge=this_edgenum;
 	      } else {
-		geom->geom.edges[firstedge+prev_edgenum].tri_b_next_edge=this_edgenum;
+		graphman->geom.edges[firstedge+prev_edgenum].tri_b_next_edge=this_edgenum;
 	      }
 	    }
 	    
@@ -1729,7 +1733,7 @@ namespace snde {
 	    prev_edge_tri_a=false;
 	    
 	    /* Store the triangle */
-	    geom->geom.triangles[firsttri+trinum].edges[edgecnt]=this_edgenum;
+	    graphman->geom.triangles[firsttri+trinum].edges[edgecnt]=this_edgenum;
 	    
 	  }
 	  
@@ -1738,15 +1742,15 @@ namespace snde {
 	// done iterating through edges. Need to fixup prev_edge of first edge
 	// and next_edge of last edge
 	if (prev_edge_tri_a) { // prev_edge is the last edge
-	  geom->geom.edges[firstedge+prev_edgenum].tri_a_next_edge=first_edgenum;
+	  graphman->geom.edges[firstedge+prev_edgenum].tri_a_next_edge=first_edgenum;
 	} else {
-	  geom->geom.edges[firstedge+prev_edgenum].tri_b_next_edge=first_edgenum;
+	  graphman->geom.edges[firstedge+prev_edgenum].tri_b_next_edge=first_edgenum;
 	}
 	
 	if (first_edge_tri_a) {
-	  geom->geom.edges[firstedge+first_edgenum].tri_a_prev_edge=prev_edgenum; // prev_edgenum lis the last edge
+	  graphman->geom.edges[firstedge+first_edgenum].tri_a_prev_edge=prev_edgenum; // prev_edgenum lis the last edge
 	} else {
-	  geom->geom.edges[firstedge+first_edgenum].tri_b_prev_edge=prev_edgenum; // prev_edgenum lis the last edge
+	  graphman->geom.edges[firstedge+first_edgenum].tri_b_prev_edge=prev_edgenum; // prev_edgenum lis the last edge
 	  
 	}
       
@@ -1758,7 +1762,7 @@ namespace snde {
 	// that matters for more than just rendering!
 	// (actually vertnormals will get overwritten too)
 	if (normal) {
-	  geom->geom.vertnormals[firsttri+trinum]=normals;
+	  graphman->geom.vertnormals[firsttri+trinum]=normals;
 	}
 	if (coordindex_step==4) {
 	  /* indexedfaceset. This must really be a triangle hence it should have a -1 index next */
@@ -1770,17 +1774,17 @@ namespace snde {
 	
       }
       num_edges = next_edgenum;
-      // realloc and shrink geom->geom.edges allocation to num_edges
-      geom->manager->realloc_down((void **)&geom->geom.edges,firstedge,3*coordIndex.size(),num_edges);
+      // realloc and shrink graphman->geom.edges allocation to num_edges
+      graphman->manager->realloc_down((void **)&graphman->geom.edges,firstedge,3*coordIndex.size(),num_edges);
 
       // mark edges as modified by the CPU
-      geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.edges,firstedge,num_edges);     
+      graphman->manager->mark_as_invalid(nullptr,(void **)&graphman->geom.edges,firstedge,num_edges);     
  
-      geom->geom.parts[firstpart].firstedge=firstedge;
-      geom->geom.parts[firstpart].numedges=num_edges;
+      graphman->geom.parts[firstpart].firstedge=firstedge;
+      graphman->geom.parts[firstpart].numedges=num_edges;
       
-      geom->geom.parts[firstpart].firsttri=firsttri;
-      geom->geom.parts[firstpart].numtris=numtris;
+      graphman->geom.parts[firstpart].firsttri=firsttri;
+      graphman->geom.parts[firstpart].numtris=numtris;
       
       
 
@@ -1790,16 +1794,16 @@ namespace snde {
       snde_index edgecnt;
       
       for (edgecnt=0;edgecnt < num_edges;edgecnt++) {
-	auto vertex_iter = edges_by_vertex.find(geom->geom.edges[firstedge+edgecnt].vertex[0]);
+	auto vertex_iter = edges_by_vertex.find(graphman->geom.edges[firstedge+edgecnt].vertex[0]);
 	if (vertex_iter == edges_by_vertex.end()) {
-	  edges_by_vertex.emplace(std::make_pair(geom->geom.edges[firstedge+edgecnt].vertex[0],std::vector<snde_index>(1,edgecnt)));
+	  edges_by_vertex.emplace(std::make_pair(graphman->geom.edges[firstedge+edgecnt].vertex[0],std::vector<snde_index>(1,edgecnt)));
 	} else {
 	  vertex_iter->second.emplace_back(edgecnt);
 	}
 	
-	vertex_iter = edges_by_vertex.find(geom->geom.edges[firstedge+edgecnt].vertex[1]);
+	vertex_iter = edges_by_vertex.find(graphman->geom.edges[firstedge+edgecnt].vertex[1]);
 	if (vertex_iter == edges_by_vertex.end()) {
-	  edges_by_vertex.emplace(std::make_pair(geom->geom.edges[firstedge+edgecnt].vertex[1],std::vector<snde_index>(1,edgecnt)));
+	  edges_by_vertex.emplace(std::make_pair(graphman->geom.edges[firstedge+edgecnt].vertex[1],std::vector<snde_index>(1,edgecnt)));
 	} else {
 	  vertex_iter->second.emplace_back(edgecnt);
 	}
@@ -1823,7 +1827,7 @@ namespace snde {
 	    // CCW
 	    snde_index edgecheck;
 	    for (edgecheck=1; edgecheck < vertexnum_edges.second.size();edgecheck++) {
-	      if ((geom->geom.edges[firstedge+last_edge].tri_a_prev_edge==vertexnum_edges.second.at(edgecheck) || geom->geom.edges[firstedge+last_edge].tri_b_prev_edge==vertexnum_edges.second.at(edgecheck)) && (geom->geom.edges[firstedge+vertexnum_edges.second.at(edgecheck)].tri_a_next_edge==last_edge || geom->geom.edges[firstedge+vertexnum_edges.second.at(edgecheck)].tri_b_next_edge==last_edge)) {
+	      if ((graphman->geom.edges[firstedge+last_edge].tri_a_prev_edge==vertexnum_edges.second.at(edgecheck) || graphman->geom.edges[firstedge+last_edge].tri_b_prev_edge==vertexnum_edges.second.at(edgecheck)) && (graphman->geom.edges[firstedge+vertexnum_edges.second.at(edgecheck)].tri_a_next_edge==last_edge || graphman->geom.edges[firstedge+vertexnum_edges.second.at(edgecheck)].tri_b_next_edge==last_edge)) {
 		// edgecheck works!
 		newvec.push_back(vertexnum_edges.second.at(edgecheck));
 		last_edge = vertexnum_edges.second.at(edgecheck);
@@ -1842,7 +1846,7 @@ namespace snde {
 	    // CW
 	    snde_index edgecheck;
 	    for (edgecheck=1; edgecheck < vertexnum_edges.second.size();edgecheck++) {
-	      if ((geom->geom.edges[firstedge+last_edge].tri_a_next_edge==vertexnum_edges.second.at(edgecheck) || geom->geom.edges[firstedge+last_edge].tri_b_next_edge==vertexnum_edges.second.at(edgecheck)) && (geom->geom.edges[firstedge+vertexnum_edges.second.at(edgecheck)].tri_a_prev_edge==last_edge || geom->geom.edges[firstedge+vertexnum_edges.second.at(edgecheck)].tri_b_prev_edge==last_edge)) {
+	      if ((graphman->geom.edges[firstedge+last_edge].tri_a_next_edge==vertexnum_edges.second.at(edgecheck) || graphman->geom.edges[firstedge+last_edge].tri_b_next_edge==vertexnum_edges.second.at(edgecheck)) && (graphman->geom.edges[firstedge+vertexnum_edges.second.at(edgecheck)].tri_a_prev_edge==last_edge || graphman->geom.edges[firstedge+vertexnum_edges.second.at(edgecheck)].tri_b_prev_edge==last_edge)) {
 		// edgecheck works!
 		newvec.push_front(vertexnum_edges.second.at(edgecheck));
 		last_edge = vertexnum_edges.second.at(edgecheck);
@@ -1872,36 +1876,50 @@ namespace snde {
 	std::vector<snde_index> & edges = edges_by_vertex.at(vertexcnt);
 	
 	/* Copy edgelist */
-	memcpy(geom->geom.vertex_edgelist + first_vertex_edgelist + next_vertex_edgelist_pos,edges.data(),edges.size() * sizeof(snde_index));
+	memcpy(graphman->geom.vertex_edgelist + first_vertex_edgelist + next_vertex_edgelist_pos,edges.data(),edges.size() * sizeof(snde_index));
 	
 	/* Store list terminator (need to reserve extra space if we really want to do this) */
 	//geom->geom.vertex_edgelist[first_vertex_edgelist + next_vertex_edgelist_pos+edges.size()] = SNDE_INDEX_INVALID;
 	
 	/* Write to vertex_edgelist_indices */
-	geom->geom.vertex_edgelist_indices[first_vertex_edgelist_index + vertexcnt].edgelist_index=next_vertex_edgelist_pos;
-	geom->geom.vertex_edgelist_indices[first_vertex_edgelist_index + vertexcnt].edgelist_numentries=edges.size();
+	graphman->geom.vertex_edgelist_indices[first_vertex_edgelist_index + vertexcnt].edgelist_index=next_vertex_edgelist_pos;
+	graphman->geom.vertex_edgelist_indices[first_vertex_edgelist_index + vertexcnt].edgelist_numentries=edges.size();
 	
 	next_vertex_edgelist_pos += edges.size();
 	
       }
-      geom->geom.parts[firstpart].first_vertex_edgelist=first_vertex_edgelist;
-      geom->geom.parts[firstpart].num_vertex_edgelist=next_vertex_edgelist_pos;
-      geom->manager->realloc_down((void **)&geom->geom.vertex_edgelist,first_vertex_edgelist,vertex_edgelist_maxsize,next_vertex_edgelist_pos);
+      graphman->geom.parts[firstpart].first_vertex_edgelist=first_vertex_edgelist;
+      graphman->geom.parts[firstpart].num_vertex_edgelist=next_vertex_edgelist_pos;
+      graphman->manager->realloc_down((void **)&graphman->geom.vertex_edgelist,first_vertex_edgelist,vertex_edgelist_maxsize,next_vertex_edgelist_pos);
 
       // mark vertex_edgelist as modified by CPU
-      geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.vertex_edgelist,first_vertex_edgelist,next_vertex_edgelist_pos);     
+      graphman->manager->mark_as_dirty(nullptr,(void **)&graphman->geom.vertex_edgelist,first_vertex_edgelist,next_vertex_edgelist_pos);     
 
 
 
       /* create part object and add to the vector we will return, now that 
 	 data structures are complete*/
       /* !!!*** Should have real algorithm for determining name, not just use "x3d" ***!!! */
-      std::shared_ptr<part> curpart=std::make_shared<part>(geom,firstpart);
 
-      std::string partname = std::string("x3d")+std::to_string(shapecnt);
-      std::string fullname = recdb_path_join(recdb_context,partname);
-      std::shared_ptr<mutablegeomstore> curinfostore = std::make_shared<mutablegeomstore>(partname,fullname,metadata,geom,curpart);
-      parts_parameterizations->emplace_back(curinfostore);
+      std::string meshedpartname = std::string("x3d_meshed")+std::to_string(shapecnt);
+      std::string meshedfullname = recdb_path_join(recdb_context,meshedpartname);
+      meshedcurpart_config=std::make_shared<snde::channelconfig>(meshedfullname, ownername, (void *)owner,false);
+      std::shared_ptr<snde::channel> meshedcurpart_chan = recdb->reserve_channel(meshedcurpart_config);
+      
+      meshedcurpart = create_recording<textured_part_recording>(recdb,meshedcurpart_chan,(void *)owner,firstpart);
+      meshedcurpart->metadata = immutable_metadata();; 
+      meshedcurpart->mark_metadata_done();
+
+      std::string texedpartname = std::string("x3d")+std::to_string(shapecnt);
+      std::string texedfullname = recdb_path_join(recdb_context,texedpartname);
+      texedcurpart_config=std::make_shared<snde::channelconfig>(texedfullname, ownername, (void *)owner,false);
+      std::shared_ptr<snde::channel> texedcurpart_chan = recdb->reserve_channel(texedcurpart_config);
+      
+      texedcurpart = create_recording<textured_part_recording>(recdb,texedcurpart_chan,(void *)owner,meshedfullname);
+      texedcurpart->metadata = metadata; 
+      texedcurpart->mark_metadata_done();
+
+      retval->emplace_back(texedcurpart);
       
       //curpart->need_normals=!(bool)normal;
       //part_obj_metadata->push_back(std::make_pair(curpart,metadata));
@@ -2354,13 +2372,23 @@ namespace snde {
 
 
 	
-	uvparam=std::make_shared<parameterization>(geom,firstuv,1);  // currently only implement numuvimages==1
+	uvparam=std::make_shared<parameterization>(geom,firstuv,1); 
 	/* add this parameterization to our part */
 	
-	std::shared_ptr<mutableparameterizationstore> curparamstore = curpart->addparameterization(recdb,recdb_context,uvparam,"intrinsic",recmetadata()); // addparameterization adds it to recdb automatically
+	std::shared_ptr<mutableparameterizationstore> uvparamstore = curpart->addparameterization(recdb,recdb_context,uvparam,"intrinsic",recmetadata()); // addparameterization adds it to recdb automatically
 	recdb->addinfostore(curinfostore); // add the (now pretty well complete) part to the recording database
 
-	parts_parameterizations->emplace_back(curparamstore);
+	std::string uvparamname = std::string("x3d_uv")+std::to_string(shapecnt);
+	std::string uvparamfullname = recdb_path_join(recdb_context,uvparamname);
+	uvparam_config=std::make_shared<snde::channelconfig>(uvparamfullname, ownername, (void *)owner,false);
+	std::shared_ptr<snde::channel> uvparam_chan = recdb->reserve_channel(uvparam_config);
+      
+	uvparam = create_recording<meshed_parameterization_recording>(recdb,uvparam_chan,(void *)owner,firstuv,1);  // currently only implement numuvimages==1
+	uvparam->metadata = metadata; 
+	uvparam->mark_metadata_done();
+
+	texedcurpart->parameterization_name = uvparamfullname;
+	texedcurpart->texture_refs.emplace(0,std::make_shared<image_reference>(texture_chanpath,0,1,{0,0}));
 	
 	// Mark that we have modified mesheduv and uv_triangles with the CPU
 	geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.uvs,firstuv,1);
@@ -2407,11 +2435,11 @@ namespace snde {
        imagetexture URL. The snde_image structure will be allocated but blank 
        (imgbufoffset==SNDE_INDEX_INVALID). No image buffer space is allocated */
     
-    return parts_parameterizations;
+    return retval;
   }
 
 
-  std::shared_ptr<std::vector<std::shared_ptr<mutableinfostore>>> x3d_load_geometry(std::shared_ptr<geometry> geom,std::string filename,std::shared_ptr<mutablerecdb> recdb,std::string recdb_context,bool reindex_vertices,bool reindex_tex_vertices)
+  std::vector<std::shared_ptr<textured_part_recording>> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::string filename,std::string recdb_context,bool reindex_vertices,bool reindex_tex_vertices)
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
@@ -2423,7 +2451,7 @@ namespace snde {
   {
     std::vector<std::shared_ptr<x3d_shape>> shapes=x3d_loader::shapes_from_file(filename.c_str());
     
-    return x3d_load_geometry(geom,shapes,recdb,recdb_context,filename,reindex_vertices,reindex_tex_vertices);
+    return x3d_load_geometry(recdb,graphman,shapes,recdb_context,filename,reindex_vertices,reindex_tex_vertices);
     
   }
 

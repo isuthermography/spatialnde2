@@ -131,8 +131,8 @@ namespace snde {
   {
     snde_debug(SNDE_DC_RECMATH,"_queue_computation_internal");
 
-    bool computation_wss_is_globalrev = false; 
-    // we cheat a bit in getting the globalrev index: We try dynamically casting ready_wss, and if that fails we use the value from the prerequisite state
+    bool computation_rss_is_globalrev = false; 
+    // we cheat a bit in getting the globalrev index: We try dynamically casting ready_rss, and if that fails we use the value from the prerequisite state
     std::shared_ptr<globalrevision> globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(computation->recstate);
     if (!globalrev_ptr) {
       // try prerequisite_state
@@ -142,7 +142,7 @@ namespace snde {
 	throw snde_error("recording_set_state does not appear to be associated with any global revision");
       }      
     } else {
-      computation_wss_is_globalrev=true; 
+      computation_rss_is_globalrev=true; 
     }
 
 
@@ -155,7 +155,7 @@ namespace snde {
     // we can execute anything immutable, anything that is not part of a globalrev (i.e. ondemand), or once the prior globalrev is fully ready
     // (really we just need to make sure all immutable recordings in the prior globalrev are ready, but there isn't currently a good
     // way to do that)
-    std::shared_ptr<recording_set_state> prior_globalrev=computation->recstate->prerequisite_state(); // only actually prior_globalrev if computation_wss_is_globalrev
+    std::shared_ptr<recording_set_state> prior_globalrev=computation->recstate->prerequisite_state(); // only actually prior_globalrev if computation_rss_is_globalrev
 
     std::shared_ptr<globalrevision> prior_globalrev_globalrev=std::dynamic_pointer_cast<globalrevision>(prior_globalrev);
     
@@ -163,9 +163,9 @@ namespace snde {
 
     // ***!!!! Really here we need to see if we want to run it in
     // mutable or immutable mode !!!***
-    //if (!computation->function_to_execute->inst->fcn->mandatory_mutable || !computation_wss_is_globalrev || !prior_globalrev || prior_globalrev->ready) {
+    //if (!computation->function_to_execute->inst->fcn->mandatory_mutable || !computation_rss_is_globalrev || !prior_globalrev || prior_globalrev->ready) {
     
-    if (!computation->function_to_execute->is_mutable || !computation_wss_is_globalrev || !prior_globalrev || (prior_globalrev->ready && (!prior_globalrev_globalrev || !prior_globalrev_globalrev->mutable_recordings_still_needed))) {
+    if (!computation->function_to_execute->is_mutable || !computation_rss_is_globalrev || !prior_globalrev || (prior_globalrev->ready && (!prior_globalrev_globalrev || !prior_globalrev_globalrev->mutable_recordings_still_needed))) {
 
       if (!_queue_computation_into_database_acrdb_locked(globalrev_ptr->globalrev,computation,compute_options)) {
       
@@ -191,50 +191,50 @@ namespace snde {
   }
 
 
-  void available_compute_resource_database::queue_computation(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn)
+  void available_compute_resource_database::queue_computation(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> ready_rss,std::shared_ptr<instantiated_math_function> ready_fcn)
   // Take an identified function ready_fcn that is ready to be computed
-  // (all inputs are complete) for execution in the context of ready_wss 
+  // (all inputs are complete) for execution in the context of ready_rss 
   // and queue it for actual execution by the worker threads
   {
 
-    bool ready_wss_is_globalrev = false;
+    bool ready_rss_is_globalrev = false;
 
     snde_debug(SNDE_DC_RECMATH,"queue_computation");
     
-    // we cheat a bit in getting the globalrev index: We try dynamically casting ready_wss, and if that fails we use the value from the prerequisite state
-    std::shared_ptr<globalrevision> globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(ready_wss);
+    // we cheat a bit in getting the globalrev index: We try dynamically casting ready_rss, and if that fails we use the value from the prerequisite state
+    std::shared_ptr<globalrevision> globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(ready_rss);
     if (!globalrev_ptr) {
       // try prerequisite_state
-      globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(ready_wss->prerequisite_state());
+      globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(ready_rss->prerequisite_state());
       
       if (!globalrev_ptr) {
 	throw snde_error("recording_set_state does not appear to be associated with any global revision");
       }      
     } else {
-      ready_wss_is_globalrev=true; 
+      ready_rss_is_globalrev=true; 
     }
 
     bool is_mutable=false;
     bool mdonly;
     std::shared_ptr<math_function_execution> execfunc;
     {
-      std::unique_lock<std::mutex> ready_wss_admin(ready_wss->admin);
-      math_function_status &ready_wss_status = ready_wss->mathstatus.function_status.at(ready_fcn);
+      std::unique_lock<std::mutex> ready_rss_admin(ready_rss->admin);
+      math_function_status &ready_rss_status = ready_rss->mathstatus.function_status.at(ready_fcn);
 
-      assert(ready_wss_status.execfunc); // execfunc should have been assigned (At the latest) by check_dep_fcn_ready(), which  should have been called before us. 
+      assert(ready_rss_status.execfunc); // execfunc should have been assigned (At the latest) by check_dep_fcn_ready(), which  should have been called before us. 
       
-      execfunc = ready_wss_status.execfunc;
+      execfunc = ready_rss_status.execfunc;
       
-      snde_debug(SNDE_DC_RECMATH,"execfunc=0x%lx; wss=0x%lx",(unsigned long)execfunc.get(),(unsigned long)ready_wss.get());
-      snde_debug(SNDE_DC_RECMATH,"ready_to_execute:%d",(int)ready_wss_status.ready_to_execute);
-      if (ready_wss_status.ready_to_execute && execfunc->try_execution_ticket()) {
+      snde_debug(SNDE_DC_RECMATH,"execfunc=0x%lx; rss=0x%lx",(unsigned long)execfunc.get(),(unsigned long)ready_rss.get());
+      snde_debug(SNDE_DC_RECMATH,"ready_to_execute:%d",(int)ready_rss_status.ready_to_execute);
+      if (ready_rss_status.ready_to_execute && execfunc->try_execution_ticket()) {
 	// we are taking care of execution
-	assert(ready_wss_status.execution_demanded); 
-	ready_wss_status.ready_to_execute=false;
-	ready_wss_admin.unlock();
+	assert(ready_rss_status.execution_demanded); 
+	ready_rss_status.ready_to_execute=false;
+	ready_rss_admin.unlock();
 
 
-	execfunc->execution_tracker = ready_fcn->fcn->initiate_execution(ready_wss,ready_fcn);
+	execfunc->execution_tracker = ready_fcn->fcn->initiate_execution(ready_rss,ready_fcn);
 	bool actually_execute=true;
 	
 	// Check new_revision_optional
@@ -252,7 +252,7 @@ namespace snde {
 	  // grab recording results from execfunc->execution_tracker->self_dependent_recordings
 	  assert(ready_fcn->result_channel_paths.size()==execfunc->execution_tracker->self_dependent_recordings.size());
 
-	  // assign recordings to all referencing wss recordings (should all still exist)
+	  // assign recordings to all referencing rss recordings (should all still exist)
 	  for (auto && referencing_rss_weak: execfunc->referencing_rss) {
 	    std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
 	    std::lock_guard<std::mutex> referencing_rss_admin(referencing_rss_strong->admin);
@@ -271,32 +271,32 @@ namespace snde {
 	  execfunc->metadata_executed = true;
 	  execfunc->fully_complete = true;
 	  {
-	    std::lock_guard<std::mutex> ready_wss_admin(ready_wss->admin);
-	    math_function_status &ready_wss_status = ready_wss->mathstatus.function_status.at(ready_fcn);
+	    std::lock_guard<std::mutex> ready_rss_admin(ready_rss->admin);
+	    math_function_status &ready_rss_status = ready_rss->mathstatus.function_status.at(ready_fcn);
 	    
-	    ready_wss_status.complete=true;
+	    ready_rss_status.complete=true;
 	  }
 	  
-	  // clear execfunc->wss to eliminate reference loop once at least metadata execution is complete
-	  execfunc->wss = nullptr;
-	  execfunc->execution_tracker->wss = nullptr;
+	  // clear execfunc->rss to eliminate reference loop once at least metadata execution is complete
+	  execfunc->rss = nullptr;
+	  execfunc->execution_tracker->rss = nullptr;
 	  execfunc->executing = false; // release the execution ticket
 
 	  
 	  // issue notifications
 
-	  // ... in all referencing wss's
+	  // ... in all referencing rss's
 	  for (auto && referencing_rss_weak: execfunc->referencing_rss) {
 	    std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
 	    
 	    for (auto && result_channel_path_ptr: ready_fcn->result_channel_paths) {
 	      channel_state &chanstate = referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(ready_fcn->channel_path_context,*result_channel_path_ptr));
-	      //chanstate.issue_math_notifications(recdb,ready_wss); // taken care of by notify_math_function_executed(), below
+	      //chanstate.issue_math_notifications(recdb,ready_rss); // taken care of by notify_math_function_executed(), below
 	      chanstate.issue_nonmath_notifications(referencing_rss_strong);
 	      
 	    }
 	    
-	    snde_debug(SNDE_DC_RECMATH,"qc: already finished wss notify %lx",(unsigned long)referencing_rss_strong.get());
+	    snde_debug(SNDE_DC_RECMATH,"qc: already finished rss notify %lx",(unsigned long)referencing_rss_strong.get());
 	    // Issue function completion notification
 	    referencing_rss_strong->mathstatus.notify_math_function_executed(recdb,referencing_rss_strong,execfunc->inst,false); // note mdonly hardwired to false here
 	  }
@@ -304,7 +304,7 @@ namespace snde {
 	  snde_debug(SNDE_DC_RECMATH,"qc: already finished");
 	  return;
 	}
-	std::shared_ptr<pending_computation> computation = std::make_shared<pending_computation>(execfunc,ready_wss,globalrev_ptr->globalrev,0);
+	std::shared_ptr<pending_computation> computation = std::make_shared<pending_computation>(execfunc,ready_rss,globalrev_ptr->globalrev,0);
 	
 	
 	_queue_computation_internal(computation); // this call sets computation to nullptr; execution ticket delegated to the queued computation
@@ -316,7 +316,7 @@ namespace snde {
 	
 	// no need to do anything; just return
       }
-      // warning: ready_wss_admin lock may or may not be held here 
+      // warning: ready_rss_admin lock may or may not be held here 
     }
     
   }
@@ -616,7 +616,7 @@ namespace snde {
 	  
 	  //// Get the mdonly and is_mutable flags from the math_function_status 
 	  //{
-	  //std::lock_guard<std::mutex> wss_admin(recstate->admin);
+	  //std::lock_guard<std::mutex> rss_admin(recstate->admin);
 	  
 	  
 	  
@@ -632,17 +632,17 @@ namespace snde {
 
 	    // grab generated recordings and move them from defined_recordings to instantiated_recordings list
 	    {
-	      std::lock_guard<std::mutex> wssadmin(func->wss->admin);
+	      std::lock_guard<std::mutex> rssadmin(func->rss->admin);
 	      for (auto && result_channel_path_ptr: func->inst->result_channel_paths) {
 		if (result_channel_path_ptr) {
 		  
-		  channel_state &chanstate = func->wss->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*result_channel_path_ptr));
+		  channel_state &chanstate = func->rss->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*result_channel_path_ptr));
 		  if (chanstate.rec()) {
 		    // have a recording
-		    size_t erased_from_defined_recordings = func->wss->recstatus.defined_recordings.erase(chanstate.config);
+		    size_t erased_from_defined_recordings = func->rss->recstatus.defined_recordings.erase(chanstate.config);
 		    
 		    assert(erased_from_defined_recordings==1); // recording should have been listed in defined_recordings
-		    func->wss->recstatus.instantiated_recordings.emplace(chanstate.config,&chanstate);
+		    func->rss->recstatus.instantiated_recordings.emplace(chanstate.config,&chanstate);
 		  } else {
 		    // ***!!! If the math function failed to define
 		    // a recording here, we should probably import
@@ -659,12 +659,12 @@ namespace snde {
 	  if (mdonly) {
 	    func->metadataonly_complete = true; 
 	    
-	    // assign recordings to all referencing wss recordings (should all still exist)
+	    // assign recordings to all referencing rss recordings (should all still exist)
 	    // (only needed if we're not doing it below)
 	    // !!!*** This block should be refactored
 	    for (auto && referencing_rss_weak: func->referencing_rss) {
 	      std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
-	      if (referencing_rss_strong == func->wss) {
+	      if (referencing_rss_strong == func->rss) {
 		continue; // no need to reassign our source
 	      }
 	      
@@ -678,7 +678,7 @@ namespace snde {
 		referencing_rss_strong->recstatus.instantiated_recordings.erase(referencing_rss_channel_state.config);
 		referencing_rss_strong->recstatus.metadataonly_recordings.emplace(referencing_rss_channel_state.config,&referencing_rss_channel_state);
 		
-		referencing_rss_channel_state.end_atomic_rec_update(func->wss->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).rec());
+		referencing_rss_channel_state.end_atomic_rec_update(func->rss->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).rec());
 	      }
 	    }
 	  }
@@ -690,11 +690,11 @@ namespace snde {
 	    func->fully_complete = true;
 	    
 	    
-	    // re-assign recordings to all referencing wss recordings (should all still exist) in case we have more followers than before
+	    // re-assign recordings to all referencing rss recordings (should all still exist) in case we have more followers than before
 	    // !!!*** This block should be refactored
 	    for (auto && referencing_rss_weak: func->referencing_rss) {
 	      std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
-	      if (referencing_rss_strong == func->wss) {
+	      if (referencing_rss_strong == func->rss) {
 		continue; // no need to reassign our source
 	      }
 	      
@@ -708,7 +708,7 @@ namespace snde {
 		referencing_rss_strong->recstatus.instantiated_recordings.erase(referencing_rss_channel_state.config);
 		referencing_rss_strong->recstatus.completed_recordings.emplace(referencing_rss_channel_state.config,&referencing_rss_channel_state);
 		
-		referencing_rss_channel_state.end_atomic_rec_update(func->wss->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).rec());
+		referencing_rss_channel_state.end_atomic_rec_update(func->rss->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).rec());
 	      }
 	    }
 	  
@@ -717,7 +717,7 @@ namespace snde {
 	  
 	  // Mark execution as no longer ongoing in the math_function_status 
 	  {
-	    std::unique_lock<std::mutex> wss_admin(recstate->admin);
+	    std::unique_lock<std::mutex> rss_admin(recstate->admin);
 	    std::unique_lock<std::mutex> func_admin(func->admin);
 	    
 	    math_function_status &our_status = recstate->mathstatus.function_status.at(func->inst);
@@ -726,18 +726,18 @@ namespace snde {
 	      mdonly=false;
 	      // finish up execution before we mark as finished
 	      func_admin.unlock();
-	      wss_admin.unlock();
+	      rss_admin.unlock();
 	      
 	      func->execution_tracker->perform_lock_alloc();
 	      func->execution_tracker->perform_exec();
 	      
 	      func->fully_complete = true;
 	      
-	      // re-assign recordings to all referencing wss recordings (should all still exist) in case we have more followers than before
+	      // re-assign recordings to all referencing rss recordings (should all still exist) in case we have more followers than before
 	      // !!!*** This block should be refactored
 	      for (auto && referencing_rss_weak: func->referencing_rss) {
 		std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
-		if (referencing_rss_strong == func->wss) {
+		if (referencing_rss_strong == func->rss) {
 		  continue; // no need to reassign our source
 		}
 		
@@ -752,24 +752,24 @@ namespace snde {
 		  referencing_rss_strong->recstatus.instantiated_recordings.erase(referencing_rss_channel_state.config);
 		  referencing_rss_strong->recstatus.completed_recordings.emplace(referencing_rss_channel_state.config,&referencing_rss_channel_state);
 		
-		  referencing_rss_channel_state.end_atomic_rec_update(func->wss->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt))).rec());
+		  referencing_rss_channel_state.end_atomic_rec_update(func->rss->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt))).rec());
 		}
 	      }
 	    
 	      
 	    
-	      wss_admin.lock();
+	      rss_admin.lock();
 	      func_admin.lock();
 	    }
 	    our_status.complete=true;
 	    
 	  }
 	  
-	  // clear execfunc->wss to eliminate reference loop once at least metadata execution is complete for an mdonly recording
+	  // clear execfunc->rss to eliminate reference loop once at least metadata execution is complete for an mdonly recording
 	  // or once all execution is complete for a regular recording
 	  if (func->metadataonly_complete || func->fully_complete) {
-	    func->wss = nullptr;
-	    func->execution_tracker->wss = nullptr;
+	    func->rss = nullptr;
+	    func->execution_tracker->rss = nullptr;
 	  }
 	  
 	  func->executing = false; // release the execution ticket
@@ -780,20 +780,20 @@ namespace snde {
 	  //fflush(stdout);
 	  
 	  
-	  // Need to do notifications that the math function finished in all referencing wss's
+	  // Need to do notifications that the math function finished in all referencing rss's
 	  for (auto && referencing_rss_weak: func->referencing_rss) {
 	    std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
 	    
 	    for (auto && result_channel_path_ptr: func->inst->result_channel_paths) {
 	      channel_state &chanstate = referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*result_channel_path_ptr));
-	      //chanstate.issue_math_notifications(recdb,ready_wss); // taken care of by notify_math_function_executed(), below
+	      //chanstate.issue_math_notifications(recdb,ready_rss); // taken care of by notify_math_function_executed(), below
 	      chanstate.issue_nonmath_notifications(referencing_rss_strong);
 	      
 	    }
 	    
 	    // Issue function completion notification
 	    if (recdb_strong) {
-	      snde_debug(SNDE_DC_RECMATH|SNDE_DC_NOTIFY,"pool code: wss notify %lx",(unsigned long)referencing_rss_strong.get());
+	      snde_debug(SNDE_DC_RECMATH|SNDE_DC_NOTIFY,"pool code: rss notify %lx",(unsigned long)referencing_rss_strong.get());
 	      referencing_rss_strong->mathstatus.notify_math_function_executed(recdb_strong,referencing_rss_strong,func->inst,mdonly); 
 	    }
 	  }

@@ -6,18 +6,18 @@
 namespace snde {
   
   class pointcloud_recording: public multi_ndarray_recording {
-    pointcloud_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,size_t num_ndarrays,size_t info_structsize=sizeof(struct snde_multi_ndarray_recording));
-
+    pointcloud_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays);
+    
   };
 
 
   class meshed_part_recording: public multi_ndarray_recording {
-    meshed_part_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,size_t num_ndarrays,size_t info_structsize=sizeof(struct snde_multi_ndarray_recording));
+    meshed_part_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize);
 
   };
 
   class meshed_parameterization_recording: public multi_ndarray_recording {
-    meshed_parameterization_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,size_t num_ndarrays,size_t info_structsize=sizeof(struct snde_multi_ndarray_recording));
+    meshed_parameterization_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize);
 
   };
 
@@ -35,12 +35,13 @@ namespace snde {
   
   class textured_part_recording: public recording_group {
   public:
+    // NOTE: Texture may or may not be actually present (no texture indicated by nullptr parameterization_name and empty texture_refs
     std::string part_name; // strings are path names, absolute or relative, treating the path of the assembly_recording with a trailing slash as a group context
-    std::string parameterization_name;
+    std::shared_ptr<std::string> parameterization_name;
     std::map<snde_index,std::shared_ptr<image_reference>> texture_refs; // indexed by parameterization face number
     
     
-    textured_part_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,size_t num_ndarrays,size_t info_structsize=sizeof(struct snde_recording_base));
+    textured_part_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,snde_index partnum);
 
   };
 
@@ -49,7 +50,7 @@ namespace snde {
   public:
     const std::vector<std::tuple<std::string,snde_orientation3>> pieces; // strings are path names, absolute or relative, treating the path of the assembly_recording with a trailing slash as a group context
     
-    assembly_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,size_t num_ndarrays,size_t info_structsize=sizeof(struct snde_recording_base));
+    assembly_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize);
 
   };
 

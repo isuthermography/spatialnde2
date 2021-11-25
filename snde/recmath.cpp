@@ -110,7 +110,7 @@ namespace snde {
   }
 
   
-  math_function::math_function(const std::vector<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution) :
+  math_function::math_function(const std::vector<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution) :
     param_names_types(param_names_types),
     initiate_execution(initiate_execution)
   {
@@ -449,7 +449,7 @@ namespace snde {
     std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_function;
     
     {
-      std::lock_guard<std::mutex> wss_admin(recstate->admin);
+      std::lock_guard<std::mutex> rss_admin(recstate->admin);
       math_function_status &our_status = recstate->mathstatus.function_status.at(fcn);
 
       // ***!!!!! Need to refactor the status transfer so that we can
@@ -497,11 +497,11 @@ namespace snde {
     assert(ext_dep_it != external_dependencies_on_function->end()); // should always have a vector, even if it's empty
 
 
-    for (auto && wss_fcn: ext_dep_it->second) {
+    for (auto && rss_fcn: ext_dep_it->second) {
       std::shared_ptr<recording_set_state> ext_dep_rss;
       std::shared_ptr<instantiated_math_function> ext_dep_fcn;
 
-      std::tie(ext_dep_rss,ext_dep_fcn) = wss_fcn;
+      std::tie(ext_dep_rss,ext_dep_fcn) = rss_fcn;
       std::unique_lock<std::mutex> dep_rss_admin(ext_dep_rss->admin);
       math_function_status &ext_dep_status = ext_dep_rss->mathstatus.function_status.at(ext_dep_fcn);
 
@@ -516,13 +516,13 @@ namespace snde {
 
     // Queue computations from dependent functions
     
-    for (auto && ready_wss_ready_fcn: ready_to_execute) {
+    for (auto && ready_rss_ready_fcn: ready_to_execute) {
       // Need to queue as a pending_computation
-      std::shared_ptr<recording_set_state> ready_wss;
+      std::shared_ptr<recording_set_state> ready_rss;
       std::shared_ptr<instantiated_math_function> ready_fcn;
 
-      std::tie(ready_wss,ready_fcn) = ready_wss_ready_fcn;
-      recdb->compute_resources->queue_computation(recdb,ready_wss,ready_fcn);
+      std::tie(ready_rss,ready_fcn) = ready_rss_ready_fcn;
+      recdb->compute_resources->queue_computation(recdb,ready_rss,ready_fcn);
     }
 
 
@@ -668,7 +668,7 @@ namespace snde {
 	      std::string result_channel_path = recdb_path_join(dep_fcn->channel_path_context,*result_channel_relpath);
 	      channel_state &chanstate = dep_rss->recstatus.channel_map.at(recdb_path_join(dep_fcn->channel_path_context,result_channel_path));
 	      
-	      //chanstate.issue_math_notifications(recdb,ready_wss); // taken care of by notify_math_function_executed(), below
+	      //chanstate.issue_math_notifications(recdb,ready_rss); // taken care of by notify_math_function_executed(), below
 	      chanstate.issue_nonmath_notifications(dep_rss);
 
 	    }
@@ -696,8 +696,8 @@ namespace snde {
     
   }
 
-  math_function_execution::math_function_execution(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool mdonly,bool is_mutable) :
-    wss(wss),
+  math_function_execution::math_function_execution(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,bool mdonly,bool is_mutable) :
+    rss(rss),
     inst(inst),
     executing(false),
     is_mutable(is_mutable),
@@ -705,15 +705,15 @@ namespace snde {
     metadata_executed(false),
     metadataonly_complete(false),
     fully_complete(false)
-    // automatically adds wss to referencing_rss set
+    // automatically adds rss to referencing_rss set
   {
-    referencing_rss.emplace(std::weak_ptr<recording_set_state>(wss));
+    referencing_rss.emplace(std::weak_ptr<recording_set_state>(rss));
 
   }
 
   
-  executing_math_function::executing_math_function(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst,std::shared_ptr<lockmanager> lockmgr) :
-    wss(wss),
+  executing_math_function::executing_math_function(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,std::shared_ptr<lockmanager> lockmgr) :
+    rss(rss),
     inst(inst),
     lockmgr(lockmgr)
   {
@@ -724,7 +724,7 @@ namespace snde {
     if (inst && inst->self_dependent) {
       for (auto &&result_channel_path_ptr: inst->result_channel_paths) {
 	if (result_channel_path_ptr) {
-	  channel_state &chanstate = wss->recstatus.channel_map.at(*result_channel_path_ptr);
+	  channel_state &chanstate = rss->recstatus.channel_map.at(*result_channel_path_ptr);
 	  self_dependent_recordings.push_back(chanstate.rec());
 	} else {
 	  self_dependent_recordings.push_back(null_recording);

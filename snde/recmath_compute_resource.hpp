@@ -143,7 +143,7 @@ namespace snde {
 
     bool _queue_computation_into_database_acrdb_locked(uint64_t globalrev,std::shared_ptr<pending_computation> computation,const std::vector<std::shared_ptr<compute_resource_option>> &compute_options); // returns true if we successfully queued it into at least one place. 
 
-    void queue_computation(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn);
+    void queue_computation(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> ready_rss,std::shared_ptr<instantiated_math_function> ready_fcn);
     void _queue_computation_internal(std::shared_ptr<pending_computation> &computation); // NOTE: Sets computation to nullptr once queued
     void start(); // start all of the compute_resources
     void dispatch_code();

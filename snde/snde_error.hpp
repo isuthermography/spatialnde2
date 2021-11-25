@@ -112,6 +112,12 @@ namespace snde {
     snde_error(std::string fmt, Args && ... args) : std::runtime_error(std::string("SNDE runtime error: ")+ssprintf(fmt,std::forward<Args>(args) ...)) { 
       
     }
+
+    // Alternate constructor with leading int (that is ignored)
+    // so we can construct without doing string formatting
+    //snde_error(int junk,std::string msg) : std::runtime_error(std::string("SNDE runtime error: ") + msg) {
+    //
+    //}
   };
 
   static inline std::string portable_strerror(int errnum)

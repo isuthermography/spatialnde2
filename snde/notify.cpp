@@ -55,19 +55,19 @@ namespace snde {
     
   }
 
-  void channel_notification_criteria::add_completion_channel(std::shared_ptr<recording_set_state> wss,std::string channelname)
+  void channel_notification_criteria::add_completion_channel(std::shared_ptr<recording_set_state> rss,std::string channelname)
   // satisfied once the specified channel reaches the current (when this criteria is defined) definition of completion for that channel (mdonly vs fullyready)
   // Checks the current definition of completion and calls add_fullyready_channel or add_metadataonly_channel as appropriate
   {
     std::map<std::string,std::shared_ptr<instantiated_math_function>>::iterator math_function_it;
     bool mdonly = false; 
 
-    math_function_it = wss->mathstatus.math_functions->defined_math_functions.find(channelname);
-    if (math_function_it != wss->mathstatus.math_functions->defined_math_functions.end()) {
+    math_function_it = rss->mathstatus.math_functions->defined_math_functions.find(channelname);
+    if (math_function_it != rss->mathstatus.math_functions->defined_math_functions.end()) {
       // channel is a math channel
       
-      std::lock_guard<std::mutex> wssadmin(wss->admin);
-      math_function_status &mathstatus = wss->mathstatus.function_status.at(math_function_it->second);
+      std::lock_guard<std::mutex> rssadmin(rss->admin);
+      math_function_status &mathstatus = rss->mathstatus.function_status.at(math_function_it->second);
       mdonly = mathstatus.mdonly;
     }
     
@@ -172,22 +172,22 @@ namespace snde {
 
   }
 
-  void channel_notify::check_recordingset_complete(std::shared_ptr<recording_set_state> wss)
+  void channel_notify::check_recordingset_complete(std::shared_ptr<recording_set_state> rss)
   {
     bool generate_notify=false;
 
     {
-      std::lock_guard<std::mutex> wss_admin(wss->admin);
+      std::lock_guard<std::mutex> rss_admin(rss->admin);
       std::lock_guard<std::mutex> criteria_admin(criteria.admin);
       
       // check if all recordings are ready;
-      bool all_ready = !wss->recstatus.defined_recordings.size() && !wss->recstatus.instantiated_recordings.size();      
+      bool all_ready = !rss->recstatus.defined_recordings.size() && !rss->recstatus.instantiated_recordings.size();      
       //printf("cn::all_ready;\n");
       //fflush(stdout);
       
       if (criteria.recordingset_complete && all_ready) {
 	criteria.recordingset_complete = false;
-	wss->recordingset_complete_notifiers.erase(shared_from_this());
+	rss->recordingset_complete_notifiers.erase(shared_from_this());
       }
       
       if (!criteria.metadataonly_channels.size() && !criteria.fullyready_channels.size() && !criteria.recordingset_complete) {
@@ -203,19 +203,19 @@ namespace snde {
     
     
   }
-  bool channel_notify::_check_all_criteria_locked(std::shared_ptr<recording_set_state> wss,bool notifies_already_applied_to_wss)
-  // Internal only: Should be called with wss admin lock and criteria admin locks locked. Returns true if an immediate notification is due
+  bool channel_notify::_check_all_criteria_locked(std::shared_ptr<recording_set_state> rss,bool notifies_already_applied_to_rss)
+  // Internal only: Should be called with rss admin lock and criteria admin locks locked. Returns true if an immediate notification is due
   {
     bool generate_notify=false;
     std::vector<std::string> mdonly_satisfied;
     std::vector<std::string> fullyready_satisfied;
 
-    snde_debug(SNDE_DC_NOTIFY,"channel_notify::_check_all_criteria_locked(0x%lx)",(unsigned long)(wss.get()));
+    snde_debug(SNDE_DC_NOTIFY,"channel_notify::_check_all_criteria_locked(0x%lx)",(unsigned long)(rss.get()));
     for (auto && md_channelname: criteria.metadataonly_channels) {
-      channel_state & chanstate = wss->recstatus.channel_map.at(md_channelname);
+      channel_state & chanstate = rss->recstatus.channel_map.at(md_channelname);
       
       if (chanstate.recording_is_complete(true)) {
-	if (notifies_already_applied_to_wss) {
+	if (notifies_already_applied_to_rss) {
 	  std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_metadataonly = chanstate.begin_atomic_notify_about_this_channel_metadataonly_update();	  
 	  notify_about_this_channel_metadataonly->erase(shared_from_this());
 	  chanstate.end_atomic_notify_about_this_channel_metadataonly_update(notify_about_this_channel_metadataonly);
@@ -225,10 +225,10 @@ namespace snde {
     }
     
     for (auto && fr_channelname: criteria.fullyready_channels) {
-      channel_state & chanstate = wss->recstatus.channel_map.at(fr_channelname);
+      channel_state & chanstate = rss->recstatus.channel_map.at(fr_channelname);
       
       if (chanstate.recording_is_complete(false)) {
-	if (notifies_already_applied_to_wss) {
+	if (notifies_already_applied_to_rss) {
 	  std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_ready = chanstate.begin_atomic_notify_about_this_channel_ready_update();
 	  
 	  notify_about_this_channel_ready->erase(shared_from_this());
@@ -240,7 +240,7 @@ namespace snde {
     }
     
     // check if all recordings are ready;
-    bool all_ready = !wss->recstatus.defined_recordings.size() && !wss->recstatus.instantiated_recordings.size();
+    bool all_ready = !rss->recstatus.defined_recordings.size() && !rss->recstatus.instantiated_recordings.size();
     
     // update criteria according to satisfied conditions
     for (auto && md_channelname: mdonly_satisfied) {
@@ -253,8 +253,8 @@ namespace snde {
     
     if (criteria.recordingset_complete && all_ready) {
       criteria.recordingset_complete = false; 
-      if (notifies_already_applied_to_wss) {
-	wss->recordingset_complete_notifiers.erase(shared_from_this());
+      if (notifies_already_applied_to_rss) {
+	rss->recordingset_complete_notifiers.erase(shared_from_this());
       }
     }
     
@@ -262,23 +262,23 @@ namespace snde {
       // all criteria removed; ready for notification
       generate_notify=true;
     }
-    snde_debug(SNDE_DC_NOTIFY,"cacl() mdoc_size=%d frc_size=%d wait_complete=%s defined=%d instantiated=%d; returns %s",(int)criteria.metadataonly_channels.size(),(int)criteria.fullyready_channels.size(),(criteria.recordingset_complete) ? "true": "false",(int)wss->recstatus.defined_recordings.size(),(int)wss->recstatus.instantiated_recordings.size(), (generate_notify) ? "true":"false");
+    snde_debug(SNDE_DC_NOTIFY,"cacl() mdoc_size=%d frc_size=%d wait_complete=%s defined=%d instantiated=%d; returns %s",(int)criteria.metadataonly_channels.size(),(int)criteria.fullyready_channels.size(),(criteria.recordingset_complete) ? "true": "false",(int)rss->recstatus.defined_recordings.size(),(int)rss->recstatus.instantiated_recordings.size(), (generate_notify) ? "true":"false");
     return generate_notify;
   }
   
     
   
 
-  void channel_notify::check_all_criteria(std::shared_ptr<recording_set_state> wss)
+  void channel_notify::check_all_criteria(std::shared_ptr<recording_set_state> rss)
   {
     bool generate_notify=false;
 	
 
     {
-      std::lock_guard<std::mutex> wss_admin(wss->admin);
+      std::lock_guard<std::mutex> rss_admin(rss->admin);
       std::lock_guard<std::mutex> criteria_admin(criteria.admin);
 
-      generate_notify=_check_all_criteria_locked(wss,true);
+      generate_notify=_check_all_criteria_locked(rss,true);
       
       
     }
@@ -295,20 +295,20 @@ namespace snde {
     return nullptr;
   }
   
-  void channel_notify::apply_to_wss(std::shared_ptr<recording_set_state> wss) // apply this notification process to a particular recording_set_state. WARNING: May trigger the notification immediately
+  void channel_notify::apply_to_rss(std::shared_ptr<recording_set_state> rss) // apply this notification process to a particular recording_set_state. WARNING: May trigger the notification immediately
   {
     bool generate_notify;
     {
-      std::lock_guard<std::mutex> wss_admin(wss->admin);
+      std::lock_guard<std::mutex> rss_admin(rss->admin);
       std::lock_guard<std::mutex> criteria_admin(criteria.admin);
 
-      generate_notify=_check_all_criteria_locked(wss,false);
+      generate_notify=_check_all_criteria_locked(rss,false);
       
       // Add criteria to this recording set state
 
 
       for (auto && md_channelname: criteria.metadataonly_channels) {
-	channel_state & chanstate = wss->recstatus.channel_map.at(md_channelname);
+	channel_state & chanstate = rss->recstatus.channel_map.at(md_channelname);
       
 	std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_metadataonly = chanstate.begin_atomic_notify_about_this_channel_metadataonly_update();	  
 	notify_about_this_channel_metadataonly->emplace(shared_from_this());
@@ -318,7 +318,7 @@ namespace snde {
 
       
       for (auto && fr_channelname: criteria.fullyready_channels) {
-	channel_state & chanstate = wss->recstatus.channel_map.at(fr_channelname);
+	channel_state & chanstate = rss->recstatus.channel_map.at(fr_channelname);
       
 	std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_ready = chanstate.begin_atomic_notify_about_this_channel_ready_update();
 	  
@@ -329,7 +329,7 @@ namespace snde {
 
       
     if (criteria.recordingset_complete) {
-      wss->recordingset_complete_notifiers.emplace(shared_from_this());
+      rss->recordingset_complete_notifiers.emplace(shared_from_this());
     }
     
     

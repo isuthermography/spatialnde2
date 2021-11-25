@@ -50,15 +50,15 @@ namespace snde {
     // and recmath_cppfunction.hpp templates to call the appropriate
     // additional get_...() methods. Also make sure they have a SNDE_WTN entry
     // in recording.h
-    virtual std::string get_string(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
-    virtual int64_t get_int(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
-    virtual double get_double(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
-    virtual std::vector<snde_index> get_indexvec(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
+    virtual std::string get_string(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
+    virtual int64_t get_int(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
+    virtual double get_double(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
+    virtual std::vector<snde_index> get_indexvec(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
 
-    virtual std::shared_ptr<recording_base> get_recording(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings because we shouldn't be called until dependencies are ready // parameter_index human interpreted parameter number, starting at 1, for error messages only
+    virtual std::shared_ptr<recording_base> get_recording(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings because we shouldn't be called until dependencies are ready // parameter_index human interpreted parameter number, starting at 1, for error messages only
 
     // default implementations that returns an empty set
-    virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<recording_set_state> wss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the recording
+    virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<recording_set_state> rss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the recording
   };
 
 
@@ -67,7 +67,7 @@ namespace snde {
     std::string string_constant;
 
     math_parameter_string_const(std::string string_constant);
-    virtual std::string get_string(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
+    virtual std::string get_string(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
 
     virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
     virtual bool operator!=(const math_parameter &ref);
@@ -80,7 +80,7 @@ namespace snde {
     int64_t int_constant;
 
     math_parameter_int_const(int64_t int_constant);
-    virtual int64_t get_int(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
+    virtual int64_t get_int(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
 
     virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
     virtual bool operator!=(const math_parameter &ref);
@@ -92,7 +92,7 @@ namespace snde {
     double double_constant;
 
     math_parameter_double_const(double double_constant);
-    virtual double get_double(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
+    virtual double get_double(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
     
     virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
     virtual bool operator!=(const math_parameter &ref);
@@ -104,7 +104,7 @@ namespace snde {
     std::vector<snde_index> indexvec;
 
     math_parameter_indexvec_const(const std::vector<snde_index> & indexvec);
-    virtual std::vector<snde_index> get_indexvec(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
+    virtual std::vector<snde_index> get_indexvec(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
 
     virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
     virtual bool operator!=(const math_parameter &ref);
@@ -117,8 +117,8 @@ namespace snde {
     std::string channel_name;
 
     math_parameter_recording(std::string channel_name);
-    virtual std::shared_ptr<recording_base> get_recording(std::shared_ptr<recording_set_state> wss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings. parameter_index starting at 1, just for printing messages
-    virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<recording_set_state> wss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the recording
+    virtual std::shared_ptr<recording_base> get_recording(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings. parameter_index starting at 1, just for printing messages
+    virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<recording_set_state> rss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the recording
 
     virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
     virtual bool operator!=(const math_parameter &ref);

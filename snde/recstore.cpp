@@ -126,40 +126,7 @@ namespace snde {
   
   // see https://stackoverflow.com/questions/38644146/choose-template-based-on-run-time-string-in-c
 
-  
-  recording_base::recording_base(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,size_t info_structsize) :
-    // This constructor is to be called by everything except the math engine
-    //  * Should be called by the owner of the given channel, as verified by owner_id
-    //  * Should be called within a transaction (i.e. the recdb transaction_lock is held by the existance of the transaction)
-    //  * Because within a transaction, recdb->current_transaction is valid
-    // This constructor automatically adds the new recording to the current transaction
-    info{nullptr},
-    info_state(SNDE_RECS_INITIALIZING),
-    metadata(nullptr),
-    storage_manager(nullptr), // defined in end_transaction()
-    recdb_weak(recdb), 
-    defining_transact(recdb->current_transaction),
-    _originating_wss()
-    //_originating_globalrev_index(recdb->current_transaction->globalrev),
-  {
-    uint64_t new_revision = ++chan->latest_revision; // atomic variable so it is safe to pre-increment
-    info = (snde_recording_base *)calloc(1,info_structsize);
-    
-    assert(info_structsize >= sizeof(snde_recording_base));
-    
-    snde_recording_base info_prototype;
-    info_prototype.name = strdup(chan->config()->channelpath.c_str());
-    info_prototype.revision = new_revision;
-    info_prototype.state = info_state;
-    info_prototype.metadata = nullptr;
-    info_prototype.metadata_valid = false;
-    info_prototype.deletable = false;
-    info_prototype.immutable = true;
-    *info = info_prototype;
-    
-  }
-
-  static std::shared_ptr<recording_storage_manager> select_storage_manager_for_recording_during_transaction(std::shared_ptr<recdatabase> recdb,std::string chanpath)
+  std::shared_ptr<recording_storage_manager> select_storage_manager_for_recording_during_transaction(std::shared_ptr<recdatabase> recdb,std::string chanpath)
   {
     // normally use select_storage_manager_for_recording (below) but if we create a recording during the transaction, the rss isn't created yet
     // so instead we walk the recdb's list of channels
@@ -189,7 +156,7 @@ namespace snde {
     
   }
   
-  static std::shared_ptr<recording_storage_manager> select_storage_manager_for_recording(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> rss)
+  std::shared_ptr<recording_storage_manager> select_storage_manager_for_recording(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> rss)
   {
     // Go up through hierarchy searching for a storage manager.
     // Drop down to the default if we hit the root
@@ -211,40 +178,34 @@ namespace snde {
     
     return recdb->default_storage_manager;
   }
+
   
-  recording_base::recording_base(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,size_t info_structsize) :
-    // This constructor is reserved for the math engine
-    // Creates recording structure and adds to the pre-existing globalrev.
+  recording_base::recording_base(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
+    // This constructor is to be called by everything except the math engine
+    //  * Should be called by the owner of the given channel, as verified by owner_id
+    //  * Should be called within a transaction (i.e. the recdb transaction_lock is held by the existance of the transaction)
+    //  * Because within a transaction, recdb->current_transaction is valid
+    // This constructor automatically adds the new recording to the current transaction
     info{nullptr},
     info_state(SNDE_RECS_INITIALIZING),
     metadata(nullptr),
-    storage_manager(select_storage_manager_for_recording(recdb,chanpath,calc_rss)),
-    recdb_weak(recdb),
-    defining_transact((std::dynamic_pointer_cast<globalrevision>(calc_rss)) ? (std::dynamic_pointer_cast<globalrevision>(calc_rss)->defining_transact):nullptr),
-    _originating_wss(calc_rss)
+    storage_manager(storage_manager), // initially null but defined in end_transaction() for non-math recordings
+    recdb_weak(recdb), 
+    defining_transact(defining_transact),
+    _originating_rss(_originating_rss)
   {
+    //uint64_t new_revision = ++chan->latest_revision; // atomic variable so it is safe to pre-increment
 
-    uint64_t new_revision=0;
+    // validate info_structsize
+    info_structsize = recording_default_info_structsize(info_structsize,sizeof(snde_recording_base));
 
-    if (std::dynamic_pointer_cast<globalrevision>(calc_rss)) {
-      // if calc_rss is really a globalrevision (i.e. not an ondemand calculation)
-      // then we need to define a new revision of this recording
-            
-      channel_state &state = calc_rss->recstatus.channel_map.at(chanpath);
-      assert(!state.config->ondemand);
-
-      // if the new_revision_optional flag is set, then we have to define the new revision now;
-      if (state.config->math_fcn->fcn->new_revision_optional) {
-	new_revision = ++state._channel->latest_revision; // latest_revision is atomic; correct ordering guaranteed by the implicit self-dependency that comes with new_revision_optional flag
-      } else{
-	// new_revision_optional is clear: grab revision from channel_state
-	new_revision = *state.revision;
-      }
-      
-    }
+    //if (!info_structsize) {
+    //  info_structsize = sizeof(snde_recording_base);
+    //}
+    //assert(info_structsize >= sizeof(snde_recording_base));
+    
     info = (snde_recording_base *)calloc(1,info_structsize);
-    assert(info_structsize >= sizeof(snde_recording_base));
-
+        
     snde_recording_base info_prototype;
     info_prototype.name = strdup(chanpath.c_str());
     info_prototype.revision = new_revision;
@@ -254,9 +215,10 @@ namespace snde {
     info_prototype.deletable = false;
     info_prototype.immutable = true; // overridden below from data_mutable flag of the channelconfig 
     *info = info_prototype;
-
     
   }
+
+  
 
   recording_base::~recording_base()
   {
@@ -273,40 +235,40 @@ namespace snde {
   }
 
 
-  std::shared_ptr<recording_set_state> recording_base::_get_originating_wss_rec_admin_prelocked() 
-  // version of get_originating_wss() to use if you have (optionally the recdb and) the rec admin locks already locked.
+  std::shared_ptr<recording_set_state> recording_base::_get_originating_rss_rec_admin_prelocked() 
+  // version of get_originating_rss() to use if you have (optionally the recdb and) the rec admin locks already locked.
   {
-    std::shared_ptr<recording_set_state> originating_wss_strong;
+    std::shared_ptr<recording_set_state> originating_rss_strong;
     //std::shared_ptr<recdatabase> recdb_strong(recdb_weak);
-    bool originating_wss_is_expired=false; // will assign to true if we get an invalid pointer and it turns out to be expired rather than null
+    bool originating_rss_is_expired=false; // will assign to true if we get an invalid pointer and it turns out to be expired rather than null
     
     {
-      originating_wss_strong = _originating_wss.lock();
-      if (!originating_wss_strong) {
-	originating_wss_is_expired = invalid_weak_ptr_is_expired(_originating_wss);
+      originating_rss_strong = _originating_rss.lock();
+      if (!originating_rss_strong) {
+	originating_rss_is_expired = invalid_weak_ptr_is_expired(_originating_rss);
       }
-      // get originating_wss from _originating_wss weak ptr in class and
+      // get originating_rss from _originating_rss weak ptr in class and
       // if unavailable determine it is expired (see https://stackoverflow.com/questions/26913743/can-an-expired-weak-ptr-be-distinguished-from-an-uninitialized-one)
       //// check if merely unassigned vs. expired by testing with owner_before on a nullptr
       //std::weak_ptr<recording_set_state> null_weak_ptr;
-      //if (null_weak_ptr.owner_before(_originating_wss) || _originating_wss.owner_before(null_weak_ptr)) {
+      //if (null_weak_ptr.owner_before(_originating_rss) || _originating_rss.owner_before(null_weak_ptr)) {
       ///// this is distinct from the nullptr
-      //originating_wss_is_expired=true; 
+      //originating_rss_is_expired=true; 
       //}
       
     }
     
     // OK; Now we have a strong ptr, which may be null, and
-    // if so originating_wss_is_expired is true iff it was
+    // if so originating_rss_is_expired is true iff it was
     // once valid
     
-    if (!originating_wss_strong && originating_wss_is_expired) {
+    if (!originating_rss_strong && originating_rss_is_expired) {
       throw snde_error("Attempting to get expired originating recording set state (channel %s revision %llu", info->name,(unsigned long long)info->revision);
       
     }
     
-    if (!originating_wss_strong) {
-      // in this case originating_wss was never assigned. We need to extract it
+    if (!originating_rss_strong) {
+      // in this case originating_rss was never assigned. We need to extract it
 
       bool defining_transact_is_expired = false;
       std::shared_ptr<transaction> defining_transact_strong=defining_transact.lock();
@@ -316,7 +278,7 @@ namespace snde {
 	  throw snde_error("Attempting to get (expired transaction) originating recording set state (channel %s revision %llu", info->name,(unsigned long long)info->revision);
 	  
 	} else {
-	  throw snde_error("Attempting to get originating recording set state (channel %s revision %llu for non-transaction and non-wss recording (?)", info->name,(unsigned long long)info->revision);
+	  throw snde_error("Attempting to get originating recording set state (channel %s revision %llu for non-transaction and non-rss recording (?)", info->name,(unsigned long long)info->revision);
 	  
 	}
 
@@ -339,41 +301,41 @@ namespace snde {
 	}
       }
       // originating_globalrev is valid
-      originating_wss_strong = originating_globalrev;
+      originating_rss_strong = originating_globalrev;
     }
-    // originating_wss_strong is valid; OK to return it
+    // originating_rss_strong is valid; OK to return it
     
-    return originating_wss_strong;
+    return originating_rss_strong;
   }
   
-  std::shared_ptr<recording_set_state> recording_base::_get_originating_wss_recdb_admin_prelocked()
+  std::shared_ptr<recording_set_state> recording_base::_get_originating_rss_recdb_admin_prelocked()
   {
-    std::shared_ptr<recording_set_state> originating_wss_strong = _originating_wss.lock();
-    if (originating_wss_strong) return originating_wss_strong;
+    std::shared_ptr<recording_set_state> originating_rss_strong = _originating_rss.lock();
+    if (originating_rss_strong) return originating_rss_strong;
     
     std::lock_guard<std::mutex> recadmin(admin);
-    return _get_originating_wss_rec_admin_prelocked();
+    return _get_originating_rss_rec_admin_prelocked();
 
   }
 
 
   
-  std::shared_ptr<recording_set_state> recording_base::get_originating_wss()
+  std::shared_ptr<recording_set_state> recording_base::get_originating_rss()
   // Get the originating recording set state (often a globalrev)
-  // You should only call this if you are sure that originating wss must still exist
+  // You should only call this if you are sure that originating rss must still exist
   // (otherwise may generate a snde_error), such as before the creator has declared
   // the recording "ready". This will lock the recording database and rec admin locks,
   // so any locks currently held must precede both in the locking order
   {
 
-    std::shared_ptr<recording_set_state> originating_wss_strong = _originating_wss.lock();
-    if (originating_wss_strong) return originating_wss_strong;
+    std::shared_ptr<recording_set_state> originating_rss_strong = _originating_rss.lock();
+    if (originating_rss_strong) return originating_rss_strong;
     
     //std::shared_ptr<recdatabase> recdb_strong = recdb_weak.lock();
     //if (!recdb_strong) return nullptr; // shouldn't be possible in general
     //std::lock_guard<std::mutex> recdbadmin(recdb_strong->admin);
     std::lock_guard<std::mutex> recadmin(admin);
-    return _get_originating_wss_rec_admin_prelocked();
+    return _get_originating_rss_rec_admin_prelocked();
   }
 
   bool recording_base::_transactionrec_transaction_still_in_progress_admin_prelocked() // with the recording admin locked,  return if this is a transaction recording where the transaction is still in progress and therefore we can't get the recording_set_state
@@ -413,7 +375,7 @@ namespace snde {
   }
 
 
-    /* std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> */ void recording_base::_mark_metadata_done_internal(/*std::shared_ptr<recording_set_state> wss,const std::string &channame*/)
+    /* std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> */ void recording_base::_mark_metadata_done_internal(/*std::shared_ptr<recording_set_state> rss,const std::string &channame*/)
   // internal use only. Should be called with the recording admin lock held
   {
 
@@ -424,7 +386,7 @@ namespace snde {
     info_state = SNDE_RECS_METADATAREADY;
 
     // this code replaced by issue_nonmath_notifications, below
-    //channel_state &chanstate = wss->recstatus.channel_map.at(channame);
+    //channel_state &chanstate = rss->recstatus.channel_map.at(channame);
     //notify_about_this_channel_metadataonly = chanstate.notify_about_this_channel_metadataonly();
     //chanstate.end_atomic_notify_about_this_channel_metadataonly_update(nullptr); // all notifications are now our responsibility
     // return notify_about_this_channel_metadataonly;
@@ -436,7 +398,7 @@ namespace snde {
     // This should be called, not holding locks, (except perhaps dg_python context) after info->metadata is finalized
     bool mdonly=false; // set to true if we are an mdonly channel and therefore should send out mdonly notifications
     
-    std::shared_ptr<recording_set_state> wss; // originating wss
+    std::shared_ptr<recording_set_state> rss; // originating rss
     
     std::shared_ptr<recdatabase> recdb = recdb_weak.lock();
     if (!recdb) return;
@@ -456,17 +418,17 @@ namespace snde {
 	}
 	
 	channame = info->name;
-	/*notify_about_this_channel_metadataonly = */_mark_metadata_done_internal(/*wss,channame*/);
+	/*notify_about_this_channel_metadataonly = */_mark_metadata_done_internal(/*rss,channame*/);
 	return;
       }
     }
     channel_state *chanstate;
     {
       
-      // with transaction complete, should be able to get an originating wss
+      // with transaction complete, should be able to get an originating rss
       // (trying to make the state change atomically)
-      wss = get_originating_wss();
-      std::lock_guard<std::mutex> wss_admin(wss->admin);
+      rss = get_originating_rss();
+      std::lock_guard<std::mutex> rss_admin(rss->admin);
       std::lock_guard<std::mutex> adminlock(admin);
       assert(metadata);
       info->metadata = metadata.get();
@@ -476,29 +438,29 @@ namespace snde {
       }
 
       channame = info->name;
-      /*notify_about_this_channel_metadataonly = */_mark_metadata_done_internal(/*wss,channame*/);
+      /*notify_about_this_channel_metadataonly = */_mark_metadata_done_internal(/*rss,channame*/);
 
-      chanstate = &wss->recstatus.channel_map.at(channame);
+      chanstate = &rss->recstatus.channel_map.at(channame);
 
       // if this is a metadataonly recording
-      // Need to move this channel_state reference from wss->recstatus.instantiated_recordings into wss->recstatus->metadataonly_recordings
+      // Need to move this channel_state reference from rss->recstatus.instantiated_recordings into rss->recstatus->metadataonly_recordings
       std::map<std::string,std::shared_ptr<instantiated_math_function>>::iterator math_function_it;
-      math_function_it = wss->mathstatus.math_functions->defined_math_functions.find(channame);
+      math_function_it = rss->mathstatus.math_functions->defined_math_functions.find(channame);
 
-      if (math_function_it != wss->mathstatus.math_functions->defined_math_functions.end()) {
+      if (math_function_it != rss->mathstatus.math_functions->defined_math_functions.end()) {
 	// channel is a math channel (only math channels can be mdonly)
 	
-	math_function_status &mathstatus = wss->mathstatus.function_status.at(math_function_it->second);
+	math_function_status &mathstatus = rss->mathstatus.function_status.at(math_function_it->second);
 
 	if (mathstatus.mdonly) {
 	  // yes, an mdonly channel... move it from instantiated recordings to metadataonly_recordings
 	  mdonly=true;
 	  
-	  std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator instantiated_recording_it = wss->recstatus.instantiated_recordings.find(chanstate->config); 
-	  assert(instantiated_recording_it != wss->recstatus.instantiated_recordings.end());
+	  std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator instantiated_recording_it = rss->recstatus.instantiated_recordings.find(chanstate->config); 
+	  assert(instantiated_recording_it != rss->recstatus.instantiated_recordings.end());
 
-	  wss->recstatus.instantiated_recordings.erase(instantiated_recording_it);
-	  wss->recstatus.metadataonly_recordings.emplace(chanstate->config,chanstate);
+	  rss->recstatus.instantiated_recordings.erase(instantiated_recording_it);
+	  rss->recstatus.metadataonly_recordings.emplace(chanstate->config,chanstate);
 	}
       }
     }
@@ -515,8 +477,8 @@ namespace snde {
     // Above replaced by chanstate.issue_nonmath_notifications
 
     //if (mdonly) {
-    chanstate->issue_math_notifications(recdb,wss,true);
-    chanstate->issue_nonmath_notifications(wss);
+    chanstate->issue_math_notifications(recdb,rss,true);
+    chanstate->issue_nonmath_notifications(rss);
     //}
     
   }
@@ -524,7 +486,7 @@ namespace snde {
   void recording_base::mark_as_ready()  
   {
     std::string channame;
-    std::shared_ptr<recording_set_state> wss; // originating wss
+    std::shared_ptr<recording_set_state> rss; // originating rss
     //std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_ready;
     //std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_metadataonly;
 
@@ -555,7 +517,7 @@ namespace snde {
 	
 	if (info_state==SNDE_RECS_INITIALIZING) {
 	  // need to perform metadata notifies too
-	  /*notify_about_this_channel_metadataonly =*/ /* _mark_metadata_done_internal(wss,channame); */
+	  /*notify_about_this_channel_metadataonly =*/ /* _mark_metadata_done_internal(rss,channame); */
 	  
 	}
 	
@@ -563,7 +525,7 @@ namespace snde {
 	info_state = SNDE_RECS_READY;
 	
 	// These next few lines replaced by chanstate.issue_nonmath_notifications, below
-	//channel_state &chanstate = wss->recstatus.channel_map.at(channame);
+	//channel_state &chanstate = rss->recstatus.channel_map.at(channame);
 	//notify_about_this_channel_ready = chanstate.notify_about_this_channel_ready();
 	//chanstate.end_atomic_notify_about_this_channel_ready_update(nullptr); // all notifications are now our responsibility
 	
@@ -574,10 +536,10 @@ namespace snde {
     channel_state *chanstate;
     {
       
-      // with transaction complete, should be able to get an originating wss
+      // with transaction complete, should be able to get an originating rss
       // (trying to make the state change atomically)
-      wss = get_originating_wss();
-      std::lock_guard<std::mutex> wss_admin(wss->admin);
+      rss = get_originating_rss();
+      std::lock_guard<std::mutex> rss_admin(rss->admin);
       std::lock_guard<std::mutex> adminlock(admin);
 
       assert(metadata);
@@ -592,19 +554,19 @@ namespace snde {
       
 	
 
-      chanstate = &wss->recstatus.channel_map.at(channame);
+      chanstate = &rss->recstatus.channel_map.at(channame);
 
       if (info_state==SNDE_RECS_INITIALIZING || info_state == SNDE_RECS_METADATAREADY) {
 	// need to perform metadata notifies too
-	/*notify_about_this_channel_metadataonly =*/ /* _mark_metadata_done_internal(wss,channame); */
+	/*notify_about_this_channel_metadataonly =*/ /* _mark_metadata_done_internal(rss,channame); */
 	// move this state from recstatus.instantiated_recordings->recstatus.completed_recordings
-	std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator instantiated_recording_it = wss->recstatus.instantiated_recordings.find(chanstate->config);
-	std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator mdonly_recording_it = wss->recstatus.metadataonly_recordings.find(chanstate->config); 
+	std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator instantiated_recording_it = rss->recstatus.instantiated_recordings.find(chanstate->config);
+	std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator mdonly_recording_it = rss->recstatus.metadataonly_recordings.find(chanstate->config); 
 	
-	if (instantiated_recording_it != wss->recstatus.instantiated_recordings.end()) {
-	  wss->recstatus.instantiated_recordings.erase(instantiated_recording_it);
-	} else if (mdonly_recording_it != wss->recstatus.metadataonly_recordings.end()) {
-	  wss->recstatus.metadataonly_recordings.erase(mdonly_recording_it);
+	if (instantiated_recording_it != rss->recstatus.instantiated_recordings.end()) {
+	  rss->recstatus.instantiated_recordings.erase(instantiated_recording_it);
+	} else if (mdonly_recording_it != rss->recstatus.metadataonly_recordings.end()) {
+	  rss->recstatus.metadataonly_recordings.erase(mdonly_recording_it);
 	} else {
 	  throw snde_error("mark_as_ready() with recording not found in instantiated or mdonly",(int)info_state);
 	}
@@ -620,7 +582,7 @@ namespace snde {
 
       info->state = SNDE_RECS_READY;
       info_state = SNDE_RECS_READY;
-      wss->recstatus.completed_recordings.emplace(chanstate->config,chanstate);
+      rss->recstatus.completed_recordings.emplace(chanstate->config,chanstate);
 
 
     // perform notifications (replaced by issue_nonmath_notifications())
@@ -635,25 +597,20 @@ namespace snde {
 
 
     //assert(chanstate.notify_about_this_channel_metadataonly());
-    chanstate->issue_math_notifications(recdb,wss,true);
-    chanstate->issue_nonmath_notifications(wss);
+    chanstate->issue_math_notifications(recdb,rss,true);
+    chanstate->issue_nonmath_notifications(rss);
   }
+
 
 
   
   // after construction, must call .define_array() exactly once for each ndarray
-  multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,size_t num_ndarrays,size_t info_structsize) :
-    // This constructor is to be called by everything except the math engine
-    //  * Should be called by the owner of the given channel, as verified by owner_id
-    //  * Should be called within a transaction (i.e. the recdb transaction_lock is held by the existance of the transaction)
-    //  * Because within a transaction, recdb->current_transaction is valid
-    // This constructor automatically adds the new recording to the current transaction
-    recording_base(recdb,chan,owner_id,info_structsize),
+  multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays) :
+    // after construction, must call .define_array() exactly once for each ndarray
+    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,recording_default_info_structsize(info_structsize,sizeof(snde_multi_ndarray_recording))),
     layouts(std::vector<arraylayout>(num_ndarrays)),
     storage(std::vector<std::shared_ptr<recording_storage>>(num_ndarrays))
   {
-
-    assert(info_structsize >= sizeof(snde_multi_ndarray_recording));
 
     mndinfo()->dims_valid=false;
     mndinfo()->data_valid=false;
@@ -671,38 +628,6 @@ namespace snde {
     //ndinfo()->basearray = nullptr;
     //ndinfo()->basearray_holder = nullptr;
     
-  }
-
-  // after construction, must call .define_array() exactly once for each ndarray
-multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,size_t num_ndarrays,size_t info_structsize) :
-  // This constructor is reserved for the math engine
-  // Creates recording structure and adds to the pre-existing globalrev. 
-  recording_base(recdb,chanpath,calc_rss,info_structsize),
-  layouts(std::vector<arraylayout>(num_ndarrays)),
-  storage(std::vector<std::shared_ptr<recording_storage>>(num_ndarrays))
-  //mutable_lock(nullptr),  // for simply mutable math recordings will need to init with std::make_shared<rwlock>();
-  {
-    assert(info_structsize >= sizeof(snde_multi_ndarray_recording));
-
-    mndinfo()->dims_valid=false;
-    mndinfo()->data_valid=false;
-    mndinfo()->num_arrays=num_ndarrays;
-    mndinfo()->arrays = (snde_ndarray_info *)calloc(sizeof(snde_ndarray_info)*num_ndarrays,1);
-
-    //define_array(0,typenum);
-    //ndinfo()->ndim=0;
-    //ndinfo()->base_index=0;
-    //ndinfo()->dimlen=nullptr;
-    //ndinfo()->strides=nullptr;
-    //ndinfo()->owns_dimlen_strides=false;
-    //ndinfo()->typenum=typenum;
-    //ndinfo()->elementsize=rtn_typesizemap.at(typenum);
-    //ndinfo()->requires_locking_read=false;
-    //ndinfo()->requires_locking_write=false;
-    //ndinfo()->basearray = nullptr;
-    //ndinfo()->shiftedarray = nullptr;
-    //ndinfo()->basearray_holder = nullptr;
-
   }
 
   
@@ -738,32 +663,6 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     
   }
 
-  /*static */ std::shared_ptr<ndarray_recording_ref> multi_ndarray_recording::create_typed_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum)
-  {
-    std::shared_ptr<multi_ndarray_recording> rec;
-    std::shared_ptr<ndarray_recording_ref> ref;
-
-    // ***!!! Should loock up maker method in a runtime-addable database ***!!!
-
-    rec=std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
-    rec->define_array(0,typenum);
-    
-    ref=rec->reference_ndarray(0);
-    recdb->register_new_rec(rec);
-    return ref;
-  }
-  /* static */ std::shared_ptr<ndarray_recording_ref> multi_ndarray_recording::create_typed_recording_math(std::shared_ptr<recdatabase> recdb,std::string chanpath,void *owner_id,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum)
-  {
-    std::shared_ptr<multi_ndarray_recording> rec;
-    std::shared_ptr<ndarray_recording_ref> ref;
-
-    rec=std::make_shared<multi_ndarray_recording>(recdb,chanpath,calc_rss,1); 
-    rec->define_array(0,typenum);
-    ref=rec->reference_ndarray(0);
-
-    recdb->register_new_math_rec(owner_id,calc_rss,rec);
-    return ref;
-  }
 
   std::shared_ptr<ndarray_recording_ref> multi_ndarray_recording::reference_ndarray(size_t index)
   {
@@ -880,19 +779,19 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
       std::shared_ptr<recdatabase> recdb_strong=recdb_weak.lock();
       if (!recdb_strong) return; // if recdb is vanishing we are dead too
       
-      std::shared_ptr<recording_set_state> originating_wss_strong;
+      std::shared_ptr<recording_set_state> originating_rss_strong;
 
       {
 	std::unique_lock<std::mutex> recdb_admin(recdb_strong->admin);
 	std::unique_lock<std::mutex> rec_admin(admin); // lock recording
 
-	originating_wss_strong = _originating_wss.lock();
-	if (!originating_wss_strong && invalid_weak_ptr_is_expired(_originating_wss)) {
+	originating_rss_strong = _originating_rss.lock();
+	if (!originating_rss_strong && invalid_weak_ptr_is_expired(_originating_rss)) {
 	  throw snde_error("Attempting to get expired originating recording set state (channel %s revision %llu", info->name,(unsigned long long)info->revision);
 	
 	}
-	if (!originating_wss_strong) {
-	  // in this case originating_wss was never assigned. We need to extract it
+	if (!originating_rss_strong) {
+	  // in this case originating_rss was never assigned. We need to extract it
 	  
 	  bool defining_transact_is_expired = false;
 	  std::shared_ptr<transaction> defining_transact_strong=defining_transact.lock();
@@ -902,7 +801,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
 	      throw snde_error("Attempting to get (expired transaction) originating recording set state (channel %s revision %llu", info->name,(unsigned long long)info->revision);
 	      
 	    } else {
-	      throw snde_error("Attempting to allocate storage for recording set state (channel %s revision %llu) for non-transaction and non-wss recording with no storage_manager set", info->name,(unsigned long long)info->revision);
+	      throw snde_error("Attempting to allocate storage for recording set state (channel %s revision %llu) for non-transaction and non-rss recording with no storage_manager set", info->name,(unsigned long long)info->revision);
 	      
 	    }
 	    
@@ -931,13 +830,13 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
 	    }
 	  }
 	  
-	  originating_wss_strong = originating_globalrev;
+	  originating_rss_strong = originating_globalrev;
 	}
       } // locks dropped at this point
 
       
       if (!storage_manager) {
-	storage_manager = select_storage_manager_for_recording(recdb_strong,info->name,originating_wss_strong);
+	storage_manager = select_storage_manager_for_recording(recdb_strong,info->name,originating_rss_strong);
       }
     }
     //  that whole mess above was just getting us a guaranteed storage manager
@@ -1979,7 +1878,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
 	std::shared_ptr<channel_notify> chan_notify = repetitive_notify->create_notify_instance();
 
 	// insert this notify into new_rss data structures.
-	/// NOTE: ***!!! This could probably be simplified by leveraging apply_to_wss() method
+	/// NOTE: ***!!! This could probably be simplified by leveraging apply_to_rss() method
 	// but that would lose flexibility to ignore missing channels
 	{
 	  std::lock_guard<std::mutex> criteria_lock(chan_notify->criteria.admin);
@@ -2218,8 +2117,8 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
       for (auto && chanstate: unchanged_incomplete_channels) { // chanstate is a channel_state &
 	channel_state &previous_state = previous_rss->recstatus.channel_map.at(chanstate->config->channelpath);
 	std::shared_ptr<_unchanged_channel_notify> unchangednotify=std::make_shared<_unchanged_channel_notify>(recdb,new_globalrev,previous_state,*chanstate,false);
-	unchangednotify->apply_to_wss(previous_rss); 
-	/*this code replaced by apply_to_wss()
+	unchangednotify->apply_to_rss(previous_rss); 
+	/*this code replaced by apply_to_rss()
 	std::unique_lock<std::mutex> previous_rss_admin(previous_rss->admin);
 
 	// queue up notification
@@ -2234,9 +2133,9 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
       for (auto && chanstate: unchanged_incomplete_mdonly_channels) { // chanstate is a channel_state &
 	channel_state &previous_state = previous_rss->recstatus.channel_map.at(chanstate->config->channelpath);
 	std::shared_ptr<_unchanged_channel_notify> unchangednotify=std::make_shared<_unchanged_channel_notify>(recdb,new_globalrev,previous_state,*chanstate,true);
-	unchangednotify->apply_to_wss(previous_rss); 
+	unchangednotify->apply_to_rss(previous_rss); 
 
-	/* this code replaced by apply_to_wss()
+	/* this code replaced by apply_to_rss()
 	std::unique_lock<std::mutex> previous_rss_admin(previous_rss->admin);
 	
 	// queue up notification
@@ -2444,7 +2343,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
       // new recording should be required but not present; create one
       assert(recdb_strong->current_transaction->new_recording_required.at(config->channelpath) && new_recording_it==recdb_strong->current_transaction->new_recordings.end());
       //new_rec = std::make_shared<recording_base>(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32); // constructor adds itself to current transaction
-      new_rec_ref = multi_ndarray_recording::create_typed_recording(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32);
+      new_rec_ref = create_recording_ref(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32);
       new_rec = new_rec_ref->rec;
       //recordings_needing_finalization.emplace(new_rec); // Since we provided this, we need to make it ready, below
       
@@ -2531,22 +2430,22 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     }
 
     // queue up everything we marked as ready_to_execute
-    for (auto && ready_wss_ready_fcn: ready_to_execute) {
+    for (auto && ready_rss_ready_fcn: ready_to_execute) {
       // Need to queue as a pending_computation
-      std::shared_ptr<recording_set_state> ready_wss;
+      std::shared_ptr<recording_set_state> ready_rss;
       std::shared_ptr<instantiated_math_function> ready_fcn;
 
-      std::tie(ready_wss,ready_fcn) = ready_wss_ready_fcn;
-      recdb_strong->compute_resources->queue_computation(recdb_strong,ready_wss,ready_fcn);
+      std::tie(ready_rss,ready_fcn) = ready_rss_ready_fcn;
+      recdb_strong->compute_resources->queue_computation(recdb_strong,ready_rss,ready_fcn);
     }
 
   
     // Check if everything is done; issue notification
     if (all_ready) {
-      std::unique_lock<std::mutex> wss_admin(globalrev->admin);
+      std::unique_lock<std::mutex> rss_admin(globalrev->admin);
       std::unordered_set<std::shared_ptr<channel_notify>> recordingset_complete_notifiers=std::move(globalrev->recordingset_complete_notifiers);
       globalrev->recordingset_complete_notifiers.clear();
-      wss_admin.unlock();
+      rss_admin.unlock();
 
       for (auto && channel_notify_ptr: recordingset_complete_notifiers) {
 	channel_notify_ptr->notify_recordingset_complete();
@@ -2558,7 +2457,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     //if (previous_globalrev) {
     //  std::shared_ptr<_previous_globalrev_nolongerneeded_notify> prev_nolongerneeded_notify = std::make_shared<_previous_globalrev_nolongerneeded_notify>(recdb,previous_globalrev,globalrev);
     //
-    //  prev_nolongerneeded_notify->apply_to_wss(previous_globalrev);
+    //  prev_nolongerneeded_notify->apply_to_rss(previous_globalrev);
     //}
 
     // Set up notification when this globalrev is complete
@@ -2568,7 +2467,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     
     std::shared_ptr<_globalrev_complete_notify> complete_notify=std::make_shared<_globalrev_complete_notify>(recdb,globalrev);
     
-    complete_notify->apply_to_wss(globalrev);
+    complete_notify->apply_to_rss(globalrev);
 
 
     // clear out datastructure
@@ -2684,7 +2583,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     return nullptr;
   }
 
-  void channel_state::issue_nonmath_notifications(std::shared_ptr<recording_set_state> wss) // wss is used to lock this channel_state object
+  void channel_state::issue_nonmath_notifications(std::shared_ptr<recording_set_state> rss) // rss is used to lock this channel_state object
   // Must be called without anything locked. Issue notifications requested in _notify* and remove those notification requests,
   // based on the channel_state's current status
   // Note that this might be called more than once for a given situation,
@@ -2700,11 +2599,11 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     // Issue metadataonly notifications
     if (recording_is_complete(true)) {
       // at least complete through mdonly
-      std::unique_lock<std::mutex> wss_admin(wss->admin);
+      std::unique_lock<std::mutex> rss_admin(rss->admin);
       std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> local_notify_about_this_channel_metadataonly = begin_atomic_notify_about_this_channel_metadataonly_update();
       if (local_notify_about_this_channel_metadataonly) {
 	end_atomic_notify_about_this_channel_metadataonly_update(nullptr); // clear out notification list pointer
-	wss_admin.unlock();
+	rss_admin.unlock();
 	
 	// perform notifications
 	for (auto && channel_notify_ptr: *local_notify_about_this_channel_metadataonly) {
@@ -2716,11 +2615,11 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     // Issue ready notifications
     if (recording_is_complete(false)) {
       
-      std::unique_lock<std::mutex> wss_admin(wss->admin);
+      std::unique_lock<std::mutex> rss_admin(rss->admin);
       std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> local_notify_about_this_channel_ready = begin_atomic_notify_about_this_channel_ready_update();
       if (local_notify_about_this_channel_ready) {
 	end_atomic_notify_about_this_channel_ready_update(nullptr); // clear out notification list pointer
-	wss_admin.unlock();
+	rss_admin.unlock();
 	
 	// perform notifications
 	for (auto && channel_notify_ptr: *local_notify_about_this_channel_ready) {
@@ -2732,31 +2631,31 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
 
     bool all_ready=false;
     {
-      std::lock_guard<std::mutex> wss_admin(wss->admin);
-      all_ready = !wss->recstatus.defined_recordings.size() && !wss->recstatus.instantiated_recordings.size();      
+      std::lock_guard<std::mutex> rss_admin(rss->admin);
+      all_ready = !rss->recstatus.defined_recordings.size() && !rss->recstatus.instantiated_recordings.size();      
     }
     
     if (all_ready) {
-      std::unordered_set<std::shared_ptr<channel_notify>> wss_complete_notifiers_copy;
+      std::unordered_set<std::shared_ptr<channel_notify>> rss_complete_notifiers_copy;
       {
-	std::lock_guard<std::mutex> wss_admin(wss->admin);
-	wss_complete_notifiers_copy = wss->recordingset_complete_notifiers;
+	std::lock_guard<std::mutex> rss_admin(rss->admin);
+	rss_complete_notifiers_copy = rss->recordingset_complete_notifiers;
       }
-      for (auto && notifier: wss_complete_notifiers_copy) {
-	notifier->check_recordingset_complete(wss);
+      for (auto && notifier: rss_complete_notifiers_copy) {
+	notifier->check_recordingset_complete(rss);
       }
     }
   }
 
 
 
-  static void issue_math_notifications_check_dependent_channel(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> dep_fcn,std::shared_ptr<channelconfig> config,bool channel_modified, bool got_mdonly, bool got_fullyready,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute)
+  static void issue_math_notifications_check_dependent_channel(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> dep_fcn,std::shared_ptr<channelconfig> config,bool channel_modified, bool got_mdonly, bool got_fullyready,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute)
   {
     // dep_fcn is a shared_ptr to an instantiated_math_function
-    std::unique_lock<std::mutex> wss_admin(wss->admin);
+    std::unique_lock<std::mutex> rss_admin(rss->admin);
     
     std::set<std::shared_ptr<channelconfig>>::iterator missing_prereq_it;
-    math_function_status &dep_fcn_status = wss->mathstatus.function_status.at(dep_fcn);
+    math_function_status &dep_fcn_status = rss->mathstatus.function_status.at(dep_fcn);
     if (!dep_fcn_status.execution_demanded) {
       return;  // ignore unless we are about execution
     }
@@ -2773,12 +2672,12 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
 	}
       }
       
-      wss->mathstatus.check_dep_fcn_ready(recdb,wss,dep_fcn,&dep_fcn_status,ready_to_execute,wss_admin);
+      rss->mathstatus.check_dep_fcn_ready(recdb,rss,dep_fcn,&dep_fcn_status,ready_to_execute,rss_admin);
     }
     
   }
   
-  void channel_state::issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> wss,bool channel_modified) // wss is used to lock this channel_state object
+  void channel_state::issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,bool channel_modified) // rss is used to lock this channel_state object
   // Must be called without anything locked. Issue notifications requested in _notify* and remove those notification requests,
   // based on the channel_state's current status
   {
@@ -2791,57 +2690,57 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     if (got_mdonly || got_fullyready) {
       // at least complete through mdonly
 
-      auto dep_it = wss->mathstatus.math_functions->all_dependencies_of_channel.find(config->channelpath);
-      if (dep_it != wss->mathstatus.math_functions->all_dependencies_of_channel.end()) {
+      auto dep_it = rss->mathstatus.math_functions->all_dependencies_of_channel.find(config->channelpath);
+      if (dep_it != rss->mathstatus.math_functions->all_dependencies_of_channel.end()) {
 	for (auto && dep_fcn: dep_it->second) {
     	  // dep_fcn is a shared_ptr to an instantiated_math_function
-	  issue_math_notifications_check_dependent_channel(recdb,wss,dep_fcn,config,channel_modified,got_mdonly,got_fullyready,ready_to_execute);
+	  issue_math_notifications_check_dependent_channel(recdb,rss,dep_fcn,config,channel_modified,got_mdonly,got_fullyready,ready_to_execute);
 	}
       }
 
       // consider extra dependencies arising from dynamic dependencies
-      std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> ext_internal_dep = wss->mathstatus.extra_internal_dependencies_on_channel();
+      std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> ext_internal_dep = rss->mathstatus.extra_internal_dependencies_on_channel();
 
       std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>::iterator ext_internal_dep_it = ext_internal_dep->find(config);
       
       if (ext_internal_dep_it != ext_internal_dep->end()) {
 	// found extra internal dependencies
-	for (auto && wss_extintdepfcn: ext_internal_dep_it->second ) {
-	  issue_math_notifications_check_dependent_channel(recdb,wss,wss_extintdepfcn,config,channel_modified,got_mdonly,got_fullyready,ready_to_execute);
+	for (auto && rss_extintdepfcn: ext_internal_dep_it->second ) {
+	  issue_math_notifications_check_dependent_channel(recdb,rss,rss_extintdepfcn,config,channel_modified,got_mdonly,got_fullyready,ready_to_execute);
 	}
       }
       
-      std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> ext_dep_on_channel = wss->mathstatus.external_dependencies_on_channel();
+      std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> ext_dep_on_channel = rss->mathstatus.external_dependencies_on_channel();
       auto extdep_it = ext_dep_on_channel->find(config);
 
       if (extdep_it != ext_dep_on_channel->end()) {
-	for (auto && wss_extdepfcn: extdep_it->second ) {
-	  std::shared_ptr<recording_set_state> &dependent_wss = std::get<0>(wss_extdepfcn);
-	  std::shared_ptr<instantiated_math_function> &dependent_func = std::get<1>(wss_extdepfcn);
+	for (auto && rss_extdepfcn: extdep_it->second ) {
+	  std::shared_ptr<recording_set_state> &dependent_rss = std::get<0>(rss_extdepfcn);
+	  std::shared_ptr<instantiated_math_function> &dependent_func = std::get<1>(rss_extdepfcn);
 	  
-	  std::unique_lock<std::mutex> dependent_wss_admin(dependent_wss->admin);
-	  math_function_status &function_status = dependent_wss->mathstatus.function_status.at(dependent_func);
+	  std::unique_lock<std::mutex> dependent_rss_admin(dependent_rss->admin);
+	  math_function_status &function_status = dependent_rss->mathstatus.function_status.at(dependent_func);
 	  std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<channelconfig>>>::iterator
-	    dependent_prereq_it = function_status.missing_external_channel_prerequisites.find(std::make_tuple(wss,config));
+	    dependent_prereq_it = function_status.missing_external_channel_prerequisites.find(std::make_tuple(rss,config));
 	  
 	  if (dependent_prereq_it != function_status.missing_external_channel_prerequisites.end()) {
 	    function_status.missing_external_channel_prerequisites.erase(dependent_prereq_it);
 	  
 	  }
-	  dependent_wss->mathstatus.check_dep_fcn_ready(recdb,dependent_wss,dependent_func,&function_status,ready_to_execute,dependent_wss_admin);
+	  dependent_rss->mathstatus.check_dep_fcn_ready(recdb,dependent_rss,dependent_func,&function_status,ready_to_execute,dependent_rss_admin);
 	
 	}
       }
     }
 
 
-    for (auto && ready_wss_ready_fcn: ready_to_execute) {
+    for (auto && ready_rss_ready_fcn: ready_to_execute) {
       // Need to queue as a pending_computation
-      std::shared_ptr<recording_set_state> ready_wss;
+      std::shared_ptr<recording_set_state> ready_rss;
       std::shared_ptr<instantiated_math_function> ready_fcn;
 
-      std::tie(ready_wss,ready_fcn) = ready_wss_ready_fcn;
-      recdb->compute_resources->queue_computation(recdb,ready_wss,ready_fcn);
+      std::tie(ready_rss,ready_fcn) = ready_rss_ready_fcn;
+      recdb->compute_resources->queue_computation(recdb,ready_rss,ready_fcn);
     }
   }
 
@@ -2918,7 +2817,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
   {
     std::shared_ptr<promise_channel_notify> promise_notify=std::make_shared<promise_channel_notify>(std::vector<std::string>(),std::vector<std::string>(),true);
     
-    promise_notify->apply_to_wss(shared_from_this());
+    promise_notify->apply_to_rss(shared_from_this());
 
     std::future<void> criteria_satisfied = promise_notify->promise.get_future();
     criteria_satisfied.wait();
@@ -3235,14 +3134,14 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
 
 
   void recdatabase::register_new_math_rec(void *owner_id,std::shared_ptr<recording_set_state> calc_rss,std::shared_ptr<recording_base> new_rec)
-  // registers newly created math recording in the given wss (and extracts mutable flag for the given channel). Also checks owner_id
+  // registers newly created math recording in the given rss (and extracts mutable flag for the given channel). Also checks owner_id
   {
-    channel_state & wss_chan = calc_rss->recstatus.channel_map.at(new_rec->info->name);
-    assert(wss_chan.config->owner_id == owner_id);
-    assert(wss_chan.config->math);
-    new_rec->info->immutable = !wss_chan.config->data_mutable;
+    channel_state & rss_chan = calc_rss->recstatus.channel_map.at(new_rec->info->name);
+    assert(rss_chan.config->owner_id == owner_id);
+    assert(rss_chan.config->math);
+    new_rec->info->immutable = !rss_chan.config->data_mutable;
     
-    std::atomic_store(&wss_chan._rec,new_rec);
+    std::atomic_store(&rss_chan._rec,new_rec);
   }
 
   std::shared_ptr<globalrevision> recdatabase::latest_globalrev() // safe to call with or without recdb admin lock held
@@ -3301,14 +3200,14 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     return new_chan;
   }
 
-  //  void recdatabase::wait_recordings(std::share_ptr<recording_set_state> wss, const std::vector<std::shared_ptr<recording_base>> &metadataonly,const std::vector<std::shared_ptr<recording_base>> &ready)
+  //  void recdatabase::wait_recordings(std::share_ptr<recording_set_state> rss, const std::vector<std::shared_ptr<recording_base>> &metadataonly,const std::vector<std::shared_ptr<recording_base>> &ready)
   //// NOTE: python wrapper needs to drop thread context during wait and poll to check for connection drop
   // {
   //#error not implemented
   //}
 
   
-  void recdatabase::wait_recording_names(std::shared_ptr<recording_set_state> wss,const std::vector<std::string> &metadataonly, const std::vector<std::string> fullyready)
+  void recdatabase::wait_recording_names(std::shared_ptr<recording_set_state> rss,const std::vector<std::string> &metadataonly, const std::vector<std::string> fullyready)
   // NOTE: python wrapper needs to drop thread context during wait and poll to check for connection drop
   {
     // should queue up a std::promise for central dispatch
@@ -3317,7 +3216,7 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
 
     std::shared_ptr<promise_channel_notify> promise_notify=std::make_shared<promise_channel_notify>(metadataonly,fullyready,false);
 
-    promise_notify->apply_to_wss(wss);
+    promise_notify->apply_to_rss(rss);
 
     std::future<void> criteria_satisfied = promise_notify->promise.get_future();
     criteria_satisfied.wait();
@@ -3422,5 +3321,51 @@ multi_ndarray_recording::multi_ndarray_recording(std::shared_ptr<recdatabase> re
     //fprintf(stderr,"gmnnc() exit\n");
 
   }
+
+  size_t recording_default_info_structsize(size_t param,size_t min)
+  // Param is the requested info_structsize parameter, or 0 to indicate use the default
+  // min is the minimum for this class
+  // returns actual size to allocate
+  {
+    if (!param) {
+      param=min;
+    }
+
+    if (param < min) {
+      throw snde_error("info_structsize during recording creation (%u) is less than minimum (%u) (?)",(unsigned)param,(unsigned)min);
+    }
+    
+    return param;
+  }
+
+  std::shared_ptr<ndarray_recording_ref> create_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum)
+  {
+    std::shared_ptr<multi_ndarray_recording> rec;
+    std::shared_ptr<ndarray_recording_ref> ref;
+
+    // ***!!! Should look up maker method in a runtime-addable database ***!!!
+
+    rec=create_recording<multi_ndarray_recording>(recdb,chan,owner_id,1);
+    rec->define_array(0,typenum);
+    
+    ref=rec->reference_ndarray(0);
+    return ref;
+  }
+  std::shared_ptr<ndarray_recording_ref> create_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum)
+  {
+    std::shared_ptr<multi_ndarray_recording> rec;
+    std::shared_ptr<ndarray_recording_ref> ref;
+    
+    std::shared_ptr<recdatabase> recdb = calc_rss->recdb_weak.lock();
+    if (!recdb) return nullptr;
+
+    
+    rec=create_recording_math<multi_ndarray_recording>(chanpath,calc_rss,1); 
+    rec->define_array(0,typenum);
+    ref=rec->reference_ndarray(0);
+
+    return ref;
+  }
+
   
 };

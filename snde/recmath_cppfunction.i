@@ -13,7 +13,7 @@ namespace snde {
   public:
 
     // executing_math_function defines these class members:
-    //   std::shared_ptr<recording_set_state> wss; // recording set state in which we are executing
+    //   std::shared_ptr<recording_set_state> rss; // recording set state in which we are executing
     //   std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
     //   bool is_mutable;
     //   bool mdonly; 
@@ -21,7 +21,7 @@ namespace snde {
 
     // !!!*** May still need self_dependent_recordings but perhaps not here... (moved to executing_math_function
 
-    recmath_cppfuncexec_base(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst);
+    recmath_cppfuncexec_base(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst);
 
     recmath_cppfuncexec_base(const recmath_cppfuncexec_base &) = delete;
     recmath_cppfuncexec_base& operator=(const recmath_cppfuncexec_base &) = delete; 
@@ -41,7 +41,7 @@ namespace snde {
     bool supports_cpu;
     bool supports_opencl;
     bool supports_cuda;
-    cpp_math_function(std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
+    cpp_math_function(std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
 		      bool supports_cpu,
 		      bool supports_opencl,
 		      bool supports_cuda);
@@ -61,11 +61,11 @@ namespace snde {
 								    std::shared_ptr<math_instance_parameter> extra_params);
     
     // initiate_execution is now a function pointer member of our superclass
-    //virtual std::shared_ptr<executing_math_function> initiate_execution(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated); // actually returns pointer to class recmath_cppfuncexec<...>
+    //virtual std::shared_ptr<executing_math_function> initiate_execution(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated); // actually returns pointer to class recmath_cppfuncexec<...>
 
     // !!!*** How to concisely extract parameter types from template instantiated by
     // initiate_execution?
-    // Idea: Have it construct a structure with wss and instantiated set to nullptr,
+    // Idea: Have it construct a structure with rss and instantiated set to nullptr,
     // then interrogate that. 
   };
   

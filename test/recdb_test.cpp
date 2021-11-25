@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
   std::shared_ptr<snde::channelconfig> testchan_config=std::make_shared<snde::channelconfig>("test channel", "main", (void *)&main,false);
   
   std::shared_ptr<snde::channel> testchan = recdb->reserve_channel(testchan_config);
-  test_rec = multi_ndarray_recording::create_typed_recording(recdb,testchan,(void *)&main,SNDE_RTN_FLOAT32);
+  test_rec = create_recording_ref(recdb,testchan,(void *)&main,SNDE_RTN_FLOAT32);
   std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
 
   test_rec->rec->metadata=std::make_shared<snde::immutable_metadata>();

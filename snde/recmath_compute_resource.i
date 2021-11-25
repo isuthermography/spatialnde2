@@ -102,7 +102,7 @@ namespace snde {
 
     void add_resource(std::shared_ptr<available_compute_resource> new_resource);
 
-    void queue_computation(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> ready_wss,std::shared_ptr<instantiated_math_function> ready_fcn);
+    void queue_computation(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> ready_rss,std::shared_ptr<instantiated_math_function> ready_fcn);
     //void _queue_computation_internal(std::shared_ptr<pending_computation> &computation); // NOTE: Sets computation to nullptr once queued
     void start(); // start all of the compute_resources
     void dispatch_code();

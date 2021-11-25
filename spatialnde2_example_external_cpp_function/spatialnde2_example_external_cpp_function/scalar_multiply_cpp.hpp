@@ -9,8 +9,8 @@ namespace snde2_fn_ex {
   class scalar_multiply: public snde::recmath_cppfuncexec<std::shared_ptr<snde::ndtyped_recording_ref<T>>,snde_float64>
   {
   public:
-    scalar_multiply(std::shared_ptr<snde::recording_set_state> wss,std::shared_ptr<snde::instantiated_math_function> inst) :
-      snde::recmath_cppfuncexec<std::shared_ptr<snde::ndtyped_recording_ref<T>>,snde_float64>(wss,inst)
+    scalar_multiply(std::shared_ptr<snde::recording_set_state> rss,std::shared_ptr<snde::instantiated_math_function> inst) :
+      snde::recmath_cppfuncexec<std::shared_ptr<snde::ndtyped_recording_ref<T>>,snde_float64>(rss,inst)
     {
       
     }
@@ -28,7 +28,7 @@ namespace snde2_fn_ex {
       // define_recs code
       snde::snde_debug(SNDE_DC_APP,"define_recs()");
       // Use of "this" in the next line for the same reason as the typedefs, above
-      std::shared_ptr<snde::ndtyped_recording_ref<T>> result_rec = snde::ndtyped_recording_ref<T>::create_recording_math(this->get_result_channel_path(0),this->wss);
+      std::shared_ptr<snde::ndtyped_recording_ref<T>> result_rec = snde::create_typed_recording_ref_math<T>(this->get_result_channel_path(0),this->rss);
       // ***!!! Should provide means to set allocation manager !!!***
       
       return std::make_shared<metadata_function_override_type>([ this,result_rec,recording,multiplier ]() {
@@ -79,8 +79,8 @@ namespace snde2_fn_ex {
   
   std::shared_ptr<snde::math_function> define_scalar_multiply()
   {
-    return std::make_shared<snde::cpp_math_function>([] (std::shared_ptr<snde::recording_set_state> wss,std::shared_ptr<snde::instantiated_math_function> inst) {
-      return snde::make_cppfuncexec_floatingtypes<scalar_multiply>(wss,inst);
+    return std::make_shared<snde::cpp_math_function>([] (std::shared_ptr<snde::recording_set_state> rss,std::shared_ptr<snde::instantiated_math_function> inst) {
+      return snde::make_cppfuncexec_floatingtypes<scalar_multiply>(rss,inst);
     },
       true,
       false,

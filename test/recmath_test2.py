@@ -35,12 +35,12 @@ testchan = recdb.reserve_channel(testchan_config);
 
 # demonstrate alternative ways to create the recording
 
-test_rec_32 = snde.multi_ndarray_recording.create_typed_recording(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT32)
+test_rec_32 = snde.create_recording_ref(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT32)
 
 globalrev = transact.end_transaction()
 
 transact2 = snde.active_transaction(recdb); # Transaction RAII holder
-test_rec_64 = snde.multi_ndarray_recording.create_typed_recording(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT64)
+test_rec_64 = snde.create_recording_ref(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT64)
 globalrev2 = transact2.end_transaction()
 
 

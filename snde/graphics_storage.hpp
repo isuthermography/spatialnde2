@@ -42,7 +42,10 @@ namespace snde {
     std::mutex follower_cachemanagers_lock; 
     std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>> follower_cachemanagers;
     
-    
+
+    // ***!!!! Conceptually creating a graphics_storage should pass ownership
+    // of the particular array zone, so it is automatically free'd.
+    // ***!!! But what about follower arrays?
     graphics_storage(std::shared_ptr<graphics_storage_manager> graphman,std::shared_ptr<arraymanager> manager,std::shared_ptr<memallocator> memalloc,std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized);
     graphics_storage(const graphics_storage &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
     graphics_storage& operator=(const graphics_storage &) = delete; 

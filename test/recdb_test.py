@@ -17,7 +17,7 @@ testchan_config=snde.channelconfig("/test channel", "main", recdb,False)
   
 testchan = recdb.reserve_channel(testchan_config);
 
-test_rec = snde.multi_ndarray_recording.create_typed_recording(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT32)
+test_rec = snde.create_recording_ref(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT32)
 
 globalrev = transact.end_transaction()
 

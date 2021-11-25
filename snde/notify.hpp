@@ -87,7 +87,7 @@ namespace snde {
     ~channel_notification_criteria() = default;
     void add_recordingset_complete();
     
-    void add_completion_channel(std::shared_ptr<recording_set_state> wss,std::string); // satisfied once the specified channel reaches the current (when this criteria is defined) definition of completion for that channel (mdonly vs fullyready)
+    void add_completion_channel(std::shared_ptr<recording_set_state> rss,std::string); // satisfied once the specified channel reaches the current (when this criteria is defined) definition of completion for that channel (mdonly vs fullyready)
     
     void add_fullyready_channel(std::string); // satisified once the specified channel becomes fullyready (inapplicable to mdonly channels -- may never trigger unless fullyready is requested)
     void add_metadataonly_channel(std::string); // satisfied once the specified channel achieves mdonly (if applied to an mdonly channel you may not get notified until the channel is fullyready)
@@ -109,7 +109,7 @@ namespace snde {
     // during end_transaction()
     channel_notification_criteria criteria; 
 
-    channel_notify();  // initialize with empty criteria; may add with criteria methods .criteria.add_recordingset_complete(), .criteria.add_fullyready_channel(), .criteria.add_mdonly_channel(); NOTE: After instantiating and setting criteria must call apply_to_wss() to apply it to a recording_set_state or globalrev
+    channel_notify();  // initialize with empty criteria; may add with criteria methods .criteria.add_recordingset_complete(), .criteria.add_fullyready_channel(), .criteria.add_mdonly_channel(); NOTE: After instantiating and setting criteria must call apply_to_rss() to apply it to a recording_set_state or globalrev
     channel_notify(const channel_notification_criteria &criteria_to_copy);
     
     // rule of 3
@@ -125,21 +125,21 @@ namespace snde {
     virtual void notify_recordingset_complete(); // notify this notifier that all recordings in this set are complete
 
     // check to see if any recordingset criterion is satisfied and notify if everything is satisfied
-    virtual void check_recordingset_complete(std::shared_ptr<recording_set_state> wss);
+    virtual void check_recordingset_complete(std::shared_ptr<recording_set_state> rss);
 
 
-    // Internal only: Should be called with wss admin lock and criteria admin locks locked. Returns true if an immediate notification is due
-    bool _check_all_criteria_locked(std::shared_ptr<recording_set_state> wss,bool notifies_already_applied_to_wss);
+    // Internal only: Should be called with rss admin lock and criteria admin locks locked. Returns true if an immediate notification is due
+    bool _check_all_criteria_locked(std::shared_ptr<recording_set_state> rss,bool notifies_already_applied_to_rss);
 
     // check all criteria and notify if everything is satisfied. 
-    virtual void check_all_criteria(std::shared_ptr<recording_set_state> wss);
+    virtual void check_all_criteria(std::shared_ptr<recording_set_state> rss);
 
 
 
     virtual std::shared_ptr<channel_notify> notify_copier(); // default implementation throws a snde_error. Derived classes should use channel_notify(criteria) superclass constructor
 
 
-    virtual void apply_to_wss(std::shared_ptr<recording_set_state> wss); // apply this notification process to a particular recording_set_state. WARNING: May trigger the notification immediately
+    virtual void apply_to_rss(std::shared_ptr<recording_set_state> rss); // apply this notification process to a particular recording_set_state. WARNING: May trigger the notification immediately
   };
 
   class repetitive_channel_notify {
@@ -165,7 +165,7 @@ namespace snde {
   public:
     std::promise<void> promise;
 
-    // After construction, need to call .apply_to_wss() method!!!
+    // After construction, need to call .apply_to_rss() method!!!
     promise_channel_notify(const std::vector<std::string> &mdonly_channels,const std::vector<std::string> &ready_channels,bool recordingset_complete);
     // rule of 3
     promise_channel_notify & operator=(const promise_channel_notify &) = delete; 
@@ -186,7 +186,7 @@ namespace snde {
     channel_state &sg_channelstate; 
     bool mdonly;
 
-    _unchanged_channel_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> subsequent_globalrev,channel_state & current_channelstate,channel_state & sg_channelstate,bool mdonly); // After construction, need to call .apply_to_wss() method!!!
+    _unchanged_channel_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> subsequent_globalrev,channel_state & current_channelstate,channel_state & sg_channelstate,bool mdonly); // After construction, need to call .apply_to_rss() method!!!
 
     virtual ~_unchanged_channel_notify()=default;
     

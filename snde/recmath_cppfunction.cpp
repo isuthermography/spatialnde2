@@ -2,15 +2,15 @@
 
 namespace snde {
   
-  recmath_cppfuncexec_base::recmath_cppfuncexec_base(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
-    executing_math_function(wss,inst,(wss) ? wss->lockmgr:nullptr)
+  recmath_cppfuncexec_base::recmath_cppfuncexec_base(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) :
+    executing_math_function(rss,inst,(rss) ? rss->lockmgr:nullptr)
   {
     
   }
 
 
 
-  cpp_math_function::cpp_math_function(std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
+  cpp_math_function::cpp_math_function(std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
 				       bool supports_cpu,
 				       bool supports_opencl,
 				       bool supports_cuda) :

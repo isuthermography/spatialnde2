@@ -34,8 +34,8 @@ __kernel void multiply_by_scalar(__global const snde_float32 *input,
 class multiply_by_scalar: public recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<snde_float32>>,snde_float64>
 {
 public:
-  multiply_by_scalar(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst) :
-    recmath_cppfuncexec(wss,inst)
+  multiply_by_scalar(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) :
+    recmath_cppfuncexec(rss,inst)
   {
 
   }
@@ -76,7 +76,7 @@ public:
     // define_recs code
     printf("define_recs()\n");
     std::shared_ptr<ndtyped_recording_ref<snde_float32>> result_rec;
-    result_rec = ndtyped_recording_ref<snde_float32>::create_recording_math(get_result_channel_path(0),wss);
+    result_rec = create_typed_recording_ref_math<snde_float32>(get_result_channel_path(0),rss);
     // ***!!! Should provide means to set allocation manager !!!***
     
     return std::make_shared<metadata_function_override_type>([ this,result_rec,recording,multiplier ]() {
@@ -172,8 +172,8 @@ int main(int argc, char *argv[])
 
   
   std::shared_ptr<snde::ndarray_recording_ref> test_rec;  
-  std::shared_ptr<math_function> multiply_by_scalar_function = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst) {
-    return std::make_shared<multiply_by_scalar>(wss,inst);
+  std::shared_ptr<math_function> multiply_by_scalar_function = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<multiply_by_scalar>(rss,inst);
   },
     true,
     false,
@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
   std::shared_ptr<snde::channelconfig> testchan_config=std::make_shared<snde::channelconfig>("/test_channel", "main", (void *)&main,false);
   
   std::shared_ptr<snde::channel> testchan = recdb->reserve_channel(testchan_config);
-  test_rec = multi_ndarray_recording::create_typed_recording(recdb,testchan,(void *)&main,SNDE_RTN_FLOAT32);
+  test_rec = create_recording_ref(recdb,testchan,(void *)&main,SNDE_RTN_FLOAT32);
   std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
 
   test_rec->rec->metadata=std::make_shared<snde::immutable_metadata>();

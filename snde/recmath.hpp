@@ -103,7 +103,7 @@ namespace snde {
     // Immutable once published; that said it may be replaced in the database due to a reloading operation. 
   public:
 
-    math_function(const std::vector<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
+    math_function(const std::vector<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
 
     // Rule of 3
     math_function(const math_function &) = delete;
@@ -124,9 +124,9 @@ namespace snde {
 
     bool dynamic_dependency;  // dynamic_dependency is where at least one recording the function is dependent on may by its content induce additional dependenc(ies). Thus changes to the function parameters are a sufficient condition to trigger execution (or at least a new_revision_optional assessment), but they are not a necessary condition. As such the function needs to be asked whether execution might be necessary even in situations where it might appear not. The function will need access to its parameters to make that determination. ***!!! will need to track versions over dep. tree to decide whether to execute. Probably implicit self-dependency
     
-    std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution;
+    std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution;
 
-    std::shared_ptr<std::function<bool(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated, math_function_status *mathstatus_ptr)>> find_additional_deps; // the find_additional_deps method is nullptr unless the function is a dynamic_dependency. For dynamic_dependencies this function walks the current list of dependencies (for instantiated parameter) with wss set state and adds additional dependencies that it has discovered to the mathstatus_ptr missing_prerequisites, missing_external_channel_prerequisites, and/or missing_external_function_prerequisites. It returns true if any were added; false otherwise. Any additions to missing_external_channel_prerequisites needs a corresponding addition in the prerequisite state to math_status::external_dependencies_on_channel. Any addition to missing_external_function_prerequisites requires an addition in the prerequisite state to math_status::external_dependencies_on_function. ANY ADDITION TO missing_prerequisites REQUIRES AN ADDITION TO math_status::extra_internal_dependencies_on_channel!!! (and the prerequisite must actually be missing; if present should simply increment num_modified_prerequisites if the prerequisite has been modified. 
+    std::shared_ptr<std::function<bool(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated, math_function_status *mathstatus_ptr)>> find_additional_deps; // the find_additional_deps method is nullptr unless the function is a dynamic_dependency. For dynamic_dependencies this function walks the current list of dependencies (for instantiated parameter) with rss set state and adds additional dependencies that it has discovered to the mathstatus_ptr missing_prerequisites, missing_external_channel_prerequisites, and/or missing_external_function_prerequisites. It returns true if any were added; false otherwise. Any additions to missing_external_channel_prerequisites needs a corresponding addition in the prerequisite state to math_status::external_dependencies_on_channel. Any addition to missing_external_function_prerequisites requires an addition in the prerequisite state to math_status::external_dependencies_on_function. ANY ADDITION TO missing_prerequisites REQUIRES AN ADDITION TO math_status::extra_internal_dependencies_on_channel!!! (and the prerequisite must actually be missing; if present should simply increment num_modified_prerequisites if the prerequisite has been modified. 
     
     // WARNING: If there is no implict or explicit self-dependency multiple computations for the same math function
     // but different versions can happen in parallel. 
@@ -144,7 +144,7 @@ namespace snde {
     // get_compute_options() returns a list of compute_resource_options, each of which has a compute_code pointer
     // NOTE: Somehow get_compute_options() or similar needs to consider the types of the parameter arrays and select
     // or configure code appropriately.
-    //virtual std::shared_ptr<executing_math_function> initiate_execution(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> instantiated)=0; // usually returns a sub-class
+    //virtual std::shared_ptr<executing_math_function> initiate_execution(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)=0; // usually returns a sub-class
   };
 
   // ***!!! compute_code is obsolete!!!***
@@ -171,10 +171,10 @@ namespace snde {
     // !!!*** Should all of these methods be replaced by one overarching method
     // that then is implemented in subclasses for
     // various common patterns???
-    virtual void determine_size(std::shared_ptr<recording_set_state> wss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
-    virtual void do_metadata_only(std::shared_ptr<recording_set_state> wss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
-    virtual void do_compute_from_metadata(std::shared_ptr<recording_set_state> wss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
-    virtual void do_compute(std::shared_ptr<recording_set_state> wss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
+    virtual void determine_size(std::shared_ptr<recording_set_state> rss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
+    virtual void do_metadata_only(std::shared_ptr<recording_set_state> rss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
+    virtual void do_compute_from_metadata(std::shared_ptr<recording_set_state> rss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
+    virtual void do_compute(std::shared_ptr<recording_set_state> rss, std::shared_ptr<executing_math_function> fcn, std::shared_ptr<compute_resource_option> option)=0;
   };
 
 
@@ -298,7 +298,7 @@ namespace snde {
     
     std::shared_ptr<math_function_execution> execfunc; // tracking of this particular execution. Later globalrevs that will use the result unchanged may also point to this. (Each pointing globalrev should be registered in the execfunc's referencing_rss set so that it can get callbacks on completion). Note that this may be nullptr in various scenarios:  These might be new_revision_optional with changed inputs, dynamic dependencies with unchanged inputs, or functions dependent on those sorts of functions   (!!!*** Note than an unassigned execfunc needs to create an implicit self-dependency)
     
-    std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<channelconfig>>> missing_external_channel_prerequisites; // all missing (non-ready...or !!!*** nonmdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Will be used e.g. for dependencies of on-demand recordings calculated in their own wss context
+    std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<channelconfig>>> missing_external_channel_prerequisites; // all missing (non-ready...or !!!*** nonmdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Will be used e.g. for dependencies of on-demand recordings calculated in their own rss context
     std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_function_prerequisites; // all missing (non-ready... or !!!*** non-mdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Currently used solely for self-dependencies (which can't be mdonly)
 
     bool mdonly; // if this execution is actually mdonly. Feeds into execfunc->mdonly
@@ -307,7 +307,7 @@ namespace snde {
     
     //bool mdonly_executed; // if execution has completed at least through mdonly; Now replaced with execfunc->mdonly_executed
     //bool is_mutable; // if this execution does in-place mutation of one or more of its parameters. Now replaced with execfunc->is_mutable
-    //bool execution_in_progress; // set while holding the wss's admin lock right before the executing_math_function is generated. Cleared when the executing_math_function is released. 
+    //bool execution_in_progress; // set while holding the rss's admin lock right before the executing_math_function is generated. Cleared when the executing_math_function is released. 
     
     bool execution_demanded; // even once all prereqs are satisfied, do we need to actually execute? This is only set if at least one of our non-self dependencies has changed and we are not disabled (or ondemand in a regular globalrev) and !!!*** the execfunc was generated for this revision
     bool ready_to_execute;
@@ -354,11 +354,11 @@ namespace snde {
     void end_atomic_extra_internal_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> newextdep);
     std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> extra_internal_dependencies_on_channel();
 
-    void notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> fcn,bool mdonly);
+    void notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> fcn,bool mdonly);
     
-    // check_dep_fcn_ready() assumes dep_wss admin lock is already held
+    // check_dep_fcn_ready() assumes dep_rss admin lock is already held
     void check_dep_fcn_ready(std::shared_ptr<recdatabase> recdb,
-			     std::shared_ptr<recording_set_state> dep_wss,
+			     std::shared_ptr<recording_set_state> dep_rss,
 			     std::shared_ptr<instantiated_math_function> dep_fcn,
 			     math_function_status *mathstatus_ptr,
 			     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute_appendvec,
@@ -367,12 +367,12 @@ namespace snde {
   };
 
   class math_function_execution {
-    // tracks the status of a math function and its execution across multiple wss/globalrevs
+    // tracks the status of a math function and its execution across multiple rss/globalrevs
     // since this structure is persistent, subclasses must be careful not to maintain shared_ptrs that will
     // keep old data in memory
     
     // lock-free behavior:
-    //    * wss should be valid from creation as long as mdonly_executed is not set.
+    //    * rss should be valid from creation as long as mdonly_executed is not set.
     //    * inst is immutable
     //    * bools are atomic so they can be read safely (but if you read several you may not get a consistent state without locking
 
@@ -380,9 +380,9 @@ namespace snde {
     // return true. Once you have the execution ticket you can create a pending computation, assign the compute resource, etc.
 
   public:
-    std::mutex admin; // guards referencing_rss and groups operations on the bools. Also acquire this before clearing wss. Last in the locking order except python GIL
+    std::mutex admin; // guards referencing_rss and groups operations on the bools. Also acquire this before clearing rss. Last in the locking order except python GIL
 
-    std::shared_ptr<recording_set_state> wss; // recording set state in which we are executing. Set to nullptr by owner of execution ticket after metadata phase to avoid a reference loop that will keep old recordings in memory. 
+    std::shared_ptr<recording_set_state> rss; // recording set state in which we are executing. Set to nullptr by owner of execution ticket after metadata phase to avoid a reference loop that will keep old recordings in memory. 
     std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
 
     std::set<std::weak_ptr<recording_set_state>,std::owner_less<std::weak_ptr<recording_set_state>>> referencing_rss; // all recording set states that reference this executing_math_function
@@ -395,7 +395,7 @@ namespace snde {
     std::atomic<bool> fully_complete; // function has fully executed to ready state
     std::shared_ptr<executing_math_function> execution_tracker; // only valid once prerequisites are complete because we can't instantiate it until we have resolved the types of the parameters to identify which code to execute. 
 
-    math_function_execution(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> inst,bool mdonly,bool is_mutable);  // automatically adds wss to referencing_rss set
+    math_function_execution(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,bool mdonly,bool is_mutable);  // automatically adds rss to referencing_rss set
     
     inline bool try_execution_ticket()
     // if this returns true, you have the execution ticket. Don't forget to assign executing=false when you are done. 
@@ -416,7 +416,7 @@ namespace snde {
     // and usually subclassed
 
     // lock-free behavior:
-    //    * wss should be valid from creation as long as mdonly_executed is not set. Safe to read by holder of parent's execution ticket, including the corresponding execution methods
+    //    * rss should be valid from creation as long as mdonly_executed is not set. Safe to read by holder of parent's execution ticket, including the corresponding execution methods
     //    * inst is immutable
     //    * self_dependent_recordings: safe for owner of parent math_function_execution's 'execution ticket' to read lock-free
     //    * compute_resource: shared_ptr may be assigned/read by the owner of the parent math_function_execution's 'execution ticket'. The pointed data structure is locked by
@@ -424,7 +424,7 @@ namespace snde {
     //
     
   public:
-    std::shared_ptr<recording_set_state> wss; // recording set state in which we are executing. Set to nullptr by owner of parent's execution ticket after metadata phase to avoid a reference loop that will keep old recordings in memory. 
+    std::shared_ptr<recording_set_state> rss; // recording set state in which we are executing. Set to nullptr by owner of parent's execution ticket after metadata phase to avoid a reference loop that will keep old recordings in memory. 
     std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
     std::shared_ptr<lockmanager> lockmgr;
 
@@ -449,7 +449,7 @@ namespace snde {
     //std::vector<size_t> opencl_jobs;  // vector of indices into available_compute_resource_cpu::functions_using_devices representing assigned GPU jobs; from assigned_compute_resource_option_opencl
 
 
-    executing_math_function(std::shared_ptr<recording_set_state> wss,std::shared_ptr<instantiated_math_function> fcn,std::shared_ptr<lockmanager> lockmgr);
+    executing_math_function(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> fcn,std::shared_ptr<lockmanager> lockmgr);
 
     // Rule of 3
     executing_math_function(const executing_math_function &) = delete;

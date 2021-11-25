@@ -12,6 +12,10 @@ namespace snde {
 #endif
   }
   
+
+  // ***!!!! Conceptually creating a graphics_storage should pass ownership
+  // of the particular array zone, so it is automatically free'd.
+  // ***!!! But what about follower arrays?
   graphics_storage::graphics_storage(std::shared_ptr<graphics_storage_manager> graphman,std::shared_ptr<arraymanager> manager,std::shared_ptr<memallocator> memalloc,std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized) :
     recording_storage(recording_path,recrevision,id,basearray,elementsize,base_index,typenum,nelem,manager->locker,requires_locking_read,requires_locking_write,finalized),
     manager(manager),
@@ -33,6 +37,11 @@ namespace snde {
 	cmgr_strong->notify_storage_expiration(lockableaddr(),base_index,nelem); // really has no effect (but we do it for completeness) as the openclcachemanager notify_storage_expiration ignores anything with a nonzero base-index (like all of our data)
       }
     }
+
+    // ***!!!! In creating the graphics_storage we should be
+    // passing ownership of allocated regions within the
+    // graphics_storage_manager's arrays. So here we should free
+    // those portions of the arrays
     
   }
   void *graphics_storage::dataaddr_or_null()
