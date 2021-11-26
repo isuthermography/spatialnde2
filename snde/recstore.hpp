@@ -258,7 +258,7 @@ namespace snde {
     // rss, but depending on the state _originating_rss may not have been assigned yet and may
     // need to extract from recdb_weak and _originating_globalrev_index.
     // DON'T ACCESS THESE DIRECTLY! Use the .get_originating_rss() and ._get_originating_rss_recdb_and_rec_admin_prelocked() methods.
-    std::weak_ptr<recdatabase> recdb_weak;  // Right now I think this is here solely so that we can get access to the available_compute_resources_database to queue more calculations after a recording is marked as ready. 
+    std::weak_ptr<recdatabase> recdb_weak;  // Right now I think this is here solely so that we can get access to the available_compute_resources_database to queue more calculations after a recording is marked as ready. Also used by assign_storage_manager(). Immutable once created so safe to read.  
     std::weak_ptr<transaction> defining_transact; // This pointer should be valid for a recording defined as part of a transaction; nullptr for an ondemand math recording, for example. Weak ptr should be convertible to strong as long as the originating_rss is still current.
     
     std::weak_ptr<recording_set_state> _originating_rss; // locked by admin mutex; if expired than originating_rss has been freed. if nullptr then this was defined as part of a transaction that was may still be going on when the recording was defined. Use get_originating_rss() which handles locking and getting the originating_rss from the defining_transact
@@ -353,11 +353,22 @@ namespace snde {
     
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(size_t index=0);
 
+    std::shared_ptr<recording_storage_manager> assign_storage_manager(std::shared_ptr<recording_storage_manager> storman);
+    std::shared_ptr<recording_storage_manager> assign_storage_manager();
 
+    void assign_storage(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &dimlen, bool fortran_order=false);
+    void assign_storage(std::shared_ptr<recording_storage> stor,std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
+    
     // must assign info.elementsize and info.typenum before calling allocate_storage()
     // fortran_order only affects physical layout, not logical layout (interpretation of indices)
-    virtual void allocate_storage(size_t array_index,std::vector<snde_index> dimlen, bool fortran_order=false);
+    // allocate_storage() does assign_storage_manager() then uses that to allocate_recording(), then performs assign_storage().
+    // returns the storage in case you want it. 
+    
+    virtual std::shared_ptr<recording_storage> allocate_storage(size_t array_index,const std::vector<snde_index> &dimlen, bool fortran_order=false);
+    virtual std::shared_ptr<recording_storage> allocate_storage(std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
 
+
+    
     // alternative to allocating storage: Referencing an existing recording
     virtual void reference_immutable_recording(size_t array_index,std::shared_ptr<ndarray_recording_ref> rec,std::vector<snde_index> dimlen,std::vector<snde_index> strides);
 

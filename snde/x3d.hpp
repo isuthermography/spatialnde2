@@ -2372,18 +2372,13 @@ namespace snde {
 
 
 	
-	uvparam=std::make_shared<parameterization>(geom,firstuv,1); 
-	/* add this parameterization to our part */
-	
-	std::shared_ptr<mutableparameterizationstore> uvparamstore = curpart->addparameterization(recdb,recdb_context,uvparam,"intrinsic",recmetadata()); // addparameterization adds it to recdb automatically
-	recdb->addinfostore(curinfostore); // add the (now pretty well complete) part to the recording database
 
 	std::string uvparamname = std::string("x3d_uv")+std::to_string(shapecnt);
 	std::string uvparamfullname = recdb_path_join(recdb_context,uvparamname);
 	uvparam_config=std::make_shared<snde::channelconfig>(uvparamfullname, ownername, (void *)owner,false);
 	std::shared_ptr<snde::channel> uvparam_chan = recdb->reserve_channel(uvparam_config);
       
-	uvparam = create_recording<meshed_parameterization_recording>(recdb,uvparam_chan,(void *)owner,firstuv,1);  // currently only implement numuvimages==1
+	std::shared_ptr<meshed_parameterization_recording> uvparam = create_recording<meshed_parameterization_recording>(recdb,uvparam_chan,(void *)owner,firstuv,1);  // currently only implement numuvimages==1
 	uvparam->metadata = metadata; 
 	uvparam->mark_metadata_done();
 

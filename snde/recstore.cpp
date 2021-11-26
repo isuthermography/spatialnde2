@@ -756,28 +756,31 @@ namespace snde {
     return ref;
   }
 
-  
-  void multi_ndarray_recording::allocate_storage(size_t array_index,std::vector<snde_index> dimlen, bool fortran_order) // fortran_order defaults to false
-  // must assign info.elementsize and info.typenum before calling allocate_storage()
-  // fortran_order only affects physical layout, not logical layout (interpretation of indices)
+
+  std::shared_ptr<recording_storage_manager> multi_ndarray_recording::assign_storage_manager(std::shared_ptr<recording_storage_manager> storman)
   {
-    snde_index nelem=1;
-    snde_index base_index;
-    snde_index stride=1;
-    size_t dimnum;
+    std::lock_guard<std::mutex> rec_admin(admin); // lock recording
+    storage_manager = storman;
+    return storage_manager;
+  }
 
-    for (dimnum=0;dimnum < dimlen.size();dimnum++) {
-      nelem *= dimlen.at(dimnum);
+  std::shared_ptr<recording_storage_manager> multi_ndarray_recording::assign_storage_manager()
+  // may return nullptr if recdb not available
+  {
+
+    std::shared_ptr<recording_storage_manager> storman;
+
+    {
+      std::lock_guard<std::mutex> rec_admin(admin); // lock recording
+      storman = storage_manager;
     }
+    
+    std::shared_ptr<recdatabase> recdb_strong=recdb_weak.lock();
+    if (!recdb_strong) return nullptr; // if recdb is vanishing we are dead too
 
-    std::string array_name="";
-    if (name_mapping.size() > 0) {
-      array_name = name_reverse_mapping.at(array_index);
-    }
-
-    if (!storage_manager) {
-      std::shared_ptr<recdatabase> recdb_strong=recdb_weak.lock();
-      if (!recdb_strong) return; // if recdb is vanishing we are dead too
+    
+    if (!storman) {
+      
       
       std::shared_ptr<recording_set_state> originating_rss_strong;
 
@@ -825,7 +828,7 @@ namespace snde {
 	      // drop the locks, as select_storage_manager will need to reacquire them and they will not be needed from here on 
 	      rec_admin.unlock();
 	      recdb_admin.unlock();
-	      storage_manager=select_storage_manager_for_recording_during_transaction(recdb_strong,info->name);
+	      storman=select_storage_manager_for_recording_during_transaction(recdb_strong,info->name);
 	    
 	    }
 	  }
@@ -835,14 +838,33 @@ namespace snde {
       } // locks dropped at this point
 
       
-      if (!storage_manager) {
-	storage_manager = select_storage_manager_for_recording(recdb_strong,info->name,originating_rss_strong);
+      if (!storman) {
+	storman = select_storage_manager_for_recording(recdb_strong,info->name,originating_rss_strong);
       }
+      
+      
+      {
+	std::lock_guard<std::mutex> rec_admin(admin); // lock recording
+	storage_manager=storman;
+      }
+
+      
     }
-    //  that whole mess above was just getting us a guaranteed storage manager
     
     
-    storage.at(array_index) = storage_manager->allocate_recording(info->name,array_name,info->revision,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem,!info->immutable);
+    return storman;
+  }
+
+
+  void multi_ndarray_recording::assign_storage(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &dimlen, bool fortran_order/*=false*/)
+  {
+    size_t dimnum;
+    snde_index stride=1;
+
+    
+    storage.at(array_index) = stor;
+    
+
     std::vector<snde_index> strides;
 
     strides.reserve(dimlen.size());
@@ -860,6 +882,7 @@ namespace snde {
       }
       
     }
+
     
     layouts.at(array_index)=arraylayout(dimlen,strides);
     ndinfo(array_index)->basearray = storage.at(array_index)->lockableaddr();
@@ -870,9 +893,81 @@ namespace snde {
     ndinfo(array_index)->requires_locking_read=storage.at(array_index)->requires_locking_read;
     ndinfo(array_index)->requires_locking_write=storage.at(array_index)->requires_locking_write;
     ndinfo(array_index)->shiftedarray = storage.at(array_index)->dataaddr_or_null();
+
+  }
+
+  void multi_ndarray_recording::assign_storage(std::shared_ptr<recording_storage> stor,std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order/*=false*/)
+  {
+    size_t array_index;
+
+    
+    array_index = name_mapping.at(array_name);
+    assign_storage(stor,array_index,dimlen,fortran_order);
+  }
+
+  
+  std::shared_ptr<recording_storage> multi_ndarray_recording::allocate_storage(size_t array_index,const std::vector<snde_index> &dimlen, bool fortran_order) // fortran_order defaults to false
+  // must assign info.elementsize and info.typenum before calling allocate_storage()
+  // fortran_order only affects physical layout, not logical layout (interpretation of indices)
+  {
+    size_t dimnum;
+    snde_index nelem=1;
+    std::shared_ptr<recording_storage_manager> storman;
+    std::shared_ptr<recording_storage> stor;
+
+    for (dimnum=0;dimnum < dimlen.size();dimnum++) {
+      nelem *= dimlen.at(dimnum);
+    }
+
+    std::string array_name="";
+    if (name_mapping.size() > 0) {
+      array_name = name_reverse_mapping.at(array_index);
+    }
+
+    storman = assign_storage_manager();
+    
+    // NOTE: Graphics storage manager allocate_recording() will create a nonmoving shadow if possible
+    // to eliminate the need for locking
+    stor = storman->allocate_recording(info->name,array_name,info->revision,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem,!info->immutable);
+    
+    assign_storage(stor,array_index,dimlen,fortran_order);
+
+    return stor;
     
   }
 
+
+  std::shared_ptr<recording_storage> multi_ndarray_recording::allocate_storage(std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order) // fortran_order defaults to false
+  // must assign info.elementsize and info.typenum before calling allocate_storage()
+  // fortran_order only affects physical layout, not logical layout (interpretation of indices)
+  {
+    
+    size_t dimnum;
+    snde_index nelem=1;
+    std::shared_ptr<recording_storage_manager> storman;
+    std::shared_ptr<recording_storage> stor;
+    size_t array_index;
+
+    for (dimnum=0;dimnum < dimlen.size();dimnum++) {
+      nelem *= dimlen.at(dimnum);
+    }
+
+    array_index = name_mapping.at(array_name);
+
+
+
+    storman = assign_storage_manager();
+    
+    // NOTE: Graphics storage manager allocate_recording() will create a nonmoving shadow if possible
+    // to eliminate the need for locking
+    stor = storman->allocate_recording(info->name,array_name,info->revision,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem,!info->immutable);
+    
+    assign_storage(stor,array_index,dimlen,fortran_order);
+
+    return stor; 
+  }
+
+  
   void multi_ndarray_recording::reference_immutable_recording(size_t array_index,std::shared_ptr<ndarray_recording_ref> rec,std::vector<snde_index> dimlen,std::vector<snde_index> strides)
   {
     snde_index first_index;
@@ -2262,10 +2357,10 @@ namespace snde {
       //definitively_changed_channels.emplace(config);
       unknownchanged_channels.erase(config);
 
-      // For new recordings, set the storage manager if not already set
-      if (!rec->storage_manager) {
-	rec->storage_manager = select_storage_manager_for_recording(recdb_strong,chanpath,globalrev);
-      }
+      //// For new recordings, set the storage manager if not already set
+      //if (!rec->storage_manager) {
+      //rec->storage_manager = select_storage_manager_for_recording(recdb_strong,chanpath,globalrev);
+      //}
       
       
     }

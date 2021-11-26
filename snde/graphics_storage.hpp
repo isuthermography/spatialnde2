@@ -38,7 +38,11 @@ namespace snde {
     std::shared_ptr<nonmoving_copy_or_reference> _ref; // atomic shared pointer. Access with ref(). once ref is assigned we return the pointers from the reference instead of the main array. Immutable once assigned. This is used for immutable data arrays within the graphics storage, where once they are fully written we create a nonmoving copy or reference (by a separate mapping of the shared memory object) that will survive and keep its location even if the main array is reallocated and gets a new address. Theoretically could be used for mutable data as well, except for the potential for mutable data to change size. 
 
     std::weak_ptr<graphics_storage_manager> graphman; 
+
+    std::shared_ptr<graphics_storage> leader_storage; // If this object (current object, not the leader_storage object) is a follower array, then the leader_storage pointer is non-null and points to the graphics_storage of the corresponding leader array. We keep the shared pointer to prevent the leader from expiring and us losing our memory. If this object (current object, not the leader_storage object) is a leader array, then the leader_storage pointer is null and we own the storage and therefore will free it via the arraymanager in our destructor
     
+    // Note: follower_cachemanagers have nothing to do with leader/follower arrays. Rather "follower" here
+    // just refers to the cachemanager having this graphics_storage in its cache. 
     std::mutex follower_cachemanagers_lock; 
     std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>> follower_cachemanagers;
     
@@ -46,7 +50,7 @@ namespace snde {
     // ***!!!! Conceptually creating a graphics_storage should pass ownership
     // of the particular array zone, so it is automatically free'd.
     // ***!!! But what about follower arrays?
-    graphics_storage(std::shared_ptr<graphics_storage_manager> graphman,std::shared_ptr<arraymanager> manager,std::shared_ptr<memallocator> memalloc,std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized);
+    graphics_storage(std::shared_ptr<graphics_storage_manager> graphman,std::shared_ptr<arraymanager> manager,std::shared_ptr<memallocator> memalloc,std::shared_ptr<graphics_storage> leader_storage,std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized); // if leader_storage is nullptr, then the storage onwership is passed to the new object, which will free it. 
     graphics_storage(const graphics_storage &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
     graphics_storage& operator=(const graphics_storage &) = delete; 
     virtual ~graphics_storage(); // virtual destructor so we can subclass. Notifies follower cachemanagers, even though openclcachemanager doesn't actuall care
@@ -96,6 +100,7 @@ public:
     // NOTE: This doesn't currently prevent two math functions from
     // grabbing the same follower array -- which could lead to corruption
     virtual std::shared_ptr<recording_storage> get_follower_storage(std::string recording_path,std::string leader_array_name,
+								    std::shared_ptr<graphics_storage> leader_storage,
 								    std::string follower_array_name,
 								    uint64_t recrevision,
 								    snde_index base_index, // as allocated for leader_array

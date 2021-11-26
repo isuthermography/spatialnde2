@@ -16,7 +16,7 @@ namespace snde {
   // ***!!!! Conceptually creating a graphics_storage should pass ownership
   // of the particular array zone, so it is automatically free'd.
   // ***!!! But what about follower arrays?
-  graphics_storage::graphics_storage(std::shared_ptr<graphics_storage_manager> graphman,std::shared_ptr<arraymanager> manager,std::shared_ptr<memallocator> memalloc,std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized) :
+  graphics_storage::graphics_storage(std::shared_ptr<graphics_storage_manager> graphman,std::shared_ptr<arraymanager> manager,std::shared_ptr<memallocator> memalloc,std::shared_ptr<graphics_storage> leader_storage,std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized) :
     recording_storage(recording_path,recrevision,id,basearray,elementsize,base_index,typenum,nelem,manager->locker,requires_locking_read,requires_locking_write,finalized),
     manager(manager),
     memalloc(memalloc),
@@ -38,10 +38,19 @@ namespace snde {
       }
     }
 
-    // ***!!!! In creating the graphics_storage we should be
+    // In creating the graphics_storage, unless we are a follower
+    // array, we are
     // passing ownership of allocated regions within the
     // graphics_storage_manager's arrays. So here we should free
-    // those portions of the arrays
+    // those portions of the arrays.
+
+    // we are a follower array if leader_storage is not null.
+    // therefore we are a leader array and need to free our storage
+    // if leader_storage is null
+
+    if (!leader_storage) {
+      manager->free(lockableaddr(),base_index);
+    }
     
   }
   void *graphics_storage::dataaddr_or_null()
@@ -414,6 +423,7 @@ namespace snde {
   // NOTE: This doesn't currently prevent two math functions from
   // grabbing the same follower array -- which could lead to corruption
   std::shared_ptr<recording_storage> graphics_storage_manager::get_follower_storage(std::string recording_path,std::string leader_array_name,
+										    std::shared_ptr<graphics_storage> leader_storage,
 										    std::string follower_array_name,
 										    uint64_t recrevision,
 										    snde_index base_index, // as allocated for leader_array
@@ -430,15 +440,23 @@ namespace snde {
     }
 
 
-    std::shared_ptr<graphics_storage> retval = std::make_shared<graphics_storage>(std::dynamic_pointer_cast<graphics_storage_manager>(shared_from_this()),manager,manager->_memalloc,recording_path,recrevision,arrayid_from_name.at(follower_array_name),follower_arrayaddr,elementsize,base_index,typenum,nelem,is_mutable || manager->_memalloc->requires_locking_read,is_mutable || manager->_memalloc->requires_locking_write,false);
+    std::shared_ptr<graphics_storage> retval = std::make_shared<graphics_storage>(std::dynamic_pointer_cast<graphics_storage_manager>(shared_from_this()),manager,manager->_memalloc,leader_storage,recording_path,recrevision,arrayid_from_name.at(follower_array_name),follower_arrayaddr,elementsize,base_index,typenum,nelem,is_mutable || manager->_memalloc->requires_locking_read,is_mutable || manager->_memalloc->requires_locking_write,false);
 
     // see also parallel code in allocate_recording_lockprocesss, below
     if (!retval->requires_locking_write) {
-      // switch pointer to a nonmoving copy or reference
-
-      // assign _ref: 
-      retval->assign_ref(manager->_memalloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,retval->id,retval->_basearray,*retval->_basearray,elementsize*base_index,elementsize*nelem));
-      
+      assert(!retval->requires_locking_read);
+      if (manager->_memalloc->supports_nonmoving_reference()) {
+	// switch pointer to a nonmoving reference
+	
+	// assign _ref: 
+	retval->assign_ref(manager->_memalloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,retval->id,retval->_basearray,*retval->_basearray,elementsize*base_index,elementsize*nelem));
+      } else {
+	// read and write locks required because entire array may move around
+	retval->requires_locking_write=true;
+	retval->requires_locking_read=true; 
+	// ***!!! For immutable arrays we could clear requires_locking_read by creating
+	// a nonmoving copy once the array data is finalized ***!!!
+      }
     } else if (!retval->requires_locking_read) {
       // unimplemented so-far. This is the case of locking required for write, but not read,
       // as (for example) lock required on write to ensure graphics cache synchronization, or not writing to
@@ -478,17 +496,26 @@ namespace snde {
     
     
 
-    std::shared_ptr<graphics_storage> retval = std::make_shared<graphics_storage>(std::dynamic_pointer_cast<graphics_storage_manager>(shared_from_this()),manager,manager->_memalloc,recording_path,recrevision,arrayid_from_name.at(array_name),arrayaddr,elementsize,addr,typenum,nelem,is_mutable || manager->_memalloc->requires_locking_read,is_mutable || manager->_memalloc->requires_locking_write,false);
+    std::shared_ptr<graphics_storage> retval = std::make_shared<graphics_storage>(std::dynamic_pointer_cast<graphics_storage_manager>(shared_from_this()),manager,manager->_memalloc,nullptr,recording_path,recrevision,arrayid_from_name.at(array_name),arrayaddr,elementsize,addr,typenum,nelem,is_mutable || manager->_memalloc->requires_locking_read,is_mutable || manager->_memalloc->requires_locking_write,false);
 
     // if not(requires_locking_write) we must switch the pointer to a nonmoving_copy_or_reference NOW because otherwise the array might be moved around as we try to write.
     // if not(requires_locking_read) we must switch the pointer to a nonmoving_copy_or_reference on finalization
 
     // see also parallel code in get_follower_storage, above
     if (!retval->requires_locking_write) {
-      // switch pointer to a nonmoving copy or reference
-
-      // assign _ref: 
-      retval->assign_ref(manager->_memalloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,retval->id,retval->_basearray,*retval->_basearray,elementsize*addr,elementsize*nelem));
+      assert(!retval->requires_locking_read);
+      if (manager->_memalloc->supports_nonmoving_reference()) {
+	// switch pointer to a nonmoving copy or reference
+	
+	// assign _ref: 
+	retval->assign_ref(manager->_memalloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,retval->id,retval->_basearray,*retval->_basearray,elementsize*addr,elementsize*nelem));
+      } else {
+	// read and write locks required because entire array may move around
+	retval->requires_locking_write=true;
+	retval->requires_locking_read=true;
+	// ***!!! For immutable arrays we could clear requires_locking_read by creating
+	// a nonmoving copy once the array data is finalized ***!!!
+      }
       
     } else if (!retval->requires_locking_read) {
       // unimplemented so-far. This is the case of locking required for write, but not read,

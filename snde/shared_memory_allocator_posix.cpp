@@ -167,6 +167,10 @@ namespace snde {
     return this_info.addr;
   }
   
+  bool shared_memory_allocator_posix::supports_nonmoving_reference() // returns true if this allocator can return a nonmoving reference rather than a copy. The nonmoving reference will stay coherent with the original.
+  {
+    return true; 
+  }
   
   std::shared_ptr<nonmoving_copy_or_reference> shared_memory_allocator_posix::obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void **basearray,void *ptr, std::size_t shift, std::size_t length)
   {

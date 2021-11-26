@@ -159,9 +159,19 @@ namespace snde {
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(size_t index=0);
 
 
+    std::shared_ptr<recording_storage_manager> assign_storage_manager(std::shared_ptr<recording_storage_manager> storman);
+    std::shared_ptr<recording_storage_manager> assign_storage_manager();
+
+    void assign_storage(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &dimlen, bool fortran_order=false);
+    void assign_storage(std::shared_ptr<recording_storage> stor,std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
+
     // must assign info.elementsize and info.typenum before calling allocate_storage()
     // fortran_order only affects physical layout, not logical layout (interpretation of indices)
-    virtual void allocate_storage(size_t array_index,std::vector<snde_index> dimlen, bool fortran_order=false);
+    // allocate_storage() does assign_storage_manager() then uses that to allocate_recording(), then performs assign_storage().
+    // returns the storage in case you want it. 
+    
+    virtual std::shared_ptr<recording_storage> allocate_storage(size_t array_index,std::vector<snde_index> dimlen, bool fortran_order=false);
+    virtual std::shared_ptr<recording_storage> allocate_storage(std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
 
     // alternative to allocating storage: Referencing an existing recording
     virtual void reference_immutable_recording(size_t array_index,std::shared_ptr<ndarray_recording_ref> rec,std::vector<snde_index> dimlen,std::vector<snde_index> strides);
