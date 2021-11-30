@@ -1,7 +1,7 @@
 #ifndef RECMATH_COMPUTE_RESOURCE_OPENCL_HPP
 #define RECMATH_COMPUTE_RESOURCE_OPENCL_HPP
 
-#include <CL/opencl.hpp>
+#include <CL/cl2.hpp>
 #include "snde/recmath_compute_resource.hpp"
 
 namespace snde {

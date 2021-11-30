@@ -277,12 +277,12 @@ target_compile_definitions(spatialnde2 PRIVATE SPATIALNDE2_SHAREDLIB_EXPORT)
 
 IF (OpenCL_FOUND)
   add_library(spatialnde2_ocl SHARED ${SPATIALNDE2_OCL_SOURCES} )
-  target_link_libraries(spatialnde2_ocl ${OpenCL_LIBRARIES} )
+  target_link_libraries(spatialnde2_ocl ${OpenCL_LIBRARIES} spatialnde2)
 ENDIF()
 
 IF (OpenSceneGraph_FOUND)
   add_library(spatialnde2_osg SHARED ${SPATIALNDE2_OSG_SOURCES} )
-  target_link_libraries(spatialnde2_osg ${OPENSCENEGRAPH_LIBRARIES} )
+  target_link_libraries(spatialnde2_osg ${OPENSCENEGRAPH_LIBRARIES} spatialnde2)
 ENDIF()
 
 IF (Qt5_FOUND)

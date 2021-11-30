@@ -5,6 +5,7 @@
 #include <vector>
 #include <cmath>
 #include <regex>
+#include <sstream>
 
 #include "snde/stringtools.hpp"
 

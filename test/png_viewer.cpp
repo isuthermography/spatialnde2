@@ -1,4 +1,6 @@
+#ifndef _MSC_VER
 #include <unistd.h>
+#endif
 
 #include <GL/glut.h>
 #include <GL/freeglut.h>
