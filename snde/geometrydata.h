@@ -18,14 +18,13 @@ extern "C" {
     /* meshed 3D geometry */
     struct snde_part *parts; /* allocated separately */
     union snde_topological *topos; /* allocated separately */
-    snde_index  *topo_indices; /* allocated separately */
+    snde_index  *topo_indices; /* allocated separately. Pool of indices used by the topos */
     
 
     /* winged edge mesh format */
     snde_triangle *triangles; // allocated separately
     snde_coord3 *refpoints; // allocated with triangles  NOTE: Refpoints are in part coordinates, not world coordinates
     snde_coord *maxradius; // allocated with triangles
-    snde_trivertnormals *vertnormals; // allocated with triangles, but are per vertex so three normals/triangle NOTE: Normals are in part coordinates, not world coordinates.
     snde_coord3 *trinormals; // allocated with triangles, one normal/triangle NOTE: Normals are in part coordinates, not world coordinates.
     snde_cmat23 *inplanemats; // allocated with triangles
 
@@ -94,7 +93,7 @@ extern "C" {
     snde_parameterization_patch *uv_patches;
     
     union snde_topological *uv_topos; /* allocated separately */
-    snde_index  *uv_topo_indices; /* allocated separately */
+    snde_index  *uv_topo_indices; /* allocated separately. Pool of indices used by the uv_topos */
 
     snde_triangle *uv_triangles; /* allocated separately */
     snde_cmat23 *inplane2uvcoords;  /* allocated with uv_triangles ... multiply this by (x,y,1), where (x,y) are in inplanemat coordinates, to get u,v coordinates */  
@@ -107,7 +106,7 @@ extern "C" {
     
     // surface parameterization (texture coordinate) vertices...
     snde_coord2 *uv_vertices;
-    snde_vertex_edgelist_index *uv_vertex_edgelist_indices; // allocated with vertices
+    snde_vertex_edgelist_index *uv_vertex_edgelist_indices; // allocated with uv_vertices
 
     snde_index *uv_vertex_edgelist; // allocated separately... vertex edges are listed in in CCW order
 
@@ -185,9 +184,10 @@ extern "C" {
     // to kernel so that select patches can be overridden
     // on-demand for a particular operation.
 
-
-    snde_rendercoord *vertex_arrays; /* transformed vertex array for OpenSceneGraph / OpenGL */
-    snde_rendercoord *texvertex_arrays; /* transformed texture vertex array for OpenSceneGraph / OpenGL */
+    // these remaining arrays are used solely for rendering... 
+    snde_trivertnormals *vertnormals; // allocated separately. For triangles, but are per vertex so three normals/triangle NOTE: Normals are in part coordinates, not world coordinates.
+    snde_rendercoord *vertex_arrays; /* transformed vertex array for OpenSceneGraph / OpenGL (allocated separately) */
+    snde_rendercoord *texvertex_arrays; /* transformed texture vertex array for OpenSceneGraph / OpenGL (allocated separate) */
     snde_rgba *texbuffer; // allocated separately
     
     

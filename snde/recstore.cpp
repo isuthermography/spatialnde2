@@ -3,6 +3,8 @@
 #include "snde/notify.hpp"
 #include "snde/allocator.hpp"
 
+#include "snde/graphics_recording.hpp"
+
 #ifndef _WIN32
 #include "shared_memory_allocator_posix.hpp"
 #endif // !_WIN32
@@ -37,6 +39,17 @@ namespace snde {
       {typeid(std::shared_ptr<ndarray_recording_ref>),SNDE_RTN_RECORDING_REF},      
       {typeid(snde_coord3_int16),SNDE_RTN_COORD3_INT16},
       {typeid(std::vector<snde_index>),SNDE_RTN_INDEXVEC},
+      {typeid(std::shared_ptr<recording_group>),SNDE_RTN_RECORDING_GROUP},
+      {typeid(std::shared_ptr<pointcloud_recording>),SNDE_RTN_POINTCLOUD_RECORDING},
+      {typeid(std::shared_ptr<meshed_part_recording>),SNDE_RTN_MESHED_PART_RECORDING},
+      {typeid(std::shared_ptr<meshed_vertexarray_recording>),SNDE_RTN_MESHED_VERTEXARRAY_RECORDING},
+      {typeid(std::shared_ptr<meshed_texvertex_recording>),SNDE_RTN_MESHED_TEXVERTEX_RECORDING},
+      {typeid(std::shared_ptr<meshed_vertnormals_recording>),SNDE_RTN_MESHED_VERTNORMALS_RECORDING},
+      {typeid(std::shared_ptr<meshed_trinormals_recording>),SNDE_RTN_MESHED_TRINORMALS_RECORDING},
+      {typeid(std::shared_ptr<meshed_parameterization_recording>),SNDE_RTN_MESHED_PARAMETERIZATION_RECORDING},
+      {typeid(std::shared_ptr<textured_part_recording>),SNDE_RTN_TEXTURED_PART_RECORDING},
+      {typeid(std::shared_ptr<assembly_recording>),SNDE_RTN_ASSEMBLY_RECORDING},
+      
 
   });
   
@@ -602,6 +615,12 @@ namespace snde {
   }
 
 
+  recording_group::recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,std::shared_ptr<std::string> path_to_primary,size_t info_structsize/*=0*/) :
+    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize),
+    path_to_primary(path_to_primary)
+  {
+
+  }
 
   
   // after construction, must call .define_array() exactly once for each ndarray
@@ -637,6 +656,17 @@ namespace snde {
     // except for info->arrays
     free(mndinfo()->arrays);
     mndinfo()->arrays=nullptr; 
+  }
+
+  void multi_ndarray_recording::mark_as_ready()
+  {
+    // Notify our storage that we are marked as ready, which may cause cache invalidation, etc.
+    for (auto && recstorage: storage) {
+      recstorage->ready_notification();
+    }
+    
+    // call superclass, which does the rest of the management
+    recording_base::mark_as_ready();
   }
 
   void multi_ndarray_recording::define_array(size_t index,unsigned typenum)
@@ -756,7 +786,11 @@ namespace snde {
     return ref;
   }
 
-
+  std::shared_ptr<ndarray_recording_ref> multi_ndarray_recording::reference_ndarray(const std::string &array_name)
+  {
+    return reference_ndarray(name_mapping.at(array_name));
+  }
+  
   std::shared_ptr<recording_storage_manager> multi_ndarray_recording::assign_storage_manager(std::shared_ptr<recording_storage_manager> storman)
   {
     std::lock_guard<std::mutex> rec_admin(admin); // lock recording
@@ -883,6 +917,7 @@ namespace snde {
       
     }
 
+    assert(stride==stor->nelem); // final stride (product of dimlen) had better equal number of elements!
     
     layouts.at(array_index)=arraylayout(dimlen,strides);
     ndinfo(array_index)->basearray = storage.at(array_index)->lockableaddr();

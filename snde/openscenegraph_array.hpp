@@ -1,4 +1,5 @@
-#include <osg/Array>
+#ifndef SNDE_OPENSCENEGRAPH_ARRAY_HPP
+#define SNDE_OPENSCENEGRAPH_ARRAY_HPP
 
 // Partly based on osgsharedarray example, which is
 // under more liberal license terms than OpenSceneGraph itself, specifically : 
@@ -19,9 +20,9 @@
 *  THE SOFTWARE.
 */
 
-#ifndef SNDE_OPENSCENEGRAPH_ARRAY_HPP
-#define SNDE_OPENSCENEGRAPH_ARRAY_HPP
 
+
+#include <osg/Array>
 
 
 /** This class is a subclass of osg::Array. This
@@ -60,53 +61,64 @@ namespace snde {
   
 
   
-class OSGArray : public osg::Array {
+class OSGFPArray : public osg::Array {
   /***!!! WARNING: The underlying data may change whenever the array is unlocked. 
       Either after a version increment or before rendering we should push out 
       any changes to OSG and (how?) make sure it processes them.  */
   
   
 public:
-  union {
-    volatile float **_float_ptr;
-    volatile double **_double_ptr;
-  } _ptr;
-  std::weak_ptr<snde::geometry> snde_geom;
+  std::shared_ptr<ndarray_recording_ref> storage; // keeps array data in memory
   size_t vecsize; /* 2 or 3 */
   size_t elemsize; /* 4 (float) or 8 (double) */
   snde_index nvec;
-  snde_index offset; // counted in elements (pieces of a vector)
+  //snde_index offset; // counted in elements (pieces of a vector)
   
   /** Default ctor. Creates an empty array. */
-  OSGArray(std::shared_ptr<snde_geometry> snde_geom) :
-    snde_geom(snde_geom),
+  OSGFPArray(/*std::shared_ptr<snde_geometry> snde_geom*/) :
+    storage(nullptr),
     osg::Array(osg::Array::Vec3ArrayType,3,GL_FLOAT),
     vecsize(3),
-    elemsize(4) {
-    _ptr._float_ptr=NULL;
+    elemsize(4)
+  {
+    //_ptr._float_ptr=NULL;
   }
   
   /** "Normal" ctor.
    * Elements presumed to be either float or double
    */
-  OSGArray(std::shared_ptr<snde_geometry> snde_geom,void **array,size_t offset,size_t elemsize, size_t vecsize, size_t nvec) :
-    snde_geom(snde_geom),
-    osg::Array((vecsize==2) ? ((elemsize==4) ? osg::Array::Vec2ArrayType : osg::Array::Vec2dArrayType) : ((elemsize==4) ? osg::Array::Vec3ArrayType : osg::Array::Vec3dArrayType),vecsize,(elemsize==4) ? GL_FLOAT:GL_DOUBLE),
-    offset(offset),
-    nvec(nvec), 
+  OSGFPArray(std::shared_ptr<ndarray_recording_ref> storage, size_t vecsize) :
+    //snde_geom(snde_geom),
+    osg::Array((vecsize==2) ? ((storage->storage->elementsize==4) ? osg::Array::Vec2ArrayType : osg::Array::Vec2dArrayType) : ((storage->storage->elementsize==4) ? osg::Array::Vec3ArrayType : osg::Array::Vec3dArrayType),vecsize,(storage->storage->elementsize==4) ? GL_FLOAT:GL_DOUBLE),
+    //offset(storage->storage->base_index),
+    nvec(storage->storage->nelem/vecsize), 
     vecsize(vecsize),
-    elemsize(elemsize)
+    elemsize(storage->storage->elementsize)
   {
-    if (elemsize==4) _ptr._float_ptr=(volatile float **)(array);
-    else _ptr._double_ptr=(volatile double **)(array);
+    if (storage->storage->nelem % vecsize) {
+      throw snde_error("OSGFPArray: Number of elements is not a multiple of vecsize");
+    }
+    
+    if (elemsize==4) {
+      if (storage->typenum != SNDE_RTN_FLOAT32) {
+	throw snde_error("Initializing OSGFPArray() with length 4 non-float32");
+      }
+      //_ptr._float_ptr=(volatile float **)(storage->storage);
+    }
+    else {
+      if (storage->typenum != SNDE_RTN_FLOAT64) {
+	throw snde_error("Initializing OSGFPArray() with non-length 4 non-float64");
+      }
+      // _ptr._double_ptr=(volatile double **)(array);
+    }
   }
 
   /** OSG Copy ctor. */
-  OSGArray(const OSGArray& other, const osg::CopyOp& /*copyop*/) :
-    snde_geom(other.snde_geom),
+  OSGFPArray(const OSGFPArray& other, const osg::CopyOp& /*copyop*/) :
     osg::Array(other.getType(),(other.elemsize==4) ? GL_FLOAT:GL_DOUBLE),
+    storage(other.storage),
     nvec(other.nvec),
-    _ptr(other._ptr),
+    //_ptr(other._ptr),
     vecsize(other.vecsize),
     elemsize(other.elemsize)
   {
@@ -114,18 +126,18 @@ public:
   }
 
   
-  OSGArray(const OSGArray &)=delete; /* copy constructor disabled */
-  OSGArray& operator=(const OSGArray &)=delete; /* copy assignment disabled */
+  OSGFPArray(const OSGFPArray &)=delete; /* copy constructor disabled */
+  OSGFPArray& operator=(const OSGFPArray &)=delete; /* copy assignment disabled */
 
   /** What type of object would clone return? */
   virtual Object* cloneType() const {
-    std::shared_ptr<geometry> snde_geom_strong(snde_geom);
-    return new OSGArray(snde_geom_strong);
+    //std::shared_ptr<geometry> snde_geom_strong(snde_geom);
+    return new OSGFPArray(/*snde_geom_strong*/);
   }
   
   /** Create a copy of the object. */
   virtual osg::Object* clone(const osg::CopyOp& copyop) const {
-    return new OSGArray(*this,copyop);
+    return new OSGFPArray(*this,copyop);
   }
 
   /** Accept method for ArrayVisitors.
@@ -147,22 +159,24 @@ public:
   /** Accept method for ValueVisitors. */
   virtual void accept(unsigned int index, osg::ValueVisitor& vv) {
     if (elemsize==4) {
+      float *float_ptr = (float *)storage->storage->cur_dataaddr();
       if (vecsize==2) {
-	osg::Vec2 v((*_ptr._float_ptr)[offset+index*2],(*_ptr._float_ptr)[offset + (index)*2+1]);	
+	osg::Vec2 v(float_ptr[index*2],float_ptr[(index)*2+1]);	
 	vv.apply(v);
 
       } else {
-	osg::Vec3 v((*_ptr._float_ptr)[offset+(index)*3],(*_ptr._float_ptr)[offset+(index)*3+1],(*_ptr._float_ptr)[offset + (index)*3+2]);
+	osg::Vec3 v(float_ptr[(index)*3],float_ptr[(index)*3+1],float_ptr[(index)*3+2]);
 	
 	vv.apply(v);
       }
     }
     else {
+      double *double_ptr = (double *)storage->storage->cur_dataaddr();
       if (vecsize==2) {
-	osg::Vec2d v((*_ptr._double_ptr)[offset+(index)*2],(*_ptr._double_ptr)[offset+(index)*2+1]);
+	osg::Vec2d v(double_ptr[(index)*2],double_ptr[(index)*2+1]);
 	vv.apply(v);
       } else {
-	osg::Vec3d v((*_ptr._double_ptr)[offset+(index)*3],(*_ptr._double_ptr)[offset+(index)*3+1],(*_ptr._double_ptr)[offset+(index)*3+2]);
+	osg::Vec3d v(double_ptr[(index)*3],double_ptr[(index)*3+1],double_ptr[(index)*3+2]);
 	vv.apply(v);
       }
     }
@@ -171,22 +185,24 @@ public:
   /** Const accept method for ValueVisitors. */
   virtual void accept(unsigned int index, osg::ConstValueVisitor& cvv) const {
     if (elemsize==4) {
+      float *float_ptr = (float *)storage->storage->cur_dataaddr();
       if (vecsize==2) {
-	osg::Vec2 v((*_ptr._float_ptr)[offset+(index)*2],(*_ptr._float_ptr)[offset+(index)*2+1]);	
+	osg::Vec2 v(float_ptr[(index)*2],float_ptr[(index)*2+1]);	
 	cvv.apply(v);
 	
       } else {
-	osg::Vec3 v((*_ptr._float_ptr)[offset+(index)*3],(*_ptr._float_ptr)[offset+(index)*3+1],(*_ptr._float_ptr)[offset+(index)*3+2]);
+	osg::Vec3 v(float_ptr[(index)*3],float_ptr[(index)*3+1],float_ptr[(index)*3+2]);
 	
 	cvv.apply(v);
       }
     }
     else {
+      double *double_ptr = (double *)storage->storage->cur_dataaddr();
       if (vecsize==2) {
-	osg::Vec2d v((*_ptr._double_ptr)[offset+(index)*2],(*_ptr._double_ptr)[offset+(index)*2+1]);
+	osg::Vec2d v(double_ptr[(index)*2],double_ptr[(index)*2+1]);
 	cvv.apply(v);
       } else {
-	osg::Vec3d v((*_ptr._double_ptr)[offset+(index)*3],(*_ptr._double_ptr)[offset+(index)*3+1],(*_ptr._double_ptr)[offset+(index)*3+2]);
+	osg::Vec3d v(double_ptr[(index)*3],double_ptr[(index)*3+1],double_ptr[(index)*3+2]);
 	cvv.apply(v);
       }
     }
@@ -225,18 +241,17 @@ public:
 
   /** Returns a pointer to the first element of the array. */
   virtual const GLvoid* getDataPointer() const {
-    if (elemsize==4) {
-      return (const GLvoid *)((*_ptr._float_ptr)+offset);
-    } else {
-      return (const GLvoid *)((*_ptr._double_ptr)+offset);
-    }
+    return (GLvoid*)storage->storage->cur_dataaddr();
   }
 
   virtual const GLvoid* getDataPointer(unsigned int index) const {
     if (elemsize==4) {
-      return (const GLvoid *)((*_ptr._float_ptr)+offset + (index)*vecsize);
+      float *float_ptr = (float *)storage->storage->cur_dataaddr();
+      return (const GLvoid *)(float_ptr + (index)*vecsize);
     } else {
-      return (const GLvoid *)((*_ptr._double_ptr)+offset + (index)*vecsize);
+      double *double_ptr = (double *)storage->storage->cur_dataaddr();
+
+      return (const GLvoid *)(double_ptr + (index)*vecsize);
     }
   }
   

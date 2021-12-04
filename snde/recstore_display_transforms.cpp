@@ -3,7 +3,100 @@
 
 namespace snde {
 
-  void recstore_display_transforms::update(std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> globalrev,const std::vector<display_requirement> &requirements)
+  static void _flattenreq_accumulate_reqs(std::shared_ptr<display_requirement> req,std::vector<std::shared_ptr<display_requirement>> *accumulator)
+  {
+    accumulator->push_back(req);
+
+    for (auto && subreq: req->sub_requirements) {
+      _flattenreq_accumulate_reqs(subreq,accumulator);
+    }
+  }
+  
+  static std::vector<std::shared_ptr<display_requirement>> flatten_requirements(const std::map<std::string,std::shared_ptr<display_requirement>> &requirements)
+  {
+    std::vector<std::shared_ptr<display_requirement>> retval; 
+    for (auto && chanpath_req: requirements) {
+      _flattenreq_accumulate_reqs(chanpath_req.second,&retval);
+    }
+    return retval;
+  }
+
+
+  static std::unordered_map<std::pair<std::string,rendermode_ext>,std::shared_ptr<display_requirement>,chanpathmodeext_hash> merge_requirements(const std::vector<std::shared_ptr<display_requirement>> &requirements)
+    {
+      // Merge together all requirements that are asking for exactly the same thing
+      // (e.g. more than one rendered object might need exactly the same texture)
+
+      // The renderer still keeps the original tree, but this is used to uniquely
+      // define the math functions, etc. to achieve the requirements
+
+      // the merge criteria are the recording name and the extended rendermode
+
+      std::unordered_map<std::pair<std::string,rendermode_ext>,std::shared_ptr<display_requirement>,chanpathmodeext_hash> retval;
+
+      for (auto && requirement: requirements) {
+	std::pair<std::string,rendermode_ext> key = std::make_pair(requirement->channelpath,requirement->mode);
+
+	std::unordered_map<std::pair<std::string,rendermode_ext>,std::shared_ptr<display_requirement>,chanpathmodeext_hash>::iterator existing = retval.find(key);
+	if (existing != retval.end()) {
+	  // found matching entry already
+	  // verify compatibility
+
+	  // check that renderable_channelpaths match
+	  if (requirement->renderable_channelpath != existing->second->renderable_channelpath) {
+	    // would have pointer equality if they are both nullptr
+	    if (!requirement->renderable_channelpath && existing->second->renderable_channelpath) {
+	      throw snde_error("recstore_display_transforms::update()/merge_requirements(): Attempting to merge requirements with incompatible renderable channelpaths nullptr and %s",existing->second->renderable_channelpath->c_str());
+	      
+	    }
+	    if (requirement->renderable_channelpath && !existing->second->renderable_channelpath) {
+	      throw snde_error("recstore_display_transforms::update()/merge_requirements(): Attempting to merge requirements with incompatible renderable channelpaths %s and nullptr",requirement->renderable_channelpath->c_str());
+	    }
+	    
+	    // neither can be nullptr at this point	    
+	    if (*requirement->renderable_channelpath != *existing->second->renderable_channelpath) {
+	      throw snde_error("recstore_display_transforms::update()/merge_requirements(): Attempting to merge requirements with incompatible renderable channelpaths %s and %s",requirement->renderable_channelpath->c_str(),existing->second->renderable_channelpath->c_str());
+	    }
+	  }
+
+
+	  // check that renderable_functions match
+	  if (requirement->renderable_function != existing->second->renderable_function) {
+	    // would have pointer equality if they are both nullptr
+	    if (!requirement->renderable_function && existing->second->renderable_function) {
+	      throw snde_error("recstore_display_transforms::update()/merge_requirements(): Attempting to merge requirements with incompatible renderable functions nullptr and %s",existing->second->renderable_function->result_channel_paths.at(0)->c_str());
+	      
+	    }
+	    if (requirement->renderable_function && !existing->second->renderable_function) {
+	      throw snde_error("recstore_display_transforms::update()/merge_requirements(): Attempting to merge requirements with incompatible renderable functions %s and nullptr",requirement->renderable_function->result_channel_paths.at(0)->c_str());
+	      
+	    }
+	    
+	    // neither can be nullptr at this point	    
+	    if (*requirement->renderable_function != *existing->second->renderable_function) { // uses operator== on the instantiated_math_function
+
+	      throw snde_error("recstore_display_transforms::update()/merge_requirements(): Attempting to merge requirements with incompatible renderable functions %s and %s",requirement->renderable_function->result_channel_paths.at(0)->c_str(),existing->second->renderable_function->result_channel_paths.at(0)->c_str());
+	      
+	    }
+	  }
+	  // (sub_requirements should already have been flattened at this point. They are still present,
+	  // but we will get to them via the flat iteration)
+	} else {
+	  // At this point there is no existing match 
+	  // (If there had been a key match and the existing data didn't match
+	  // we would have thrown an exception above)
+
+	  // So we need to add the new entry
+
+	  retval.emplace(key,requirement);
+	}
+      }
+
+      return retval; // all duplicate requirements eliminated
+      
+    }
+      
+  void recstore_display_transforms::update(std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> globalrev,const std::map<std::string,std::shared_ptr<display_requirement>> &requirements)
   // define a new with_display_transforms member based on a new globalrev and a list of display requirements.
   // the globalrev is presumed to be fullyready.
   // Likewise the previous rss in with_display_transforms is also presumed to be fullyready
@@ -12,6 +105,12 @@ namespace snde {
     std::shared_ptr<recording_set_state> previous_with_transforms = with_display_transforms;
     std::map<std::string,std::shared_ptr<channelconfig>> all_channels_by_name;
 
+    std::vector<std::shared_ptr<display_requirement>> flattened_requirements = flatten_requirements(requirements);
+
+    // need to merge display_requirements according to channelpath and mode.
+    // while doing so should verify that renderable_channelpaths match and renderable_function definition and parameters match. 
+    std::unordered_map<std::pair<std::string,rendermode_ext>,std::shared_ptr<display_requirement>,chanpathmodeext_hash> merged_requirements = merge_requirements(flattened_requirements);
+    
     latest_globalrev = globalrev;
 
     if (!previous_globalrev) {
@@ -77,16 +176,17 @@ namespace snde {
 
 
     // ... and second from the display requirements
-    for (auto && dispreq: requirements) {
-      if (dispreq.renderable_function) {
-	assert(dispreq.channelpath != dispreq.renderable_channelpath);
+    for (auto && dispkey_dispreq: merged_requirements) {
+      std::shared_ptr<display_requirement> dispreq=dispkey_dispreq.second;
+      if (dispreq->renderable_function) {
+	assert(dispreq->channelpath != *dispreq->renderable_channelpath);
 
 	std::shared_ptr<channelconfig> renderableconfig;
 
 	// search for pre-existing channel in previous_with_transforms
-	auto preexist_it = previous_with_transforms->recstatus.channel_map.find(dispreq.renderable_channelpath);
+	auto preexist_it = previous_with_transforms->recstatus.channel_map.find(*dispreq->renderable_channelpath);
 	// to reuse, we have to find something of the same name where the math_fcns compare by value, indicating the same function and parameters
-	if (preexist_it != previous_with_transforms->recstatus.channel_map.end() && *preexist_it->second.config->math_fcn == *dispreq.renderable_function) {
+	if (preexist_it != previous_with_transforms->recstatus.channel_map.end() && *preexist_it->second.config->math_fcn == *dispreq->renderable_function) {
 	  // reuse old config
 	  renderableconfig = preexist_it->second.config;
 
@@ -100,13 +200,13 @@ namespace snde {
 	  
 	} else {
 	  // need to make new config
-	  renderableconfig = std::make_shared<channelconfig>(dispreq.renderable_channelpath,
+	  renderableconfig = std::make_shared<channelconfig>(*dispreq->renderable_channelpath,
 											    "recstore_display_transform",
 											    (void *)this,
 											    true, // hidden
 											    nullptr); // storage_manager
 	  renderableconfig->math=true;
-	  renderableconfig->math_fcn = dispreq.renderable_function;
+	  renderableconfig->math_fcn = dispreq->renderable_function;
 	  renderableconfig->ondemand=true;
 	  renderableconfig->data_mutable=false; // don't support mutable rendering functions for now... maybe in the future
 
@@ -118,17 +218,17 @@ namespace snde {
 	}
 
 	// add to initial_mathdb
-	initial_mathdb.defined_math_functions.emplace(dispreq.renderable_channelpath,renderableconfig->math_fcn);
+	initial_mathdb.defined_math_functions.emplace(*dispreq->renderable_channelpath,renderableconfig->math_fcn);
 	
 	// add to initial_channel_map
 	initial_channel_map.emplace(std::piecewise_construct,
-				    std::forward_as_tuple(dispreq.renderable_channelpath),
+				    std::forward_as_tuple(*dispreq->renderable_channelpath),
 				    std::forward_as_tuple(nullptr,renderableconfig,nullptr,false));
 
 	// also the new channel_map pointer should be placed into the defined_recordings map of the rss's recstatus
 
 	all_channels_by_name.emplace(std::piecewise_construct,
-				     std::forward_as_tuple(dispreq.renderable_channelpath),
+				     std::forward_as_tuple(*dispreq->renderable_channelpath),
 				     std::forward_as_tuple(renderableconfig));
 	
 
@@ -162,9 +262,10 @@ namespace snde {
     }
 
     // For everything from the requirements, mark it in the defined_recordings map
-    for (auto && dispreq: requirements) {
-      if (dispreq.renderable_function) {
-	auto wdt_chanmap_iter = with_display_transforms->recstatus.channel_map.find(dispreq.renderable_channelpath);
+    for (auto && dispkey_dispreq: merged_requirements) {
+      std::shared_ptr<display_requirement> dispreq=dispkey_dispreq.second;
+      if (dispreq->renderable_function) {
+	auto wdt_chanmap_iter = with_display_transforms->recstatus.channel_map.find(*dispreq->renderable_channelpath);
 	assert(wdt_chanmap_iter != with_display_transforms->recstatus.channel_map.end());
 	
 	with_display_transforms->recstatus.defined_recordings.emplace(wdt_chanmap_iter->second.config,&wdt_chanmap_iter->second);

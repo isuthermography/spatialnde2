@@ -75,6 +75,8 @@ typedef float snde_imagedata;
 #if (defined(__STDC_VERSION__) && (__STDC_VERSION__>= 201112L) && !defined(__STDC_NO_ATOMICS__)) || (defined(__cplusplus) && defined(__clang__))
   // Use C11 atomics when supported under C and also under C++ with clang
   // (can add other compilers that support C11 atomics under C++ as well)
+#include <stdatomic.h>
+  
 typedef _Atomic uint32_t snde_atomicimagedata;
 
 
@@ -434,7 +436,7 @@ struct snde_nurbsubssurfaceuv {
 struct snde_nurbssurfaceuv {
   snde_index nurbssurface; /* surface we are reparameterizing */
   snde_index firstnurbssubsurfaceuv, numnurbssubsurfaceuv;
-  bool valid;
+  snde_bool valid;
 };
   
 struct snde_nurbsuv {

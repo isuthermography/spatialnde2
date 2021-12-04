@@ -69,6 +69,17 @@ typedef unsigned char snde_bool;
 
 
 #endif // __OPENCL_VERSION__
+
+
+  // interoperability between opencl and C/C++ code
+#ifdef __OPENCL_VERSION__
+#define OCL_GLOBAL_ADDR __global
+#define OCL_KERNEL __kernel
+#else
+#define OCL_GLOBAL_ADDR
+#define OCL_KERNEL
+#endif
+  
   
 #ifdef __cplusplus
 }

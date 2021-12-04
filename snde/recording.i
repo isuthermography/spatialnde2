@@ -98,3 +98,13 @@ struct snde_multi_ndarray_recording {
 #define SNDE_RTN_RECORDING_REF 19 // not usable for recordings, but used internally for math parameters. 
 #define SNDE_RTN_COORD3_INT16 20 // x,y,z coordinates, with each being 16 bit signed integer
 #define SNDE_RTN_INDEXVEC 21 // std::vector<snde_index>... used for math function params only
+#define SNDE_RTN_RECORDING_GROUP 22
+#define SNDE_RTN_POINTCLOUD_RECORDING 23
+#define SNDE_RTN_MESHED_PART_RECORDING 24
+#define SNDE_RTN_MESHED_VERTEXARRAY_RECORDING 25
+#define SNDE_RTN_MESHED_TEXVERTEX_RECORDING 26
+#define SNDE_RTN_MESHED_VERTNORMALS_RECORDING 27
+#define SNDE_RTN_MESHED_TRINORMALS_RECORDING 28
+#define SNDE_RTN_MESHED_PARAMETERIZATION_RECORDING 29
+#define SNDE_RTN_TEXTURED_PART_RECORDING 30
+#define SNDE_RTN_ASSEMBLY_RECORDING 31

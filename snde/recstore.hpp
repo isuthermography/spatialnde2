@@ -314,8 +314,18 @@ namespace snde {
     // able to iterate through the group elements by starting with the
     // group name (including trailing slash) and iterating forward until
     // you get an entry not within the group. 
-    
+
     std::shared_ptr<std::string> path_to_primary; // nullptr or the path (generally relative to this group) to the primary content of the group, which should be displayed when the user asks to view the content represented by the group. 
+
+
+    recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,std::shared_ptr<std::string> path_to_primary,size_t info_structsize=0);
+    
+    
+    // rule of 3
+    recording_group & operator=(const recording_group &) = delete; 
+    recording_group(const recording_group &orig) = delete;
+    virtual ~recording_group()=default;
+
     
   };
 
@@ -344,6 +354,10 @@ namespace snde {
     multi_ndarray_recording(const multi_ndarray_recording &orig) = delete;
     virtual ~multi_ndarray_recording();
 
+
+    virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held. Passes on ready_notifications to storage
+
+    
     inline snde_multi_ndarray_recording *mndinfo() {return (snde_multi_ndarray_recording *)info;}
     inline snde_ndarray_info *ndinfo(size_t index) {return &((snde_multi_ndarray_recording *)info)->arrays[index];}
 
@@ -352,6 +366,7 @@ namespace snde {
     
     
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(size_t index=0);
+    std::shared_ptr<ndarray_recording_ref> reference_ndarray(const std::string &array_name);
 
     std::shared_ptr<recording_storage_manager> assign_storage_manager(std::shared_ptr<recording_storage_manager> storman);
     std::shared_ptr<recording_storage_manager> assign_storage_manager();
@@ -383,6 +398,12 @@ namespace snde {
       return (((char *)(*info->basearray)) + info->base_index*info->elementsize);
       //return * storage[array_index]->addr();
     }
+    
+    inline void *void_shifted_arrayptr(std::string array_name)
+    {
+      return void_shifted_arrayptr(name_mapping.at(array_name));
+    }
+
     
     inline void *element_dataptr(size_t array_index,const std::vector<snde_index> &idx)  // returns a pointer to an element, which is of size ndinfo()->elementsize
     {

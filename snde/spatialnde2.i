@@ -185,18 +185,29 @@ namespace snde {
 // (that must also be marked with %shared_ptr()) as
 // accessible through short-term raw integer references to the
 // shared_ptr. The snde_rawaccessible() declaration
-// adds a method to_raw_shared_ptr() which returns
-// a python long which is the address of the shared_ptr
-// object owned by the the swig wrapper of the
-// object. This long is only valid as long as the
-// swig wrapper of the object remains valid.
+// adds a method produce_raw_shared_ptr() which returns
+// a python long which is the address of a new shared_ptr
+// object that needs to be destroyed by
+// consume_raw_shared_ptr().
 //
 // The snde_rawaccessible() declaration also adds a
-// classmethod from_raw_shared_ptr( python long ) which
+// classmethod consume_raw_shared_ptr( python long )
+// which creates a new Python reference to the
+// original object, destroying the meaning of the
+// raw shared pointer in the process (deleting the
+// shared_ptr object that was created by
+// produce_raw_shared_ptr(). 
+
+// In addtion, the snde_rawaccessible() declaration also adds
+// another classmethod  from_raw_shared_ptr( python long ) which
 // takes an address of a shared_ptr object and creates
 // and returns a new Python wrapper with a new shared_ptr
 // that is initialized from the (shared pointer the
-// Python long points at)
+// Python long points at). It does not affect its input
+// shared pointer object, which could have been created
+// independently or returned from produce_raw_shared_ptr().
+// (but if the latter, you still ned to make sure the
+// pointer value gets consumed at some point). 
 //
 // These methods make the object wrapping interoperable
 // with other means of accessing the same underlying
@@ -215,7 +226,17 @@ namespace snde {
 // and want a Cython cdef:
 //
 // from cython.operator cimport dereference as deref
-// cdef shared_ptr[math_function] func = deref(<shared_ptr[math_function]*>swigwrapped_math_function.to_raw_shared_ptr())
+// raw_shared_ptr = swigwrapped_math_function.produce_raw_shared_ptr()
+// cdef shared_ptr[math_function] func = deref(<shared_ptr[math_function]*>raw_shared_ptr)
+// spatialnde2.math_function.consume_raw_shared_ptr(raw_shared_ptr)  # or you could delete (<shared_ptr[math_function]*>raw_shared_ptr) 
+
+%{
+template <typename T>
+  class uint_raw_shared_ptr {
+  public:
+    uintptr_t rsp;
+  };
+%}
 
 %define snde_rawaccessible(rawaccessible_class)
 
@@ -235,37 +256,58 @@ namespace snde {
   $1 = *((std::shared_ptr<$1_ltype::element_type> *)rawptr);
 }
 
+%typemap(in) std::shared_ptr< rawaccessible_class > consumable_raw_shared_ptr {
+  void *rawptr = PyLong_AsVoidPtr($input);
+  if (!rawptr) {
+    if (!PyErr_Occurred()) {
+      PyErr_SetString(PyExc_ValueError,"null pointer");
+    }
+    SWIG_fail; 
+  }
+  $1 = *((std::shared_ptr<$1_ltype::element_type> *)rawptr);
+  delete ((std::shared_ptr<$1_ltype::element_type> *)rawptr);
+}
 
-// This pythonappend does the work for to_raw_shared_ptr() below,
+
+// This pythonappend does the work for produce_raw_shared_ptr() below,
 // extracting the pointer to the shared_ptr object from the
 // swig wrapper. 
-//%feature("pythonappend") rawaccessible_class::to_raw_shared_ptr() %{
+//%feature("pythonappend") rawaccessible_class::produce_raw_shared_ptr() %{
 //  val = self.this.ptr
 //%}
 
+// out typemap used by produce_raw_shared_ptr that steals
+// tempshared1 or  smartarg1 which should be a std::shared_ptr<T> and a pointer to a std::shared_ptr<T> respectively
+ // (This is a bit hacky) 
+%typemap(out) uint_raw_shared_ptr< rawaccessible_class > {
+  if (tempshared1) {
+    $result = PyLong_FromVoidPtr(new std::shared_ptr< rawaccessible_class > (tempshared1));
+  } else {
+    $result = PyLong_FromVoidPtr(new std::shared_ptr< rawaccessible_class > (*smartarg1));
+  } 
+}
 
-// This extension provides the from_raw_shared_ptr() and to_raw_shared_ptr() methods
+// This extension provides the from_raw_shared_ptr(), consume_raw_shared_ptr(), and produce_raw_shared_ptr() methods
   %extend rawaccessible_class {
     static std::shared_ptr< rawaccessible_class > from_raw_shared_ptr(std::shared_ptr< rawaccessible_class > raw_shared_ptr)
     {
       return raw_shared_ptr;
     }
 
-    uintptr_t to_raw_shared_ptr()
+    static std::shared_ptr< rawaccessible_class > consume_raw_shared_ptr(std::shared_ptr< rawaccessible_class > consumable_raw_shared_ptr)
     {
-      return 0; // actual work done by the uintptr_t out typemap, below
+      return consumable_raw_shared_ptr;
+    }
+
+    uint_raw_shared_ptr< rawaccessible_class > produce_raw_shared_ptr()
+    {
+      return uint_raw_shared_ptr< rawaccessible_class >{0}; // actual work done by the uint_raw_shared_ptr_t out typemap, above
     }
 
   };
 
 %enddef
 
- // out typemap used by to_raw_shared_ptr that steals
- // argp1, which should be a pointer to a std::shared_ptr<T>
- // (This is a bit hacky) 
-%typemap(out) uintptr_t {
-  $result = PyLong_FromVoidPtr(argp1);
-}
 
 // (Old specifc implementation of the above general implementation)
 //%typemap(in) std::shared_ptr<snde::math_function> raw_shared_ptr {

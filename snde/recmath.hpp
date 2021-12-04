@@ -245,7 +245,7 @@ namespace snde {
     instantiated_math_function(const instantiated_math_function &) = default;  // CC is present so subclass copy constructor can initialize us more easily
     instantiated_math_function& operator=(const instantiated_math_function &) = delete;
     virtual ~instantiated_math_function()=default;  // virtual destructor required so we can be subclassed
-    virtual bool operator==(const instantiated_math_function &ref); // May want to be defined by subclasses... used to compare newly created display functions with prior display functions to see if they need updated.
+    virtual bool operator==(const instantiated_math_function &ref); // May want to be defined by subclasses... used to compare newly created display functions with prior display functions to see if they need updated. Also to uniquify newly created display functions
     virtual bool operator!=(const instantiated_math_function &ref); // May want to be defined by subclasses... used to compare newly created display functions with prior display functions to see if they need updated.
 
     //virtual bool check_dependencies(recording_status &recordingstatus, math_status &mathstatus)=0; 

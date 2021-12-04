@@ -78,8 +78,10 @@ namespace snde {
 
     // ***!!! Need a way to register and notify caches that the data in a mutable array has changed. ***!!!
     // ***!!! It would be nice to be able to mark a "rectangle" as invalid too !!!***
-    virtual void mark_as_invalid(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)=0; // pos and numelem are relative to __this_recording__
-    virtual void add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr)=0; // gets mark_as_invalid() and notify_storage_expiration() notifications
+    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)=0; // pos and numelem are relative to __this_recording__
+    virtual void ready_notification()=0; // Sent by the recording when it is marked as ready. Used by some recording_storage_managers (e.g. graphics_storage) as an indicator that pending_modified data has probably been modified by the CPU and thus needs to be flushed out to cache managers. Note that multiple ready_ontifications on the same recording_storage are possible (but should be rare) if the storage is reused such as for a mutable recording or a later version with no data change uses the same underlying data store
+    
+    virtual void add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr)=0; // gets mark_as_modified() and notify_storage_expiration() notifications
   };
 
   class recording_storage_simple: public recording_storage {
@@ -112,7 +114,8 @@ namespace snde {
     virtual snde_index lockablenelem();
     virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference();
 
-    virtual void mark_as_invalid(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
+    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
+    virtual void ready_notification();
     virtual void add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr);
     
   };
@@ -131,7 +134,8 @@ namespace snde {
     virtual void **lockableaddr();
     virtual snde_index lockablenelem();
     virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference();
-    virtual void mark_as_invalid(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
+    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
+    virtual void ready_notification();
     virtual void add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr);
 
   };

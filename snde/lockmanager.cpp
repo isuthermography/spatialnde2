@@ -89,6 +89,60 @@ namespace snde {
     return retval;
   }
   
+  rwlock_token_set lockmanager::lock_recording_arrays(std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<std::string,bool>>> recrefs)
+  {
+    std::map<lockingposition,std::pair<std::shared_ptr<multi_ndarray_recording>,std::string>> ordered_locking;
+
+    // sort the various things that need locked
+    // into the locking order
+    for (auto && recref_namewritebool: recrefs) {
+      std::shared_ptr<multi_ndarray_recording> &rec=recref_namewritebool.first;
+      std::string name;
+      bool is_write;
+      std::tie(name,is_write)=recref_namewritebool.second;
+      
+      size_t index = rec->name_mapping.at(name);
+      
+      if ((rec->ndinfo(index)->requires_locking_read && !is_write) ||
+	  (rec->ndinfo(index)->requires_locking_write && is_write)) {
+	
+	ordered_locking.emplace(std::make_pair(lockingposition(get_array_idx(rec->ndinfo(index)->basearray),rec->ndinfo(index)->base_index,is_write),std::make_pair(rec,name)));
+      } 
+      
+    }
+    
+    // now acquire all the locks in the proper order.
+    
+    rwlock_token_set retval=empty_rwlock_token_set();
+    
+    for (auto && lockpos_recrefname: ordered_locking) {
+
+      const lockingposition &lockpos = lockpos_recrefname.first;
+      std::shared_ptr<multi_ndarray_recording> rec;
+      std::string name;
+      std::tie(rec,name)=lockpos_recrefname.second;
+      
+      bool is_write=lockpos.write;
+
+      snde_index total_size = 1;
+      snde_index dimnum;
+      size_t index = rec->name_mapping.at(name);
+      
+      for (dimnum=0;dimnum < rec->ndinfo(index)->ndim;dimnum++) {
+	total_size *= rec->ndinfo(index)->dimlen[dimnum] * rec->ndinfo(index)->strides[dimnum];
+      }
+      
+      if (is_write) {
+	get_locks_write_array_region(retval,rec->ndinfo(index)->basearray,rec->ndinfo(index)->base_index,total_size);
+      } else {
+	get_locks_read_array_region(retval,rec->ndinfo(index)->basearray,rec->ndinfo(index)->base_index,total_size);
+	
+      }
+    }
+    
+    return retval;
+
+  }
   
 
   //snde::lockingprocess::lockingprocess()

@@ -135,7 +135,7 @@ namespace snde {
   //class parameterization; // forward declaration
   class lockingposition;
   class ndarray_recording_ref; // forward declaration, recstore.hpp
-
+  class multi_ndarray_recording;
 
 
 /* *** Must keep sync'd with lockmanager.i */
@@ -226,49 +226,6 @@ typedef uint64_t snde_infostore_lock_mask_t;
     snde_index indexstart;
     snde_index numelems;
     
-  };
-
-  class markedregion  {
-  public:
-    snde_index regionstart;
-    snde_index regionend;
-    
-    markedregion(snde_index regionstart,snde_index regionend)
-    {
-      this->regionstart=regionstart;
-      this->regionend=regionend;
-    }
-
-    bool attempt_merge(markedregion &later)
-    {
-      assert(later.regionstart==regionend);
-      regionend=later.regionend;
-      return true;
-    }
-    std::shared_ptr<markedregion> sp_breakup(snde_index breakpoint)
-    /* breakup method ends this region at breakpoint and returns
-       a new region starting at from breakpoint to the prior end */
-    {
-      std::shared_ptr<markedregion> newregion=std::make_shared<markedregion>(breakpoint,regionend);
-      regionend=breakpoint;
-
-      return newregion;
-    }
-    markedregion breakup(snde_index breakpoint)
-    /* breakup method ends this region at breakpoint and returns
-       a new region starting at from breakpoint to the prior end */
-    {
-      markedregion newregion(breakpoint,regionend);
-      regionend=breakpoint;
-
-      return newregion;
-    }
-
-    bool operator<(const markedregion & other) const {
-      if (regionstart < other.regionstart) return true;
-      return false;
-
-    }
   };
 
 
@@ -893,6 +850,13 @@ typedef uint64_t snde_infostore_lock_mask_t;
     //                                 {inputrec2,false},
     //                                 {outputrec1,true} });
     rwlock_token_set lock_recording_refs(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> recrefs);
+    
+    // use lock_recording_arrays() to lock a bunch of multi_ndarray_recording elements 
+    // use brace initialization; the 2nd half of the pair is true for write locking:
+    //  mylock = lock_recording_arrays({ {inputrec1, {"parts", false} },
+    //                                   {inputrec2, {"triangles", false} },
+    //                                   {outputrec1, {"edges", true} } });
+    rwlock_token_set lock_recording_arrays(std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<std::string,bool>>> recrefs);
 
 
     rwlock_token  _get_preexisting_lock_read_lockobj(rwlock_token_set all_locks,std::shared_ptr<rwlock> rwlockobj)

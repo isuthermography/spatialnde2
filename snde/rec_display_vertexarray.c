@@ -1,17 +1,25 @@
+#ifndef __OPENCL_VERSION__
+#include "snde/snde_types.h"
+#include "snde/geometry_types.h"
+
+#include "snde/rec_display_vertexarray.h"
+#endif
 /* implicit include of geometry_types.h */
 
-__kernel void osg_vertexarray(__global const struct snde_part *part,
-			      __global const snde_triangle *part_triangles,
-			      __global const snde_edge *part_edges,
-			      __global const snde_coord3 *part_vertices,
-			      __global snde_rendercoord *vertex_arrays)
+
+
+void snde_rec_display_vertexarray_onetri(OCL_GLOBAL_ADDR const struct snde_part *part,
+				    OCL_GLOBAL_ADDR const snde_triangle *part_triangles,
+				    OCL_GLOBAL_ADDR const snde_edge *part_edges,
+				    OCL_GLOBAL_ADDR const snde_coord3 *part_vertices,
+				    OCL_GLOBAL_ADDR snde_rendercoord *vertex_arrays,
+				    snde_index trianglenum)
 // This function extract vertices from the winged edge data structure
 //  defined by meshedpart and the triangles, edges, and vertices arrays,
 // and emits them into the vertex_arrays() location.
 // The triangle index is specified by the global_id
 {
 
-  snde_index trianglenum=get_global_id(0);
 
   snde_index thisedge;
   snde_index nextedge;
@@ -83,3 +91,29 @@ __kernel void osg_vertexarray(__global const struct snde_part *part,
   
   
 }
+
+#ifdef __OPENCL_VERSION__
+
+__kernel void rec_display_vertexarray(__global const struct snde_part *part,
+				      __global const snde_triangle *part_triangles,
+				      __global const snde_edge *part_edges,
+				      __global const snde_coord3 *part_vertices,
+				      __global snde_rendercoord *vertex_arrays)
+// This function extract vertices from the winged edge data structure
+//  defined by meshedpart and the triangles, edges, and vertices arrays,
+// and emits them into the vertex_arrays() location.
+// The triangle index is specified by the global_id
+{
+
+  snde_index trianglenum=get_global_id(0);
+  snde_rec_display_vertexarray_onetri(part,
+				      part_triangles,
+				      part_edges,
+				      part_vertices,
+				      vertex_arrays,
+				      trianglenum);
+  
+};
+
+#endif // __OPENCL_VERSION__
+

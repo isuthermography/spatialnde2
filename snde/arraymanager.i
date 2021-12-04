@@ -15,6 +15,8 @@ using namespace snde;
 
 namespace snde {
 
+  class markedregion;
+  
 // Handle allocation routines that return both rwlock_token_set and index
 %typemap(out) std::pair<snde::rwlock_token_set,snde_index> {
     $result = PyTuple_New(2);
@@ -45,6 +47,19 @@ namespace snde {
   };
 
 
+  class pending_modified_tracker {
+  public:
+    //std::mutex admin;
+    //rangetracker<markedregion> pending_modified;
+
+    void mark_as_pending_modified(snde_index base_index,snde_index len);
+
+    void clear_pending_modified(snde_index base_index,snde_index len);
+
+
+    rangetracker<markedregion> find_pending_modified(snde_index base_index,snde_index len);
+  };
+  
 
   class arraymanager  {
   public: 

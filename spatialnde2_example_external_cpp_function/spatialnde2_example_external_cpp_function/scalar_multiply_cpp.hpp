@@ -81,10 +81,7 @@ namespace snde2_fn_ex {
   {
     return std::make_shared<snde::cpp_math_function>([] (std::shared_ptr<snde::recording_set_state> rss,std::shared_ptr<snde::instantiated_math_function> inst) {
       return snde::make_cppfuncexec_floatingtypes<scalar_multiply>(rss,inst);
-    },
-      true,
-      false,
-      false);
+    });
     
   }
 

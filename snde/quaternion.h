@@ -17,7 +17,7 @@ static QUATERNION_INLINE void snde_null_orientation3(snde_orientation3 *out)
   *out=null_orientation;
 }
 
-static QUATERNION_INLINE void quaternion_normalize(snde_coord4 unnormalized,snde_coord4 *normalized)
+static QUATERNION_INLINE void quaternion_normalize(const snde_coord4 unnormalized,snde_coord4 *normalized)
   /* returns the components of a normalized quaternion */
   {
     double norm;
@@ -31,7 +31,7 @@ static QUATERNION_INLINE void quaternion_normalize(snde_coord4 unnormalized,snde
 
   }
   
-static QUATERNION_INLINE void quaternion_product(snde_coord4 quat1, snde_coord4 quat2,snde_coord4 *product)
+static QUATERNION_INLINE void quaternion_product(const snde_coord4 quat1, const snde_coord4 quat2,snde_coord4 *product)
 {
     /* quaternion coordinates are i, j, k, real part */
   product->coord[0]=quat1.coord[3]*quat2.coord[0] + quat1.coord[0]*quat2.coord[3] + quat1.coord[1]*quat2.coord[2] - quat1.coord[2]*quat2.coord[1];
@@ -42,7 +42,7 @@ static QUATERNION_INLINE void quaternion_product(snde_coord4 quat1, snde_coord4 
 }
 
 
-static QUATERNION_INLINE void quaternion_product_normalized(snde_coord4 quat1, snde_coord4 quat2,snde_coord4 *product)
+static QUATERNION_INLINE void quaternion_product_normalized(const snde_coord4 quat1, const snde_coord4 quat2,snde_coord4 *product)
 {
   snde_coord4 unnormalized;
 
@@ -51,7 +51,7 @@ static QUATERNION_INLINE void quaternion_product_normalized(snde_coord4 quat1, s
   quaternion_normalize(unnormalized,product);
 }
 
-static QUATERNION_INLINE void quaternion_inverse(snde_coord4 quat, snde_coord4 *inverse)
+static QUATERNION_INLINE void quaternion_inverse(const snde_coord4 quat, snde_coord4 *inverse)
   {
     /* quaternion coordinates are i, j, k, real part */
 
@@ -65,7 +65,7 @@ static QUATERNION_INLINE void quaternion_inverse(snde_coord4 quat, snde_coord4 *
 
 
 
-static QUATERNION_INLINE void quaternion_apply_vector(snde_coord4 quat,snde_coord4 vec,snde_coord4 *product)
+static QUATERNION_INLINE void quaternion_apply_vector(const snde_coord4 quat,const snde_coord4 vec,snde_coord4 *product)
 /* assumes quat is normalized, stored as 'i,j,k,w' components */
 {
   //snde_coord matrix[9];
@@ -108,7 +108,32 @@ static QUATERNION_INLINE void quaternion_apply_vector(snde_coord4 quat,snde_coor
 }
 
 
-static QUATERNION_INLINE void orientation_inverse(snde_orientation3 orient,snde_orientation3 *inverse)
+static QUATERNION_INLINE void quaternion_build_rotmtx(const snde_coord4 quat,snde_coord4 *rotmtx /* (array of 3 or 4 coord4's, interpreted as column-major). Does not write 4th column  */ )
+/* assumes quat is normalized, stored as 'i,j,k,w' components */
+{
+  // This could definitely be optimized
+  snde_coord4 vec1 = { 1.0, 0.0, 0.0, 0.0};
+  quaternion_apply_vector(quat,vec1,&rotmtx[0]); // first column represents applying (1,0,0,0) vector
+
+  snde_coord4 vec2 = { 0.0, 1.0, 0.0, 0.0};
+  quaternion_apply_vector(quat,vec2,&rotmtx[1]); // second column represents applying (0,1,0,0) vector
+
+  snde_coord4 vec3 = { 0.0, 0.0, 1.0, 0.0};
+  quaternion_apply_vector(quat,vec3,&rotmtx[2]); // second column represents applying (0,0,1,0) vector
+
+}
+
+static QUATERNION_INLINE void orientation_build_rotmtx(const snde_orientation3 orient,snde_coord4 *rotmtx /* (array of 4 coord4's, interpreted as column-major).  */ )
+/* assumes quat is normalized, stored as 'i,j,k,w' components */
+{
+  quaternion_build_rotmtx(orient.quat,rotmtx); // still need to do fourth column
+
+  rotmtx[3] = orient.offset;
+  
+}
+
+
+static QUATERNION_INLINE void orientation_inverse(const snde_orientation3 orient,snde_orientation3 *inverse)
 {
   // point p, rotated by the orientation q1, o1 is
   // p_rot = q1pq1' + o1
@@ -126,12 +151,13 @@ static QUATERNION_INLINE void orientation_inverse(snde_orientation3 orient,snde_
   
 }
 
-static QUATERNION_INLINE void orientation_apply_vector(snde_orientation3 orient,snde_coord4 vec,snde_coord4 *out)
+static QUATERNION_INLINE void orientation_apply_vector(const snde_orientation3 orient,const snde_coord4 vec,snde_coord4 *out)
 {
+  assert(vec.coord[3] == 0.0);
   quaternion_apply_vector(orient.quat,vec,out);
 }
 
-static QUATERNION_INLINE void orientation_apply_position(snde_orientation3 orient,snde_coord4 pos,snde_coord4 *out)
+static QUATERNION_INLINE void orientation_apply_position(const snde_orientation3 orient,const snde_coord4 pos,snde_coord4 *out)
 {
   /* for point p, q1pq1' + o1  */
   snde_coord4 posvec;
@@ -150,7 +176,7 @@ static QUATERNION_INLINE void orientation_apply_position(snde_orientation3 orien
   out->coord[3]=1.0; // a position
 }
 
-static QUATERNION_INLINE void orientation_orientation_multiply(snde_orientation3 left,snde_orientation3 right,snde_orientation3 *product)
+static QUATERNION_INLINE void orientation_orientation_multiply(const snde_orientation3 left,const snde_orientation3 right,snde_orientation3 *product)
   {
       /* orientation_orientation_multiply must consider both quaternion and offset **/
       /* for vector v, quat rotation is q1vq1' */

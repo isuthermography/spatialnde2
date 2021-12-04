@@ -1189,7 +1189,32 @@ namespace snde {
   };
 
   
+  template<typename T>
+  std::shared_ptr<graphics_storage> x3d_assign_allocated_storage(std::shared_ptr<multi_ndarray_recording> rec,std::string array_name,T *graphman_field,snde_index addr,size_t nmemb)
+  {
+    std::shared_ptr<graphics_storage> retval;
+    std::shared_ptr<graphics_storage_manager> graphman = std::dynamic_pointer_cast<graphics_storage_manager>(rec->storage_manager);
+    assert(graphman);
+    
+    retval = graphman->storage_from_allocation(rec->info->name,nullptr,array_name,rec->info->revision,addr,sizeof(T),rtn_typemap.at(typeid(T)),nmemb);
+    rec->assign_storage(retval,array_name,{nmemb});
+    return retval;
+  }
 
+
+  template<typename T>
+  std::shared_ptr<graphics_storage> x3d_assign_follower_storage(std::shared_ptr<multi_ndarray_recording> rec,std::shared_ptr<graphics_storage> leader_storage,std::string array_name,T *graphman_field)
+  {
+    std::shared_ptr<graphics_storage> retval;
+    std::shared_ptr<graphics_storage_manager> graphman = std::dynamic_pointer_cast<graphics_storage_manager>(rec->storage_manager);
+    assert(graphman);
+
+    snde_index addr = leader_storage->base_index;
+    snde_index nmemb = leader_storage->nelem;
+    retval = graphman->storage_from_allocation(rec->info->name,leader_storage,array_name,rec->info->revision,addr,sizeof(T),rtn_typemap.at(typeid(T)),nmemb);
+    rec->assign_storage(retval,array_name,{nmemb});
+    return retval;
+  }
 
   
   std::vector<std::shared_ptr<textured_part_recording>> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::vector<std::shared_ptr<x3d_shape>> shapes,std::string ownername,void *owner,std::string recdb_context,std::string context_fname,bool reindex_vertices,bool reindex_tex_vertices)
@@ -1381,6 +1406,7 @@ namespace snde {
       holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.parts,1,""));
       
       holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.topos,topos.size(),""));
+      // we don't have any topo_indices here
 
       holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.triangles,coordIndex.size(),""));
       holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.edges,3*coordIndex.size(),""));
@@ -1761,9 +1787,9 @@ namespace snde {
 	// Assign normals (just vertnormals... we always calculate trinormals ourselves because
 	// that matters for more than just rendering!
 	// (actually vertnormals will get overwritten too)
-	if (normal) {
-	  graphman->geom.vertnormals[firsttri+trinum]=normals;
-	}
+	// if (normal) {
+	//  graphman->geom.vertnormals[firsttri+trinum]=normals;
+	// }
 	if (coordindex_step==4) {
 	  /* indexedfaceset. This must really be a triangle hence it should have a -1 index next */
 	  if (coordIndex[trinum*coordindex_step + 3] != SNDE_INDEX_INVALID) {
@@ -1906,15 +1932,47 @@ namespace snde {
       meshedcurpart_config=std::make_shared<snde::channelconfig>(meshedfullname, ownername, (void *)owner,false);
       std::shared_ptr<snde::channel> meshedcurpart_chan = recdb->reserve_channel(meshedcurpart_config);
       
-      meshedcurpart = create_recording<textured_part_recording>(recdb,meshedcurpart_chan,(void *)owner,firstpart);
+      std::shared_ptr<textured_part_recording> meshedcurpart = create_recording<textured_part_recording>(recdb,meshedcurpart_chan,(void *)owner,firstpart);
+      meshedcurpart->assign_storage_manager(graphman);
+      
+      //std::shared_ptr<graphics_storage> meshedcurpartpartstore = storage_from_allocation(meshedcurpart->info->name,nullptr,"parts",meshedcurpart->info->revision,firstpart,sizeof(*graphman->geom.parts),rtn_typemap.at(typeid(*graphman->geom.parts)),1);
+      //meshedcurpart->assign_storage(meshedcurpartpartstore,"parts",{1});
+
+      //std::shared_ptr<graphics_storage> meshedcurparttrianglesstore = storage_from_allocation(meshedcurpart->info->name,nullptr,"triangles",meshedcurpart->info->revision,firsttri,sizeof(*graphman->geom.triangles),rtn_typemap.at(typeid(*graphman->geom.triangles)),coordIndex.size());
+      //meshedcurpart->assign_storage(meshedcurparttrianglestore,"triangles",{coordIndex.size()});
+
+      x3d_assign_allocated_storage(meshedcurpart,"parts",graphman->geom.parts,firstpart,1);
+      x3d_assign_allocated_storage(meshedcurpart,"topos",graphman->geom.topos,firsttopo,topos.size());
+      // don't have any topo_indices
+      std::shared_ptr<graphics_storage> tristorage = x3d_assign_allocated_storage(meshedcurpart,"triangles",graphman->geom.triangles,firsttri,coordIndex.size());
+      //x3d_assign_follower_storage(meshedcurpart,tristorage,"vertnormals",graphman->geom.vertnormals);
+      x3d_assign_allocated_storage(meshedcurpart,"edges",graphman->geom.edges,firstedge,num_edges);
+      std::shared_ptr<graphics_storage> vertstorage = x3d_assign_allocated_storage(meshedcurpart,"vertices",graphman->geom.vertices,firstvertex,num_vertices);
+
+
+      x3d_assign_follower_storage(meshedcurpart,vertstorage,"vertex_edgelist_indices",graphman->geom.vertex_edgelist_indices);
+      x3d_assign_allocated_storage(meshedcurpart,"vertex_edgelist",graphman->geom.vertex_edgelist,first_vertex_edgelist,next_vertex_edgelist_pos);
+      
+      
       meshedcurpart->metadata = immutable_metadata();; 
       meshedcurpart->mark_metadata_done();
+
+      
+      
+      // Mark that we have made changes to parts and triangles (IS THIS REALLY NECESSARY??? -- don't think so)
+      geom->manager->mark_as_invalid(nullptr,(void **)&geom->geom.parts,firstpart,1);
+      geom->manager->mark_as_invalid(nullptr,(void **)&geom->geom.triangles,firsttri,numtris);
+      
+      
 
       std::string texedpartname = std::string("x3d")+std::to_string(shapecnt);
       std::string texedfullname = recdb_path_join(recdb_context,texedpartname);
       texedcurpart_config=std::make_shared<snde::channelconfig>(texedfullname, ownername, (void *)owner,false);
       std::shared_ptr<snde::channel> texedcurpart_chan = recdb->reserve_channel(texedcurpart_config);
+
+
       
+
       texedcurpart = create_recording<textured_part_recording>(recdb,texedcurpart_chan,(void *)owner,meshedfullname);
       texedcurpart->metadata = metadata; 
       texedcurpart->mark_metadata_done();
@@ -1926,10 +1984,6 @@ namespace snde {
       
       //metadata.clear(); // =nullptr;
       
-      // Mark that we have made changes to parts and triangles
-      geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.parts,firstpart,1);
-      geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.triangles,firsttri,numtris);
-
     
       
       /* Create parameterization (mesheduv) from texture coordinates */
@@ -2344,13 +2398,15 @@ namespace snde {
 	// Mark that we have modified uv_vertex_edgelist with the CPU
 	geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.uv_vertex_edgelist,first_uv_vertex_edgelist,next_uv_vertex_edgelist_pos);     
 
-
-      	if (texCoords) {
+	
 	  // ** NOTE: evaluate_texture_topology requires that entire arrays of uv_topos and uv_topoindices
 	  // must be locked for write
-	  evaluate_texture_topology(geom,firstuv,all_locks);
-	}
 
+	snde_index first_uv_topo,num_uv_topos;
+	snde_index first_uv_topoidx,num_uv_topoidxs;
+	std::tie(first_uv_topo,num_uv_topos,
+		 first_uv_topoidx,num_uv_topoidxs) = evaluate_texture_topology(geom,firstuv,all_locks);
+	
       
 	
 	//geom->geom.uvs[firstuv].firstuvbox=SNDE_INDEX_INVALID;
@@ -2379,15 +2435,31 @@ namespace snde {
 	std::shared_ptr<snde::channel> uvparam_chan = recdb->reserve_channel(uvparam_config);
       
 	std::shared_ptr<meshed_parameterization_recording> uvparam = create_recording<meshed_parameterization_recording>(recdb,uvparam_chan,(void *)owner,firstuv,1);  // currently only implement numuvimages==1
+	x3d_assign_allocated_storage(uvparam,"uvs",graphman->geom.uvs,firstuv,1);
+	x3d_assign_allocated_storage(uvparam,"uv_patches",graphman->geom.uv_patches,firstuvpatch,1);
+
+	x3d_assign_allocated_storage(uvparam,"uv_topos",graphman->geom.uv_topos,first_uv_topos,num_uv_topos);
+	x3d_assign_allocated_storage(uvparam,"uv_topo_indices",graphman->geom.uv_topo_indices,first_uv_topoidx,num_uv_topoidxs);
+	
+	
+	x3d_assign_allocated_storage(uvparam,"uv_triangles",graphman->geom.uv_triangles,firstuvtri,texCoordIndex.size());
+	x3d_assign_allocated_storage(uvparam,"uv_edges",graphman->geom.uv_edges,firstuvedge,num_uv_edges);
+	std::shared_ptr<graphics_storage> uvvertstore = x3d_assign_allocated_storage(uvparam,"uv_vertices",graphman->geom.uv_vertices,firstuvvertex,num_uv_vertices);
+
+	x3d_assign_follower_storage(uvparam,uvvertstore,"uv_vertex_edgelist_indices",graphman->geom.uv_vertex_edgelist_indices);
+	x3d_assign_allocated_storage(uvparam,"uv_vertex_edgelist",graphman->geom.uv_vertex_edgelist,first_uv_vertex_edgelist,next_uv_vertex_edgelist_pos);
+	
+	
 	uvparam->metadata = metadata; 
 	uvparam->mark_metadata_done();
+	uvparam->mark_as_ready();
 
 	texedcurpart->parameterization_name = uvparamfullname;
 	texedcurpart->texture_refs.emplace(0,std::make_shared<image_reference>(texture_chanpath,0,1,{0,0}));
 	
-	// Mark that we have modified mesheduv and uv_triangles with the CPU
-	geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.uvs,firstuv,1);
-	geom->manager->mark_as_dirty(nullptr,(void **)&geom->geom.uv_triangles,firstuvtri,numtris);
+	// Mark that we have modified mesheduv and uv_triangles with the CPU (probably unnecessary!!!! ???) 
+	geom->manager->mark_as_invalid(nullptr,(void **)&geom->geom.uvs,firstuv,1);
+	geom->manager->mark_as_invalid(nullptr,(void **)&geom->geom.uv_triangles,firstuvtri,numtris);
 
 
 
@@ -2417,6 +2489,11 @@ namespace snde {
       geom->geom.parts[firstpart].solid=indexedset->solid;
       geom->geom.parts[firstpart].has_triangledata=false;
       geom->geom.parts[firstpart].has_curvatures=false;
+
+
+      meshedcurpart->mark_as_ready();
+      texedcurpart->mark_as_ready();
+      
       
       shapecnt++;
     }

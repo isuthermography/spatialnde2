@@ -391,23 +391,23 @@ static IPOPS_INLINE int ray_intersects_polygon(snde_coord3 *vertices,
 
 static RAYTRACE_INLINE int find_ray_first_part_intersection_nonrecursive(snde_index instnum,
 									 //snde_index numtris,
-									 OCL_GLOBAL_CONTEXT snde_topological *part_topos,
+									 OCL_GLOBAL_ADDR snde_topological *part_topos,
 									 //snde_index *topo_indices,
-									 OCL_GLOBAL_CONTEXT snde_triangle *part_triangles,
-									 OCL_GLOBAL_CONTEXT snde_triangle *part_trinormals,
-									 OCL_GLOBAL_CONTEXT snde_cmat23 *part_inplanemats,
-									 OCL_GLOBAL_CONTEXT snde_edge *part_edges,
-									 OCL_GLOBAL_CONTEXT snde_coord3 *part_vertices,
-									 OCL_GLOBAL_CONTEXT snde_box3 *part_boxes,
-									 OCL_GLOBAL_CONTEXT snde_boxcoord3 *part_boxcoord,
-									 OCL_GLOBAL_CONTEXT snde_index *part_boxpolys,
+									 OCL_GLOBAL_ADDR snde_triangle *part_triangles,
+									 OCL_GLOBAL_ADDR snde_triangle *part_trinormals,
+									 OCL_GLOBAL_ADDR snde_cmat23 *part_inplanemats,
+									 OCL_GLOBAL_ADDR snde_edge *part_edges,
+									 OCL_GLOBAL_ADDR snde_coord3 *part_vertices,
+									 OCL_GLOBAL_ADDR snde_box3 *part_boxes,
+									 OCL_GLOBAL_ADDR snde_boxcoord3 *part_boxcoord,
+									 OCL_GLOBAL_ADDR snde_index *part_boxpolys,
 									 snde_coord4 raystartproj,
 									 snde_coord4 rayvecproj,
-									 OCL_GLOBAL_CONTEXT snde_coord *zdist_out,
-									 OCL_GLOBAL_CONTEXT snde_index *instnum_out, // which instance we found, or SNDE_INDEX_INVALID for no intersection
-									 OCL_GLOBAL_CONTEXT snde_index *boundarynum_out, // which boundary number for the instance's part
-									 OCL_GLOBAL_CONTEXT snde_index *facenum_out, // which topological face? 
-									 OCL_GLOBAL_CONTEXT snde_index *trinum_out, // which triangle number for the instances's part
+									 OCL_GLOBAL_ADDR snde_coord *zdist_out,
+									 OCL_GLOBAL_ADDR snde_index *instnum_out, // which instance we found, or SNDE_INDEX_INVALID for no intersection
+									 OCL_GLOBAL_ADDR snde_index *boundarynum_out, // which boundary number for the instance's part
+									 OCL_GLOBAL_ADDR snde_index *facenum_out, // which topological face? 
+									 OCL_GLOBAL_ADDR snde_index *trinum_out, // which triangle number for the instances's part
 									 int trace)
 // DOES NOT INITIALIZE zdist_out... pre-initialize this to Infinity!
 /* returns nonzero if at least one nearer intersection was found */
@@ -524,24 +524,24 @@ static RAYTRACE_INLINE int find_ray_first_part_intersection_nonrecursive(snde_in
 
 
 static RAYTRACE_INLINE void raytrace_find_first_intersection(snde_coord4 raystartproj,snde_coord4 rayvecproj,
-							     OCL_GLOBAL_CONTEXT snde_partinstance *instances,
+							     OCL_GLOBAL_ADDR snde_partinstance *instances,
 							     snde_index num_instances,
-							     OCL_GLOBAL_CONTEXT snde_part *parts,
-							     OCL_GLOBAL_CONTEXT snde_topological *topos,
+							     OCL_GLOBAL_ADDR snde_part *parts,
+							     OCL_GLOBAL_ADDR snde_topological *topos,
 							     //snde_index *topo_indices,
-							     OCL_GLOBAL_CONTEXT snde_triangle *triangles,
-							     OCL_GLOBAL_CONTEXT snde_coord3 *trinormals,
-							     OCL_GLOBAL_CONTEXT snde_cmat23 *inplanemats,
-							     OCL_GLOBAL_CONTEXT snde_edge *edges,
-							     OCL_GLOBAL_CONTEXT snde_coord3 *vertices,
-							     OCL_GLOBAL_CONTEXT snde_box3 *boxes,
-							     OCL_GLOBAL_CONTEXT snde_boxcoord3 *boxcoord,
-							     OCL_GLOBAL_CONTEXT snde_index *boxpolys,
-							     OCL_GLOBAL_CONTEXT snde_coord *zdist_out,
-							     OCL_GLOBAL_CONTEXT snde_index *instnum_out, // which instance we found, or SNDE_INDEX_INVALID for no intersection
-							     OCL_GLOBAL_CONTEXT snde_index *boundarynum_out, // which boundary number for the instance's part
-							     OCL_GLOBAL_CONTEXT snde_index *facenum_out, // which face number for the instance's part
-							     OCL_GLOBAL_CONTEXT snde_index *trinum_out, // which triangle number for the instances's part
+							     OCL_GLOBAL_ADDR snde_triangle *triangles,
+							     OCL_GLOBAL_ADDR snde_coord3 *trinormals,
+							     OCL_GLOBAL_ADDR snde_cmat23 *inplanemats,
+							     OCL_GLOBAL_ADDR snde_edge *edges,
+							     OCL_GLOBAL_ADDR snde_coord3 *vertices,
+							     OCL_GLOBAL_ADDR snde_box3 *boxes,
+							     OCL_GLOBAL_ADDR snde_boxcoord3 *boxcoord,
+							     OCL_GLOBAL_ADDR snde_index *boxpolys,
+							     OCL_GLOBAL_ADDR snde_coord *zdist_out,
+							     OCL_GLOBAL_ADDR snde_index *instnum_out, // which instance we found, or SNDE_INDEX_INVALID for no intersection
+							     OCL_GLOBAL_ADDR snde_index *boundarynum_out, // which boundary number for the instance's part
+							     OCL_GLOBAL_ADDR snde_index *facenum_out, // which face number for the instance's part
+							     OCL_GLOBAL_ADDR snde_index *trinum_out, // which triangle number for the instances's part
 							     int trace)
 {
   snde_index instancecnt;
@@ -686,12 +686,12 @@ static RAYTRACE_INLINE void ray_to_plane_raypos_shift(snde_coord4 starting_point
 
 static RAYTRACE_INLINE void raytrace_find_intersection_rayvec_derivative(snde_coord4 raystartproj,snde_coord4 rayvecproj,
 									 snde_coord4 rayvecproj_deriv,
-									 OCL_GLOBAL_CONTEXT snde_partinstance *instances,
-									 OCL_GLOBAL_CONTEXT snde_part *parts,
-									 OCL_GLOBAL_CONTEXT snde_triangle *triangles,
-									 OCL_GLOBAL_CONTEXT coord3 *trinormals,
-									 OCL_GLOBAL_CONTEXT snde_edge *edges,
-									 OCL_GLOBAL_CONTEXT snde_coord3 *vertices,
+									 OCL_GLOBAL_ADDR snde_partinstance *instances,
+									 OCL_GLOBAL_ADDR snde_part *parts,
+									 OCL_GLOBAL_ADDR snde_triangle *triangles,
+									 OCL_GLOBAL_ADDR coord3 *trinormals,
+									 OCL_GLOBAL_ADDR snde_edge *edges,
+									 OCL_GLOBAL_ADDR snde_coord3 *vertices,
 									 snde_coord zdist,
 									 snde_index instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
 									 snde_index trinum, // which triangle number for the instances's part
@@ -712,12 +712,12 @@ static RAYTRACE_INLINE void raytrace_find_intersection_rayvec_derivative(snde_co
 
 static RAYTRACE_INLINE void raytrace_find_intersection_raypos_derivative(snde_coord4 raystartproj,snde_coord4 rayvecproj,
 									 snde_coord4 raystartproj_deriv,
-									 OCL_GLOBAL_CONTEXT snde_partinstance *instances,
-									 OCL_GLOBAL_CONTEXT snde_part *parts,
-									 OCL_GLOBAL_CONTEXT snde_triangle *triangles,
-									 OCL_GLOBAL_CONTEXT snde_coord3 *trinormals,
-									 OCL_GLOBAL_CONTEXT snde_edge *edges,
-									 OCL_GLOBAL_CONTEXT snde_coord3 *vertices,
+									 OCL_GLOBAL_ADDR snde_partinstance *instances,
+									 OCL_GLOBAL_ADDR snde_part *parts,
+									 OCL_GLOBAL_ADDR snde_triangle *triangles,
+									 OCL_GLOBAL_ADDR snde_coord3 *trinormals,
+									 OCL_GLOBAL_ADDR snde_edge *edges,
+									 OCL_GLOBAL_ADDR snde_coord3 *vertices,
 									 snde_coord zdist,
 									 snde_index instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
 									 snde_index trinum, // which triangle number for the instances's part
@@ -736,9 +736,9 @@ static RAYTRACE_INLINE void raytrace_find_intersection_raypos_derivative(snde_co
 }
 
 static RAYTRACE_INLINE snde_coord raytrace_get_angle_of_incidence(snde_coord4 raystartproj,snde_coord4 rayvecproj,
-								  OCL_GLOBAL_CONTEXT snde_partinstance *instances,
-								  OCL_GLOBAL_CONTEXT snde_part *parts,
-								  OCL_GLOBAL_CONTEXT snde_triangle *part_trinormals,
+								  OCL_GLOBAL_ADDR snde_partinstance *instances,
+								  OCL_GLOBAL_ADDR snde_part *parts,
+								  OCL_GLOBAL_ADDR snde_triangle *part_trinormals,
 								  snde_index instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
 								  snde_index trinum) // which triangle number for the instances's part
 {
@@ -756,14 +756,14 @@ static RAYTRACE_INLINE snde_coord raytrace_get_angle_of_incidence(snde_coord4 ra
 
 static RAYTRACE_INLINE
 void raytrace_find_intersect_uv(snde_coord4 raystartproj,snde_coord4 rayvecproj,
-				OCL_GLOBAL_CONTEXT snde_partinstance *instances,
-				OCL_GLOBAL_CONTEXT snde_part *parts,
-				OCL_GLOBAL_CONTEXT snde_triangle *triangles,
-				OCL_GLOBAL_CONTEXT snde_cmat23 *inplanemats,
-				OCL_GLOBAL_CONTEXT snde_edge *edges,
-				OCL_GLOBAL_CONTEXT snde_coord3 *vertices,				
-				OCL_GLOBAL_CONTEXT snde_parameterizations *uvs,
-				OCL_GLOBAL_CONTEXT snde_cmat23 *inplane2uvcoords,
+				OCL_GLOBAL_ADDR snde_partinstance *instances,
+				OCL_GLOBAL_ADDR snde_part *parts,
+				OCL_GLOBAL_ADDR snde_triangle *triangles,
+				OCL_GLOBAL_ADDR snde_cmat23 *inplanemats,
+				OCL_GLOBAL_ADDR snde_edge *edges,
+				OCL_GLOBAL_ADDR snde_coord3 *vertices,				
+				OCL_GLOBAL_ADDR snde_parameterizations *uvs,
+				OCL_GLOBAL_ADDR snde_cmat23 *inplane2uvcoords,
 				snde_coord zdist,
 				snde_index instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
 				snde_index trinum, // which triangle number for the instances's part
@@ -807,11 +807,11 @@ void raytrace_find_intersect_uv(snde_coord4 raystartproj,snde_coord4 rayvecproj,
 static RAYTRACE_INLINE
 void raytrace_find_intersect_uv_deriv(snde_coord4 raystartproj,snde_coord4 rayvecproj,
 				      snde_coord4 intersectpos_deriv, // from raytrace_find_intersection_raypos_derivative
-				      OCL_GLOBAL_CONTEXT snde_partinstance *instances,
-				      OCL_GLOBAL_CONTEXT snde_part *parts,
-				      OCL_GLOBAL_CONTEXT snde_cmat23 *inplanemats,
-				      OCL_GLOBAL_CONTEXT snde_parameterizations *uvs,
-				      OCL_GLOBAL_CONTEXT snde_cmat23 *inplane2uvcoords,
+				      OCL_GLOBAL_ADDR snde_partinstance *instances,
+				      OCL_GLOBAL_ADDR snde_part *parts,
+				      OCL_GLOBAL_ADDR snde_cmat23 *inplanemats,
+				      OCL_GLOBAL_ADDR snde_parameterizations *uvs,
+				      OCL_GLOBAL_ADDR snde_cmat23 *inplane2uvcoords,
 				      snde_coord zdist,
 				      snde_index instnum, // which instance we found, or SNDE_INDEX_INVALID for no intersection
 				      snde_index trinum, // which triangle number for the instances's part
@@ -839,9 +839,9 @@ static RAYTRACE_INLINE
 void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
 			  snde_coord3 uvcoords,snde_coord3 uvcoords_deriv_a, snde_coord3 uvcoords_deriv_b,
 			  snde_image projectionarray_instanceinfo,
-			  volatile OCL_GLOBAL_CONTEXT snde_atomicimagedata *uvdata_projection_arrays,
-			  OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_weighting_arrays,
-			  volatile OCL_GLOBAL_CONTEXT snde_atomicimagedata *uvdata_validity_arrays,
+			  volatile OCL_GLOBAL_ADDR snde_atomicimagedata *uvdata_projection_arrays,
+			  OCL_GLOBAL_ADDR snde_imagedata *uvdata_weighting_arrays,
+			  volatile OCL_GLOBAL_ADDR snde_atomicimagedata *uvdata_validity_arrays,
 			  snde_coord min_radius_uv_pixels,snde_coord min_radius_src_pixels,snde_coord bandwidth_fraction)
 {
 
@@ -1014,13 +1014,13 @@ struct rayintersection_properties {
 
 
 
-static RAYTRACE_INLINE void raytrace_camera_projection(OCL_GLOBAL_CONTEXT snde_imagedata *pixelbuf,
-						       OCL_GLOBAL_CONTEXT snde_partinstance *instances,
-						       OCL_GLOBAL_CONTEXT snde_image *projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
-						       OCL_GLOBAL_CONTEXT struct rayintersection_properties *imagedata_intersectprops, // Array of structures, one per pixel
-						       volatile OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_projection_arrays,
-						       OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_weighting_arrays,
-						       volatile OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_validity_arrays,
+static RAYTRACE_INLINE void raytrace_camera_projection(OCL_GLOBAL_ADDR snde_imagedata *pixelbuf,
+						       OCL_GLOBAL_ADDR snde_partinstance *instances,
+						       OCL_GLOBAL_ADDR snde_image *projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
+						       OCL_GLOBAL_ADDR struct rayintersection_properties *imagedata_intersectprops, // Array of structures, one per pixel
+						       volatile OCL_GLOBAL_ADDR snde_imagedata *uvdata_projection_arrays,
+						       OCL_GLOBAL_ADDR snde_imagedata *uvdata_weighting_arrays,
+						       volatile OCL_GLOBAL_ADDR snde_imagedata *uvdata_validity_arrays,
 						       snde_coord min_radius_uv_pixels,snde_coord min_radius_src_pixels,snde_coord bandwidth_fraction);
 
   
@@ -1059,13 +1059,13 @@ static RAYTRACE_INLINE void raytrace_camera_projection(OCL_GLOBAL_CONTEXT snde_i
 
 #ifdef __OPENCL_VERSION__
 // For an OpenCL kernel
-static RAYTRACE_INLINE void raytrace_camera_projection_opencl(OCL_GLOBAL_CONTEXT snde_imagedata *pixelbuf,
-							      OCL_GLOBAL_CONTEXT snde_partinstance *instances,
-							      OCL_GLOBAL_CONTEXT snde_image *projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
-							      OCL_GLOBAL_CONTEXT struct rayintersection_properties *imagedata_intersectprops, // Array of structures, one per pixel
-							      volatile OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_projection_arrays,
-							      OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_weighting_arrays,
-							      volatile OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_validity_arrays,
+static RAYTRACE_INLINE void raytrace_camera_projection_opencl(OCL_GLOBAL_ADDR snde_imagedata *pixelbuf,
+							      OCL_GLOBAL_ADDR snde_partinstance *instances,
+							      OCL_GLOBAL_ADDR snde_image *projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
+							      OCL_GLOBAL_ADDR struct rayintersection_properties *imagedata_intersectprops, // Array of structures, one per pixel
+							      volatile OCL_GLOBAL_ADDR snde_imagedata *uvdata_projection_arrays,
+							      OCL_GLOBAL_ADDR snde_imagedata *uvdata_weighting_arrays,
+							      volatile OCL_GLOBAL_ADDR snde_imagedata *uvdata_validity_arrays,
 							      snde_coord min_radius_uv_pixels,snde_coord min_radius_src_pixels,snde_coord bandwidth_fraction);
 
   
@@ -1108,34 +1108,34 @@ void raytrace_camera_evaluate_zdist(
 				    snde_orientation3 wrlcoords_to_camcoords,
 				    snde_index aindex,snde_index bindex, // index of the particular pixel ray we are interested in
 				      
-				    OCL_GLOBAL_CONTEXT snde_partinstance *instances,
+				    OCL_GLOBAL_ADDR snde_partinstance *instances,
 				    snde_index num_instances,
-				    OCL_GLOBAL_CONTEXT snde_part *parts,
-				    OCL_GLOBAL_CONTEXT snde_triangle *triangles,
-				    OCL_GLOBAL_CONTEXT snde_cmat23 *inplanemats,
-				    OCL_GLOBAL_CONTEXT snde_edge *edges,
-				    OCL_GLOBAL_CONTEXT snde_coord3 *vertices,
-				    OCL_GLOBAL_CONTEXT snde_box3 *boxes,
-				    OCL_GLOBAL_CONTEXT snde_boxcoord3 *boxcoord,
-				    OCL_GLOBAL_CONTEXT snde_index *boxpolys,
-				    OCL_GLOBAL_CONTEXT snde_parameterizations *uvs,
-				    OCL_GLOBAL_CONTEXT snde_cmat23 *inplane2uvcoords,
-				    OCL_GLOBAL_CONTEXT snde_image *projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
-				    OCL_GLOBAL_CONTEXT struct rayintersection_properties *imagedata_intersectprops; // JUST the structure for this pixel... we don't index it
-				    //OCL_GLOBAL_CONTEXT snde_coord *imagedata_zbuffer,
-				    //OCL_GLOBAL_CONTEXT snde_index *imagedata_instnum,
-				    //OCL_GLOBAL_CONTEXT snde_index *imagedata_facenum,
-				    //OCL_GLOBAL_CONTEXT snde_index *imagedata_trinum,
-				    //OCL_GLOBAL_CONTEXT snde_imagedata *imagedata_angleofincidence,
-				    //OCL_GLOBAL_CONTEXT snde_imagedata *imagedata_angleofincidence_weighting,
-				    //OCL_GLOBAL_CONTEXT snde_imagedata *imagedata_ray_intersect_deriv_a_cam_z,
-				    //OCL_GLOBAL_CONTEXT snde_imagedata *imagedata_ray_intersect_deriv_b_cam_z,
-				    //OCL_GLOBAL_CONTEXT snde_coord *imagedata_uvcoords,
-				    //OCL_GLOBAL_CONTEXT snde_index *imagedata_uvfacenum,
-				    //OCL_GLOBAL_CONTEXT snde_coord *imagedata_uvcoords_deriv_a,
-				    //OCL_GLOBAL_CONTEXT snde_coord *imagedata_uvcoords_deriv_b,
-				    OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_angleofincidence_weighting,
-				    OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_angleofincidence_weighting_validity)
+				    OCL_GLOBAL_ADDR snde_part *parts,
+				    OCL_GLOBAL_ADDR snde_triangle *triangles,
+				    OCL_GLOBAL_ADDR snde_cmat23 *inplanemats,
+				    OCL_GLOBAL_ADDR snde_edge *edges,
+				    OCL_GLOBAL_ADDR snde_coord3 *vertices,
+				    OCL_GLOBAL_ADDR snde_box3 *boxes,
+				    OCL_GLOBAL_ADDR snde_boxcoord3 *boxcoord,
+				    OCL_GLOBAL_ADDR snde_index *boxpolys,
+				    OCL_GLOBAL_ADDR snde_parameterizations *uvs,
+				    OCL_GLOBAL_ADDR snde_cmat23 *inplane2uvcoords,
+				    OCL_GLOBAL_ADDR snde_image *projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
+				    OCL_GLOBAL_ADDR struct rayintersection_properties *imagedata_intersectprops; // JUST the structure for this pixel... we don't index it
+				    //OCL_GLOBAL_ADDR snde_coord *imagedata_zbuffer,
+				    //OCL_GLOBAL_ADDR snde_index *imagedata_instnum,
+				    //OCL_GLOBAL_ADDR snde_index *imagedata_facenum,
+				    //OCL_GLOBAL_ADDR snde_index *imagedata_trinum,
+				    //OCL_GLOBAL_ADDR snde_imagedata *imagedata_angleofincidence,
+				    //OCL_GLOBAL_ADDR snde_imagedata *imagedata_angleofincidence_weighting,
+				    //OCL_GLOBAL_ADDR snde_imagedata *imagedata_ray_intersect_deriv_a_cam_z,
+				    //OCL_GLOBAL_ADDR snde_imagedata *imagedata_ray_intersect_deriv_b_cam_z,
+				    //OCL_GLOBAL_ADDR snde_coord *imagedata_uvcoords,
+				    //OCL_GLOBAL_ADDR snde_index *imagedata_uvfacenum,
+				    //OCL_GLOBAL_ADDR snde_coord *imagedata_uvcoords_deriv_a,
+				    //OCL_GLOBAL_ADDR snde_coord *imagedata_uvcoords_deriv_b,
+				    OCL_GLOBAL_ADDR snde_imagedata *uvdata_angleofincidence_weighting,
+				    OCL_GLOBAL_ADDR snde_imagedata *uvdata_angleofincidence_weighting_validity)
 {
 
   float32_t NaNval;
@@ -1397,22 +1397,22 @@ void raytrace_camera_evaluate_zbuffer(
 				      snde_cmat23 cam_mtx,
 				      snde_orientation3 camcoords_to_wrlcoords,
 				      snde_index src_na, snde_index src_nb, // assume rays start at origin of camcoords, projected by cam_mtx with pixel coordinates 0..na and 0..nb. Use Fortran ordering for image array
-				      OCL_GLOBAL_CONTEXT snde_partinstance *instances,
+				      OCL_GLOBAL_ADDR snde_partinstance *instances,
 				      snde_index num_instances,
-				      OCL_GLOBAL_CONTEXT snde_part *parts,
-				      OCL_GLOBAL_CONTEXT snde_triangle *triangles,
-				      OCL_GLOBAL_CONTEXT snde_cmat23 *inplanemats,
-				      OCL_GLOBAL_CONTEXT snde_edge *edges,
-				      OCL_GLOBAL_CONTEXT snde_coord3 *vertices,
-				      OCL_GLOBAL_CONTEXT snde_box3 *boxes,
-				      OCL_GLOBAL_CONTEXT snde_boxcoord3 *boxcoord,
-				      OCL_GLOBAL_CONTEXT snde_index *boxpolys,
-				      OCL_GLOBAL_CONTEXT snde_parameterizations *uvs,
-				      OCL_GLOBAL_CONTEXT snde_cmat23 *inplane2uvcoords,
-				      OCL_GLOBAL_CONTEXT snde_image *projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
-				      OCL_GLOBAL_CONTEXT struct rayintersection_properties *imagedata_intersectprops;
-				      OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_angleofincidence_weighting,
-				      OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_angleofincidence_weighting_validity)
+				      OCL_GLOBAL_ADDR snde_part *parts,
+				      OCL_GLOBAL_ADDR snde_triangle *triangles,
+				      OCL_GLOBAL_ADDR snde_cmat23 *inplanemats,
+				      OCL_GLOBAL_ADDR snde_edge *edges,
+				      OCL_GLOBAL_ADDR snde_coord3 *vertices,
+				      OCL_GLOBAL_ADDR snde_box3 *boxes,
+				      OCL_GLOBAL_ADDR snde_boxcoord3 *boxcoord,
+				      OCL_GLOBAL_ADDR snde_index *boxpolys,
+				      OCL_GLOBAL_ADDR snde_parameterizations *uvs,
+				      OCL_GLOBAL_ADDR snde_cmat23 *inplane2uvcoords,
+				      OCL_GLOBAL_ADDR snde_image *projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
+				      OCL_GLOBAL_ADDR struct rayintersection_properties *imagedata_intersectprops;
+				      OCL_GLOBAL_ADDR snde_imagedata *uvdata_angleofincidence_weighting,
+				      OCL_GLOBAL_ADDR snde_imagedata *uvdata_angleofincidence_weighting_validity)
 {
   int64_t bcnt;  // must be signed (e.g. not size_t) for MSVC compatibility
   snde_coord4 focalpointwrl;
@@ -1498,22 +1498,22 @@ __kernel void raytrace_camera_evaluate_zbuffer_opencl(
 							   snde_orientation3 camcoords_to_wrlcoords,
 							   snde_orientation3 wrlcoords_to_camcoords,
 							   snde_index src_na, snde_index src_nb, // assume rays start at origin of camcoords, projected by cam_mtx with pixel coordinates 0..na and 0..nb. Use Fortran ordering for image array
-							   OCL_GLOBAL_CONTEXT snde_partinstance *instances,
+							   OCL_GLOBAL_ADDR snde_partinstance *instances,
 							   snde_index num_instances,
-							   OCL_GLOBAL_CONTEXT snde_part *parts,
-							   OCL_GLOBAL_CONTEXT snde_triangle *triangles,
-							   OCL_GLOBAL_CONTEXT snde_cmat23 *inplanemats,
-							   OCL_GLOBAL_CONTEXT snde_edge *edges,
-							   OCL_GLOBAL_CONTEXT snde_coord3 *vertices,
-							   OCL_GLOBAL_CONTEXT snde_box3 *boxes,
-							   OCL_GLOBAL_CONTEXT snde_boxcoord3 *boxcoord,
-							   OCL_GLOBAL_CONTEXT snde_index *boxpolys,
-							   OCL_GLOBAL_CONTEXT snde_parameterizations *uvs,
-							   OCL_GLOBAL_CONTEXT snde_cmat23 *inplane2uvcoords,
-							   OCL_GLOBAL_CONTEXT snde_image *projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
-							   OCL_GLOBAL_CONTEXT struct rayintersection_properties *imagedata_intersectprops,
-							   OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_angleofincidence_weighting,
-							   OCL_GLOBAL_CONTEXT snde_imagedata *uvdata_angleofincidence_weighting_validity)
+							   OCL_GLOBAL_ADDR snde_part *parts,
+							   OCL_GLOBAL_ADDR snde_triangle *triangles,
+							   OCL_GLOBAL_ADDR snde_cmat23 *inplanemats,
+							   OCL_GLOBAL_ADDR snde_edge *edges,
+							   OCL_GLOBAL_ADDR snde_coord3 *vertices,
+							   OCL_GLOBAL_ADDR snde_box3 *boxes,
+							   OCL_GLOBAL_ADDR snde_boxcoord3 *boxcoord,
+							   OCL_GLOBAL_ADDR snde_index *boxpolys,
+							   OCL_GLOBAL_ADDR snde_parameterizations *uvs,
+							   OCL_GLOBAL_ADDR snde_cmat23 *inplane2uvcoords,
+							   OCL_GLOBAL_ADDR snde_image *projectionarray_info, // projectionarray_info, indexed according to the firstuvimages of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
+							   OCL_GLOBAL_ADDR struct rayintersection_properties *imagedata_intersectprops,
+							   OCL_GLOBAL_ADDR snde_imagedata *uvdata_angleofincidence_weighting,
+							   OCL_GLOBAL_ADDR snde_imagedata *uvdata_angleofincidence_weighting_validity)
 {
 
   snde_index aindex = get_global_id(0);

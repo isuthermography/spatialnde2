@@ -7,15 +7,22 @@
 
 #include "snde/units.hpp"
 #include "snde/rec_display_colormap.hpp"
+#include "snde/normal_calculation.hpp"
+#include "snde/rec_display_vertex_functions.hpp"
 #include "snde/recstore.hpp"
+#include "snde/rendermode.hpp"
 
 //#include "snde/mutablerecstore.hpp"
 //#include "snde/revision_manager.hpp"
 
 namespace snde {
 
-  class display_channel; // forward declaration
+  struct display_channel; // forward declaration
   class instantiated_math_function; // recmath.hpp
+
+  class recording_display_handler_base;
+
+  //typedef std::unordered_map<std::pair<std::string,rendermode>,std::pair<std::shared_ptr<recording_base>,std::shared_ptr<image_reference>>,chanpathmode_hash> chanpathmode_rectexref_dict;
   
 struct display_unit {
   display_unit(units unit,
@@ -89,8 +96,10 @@ public:
 struct display_channel: public std::enable_shared_from_this<display_channel> {
 
   
-  std::shared_ptr<std::string> _FullName; // Atomic shared pointer pointing to full name, including slash separating tree elements
+  //std::shared_ptr<std::string> _FullName; // Atomic shared pointer pointing to full name, including slash separating tree elements
   //std::shared_ptr<mutableinfostore> chan_data;
+  const std::string FullName; // immutable so you do not need to hold the admin lock to access this
+  
   
   float Scale; // vertical axis scaling for 1D recs; color axis scaling for 2D recordings; units/pixel if pixelflag is set is set for the axis/units, units/div (or equivalently units/intensity) if pixelflag is not set
   float Position; // vertical offset on display, in divisions. To get in units, multiply by GetVertUnitsPerDiv(Chan) USED ONLY IF VertZoomAroundAxis is true
@@ -117,11 +126,11 @@ struct display_channel: public std::enable_shared_from_this<display_channel> {
   // may be accessed from transform threads, not just the GUI thread
 
   
-  display_channel(const std::string FullName,//std::shared_ptr<mutableinfostore> chan_data,
+  display_channel(const std::string &FullName,//std::shared_ptr<mutableinfostore> chan_data,
 		  float Scale,float Position,float VertCenterCoord,bool VertZoomAroundAxis,float Offset,float Alpha,
 		  size_t ColorIdx,bool Enabled, size_t DisplayFrame,size_t DisplaySeq,
 		  size_t ColorMap) :
-    _FullName(std::make_shared<std::string>(FullName)),
+    FullName(FullName),
     //chan_data(chan_data),
     Scale(Scale),
     Position(Position),
@@ -139,12 +148,6 @@ struct display_channel: public std::enable_shared_from_this<display_channel> {
 
   }
 
-  inline std::shared_ptr<std::string> FullName()
-  {
-    std::shared_ptr<std::string> NamePtr=atomic_load(&_FullName);
-
-    return NamePtr; 
-  }
 
   void set_enabled(bool Enabled)
   {
@@ -152,11 +155,12 @@ struct display_channel: public std::enable_shared_from_this<display_channel> {
     this->Enabled=Enabled;
   }
 
-  void UpdateFullName(const std::string &new_FullName)
-  {
-    std::shared_ptr<std::string> New_NamePtr = std::make_shared<std::string>(new_FullName);
-    std::atomic_store(&_FullName,New_NamePtr);
-  }
+  //void UpdateFullName(const std::string &new_FullName)
+  //{
+  //  std::shared_ptr<std::string> New_NamePtr = std::make_shared<std::string>(new_FullName);
+  //  std::atomic_store(&_FullName,New_NamePtr);
+  //}
+  
   void add_adjustment_dep(std::shared_ptr<recdisplay_notification_receiver> notifier)
   {
     std::lock_guard<std::mutex> dc_lock(admin);
@@ -289,7 +293,8 @@ static std::string PrintWithSIPrefix(double val, const std::string &unitabbrev, 
 class display_info {
 public:
   
-  std::mutex admin; // locks access to below structure. Late in the locking order but prior to GIL. 
+  std::mutex admin; // locks access to below structure. Late in the locking order but prior to GIL.
+  size_t unique_index;
   std::vector<std::shared_ptr<display_unit>>  UnitList;
   std::vector<std::shared_ptr<display_axis>>  AxisList;
   size_t NextColor;
@@ -305,7 +310,10 @@ public:
   std::unordered_map<std::string,std::shared_ptr<display_channel>> channel_info;
   std::vector<std::string> channel_layer_order; // index is nominal order, string is full channel name
 
-  std::shared_ptr<math_function> colormapping_function;
+  const std::shared_ptr<math_function> vertnormals_function; // immutable
+  const std::shared_ptr<math_function> colormapping_function; // immutable
+  const std::shared_ptr<math_function> vertexarray_function; // immutable
+  const std::shared_ptr<math_function> texvertexarray_function; // immutable
   
   display_info(std::shared_ptr<recdatabase> recdb) :
     recdb(recdb),
@@ -315,8 +323,19 @@ public:
       nullptr,
       0.0,
     }),
-    colormapping_function(define_colormap_recording_function())
+    vertnormals_function(define_vertnormals_recording_function()),
+    colormapping_function(define_colormap_recording_function()),
+    vertexarray_function(define_vertexarray_recording_function()),
+    texvertexarray_function(define_texvertexarray_recording_function())
+
   {
+    static std::mutex di_index_mutex; // created atomically on first access per c++ spec
+    static size_t di_index; // only one copy across entire application
+    {
+      std::lock_guard<std::mutex> di_index_lock(di_index_mutex);
+      unique_index = di_index++;
+    }
+    
     NextColor=0;
 
     // numbers of divisions should be even!
@@ -659,11 +678,11 @@ public:
   void SetVertScale(std::shared_ptr<display_channel> c,double scalefactor,bool pixelflag)
   {
     std::shared_ptr<display_axis> a;
-    const std::shared_ptr<std::string> chan_name = c->FullName();
+    const std::string chan_name = c->FullName;
     
     std::shared_ptr<ndarray_recording_ref> chan_data;
     try {
-      chan_data = current_globalrev->get_recording_ref(*chan_name);
+      chan_data = current_globalrev->get_recording_ref(chan_name);
     } catch (snde_error &) {
       // no such reference
       return;
@@ -673,7 +692,7 @@ public:
 
     /*  set the scaling of whatever unit is used on the vertical axis of this channel */
     if (ndim==1) {
-      a = GetAmplAxis(*chan_name);
+      a = GetAmplAxis(chan_name);
       //if (pixelflag) {
       //  c->UnitsPerDiv=scalefactor/pixelsperdiv;
       //} else {
@@ -686,7 +705,7 @@ public:
       return;
     } else if (ndim >= 2) {
       /* image or image array */
-      a=GetSecondAxis(*chan_name);
+      a=GetSecondAxis(chan_name);
       //if (pixelflag)
       //  a->unit->scale=scalefactor/pixelsperdiv;
       //else
@@ -709,11 +728,11 @@ public:
     double scalefactor;
     bool success=false;
 
-    const std::shared_ptr<std::string> chan_name = c->FullName();
+    const std::string &chan_name = c->FullName;
     
     std::shared_ptr<ndarray_recording_ref> chan_data;
     try {
-      chan_data = current_globalrev->get_recording_ref(*chan_name);
+      chan_data = current_globalrev->get_recording_ref(chan_name);
     } catch (snde_error &) {
       // no such reference
       return std::make_tuple(false,0.0,false);
@@ -723,7 +742,7 @@ public:
 
     /* return the units/div of whatever unit is used on the vertical axis of this channel */
     if (ndim==1) {
-      a = GetAmplAxis(*chan_name);
+      a = GetAmplAxis(chan_name);
       //if (a->unit->pixelflag) {
       //  scalefactor=c->UnitsPerDiv*pixelsperdiv;
       ///} else {
@@ -739,7 +758,7 @@ public:
       return std::make_tuple(false,0.0,false);
     } else if (ndim >= 2) {
       /* image or image array */
-      a=GetSecondAxis(*chan_name);
+      a=GetSecondAxis(chan_name);
       //if (a->unit->pixelflag)
       //  scalefactor=a->unit->scale*pixelsperdiv;
       //else
@@ -764,11 +783,11 @@ public:
     double UnitsPerDiv;
 
     
-    const std::shared_ptr<std::string> chan_name = c->FullName();
+    const std::string &chan_name = c->FullName;
     
     std::shared_ptr<ndarray_recording_ref> chan_data;
     try {
-      chan_data = current_globalrev->get_recording_ref(*chan_name);
+      chan_data = current_globalrev->get_recording_ref(chan_name);
     } catch (snde_error &) {
       // no such reference
       return 0.0;
@@ -779,7 +798,7 @@ public:
 
     /* return the units/div of whatever unit is used on the vertical axis of this channel */
     if (ndim==1) {
-      a = GetAmplAxis(*chan_name);
+      a = GetAmplAxis(chan_name);
       {
 	std::lock_guard<std::mutex> adminlock(c->admin);
 	scalefactor=c->Scale;
@@ -796,7 +815,7 @@ public:
       return 1.0;
     } else if (ndim >= 2) {
       /* image or image array */
-      a=GetSecondAxis(*chan_name);
+      a=GetSecondAxis(chan_name);
       {
 	std::lock_guard<std::mutex> adminlock(a->unit->admin);
 	scalefactor=a->unit->scale;
@@ -817,23 +836,162 @@ public:
 
 
   struct display_requirement {
+    // ***!!! The channelpath and mode (with extended parameters) should uniquely define
+    // the needed output (generated on-demand channels via the renderable function
+    // and renderable channelpath)
+    
     std::string channelpath;
-    int mode; // see SNDE_DRM_XXXX
-    std::string renderable_channelpath;
+    rendermode_ext mode; // see rendermode.hpp; contains parameter block
+    std::shared_ptr<recording_base> original_recording;
+    std::shared_ptr<recording_display_handler_base> display_handler; 
+    //std::shared_ptr<image_reference> imgref; // image reference, out of original_recording; or nullptr; CAN WE GET RID OF THIS????
+    
+    std::shared_ptr<std::string> renderable_channelpath;
     std::shared_ptr<instantiated_math_function> renderable_function;
+    std::vector<std::shared_ptr<display_requirement>> sub_requirements;
+    
+    display_requirement(std::string channelpath,rendermode_ext mode,std::shared_ptr<recording_base> original_recording,std::shared_ptr<recording_display_handler_base> display_handler) :
+      channelpath(channelpath),
+      mode(mode),
+      original_recording(original_recording),
+      display_handler(display_handler)
+    {
+
+    }
+
+    // We could make display-requirement polymorphic by giving it a virtual destructor... Should we?
+    // Probably not because any additional information should be passed in the parameters that are part
+    // of the extended rendermode 
   };
 
-#define SNDE_DRM_INVALID 0 // undetermined/invalid display mode
-#define SNDE_DRM_RAW 1 // raw data OK (used for passing 1D waveforms to the renderer)
-#define SNDE_DRM_RGBAIMAGE 2 // render as an RGBA image or texture
-#define SNDE_DRM_GEOMETRY 3 // render as 3D geometry
+
+  class recording_display_handler_base : public std::enable_shared_from_this<recording_display_handler_base> {
+  public:
+    std::shared_ptr<display_info> display;
+    std::shared_ptr<display_channel> displaychan;
+    std::shared_ptr<recording_set_state> base_rss;
+    recording_display_handler_base(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) :
+      display(display),
+      displaychan(displaychan),
+      base_rss(base_rss)
+    {
+      
+    }
+    
+    virtual ~recording_display_handler_base()=default; // polymorphic
+
+    virtual std::shared_ptr<display_requirement> get_display_requirement(int simple_goal,std::shared_ptr<renderparams_base> params_from_parent)=0;
+  };
+  
+  class registered_recording_display_handler {
+  public:
+    std::function<std::shared_ptr<recording_display_handler_base>(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss)> display_handler_factory;
+    // more stuff to go here as the basis for selecting a display handler when there are multiple options
+
+    registered_recording_display_handler(std::function<std::shared_ptr<recording_display_handler_base>(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss)> display_handler_factory) :
+      display_handler_factory(display_handler_factory)
+    {
+
+    }
+    
+  };
+  
+  class multi_ndarray_recording_display_handler: public recording_display_handler_base {
+  public:
+    // From recording_display_handler_base
+    //std::shared_ptr<display_info> display;
+    //std::shared_ptr<display_channel> displaychan;
+    //std::shared_ptr<recording_set_state> base_rss;
+    
+    multi_ndarray_recording_display_handler(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss);
+    
+    virtual ~multi_ndarray_recording_display_handler()=default; // polymorphic
+
+    virtual std::shared_ptr<display_requirement> get_display_requirement(int simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
+
+    
+  };
+
+
+
+  class meshed_part_recording_display_handler: public recording_display_handler_base {
+  public:
+    // From recording_display_handler_base
+    //std::shared_ptr<display_info> display;
+    //std::shared_ptr<display_channel> displaychan;
+    //std::shared_ptr<recording_set_state> base_rss;
+    
+    meshed_part_recording_display_handler(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss);
+    
+    virtual ~meshed_part_recording_display_handler()=default; // polymorphic
+
+    virtual std::shared_ptr<display_requirement> get_display_requirement(int simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
+
+    
+  };
+
+
+
+  class meshed_parameterization_recording_display_handler: public recording_display_handler_base {
+  public:
+    // From recording_display_handler_base
+    //std::shared_ptr<display_info> display;
+    //std::shared_ptr<display_channel> displaychan;
+    //std::shared_ptr<recording_set_state> base_rss;
+    
+    meshed_parameterization_recording_display_handler(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss);
+    
+    virtual ~meshed_parameterization_recording_display_handler()=default; // polymorphic
+
+    virtual std::shared_ptr<display_requirement> get_display_requirement(int simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
+
+    
+  };
+
+
+  class textured_part_recording_display_handler: public recording_display_handler_base {
+  public:
+    // From recording_display_handler_base
+    //std::shared_ptr<display_info> display;
+    //std::shared_ptr<display_channel> displaychan;
+    //std::shared_ptr<recording_set_state> base_rss;
+    
+    textured_part_recording_display_handler(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss);
+    
+    virtual ~textured_part_recording_display_handler()=default; // polymorphic
+
+    virtual std::shared_ptr<display_requirement> get_display_requirement(int simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
+
+    
+  };
+
+
+  class assembly_recording_display_handler: public recording_display_handler_base {
+  public:
+    // From recording_display_handler_base
+    //std::shared_ptr<display_info> display;
+    //std::shared_ptr<display_channel> displaychan;
+    //std::shared_ptr<recording_set_state> base_rss;
+    
+    assembly_recording_display_handler(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss);
+    
+    virtual ~assembly_recording_display_handler()=default; // polymorphic
+
+    virtual std::shared_ptr<display_requirement> get_display_requirement(int simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
+
+    
+  };
+
+
+  std::shared_ptr<display_requirement> traverse_display_requirement(std::shared_ptr<display_info> display,std::shared_ptr<recording_set_state> base_rss,std::shared_ptr<display_channel> displaychan, int simple_goal,std::shared_ptr<renderparams_base> params_from_parent); // simple_goal such as SNDE_SRG_RENDERING
+
   
   // Go through the vector of channels we want to display,
   // and figure out
   // (a) all channels that will be necessary, and
   // (b) the math function (if necessary) to render to rgba, and
   // (c) the name of the renderable rgba channel
-  std::vector<display_requirement> traverse_display_requirements(std::shared_ptr<display_info> display,std::shared_ptr<globalrevision> globalrev,const std::vector<std::shared_ptr<display_channel>> &displaychans);
+  std::map<std::string,std::shared_ptr<display_requirement>> traverse_display_requirements(std::shared_ptr<display_info> display,std::shared_ptr<recording_set_state> base_rss /* (usually a globalrev) */, const std::vector<std::shared_ptr<display_channel>> &displaychans);
 
 }
 #endif // SNDE_REC_DISPLAY_HPP

@@ -61,6 +61,11 @@
 extern "C" void snde_opencl_callback(cl_event event, cl_int event_command_exec_status, void *user_data);
 
 namespace snde {
+
+  class ndarray_recording_ref;
+  class multi_ndarray_recording;
+  class recording_storage;
+  
   class opencldirtyregion {
   public:
     /* contents locked by cachemanager's admin mutex */
@@ -132,7 +137,7 @@ namespace snde {
     //openclarrayinfo& operator=(const openclarrayinfo &orig); /* copy assignment operator */
 
     // equality operator for std::unordered_map
-    bool operator==(const openclarrayinfo b) const;
+    bool operator==(const openclarrayinfo &b) const;
 
     ~openclarrayinfo();
     

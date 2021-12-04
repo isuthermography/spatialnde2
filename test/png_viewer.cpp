@@ -29,6 +29,7 @@ std::shared_ptr<snde::recdatabase> recdb;
 std::shared_ptr<osg_image_renderer> renderer;
 std::shared_ptr<osg_rendercache> rendercache;
 std::shared_ptr<display_info> display;
+std::map<std::string,std::shared_ptr<display_requirement>> display_reqs;
 std::shared_ptr<recstore_display_transforms> display_transforms;
 std::shared_ptr<snde::channelconfig> pngchan_config;
 std::shared_ptr<ndarray_recording_ref> png_rec;
@@ -75,14 +76,14 @@ void png_viewer_display()
       right=tmp;
     }
 
-    renderer->perform_render(recdb,display_transforms->with_display_transforms,pngchan_config->channelpath,display,
+    renderer->perform_render(recdb,display_transforms->with_display_transforms,display,display_reqs,
 			     left,
 			     right,
 			     bottom,
 			     top,
 			     winwidth,winheight);
     
-    rendercache->clear_obsolete();
+    rendercache->erase_obsolete();
 
   }
   // swap front and back buffers
@@ -168,19 +169,11 @@ int main(int argc, char **argv)
 
   
   
-  std::shared_ptr<memallocator> lowlevel_alloc;
-  std::shared_ptr<arraymanager> manager;
-  std::shared_ptr<geometry> geom;
-
-
   recdb=std::make_shared<snde::recdatabase>();
   setup_cpu(recdb,std::thread::hardware_concurrency());
   setup_storage_manager(recdb);
   recdb->startup();
 
-  
-  std::shared_ptr<snde::ndarray_recording_ref> test_rec;
-  
   snde::active_transaction transact(recdb); // Transaction RAII holder
 
   pngchan_config=std::make_shared<snde::channelconfig>("png channel", "main", (void *)&main,false);
@@ -225,7 +218,7 @@ int main(int argc, char **argv)
 
   osg::ref_ptr<osgViewer::Viewer> Viewer(new osgViewerCompat34());
   renderer = std::make_shared<osg_image_renderer>(Viewer,Viewer->setUpViewerAsEmbeddedInWindow(100,100,800,600),
-						  rendercache);
+						  rendercache,pngchan_config->channelpath);
   
   display=std::make_shared<display_info>(recdb);
   display->set_current_globalrev(globalrev);
@@ -235,7 +228,7 @@ int main(int argc, char **argv)
 
   std::vector<std::shared_ptr<display_channel>> channels_to_display = display->update(globalrev,pngchan_config->channelpath,true,false,false);
 
-  std::vector<display_requirement> display_reqs = traverse_display_requirements(display,globalrev,channels_to_display);
+  display_reqs = traverse_display_requirements(display,globalrev,channels_to_display);
 
   display_transforms = std::make_shared<recstore_display_transforms>();
 
@@ -249,7 +242,7 @@ int main(int argc, char **argv)
   glutPostRedisplay();
 
   
-  glutSwapBuffers();
+  //glutSwapBuffers();
   glutMainLoop();
 
   exit(0);

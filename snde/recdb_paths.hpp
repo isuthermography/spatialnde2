@@ -13,6 +13,7 @@ namespace snde {
 
   static inline std::pair<std::string,std::string> recdb_path_split(std::string full_path)
   {
+    
     size_t sz=full_path.size();
     size_t backpos;
 
@@ -49,7 +50,9 @@ namespace snde {
     // return just the context (without last portion, unless full_path is
     // already a context, in which case the context is returned unchanged. ) 
     
-    assert(full_path.at(0)=='/');
+    if (full_path.at(0) != '/') {
+      throw snde_error("recdb_path_context(): path %s is not a valid channel path (no leading slash)",full_path.c_str());
+    }
     size_t endpos;
     
     for (endpos=full_path.size()-1;endpos > 0;endpos--)
@@ -62,7 +65,28 @@ namespace snde {
     return full_path.substr(0,endpos+1);
   }
   
+
+    static inline std::string recdb_path_as_group(const std::string &full_path)
+  {
+    // Interpret a recdb path as a group -- i.e. add a trailing slash
+    // if not already present. 
+    
+    if (full_path.size() < 1) {
+      throw snde_error("recdb_path_as_group(): path is empty!");
+    }
+
+    size_t endpos;
+    
+    endpos=full_path.size()-1;
+
+    if (full_path.at(endpos)=='/') {
+      return full_path;
+    } 
+    
+    return full_path+"/";
+  }
   
+
   static inline std::string recdb_path_join(std::string context,std::string tojoin)
   {
     // Given a context: absolute (WITH leading slash) or relative (empty string
@@ -74,10 +98,14 @@ namespace snde {
       return tojoin; 
     }
 
-    assert(context.size() > 0); // context should always be present, even if it is just '/' (root)
+    if (context.size() < 1) {
+      throw snde_error("recdb_path_join(): context is empty!");
+    }
     
-    assert(context.at(context.size()-1)=='/'); // context must end with '/'
-  
+    if (context.at(context.size()-1) != '/') {
+      // context must end with '/'
+      throw snde_error("recdb_path_join(): context %s is not a context (no trailing slash)",context.c_str());
+    }
     
     
     
@@ -137,14 +165,28 @@ namespace snde {
   
   static std::shared_ptr<std::string> recdb_relative_path_to(const std::string &from,const std::string &to)
   {
-    assert(from.size() > 0);
-    assert(from.at(0)=='/'); // from should be absolute
-    assert(from.at(from.size()-1)=='/'); // from should be a valid context (trailing slash)
+    if (from.size() < 1) {
+      throw snde_error("recdb_relative_path_to(): from path is empty!");
+    }
     
+    if (from.at(0) != '/') {
+      throw snde_error("recdb_relative_path_to(): from path %s is not a valid channel path (no leading slash)",from.c_str());
+    }
+
+    if (from.at(from.size()-1) != '/') {
+      throw snde_error("recdb_relative_path_to(): from path %s is not a valid context (no trailing slash)",from.c_str());
+    }
+
+    
+    if (to.size() < 1) {
+      throw snde_error("recdb_relative_path_to(): to path is empty!");
+    }
+
     // to should be absolute
-    assert(to.size() > 0);
-    assert(to.at(0)=='/');
-    
+    if (to.at(0) != '/') {
+      throw snde_error("recdb_relative_path_to(): to path %s is not a valid channel path (no leading slash)",to.c_str());
+    }
+
     // e.g. suppose from is /a/b/c/
     // and to is /a/f/g
     // Then our result should be ../../f/g

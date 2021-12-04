@@ -92,10 +92,7 @@ namespace snde {
       // ***!!! Should extend beyond just floating types
       // ***!!! Should modify to be able to pass OpenCL context, etc. in 
       return make_cppfuncexec_floatingtypes<colormap_recording>(rss,inst);
-    },
-      true,
-      false,
-      false);
+    });
     
   }
   

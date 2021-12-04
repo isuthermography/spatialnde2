@@ -455,9 +455,10 @@ snde_index find_faceedge_by_vertex(snde_topological *topos,snde_index *topoindic
   return SNDE_INDEX_INVALID;
 }
 
-void  evaluate_texture_topology(std::shared_ptr<geometry> geom, snde_index parameterization,rwlock_token_set all_locks)
+std::tuple<snde_index,snde_index,snde_index,snde_index> evaluate_texture_topology(std::shared_ptr<geometry> geom, snde_index parameterization,rwlock_token_set all_locks)
 // NOTE: parameterzation fields must be locked for AT LEAST read
 // uv_topos and uv_topoindices ENTIRE ARRAYS must be locked for write, as we need to do an allocation
+// returns (firstuvtopo,numuvtopos,firstuvtopoidx,numuvtopoidxs)
 {
 
 
@@ -889,6 +890,9 @@ void  evaluate_texture_topology(std::shared_ptr<geometry> geom, snde_index param
   
 
   free(meshedges_touched);
+
+  return std::make_tuple(geom->geom.uvs[parameterization].first_uv_topo,geom->geom.uvs[parameterization].num_uv_topos,
+			 geom->geom.uvs[parameterization].first_uv_topoidx,geom->geom.uvs[parameterization].num_uv_topoidxs)
 }
 
 }

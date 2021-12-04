@@ -31,13 +31,18 @@ namespace snde {
   {
     //std::lock_guard<std::mutex> cmgr_lock(follower_cachemanagers_lock);
     // Don't need the lock because we are expiring!!!
-    for (auto && cachemgr: follower_cachemanagers) {
-      std::shared_ptr<cachemanager> cmgr_strong=cachemgr.lock();
-      if (cmgr_strong) {
-	cmgr_strong->notify_storage_expiration(lockableaddr(),base_index,nelem); // really has no effect (but we do it for completeness) as the openclcachemanager notify_storage_expiration ignores anything with a nonzero base-index (like all of our data)
+
+    std::shared_ptr<graphics_storage_manager> graphman_strong=graphman.lock();
+    
+    if (graphman_strong) {
+      for (auto && cachemgr: *graphman_strong->follower_cachemanagers()) {
+	std::shared_ptr<cachemanager> cmgr_strong=cachemgr.lock();
+	if (cmgr_strong) {
+	  cmgr_strong->notify_storage_expiration(lockableaddr(),base_index,nelem); // really has no effect (but we do it for completeness) as the openclcachemanager notify_storage_expiration ignores anything with a nonzero base-index (like all of our data)
+	}
       }
     }
-
+    
     // In creating the graphics_storage, unless we are a follower
     // array, we are
     // passing ownership of allocated regions within the
@@ -119,30 +124,43 @@ namespace snde {
   }
 
 
-  void graphics_storage::mark_as_invalid(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)
+  void graphics_storage::mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)
   // pos and numelem are relative to __this_recording__
   {
-    std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>> fc_copy;
-    {
-      std::lock_guard<std::mutex> cmgr_lock(follower_cachemanagers_lock);
-      fc_copy=follower_cachemanagers;
+
+    if (numelem==SNDE_INDEX_INVALID) {
+      numelem=nelem-pos; // actual number of elements
     }
-    for (auto && cmgr: fc_copy) {
-      std::shared_ptr<cachemanager> cmgr_strong=cmgr.lock();
-      if (cmgr_strong) {
-	if (cmgr_strong != already_knows) {
-	  cmgr_strong->mark_as_invalid(lockableaddr(),base_index,pos,nelem);
-	}
-      }
+    
+
+    // Pass the request on to the graphics_storage_manager
+    std::shared_ptr<graphics_storage_manager> graphman_strong=graphman.lock();
+    if (graphman_strong) {
+      graphman_strong->mark_as_modified(already_knows,lockableaddr(),base_index+pos,numelem);
+      
     }
   }
   
+  void graphics_storage::ready_notification()
+  {
+    // Find any regions that are "pending modified". The fact of the ready notification
+    // suggests they've been modified by the CPU and need to be flushed out to any follower cachemanagers
+    rangetracker<markedregion> pending_modified = manager->find_pending_modified(lockableaddr(),base_index,nelem);
+    
+    std::shared_ptr<graphics_storage_manager> graphman_strong=graphman.lock();
+    if (graphman_strong) {
+      for (auto && regionstart_region: pending_modified) {
+	snde_index start = regionstart_region.first;
+	snde_index len = regionstart_region.second->regionend-start;
+	mark_as_modified(nullptr,start,len); // also removes them from master pending_modified list (but not our extraction from that list)
+      }
+    }
+  }
+
+  
   void graphics_storage::add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr)
   {
-    {
-      std::lock_guard<std::mutex> cmgr_lock(follower_cachemanagers_lock);
-      follower_cachemanagers.emplace(cachemgr);
-    }
+
 
     std::shared_ptr<graphics_storage_manager> graphman_strong=graphman.lock();
     if (graphman_strong) {
@@ -191,7 +209,7 @@ namespace snde {
       // Whatever triggered the realloc had better have a write lock (or equivalent) on the array in which case nothing else should be reading 
       // or writing so this stuff should be safe. 
       
-      this->mark_as_invalid(nullptr,(void**)leaderptr,0,SNDE_INDEX_INVALID);
+      this->mark_as_modified(nullptr,(void**)leaderptr,0,SNDE_INDEX_INVALID);
       
       
       // now mark all the followers as invalid
@@ -202,7 +220,7 @@ namespace snde {
 
       for (iter=begin;iter != end;iter++) {
 	if (iter->second != ((void**)leaderptr)) {
-	  this->mark_as_invalid(nullptr,iter->second,0,SNDE_INDEX_INVALID);
+	  this->mark_as_modified(nullptr,iter->second,0,SNDE_INDEX_INVALID);
 	  
 	}
       }
@@ -300,8 +318,7 @@ namespace snde {
     add_grouped_arrays(&next_region_id,&geom.topos,"topos");
     add_grouped_arrays(&next_region_id,&geom.topo_indices,"topo_indices");
 	
-      
-
+    
     //std::set<snde_index> triangles_elemsizes;
     
     //triangles_elemsizes.insert(sizeof(*geom.triangles));
@@ -319,12 +336,15 @@ namespace snde {
     //manager->add_follower_array((void **)&geom.triangles,(void **)&geom.trinormals,sizeof(*geom.trinormals));
     //manager->add_follower_array((void **)&geom.triangles,(void **)&geom.inplanemats,sizeof(*geom.inplanemats));
 
+    
+
     add_grouped_arrays(&next_region_id,&geom.triangles,"triangles",
 		       &geom.refpoints,"refpoints",
 		       &geom.maxradius,"maxradius",
-		       &geom.vertnormals,"vertnormals",
 		       &geom.trinormals,"trinormals",
 		       &geom.inplanemats,"inplanemats");
+
+    add_grouped_arrays(&next_region_id,&geom.vertnormals,"vertnormals");
     
     add_grouped_arrays(&next_region_id,&geom.edges,"edges");
     
@@ -401,7 +421,7 @@ namespace snde {
     pool_realloc_callbacks.clear();
     
     // Notify all caches that we are going away. 
-    for (auto && cachemgr: follower_cachemanagers) {
+    for (auto && cachemgr: *follower_cachemanagers()) {
       std::shared_ptr<cachemanager> cmgr_strong = cachemgr.lock();
       if (cmgr_strong) {
 	for (auto && arrayname_arrayaddr: arrayaddr_from_name) {
@@ -419,96 +439,35 @@ namespace snde {
   }
 
 
-  //  math funcs use this to  grab space in a follower array
-  // NOTE: This doesn't currently prevent two math functions from
-  // grabbing the same follower array -- which could lead to corruption
-  std::shared_ptr<recording_storage> graphics_storage_manager::get_follower_storage(std::string recording_path,std::string leader_array_name,
-										    std::shared_ptr<graphics_storage> leader_storage,
-										    std::string follower_array_name,
-										    uint64_t recrevision,
-										    snde_index base_index, // as allocated for leader_array
-										    size_t elementsize,
-										    unsigned typenum, // MET_...
-										    snde_index nelem,
-										    bool is_mutable)
+  std::shared_ptr<graphics_storage> graphics_storage_manager::storage_from_allocation(std::string recording_path,
+										      std::shared_ptr<graphics_storage> leader_storage, // nullptr if we are creating a leader
+										      std::string array_name,
+										      uint64_t recrevision,
+										      snde_index base_index, // as allocated for leader_array
+										      size_t elementsize,
+										      unsigned typenum, // MET_...
+										      snde_index nelem,
+										      bool is_mutable /*=false */)
+
   {
-    void **leader_arrayaddr = arrayaddr_from_name.at(leader_array_name);
-    void **follower_arrayaddr = arrayaddr_from_name.at(follower_array_name);
-    
-    if (elemsize_from_name.at(follower_array_name) != elementsize) {
-      throw snde_error("Mismatch between graphics array field %s element size with allocation: %u vs. %u",follower_array_name,(unsigned)elemsize_from_name.at(follower_array_name),(unsigned)elementsize);
-    }
-
-
-    std::shared_ptr<graphics_storage> retval = std::make_shared<graphics_storage>(std::dynamic_pointer_cast<graphics_storage_manager>(shared_from_this()),manager,manager->_memalloc,leader_storage,recording_path,recrevision,arrayid_from_name.at(follower_array_name),follower_arrayaddr,elementsize,base_index,typenum,nelem,is_mutable || manager->_memalloc->requires_locking_read,is_mutable || manager->_memalloc->requires_locking_write,false);
-
-    // see also parallel code in allocate_recording_lockprocesss, below
-    if (!retval->requires_locking_write) {
-      assert(!retval->requires_locking_read);
-      if (manager->_memalloc->supports_nonmoving_reference()) {
-	// switch pointer to a nonmoving reference
-	
-	// assign _ref: 
-	retval->assign_ref(manager->_memalloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,retval->id,retval->_basearray,*retval->_basearray,elementsize*base_index,elementsize*nelem));
-      } else {
-	// read and write locks required because entire array may move around
-	retval->requires_locking_write=true;
-	retval->requires_locking_read=true; 
-	// ***!!! For immutable arrays we could clear requires_locking_read by creating
-	// a nonmoving copy once the array data is finalized ***!!!
-      }
-    } else if (!retval->requires_locking_read) {
-      // unimplemented so-far. This is the case of locking required for write, but not read,
-      // as (for example) lock required on write to ensure graphics cache synchronization, or not writing to
-      // graphics buffer while the entire buffer is mapped for read, etc. 
-      // Will require finalization hook of some sort to switch the pointer to a non-moving copy or reference
-      // Must not forget to also update the struct snde_array_info of the recording!!!
-      assert(0);
-    }
-
-    return retval;
-    
-  }
-  
-  
-  std::shared_ptr<recording_storage> graphics_storage_manager::allocate_recording_lockprocess(std::string recording_path,std::string array_name, // use "" for default array
-											      uint64_t recrevision,
-											      size_t elementsize,
-											      unsigned typenum, // MET_...
-											      snde_index nelem,
-											      bool is_mutable,
-											      std::shared_ptr<lockingprocess> lockprocess,
-											      std::shared_ptr<lockholder> holder) // returns (storage pointer,base_index); note that the recording_storage nelem may be different from what was requested.
-  {
-    // Will need to mark array as locking required for write, at least....
-
-
     void **arrayaddr = arrayaddr_from_name.at(array_name);
     if (elemsize_from_name.at(array_name) != elementsize) {
       throw snde_error("Mismatch between graphics array field %s element size with allocation: %u vs. %u",array_name,(unsigned)elemsize_from_name.at(array_name),(unsigned)elementsize);
     }
-    
-    
-    holder->store_alloc(lockprocess->alloc_array_region(manager,arrayaddr,nelem,""));
 
-
-    snde_index addr = holder->get_alloc(arrayaddr,"");
     
-    
-
-    std::shared_ptr<graphics_storage> retval = std::make_shared<graphics_storage>(std::dynamic_pointer_cast<graphics_storage_manager>(shared_from_this()),manager,manager->_memalloc,nullptr,recording_path,recrevision,arrayid_from_name.at(array_name),arrayaddr,elementsize,addr,typenum,nelem,is_mutable || manager->_memalloc->requires_locking_read,is_mutable || manager->_memalloc->requires_locking_write,false);
+    std::shared_ptr<graphics_storage> retval = std::make_shared<graphics_storage>(std::dynamic_pointer_cast<graphics_storage_manager>(shared_from_this()),manager,manager->_memalloc,nullptr,recording_path,recrevision,arrayid_from_name.at(array_name),arrayaddr,elementsize,base_index,typenum,nelem,is_mutable || manager->_memalloc->requires_locking_read,is_mutable || manager->_memalloc->requires_locking_write,false);
 
     // if not(requires_locking_write) we must switch the pointer to a nonmoving_copy_or_reference NOW because otherwise the array might be moved around as we try to write.
     // if not(requires_locking_read) we must switch the pointer to a nonmoving_copy_or_reference on finalization
 
-    // see also parallel code in get_follower_storage, above
     if (!retval->requires_locking_write) {
       assert(!retval->requires_locking_read);
       if (manager->_memalloc->supports_nonmoving_reference()) {
 	// switch pointer to a nonmoving copy or reference
 	
 	// assign _ref: 
-	retval->assign_ref(manager->_memalloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,retval->id,retval->_basearray,*retval->_basearray,elementsize*addr,elementsize*nelem));
+	retval->assign_ref(manager->_memalloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,retval->id,retval->_basearray,*retval->_basearray,elementsize*base_index,elementsize*nelem));
       } else {
 	// read and write locks required because entire array may move around
 	retval->requires_locking_write=true;
@@ -528,7 +487,83 @@ namespace snde {
 
     
     return retval;
+
     
+  }
+    
+  //  math funcs use this to  grab space in a follower array
+  // NOTE: This doesn't currently prevent two math functions from
+  // grabbing the same follower array -- which could lead to corruption
+  std::shared_ptr<recording_storage> graphics_storage_manager::get_follower_storage(std::string recording_path,
+										    std::shared_ptr<graphics_storage> leader_storage,
+										    std::string follower_array_name,
+										    uint64_t recrevision,
+										    snde_index base_index, // as allocated for leader_array
+										    size_t elementsize,
+										    unsigned typenum, // MET_...
+										    snde_index nelem,
+										    bool is_mutable)
+  {
+
+    std::shared_ptr<graphics_storage> retval;
+
+    assert(leader_storage);
+    retval = storage_from_allocation(recording_path,
+				     leader_storage, 
+				     follower_array_name,
+				     recrevision,
+				     base_index, // as allocated for leader_array
+				     elementsize,
+				     typenum, // MET_...
+				     nelem,
+				     is_mutable);
+
+    
+
+    return retval;
+    
+  }
+  
+  
+  std::shared_ptr<recording_storage> graphics_storage_manager::allocate_recording_lockprocess(std::string recording_path,std::string array_name, // use "" for default array
+											      uint64_t recrevision,
+											      size_t elementsize,
+											      unsigned typenum, // MET_...
+											      snde_index nelem,
+											      bool is_mutable,
+											      std::shared_ptr<lockingprocess> lockprocess,
+											      std::shared_ptr<lockholder> holder) // returns (storage pointer,base_index); note that the recording_storage nelem may be different from what was requested.
+  {
+    // Will need to mark array as locking required for write, at least....
+
+
+    void **arrayaddr = arrayaddr_from_name.at(array_name);
+
+    // This is now checked inside storage_from_allocation()
+    //if (elemsize_from_name.at(array_name) != elementsize) {
+    //  throw snde_error("Mismatch between graphics array field %s element size with allocation: %u vs. %u",array_name,(unsigned)elemsize_from_name.at(array_name),(unsigned)elementsize);
+    //}
+    
+    
+    holder->store_alloc(lockprocess->alloc_array_region(manager,arrayaddr,nelem,""));
+
+
+    snde_index addr = holder->get_alloc(arrayaddr,"");
+    
+
+    std::shared_ptr<graphics_storage> retval;
+    retval = storage_from_allocation(recording_path,
+				     nullptr, // nullptr since we are creating a leader
+				     array_name,
+				     recrevision,
+				     addr, // as allocated for leader_array
+				     elementsize,
+				     typenum,
+				     nelem,
+				     is_mutable);
+
+
+    return retval;
   }
 
   
@@ -563,23 +598,28 @@ namespace snde {
 
   void graphics_storage_manager::add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr)
   {
-    {
-      std::lock_guard<std::mutex> cmgr_lock(follower_cachemanagers_lock);
-      follower_cachemanagers.emplace(cachemgr);
-    }
 
+    std::lock_guard<std::mutex> cmgr_lock(follower_cachemanagers_lock);
+
+    std::shared_ptr<std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>>> new_follower_cachemanagers = std::make_shared<std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>>>(*follower_cachemanagers());
+    
+    new_follower_cachemanagers->emplace(cachemgr);
+    
+    std::atomic_store(&_follower_cachemanagers,new_follower_cachemanagers);
   }
 
+  
 
 
-  void graphics_storage_manager::mark_as_invalid(std::shared_ptr<cachemanager> already_knows,void **arrayptr,snde_index pos,snde_index numelem)
+  void graphics_storage_manager::mark_as_modified(std::shared_ptr<cachemanager> already_knows,void **arrayptr,snde_index pos,snde_index numelem)
   {
-    std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>> fc_copy;
-    {
-      std::lock_guard<std::mutex> cmgr_lock(follower_cachemanagers_lock);
-      fc_copy=follower_cachemanagers;
-    }
-    for (auto && cmgr: fc_copy) {
+    // First, remove any pending_modified mark on this region
+    manager->clear_pending_modified(arrayptr,pos,numelem);
+
+
+
+    // Now notify any follower cachemanagers. 
+    for (auto && cmgr: *follower_cachemanagers()) {
       std::shared_ptr<cachemanager> cmgr_strong=cmgr.lock();
       if (cmgr_strong) {
 	if (cmgr_strong != already_knows) {

@@ -92,7 +92,7 @@ namespace snde {
   }
 
   // equality operator for std::unordered_map
-  bool openclarrayinfo::operator==(const openclarrayinfo b) const
+  bool openclarrayinfo::operator==(const openclarrayinfo &b) const
   {
     return b.context==context && b.arrayptr==arrayptr; // && b.device==device;
   }
@@ -358,6 +358,8 @@ namespace snde {
   // manager may be nullptr if this array doesn't have allocations within it
   {
     // internal use only; assumes admin lock is held;
+    // ***!!! NOTE: Before calling this and before locking the admin lock, you should call     storage->add_follower_cachemanager(shared_from_this());  to ensure the cachemanager is registered
+
     
     //fprintf(stderr,"_GetBufferObject(0x%lx,0x%lx,0x%lx)... buffer_map.size()=%u, tid=0x%lx admin->__owner=0x%lx\n",(unsigned long)context,(unsigned long)device,(unsigned long)arrayptr,(unsigned)buffer_map.size(),(unsigned long)((pid_t)syscall(SYS_gettid)),(unsigned long) admin._M_mutex.__data.__owner);
     
@@ -405,7 +407,9 @@ namespace snde {
     snde_index elemsize=storage->elementsize; 
     void **arrayptr=storage->lockableaddr();
     snde_index nelem=storage->lockablenelem();
-      
+
+    storage->add_follower_cachemanager(shared_from_this());
+    
     std::unique_lock<std::mutex> adminlock(admin);
       
     openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr);
@@ -561,7 +565,9 @@ namespace snde {
 	return _GetOpenCLSubBuffer(storage,alllocks,context,device,substartelem,subnumelem,write,write_only);
 	
       }
+
       
+      storage->add_follower_cachemanager(shared_from_this());
       
       std::unique_lock<std::mutex> adminlock(admin);
       
@@ -827,7 +833,7 @@ namespace snde {
 
 	      assert(dirtyregionstart >= dirtystorage->base_index);
 	      assert(dirtyregionend <= dirtystorage->base_index+dirtystorage->nelem);
-	      dirtystorage->mark_as_invalid(shared_this,dirtyregionstart-dirtystorage->base_index,dirtyregionend-dirtyregionstart);
+	      dirtystorage->mark_as_modified(shared_this,dirtyregionstart-dirtystorage->base_index,dirtyregionend-dirtyregionstart);
 	      
 	      
 	      /* We must now mark this region as modified... i.e. that notifications to others have been completed */
@@ -1249,6 +1255,11 @@ namespace snde {
     return AddBufferAsKernelArg(ref->storage,kernel,arg_index,write,write_only);
   }
 
+  cl_int OpenCLBuffers::AddBufferAsKernelArg(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only)
+  {
+    return AddBufferAsKernelArg(rec->storage.at(rec->name_mapping.at(arrayname)),kernel,arg_index,write,write_only);
+  }
+
   //cl_int OpenCLBuffers::AddBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl::Kernel kernel,cl_uint arg_index,void **arrayptr,bool write,bool write_only/*=false*/)
   //{
   //  AddBuffer(manager,arrayptr,write,write_only);
@@ -1279,7 +1290,12 @@ namespace snde {
   {
     BufferDirty(ref->storage);
   }
-  
+
+  void OpenCLBuffers::BufferDirty(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname)
+  {
+    BufferDirty(rec->storage.at(rec->name_mapping.at(arrayname)));
+  }
+
   /* This indicates that part the array has been written to by an OpenCL kernel, 
      and that therefore it needs to be copied back into CPU memory */
   /*
@@ -1370,6 +1386,16 @@ namespace snde {
     }
 
 
+  void OpenCLBuffers::RemBuffer(std::shared_ptr<ndarray_recording_ref> ref,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait)
+  {
+    RemBuffer(ref->storage,input_data_not_needed,output_data_complete,wait);
+  }
+
+  void OpenCLBuffers::RemBuffer(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait)
+  {
+    RemBuffer(rec->storage.at(rec->name_mapping.at(arrayname)),input_data_not_needed,output_data_complete,wait);
+
+  }
 
   //void OpenCLBuffers::RemBuffer(void **arrayptr,cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait)
   //{

@@ -42,9 +42,11 @@ namespace snde {
     std::shared_ptr<graphics_storage> leader_storage; // If this object (current object, not the leader_storage object) is a follower array, then the leader_storage pointer is non-null and points to the graphics_storage of the corresponding leader array. We keep the shared pointer to prevent the leader from expiring and us losing our memory. If this object (current object, not the leader_storage object) is a leader array, then the leader_storage pointer is null and we own the storage and therefore will free it via the arraymanager in our destructor
     
     // Note: follower_cachemanagers have nothing to do with leader/follower arrays. Rather "follower" here
-    // just refers to the cachemanager having this graphics_storage in its cache. 
-    std::mutex follower_cachemanagers_lock; 
-    std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>> follower_cachemanagers;
+    // just refers to the cachemanager having this graphics_storage in its cache.
+
+    // NOTE: We don't have our own follower_cachemanagers -- we just delegate to the graphics_storage_manager 
+    //std::mutex follower_cachemanagers_lock; 
+    //std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>> follower_cachemanagers;
     
 
     // ***!!!! Conceptually creating a graphics_storage should pass ownership
@@ -62,7 +64,8 @@ namespace snde {
 
     virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference(); // NOTE: The returned storage can only be trusted if (a) the originating recording is immutable, or (b) the originating recording is mutable but has not been changed since obtain_nonmoving_copy_or_reference() was called. i.e. can only be used as long as the originating recording is unchanged. Note that this is used only for getting a direct reference within a larger (perhaps mutable) allocation, such as space for a texture or mesh geometry. If you are just referencing a range of elements of a finalized waveofrm you can just reference the recording_storage shared pointer with a suitable base_index, stride array, and dimlen array.
 
-    virtual void mark_as_invalid(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
+    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
+    virtual void ready_notification();
     virtual void add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr);
     
 
@@ -86,8 +89,8 @@ public:
 
     std::unordered_map<std::string,std::shared_ptr<std::function<void(snde_index)>>> pool_realloc_callbacks; // indexed by names corresponding to leader arrays
     
-    std::mutex follower_cachemanagers_lock; 
-    std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>> follower_cachemanagers;
+    std::mutex follower_cachemanagers_lock; // locks updates to _follower_cachemanagers
+    std::shared_ptr<std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>>> _follower_cachemanagers; // atomic shared pointer: Access with follower_cachemanagers()
     
     
     graphics_storage_manager(const std::string &graphics_recgroup_path,std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> lockmngr,double tol);
@@ -96,10 +99,20 @@ public:
     graphics_storage_manager& operator=(const graphics_storage_manager &) = delete; 
     virtual ~graphics_storage_manager(); // virtual destructor so we can subclass
 
+    std::shared_ptr<graphics_storage> storage_from_allocation(std::string recording_path,
+							      std::shared_ptr<graphics_storage> leader_storage, // nullptr if we are creating a leader
+							      std::string array_name,
+							      uint64_t recrevision,
+							      snde_index base_index, // as allocated for leader_array
+							      size_t elementsize,
+							      unsigned typenum, // MET_...
+							      snde_index nelem,
+							      bool is_mutable=false);
+
     //  math funcs use this to  grab space in a follower array
     // NOTE: This doesn't currently prevent two math functions from
     // grabbing the same follower array -- which could lead to corruption
-    virtual std::shared_ptr<recording_storage> get_follower_storage(std::string recording_path,std::string leader_array_name,
+    virtual std::shared_ptr<recording_storage> get_follower_storage(std::string recording_path,
 								    std::shared_ptr<graphics_storage> leader_storage,
 								    std::string follower_array_name,
 								    uint64_t recrevision,
@@ -126,10 +139,16 @@ public:
 								  unsigned typenum, // MET_...
 								  snde_index nelem,
 								  bool is_mutable); // returns (storage pointer,base_index); note that the recording_storage nelem may be different from what was requested.
+
+    inline std::shared_ptr<std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>>> follower_cachemanagers()
+    {
+      return std::atomic_load(&_follower_cachemanagers);
+    }
+    
     
     virtual void add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr);
     
-    virtual void mark_as_invalid(std::shared_ptr<cachemanager> already_knows,void **arrayptr,snde_index pos,snde_index numelem);
+    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,void **arrayptr,snde_index pos,snde_index numelem);
 
     // internal use only; defined at the top of graphics_storage.cpp
   private:

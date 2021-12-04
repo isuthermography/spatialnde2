@@ -1,17 +1,23 @@
+#ifndef __OPENCL_VERSION__
+#include "snde/snde_types.h"
+#include "snde/geometry_types.h"
+
+#include "snde/rec_display_texvertexarray.h"
+#endif
 /* implicit include of geometry_types.h */
 
-__kernel void osg_texvertexarray(__global const struct snde_parameterization *uv,
-				 __global const snde_triangle *uv_triangles,
-				 __global const snde_edge *uv_edges,
-				 __global const snde_coord2 *uv_vertices,
-				 __global snde_rendercoord *texvertex_arrays)
+void snde_rec_display_texvertexarray_onetri(OCL_GLOBAL_ADDR const struct snde_parameterization *uv,
+					    OCL_GLOBAL_ADDR const snde_triangle *uv_triangles,
+					    OCL_GLOBAL_ADDR const snde_edge *uv_edges,
+					    OCL_GLOBAL_ADDR const snde_coord2 *uv_vertices,
+					    OCL_GLOBAL_ADDR snde_rendercoord *texvertex_arrays,
+					    snde_index trianglenum)
 // This function extract parameterization (texture) vertices from the winged edge data structure
 //  defined by uv and the triangles, edges, and vertices arrays,
 // and emits them into the texvertex_arrays() location.
 // The triangle index is specified by the global_id
 {
 
-  snde_index trianglenum=get_global_id(0);
 
   snde_index thisedge;
   snde_index nextedge;
@@ -86,3 +92,28 @@ __kernel void osg_texvertexarray(__global const struct snde_parameterization *uv
   
   
 }
+
+
+#ifdef __OPENCL_VERSION__
+
+__kernel void snde_rec_display_texvertexarray(__global const struct snde_parameterization *uv,
+				 __global const snde_triangle *uv_triangles,
+				 __global const snde_edge *uv_edges,
+				 __global const snde_coord2 *uv_vertices,
+				 __global snde_rendercoord *texvertex_arrays)
+// This function extract parameterization (texture) vertices from the winged edge data structure
+//  defined by uv and the triangles, edges, and vertices arrays,
+// and emits them into the texvertex_arrays() location.
+// The triangle index is specified by the global_id
+{
+
+  snde_index trianglenum=get_global_id(0);
+  snde_rec_display_texvertexarray_onetri(uv,
+					 uv_triangles,
+					 uv_edges,
+					 uv_vertices,
+					 texvertex_arrays,
+					 trianglenum);
+
+  
+#endif // __OPENCL_VERSION__

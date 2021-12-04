@@ -7,7 +7,53 @@
 
 namespace snde {
   
+  // markedregion is not really specific to rangetracker,
+  // but is compatible with rangetracker 
+  class markedregion  {
+  public:
+    snde_index regionstart;
+    snde_index regionend;
+    
+    markedregion(snde_index regionstart,snde_index regionend)
+    {
+      this->regionstart=regionstart;
+      this->regionend=regionend;
+    }
 
+    bool attempt_merge(markedregion &later)
+    {
+      assert(later.regionstart==regionend);
+      regionend=later.regionend;
+      return true;
+    }
+    std::shared_ptr<markedregion> sp_breakup(snde_index breakpoint)
+    /* breakup method ends this region at breakpoint and returns
+       a new region starting at from breakpoint to the prior end */
+    {
+      std::shared_ptr<markedregion> newregion=std::make_shared<markedregion>(breakpoint,regionend);
+      regionend=breakpoint;
+
+      return newregion;
+    }
+    markedregion breakup(snde_index breakpoint)
+    /* breakup method ends this region at breakpoint and returns
+       a new region starting at from breakpoint to the prior end */
+    {
+      markedregion newregion(breakpoint,regionend);
+      regionend=breakpoint;
+
+      return newregion;
+    }
+
+    bool operator<(const markedregion & other) const {
+      if (regionstart < other.regionstart) return true;
+      return false;
+
+    }
+  };
+
+
+  
   
   template <class T> // class T should have regionstart and regionend elements
   class rangetracker {
@@ -228,7 +274,12 @@ namespace snde {
        the desired region */
     {
       iterator region;
+      rangetracker<T> retval;
 
+      if (!numelems) {
+	return retval;
+      }
+      
       region=_get_starting_region(firstelem,std::forward<Args>(args) ...);
 
       /* region should now be a region where startpoint >= specified firstelem
@@ -260,7 +311,6 @@ namespace snde {
 
       /* now region refers to firstelem */
 
-      rangetracker<T> retval;
       snde_index coveredthrough=firstelem;
 
       snde_index regionend;
@@ -358,6 +408,11 @@ namespace snde {
     */
     {
       iterator region;
+      rangetracker retval;
+
+      if (!numelems) {
+	return retval;
+      }
 
       region=_get_starting_region(firstelem,std::forward<Args>(args) ...);
       /* region should now be a region where startpoint >= specified firstelem
@@ -365,7 +420,6 @@ namespace snde {
        */
       
 
-      rangetracker retval;
       
       while (region != trackedregions.end() && region->second->regionstart < firstelem+numelems) {
 

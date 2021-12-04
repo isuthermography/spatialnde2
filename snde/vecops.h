@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <stddef.h>
 #include <math.h>
+#include <stdio.h>
 
 #include "snde/snde_types.h"
 #endif

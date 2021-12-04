@@ -58,6 +58,31 @@ namespace snde {
   //  
   //  virtual ~arraymanager() {};
   //};
+
+  class pending_modified_tracker {
+  public:
+    std::mutex admin;
+    rangetracker<markedregion> pending_modified;
+
+    void mark_as_pending_modified(snde_index base_index,snde_index len)
+    {
+      std::lock_guard<std::mutex> adminlock(admin);
+      pending_modified.mark_region(base_index,len);
+    }
+
+    void clear_pending_modified(snde_index base_index,snde_index len)
+    {
+      std::lock_guard<std::mutex> adminlock(admin);
+      pending_modified.clear_region(base_index,len);
+    }
+
+
+    rangetracker<markedregion> find_pending_modified(snde_index base_index,snde_index len)
+    {
+      std::lock_guard<std::mutex> adminlock(admin);
+      return pending_modified.iterate_over_marked_portions(base_index,len);
+    }
+  };
   
   class arraymanager : public std::enable_shared_from_this<arraymanager> {
   public: 
@@ -85,7 +110,7 @@ namespace snde {
        switch the atomic pointer. 
 
        non-atomic shared pointer copy retrieved by the allocators(), 
-       allocation_arrays(), arrays_managed_by_allocator(), and _caches() methods
+       allocation_arrays(), arrays_managed_by_allocator(), and _pending_modified_trackers() methods
     */
 
     std::shared_ptr<std::unordered_map<void **,allocationinfo>> _allocators; // C++11 atomic shared_ptr
@@ -93,8 +118,8 @@ namespace snde {
     std::shared_ptr<std::multimap<void **,void **>> _arrays_managed_by_allocator; // C++11 atomic shared_ptr: look up the managed arrays by the allocator array... ordering is as the arrays are created, which follows the locking order
     //std::shared_ptr<std::unordered_map<std::string,std::shared_ptr<cachemanager>>> __caches; // C++11 atomic shared_ptr: Look up a particular cachemanager by name
 
-
-
+    // pending_modified_trackers keep track of array ranges that have been allocated (and thus a modification is pending) but for which the modification is not complete. They are marked on allocation, and then should be cleared either when the data is explicitly passed in (via mark_as_modified()) or when the data implicitly must be complete (via mark_as_ready()). If cleared via mark_as_ready() then all caches should be invalidated for this region, as data was implicitly written. Also cleared on free. 
+    std::shared_ptr<std::unordered_map<void **,std::shared_ptr<pending_modified_tracker>>> _pending_modified_trackers;
     
 
     
@@ -104,6 +129,7 @@ namespace snde {
       std::atomic_store(&_allocators,std::make_shared<std::unordered_map<void **,allocationinfo>>());
       std::atomic_store(&_allocation_arrays,std::make_shared<std::unordered_map<void **,void **>>());
       std::atomic_store(&_arrays_managed_by_allocator,std::make_shared<std::multimap<void **,void **>>());
+      std::atomic_store(&_pending_modified_trackers,std::make_shared<std::unordered_map<void **,std::shared_ptr<pending_modified_tracker>>>());
       //std::atomic_store(&__caches,std::make_shared<std::unordered_map<std::string,std::shared_ptr<cachemanager>>>());
       _memalloc=memalloc;
       
@@ -140,9 +166,17 @@ namespace snde {
     //return std::atomic_load(&__caches);
     //}
 
+
+    virtual std::shared_ptr<std::unordered_map<void **,std::shared_ptr<pending_modified_tracker>>> pending_modified_trackers()
+    {
+      return std::atomic_load(&_pending_modified_trackers);
+    }
+
+
     virtual std::tuple<std::shared_ptr<std::unordered_map<void **,allocationinfo>>,
 		       std::shared_ptr<std::unordered_map<void **,void **>>,
-		       std::shared_ptr<std::multimap<void **,void **>>> _begin_atomic_update()
+		       std::shared_ptr<std::multimap<void **,void **>>,
+		       std::shared_ptr<std::unordered_map<void **,std::shared_ptr<pending_modified_tracker>>>> _begin_atomic_update()
     // adminlock must be locked when calling this function...
     // it returns new copies of the atomically-guarded data
     {
@@ -151,14 +185,16 @@ namespace snde {
       std::shared_ptr<std::unordered_map<void **,allocationinfo>> new_allocators=std::make_shared<std::unordered_map<void **,allocationinfo>>(*allocators());
       std::shared_ptr<std::unordered_map<void **,void **>> new_allocation_arrays=std::make_shared<std::unordered_map<void **,void **>>(*allocation_arrays());
       std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator=std::make_shared<std::multimap<void **,void **>>(*arrays_managed_by_allocator());      
+      std::shared_ptr<std::unordered_map<void **,std::shared_ptr<pending_modified_tracker>>> new_pending_modified_trackers=std::make_shared<std::unordered_map<void **,std::shared_ptr<pending_modified_tracker>>>(*pending_modified_trackers());
+      
 
-
-	return std::make_tuple(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator);
+      return std::make_tuple(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator,new_pending_modified_trackers);
     }
 
     virtual void _end_atomic_update(std::shared_ptr<std::unordered_map<void **,allocationinfo>> new_allocators,				  
 				    std::shared_ptr<std::unordered_map<void **,void **>> new_allocation_arrays,
-				    std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator)
+				    std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator,
+				    std::shared_ptr<std::unordered_map<void **,std::shared_ptr<pending_modified_tracker>>> new_pending_modified_trackers)
     // adminlock must be locked when calling this function...
     {
 
@@ -167,8 +203,9 @@ namespace snde {
       std::atomic_store(&_allocators,new_allocators);
       std::atomic_store(&_allocation_arrays,new_allocation_arrays);
       std::atomic_store(&_arrays_managed_by_allocator,new_arrays_managed_by_allocator);
+      std::atomic_store(&_pending_modified_trackers,new_pending_modified_trackers);
     }
-
+    
 
     //virtual std::tuple<std::shared_ptr<std::unordered_map<std::string,std::shared_ptr<cachemanager>>>> _begin_caches_atomic_update()
     //// adminlock must be locked when calling this function...
@@ -201,8 +238,9 @@ namespace snde {
 	std::shared_ptr<std::unordered_map<void **,allocationinfo>> new_allocators;
 	std::shared_ptr<std::unordered_map<void **,void **>> new_allocation_arrays;
 	std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator;
+	std::shared_ptr<std::unordered_map<void **,std::shared_ptr<pending_modified_tracker>>> new_pending_modified_trackers;
 	
-	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator)
+	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator,new_pending_modified_trackers)
 	  = _begin_atomic_update();
 	
 	// Make sure arrayptr not already managed
@@ -215,10 +253,10 @@ namespace snde {
 	
 	(*new_allocation_arrays)[arrayptr]=arrayptr;
 	new_arrays_managed_by_allocator->emplace(std::make_pair(arrayptr,arrayptr));
-	
+	new_pending_modified_trackers->emplace(arrayptr,std::make_shared<pending_modified_tracker>());
 	
 	// replace old with new
-	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator);
+	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator,new_pending_modified_trackers);
       }
       locker->addarray(arrayptr);
     
@@ -234,8 +272,9 @@ namespace snde {
 	std::shared_ptr<std::unordered_map<void **,allocationinfo>> new_allocators;
 	std::shared_ptr<std::unordered_map<void **,void **>> new_allocation_arrays;
 	std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator;
+	std::shared_ptr<std::unordered_map<void **,std::shared_ptr<pending_modified_tracker>>> new_pending_modified_trackers;
 	
-	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator)
+	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator,new_pending_modified_trackers)
 	  = _begin_atomic_update();
 	
 	std::shared_ptr<allocator> alloc=(*new_allocators).at(allocatedptr).alloc;
@@ -253,9 +292,10 @@ namespace snde {
 	(*new_allocation_arrays)[arrayptr]=allocatedptr;
 	
 	new_arrays_managed_by_allocator->emplace(std::make_pair(allocatedptr,arrayptr));
+	new_pending_modified_trackers->emplace(arrayptr,std::make_shared<pending_modified_tracker>());
 
 	// replace old with new
-	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator);
+	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator,new_pending_modified_trackers);
       }
       locker->addarray(arrayptr);
 
@@ -273,13 +313,19 @@ namespace snde {
 	std::shared_ptr<std::unordered_map<void **,void **>> new_allocation_arrays;
 	std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator;
 	
-	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator)
+	std::shared_ptr<std::unordered_map<void **,std::shared_ptr<pending_modified_tracker>>> new_pending_modified_trackers;
+
+	
+	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator,new_pending_modified_trackers)
 	  = _begin_atomic_update();
 	
 	(*new_allocators)[arrayptr]=allocationinfo{nullptr,elemsize,totalnelem,0};
 	(*new_allocation_arrays)[arrayptr]=nullptr;
+
+	new_pending_modified_trackers->emplace(arrayptr,std::make_shared<pending_modified_tracker>());
+	
 	// replace old with new
-	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator);
+	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator,new_pending_modified_trackers);
       }
       
       locker->addarray(arrayptr);
@@ -335,10 +381,36 @@ namespace snde {
 	//}
     }
 
+    virtual void mark_as_pending_modified(void **arrayptr,snde_index base_index,snde_index len)
+    {
+      pending_modified_trackers()->at(arrayptr)->mark_as_pending_modified(base_index,len);
+    }
+
+    virtual void clear_pending_modified(void **arrayptr,snde_index base_index,snde_index len)
+    {
+      pending_modified_trackers()->at(arrayptr)->clear_pending_modified(base_index,len);
+    }
+
+    virtual rangetracker<markedregion> find_pending_modified(void **arrayptr,snde_index base_index,snde_index len)
+    {
+      return pending_modified_trackers()->at(arrayptr)->find_pending_modified(base_index,len);
+    }
+
     virtual void realloc_down(void **allocatedptr,snde_index addr,snde_index orignelem, snde_index newnelem)
     {
       /* Shrink an allocation. Can ONLY be called if you have a write lock to this allocation */
       std::shared_ptr<allocator> alloc=(*allocators()).at(allocatedptr).alloc;
+
+      // clear pending_modified for region no longer allocated in this array and all followers
+
+      std::shared_ptr<std::multimap<void **,void **>> managed_arrays = arrays_managed_by_allocator();
+      std::multimap<void **,void **>::iterator managed_array_begin,managed_array_end;
+      std::tie(managed_array_begin,managed_array_end)=managed_arrays->equal_range(allocatedptr);
+      for (auto managed_array_it=managed_array_begin;managed_array_it != managed_array_end;++managed_array_it) {
+	pending_modified_trackers()->at(managed_array_it->second)->clear_pending_modified(addr+newnelem,orignelem-newnelem);
+      }
+
+      // perform realloc_down
       alloc->realloc_down(addr,orignelem,newnelem);
     }
 
@@ -347,7 +419,23 @@ namespace snde {
     {
       //std::lock_guard<std::mutex> adminlock(admin);
       std::shared_ptr<allocator> alloc=(*allocators()).at(allocatedptr).alloc;
-      return alloc->alloc_arraylocked(all_locks,nelem);    
+
+      // perform allocation
+      std::pair<snde_index,std::vector<std::pair<std::shared_ptr<alloc_voidpp>,rwlock_token_set>>> retval = alloc->alloc_arraylocked(all_locks,nelem);
+
+      // Mark allocated region in leader and follower arrays
+      // as pending_modified (should be cleared when recording is marked as ready
+
+      snde_index addr = retval.first;
+      std::shared_ptr<std::multimap<void **,void **>> managed_arrays = arrays_managed_by_allocator();
+      std::multimap<void **,void **>::iterator managed_array_begin,managed_array_end;
+      std::tie(managed_array_begin,managed_array_end)=managed_arrays->equal_range(allocatedptr);
+      for (auto managed_array_it=managed_array_begin;managed_array_it != managed_array_end;++managed_array_it) {
+	pending_modified_trackers()->at(managed_array_it->second)->mark_as_pending_modified(addr,nelem);
+      }
+
+      
+      return retval;
     }
     
     virtual std::vector<std::pair<std::shared_ptr<alloc_voidpp>,rwlock_token_set>> alloc_arraylocked_swigworkaround(snde::rwlock_token_set all_locks,void **allocatedptr,snde_index nelem,snde_index *OUTPUT)
@@ -369,6 +457,21 @@ namespace snde {
     {
       //std::lock_guard<std::mutex> adminlock(admin);
       std::shared_ptr<allocator> alloc=(*allocators()).at(allocatedptr).alloc;
+      snde_index alloclen = alloc->get_length(addr);
+
+      // remove any pending_modified markers for arrays managed
+      // through this allocator
+      std::shared_ptr<std::multimap<void **,void **>> managed_arrays = arrays_managed_by_allocator();
+      std::multimap<void **,void **>::iterator managed_array_begin,managed_array_end;
+      std::tie(managed_array_begin,managed_array_end)=managed_arrays->equal_range(allocatedptr);
+      for (auto managed_array_it=managed_array_begin;managed_array_it != managed_array_end;++managed_array_it) {
+	clear_pending_modified(managed_array_it->second,addr,alloclen);
+      }
+      
+      
+      //clear_pending_modified(allocatedptr,addr,alloclen); (included in above iteration)
+
+      // perform free
       alloc->free(addr);    
     }
 
@@ -381,8 +484,9 @@ namespace snde {
 	std::shared_ptr<std::unordered_map<void **,allocationinfo>> new_allocators;
 	std::shared_ptr<std::unordered_map<void **,void **>> new_allocation_arrays;
 	std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator;
+	std::shared_ptr<std::unordered_map<void **,std::shared_ptr<pending_modified_tracker>>> new_pending_modified_trackers;
 	
-	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator)
+	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator,new_pending_modified_trackers)
 	  = _begin_atomic_update();
 
 	for (auto && arrayptr_allocinfo: *new_allocators) {
@@ -392,9 +496,10 @@ namespace snde {
 	new_allocators->clear();
 	new_allocation_arrays->clear();
 	new_arrays_managed_by_allocator->clear();
+	new_pending_modified_trackers->clear();
 	
 	// replace old with new
-	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator);
+	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator,new_pending_modified_trackers);
       }
 
       // * Should we remove these arrays from locker 
@@ -413,8 +518,9 @@ namespace snde {
 	std::shared_ptr<std::unordered_map<void **,allocationinfo>> new_allocators;
 	std::shared_ptr<std::unordered_map<void **,void **>> new_allocation_arrays;
 	std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator;
+	std::shared_ptr<std::unordered_map<void **,std::shared_ptr<pending_modified_tracker>>> new_pending_modified_trackers;
 	
-	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator)
+	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator,new_pending_modified_trackers)
 	  = _begin_atomic_update();
 
 	// remove all references from our data structures
@@ -433,13 +539,14 @@ namespace snde {
 	for (;rangepos != rangeend;rangepos=rangenext) {
 	  rangenext=rangepos;
 	  rangenext++;
-	  new_arrays_managed_by_allocator->erase(rangepos);
+	  new_pending_modified_trackers->erase(rangepos->second);
+	  new_arrays_managed_by_allocator->erase(rangepos);	  
 	}
 
 	
 	
 	// replace old with new
-	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator);
+	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator,new_pending_modified_trackers);
       }
       locker->remarray(basearray);
     }
@@ -455,8 +562,9 @@ namespace snde {
 	std::shared_ptr<std::unordered_map<void **,allocationinfo>> new_allocators;
 	std::shared_ptr<std::unordered_map<void **,void **>> new_allocation_arrays;
 	std::shared_ptr<std::multimap<void **,void **>> new_arrays_managed_by_allocator;
+	std::shared_ptr<std::unordered_map<void **,std::shared_ptr<pending_modified_tracker>>> new_pending_modified_trackers;
 	
-	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator)
+	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator,new_pending_modified_trackers)
 	  = _begin_atomic_update();
 	
 	size_t pos;
@@ -484,7 +592,9 @@ namespace snde {
 	      }
 	    
 	      while (new_arrays_managed_by_allocator->find(this_arrayptr_allocationinfo->first) != new_arrays_managed_by_allocator->end()) {
-		new_arrays_managed_by_allocator->erase(new_arrays_managed_by_allocator->find(this_arrayptr_allocationinfo->first));
+		auto amba_it = new_arrays_managed_by_allocator->find(this_arrayptr_allocationinfo->first);
+		new_pending_modified_trackers->erase(amba_it->second);
+		new_arrays_managed_by_allocator->erase(amba_it);
 	      }
 	      new_allocation_arrays->erase(new_allocation_arrays->find(this_arrayptr_allocationinfo->first));
 	      new_allocators->erase(this_arrayptr_allocationinfo);
@@ -493,7 +603,7 @@ namespace snde {
 	  }
 	}
 	// replace old with new
-	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator);
+	_end_atomic_update(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator,new_pending_modified_trackers);
       }
 
       for (auto && arrayaddr: matchedaddrs) {

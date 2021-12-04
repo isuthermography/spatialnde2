@@ -5,11 +5,6 @@
 extern "C" {
 #endif
 
-#ifdef __OPENCL_VERSION__
-#define OCL_GLOBAL_CONTEXT __global
-#else
-#define OCL_GLOBAL_CONTEXT
-#endif
 
 static inline void tricentroid3(snde_coord3 *verts, snde_coord3 *centroid_out)
 {
@@ -74,7 +69,7 @@ static inline void polycentroid3(snde_coord3 *verts, uint32_t numvertices, snde_
 
 
   
-static inline void get_we_triverts_3d(OCL_GLOBAL_CONTEXT const snde_triangle *part_triangles, snde_index trianglenum,OCL_GLOBAL_CONTEXT const snde_edge *part_edges, OCL_GLOBAL_CONTEXT const snde_coord3 *part_vertices,snde_coord3 *tri_vertices)
+static inline void get_we_triverts_3d(OCL_GLOBAL_ADDR const snde_triangle *part_triangles, snde_index trianglenum,OCL_GLOBAL_ADDR const snde_edge *part_edges, OCL_GLOBAL_ADDR const snde_coord3 *part_vertices,snde_coord3 *tri_vertices)
 {
   snde_index edgecnt;
   snde_index thisedge;
@@ -123,7 +118,7 @@ static inline void get_we_triverts_3d(OCL_GLOBAL_CONTEXT const snde_triangle *pa
 }
 
 
-  static inline void get_we_trivert_3d(OCL_GLOBAL_CONTEXT const snde_triangle *part_triangles, snde_index trianglenum,OCL_GLOBAL_CONTEXT const snde_edge *part_edges, OCL_GLOBAL_CONTEXT const snde_coord3 *part_vertices,snde_coord3 *tri_vertex)
+  static inline void get_we_trivert_3d(OCL_GLOBAL_ADDR const snde_triangle *part_triangles, snde_index trianglenum,OCL_GLOBAL_ADDR const snde_edge *part_edges, OCL_GLOBAL_ADDR const snde_coord3 *part_vertices,snde_coord3 *tri_vertex)
   // returns a vertex from the given triangle
 {
   snde_index thisedge;
@@ -139,7 +134,7 @@ static inline void get_we_triverts_3d(OCL_GLOBAL_CONTEXT const snde_triangle *pa
 
 
   
-static inline void get_we_tricentroid_3d(OCL_GLOBAL_CONTEXT const snde_triangle *part_triangles, snde_index trianglenum,OCL_GLOBAL_CONTEXT const snde_edge *part_edges, OCL_GLOBAL_CONTEXT const snde_coord3 *part_vertices,snde_coord3 *tricentroid)
+static inline void get_we_tricentroid_3d(OCL_GLOBAL_ADDR const snde_triangle *part_triangles, snde_index trianglenum,OCL_GLOBAL_ADDR const snde_edge *part_edges, OCL_GLOBAL_ADDR const snde_coord3 *part_vertices,snde_coord3 *tricentroid)
 {
   snde_coord3 tri_vertices[3];
   
@@ -148,7 +143,7 @@ static inline void get_we_tricentroid_3d(OCL_GLOBAL_CONTEXT const snde_triangle 
   
 }
 
-  static inline void get_we_triverts_2d(OCL_GLOBAL_CONTEXT const snde_triangle *uv_triangles, snde_index trianglenum,OCL_GLOBAL_CONTEXT const snde_edge *uv_edges, OCL_GLOBAL_CONTEXT const snde_coord2 *uv_vertices,snde_coord2 *tri_vertices)
+  static inline void get_we_triverts_2d(OCL_GLOBAL_ADDR const snde_triangle *uv_triangles, snde_index trianglenum,OCL_GLOBAL_ADDR const snde_edge *uv_edges, OCL_GLOBAL_ADDR const snde_coord2 *uv_vertices,snde_coord2 *tri_vertices)
 {
   snde_index edgecnt;
   snde_index thisedge;

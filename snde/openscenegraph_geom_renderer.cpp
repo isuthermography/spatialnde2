@@ -1,21 +1,22 @@
 
-#include "snde/openscenegraph_image_renderer.hpp"
+#include "snde/openscenegraph_geom_renderer.hpp"
 #include "snde/rec_display.hpp"
 
 namespace snde {
 
 
   
+  // ***!!! Should make the channel to display a parameter to the renderere ***!!!
 
-
-  osg_image_renderer::osg_image_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
-					 osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
-					 std::shared_ptr<osg_rendercache> RenderCache,
-					 std::string channel_path) :
+  osg_3d_renderer::osg_3d_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
+				   osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
+				   std::shared_ptr<osg_rendercache> RenderCache,
+				   std::string channel_path) :
     channel_path(channel_path),
     GraphicsWindow(GraphicsWindow),
     //Viewer(new osgViewer::Viewer()),
     Viewer(Viewer),
+    Manipulator(new osgGA::TrackballManipulator()),
     Camera(Viewer->getCamera()),
     //RootNode(RootNode),
     RenderCache(RenderCache)
@@ -25,10 +26,20 @@ namespace snde {
     
     // set background color to blueish
     Camera->setClearColor(osg::Vec4(.1,.1,.3,1.0));    
-    
-    Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded); // Could try more sophisticated rendering model later. 
-    //Viewer->setCameraManipulator(Manipulator);
-    //Viewer->setRunFrameScheme(osg::ON_DEMAND); // ***!!! With this OSG looks at whether it thinks a new render is needed based on scene graph changes and only renders if necessary. 
+
+
+    // need to enable culling so that linesegmentintersector (openscenegraph_picker)
+    // behavior matches camera behavior
+    // (is this efficient?)
+    Camera->setComputeNearFarMode( osg::CullSettings::COMPUTE_NEAR_FAR_USING_PRIMITIVES );
+    Camera->setCullingMode(osg::CullSettings::ENABLE_ALL_CULLING);
+
+    Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded); // We handle threading ourselves
+    Viewer->setCameraManipulator(Manipulator);
+    //Viewer->setRunFrameScheme(osg::ON_DEMAND); // ***!!! With this OSG looks at whether it thinks a new render is needed based on scene graph changes and only renders if necessary.
+
+    //Viewer->setSceneData(RootNode);
+
     
     /* Two dimensional initialization */
     //Transform = new osg::MatrixTransform();
@@ -57,10 +68,11 @@ namespace snde {
 
   
   
-  void osg_image_renderer::perform_render(std::shared_ptr<recdatabase> recdb,
+  void osg_3d_renderer::perform_render(std::shared_ptr<recdatabase> recdb,
 					  //std::shared_ptr<recstore_display_transforms> display_transforms,
 					  std::shared_ptr<recording_set_state> with_display_transforms,
 					  //std::shared_ptr<display_channel> channel_to_display,
+					  //std::string channel_path,
 					  std::shared_ptr<display_info> display,
 					  const std::map<std::string,std::shared_ptr<display_requirement>> &display_reqs,
 					  double left, // left of viewport in channel horizontal units
@@ -87,16 +99,14 @@ namespace snde {
       
     };
     
-    std::shared_ptr<osg_rendercacheentry> imageentry = RenderCache->GetEntry(params,display_req);
-
-    if (imageentry) {
-
-      std::shared_ptr<osg_rendercachegroupentry> imagegroup = std::dynamic_pointer_cast<osg_rendercachegroupentry>(imageentry); 
-
-      if (imagegroup) {
-	if (Viewer->getSceneData() != imagegroup->osg_group){
-	  //group=imagegroup;
-	  Viewer->setSceneData(imagegroup->osg_group);
+    std::shared_ptr<osg_rendercacheentry> renderentry = RenderCache->GetEntry(params,display_req);
+    if (renderentry) {
+      std::shared_ptr<osg_rendercachegroupentry> rendergroup = std::dynamic_pointer_cast<osg_rendercachegroupentry>(renderentry);
+      
+      if (rendergroup) {
+	if (Viewer->getSceneData() != rendergroup->osg_group){
+	  //group=imagegroup->osg_group;
+	  Viewer->setSceneData(rendergroup->osg_group);
 	}
 	/*
 	  if (Geode && Geode != imagegeode) {
@@ -112,21 +122,20 @@ namespace snde {
 	   double bottom;
 	   double top;
 	*/
-    
+	
 	Camera->setProjectionMatrixAsOrtho(left,right,bottom,top,-10.0,1000.0);
 	Camera->setViewport(0,0,width,height);
       } else {
-	snde_warning("openscenegraph_image_renderer: cache entry not convertable to an osg_group rendering channel %s",channel_path.c_str());
+	snde_warning("openscenegraph_3d_renderer: cache entry not convertable to an osg_group rendering channel %s",channel_path.c_str());
       }
     } else {
-      snde_warning("openscenegraph_image_renderer: cache entry not available rendering channel %s",channel_path.c_str());
+      snde_warning("openscenegraph_3d_renderer: cache entry not available rendering channel %s",channel_path.c_str());
       
     }
-	
     Viewer->frame();
     
   }
   
-
+  
   
 };

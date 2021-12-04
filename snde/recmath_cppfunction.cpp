@@ -10,14 +10,14 @@ namespace snde {
 
 
 
-  cpp_math_function::cpp_math_function(std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
-				       bool supports_cpu,
-				       bool supports_opencl,
-				       bool supports_cuda) :
-    math_function(std::vector<std::tuple<std::string,unsigned>>(),initiate_execution),
-    supports_cpu(supports_cpu),
-    supports_opencl(supports_opencl),
-    supports_cuda(supports_cuda)
+  cpp_math_function::cpp_math_function(std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution) :
+    //				       bool supports_cpu,
+    //				       bool supports_opencl,
+    //				       bool supports_cuda) :
+    math_function(std::vector<std::tuple<std::string,unsigned>>(),initiate_execution)
+    //supports_cpu(supports_cpu),
+    //supports_opencl(supports_opencl),
+    //supports_cuda(supports_cuda)
   {
     // perform test creation of a recmath_cppfuncexec_base to extract the parameter list
     std::shared_ptr<recmath_cppfuncexec_base> testexec = std::dynamic_pointer_cast<recmath_cppfuncexec_base>(initiate_execution(nullptr,nullptr));
@@ -56,10 +56,10 @@ namespace snde {
 							    mdonly,
 							    shared_from_this(),
 							    definition,
-							    extra_params,
-							    supports_cpu,
-							    supports_opencl,
-							    supports_cuda); // so far just enable everything supported by the underlying function
+							    extra_params);
+    //							    supports_cpu,
+    //							    supports_opencl,
+    //							    supports_cuda); // so far just enable everything supported by the underlying function
   }
   
   instantiated_cpp_math_function::instantiated_cpp_math_function(const std::vector<std::shared_ptr<math_parameter>> & parameters,
@@ -70,12 +70,12 @@ namespace snde {
 								 bool mdonly,
 								 std::shared_ptr<math_function> fcn,
 								 std::shared_ptr<math_definition> definition,
-								 std::shared_ptr<math_instance_parameter> extra_params,
-								 bool enable_cpu,bool enable_opencl,bool enable_cuda) :
-    instantiated_math_function(parameters,result_channel_paths,channel_path_context,is_mutable,ondemand,mdonly,fcn,definition,extra_params),
-    enable_cpu(enable_cpu),
-    enable_opencl(enable_opencl),
-    enable_cuda(enable_cuda)
+								 std::shared_ptr<math_instance_parameter> extra_params) :
+								 //bool enable_cpu,bool enable_opencl,bool enable_cuda) :
+    instantiated_math_function(parameters,result_channel_paths,channel_path_context,is_mutable,ondemand,mdonly,fcn,definition,extra_params)
+    //    enable_cpu(enable_cpu),
+    //    enable_opencl(enable_opencl),
+    //    enable_cuda(enable_cuda)
   {
     
   }

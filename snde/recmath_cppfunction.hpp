@@ -662,13 +662,13 @@ namespace snde {
 
   class cpp_math_function: public math_function {
   public:
-    bool supports_cpu;
-    bool supports_opencl;
-    bool supports_cuda;
-    cpp_math_function(std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution,
-		      bool supports_cpu,
-		      bool supports_opencl,
-		      bool supports_cuda);
+    //bool supports_cpu;
+    //bool supports_opencl;
+    //bool supports_cuda;
+    cpp_math_function(std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
+    //		      bool supports_cpu,
+    //		      bool supports_opencl,
+    //		      bool supports_cuda);
 
     // Rule of 3
     cpp_math_function(const cpp_math_function &) = delete;
@@ -696,9 +696,9 @@ namespace snde {
   
   class instantiated_cpp_math_function: public instantiated_math_function {
   public:
-    bool enable_cpu;
-    bool enable_opencl;
-    bool enable_cuda;
+    //bool enable_cpu;
+    //bool enable_opencl;
+    //bool enable_cuda;
 
     instantiated_cpp_math_function(const std::vector<std::shared_ptr<math_parameter>> & parameters,
 				   const std::vector<std::shared_ptr<std::string>> & result_channel_paths,
@@ -708,8 +708,8 @@ namespace snde {
 				   bool mdonly,
 				   std::shared_ptr<math_function> fcn,
 				   std::shared_ptr<math_definition> definition,
-				   std::shared_ptr<math_instance_parameter> extra_params,
-				   bool enable_cpu,bool enable_opencl,bool enable_cuda);
+				   std::shared_ptr<math_instance_parameter> extra_params);
+				   //bool enable_cpu,bool enable_opencl,bool enable_cuda);
     
     // rule of 3
     instantiated_cpp_math_function(const instantiated_cpp_math_function &)=default; // for use in clone() method

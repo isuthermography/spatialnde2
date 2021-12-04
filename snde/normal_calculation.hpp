@@ -1,7 +1,6 @@
 // ***!!!! Should modify revision manager to better use common code
 // to determine inputs, determine output regions, and perform locking. 
 
-#include "snde/opencl_utils.hpp"
 
 
 #ifndef SNDE_NORMAL_CALCULATION_HPP
@@ -10,16 +9,13 @@
 
 namespace snde {
 
-  class geometry;
-  class trm;
-  class component;
   
-extern opencl_program normalcalc_opencl_program;
+  // extern opencl_program normalcalc_opencl_program;
+  // note: we have a normal_calculation_trinormals
+  // in normal_calculation.cpp but not currently any
+  // way to access it
 
-// The snde::geometry's object_trees_lock should be held when making this call,
-  // and it should be inside a revman transaction
-
-  std::shared_ptr<trm_dependency> normal_calculation(std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<component> comp,cl_context context,cl_device_id device,cl_command_queue queue);
+  std::shared_ptr<math_function> define_vertnormals_recording_function();
 
 
 };

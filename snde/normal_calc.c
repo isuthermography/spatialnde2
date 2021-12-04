@@ -1,15 +1,21 @@
+#ifndef __OPENCL_VERSION__
+#include "snde/snde_types.h"
+#include "snde/geometry_types.h"
+#include "snde/vecops.h"
+#include "snde/geometry_ops.h"
+
+#include "snde/normal_calc.h"
+#endif
+
 /* implicit include of geometry_types.h */
 /* implicit include of vecops.h */
 
-__kernel void normalcalc(__global const struct snde_part *part,
-			 __global const snde_triangle *part_triangles,
-			 __global const snde_edge *part_edges,
-			 __global const snde_coord3 *part_vertices,
-			 __global snde_trivertnormals *vertnormals,
-			 __global snde_coord3 *trinormals)
+snde_coord3 snde_normalcalc_triangle(OCL_GLOBAL_ADDR const struct snde_part *part,
+				     OCL_GLOBAL_ADDR const snde_triangle *part_triangles,
+				     OCL_GLOBAL_ADDR const snde_edge *part_edges,
+				     OCL_GLOBAL_ADDR const snde_coord3 *part_vertices,
+				     snde_index trianglenum)
 {
-  snde_index trianglenum=get_global_id(0);
-  
   snde_coord3 triverts[3];
   
   // For the moment, this calculates a normal per triangle and stores it
@@ -40,7 +46,7 @@ __kernel void normalcalc(__global const struct snde_part *part,
   // vertex are too close to parallel, find another vertex
     
   const snde_coord min_cross_product = 1e-3;
-  bool tooparallel=normvec3(N.coord) < min_cross_product;
+  snde_bool tooparallel=normvec3(N.coord) < min_cross_product;
 
   if (tooparallel) {
     // replace W with vector from element 2 to element 1
@@ -55,9 +61,48 @@ __kernel void normalcalc(__global const struct snde_part *part,
   // Normalize normal
   normalizevec3(N.coord);
 
-  vertnormals[trianglenum].vertnorms[0]=N;
-  vertnormals[trianglenum].vertnorms[1]=N;
-  vertnormals[trianglenum].vertnorms[2]=N;
-  trinormals[trianglenum]=N;
+  return N;
+  
 }
 
+#ifdef __OPENCL_VERSION__
+__kernel void snde_normalcalc_trinormals(__global const struct snde_part *part,
+			      __global const snde_triangle *part_triangles,
+			      __global const snde_edge *part_edges,
+			      __global const snde_coord3 *part_vertices,
+			      __global snde_coord3 *trinormals)
+{
+  snde_index trianglenum=get_global_id(0);
+  snde_coord3 normal;
+  
+  normal = snde_normalcalc_triangle(part,
+				    part_triangles,
+				    part_edges,
+				    part_vertices,
+				    trianglenum);
+  trinormals[trianglenum]=normal;
+}
+
+
+__kernel void snde_normalcalc_vertnormals(__global const struct snde_part *part,
+			      __global const snde_triangle *part_triangles,
+			      __global const snde_edge *part_edges,
+			      __global const snde_coord3 *part_vertices,
+			      __global snde_trivertnormals *vertnormals)
+{
+  snde_index trianglenum=get_global_id(0);
+  snde_coord3 normal;
+  
+  normal = snde_normalcalc_triangle(part,
+				    part_triangles,
+				    part_edges,
+				    part_vertices,
+				    vertnormals,
+				    trianglenum);
+  vertnormals[trianglenum].vertnorms[0]=normal;
+  vertnormals[trianglenum].vertnorms[1]=normal;
+  vertnormals[trianglenum].vertnorms[2]=normal;
+
+}
+
+#endif // __OPENCL_VERSION__

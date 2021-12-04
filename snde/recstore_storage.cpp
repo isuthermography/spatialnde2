@@ -86,7 +86,7 @@ namespace snde {
     return reference;
   }
 
-  void recording_storage_simple::mark_as_invalid(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)
+  void recording_storage_simple::mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)
   // pos and numelem are relative to __this_recording__
   {
     std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>> fc_copy;
@@ -103,7 +103,13 @@ namespace snde {
       }
     }
   }
-  
+
+  void recording_storage_simple::ready_notification()
+  {
+    // no-op because if you are overwriting preexisting data you should be calling mark_as_modified()
+    // and you should write data in with the CPU BEFORE caching (why wouldn't you???)
+  }
+
   void recording_storage_simple::add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr)
   {
     std::lock_guard<std::mutex> cmgr_lock(follower_cachemanagers_lock);
@@ -144,11 +150,15 @@ namespace snde {
     return orig->obtain_nonmoving_copy_or_reference(/*ref->offset/elementsize + offset_elements,*/);
   }
 
-  void recording_storage_reference::mark_as_invalid(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)
+  void recording_storage_reference::mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)
   {
-    throw snde_error("Cannot mark an immutable reference as invalid");
+    throw snde_error("Cannot mark an immutable reference as modified");
   }
   
+  void recording_storage_reference::ready_notification()
+  {
+    throw snde_error("Ready notification on immutable reference (should already be ready).");    
+  }
   void recording_storage_reference::add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr)
   {
     orig->add_follower_cachemanager(cachemgr);

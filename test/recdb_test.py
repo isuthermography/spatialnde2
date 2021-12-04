@@ -53,7 +53,7 @@ data = rec.data()
 
 # Demonstrate export to raw shared pointer and reconstruction
 # from raw shared pointer:
-rec2 = snde.ndarray_recording_ref.from_raw_shared_ptr(rec.to_raw_shared_ptr())
+rec2 = snde.ndarray_recording_ref.consume_raw_shared_ptr(rec.produce_raw_shared_ptr())
 
 
 # verify it is OK to read these channels without locking

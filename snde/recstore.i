@@ -1,5 +1,7 @@
 %shared_ptr(snde::recording_base);
 snde_rawaccessible(snde::recording_base);
+%shared_ptr(snde::recording_group);
+snde_rawaccessible(snde::recording_group);
 %shared_ptr(snde::multi_ndarray_recording);
 snde_rawaccessible(snde::multi_ndarray_recording);
 %shared_ptr(snde::ndarray_recording_ref);
@@ -127,7 +129,29 @@ namespace snde {
     virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held. 
   };
 
-  
+  class recording_group : public recording_base {
+  public:
+    // Group elements are not stored here; they are found by searching
+    // the channel_map of the recording_set_state or the _channels map
+    // of the recdatabase. Because the maps are ordered, you should be
+    // able to iterate through the group elements by starting with the
+    // group name (including trailing slash) and iterating forward until
+    // you get an entry not within the group. 
+
+    std::shared_ptr<std::string> path_to_primary; // nullptr or the path (generally relative to this group) to the primary content of the group, which should be displayed when the user asks to view the content represented by the group. 
+
+
+    recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,std::shared_ptr<std::string> path_to_primary,size_t info_structsize=0);
+    
+    
+    // rule of 3
+    recording_group & operator=(const recording_group &) = delete; 
+    recording_group(const recording_group &orig) = delete;
+    virtual ~recording_group()=default;
+
+    
+  };
+
   class multi_ndarray_recording : public recording_base {
   public:
     std::vector<arraylayout> layouts; // changes to layouts must be propagated to info.arrays[idx].ndim, info.arrays[idx]base_index, info.arrays[idx].dimlen, and info.arrays[idx].strides NOTE THAT THIS MUST BE PREALLOCATED TO THE NEEDED SIZE BEFORE ANY ndarray_recording_ref()'s ARE CREATED!
@@ -149,6 +173,8 @@ namespace snde {
     multi_ndarray_recording(const multi_ndarray_recording &orig) = delete;
     virtual ~multi_ndarray_recording();
 
+    virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held. Passes on ready_notifications to storage
+
     inline snde_multi_ndarray_recording *mndinfo() {return (snde_multi_ndarray_recording *)info;}
     inline snde_ndarray_info *ndinfo(size_t index) {return &((snde_multi_ndarray_recording *)info)->arrays[index];}
 
@@ -157,6 +183,7 @@ namespace snde {
     
     
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(size_t index=0);
+    std::shared_ptr<ndarray_recording_ref> reference_ndarray(std::string array_name);
 
 
     std::shared_ptr<recording_storage_manager> assign_storage_manager(std::shared_ptr<recording_storage_manager> storman);
@@ -178,7 +205,8 @@ namespace snde {
 
     
     inline void *void_shifted_arrayptr(size_t array_index);
-    
+    inline void *void_shifted_arrayptr(std::string array_name);
+
     inline void *element_dataptr(size_t array_index,const std::vector<snde_index> &idx);  // returns a pointer to an element, which is of size ndinfo()->elementsize
     inline size_t element_offset(size_t array_index,const std::vector<snde_index> &idx);
 
@@ -304,7 +332,7 @@ namespace snde {
       // swig wrapped us with something that dropped it (!)
       PyGILState_STATE gstate = PyGILState_Ensure();
       Py_IncRef((PyObject *)ArrayDescr); // because PyArray_NewFromDescr steals a reference to its descr parameter
-      PyArrayObject *obj = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type,ArrayDescr,self->layout.dimlen.size(),dims.data(),strides.data(),self->void_shifted_arrayptr(),0,nullptr);
+      PyArrayObject *obj = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type,ArrayDescr,self->layout.dimlen.size(),dims.data(),strides.data(),self->void_shifted_arrayptr(),flags,nullptr);
 
       // memory_holder_obj contains a shared_ptr to "this", i.e. the ndarray_recording.  We will store this in the "base" property of obj so that as long as obj lives, so will the ndarray_recording, and hence its memory.
       // (This code is similar to the code returned by _wrap_recording_base_cast_to_ndarray()

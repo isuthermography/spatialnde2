@@ -2,8 +2,20 @@
     * Write locks must wait for all the read locks to finish but if the user keeps adding read locks that never happens
     * ***!!! NEED TO CHECK IF THIS IS ACTUALLY NECESSARY 
 
+ *** Document semantics for array change notification, definition of changed rectangles, etc. See notifications in x3d.hpp that are probably extraneous.
+   Basically upon allocation the region is marked as "pending modification". Then any explicit modification (such as opencl write with dirty marking or
+   explicit marking as modification clears the "pending modification" mark. When the array is marked as ready, any remaining "pending modifications"
+   get turned into real notifications, invalidating any currently cached areas.
+   Note that recording_storage_simple doesn't do any of this, and presumes if you cache something on a GPU and then write to it with the CPU, you
+   will explicitly mark the region as CPU modified. 
+ 
  * Dataguzzler-python module contexts precede recording data in the locking order. Make a hook for the dataguzzler-python module context switcher to call when switching into a context to check if any recording locks are held by the current thread, and diagnose the error. If this is not implemented there is the risk of hard-to-diagnose random deadlocks if dataguzzler-python modules make external calls to other modules while holding a spatialnde2 recording lock. (Similarly perhaps implement a wrapped lock within dataguzzler-python with similar behavior for intra-module locks?)
 
+ * Reduce follower arrays so that math functions determining vertex arrays, normals,  etc. have to allocate their own. This will remove
+   conflicts in case of different ondemand functions in different rss contexts calculating the same thing. 
+
+ * Fixup the typemaps so as to allow run-time addition of additional types
+ 
  * Intelligent math function dispatch: Figuring out how many threads to delegate to a particular parallel algorithm
 
  * Windows shared memory implementation

@@ -23,12 +23,29 @@ public:
 
   // These typedefs are regrettably necessary and will need to be updated according to the parameter signature of your function
   // https://stackoverflow.com/questions/1120833/derived-template-class-access-to-base-class-member-data
+  typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,snde_float64>::define_recs_function_override_type define_recs_function_override_type;
   typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,snde_float64>::metadata_function_override_type metadata_function_override_type;
   typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,snde_float64>::lock_alloc_function_override_type lock_alloc_function_override_type;
   typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,snde_float64>::exec_function_override_type exec_function_override_type;
   
-  // just using the default for decide_new_revision and compute_options
- 
+  // just using the default for decide_new_revision
+
+  // compute_options
+   std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(std::shared_ptr<ndtyped_recording_ref<snde_float32>> recording, snde_float64 multiplier)
+  {
+    // This is a slight improvement over the default, which doesn't know the computational complexity of the calculation. 
+    snde_index numentries = recording->layout.flattened_length();
+    std::vector<std::shared_ptr<compute_resource_option>> option_list =
+      {
+	std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+						      numentries*sizeof(snde_float32)*2, // data_bytes for transfer
+						      numentries, // flops
+						      1, // max effective cpu cores
+						      1), // useful_cpu_cores (min # of cores to supply
+      };
+    return std::make_pair(option_list,nullptr);
+  }
+
   std::shared_ptr<metadata_function_override_type> define_recs(std::shared_ptr<ndtyped_recording_ref<T>> recording, snde_float64 multiplier) 
   {
     // define_recs code
@@ -98,10 +115,7 @@ int main(int argc, char *argv[])
 
   std::shared_ptr<math_function> multiply_by_scalar_function = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
 												     return make_cppfuncexec_floatingtypes<multiply_by_scalar>(rss,inst);
-												   },
-												   true,
-												   false,
-												   false);
+												   });
   
   std::shared_ptr<instantiated_math_function> scaled_channel_function = multiply_by_scalar_function->instantiate({
       std::make_shared<math_parameter_recording>("/test_channel"),

@@ -42,11 +42,11 @@ public:
   
   std::pair<bool,std::shared_ptr<compute_options_function_override_type>> decide_new_revision(std::shared_ptr<ndtyped_recording_ref<snde_float32>> recording, snde_float64 multiplier)
   {
+    // This is just a representation of the default
     return std::make_pair(true,nullptr);
   }
 
   std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(std::shared_ptr<ndtyped_recording_ref<snde_float32>> recording, snde_float64 multiplier)
-  // This is just a representation of the default
   {
     snde_index numentries = recording->layout.flattened_length();
     std::vector<std::shared_ptr<compute_resource_option>> option_list =
@@ -174,10 +174,7 @@ int main(int argc, char *argv[])
   std::shared_ptr<snde::ndarray_recording_ref> test_rec;  
   std::shared_ptr<math_function> multiply_by_scalar_function = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
     return std::make_shared<multiply_by_scalar>(rss,inst);
-  },
-    true,
-    false,
-    false);
+  });
   
   std::shared_ptr<instantiated_math_function> scaled_channel_function = multiply_by_scalar_function->instantiate({
       std::make_shared<math_parameter_recording>("/test_channel"),

@@ -34,8 +34,11 @@ extern "C" void snde_opencl_callback(cl_event event, cl_int event_command_exec_s
 */
 
 namespace snde {
-  
+
+  class ndarray_recording_ref; //recstore.hpp
+  class multi_ndarray_recording; //recstore.hpp
   class recording_storage; // recstore_storage.hpp
+  
   
   class opencldirtyregion {
   public:
@@ -109,7 +112,7 @@ namespace snde {
     ~openclarrayinfo()=default;
 
     // equality operator for std::unordered_map
-    bool operator==(const openclarrayinfo b) const;
+    bool operator==(const openclarrayinfo &b) const;
 
   };
 
@@ -337,10 +340,13 @@ namespace snde {
 
     cl_int AddBufferAsKernelArg(std::shared_ptr<ndarray_recording_ref> ref,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only=false);
 
+    cl_int AddBufferAsKernelArg(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only);
+
     /* This indicates that the array has been written to by an OpenCL kernel, 
        and that therefore it needs to be copied back into CPU memory */
     void BufferDirty(std::shared_ptr<recording_storage> storage);
     void BufferDirty(std::shared_ptr<ndarray_recording_ref> ref);
+    void BufferDirty(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname);
 
     /* This indicates that the array region has been written to by an OpenCL kernel, 
        and that therefore it needs to be copied back into CPU memory */
@@ -366,6 +372,8 @@ namespace snde {
     //void RemSubBuffer(void **arrayptr,snde_index startidx,snde_index numelem,cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait);
     //void RemBuffer(void **arrayptr,cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait);
     void RemBuffer(std::shared_ptr<recording_storage> storage,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait);
+    void RemBuffer(std::shared_ptr<ndarray_recording_ref> ref,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait);
+    void RemBuffer(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait);
 
     void RemBuffers(cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait);
     void RemBuffers(cl::Event input_data_not_needed,cl::Event output_data_complete,bool wait);
