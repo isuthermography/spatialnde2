@@ -8,7 +8,7 @@
 #ifdef __APPLE__
 #include <OpenCL/opencl.hpp>
 #else
-#include <CL/opencl.hpp>
+#include <CL/cl2.hpp>
 #endif
 
 #include "snde/utils.hpp"
@@ -296,6 +296,8 @@ namespace snde {
     std::string build_log_str="";
     std::string buildoptions="";
 
+    std::vector<cl::Device> devices{ device };
+
 #ifdef SNDE_DOUBLEPREC_COORDS
     buildoptions += "-D SNDE_DOUBLEPREC_COORDS "
 #endif
@@ -305,7 +307,7 @@ namespace snde {
     }
     
     try {
-      program.build(device,buildoptions.c_str());
+      program.build(devices,buildoptions.c_str());
     } catch (const cl::BuildError &e) {
       cl::BuildLogType buildlogs = e.getBuildLog();
       fprintf(stderr,"OpenCL Program build error!: size=%u\n",(unsigned)buildlogs.size());

@@ -2,6 +2,11 @@
 #ifndef SNDE_OPENSCENEGRAPH_RENDERER_HPP
 #define SNDE_OPENSCENEGRAPH_RENDERER_HPP
 
+// This is missing from the OSG OpenGL headers on Anaconda on Windows for some reason... it is the only thing missing...
+#ifndef GL_RGB8UI
+#define GL_RGB8UI 0x8D7D
+#endif
+
 #include <osgViewer/GraphicsWindow>
 #include <osgViewer/Viewer>
 #include <osg/Texture2D>

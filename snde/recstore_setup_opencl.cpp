@@ -1,4 +1,4 @@
-#include "CL/opencl.hpp"
+#include "CL/cl2.hpp"
 
 #include "snde/opencl_utils.hpp"
 #include "snde/recmath_compute_resource_opencl.hpp"

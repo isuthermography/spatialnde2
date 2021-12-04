@@ -10,7 +10,7 @@
 #ifdef __APPLE__
 #include <OpenCL/opencl.hpp>
 #else
-#include <CL/opencl.hpp>
+#include <CL/cl2.hpp>
 #endif
 
 #include "snde/arraymanager.hpp"
