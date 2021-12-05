@@ -71,7 +71,15 @@ namespace snde {
 					  size_t height) // height of viewport in pixels
   {
     // look up render cache.
-    std::shared_ptr<display_requirement> display_req = display_reqs.at(channel_path);
+    std::map<std::string,std::shared_ptr<display_requirement>>::const_iterator got_req;
+
+    got_req=display_reqs.find(channel_path);
+    if (got_req==display_reqs.end()) {
+      snde_warning("openscenegraph_image_renderer: Was not possible to transform channel \"%s\" into something renderable",channel_path.c_str());
+      return;
+    }
+    
+    std::shared_ptr<display_requirement> display_req =got_req->second;
     osg_renderparams params{
       recdb,
       RenderCache,
@@ -116,10 +124,10 @@ namespace snde {
 	Camera->setProjectionMatrixAsOrtho(left,right,bottom,top,-10.0,1000.0);
 	Camera->setViewport(0,0,width,height);
       } else {
-	snde_warning("openscenegraph_image_renderer: cache entry not convertable to an osg_group rendering channel %s",channel_path.c_str());
+	snde_warning("openscenegraph_image_renderer: cache entry not convertable to an osg_group rendering channel \"%s\"",channel_path.c_str());
       }
     } else {
-      snde_warning("openscenegraph_image_renderer: cache entry not available rendering channel %s",channel_path.c_str());
+      snde_warning("openscenegraph_image_renderer: cache entry not available rendering channel \"%s\"",channel_path.c_str());
       
     }
 	

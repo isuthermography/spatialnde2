@@ -40,8 +40,8 @@ namespace snde {
 	return std::make_shared<lock_alloc_function_override_type>([ this,result_rec,recording,colormap_type,offset,unitsperintensity,base_position,u_dim,v_dim ]() {
 	  // lock_alloc code
 	  
-	  result_rec->allocate_storage(recording->layout.dimlen);
-	  
+	  result_rec->allocate_storage(recording->layout.dimlen,true); // Note fortran order flag -- required by renderer
+	   
 	  
 	  // locking is only required for certain recordings
 	  // with special storage under certain conditions,
@@ -63,6 +63,8 @@ namespace snde {
 	    std::vector<snde_index> pos(base_position);
 	    
 	    // !!!*** should implement OpenCL version
+	    // !!!*** OpenCL version must generate fortran-ordered
+	    // output
 	    for (snde_index vpos=0;vpos < recording->layout.dimlen.at(v_dim);vpos++){
 	      for (snde_index upos=0;upos < recording->layout.dimlen.at(u_dim);upos++){
 		pos.at(u_dim)=upos;

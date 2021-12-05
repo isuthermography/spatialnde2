@@ -527,7 +527,7 @@ public:
       
       const std::string &fullname=reciter->first;
       channel_state &chanstate=reciter->second;
-      if (channels_considered.find(fullname) != channels_considered.end()) {
+      if (channels_considered.find(fullname) == channels_considered.end()) {
 	// not already in our list
 	std::shared_ptr<display_channel> new_display_channel=_add_new_channel(fullname,chanstate.rec());
 	

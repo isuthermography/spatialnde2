@@ -308,11 +308,30 @@ namespace snde {
       image->setDataVariance(osg::Object::DYNAMIC); 
     }
 
+
+    std::shared_ptr<multi_ndarray_recording> cached_ndarray_rec = cached_recording->cast_to_multi_ndarray();
+
+    if (!cached_ndarray_rec->layouts.at(0).is_f_contiguous()) {
+      throw snde_error("Error displaying image from channel %s as texture: Textures must be indexed fortran-order",cached_ndarray_rec->info->name);
+    }
     
 
-    image->setImage(dimlen1,dimlen2,1,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE,(unsigned char *)cached_recording->cast_to_multi_ndarray()->void_shifted_arrayptr(0),osg::Image::AllocationMode::NO_DELETE);
+    image->setImage(dimlen1,dimlen2,1,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE,(unsigned char *)cached_ndarray_rec->void_shifted_arrayptr(0),osg::Image::AllocationMode::NO_DELETE);
     imagetexture->setInternalFormat(GL_RGBA);
     imagetexture->setImage(image);    
+
+    /*
+    unsigned char *arrayptr = (unsigned char *)cached_recording->cast_to_multi_ndarray()->void_shifted_arrayptr(0);
+    snde_index i,j;
+    for (j=0;j < dimlen2;j++) {
+      for (i=0;i < dimlen1;i++) {
+	
+	printf("%d ",arrayptr[4*(i+dimlen1*j)]);
+      }
+      printf("\n");
+    }
+    fflush(stdout);
+    */
     
   }
   

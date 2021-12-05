@@ -15,6 +15,8 @@ namespace snde {
     std::shared_ptr<globalrevision> latest_globalrev;
     std::shared_ptr<recording_set_state> with_display_transforms;
 
+    std::unordered_map<std::string,std::shared_ptr<channel>> rdt_channels;
+    
     std::map<std::pair<std::string,int>,std::string> disp_trans_mapping; // look up by globalrev channel name and mode (SNDE_SRM_XXXXX), gives renderable channel name in with_display_transforms
 
     // all recordings in globalrev should be fullyready prior to this call: */

@@ -140,16 +140,21 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       }
       
       if (array_rec->layouts[0].flattened_length()==0) {
-	retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
+	//retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
+
+	snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Empty recording rendering not yet implemented");
 	
+	return nullptr;
       } else if (NDim<=1 && DimLen1==1) {
 	/* "single point" recording */
 	snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Single point recording rendering not yet implemented");
-	retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
+	//retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
+	return nullptr;
       } else if (NDim==1) {
 	// 1D recording
 	snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): 1D recording rendering not yet implemented");
-	retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
+	//retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
+	return nullptr;
       } else if (NDim > 1 && NDim <= 4) {
 	// image data.. for now hardwired to u=dim 0, v=dim1, frame = dim2, seq=dim3
 	snde_index u_dimnum=0;
@@ -222,7 +227,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 
 
 
-      std::string renderable_channelpath = recdb_path_join(recdb_path_as_group(chanpath),"_snde_rec_colormap_di"+display->unique_index);
+      std::string renderable_channelpath = recdb_path_join(recdb_path_as_group(chanpath),"_snde_rec_colormap_di"+std::to_string(display->unique_index));
       // Will need to do something similar to
       // recdb->add_math_function() on this
       // renderable_function to make it run
@@ -236,11 +241,11 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 	  std::make_shared<math_parameter_double_const>(colormap_params->Offset), 
 	  std::make_shared<math_parameter_double_const>(colormap_params->Scale), 
 	  std::make_shared<math_parameter_indexvec_const>(colormap_params->other_indices), 
-	  std::make_shared<math_parameter_int_const>(colormap_params->u_dimnum), 
-	  std::make_shared<math_parameter_int_const>(colormap_params->v_dimnum)
+	  std::make_shared<math_parameter_unsigned_const>(colormap_params->u_dimnum), 
+	  std::make_shared<math_parameter_unsigned_const>(colormap_params->v_dimnum)
 	},
 	{ std::make_shared<std::string>(renderable_channelpath) },
-	"/",
+	recdb_path_as_group(chanpath),
 	false, // is_mutable
 	true, // ondemand
 	false, // mdonly

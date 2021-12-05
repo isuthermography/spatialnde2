@@ -14,16 +14,17 @@
 //#include <osgDB/ReadFile>
 #include <osgDB/WriteFile>
 
+#include <cmath>
 
 
 #include "snde/arraymanager.hpp"
-#include "snde/pngimage.hpp"
 #include "snde/allocator.hpp"
 
 #include "snde/recstore_setup.hpp"
 #include "snde/rec_display.hpp"
 #include "snde/recstore_display_transforms.hpp"
 #include "snde/openscenegraph_image_renderer.hpp"
+#include "snde/colormap.h"
 
 using namespace snde;
 
@@ -33,13 +34,13 @@ std::shared_ptr<osg_rendercache> rendercache;
 std::shared_ptr<display_info> display;
 std::map<std::string,std::shared_ptr<display_requirement>> display_reqs;
 std::shared_ptr<recstore_display_transforms> display_transforms;
-std::shared_ptr<snde::channelconfig> pngchan_config;
-std::shared_ptr<ndarray_recording_ref> png_rec;
+std::shared_ptr<snde::channelconfig> testchan_config;
+std::shared_ptr<ndarray_recording_ref> test_rec;
 bool mousepressed=false;
 int winwidth,winheight;
 
 
-void png_viewer_display()
+void test_viewer_display()
 {
   /* perform rendering into back buffer */
   /* Update viewer data here !!!! */
@@ -58,10 +59,10 @@ void png_viewer_display()
     // or by accumulating needed lock specs into an ordered set
     // or ordered map, and then locking them in the proepr order. 
     
-    double left = png_rec->rec->metadata->GetMetaDatumDbl("IniVal1",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("Step1",1.0)/2.0;
-    double right = png_rec->rec->metadata->GetMetaDatumDbl("IniVal1",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("Step1",1.0)*(png_rec->layout.dimlen.at(0)-0.5);
-    double bottom = png_rec->rec->metadata->GetMetaDatumDbl("IniVal2",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("Step2",1.0)/2.0;
-    double top = png_rec->rec->metadata->GetMetaDatumDbl("IniVal2",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("Step2",1.0)*(png_rec->layout.dimlen.at(1)-0.5);
+    double left = test_rec->rec->metadata->GetMetaDatumDbl("IniVal1",0.0)-test_rec->rec->metadata->GetMetaDatumDbl("Step1",1.0)/2.0;
+    double right = test_rec->rec->metadata->GetMetaDatumDbl("IniVal1",0.0)+test_rec->rec->metadata->GetMetaDatumDbl("Step1",1.0)*(test_rec->layout.dimlen.at(0)-0.5);
+    double bottom = test_rec->rec->metadata->GetMetaDatumDbl("IniVal2",0.0)-test_rec->rec->metadata->GetMetaDatumDbl("Step2",1.0)/2.0;
+    double top = test_rec->rec->metadata->GetMetaDatumDbl("IniVal2",0.0)+test_rec->rec->metadata->GetMetaDatumDbl("Step2",1.0)*(test_rec->layout.dimlen.at(1)-0.5);
 
     double tmp;
     if (bottom > top) {
@@ -77,6 +78,8 @@ void png_viewer_display()
       left=right;
       right=tmp;
     }
+
+    fprintf(stderr,"perform_render()\n");
 
     renderer->perform_render(recdb,display_transforms->with_display_transforms,display,display_reqs,
 			     left,
@@ -97,9 +100,9 @@ void png_viewer_display()
 
 
 
-void png_viewer_reshape(int width, int height)
+void test_viewer_reshape(int width, int height)
 {
-  printf("png_viewer_reshape(%d,%d)\n",width,height);
+  printf("test_viewer_reshape(%d,%d)\n",width,height);
   printf("x=%d,y=%d\n",renderer->GraphicsWindow->getTraits()->x,renderer->GraphicsWindow->getTraits()->y);
   if (renderer->GraphicsWindow.valid()) {
     renderer->GraphicsWindow->resized(renderer->GraphicsWindow->getTraits()->x,renderer->GraphicsWindow->getTraits()->y,width,height);
@@ -110,7 +113,7 @@ void png_viewer_reshape(int width, int height)
   winheight=height;
 }
 
-void png_viewer_mouse(int button, int state, int x, int y)
+void test_viewer_mouse(int button, int state, int x, int y)
 {
   if (renderer->GraphicsWindow.valid()) {
     if (state==0) {
@@ -123,7 +126,7 @@ void png_viewer_mouse(int button, int state, int x, int y)
   }
 }
 
-void png_viewer_motion(int x, int y)
+void test_viewer_motion(int x, int y)
 {
   if (renderer->GraphicsWindow.valid()) {
     renderer->GraphicsWindow->getEventQueue()->mouseMotion(x,y);
@@ -134,7 +137,7 @@ void png_viewer_motion(int x, int y)
   
 }
 
-void png_viewer_kbd(unsigned char key, int x, int y)
+void test_viewer_kbd(unsigned char key, int x, int y)
 {
   switch(key) {
   case 'q':
@@ -152,12 +155,25 @@ void png_viewer_kbd(unsigned char key, int x, int y)
   }
 }
 
-void png_viewer_close()
+void test_viewer_close()
 {
   if (renderer->Viewer) renderer->Viewer=nullptr;
   //glutDestroyWindow(glutGetWindow()); // (redundant because FreeGLUT performs the close)
 }
 
+
+double my_sinc(double x)
+{
+  // sin(pi*x)/(pi*x)
+  // Near x = 0, replace with Taylor expansion:
+  // 1-(pi^2/6)x^2
+
+  x=fabs(x);
+  if (x < .01) {
+    return 1.0-M_PI*M_PI*x*x/6.0;
+  }
+  return sin(M_PI*x)/(M_PI*x);
+}
 
 
 int main(int argc, char **argv)
@@ -166,10 +182,6 @@ int main(int argc, char **argv)
   
   glutInit(&argc,argv);
 
-  if (argc < 2) {
-    fprintf(stderr,"USAGE: %s <png_file.png>\n", argv[0]);
-    exit(1);
-  }
 
   
   
@@ -180,17 +192,28 @@ int main(int argc, char **argv)
 
   snde::active_transaction transact(recdb); // Transaction RAII holder
 
-  pngchan_config=std::make_shared<snde::channelconfig>("png channel", "main", (void *)&main,false);
-  std::shared_ptr<snde::channel> pngchan = recdb->reserve_channel(pngchan_config);
+  testchan_config=std::make_shared<snde::channelconfig>("/test channel", "main", (void *)&main,false);
+  std::shared_ptr<snde::channel> testchan = recdb->reserve_channel(testchan_config);
   
-  png_rec = create_recording_ref(recdb,pngchan,(void *)&main,SNDE_RTN_UNASSIGNED);
-  
+  test_rec = create_recording_ref(recdb,testchan,(void *)&main,SNDE_RTN_FLOAT64);
   std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
 
-  png_rec->rec->metadata=std::make_shared<snde::immutable_metadata>();
-  ReadPNG(png_rec,argv[1]);
-  png_rec->rec->mark_metadata_done();
-  png_rec->rec->mark_as_ready();
+  test_rec->allocate_storage({100,120}, true);
+
+  snde_index i,j;
+  for (j=0;j < test_rec->layout.dimlen.at(1);j++) {
+    for (i=0;i < test_rec->layout.dimlen.at(0);i++) {
+      
+      test_rec->assign_double({i,j},my_sinc(sqrt(pow(i-50.0,2)+pow(j-60.0,2))/20.0));
+      printf("%g ",my_sinc(sqrt(pow(i-50.0,2)+pow(j-60.0,2))/20.0));
+    }
+    printf("\n");
+  }
+  fflush(stdout);
+
+  test_rec->rec->metadata=std::make_shared<snde::immutable_metadata>();
+  test_rec->rec->mark_metadata_done();
+  test_rec->rec->mark_as_ready();
   
   //std::shared_ptr<mutabledatastore> pngstore2 = ReadPNG(manager,"PNGFile2","PNGFile2",argv[2]);
 
@@ -208,29 +231,30 @@ int main(int argc, char **argv)
   glutInitWindowSize(winwidth,winheight);
   glutCreateWindow(argv[0]);
   
-  glutDisplayFunc(&png_viewer_display);
-  glutReshapeFunc(&png_viewer_reshape);
+  glutDisplayFunc(&test_viewer_display);
+  glutReshapeFunc(&test_viewer_reshape);
 
-  glutMouseFunc(&png_viewer_mouse);
-  glutMotionFunc(&png_viewer_motion);
+  glutMouseFunc(&test_viewer_mouse);
+  glutMotionFunc(&test_viewer_motion);
 
-  glutCloseFunc(&png_viewer_close);
+  glutCloseFunc(&test_viewer_close);
 
-  glutKeyboardFunc(&png_viewer_kbd);
+  glutKeyboardFunc(&test_viewer_kbd);
 
   rendercache = std::make_shared<osg_rendercache>();
 
   osg::ref_ptr<osgViewer::Viewer> Viewer(new osgViewerCompat34());
   renderer = std::make_shared<osg_image_renderer>(Viewer,Viewer->setUpViewerAsEmbeddedInWindow(100,100,800,600),
-						  rendercache,pngchan_config->channelpath);
+						  rendercache,testchan_config->channelpath);
   
   display=std::make_shared<display_info>(recdb);
   display->set_current_globalrev(globalrev);
 
-  std::shared_ptr<display_channel> png_displaychan = display->lookup_channel(pngchan_config->channelpath);
-  png_displaychan->set_enabled(true); // enable channel
+  std::shared_ptr<display_channel> test_displaychan = display->lookup_channel(testchan_config->channelpath);
+  test_displaychan->set_enabled(true); // enable channel
+  test_displaychan->ColorMap=SNDE_COLORMAP_HOT; // should really lock test_displaychan, but there's no possibility here anything else could be looking at it. 
 
-  std::vector<std::shared_ptr<display_channel>> channels_to_display = display->update(globalrev,pngchan_config->channelpath,true,false,false);
+  std::vector<std::shared_ptr<display_channel>> channels_to_display = display->update(globalrev,testchan_config->channelpath,true,false,false);
 
   display_reqs = traverse_display_requirements(display,globalrev,channels_to_display);
 
@@ -241,7 +265,7 @@ int main(int argc, char **argv)
   // perform all the transforms
   display_transforms->with_display_transforms->wait_complete(); 
   
-  //rendercache->update_cache(recdb,display_reqs,display_transforms,channels_to_display,pngchan_config->channelpath,true);
+  //rendercache->update_cache(recdb,display_reqs,display_transforms,channels_to_display,testchan_config->channelpath,true);
   
   glutPostRedisplay();
 

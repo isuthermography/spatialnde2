@@ -456,6 +456,7 @@ namespace snde {
     if (globalrev->globalrev == recdb_strong->monitoring_notify_globalrev+1) {
       // next globalrev for monitoring is ready
 
+      
       snde_debug(SNDE_DC_RECDB,"Issuing monitoring notifications");
 
       std::shared_ptr<globalrevision> complete_globalrev = globalrev;
@@ -467,6 +468,10 @@ namespace snde {
 
 	last_complete_globalrev = complete_globalrev;
 
+	// Mark complete_globalrev as now the latest ready globalrev
+	std::atomic_store(&recdb_strong->_latest_ready_globalrev,complete_globalrev);
+
+	
 	std::shared_ptr<globalrev_mutable_lock> complete_globalrev_mutable_recordings_lock; 
 
 	{
@@ -510,7 +515,7 @@ namespace snde {
 
 	
 	recdb_strong->monitoring_notify_globalrev = complete_globalrev->globalrev;
-
+      
 	// Is the next globalrev done?
 	uint64_t nextrev_index = complete_globalrev->globalrev+1;
 

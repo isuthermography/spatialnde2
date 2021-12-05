@@ -108,7 +108,7 @@ namespace snde {
 	  selected_resource = compute_resource.second;
 	  selected_option = compute_option;
 	  
-	  selected_resource->prioritized_computations.emplace(std::make_pair(globalrev,
+	  selected_resource->prioritized_computations.emplace(std::make_pair(globalrev*SNDE_CR_PRIORITY_REDUCTION_LIMIT + computation->priority_reduction,
 									     std::make_tuple(std::weak_ptr<pending_computation>(computation),selected_option)));
 	  //compute_resource_lock.unlock();  (???What was this supposed to do???)
 	  //selected_resource->computations_added.notify_one();
@@ -126,25 +126,49 @@ namespace snde {
 
     return retval; 
   }
+
+
+  static std::pair<snde_index,bool> queue_computation_get_globalrev_index(std::shared_ptr<recdatabase> recdb, std::shared_ptr<recording_set_state> ready_rss)
+  {
+    uint64_t globalrev_index=0;
+    bool ready_rss_is_globalrev = false; 
+    std::shared_ptr<globalrevision> globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(ready_rss);
+    if (!globalrev_ptr) {
+      //throw snde_error("recording_set_state does not appear to be associated with any global revision");
+
+      // In this case, we are not a globalrev. We are probably a recstore_display_transform. So we use the latest_globalrev() so we queue with
+      // stuff currently being computed, rather than taking priority
+      // by using our actual originating globalrev (which
+      // might well be a lower number)...
+      //
+      // Alternatively we could change this to have the recording_set_state
+      // store its originating_globalrev (to be set in recstore_display_transform)
+      // and use the priority from this, but that would potentially allow
+      // interactive viewing to lock out background compute, which isn't
+      // necessarily a good thing.
+
+      // A better solution might be to dedicate one compute thread solely
+      // to interactive viewing. If that is done, then even tons of
+      // background compute wouldn't completely block out the display.
+      //
+
+      globalrev_index = recdb->latest_globalrev()->globalrev;
+    } else {
+      ready_rss_is_globalrev=true;
+      globalrev_index = globalrev_ptr->globalrev;
+    }
+
+    return std::make_pair(globalrev_index,ready_rss_is_globalrev);
+  }
   
-  void available_compute_resource_database::_queue_computation_internal(std::shared_ptr<pending_computation> &computation) // NOTE: Sets computation to nullptr once queued
+  void available_compute_resource_database::_queue_computation_internal(std::shared_ptr<recdatabase> recdb,std::shared_ptr<pending_computation> &computation) // NOTE: Sets computation to nullptr once queued
   {
     snde_debug(SNDE_DC_RECMATH,"_queue_computation_internal");
 
+    uint64_t globalrev_index=0;
     bool computation_rss_is_globalrev = false; 
-    // we cheat a bit in getting the globalrev index: We try dynamically casting ready_rss, and if that fails we use the value from the prerequisite state
-    std::shared_ptr<globalrevision> globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(computation->recstate);
-    if (!globalrev_ptr) {
-      // try prerequisite_state
-      globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(computation->recstate->prerequisite_state());
 
-      if (!globalrev_ptr) {
-	throw snde_error("recording_set_state does not appear to be associated with any global revision");
-      }      
-    } else {
-      computation_rss_is_globalrev=true; 
-    }
-
+    std::tie(globalrev_index,computation_rss_is_globalrev) = queue_computation_get_globalrev_index(recdb,computation->recstate);
 
     
     // get the compute options
@@ -167,7 +191,7 @@ namespace snde {
     
     if (!computation->function_to_execute->is_mutable || !computation_rss_is_globalrev || !prior_globalrev || (prior_globalrev->ready && (!prior_globalrev_globalrev || !prior_globalrev_globalrev->mutable_recordings_still_needed))) {
 
-      if (!_queue_computation_into_database_acrdb_locked(globalrev_ptr->globalrev,computation,compute_options)) {
+      if (!_queue_computation_into_database_acrdb_locked(globalrev_index,computation,compute_options)) {
       
   	throw snde_error("No suitable compute resource found for math function %s",computation->function_to_execute->inst->definition->definition_command.c_str());
       }
@@ -185,7 +209,7 @@ namespace snde {
       // in recstore.cpp: recdatabase::globalrev_mutablenotneeded_code()
       // by calling this function again. 
 
-      blocked_list.emplace(globalrev_ptr->globalrev,computation);
+      blocked_list.emplace(globalrev_index*SNDE_CR_PRIORITY_REDUCTION_LIMIT + computation->priority_reduction,computation);
     }
     computation=nullptr; // release shared pointer prior to releasing acrdb_admin lock so that it will expire from pending_computation lists when extracted.
   }
@@ -197,22 +221,14 @@ namespace snde {
   // and queue it for actual execution by the worker threads
   {
 
+    snde_index globalrev_index;
     bool ready_rss_is_globalrev = false;
 
     snde_debug(SNDE_DC_RECMATH,"queue_computation");
+
     
-    // we cheat a bit in getting the globalrev index: We try dynamically casting ready_rss, and if that fails we use the value from the prerequisite state
-    std::shared_ptr<globalrevision> globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(ready_rss);
-    if (!globalrev_ptr) {
-      // try prerequisite_state
-      globalrev_ptr = std::dynamic_pointer_cast<globalrevision>(ready_rss->prerequisite_state());
-      
-      if (!globalrev_ptr) {
-	throw snde_error("recording_set_state does not appear to be associated with any global revision");
-      }      
-    } else {
-      ready_rss_is_globalrev=true; 
-    }
+    std::tie(globalrev_index,ready_rss_is_globalrev) = queue_computation_get_globalrev_index(recdb,ready_rss);
+    
 
     bool is_mutable=false;
     bool mdonly;
@@ -304,10 +320,10 @@ namespace snde {
 	  snde_debug(SNDE_DC_RECMATH,"qc: already finished");
 	  return;
 	}
-	std::shared_ptr<pending_computation> computation = std::make_shared<pending_computation>(execfunc,ready_rss,globalrev_ptr->globalrev,0);
+	std::shared_ptr<pending_computation> computation = std::make_shared<pending_computation>(execfunc,ready_rss,globalrev_index,SNDE_CR_PRIORITY_NORMAL);
 	
 	
-	_queue_computation_internal(computation); // this call sets computation to nullptr; execution ticket delegated to the queued computation
+	_queue_computation_internal(recdb,computation); // this call sets computation to nullptr; execution ticket delegated to the queued computation
 	
 	
       } else {
@@ -501,6 +517,9 @@ namespace snde {
   
   bool available_compute_resource_cpu::dispatch_code(std::unique_lock<std::mutex> &acrd_admin_lock)
   {
+    // ***!!! Would be very beneficial here to be more sophisticated, perhas dedicating a few cores to preferentially
+    // accept ondemand (i.e. rendering) jobs and/or to go with GPU jobs. 
+    
     std::shared_ptr<available_compute_resource_database> acrd_strong=acrd.lock();
     if (!acrd_strong) return false;
 

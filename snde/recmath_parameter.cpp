@@ -22,6 +22,13 @@ namespace snde {
     throw snde_error("Cannot get integer value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
     
   }
+
+  uint64_t math_parameter::get_unsigned(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  {
+    throw snde_error("Cannot get unsigned integer value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
+    
+  }
+
   
   double math_parameter::get_double(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   {
@@ -119,6 +126,43 @@ namespace snde {
   }
 
   
+
+
+  math_parameter_unsigned_const::math_parameter_unsigned_const(uint64_t unsigned_constant) :
+    math_parameter(SNDE_MFPT_INT),
+    unsigned_constant(unsigned_constant)
+  {
+
+  }
+  
+  uint64_t math_parameter_unsigned_const::get_unsigned(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  // parameter_index human interpreted parameter number, starting at 1, for error messages only
+  {
+    return unsigned_constant;
+  }
+  
+  bool math_parameter_unsigned_const::operator==(const math_parameter &ref) // used for comparing parameters to instantiated_math_functions
+  {
+    const math_parameter_unsigned_const *uref = dynamic_cast<const math_parameter_unsigned_const *>(&ref);
+
+    if (!uref) {
+      return false;
+    }
+
+    return unsigned_constant == uref->unsigned_constant;
+
+  }
+  
+  bool math_parameter_unsigned_const::operator!=(const math_parameter &ref)
+  {
+    return !(*this==ref);
+  }
+
+  
+
+
+
+
   
   math_parameter_double_const::math_parameter_double_const(double double_constant) :
     math_parameter(SNDE_MFPT_DBL),

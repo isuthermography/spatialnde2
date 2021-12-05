@@ -21,6 +21,8 @@ namespace snde {
   
   
 #define SNDE_CR_PRIORITY_REDUCTION_LIMIT 8 // number of priority reduction levels within a globalrev (priority reductions 0..(SNDE_CR_PRIORITY_REDUCTION_LIMIT-1)
+#define SNDE_CR_PRIORITY_REALTIME 0 // Use this for computations with impact on realtime performance, such as live conversion of data right off an acquisition card. Not useful if such a conversion is part of a globalrev so you'd have to define and queue the pending_computation manually. (No examples implemented so-far)
+#define SNDE_CR_PRIORITY_NORMAL 4 // used for globalrev computation and display
   
 
 #define SNDE_CR_CPU 0
@@ -128,7 +130,7 @@ namespace snde {
     // everything in todo_list is queued in with one or more of the compute_resources
     std::unordered_set<std::shared_ptr<pending_computation>> todo_list;  // Must be very careful with enclosing scope of references to pending_computation elements. They must be removed from todo_list and drop off the available_compute_resource prioritized_computations multimaps by expiration of their weak_ptrs atomically.  But in any case the enclosing scope for the extracted shared_ptr must terminate before the lock is released, so you must always release the shared pointer prior to the acrdb admin lock. 
 
-    std::multimap<uint64_t,std::shared_ptr<pending_computation>> blocked_list; // indexed by global revision; map of pending computations that have been blocked from todo_list because we are waiting for all mutable calcs in prior revision to complete.
+    std::multimap<uint64_t,std::shared_ptr<pending_computation>> blocked_list; // indexed by (global revision*SNDE_CR_PRIORITY_REDUCTION_LIMIT + priority_reduction); map of pending computations that have been blocked from todo_list because we are waiting for all mutable calcs in prior revision to complete.
     
     std::thread dispatcher_thread; // started by start()
 
@@ -144,7 +146,7 @@ namespace snde {
     bool _queue_computation_into_database_acrdb_locked(uint64_t globalrev,std::shared_ptr<pending_computation> computation,const std::vector<std::shared_ptr<compute_resource_option>> &compute_options); // returns true if we successfully queued it into at least one place. 
 
     void queue_computation(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> ready_rss,std::shared_ptr<instantiated_math_function> ready_fcn);
-    void _queue_computation_internal(std::shared_ptr<pending_computation> &computation); // NOTE: Sets computation to nullptr once queued
+    void _queue_computation_internal(std::shared_ptr<recdatabase> recdb,std::shared_ptr<pending_computation> &computation); // NOTE: Sets computation to nullptr once queued
     void start(); // start all of the compute_resources
     void dispatch_code();
 
@@ -182,7 +184,7 @@ namespace snde {
     std::weak_ptr<recdatabase> recdb;
     std::weak_ptr<available_compute_resource_database> acrd;
     
-    std::multimap<uint64_t,std::tuple<std::weak_ptr<pending_computation>,std::shared_ptr<compute_resource_option>>> prioritized_computations;  // indexed by (global revision)*8, with priority reductions 0..(SNDE_CR_PRIORITY_REDUCTION_LIMIT-1) added. So  lowest number means highest priority. The values are weak_ptrs, so the same pending_computation can be assigned to multiple compute_resources. When the pending_computation is dispatched the strong shared_ptr to it must be cleared atomically with the dispatch so it appears null in any other maps. As we go to compute, we will just keep popping off the first element
+    std::multimap<uint64_t,std::tuple<std::weak_ptr<pending_computation>,std::shared_ptr<compute_resource_option>>> prioritized_computations;  // indexed by (global revision)*8, plus priority reductions 0..(SNDE_CR_PRIORITY_REDUCTION_LIMIT-1) added. So  lowest number means highest priority. The values are weak_ptrs, so the same pending_computation can be assigned to multiple compute_resources. When the pending_computation is dispatched the strong shared_ptr to it must be cleared atomically with the dispatch so it appears null in any other maps. As we go to compute, we will just keep popping off the first element
 
     
     available_compute_resource(std::shared_ptr<recdatabase> recdb,unsigned type);

@@ -202,7 +202,7 @@ namespace snde {
 	  // need to make new config
 	  renderableconfig = std::make_shared<channelconfig>(*dispreq->renderable_channelpath,
 											    "recstore_display_transform",
-											    (void *)this,
+							     (void *)recdb.get(), // math channels owned by recdb pointer
 											    true, // hidden
 											    nullptr); // storage_manager
 	  renderableconfig->math=true;
@@ -219,11 +219,26 @@ namespace snde {
 
 	// add to initial_mathdb
 	initial_mathdb.defined_math_functions.emplace(*dispreq->renderable_channelpath,renderableconfig->math_fcn);
+
+	// Get a class channel to represent this math function
+	std::shared_ptr<channel> rdt_channel;
+	std::unordered_map<std::string,std::shared_ptr<channel>>::iterator existing_channel = rdt_channels.find(*dispreq->renderable_channelpath);
+	if (existing_channel != rdt_channels.end()) {
+	  rdt_channel = existing_channel->second;
+	  {
+	    std::lock_guard<std::mutex>(rdt_channel->admin);
+	    rdt_channel->begin_atomic_config_update<channelconfig>();
+	    rdt_channel->end_atomic_config_update(renderableconfig);
+	  }
+	    
+	} else {
+	  rdt_channel=std::make_shared<channel>(renderableconfig);
+	}
 	
 	// add to initial_channel_map
 	initial_channel_map.emplace(std::piecewise_construct,
 				    std::forward_as_tuple(*dispreq->renderable_channelpath),
-				    std::forward_as_tuple(nullptr,renderableconfig,nullptr,false));
+				    std::forward_as_tuple(rdt_channel,renderableconfig,nullptr,false));
 
 	// also the new channel_map pointer should be placed into the defined_recordings map of the rss's recstatus
 

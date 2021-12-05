@@ -2200,7 +2200,13 @@ namespace snde {
     // !!!*** Should go through all functions again (maybe after rest of notifies set up?) and check status and use refactored code from math_status::notify_math_function_executed() to detect function completion. ***!!!
     
     // add self-dependencies to the _external_dependencies_on_function of the previous_rss
-    std::vector<std::shared_ptr<instantiated_math_function>> need_to_check_if_ready;
+    //std::vector<std::shared_ptr<instantiated_math_function>> need_to_check_if_ready;
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> need_to_check_if_ready;
+
+    for (auto && changed_math_function: *changed_math_functions) {
+      need_to_check_if_ready.emplace(changed_math_function);
+    }
+    
 
     
     if (previous_rss) {  
@@ -2217,7 +2223,7 @@ namespace snde {
 	  if (previous_rss->mathstatus.function_status.at(self_dep).complete) {
 	    
 	    // complete -- perform ready check on this recording
-	    need_to_check_if_ready.push_back(self_dep);
+	    need_to_check_if_ready.emplace(self_dep);
 	  } else {
 	    //add to previous new_rss's _external_dependencies
 	    new_prevglob_extdep->at(self_dep).push_back(std::make_tuple(new_rss,self_dep));
@@ -3128,6 +3134,7 @@ namespace snde {
   {
     std::shared_ptr<globalrevision> null_globalrev;
     std::atomic_store(&_latest_globalrev,null_globalrev);
+    std::atomic_store(&_latest_ready_globalrev,null_globalrev);
 
     
     if (!this->lockmgr) {
@@ -3140,6 +3147,7 @@ namespace snde {
     globalrev_mutablenotneeded_thread = std::thread([this]() { globalrev_mutablenotneeded_code(); });
     //globalrev_mutablenotneeded_thread.detach(); // we won't be join()ing this thread
 
+    
     
   }
 
@@ -3171,6 +3179,12 @@ namespace snde {
       }
       started = true; 
     }
+
+    // insert an empty globalrev so there always is one
+    snde::active_transaction transact(shared_from_this());
+    transact.end_transaction();
+    
+    
     
     if (!compute_resources->cpu) {
       throw snde_error("CPU not setup (use setup_cpu())");
@@ -3277,6 +3291,11 @@ namespace snde {
   std::shared_ptr<globalrevision> recdatabase::latest_globalrev() // safe to call with or without recdb admin lock held
   {
     return std::atomic_load(&_latest_globalrev);
+  }
+
+  std::shared_ptr<globalrevision> recdatabase::latest_ready_globalrev() // safe to call with or without recdb admin lock held
+  {
+    return std::atomic_load(&_latest_ready_globalrev);
   }
 
   std::shared_ptr<channel> recdatabase::reserve_channel(std::shared_ptr<channelconfig> new_config)
@@ -3432,7 +3451,7 @@ namespace snde {
 
 	    compute_resources->blocked_list.erase(blocked_it);
 	    computeresources_admin.unlock();
-	    compute_resources->_queue_computation_internal(blocked_computation); // note: blocked computation pointer is passed by reference and is nullified by this call, making the various weak references to it able to die once it comes off of the todo_list.  
+	    compute_resources->_queue_computation_internal(shared_from_this(),blocked_computation); // note: blocked computation pointer is passed by reference and is nullified by this call, making the various weak references to it able to die once it comes off of the todo_list.  
 	    computeresources_admin.lock();
 	  }
 	

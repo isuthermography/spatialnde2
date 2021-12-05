@@ -169,7 +169,7 @@ namespace snde {
 	  // Create a combined resource we use to delegate the CPU portion 
 	  std::shared_ptr<_compute_resource_option_cpu_combined_opencl> combined_resource = std::make_shared<_compute_resource_option_cpu_combined_opencl>(compute_option_opencl->metadata_bytes,compute_option_opencl->data_bytes,compute_option_opencl->cpu_flops,compute_option_opencl->max_effective_cpu_cores,compute_option_opencl->useful_cpu_cores,compute_option,assigned_gpus);
 	  
-	  std::shared_ptr<pending_computation> combined_computation = std::make_shared<pending_computation>(function_to_execute,recstate,globalrev,0);
+	  std::shared_ptr<pending_computation> combined_computation = std::make_shared<pending_computation>(function_to_execute,recstate,globalrev,SNDE_CR_PRIORITY_NORMAL);
 	  
 	  // Enqueue the CPU portion
 	  std::vector<std::shared_ptr<compute_resource_option>> compute_options;

@@ -1,4 +1,20 @@
+#ifndef SNDE_COLORMAP_H
+#define SNDE_COLORMAP_H
 
+#ifndef __OPENCL_VERSION__
+#include <errno.h>
+#include <stddef.h>
+#include <math.h>
+#include <stdio.h>
+
+#include "snde/snde_types.h"
+#endif
+
+#ifdef _MSC_VER
+#define COLORMAP_INLINE  __inline
+#else
+#define COLORMAP_INLINE  inline
+#endif
 
 #define SNDE_COLORMAP_GRAY 0
 #define SNDE_COLORMAP_HOT 1
@@ -83,3 +99,5 @@ static inline snde_rgba snde_colormap(snde_index ColorMap,float val,uint8_t alph
   }
   return out;
 }
+
+#endif // SNDE_COLORMAP_H

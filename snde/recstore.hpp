@@ -707,8 +707,13 @@ namespace snde {
     template<typename T>
     std::shared_ptr<T> begin_atomic_config_update()
     // channel admin lock must be locked when calling this function. It is a template because channelconfig can be subclassed. Call it as begin_atomic_config_update<channelconfig>() if you need to subclass It returns a new modifiable copy of the atomically guarded data
+    // (it returns nullptr if the existing config doesn't match T)
     {
-      std::shared_ptr<channelconfig> new_config=std::make_shared<T>(*std::dynamic_pointer_cast<T>(_config));
+      std::shared_ptr<T> old_config = std::dynamic_pointer_cast<T>(_config);
+      if (!old_config) {
+	return nullptr;
+      }
+      std::shared_ptr<T> new_config=std::make_shared<T>(*old_config);
       return new_config;
     }
     
@@ -860,8 +865,9 @@ namespace snde {
     std::map<std::string,std::shared_ptr<channel>> _deleted_channels; // Channels are put here after they are deleted. They can be moved back into the main list if re-created. 
     instantiated_math_database _math_functions; 
     
-    std::map<uint64_t,std::shared_ptr<globalrevision>> _globalrevs; // Index is global revision counter. The first element in this is the latest globalrev with all mandatory immutable channels ready. The last element in this is the most recently defined globalrev.
+    std::map<uint64_t,std::shared_ptr<globalrevision>> _globalrevs; // Index is global revision counter. Includes at least one globalrev that is fully ready plus any that are still udndergoing computation. The last element in this is the most recently defined globalrev.
     std::shared_ptr<globalrevision> _latest_globalrev; // atomic shared pointer -- access with latest_globalrev() method;
+    std::shared_ptr<globalrevision> _latest_ready_globalrev; // atomic shared pointer -- access with latest_ready_globalrev() method;
     std::vector<std::shared_ptr<repetitive_channel_notify>> repetitive_notifies; 
 
     std::shared_ptr<allocator_alignment> alignment_requirements; // Pointer is immutable; pointed structure has its own locking
@@ -913,6 +919,8 @@ namespace snde {
     void register_new_math_rec(void *owner_id,std::shared_ptr<recording_set_state> calc_rss,std::shared_ptr<recording_base> new_rec); // registers newly created math recording in the given rss (and extracts mutable flag for the given channel into the recording structure)). 
 
     std::shared_ptr<globalrevision> latest_globalrev(); // safe to call with or without recdb admin lock held
+
+    std::shared_ptr<globalrevision> latest_ready_globalrev(); // safe to call with or without recdb admin lock held. Returns latest globalrev which is ready and for which all prior globalrevs are ready
 
     // Allocate channel with a specific name; returns nullptr if the name is inuse
     std::shared_ptr<channel> reserve_channel(std::shared_ptr<channelconfig> new_config);

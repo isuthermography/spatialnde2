@@ -142,6 +142,11 @@ namespace snde {
 
   // recursive parameter tuple builder for recmath_cppfuncexec
   // first, declare the template
+
+  // NOTE: If you get a linker error: undefined reference to `snde::rmcfe_tuple_builder_helper<>::rmcfe_tuple_builder(...
+  // Then it probably means you are defining a math function which
+  // takes a parameter for which there is no matching template
+  // in the full specialization list (below)
   template <typename... Rest>
   struct rmcfe_tuple_builder_helper {
     std::tuple<std::tuple<Rest...>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index);
@@ -156,7 +161,7 @@ namespace snde {
       std::tuple<Rest...> rest_tuple;
       size_t nextparam_index,endparam_index;
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam,endparam;
-      std::tie(this_tuple,nextparam,nextparam_index) = rmcfe_tuple_builder_helper<T>().rmcfe_tuple_builder(rss,thisparam,end,channel_path_context,definition,thisparam_index); // call full specialization
+      std::tie(this_tuple,nextparam,nextparam_index) = rmcfe_tuple_builder_helper<T>().rmcfe_tuple_builder(rss,thisparam,end,channel_path_context,definition,thisparam_index); // call full specialization **!!! NOTE: If you get a segmentation fault on this line, it usually means there is a math function using a parameter type that isn't supported by one of the specializations below !!!***
       std::tie(rest_tuple,endparam,endparam_index) = rmcfe_tuple_builder_helper<Rest...>().rmcfe_tuple_builder(rss,nextparam,end,channel_path_context,definition,nextparam_index);
       
       return std::make_tuple(std::tuple_cat(this_tuple,rest_tuple),endparam,endparam_index);
@@ -196,6 +201,55 @@ namespace snde {
     }
   };
 
+
+  template <>
+  struct rmcfe_tuple_builder_helper<int> {
+    std::tuple<std::tuple<int>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    {
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
+      if (thisparam==end) {
+	throw snde_error("Not enough parameters provided to satisfy integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+      }
+      nextparam++;
+      // return statement implements the following:
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_int(rss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
+    }
+  };
+
+
+    template <>
+  struct rmcfe_tuple_builder_helper<uint64_t> {
+    std::tuple<std::tuple<uint64_t>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    {
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
+      if (thisparam==end) {
+	throw snde_error("Not enough parameters provided to satisfy unsigned integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+      }
+      nextparam++;
+      // return statement implements the following:
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_unsigned(rss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
+    }
+  };
+
+
+  template <>
+  struct rmcfe_tuple_builder_helper<unsigned> {
+    std::tuple<std::tuple<unsigned>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    {
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
+      if (thisparam==end) {
+	throw snde_error("Not enough parameters provided to satisfy unsigned integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+      }
+      nextparam++;
+      // return statement implements the following:
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_unsigned(rss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
+    }
+  };
+
+  
   template <>
   struct rmcfe_tuple_builder_helper<double> {
     std::tuple<std::tuple<double>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
@@ -212,6 +266,42 @@ namespace snde {
       return std::make_tuple(std::make_tuple((*thisparam)->get_double(rss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
     }
   };
+
+  template <>
+  struct rmcfe_tuple_builder_helper<float> {
+    std::tuple<std::tuple<float>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    {
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
+      
+      if (thisparam==end) {
+	throw snde_error("Not enough parameters provided to satisfy double precision parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+      }
+      nextparam++;
+      
+      // return statement implements the following:
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_double(rss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
+    }
+  };
+
+  // specialzation for an index vector std::vector<snde_index>
+  template <>
+  struct rmcfe_tuple_builder_helper<std::vector<snde_index>> {
+    std::tuple<std::tuple<std::vector<snde_index>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    {
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
+      
+      if (thisparam==end) {
+	throw snde_error("Not enough parameters provided to satisfy index vector parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+      }
+      nextparam++;
+      
+      // return statement implements the following:
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_indexvec(rss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
+    }
+  };
+  
   
   // specialization for a recording_base
   template <>
@@ -304,7 +394,8 @@ namespace snde {
   };
 
 
-  // specialization for a blank at the end, which g++ seemss to want (?)
+  // specialization for a blank at the end, which g++ seems to want (?)
+  /*
   template <>
   struct rmcfe_tuple_builder_helper<> {
     std::tuple<std::tuple<>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
@@ -318,7 +409,7 @@ namespace snde {
       return std::make_tuple(std::make_tuple(),thisparam,thisparam_index);
     }
   };
-
+  */
   
   template <typename... Ts>
   std::tuple<Ts...> rmcfe_get_parameters(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst)

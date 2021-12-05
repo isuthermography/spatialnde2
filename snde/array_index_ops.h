@@ -189,7 +189,7 @@ snde_array_index_equal(
   return matching;
 }
 
-snde_bool SNDE_AIO_STATIC_INLINE
+snde_index SNDE_AIO_STATIC_INLINE
 snde_array_flattened_length(
 			    SNDE_AIO_GLOBAL snde_index *dimlen,
 			    snde_index ndim)
@@ -257,7 +257,7 @@ SNDE_AIO_STATIC_INLINE int snde_aic_stride_compare(const void *stride1_vp,const 
 
   stride1 = (snde_index *)stride1_vp;
   stride2 = (snde_index *)stride2_vp;
-  if (*stride1==*stride2) return TRUE;
+  if (*stride1==*stride2) return 0;
   if (*stride1 < *stride2) return -1;
   return 1;
 }
