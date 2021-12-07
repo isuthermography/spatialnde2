@@ -100,7 +100,11 @@ namespace snde {
   {
 
     std::shared_ptr<nonmoving_copy_or_reference> ref_ptr=ref();
-
+    std::shared_ptr<graphics_storage_manager> graphman_strong = graphman.lock();
+    if (!graphman_strong) {
+      return nullptr; 
+    }
+    
     if (!ref_ptr) {
       
       rwlock_token_set all_locks;
@@ -113,7 +117,7 @@ namespace snde {
 	all_locks = lockprocess->finish();
 	
       }
-      ref_ptr=memalloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,id,_basearray,*_basearray,elementsize*base_index,elementsize*nelem);
+      ref_ptr=memalloc->obtain_nonmoving_copy_or_reference(graphman_strong->graphics_recgroup_path/*recording_path*/,0 /* our recrevisions are always 0 because we just keep reusing the same array */,id,_basearray,*_basearray,elementsize*base_index,elementsize*nelem);
 
       // locks released as context expires. 
     }
@@ -294,6 +298,7 @@ namespace snde {
     graphics_recgroup_path(graphics_recgroup_path),
     geom() // Triggers value-initialization of .data which zero-initializes all members
   {
+    std::atomic_store(&_follower_cachemanagers,std::make_shared<std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>>>());
 
     memallocator_regionid next_region_id=0;
     
@@ -467,7 +472,7 @@ namespace snde {
 	// switch pointer to a nonmoving copy or reference
 	
 	// assign _ref: 
-	retval->assign_ref(manager->_memalloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,retval->id,retval->_basearray,*retval->_basearray,elementsize*base_index,elementsize*nelem));
+	retval->assign_ref(manager->_memalloc->obtain_nonmoving_copy_or_reference(graphics_recgroup_path/*recording_path*/,0 /* our recrevisions are always 0 because we just keep reusing the same array */,retval->id,retval->_basearray,*retval->_basearray,elementsize*base_index,elementsize*nelem));
       } else {
 	// read and write locks required because entire array may move around
 	retval->requires_locking_write=true;
@@ -536,9 +541,9 @@ namespace snde {
   {
     // Will need to mark array as locking required for write, at least....
 
-
+    // graphics_storage behavior
     void **arrayaddr = arrayaddr_from_name.at(array_name);
-
+    
     // This is now checked inside storage_from_allocation()
     //if (elemsize_from_name.at(array_name) != elementsize) {
     //  throw snde_error("Mismatch between graphics array field %s element size with allocation: %u vs. %u",array_name,(unsigned)elemsize_from_name.at(array_name),(unsigned)elementsize);
@@ -546,11 +551,11 @@ namespace snde {
     
     
     holder->store_alloc(lockprocess->alloc_array_region(manager,arrayaddr,nelem,""));
-
-
+    
+    
     snde_index addr = holder->get_alloc(arrayaddr,"");
     
-
+    
     std::shared_ptr<graphics_storage> retval;
     retval = storage_from_allocation(recording_path,
 				     nullptr, // nullptr since we are creating a leader
@@ -561,8 +566,8 @@ namespace snde {
 				     typenum,
 				     nelem,
 				     is_mutable);
-
-
+    
+    
     return retval;
   }
 

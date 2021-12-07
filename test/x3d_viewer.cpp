@@ -11,23 +11,29 @@
 //#include <osgDB/ReadFile>
 #include <osgDB/WriteFile>
 
-#include "arraymanager.hpp"
+#include "snde/arraymanager.hpp"
+#include "snde/openscenegraph_geom_renderer.hpp"
 //#include "normal_calculation.hpp"
-#include "x3d.hpp"
+#include "snde/x3d.hpp"
+#include "snde/rec_display.hpp"
+#include "snde/recstore_display_transforms.hpp"
+#include "snde/recstore_setup.hpp"
+#include "snde/recstore_setup_opencl.hpp"
 
 using namespace snde;
 
 
-std::shared_ptr<snde::recdatabase> recdb;
+std::shared_ptr<recdatabase> recdb;
 std::shared_ptr<osg_3d_renderer> renderer;
 std::shared_ptr<osg_rendercache> rendercache;
 std::shared_ptr<display_info> display;
 std::map<std::string,std::shared_ptr<display_requirement>> display_reqs;
 std::shared_ptr<recstore_display_transforms> display_transforms;
-std::shared_ptr<snde::channelconfig> pngchan_config;
+std::shared_ptr<snde::channelconfig> x3dchan_config;
 std::shared_ptr<ndarray_recording_ref> x3d_rec;
 
 bool mousepressed=false;
+int winwidth,winheight;
 
 void x3d_viewer_display()
 {
@@ -45,8 +51,10 @@ void x3d_viewer_display()
     renderer->perform_render(recdb,display_transforms->with_display_transforms,display,
 			     display_reqs,
 			     winwidth,winheight);
-    
-    rendercache->clear_obsolete();
+
+    //osgDB::writeNodeFile(*renderer->Viewer->getSceneData(),"/tmp/x3dviewer.osg");
+
+    rendercache->erase_obsolete(); // remove everything unused from the cache
   }
   // swap front and back buffers
   glutSwapBuffers();
@@ -57,8 +65,8 @@ void x3d_viewer_display()
 void x3d_viewer_reshape(int width, int height)
 {
   if (renderer->GraphicsWindow.valid()) {
-    renderer->GraphicsWindow->resized(window->getTraits()->x,window->getTraits()->y,width,height);
-    renderer->GraphicsWindow->getEventQueue()->windowResize(window->getTraits()->x,window->getTraits()->y,width,height);
+    renderer->GraphicsWindow->resized(renderer->GraphicsWindow->getTraits()->x,renderer->GraphicsWindow->getTraits()->y,width,height);
+    renderer->GraphicsWindow->getEventQueue()->windowResize(renderer->GraphicsWindow->getTraits()->x,renderer->GraphicsWindow->getTraits()->y,width,height);
 
   }
   winwidth=width;
@@ -94,7 +102,7 @@ void x3d_viewer_kbd(unsigned char key, int x, int y)
   switch(key) {
   case 'q':
   case 'Q':
-    if (viewer.valid()) viewer=0;
+    if (renderer->Viewer.valid()) renderer->Viewer=nullptr;
     glutDestroyWindow(glutGetWindow());
     break;
 
@@ -121,8 +129,6 @@ void x3d_viewer_close()
 
 int main(int argc, char **argv)
 {
-  cl_context context;
-  cl_device_id device;
   std::string clmsgs;
   snde_index revnum;
   
@@ -138,14 +144,20 @@ int main(int argc, char **argv)
 
   recdb=std::make_shared<snde::recdatabase>();
   setup_cpu(recdb,std::thread::hardware_concurrency());
-  setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform nameo
+  #warning "GPU acceleration temporarily disabled for viewer.
+  //setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
   setup_storage_manager(recdb);
+  std::shared_ptr<graphics_storage_manager> graphman=std::make_shared<graphics_storage_manager>("/",recdb->lowlevel_alloc,recdb->alignment_requirements,recdb->lockmgr,1e-8);
+  recdb->default_storage_manager = graphman;
+  
+  setup_math_functions(recdb,{});
   recdb->startup();
+
   
   snde::active_transaction transact(recdb); // Transaction RAII holder
 
   
-  part_infostores = x3d_load_geometry(geom,argv[1],recdb,"/",false,true); // !!!*** Try enable vertex reindexing !!!***
+  std::vector<std::shared_ptr<textured_part_recording>> part_recordings = x3d_load_geometry(recdb,graphman,argv[1],"main",(void *)&main,"/",false,true); // !!!*** Try enable vertex reindexing !!!***
 
   std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
   globalrev->wait_complete(); // globalrev must be complete before we are allowed to pass it to viewer. 
@@ -176,6 +188,9 @@ int main(int argc, char **argv)
   //   return 1;
   //  }
 
+  std::shared_ptr<channelconfig> x3dchan_config = globalrev->recstatus.channel_map.at("/x3d0").config;
+  //std::shared_ptr<channelconfig> x3dchan_config = globalrev->recstatus.channel_map.at("/x3d_meshed0").config;
+  
 
   rendercache = std::make_shared<osg_rendercache>();
   
@@ -186,10 +201,10 @@ int main(int argc, char **argv)
   display=std::make_shared<display_info>(recdb);
   display->set_current_globalrev(globalrev);
   
-  std::shared_ptr<display_channel> x3d_displaychan = display->lookup_channel("/x3d");
+  std::shared_ptr<display_channel> x3d_displaychan = display->lookup_channel(x3dchan_config->channelpath);
   x3d_displaychan->set_enabled(true); // enable channel
 
-  std::vector<std::shared_ptr<display_channel>> channels_to_display = display->update(globalrev,pngchan_config->channelpath,true,false,false);
+  std::vector<std::shared_ptr<display_channel>> channels_to_display = display->update(globalrev,x3dchan_config->channelpath,true,false,false);
 
 
   display_reqs = traverse_display_requirements(display,globalrev,channels_to_display);

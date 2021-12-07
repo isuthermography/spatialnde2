@@ -25,7 +25,7 @@ namespace snde {
   // vertexarray 
   
 #ifdef SNDE_OPENCL
-  static opencl_program vertexarray_function_opencl("snde_vertexarray", { snde_types_h, geometry_types_h, vecops_h, geometry_ops_h, rec_display_vertexarray_c  });
+  static opencl_program vertexarray_function_opencl("rec_display_vertexarray", { snde_types_h, geometry_types_h, vecops_h, geometry_ops_h, rec_display_vertexarray_c  });
 #endif // SNDE_OPENCL
 
   
@@ -205,18 +205,17 @@ namespace snde {
     }
   };
 
-
-  std::shared_ptr<math_function> define_vertexarray_recording_function()
+  
+  std::shared_ptr<math_function> define_meshedpart_vertexarray_function()
   {
-
-    // ***!!! Need to fixup initialization ordering ***!!!
-    //return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
-      //return std::make_shared<vertexarray_function>(rss,inst);
-    //});
+    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+      return std::make_shared<vertexarray_function>(rss,inst);
+    });
     
-    return nullptr;
   }
-
+  
+  static int registered_vertexarray_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.meshedpart_vertexarray",define_meshedpart_vertexarray_function));
+  
 
 
 
@@ -229,11 +228,11 @@ namespace snde {
 #endif // SNDE_OPENCL
 
   
-  class texvertexarray_function: public recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>>
+  class texvertexarray_function: public recmath_cppfuncexec<std::shared_ptr<meshed_parameterization_recording>>
   {
   public:
     texvertexarray_function(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) :
-      recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>>(rss,inst)
+      recmath_cppfuncexec<std::shared_ptr<meshed_parameterization_recording>>(rss,inst)
     {
       
     }
@@ -242,7 +241,7 @@ namespace snde {
     // just using the default for decide_new_revision
 
 
-    std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(std::shared_ptr<meshed_part_recording> recording)
+    std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(std::shared_ptr<meshed_parameterization_recording> recording)
     {
       snde_ndarray_info *rec_tri_info = recording->ndinfo(recording->name_mapping.at("uv_triangles"));
       if (rec_tri_info->ndim != 1) {
@@ -286,7 +285,7 @@ namespace snde {
 
       
     
-    std::shared_ptr<metadata_function_override_type> define_recs(std::shared_ptr<meshed_part_recording> recording) 
+    std::shared_ptr<metadata_function_override_type> define_recs(std::shared_ptr<meshed_parameterization_recording> recording) 
     {
       // define_recs code
       //snde_debug(SNDE_DC_APP,"define_recs()");
@@ -407,15 +406,15 @@ namespace snde {
   };
 
 
-  std::shared_ptr<math_function> define_texvertexarray_recording_function()
+  std::shared_ptr<math_function> define_meshedparameterization_texvertexarray_function()
   {
-    
-    // ***!!! need to fixup initialization ordering
-    //return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
-    //  return std::make_shared<texvertexarray_function>(rss,inst);
-    //});
-    return nullptr;
+
+    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+      return std::make_shared<texvertexarray_function>(rss,inst);
+    });
   }
+  
+  static int registered_texvertexarray_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.meshedparameterization_texvertexarray",define_meshedparameterization_texvertexarray_function));
 
 
 

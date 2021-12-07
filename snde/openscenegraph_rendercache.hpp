@@ -9,6 +9,7 @@
 #include <osg/Texture2D>
 #include <osg/Image>
 #include <osg/StateSet>
+#include <osg/TexMat>
 
 #include "snde/recstore.hpp"
 #include "snde/rendermode.hpp"
@@ -181,6 +182,7 @@ namespace snde {
     
     osg::ref_ptr<osg::Image> image;
     osg::ref_ptr<osg::PixelBufferObject> imagepbo;
+    osg::ref_ptr<osg::TexMat> texture_transform;
     
 
     osg_cachedimagedata(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
@@ -245,8 +247,7 @@ namespace snde {
     //osg::ref_ptr<osg::Array> osg_array;
 
     std::shared_ptr<meshed_texvertex_recording> cached_recording;
-    snde_index num;
-    
+    //snde_index num;
 
     osg_cachedparameterizationdata(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedparameterizationdata() = default;
@@ -264,7 +265,7 @@ namespace snde {
     //osg::ref_ptr<osg::Array> osg_array;
 
     std::shared_ptr<meshed_vertexarray_recording> cached_recording;
-    snde_index num;
+    //snde_index num;
     
 
     osg_cachedmeshedvertexarray(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
@@ -287,6 +288,7 @@ namespace snde {
     osg::ref_ptr<osg::Geode> geode; 
     osg::ref_ptr<osg::Geometry> geom;
     osg::ref_ptr<osg::DrawArrays> drawarrays;
+    osg::ref_ptr<osg::StateSet> stateset;
     
     osg::ref_ptr<snde::OSGFPArray> DataArray;
     osg::ref_ptr<snde::OSGFPArray> NormalArray;

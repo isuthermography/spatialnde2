@@ -834,7 +834,8 @@ namespace snde {
 #ifndef SNDE_RCR_DISABLE_EXCEPTION_HANDLING
 	} catch(const std::exception &exc) {
 	  // Only consider exceptions derived from std::exception because there's no general way to print anything else, so we might as well just crash in that case. 
-	  snde_warning("Exception caught in math thread pool: %s",exc.what());
+	  // func is our math_function_execution
+	  snde_warning("Exception class %s caught in math thread pool: %s (function %s)",typeid(exc).name(),exc.what(),func->inst->definition->definition_command.c_str());
 	}
 #endif // SNDE_RCR_DISABLE_EXCEPTION_HANDLING
       }

@@ -3,6 +3,13 @@
 
 #include <memory>
 
+#ifdef __APPLE__
+#include <OpenCL/opencl.hpp>
+#else
+#include <CL/cl2.hpp>
+#endif
+
+
 #include "snde/recmath_compute_resource.hpp"
 #include "snde/recstore.hpp"
 

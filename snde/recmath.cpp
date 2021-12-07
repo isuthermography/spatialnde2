@@ -745,4 +745,66 @@ namespace snde {
     return inst->result_channel_paths.size();
   }
 
+
+  registered_math_function::registered_math_function(std::string name,std::function<std::shared_ptr<math_function>(/*std::shared_ptr<recdatabase> recdb*/)> builder_function) :
+    name(name),
+    builder_function(builder_function)
+  {
+    
+  }
+
+  static std::shared_ptr<function_registry_map> *_math_function_registry; // default-initialized to nullptr;
+
+  static std::mutex& math_function_registry_mutex()
+  {
+    // take advantage of the fact that since C++11 initialization of function statics
+    // happens on first execution and is guaranteed thread-safe. This lets us
+    // work around the "static initialization order fiasco" using the
+    // "construct on first use idiom".
+    // We just use regular pointers, which are safe from the order fiasco,
+    // but we need some way to bootstrap thread-safety, and this mutex
+    // is it. 
+    static std::mutex regmutex; 
+    return regmutex; 
+  }
+
+  
+  std::shared_ptr<function_registry_map> math_function_registry()
+  {
+    std::mutex &regmutex = math_function_registry_mutex();
+    std::lock_guard<std::mutex> reglock(regmutex);
+
+    if (!_math_function_registry) {
+      _math_function_registry = new std::shared_ptr<function_registry_map>(std::make_shared<function_registry_map>());
+      
+    }
+    return *_math_function_registry;
+  }
+
+  
+  int register_math_function(std::shared_ptr<registered_math_function> builder_function)
+  // returns value so can be used as an initializer
+  {
+    math_function_registry(); // make sure registry is defined
+
+    std::mutex &regmutex = math_function_registry_mutex();
+    std::lock_guard<std::mutex> reglock(regmutex);
+
+    // copy map and update then publish the copy
+    std::shared_ptr<function_registry_map> new_map = std::make_shared<function_registry_map>(**_math_function_registry);
+
+    std::unordered_map<std::string,std::shared_ptr<registered_math_function>>::iterator old_function;
+
+    old_function = new_map->find(builder_function->name);
+    if (old_function != new_map->end()) {
+      throw snde_error("Attempt to double-register math function %s in the static registry",builder_function->name.c_str());
+    }
+    
+    new_map->emplace(builder_function->name,builder_function);
+
+    *_math_function_registry = new_map;
+    return 0;
+  }
+
+
 };

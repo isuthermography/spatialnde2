@@ -49,7 +49,23 @@ namespace snde {
       {typeid(std::shared_ptr<meshed_parameterization_recording>),SNDE_RTN_MESHED_PARAMETERIZATION_RECORDING},
       {typeid(std::shared_ptr<textured_part_recording>),SNDE_RTN_TEXTURED_PART_RECORDING},
       {typeid(std::shared_ptr<assembly_recording>),SNDE_RTN_ASSEMBLY_RECORDING},
+      {typeid(snde_part),SNDE_RTN_SNDE_PART},
+      {typeid(snde_topological),SNDE_RTN_SNDE_TOPOLOGICAL},
+      {typeid(snde_triangle),SNDE_RTN_SNDE_TRIANGLE},
+      {typeid(snde_coord3),SNDE_RTN_SNDE_COORD3},
+      {typeid(snde_cmat23),SNDE_RTN_SNDE_CMAT23},
+      {typeid(snde_edge),SNDE_RTN_SNDE_EDGE},
+      {typeid(snde_coord2),SNDE_RTN_SNDE_COORD2},
+      {typeid(snde_axis32),SNDE_RTN_SNDE_AXIS32},
+      {typeid(snde_vertex_edgelist_index),SNDE_RTN_SNDE_VERTEX_EDGELIST_INDEX},
+      {typeid(snde_box3),SNDE_RTN_SNDE_BOX3},
+      {typeid(snde_boxcoord3),SNDE_RTN_SNDE_BOXCOORD3},
+      {typeid(snde_parameterization),SNDE_RTN_SNDE_PARAMETERIZATION},
+      {typeid(snde_parameterization_patch),SNDE_RTN_SNDE_PARAMETERIZATION_PATCH},
+      {typeid(snde_trivertnormals),SNDE_RTN_SNDE_TRIVERTNORMALS},
+      {typeid(snde_rendercoord),SNDE_RTN_SNDE_RENDERCOORD},
       
+
 
   });
   
@@ -82,7 +98,23 @@ namespace snde {
 #endif
       {SNDE_RTN_RGBD64,sizeof(snde_rgbd)},
       {SNDE_RTN_COORD3_INT16,sizeof(snde_coord3_int16)},
-      // SNDE_RTN_INDEXVEC not applicable
+      // SNDE_RTN_INDEXVEC through SNDE_RTN_ASSEMBLY_RECORDING not applicable
+      {SNDE_RTN_SNDE_PART,sizeof(snde_part)},
+      {SNDE_RTN_SNDE_TOPOLOGICAL,sizeof(snde_topological)},
+      {SNDE_RTN_SNDE_TRIANGLE,sizeof(snde_triangle)},
+      {SNDE_RTN_SNDE_COORD3,sizeof(snde_coord3)},
+      {SNDE_RTN_SNDE_CMAT23,sizeof(snde_cmat23)},
+      {SNDE_RTN_SNDE_EDGE,sizeof(snde_edge)},
+      {SNDE_RTN_SNDE_COORD2,sizeof(snde_coord2)},
+      {SNDE_RTN_SNDE_AXIS32,sizeof(snde_axis32)},
+      {SNDE_RTN_SNDE_VERTEX_EDGELIST_INDEX,sizeof(snde_vertex_edgelist_index)},
+      {SNDE_RTN_SNDE_BOX3,sizeof(snde_box3)},
+      {SNDE_RTN_SNDE_BOXCOORD3,sizeof(snde_boxcoord3)},
+      {SNDE_RTN_SNDE_PARAMETERIZATION,sizeof(snde_parameterization)},
+      {SNDE_RTN_SNDE_PARAMETERIZATION_PATCH,sizeof(snde_parameterization_patch)},
+      {SNDE_RTN_SNDE_TRIVERTNORMALS,sizeof(snde_trivertnormals)},
+      {SNDE_RTN_SNDE_RENDERCOORD,sizeof(snde_rendercoord)},
+
     });
   
   SNDE_API const std::unordered_map<unsigned,std::string> rtn_typenamemap({ // Look up type name based on typenum
@@ -109,6 +141,33 @@ namespace snde {
       {SNDE_RTN_RECORDING,"SNDE_RTN_RECORDING"},      
       {SNDE_RTN_COORD3_INT16,"SNDE_RTN_COORD3_INT16"},   
       {SNDE_RTN_INDEXVEC,"SNDE_RTN_INDEXVEC"},
+
+      {SNDE_RTN_RECORDING_GROUP,"SNDE_RTN_RECORDING_GROUP"},
+      {SNDE_RTN_POINTCLOUD_RECORDING,"SNDE_RTN_POINTCLOUD_RECORDING"},
+      {SNDE_RTN_MESHED_PART_RECORDING,"SNDE_RTN_MESHED_PART_RECORDING"},
+      {SNDE_RTN_MESHED_VERTEXARRAY_RECORDING, "SNDE_RTN_MESHED_VERTEXARRAY_RECORDING"},
+      {SNDE_RTN_MESHED_TEXVERTEX_RECORDING,"SNDE_RTN_MESHED_TEXVERTEX_RECORDING"},
+      {SNDE_RTN_MESHED_VERTNORMALS_RECORDING,"SNDE_RTN_MESHED_VERTNORMALS_RECORDING"},
+      {SNDE_RTN_MESHED_TRINORMALS_RECORDING,"SNDE_RTN_MESHED_TRINORMALS_RECORDING"},
+      {SNDE_RTN_MESHED_PARAMETERIZATION_RECORDING,"SNDE_RTN_MESHED_PARAMETERIZATION_RECORDING"},
+      {SNDE_RTN_TEXTURED_PART_RECORDING,"SNDE_RTN_TEXTURED_PART_RECORDING"},
+      {SNDE_RTN_ASSEMBLY_RECORDING,"SNDE_RTN_ASSEMBLY_RECORDING"},
+      
+      {SNDE_RTN_SNDE_PART,"SNDE_RTN_SNDE_PART"},
+      {SNDE_RTN_SNDE_TOPOLOGICAL,"SNDE_RTN_SNDE_TOPOLOGICAL"},
+      {SNDE_RTN_SNDE_TRIANGLE,"SNDE_RTN_SNDE_TRIANGLE"},
+      {SNDE_RTN_SNDE_COORD3,"SNDE_RTN_SNDE_COORD3"},
+      {SNDE_RTN_SNDE_CMAT23,"SNDE_RTN_SNDE_CMAT23"},
+      {SNDE_RTN_SNDE_EDGE,"SNDE_RTN_SNDE_EDGE"},
+      {SNDE_RTN_SNDE_COORD2,"SNDE_RTN_SNDE_COORD2"},
+      {SNDE_RTN_SNDE_AXIS32,"SNDE_RTN_SNDE_AXIS32"},
+      {SNDE_RTN_SNDE_VERTEX_EDGELIST_INDEX,"SNDE_RTN_SNDE_VERTEX_EDGELIST_INDEX"},
+      {SNDE_RTN_SNDE_BOX3,"SNDE_RTN_SNDE_BOX3"},
+      {SNDE_RTN_SNDE_BOXCOORD3,"SNDE_RTN_SNDE_BOXCOORD3"},
+      {SNDE_RTN_SNDE_PARAMETERIZATION,"SNDE_RTN_SNDE_PARAMETERIZATION"},
+      {SNDE_RTN_SNDE_PARAMETERIZATION_PATCH,"SNDE_RTN_SNDE_PARAMETERIZATION_PATCH"},
+      {SNDE_RTN_SNDE_TRIVERTNORMALS,"SNDE_RTN_SNDE_TRIVERTNORMALS"},
+      {SNDE_RTN_SNDE_RENDERCOORD,"SNDE_RTN_SNDE_RENDERCOORD"},
     });
   
 
@@ -133,6 +192,10 @@ namespace snde {
       {SNDE_RTN_RGBD64,"snde_rgbd"},
       {SNDE_RTN_COORD3_INT16,"snde_coord3_int16"},
       // SNDE_RTN_INDEXVEC not applicable
+
+            
+      
+      //!!!**** CONTINUE HERE!!!***
 
     });
   
@@ -371,6 +434,11 @@ namespace snde {
     // when transaction ends, reulting_globalrevision() is assigned
     std::shared_ptr<globalrevision> resulting_globalrev;
     bool resulting_globalrev_expired;
+
+    // resulting_globalrevision() locks the current_transaction's lock
+    // thus ensuring synchronization with the call to
+    // rss.update_recstatus__rss_admin_transaction_admin_locked()
+    // in end_transaction()
     std::tie(resulting_globalrev,resulting_globalrev_expired) = defining_transact_strong->resulting_globalrevision();
 
     if (resulting_globalrev) {
@@ -615,6 +683,108 @@ namespace snde {
   }
 
 
+
+  std::shared_ptr<recording_storage_manager> recording_base::assign_storage_manager(std::shared_ptr<recording_storage_manager> storman)
+  {
+    std::lock_guard<std::mutex> rec_admin(admin); // lock recording
+    storage_manager = storman;
+    return storage_manager;
+  }
+
+  std::shared_ptr<recording_storage_manager> recording_base::assign_storage_manager()
+  // may return nullptr if recdb not available
+  {
+
+    std::shared_ptr<recording_storage_manager> storman;
+
+    {
+      std::lock_guard<std::mutex> rec_admin(admin); // lock recording
+      storman = storage_manager;
+    }
+    
+    std::shared_ptr<recdatabase> recdb_strong=recdb_weak.lock();
+    if (!recdb_strong) return nullptr; // if recdb is vanishing we are dead too
+
+    
+    if (!storman) {
+      
+      
+      std::shared_ptr<recording_set_state> originating_rss_strong;
+
+      {
+	std::unique_lock<std::mutex> recdb_admin(recdb_strong->admin);
+	std::unique_lock<std::mutex> rec_admin(admin); // lock recording
+
+	originating_rss_strong = _originating_rss.lock();
+	if (!originating_rss_strong && invalid_weak_ptr_is_expired(_originating_rss)) {
+	  throw snde_error("Attempting to get expired originating recording set state (channel %s revision %llu", info->name,(unsigned long long)info->revision);
+	
+	}
+	if (!originating_rss_strong) {
+	  // in this case originating_rss was never assigned. We need to extract it
+	  
+	  bool defining_transact_is_expired = false;
+	  std::shared_ptr<transaction> defining_transact_strong=defining_transact.lock();
+	  if (!defining_transact_strong) {
+	    defining_transact_is_expired = invalid_weak_ptr_is_expired(defining_transact);
+	    if (defining_transact_is_expired) {
+	      throw snde_error("Attempting to get (expired transaction) originating recording set state (channel %s revision %llu", info->name,(unsigned long long)info->revision);
+	      
+	    } else {
+	      throw snde_error("Attempting to allocate storage for recording set state (channel %s revision %llu) for non-transaction and non-rss recording with no storage_manager set", info->name,(unsigned long long)info->revision);
+	      
+	    }
+	    
+	    
+	  }
+	  
+	  // defining_transact_strong is valid
+	  std::shared_ptr<globalrevision> originating_globalrev;
+	  bool originating_globalrev_expired;
+	  std::tie(originating_globalrev,originating_globalrev_expired) = defining_transact_strong->resulting_globalrevision();
+	  
+	  
+	  if (!originating_globalrev) {
+	    if (originating_globalrev_expired) {
+	      throw snde_error("Attempting to get (expired globalrev) originating recording set state (channel %s revision %llu", info->name,(unsigned long long)info->revision);
+	      
+	    } else {
+	      // if originating_globalrev has never been set, then the transaction must still be in progress. 
+	      // Check the channel config
+	      
+	      // drop the locks, as select_storage_manager will need to reacquire them and they will not be needed from here on 
+	      rec_admin.unlock();
+	      recdb_admin.unlock();
+	      storman=select_storage_manager_for_recording_during_transaction(recdb_strong,info->name);
+	    
+	    }
+	  }
+	  
+	  originating_rss_strong = originating_globalrev;
+	}
+      } // locks dropped at this point
+
+      
+      if (!storman) {
+	storman = select_storage_manager_for_recording(recdb_strong,info->name,originating_rss_strong);
+      }
+      
+      
+      {
+	std::lock_guard<std::mutex> rec_admin(admin); // lock recording
+	storage_manager=storman;
+      }
+
+      
+    }
+    
+    
+    return storman;
+  }
+
+
+  
+
   recording_group::recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,std::shared_ptr<std::string> path_to_primary,size_t info_structsize/*=0*/) :
     recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize),
     path_to_primary(path_to_primary)
@@ -662,7 +832,11 @@ namespace snde {
   {
     // Notify our storage that we are marked as ready, which may cause cache invalidation, etc.
     for (auto && recstorage: storage) {
-      recstorage->ready_notification();
+      if (recstorage) {
+	// recstorage might be nullptr if this recording
+	// has legitimately no data for a particular array
+	recstorage->ready_notification();
+      }
     }
     
     // call superclass, which does the rest of the management
@@ -778,7 +952,68 @@ namespace snde {
       ref = std::make_shared<ndtyped_recording_ref<snde_coord3_int16>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
       break;
 
-      // SNDE_RTN_INDEXVEC not applicable
+      // SNDE_RTN_INDEXVEC through SNDE_RTN_ASSEMBLY_RECORDING not applicable
+      
+      
+    case SNDE_RTN_SNDE_PART:
+      ref = std::make_shared<ndtyped_recording_ref<snde_part>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_TOPOLOGICAL:
+      ref = std::make_shared<ndtyped_recording_ref<snde_topological>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_TRIANGLE:
+      ref = std::make_shared<ndtyped_recording_ref<snde_triangle>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_COORD3:
+      ref = std::make_shared<ndtyped_recording_ref<snde_coord3>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_CMAT23:
+      ref = std::make_shared<ndtyped_recording_ref<snde_cmat23>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_EDGE:
+      ref = std::make_shared<ndtyped_recording_ref<snde_edge>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_COORD2:
+      ref = std::make_shared<ndtyped_recording_ref<snde_coord2>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_AXIS32:
+      ref = std::make_shared<ndtyped_recording_ref<snde_axis32>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_VERTEX_EDGELIST_INDEX:
+      ref = std::make_shared<ndtyped_recording_ref<snde_vertex_edgelist_index>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_BOX3:
+      ref = std::make_shared<ndtyped_recording_ref<snde_box3>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_BOXCOORD3:
+      ref = std::make_shared<ndtyped_recording_ref<snde_boxcoord3>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_PARAMETERIZATION:
+      ref = std::make_shared<ndtyped_recording_ref<snde_parameterization>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_PARAMETERIZATION_PATCH:
+      ref = std::make_shared<ndtyped_recording_ref<snde_parameterization_patch>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_TRIVERTNORMALS:
+      ref = std::make_shared<ndtyped_recording_ref<snde_trivertnormals>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_RENDERCOORD:
+      ref = std::make_shared<ndtyped_recording_ref<snde_rendercoord>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
       
     default:
       throw snde_error("multi_ndarray_recording::reference_ndarray(): Unknown type number %u",typenum);
@@ -791,104 +1026,6 @@ namespace snde {
     return reference_ndarray(name_mapping.at(array_name));
   }
   
-  std::shared_ptr<recording_storage_manager> multi_ndarray_recording::assign_storage_manager(std::shared_ptr<recording_storage_manager> storman)
-  {
-    std::lock_guard<std::mutex> rec_admin(admin); // lock recording
-    storage_manager = storman;
-    return storage_manager;
-  }
-
-  std::shared_ptr<recording_storage_manager> multi_ndarray_recording::assign_storage_manager()
-  // may return nullptr if recdb not available
-  {
-
-    std::shared_ptr<recording_storage_manager> storman;
-
-    {
-      std::lock_guard<std::mutex> rec_admin(admin); // lock recording
-      storman = storage_manager;
-    }
-    
-    std::shared_ptr<recdatabase> recdb_strong=recdb_weak.lock();
-    if (!recdb_strong) return nullptr; // if recdb is vanishing we are dead too
-
-    
-    if (!storman) {
-      
-      
-      std::shared_ptr<recording_set_state> originating_rss_strong;
-
-      {
-	std::unique_lock<std::mutex> recdb_admin(recdb_strong->admin);
-	std::unique_lock<std::mutex> rec_admin(admin); // lock recording
-
-	originating_rss_strong = _originating_rss.lock();
-	if (!originating_rss_strong && invalid_weak_ptr_is_expired(_originating_rss)) {
-	  throw snde_error("Attempting to get expired originating recording set state (channel %s revision %llu", info->name,(unsigned long long)info->revision);
-	
-	}
-	if (!originating_rss_strong) {
-	  // in this case originating_rss was never assigned. We need to extract it
-	  
-	  bool defining_transact_is_expired = false;
-	  std::shared_ptr<transaction> defining_transact_strong=defining_transact.lock();
-	  if (!defining_transact_strong) {
-	    defining_transact_is_expired = invalid_weak_ptr_is_expired(defining_transact);
-	    if (defining_transact_is_expired) {
-	      throw snde_error("Attempting to get (expired transaction) originating recording set state (channel %s revision %llu", info->name,(unsigned long long)info->revision);
-	      
-	    } else {
-	      throw snde_error("Attempting to allocate storage for recording set state (channel %s revision %llu) for non-transaction and non-rss recording with no storage_manager set", info->name,(unsigned long long)info->revision);
-	      
-	    }
-	    
-	    
-	  }
-	  
-	  // defining_transact_strong is valid
-	  std::shared_ptr<globalrevision> originating_globalrev;
-	  bool originating_globalrev_expired;
-	  std::tie(originating_globalrev,originating_globalrev_expired) = defining_transact_strong->resulting_globalrevision();
-	  
-	  
-	  if (!originating_globalrev) {
-	    if (originating_globalrev_expired) {
-	      throw snde_error("Attempting to get (expired globalrev) originating recording set state (channel %s revision %llu", info->name,(unsigned long long)info->revision);
-	      
-	    } else {
-	      // if originating_globalrev has never been set, then the transaction must still be in progress. 
-	      // Check the channel config
-	      
-	      // drop the locks, as select_storage_manager will need to reacquire them and they will not be needed from here on 
-	      rec_admin.unlock();
-	      recdb_admin.unlock();
-	      storman=select_storage_manager_for_recording_during_transaction(recdb_strong,info->name);
-	    
-	    }
-	  }
-	  
-	  originating_rss_strong = originating_globalrev;
-	}
-      } // locks dropped at this point
-
-      
-      if (!storman) {
-	storman = select_storage_manager_for_recording(recdb_strong,info->name,originating_rss_strong);
-      }
-      
-      
-      {
-	std::lock_guard<std::mutex> rec_admin(admin); // lock recording
-	storage_manager=storman;
-      }
-
-      
-    }
-    
-    
-    return storman;
-  }
-
 
   void multi_ndarray_recording::assign_storage(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &dimlen, bool fortran_order/*=false*/)
   {
@@ -1238,6 +1375,11 @@ namespace snde {
 
     std::lock_guard<std::mutex> adminlock(admin);
     
+    // NOTE: Very important not to try to turn this into something atomic.
+    // This is used for synchronization of notification of transactions ending
+    // vs recordings becoming ready. See also
+    // _transactionrec_transaction_still_in_progress_admin_prelocked()
+    // and rss._update_recstatus__rss_admin_transaction_admin_locked()
     
     std::shared_ptr<globalrevision> globalrev = _resulting_globalrevision.lock();
     if (!globalrev) {
@@ -2347,7 +2489,7 @@ namespace snde {
       }
       
       // build a class globalrevision from recdb->current_transaction using this new channel_map
-      globalrev = std::make_shared<globalrevision>(recdb_strong->current_transaction->globalrev,recdb_strong->current_transaction,recdb_strong,recdb_strong->_math_functions,initial_channel_map,previous_globalrev);
+      globalrev = std::make_shared<globalrevision>(recdb_strong->current_transaction->globalrev,recdb_strong->current_transaction,recdb_strong,recdb_strong->_instantiated_functions,initial_channel_map,previous_globalrev);
       //globalrev->recstatus.channel_map.reserve(recdb_strong->_channels.size());
 
       globalrev->mutable_recordings_need_holder=std::make_shared<globalrev_mutable_lock>(recdb_strong,globalrev);
@@ -2541,22 +2683,43 @@ namespace snde {
     // so from here on we just keep parallel code
     {
       std::lock_guard<std::mutex> recdb_lock(recdb_strong->admin);
-      recdb_strong->_globalrevs.emplace(recdb_strong->current_transaction->globalrev,globalrev);
-
-      // atomic update of _latest_globalrev
-      std::atomic_store(&recdb_strong->_latest_globalrev,globalrev);
 
       {
-	// mark transaction's resulting_globalrev 
-	std::lock_guard<std::mutex> transaction_admin(recdb_strong->current_transaction->admin);
-	recdb_strong->current_transaction->_resulting_globalrevision = globalrev;
-      }
+	std::lock_guard<std::mutex> globalrev_lock(globalrev->admin);
 
-      // this transaction isn't current any more
-      recdb_strong->current_transaction = nullptr; 
-      assert(!transaction_ended);
-      transaction_ended=true;
-      transaction_lock_holder.unlock();
+	recdb_strong->_globalrevs.emplace(recdb_strong->current_transaction->globalrev,globalrev);
+
+
+	
+	// atomic update of _latest_globalrev
+	std::atomic_store(&recdb_strong->_latest_globalrev,globalrev);
+	
+	{
+	  // mark transaction's resulting_globalrev 
+	  std::lock_guard<std::mutex> transaction_admin(recdb_strong->current_transaction->admin);
+	  recdb_strong->current_transaction->_resulting_globalrevision = globalrev;
+
+	  // While we hold both recdb and our globalrev, and
+	  // the transaction locks, we need to
+	  // go through the globalrev rss and move any defined_recordings,
+	  // instantiated_recordings, (or data-complete metadataonly_recordings)
+	  // into their proper slot, because until ths time the RSS was not
+	  // available for notification.
+	  // (after this we need to hold the globalrev_lock until after
+	  // the current transaction's resulting_globalrevision
+	  // gets assigned (below))
+	  globalrev->_update_recstatus__rss_admin_transaction_admin_locked();
+	
+
+	  
+	}
+	
+	// this transaction isn't current any more
+	recdb_strong->current_transaction = nullptr; 
+	assert(!transaction_ended);
+	transaction_ended=true;
+	transaction_lock_holder.unlock();
+      }
     }
 
     // Perform notifies that unchanged copied recordings from prior revs are now ready
@@ -2937,6 +3100,140 @@ namespace snde {
 
   }
 
+  bool recording_set_state::_urratal_check_mdonly(std::string channelpath)
+  // internal use only for recording_set_state::_update_recstatus__rss_admin_transaction_admin_locked()
+  {
+    
+    // check for MDonly
+    bool mdonly=false;
+    std::map<std::string,std::shared_ptr<instantiated_math_function>>::iterator math_function_it;
+    math_function_it = mathstatus.math_functions->defined_math_functions.find(channelpath);
+    if (math_function_it != mathstatus.math_functions->defined_math_functions.end()) {
+      // channel is a math channel (only math channels can be mdonly)
+      math_function_status &funcstat = mathstatus.function_status.at(math_function_it->second);
+      
+      if (funcstat.mdonly) {
+	// yes, an mdonly channel... move it from instantiated recordings to metadataonly_recordings
+	mdonly=true;
+      }
+    }
+
+    return mdonly;
+  }
+  
+  void recording_set_state::_update_recstatus__rss_admin_transaction_admin_locked()
+  // This is called during end_transaction() with the recdb admin lock, the rss admin lock, and the transaction admin lock held, to identify anything misplaced in the above unordered_maps. After the call and marking of the transaction's _resulting_globalrevision, placement responsibility shifts to mark_metadata_done() and mark_as_ready() methods of the recording. 
+  {
+
+    std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator mdonlyrec_it,mdonlyrec_next;
+    
+    for (mdonlyrec_it=recstatus.metadataonly_recordings.begin();mdonlyrec_it != recstatus.metadataonly_recordings.end();mdonlyrec_it = mdonlyrec_next) {
+      mdonlyrec_next=mdonlyrec_it;
+      ++mdonlyrec_next;
+      
+      std::shared_ptr<channelconfig> config = mdonlyrec_it->first;
+      channel_state &state = *mdonlyrec_it->second;
+      
+      
+      std::shared_ptr<recording_base> rec = state.rec();
+      assert(rec);
+      
+      assert(rec->info_state != SNDE_RECS_INITIALIZING); // state cannot progress backwards
+      
+      if (rec->info_state==SNDE_RECS_METADATAREADY) {
+	// where we should be (even if mdonly flag is cleared
+	// I don't think we should move back to
+	// instantiated_recordings (?)
+      } else {
+	assert(rec->info_state >= SNDE_RECS_READY);
+	// recording is ready
+	// go into completed recordings
+	recstatus.metadataonly_recordings.erase(mdonlyrec_it);
+	recstatus.completed_recordings.emplace(config,&state);
+      }
+      
+      
+    }
+
+    
+    std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator instrec_it,instrec_next;
+    for (instrec_it=recstatus.instantiated_recordings.begin();instrec_it != recstatus.instantiated_recordings.end();instrec_it = instrec_next) {
+      instrec_next=instrec_it;
+      ++instrec_next;
+
+      std::shared_ptr<channelconfig> config = instrec_it->first;
+      channel_state &state = *instrec_it->second;
+      
+      
+      std::shared_ptr<recording_base> rec = state.rec();
+      assert(rec);
+
+
+      if (rec->info_state==SNDE_RECS_INITIALIZING) {
+	// Where it should be already
+	
+      } else if (rec->info_state==SNDE_RECS_METADATAREADY) {
+	  // check for MDonly
+	
+	bool mdonly = _urratal_check_mdonly(config->channelpath);
+	
+	if (mdonly) {
+	  // if we have metadata and we are mdonly we go into metadataonly_recordings
+	  recstatus.instantiated_recordings.erase(instrec_it);
+	  recstatus.metadataonly_recordings.emplace(config,&state);
+	} else {
+	  // stay in instantiated_recordings
+	}
+	
+      } else {
+	assert(rec->info_state >= SNDE_RECS_READY);
+	// recording is ready
+	// go into completed recordings
+	recstatus.instantiated_recordings.erase(instrec_it);
+	recstatus.completed_recordings.emplace(config,&state);
+      }
+
+      
+    }
+
+    std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator defrec_it,defrec_next;
+    for (defrec_it=recstatus.defined_recordings.begin();defrec_it != recstatus.defined_recordings.end();defrec_it = defrec_next) {
+      defrec_next=defrec_it;
+      ++defrec_next;
+
+      std::shared_ptr<channelconfig> config = defrec_it->first;
+      channel_state &state = *defrec_it->second;
+
+      std::shared_ptr<recording_base> rec = state.rec();
+      if (rec) {
+	if (rec->info_state==SNDE_RECS_INITIALIZING) {
+	  recstatus.defined_recordings.erase(defrec_it);
+	  recstatus.instantiated_recordings.emplace(config,&state);
+	} else if (rec->info_state==SNDE_RECS_METADATAREADY) {
+	  // check for MDonly
+	  bool mdonly = _urratal_check_mdonly(config->channelpath);
+	  
+	  if (mdonly) {
+	    // if we have metadata and we are mdonly we go into metadataonly_recordings
+	    recstatus.defined_recordings.erase(defrec_it);
+	    recstatus.metadataonly_recordings.emplace(config,&state);
+	  } else {
+	    // go into instantiated_recordings
+	    recstatus.defined_recordings.erase(defrec_it);
+	    recstatus.instantiated_recordings.emplace(config,&state);
+	  }
+	  
+	} else {
+	  assert(rec->info_state >= SNDE_RECS_READY);
+	  // recording is ready
+	  // go into completed recordings
+	  recstatus.defined_recordings.erase(defrec_it);
+	  recstatus.completed_recordings.emplace(config,&state);
+	}
+      }
+    }
+  }
+  
   recording_set_state::recording_set_state(std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state) :
     recdb_weak(recdb),
     ready(false),
@@ -3136,12 +3433,13 @@ namespace snde {
     std::atomic_store(&_latest_globalrev,null_globalrev);
     std::atomic_store(&_latest_ready_globalrev,null_globalrev);
 
+    std::atomic_store(&_math_functions,std::make_shared<std::map<std::string,std::shared_ptr<math_function>>>());
     
     if (!this->lockmgr) {
       this->lockmgr = std::make_shared<lockmanager>();
     }
 
-    _math_functions._rebuild_dependency_map();
+    _instantiated_functions._rebuild_dependency_map();
 
     // instantiate mutablenotneeded thread
     globalrev_mutablenotneeded_thread = std::thread([this]() { globalrev_mutablenotneeded_code(); });
@@ -3253,7 +3551,7 @@ namespace snde {
       }
     }
 
-    // add to _math_functions
+    // add to _instantiated_functions
     {
       std::lock_guard<std::mutex> recdb_admin(admin);
       for (auto && path_channelptr: paths_and_channels) {
@@ -3261,10 +3559,10 @@ namespace snde {
 	std::shared_ptr<channel> channelptr;
 	std::tie(full_path,channelptr) = path_channelptr;
 	
-	_math_functions.defined_math_functions.emplace(full_path,new_function);
+	_instantiated_functions.defined_math_functions.emplace(full_path,new_function);
       }
 
-      _math_functions._rebuild_dependency_map();
+      _instantiated_functions._rebuild_dependency_map();
     }
 
   }
@@ -3470,6 +3768,25 @@ namespace snde {
     //fprintf(stderr,"gmnnc() exit\n");
 
   }
+
+  std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> recdatabase::math_functions()
+  {
+    return std::atomic_load(&_math_functions);
+  }
+
+  
+  std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> recdatabase::_begin_atomic_math_functions_update() // should be called with admin lock held
+  {
+    std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> new_math_functions = std::make_shared<std::map<std::string,std::shared_ptr<math_function>>>(*math_functions());
+    return new_math_functions;
+  }
+  
+  void recdatabase::_end_atomic_math_functions_update(std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> new_math_functions) // should be called with admin lock held
+  {
+    std::atomic_store(&_math_functions,new_math_functions);
+  }
+  
+  
 
   size_t recording_default_info_structsize(size_t param,size_t min)
   // Param is the requested info_structsize parameter, or 0 to indicate use the default

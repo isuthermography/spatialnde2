@@ -10,10 +10,8 @@
 namespace snde {
 
   
-  // extern opencl_program normalcalc_opencl_program;
-  // note: we have a normal_calculation_trinormals
-  // in normal_calculation.cpp but not currently any
-  // way to access it
+
+  std::shared_ptr<math_function> define_spatialnde2_trinormals_function();
 
   std::shared_ptr<math_function> define_vertnormals_recording_function();
 

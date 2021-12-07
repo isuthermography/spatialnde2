@@ -11,6 +11,8 @@ namespace snde {
 
   void setup_cpu(std::shared_ptr<recdatabase> recdb,size_t nthreads);
   void setup_storage_manager(std::shared_ptr<recdatabase> recdb);
+  void setup_math_functions(std::shared_ptr<recdatabase> recdb,
+			    std::vector<std::pair<std::string,std::shared_ptr<math_function>>> math_functions);
 
 
 };

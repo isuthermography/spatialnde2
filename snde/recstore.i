@@ -126,7 +126,11 @@ namespace snde {
     
     virtual void _mark_metadata_done_internal(/*std::shared_ptr<recording_set_state> rss,const std::string &channame*/);
     virtual void mark_metadata_done();  // call WITHOUT admin lock (or other locks?) held. 
-    virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held. 
+    virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held.
+
+    virtual std::shared_ptr<recording_storage_manager> assign_storage_manager(std::shared_ptr<recording_storage_manager> storman);
+    virtual std::shared_ptr<recording_storage_manager> assign_storage_manager();
+
   };
 
   class recording_group : public recording_base {
@@ -186,8 +190,6 @@ namespace snde {
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(std::string array_name);
 
 
-    std::shared_ptr<recording_storage_manager> assign_storage_manager(std::shared_ptr<recording_storage_manager> storman);
-    std::shared_ptr<recording_storage_manager> assign_storage_manager();
 
     void assign_storage(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &dimlen, bool fortran_order=false);
     void assign_storage(std::shared_ptr<recording_storage> stor,std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
@@ -607,7 +609,7 @@ namespace snde {
     //std::mutex admin; // Locks access to _channels and _deleted_channels and _math_functions, _globalrevs and repetitive_notifies. In locking order, precedes channel admin locks, available_compute_resource_database, globalrevision admin locks, recording admin locks, and Python GIL. 
     std::map<std::string,std::shared_ptr<channel>> _channels; // Generally don't use the channel map directly. Grab the latestglobalrev and use the channel map from that. 
     std::map<std::string,std::shared_ptr<channel>> _deleted_channels; // Channels are put here after they are deleted. They can be moved back into the main list if re-created. 
-    instantiated_math_database _math_functions; 
+    instantiated_math_database _instantiated_functions; 
     
     std::map<uint64_t,std::shared_ptr<globalrevision>> _globalrevs; // Index is global revision counter. The first element in this is the latest globalrev with all mandatory immutable channels ready. The last element in this is the most recently defined globalrev.
     std::shared_ptr<globalrevision> _latest_globalrev; // atomic shared pointer -- access with latest_globalrev() method;
@@ -616,7 +618,8 @@ namespace snde {
     std::shared_ptr<available_compute_resource_database> compute_resources; // has its own admin lock.
     
 
-    std::shared_ptr<recording_storage_manager> default_storage_manager; // pointer is immutable once created; contents not necessarily immutable; see recstore_storage.hpp
+    std::shared_ptr<memallocator> lowlevel_alloc; // pointer is immutable once created during startup; contents not necessarily immutable; see memallocator.hpp
+    std::shared_ptr<recording_storage_manager> default_storage_manager; // pointer is immutable once created during startup; contents not necessarily immutable; see recstore_storage.hpp
 
     std::shared_ptr<lockmanager> lockmgr; // pointer immutable after initialization; contents have their own admin lock, which is used strictly internally by them
     /*std::atomic<*/bool/*>*/ started;
@@ -674,6 +677,10 @@ namespace snde {
     void wait_recording_names(std::shared_ptr<recording_set_state> rss,const std::vector<std::string> &metadataonly, const std::vector<std::string> fullyready);
 
     std::shared_ptr<monitor_globalrevs> start_monitoring_globalrevs();
+    void globalrev_mutablenotneeded_code(); 
+
+
+    std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> math_functions();
 
   };
 

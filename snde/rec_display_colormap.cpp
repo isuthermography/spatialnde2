@@ -85,18 +85,20 @@ namespace snde {
   };
 
 
-  std::shared_ptr<math_function> define_colormap_recording_function()
+  std::shared_ptr<math_function> define_colormap_function()
   {
-
-    // ***!!! Should use #ifdef to determine whether to run OpenCL
-    // or CPU version
     return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
-      // ***!!! Should extend beyond just floating types
-      // ***!!! Should modify to be able to pass OpenCL context, etc. in 
+      // ***!!!! Should extend beyond just floating point types ***!!!
+      // ***!!!! Should implement OpenCL acceleration
       return make_cppfuncexec_floatingtypes<colormap_recording>(rss,inst);
-    });
-    
+      
+    }); 
   }
+
+
+  static int registered_colormap_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.colormap",define_colormap_function));
+  
+  
   
 };
 

@@ -359,7 +359,15 @@ namespace snde {
 
   void promise_channel_notify::perform_notify()
   {
-    promise.set_value();
+    // not impossible that we would have a second (superfluous) notification
+    // so we explicitly ignore that.
+    try {
+      promise.set_value();
+    } catch (const std::future_error &e) {
+      if (e.code() != std::future_errc::promise_already_satisfied) {
+	throw; // rethrow all other exceptions
+      }
+    }
   }
   
   _unchanged_channel_notify::_unchanged_channel_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> subsequent_globalrev,channel_state &current_channelstate,channel_state & sg_channelstate,bool mdonly) :

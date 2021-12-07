@@ -486,7 +486,7 @@ IF (Python3_FOUND)
     COMMAND ${CMAKE_COMMAND} -E echo "And ...perhaps as root or Administrator...:"
     COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "  ${PYTHON_EXECUTABLE} setup.py install"
     COMMAND ${CMAKE_COMMAND} -E echo "to install for Python" )
-  add_dependencies( InstallMessage compile_definitions Python_Create_Setup spatialnde2 spatialnde2_qt allocator_test recdb_test recmath_test recmath_test2 transform_eval_test matrixsolve_test png_viewer ondemand_test )
+  add_dependencies( InstallMessage compile_definitions Python_Create_Setup spatialnde2 spatialnde2_qt allocator_test recdb_test recmath_test recmath_test2 transform_eval_test matrixsolve_test png_viewer ondemand_test x3d_viewer )
 ENDIF (Python3_FOUND)
 
 
@@ -512,6 +512,11 @@ IF (GLUT_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   add_executable(png_viewer test/png_viewer.cpp)
   #add_dependencies(png_viewer OpenCL_Headers)
   target_link_libraries(png_viewer ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
+ENDIF()
+
+IF (GLUT_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
+  add_executable(x3d_viewer test/x3d_viewer.cpp)
+  target_link_libraries(x3d_viewer ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
 ENDIF()
 
 

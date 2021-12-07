@@ -337,6 +337,12 @@ namespace snde {
 					  &explicitly_updated_channels,
 					  &ready_channels,
 					  &ready_to_execute,&all_ready);
+
+    // globalrev->_update_recstatus__rss_admin_transaction_admin_locked()
+    // isn't needed here because in the math calculations, the resulting
+    // rss pointer has been known from the beginning, so the state should
+    // be in the correct bin already. 
+
     // Perform notifies that unchanged copied recordings from prior revs are now ready
     // (and that globalrev is ready if there is nothing pending!)
     for (auto && readychan : ready_channels) { // readychan is a channel_state &

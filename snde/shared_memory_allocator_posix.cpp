@@ -113,6 +113,7 @@ namespace snde {
   }
   void *shared_memory_allocator_posix::calloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes)
   {
+
     std::string shm_name = ssprintf("%s_%llu.dat",
 				    base_shm_name(recording_path,recrevision).c_str(),
 				    (unsigned long long)id);
@@ -142,6 +143,10 @@ namespace snde {
 			std::forward_as_tuple(std::make_tuple(recording_path,recrevision,id)), // index
 			std::forward_as_tuple(id,shm_name,fd,addr,nbytes)); // parameters to shared_memory_info_posix constructor
     }
+
+    //fprintf(stderr,"calloc 0x%lx: %d\n",(unsigned long)addr,(int)nbytes);
+    
+
     return addr;
   }
   
@@ -164,6 +169,7 @@ namespace snde {
       
     }
     this_info.nbytes=newsize;
+    //fprintf(stderr,"realloc 0x%lx: %d\n",(unsigned long)this_info.addr,(int)newsize);
     return this_info.addr;
   }
   

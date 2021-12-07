@@ -273,7 +273,7 @@ public:
 
   typedef const constructible_metadata immutable_metadata; 
   
-class recmetadata {
+  class recmetadata { // OBSOLETE
 public:
   std::shared_ptr<immutable_metadata> _metadata; // c++11 atomic shared pointer to immutable metadata map
   std::mutex admin; // must be locked during changes to _metadata (replacement of C++11 atomic shared_ptr)

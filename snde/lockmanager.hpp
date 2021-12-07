@@ -54,12 +54,13 @@ Solution: atomic lists that can be traversed, sort the results, lock, then verif
    * EndTransaction() makes the new global revision current
  2.4 The recdatabase admin lock 
  2.5 Any single recdatabase channel admin lock, or the available_compute_resource_database admin lock, or any single globalrevision admin lock
+ 2.6 The recdb current_transaction's admin lock. 
  2.7 Any recording admin lock. 
  3. Data array locks such as mutable data arrays. This includes transient locking to do allocations
     for new mutable OR IMMUTABLE sub-arrays.
     Ordering is by geometry structure or data array structure address, 
     and within Ordering is by location within the geometry structure
- 4. Recording storage locks
+ 4. Recording storage (recstore_storage) locks
  5. cache manager locks
  6. Allocator locks.
  7. Internal locks of other subsystems, etc.

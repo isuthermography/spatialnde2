@@ -22,13 +22,72 @@ namespace snde {
   {
 #ifdef _WIN32
 #pragma message("No shared memory allocator available for Win32 yet. Using regular memory instead")
-    std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<cmemallocator>();
+    recdb->lowlevel_alloc=std::make_shared<cmemallocator>();
     
 #else
-    std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<shared_memory_allocator_posix>();
+    recdb->lowlevel_alloc=std::make_shared<shared_memory_allocator_posix>();
 #endif
-    recdb->default_storage_manager=std::make_shared<recording_storage_manager_simple>(lowlevel_alloc,recdb->lockmgr,recdb->alignment_requirements);
+    recdb->default_storage_manager=std::make_shared<recording_storage_manager_simple>(recdb->lowlevel_alloc,recdb->lockmgr,recdb->alignment_requirements);
     
   }
+ 
+  void setup_math_functions(std::shared_ptr<recdatabase> recdb,
+			    std::vector<std::pair<std::string,std::shared_ptr<math_function>>> custom_math_funcs)
+  {
+
+    // First, include all functions from the compiled-in registry
+    
+
+    
+    std::map<std::string,std::shared_ptr<math_function>> additional_functions;
+    
+    std::shared_ptr<function_registry_map> compiled_in=math_function_registry();
+    for (auto && name_registeredbuilder: *compiled_in) {
+      const std::string &name = name_registeredbuilder.first;
+      std::shared_ptr<registered_math_function> registeredbuilder = name_registeredbuilder.second;
+
+      std::shared_ptr<math_function> additional_math_function = registeredbuilder->builder_function();
+
+      additional_functions.emplace(name,additional_math_function);
+      
+    }
+
+
+    {
+      std::lock_guard<std::mutex> recdb_admin(recdb->admin);
+      std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> new_math_functions=recdb->_begin_atomic_math_functions_update();
+      
+      for (auto && name_additional_fcn: additional_functions) {
+	const std::string &name = name_additional_fcn.first;
+	std::shared_ptr<math_function> fcn = name_additional_fcn.second;
+	
+	std::map<std::string,std::shared_ptr<math_function>>::iterator old_function = new_math_functions->find(name);
+	if (old_function != new_math_functions->end()) {
+	  throw snde_error("Attempting to overwrite existing math function %s",name.c_str());
+	}
+	
+	new_math_functions->emplace(name,fcn);
+      }
+
+
+      for (auto && name_custom_fcn: custom_math_funcs) {
+	std::string &name = name_custom_fcn.first;
+	std::shared_ptr<math_function> fcn = name_custom_fcn.second;
+	
+	std::map<std::string,std::shared_ptr<math_function>>::iterator old_function = new_math_functions->find(name);
+	if (old_function != new_math_functions->end()) {
+	  throw snde_error("Attempting to overwrite existing math function %s",name.c_str());
+	}
+	
+	new_math_functions->emplace(name,fcn);
+      }
+
+      // set the atomic shared pointer
+      recdb->_end_atomic_math_functions_update(new_math_functions);
+      
+    }
+  }
+
+  
   
 };

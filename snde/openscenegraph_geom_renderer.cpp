@@ -19,7 +19,8 @@ namespace snde {
     Manipulator(new osgGA::TrackballManipulator()),
     Camera(Viewer->getCamera()),
     //RootNode(RootNode),
-    RenderCache(RenderCache)
+    RenderCache(RenderCache),
+    firstrun(true)
   {
     
     Camera->setGraphicsContext(GraphicsWindow);
@@ -31,8 +32,9 @@ namespace snde {
     // need to enable culling so that linesegmentintersector (openscenegraph_picker)
     // behavior matches camera behavior
     // (is this efficient?)
-    Camera->setComputeNearFarMode( osg::CullSettings::COMPUTE_NEAR_FAR_USING_PRIMITIVES );
-    Camera->setCullingMode(osg::CullSettings::ENABLE_ALL_CULLING);
+    // NOTE: Having this on made rendering fail !!!***
+    //Camera->setComputeNearFarMode( osg::CullSettings::COMPUTE_NEAR_FAR_USING_PRIMITIVES );
+    //Camera->setCullingMode(osg::CullSettings::ENABLE_ALL_CULLING);
 
     Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded); // We handle threading ourselves
     Viewer->setCameraManipulator(Manipulator);
@@ -57,10 +59,7 @@ namespace snde {
     // and make initial calls to those functions
     // from their constructor,
     // then call Viewer->realize();
-    Viewer->setCameraManipulator(nullptr);
-    Camera->setViewMatrix(osg::Matrixd::identity());
 
-    Viewer->realize();
 
 
       
@@ -75,11 +74,7 @@ namespace snde {
 					  //std::string channel_path,
 					  std::shared_ptr<display_info> display,
 					  const std::map<std::string,std::shared_ptr<display_requirement>> &display_reqs,
-					  double left, // left of viewport in channel horizontal units
-					  double right, // right of viewport in channel horizontal units
-					  double bottom, // bottom of viewport in channel vertical units
-					  double top, // top of viewport in channel vertical units
-					  size_t width, // width of viewport in pixels
+				          size_t width, // width of viewport in pixels
 					  size_t height) // height of viewport in pixels
   {
     // look up render cache.
@@ -90,10 +85,10 @@ namespace snde {
       with_display_transforms,
       display,
       
-      left,
-      right,
-      bottom,
-      top,
+      0.0, //left,
+      0.0, //right,
+      0.0, //bottom,
+      0.0, //top,
       width,
       height,
       
@@ -123,7 +118,7 @@ namespace snde {
 	   double top;
 	*/
 	
-	Camera->setProjectionMatrixAsOrtho(left,right,bottom,top,-10.0,1000.0);
+	//Camera->setProjectionMatrixAsOrtho(left,right,bottom,top,-10.0,1000.0);
 	Camera->setViewport(0,0,width,height);
       } else {
 	snde_warning("openscenegraph_3d_renderer: cache entry not convertable to an osg_group rendering channel %s",channel_path.c_str());
@@ -132,6 +127,25 @@ namespace snde {
       snde_warning("openscenegraph_3d_renderer: cache entry not available rendering channel %s",channel_path.c_str());
       
     }
+
+    if (firstrun) {
+      Viewer->realize();
+      firstrun=false;
+    }
+
+    /*    osg::Matrixd viewmat = Camera->getViewMatrix();
+    {
+      int i,j;
+      printf("Camera view matrix:\n");
+      for (i=0; i < 4; i++) {
+	for (j=0; j < 4; j++) {
+	  printf("%8f ",viewmat(i,j));
+	}
+	printf("\n");
+      }
+      
+      }*/
+    
     Viewer->frame();
     
   }

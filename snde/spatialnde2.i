@@ -421,6 +421,10 @@ template <typename T>
   PyObject *coord3_int16_dtype = PyRun_String("dtype([('x', np.int16), ('y', np.int16), ('z',np.int16)])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_COORD3_INT16,(PyArray_Descr *)coord3_int16_dtype);
 
+  // SNDE_RTN_INDEXVEC through SNDE_RTN_ASSEMBLY_RECORDING not applicable
+
+  // ***!!! Still need numpy dtypes for graphics arrays!!!***
+
   Py_DECREF(NumpyModule);
   Py_DECREF(np_dtype);
   Py_DECREF(Globals);

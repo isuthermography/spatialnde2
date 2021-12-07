@@ -287,7 +287,7 @@ namespace snde {
 
 	
 	//alloc->add_other_array(arrayptr,elemsize);
-	new_allocators->at(arrayptr)=allocationinfo{alloc,elemsize,0,alloc->add_other_array(id,arrayptr,elemsize)};
+	(*new_allocators)[arrayptr]=allocationinfo{alloc,elemsize,0,alloc->add_other_array(id,arrayptr,elemsize)};
 	
 	(*new_allocation_arrays)[arrayptr]=allocatedptr;
 	

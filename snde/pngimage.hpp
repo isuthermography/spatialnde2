@@ -45,29 +45,35 @@ namespace snde {
 
     std::shared_ptr<constructible_metadata> md=std::make_shared<constructible_metadata>();
 
+    // Reference (0,0) position on image in our coordinates
+    // is 0.5 pixel in each axis beyond the bottom left corner
     
     if (unit_type==PNG_RESOLUTION_METER && res_x) {
       md->AddMetaDatum(metadatum("Step1",1.0/res_x));
-      md->AddMetaDatum(metadatum("IniVal1",-(width*1.0)/res_x/2.0));
+      //md->AddMetaDatum(metadatum("IniVal1",-(width*1.0)/res_x/2.0) + 1.0/res_x/2.0);
+      md->AddMetaDatum(metadatum("IniVal1",1.0/res_x/2.0));
       md->AddMetaDatum(metadatum("Units1","meters"));      
     } else {
       md->AddMetaDatum(metadatum("Step1",1.0));
-      md->AddMetaDatum(metadatum("IniVal1",-(width*1.0)/2.0));
+      //md->AddMetaDatum(metadatum("IniVal1",-(width*1.0)/2.0)+0.5);
+      md->AddMetaDatum(metadatum("IniVal1",0.5));
       md->AddMetaDatum(metadatum("Units1","pixels"));      
     }
     md->AddMetaDatum(metadatum("Coord1","X Position"));
 
     /* Note for Y axis we put inival positive and step negative so that first pixel 
        in in the upper-left corner, even with our convention  that
-       the origin is in the lower-left */
+       the origin is in the lower-left, 0.5 pixel beyond */
     if (unit_type==PNG_RESOLUTION_METER && res_y) {
       md->AddMetaDatum(metadatum("Step2",-1.0/res_y));
-      md->AddMetaDatum(metadatum("IniVal2",(height*1.0)/res_y/2.0));
+      //md->AddMetaDatum(metadatum("IniVal2",(height*1.0)/res_y/2.0 -0.5/res_y));
+      md->AddMetaDatum(metadatum("IniVal2",(height*1.0)/res_y - 0.5/res_y));
       md->AddMetaDatum(metadatum("Units2","meters"));
       fprintf(stderr,"Got Y resolution in meters\n");
     } else {
       md->AddMetaDatum(metadatum("Step2",-1.0));
-      md->AddMetaDatum(metadatum("IniVal2",(height*1.0)/2.0));
+      //md->AddMetaDatum(metadatum("IniVal2",(height*1.0)/2.0) - 0.5);
+      md->AddMetaDatum(metadatum("IniVal2",(height*1.0) - 0.5));
       md->AddMetaDatum(metadatum("Units2","pixels"));      
       fprintf(stderr,"Got Y resolution in arbitrary\n");
     }

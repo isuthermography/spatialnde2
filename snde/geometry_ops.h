@@ -56,7 +56,7 @@ static inline void polycentroid3(snde_coord3 *verts, uint32_t numvertices, snde_
   for (vertcnt=0; vertcnt < numvertices; vertcnt++) {
     val=0.0;
     for (axcnt=0; axcnt < 3; axcnt++) {
-      val += pow(verts[vertcnt].coord[axcnt] - refpoint.coord[axcnt],2.0);
+      val += pow(verts[vertcnt].coord[axcnt] - refpoint.coord[axcnt],(snde_coord)2.0f);
     }
 
     if (val > max_sq) {

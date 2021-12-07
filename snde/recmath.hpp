@@ -468,6 +468,24 @@ namespace snde {
     virtual void perform_exec()=0;
 
   };
-}
+
+
+
+  class registered_math_function {
+  public:
+    std::string name; // Suggest python-style package.module.function, etc.
+    std::function<std::shared_ptr<math_function>(/*std::shared_ptr<recdatabase> recdb*/)> builder_function;
+    
+    registered_math_function(std::string name,std::function<std::shared_ptr<math_function>(/*std::shared_ptr<recdatabase> recdb*/)> builder_function);
+    virtual ~registered_math_function()=default; // may be subclassed
+    
+  };
+  
+  typedef std::unordered_map<std::string,std::shared_ptr<registered_math_function>> function_registry_map;
+  
+  std::shared_ptr<function_registry_map> math_function_registry();
+  int register_math_function(std::shared_ptr<registered_math_function> builder_function);
+  
+};
 
 #endif // SNDE_RECMATH_HPP

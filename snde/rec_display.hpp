@@ -323,10 +323,10 @@ public:
       nullptr,
       0.0,
     }),
-    vertnormals_function(define_vertnormals_recording_function()),
-    colormapping_function(define_colormap_recording_function()),
-    vertexarray_function(define_vertexarray_recording_function()),
-    texvertexarray_function(define_texvertexarray_recording_function())
+    vertnormals_function(recdb->math_functions()->at("spatialnde2.vertnormals")),
+    colormapping_function(recdb->math_functions()->at("spatialnde2.colormap")),
+    vertexarray_function(recdb->math_functions()->at("spatialnde2.meshedpart_vertexarray")),
+    texvertexarray_function(recdb->math_functions()->at("spatialnde2.meshedparameterization_texvertexarray"))
 
   {
     static std::mutex di_index_mutex; // created atomically on first access per c++ spec

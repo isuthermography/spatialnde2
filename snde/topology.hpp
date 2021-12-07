@@ -1,30 +1,32 @@
+#ifndef SNDE_TOPOLOGY_HPP
+#define SNDE_TOPOLOGY_HPP
+
+
 #include <set>
 #include <memory>
 #include <vector>
 #include <deque>
 #include <unordered_map>
 
-#include "snde/geometry.hpp"
+#include "snde/geometry_types.h"
+#include "snde/geometrydata.h"
 
-#ifndef SNDE_TOPOLOGY_HPP
-
-#define SNDE_TOPOLOGY_HPP
 
 namespace snde {
 
-  std::shared_ptr<std::vector<snde_index>> walk_uvmesh_mark_facenum(std::shared_ptr<geometry> geom,snde_index parameterization, snde_index next_tri,snde_index facenum)
+  std::shared_ptr<std::vector<snde_index>> walk_uvmesh_mark_facenum(snde_geometrydata *geom,snde_index parameterization, snde_index next_tri,snde_index facenum)
   // walk around the uv mesh starting at next_tri, marking connected triangles with the given facenum
   {
     std::deque<snde_index> meshedges; // todo list of edges to investigate. Assume at most only one the triangles of each edge is not already marked with facenum
     std::set<snde_index> boundary_edge_set;
     
     // mark next_tri with the given facenum
-    geom->geom.uv_triangles[geom->geom.uvs[parameterization].firstuvtri + next_tri].face=facenum;
+    geom->uv_triangles[geom->uvs[parameterization].firstuvtri + next_tri].face=facenum;
 
     // add edges of this triangle to meshedges
     for (snde_index cnt=0; cnt < 3; cnt++) {
       snde_index edgenum;
-      edgenum = geom->geom.uv_triangles[geom->geom.uvs[parameterization].firstuvtri + next_tri].edges[cnt];
+      edgenum = geom->uv_triangles[geom->uvs[parameterization].firstuvtri + next_tri].edges[cnt];
       if (edgenum != SNDE_INDEX_INVALID) {
 	meshedges.push_back(edgenum);
       }
@@ -35,15 +37,15 @@ namespace snde {
       snde_index work_edgenum=meshedges.back();
       meshedges.pop_back();
 
-      snde_edge &work_edge = geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + work_edgenum];
+      snde_edge &work_edge = geom->uv_edges[geom->uvs[parameterization].firstuvedge + work_edgenum];
       snde_triangle *work_tri_a=nullptr;
       if (work_edge.tri_a != SNDE_INDEX_INVALID) {
-	work_tri_a = &geom->geom.uv_triangles[geom->geom.uvs[parameterization].firstuvtri + work_edge.tri_a];
+	work_tri_a = &geom->uv_triangles[geom->uvs[parameterization].firstuvtri + work_edge.tri_a];
       }
 
       snde_triangle *work_tri_b=nullptr;
       if (work_edge.tri_b != SNDE_INDEX_INVALID) {
-	work_tri_b = &geom->geom.uv_triangles[geom->geom.uvs[parameterization].firstuvtri + work_edge.tri_b];
+	work_tri_b = &geom->uv_triangles[geom->uvs[parameterization].firstuvtri + work_edge.tri_b];
       }
       
       snde_triangle *work_tri=nullptr;
@@ -81,12 +83,12 @@ namespace snde {
 
       if (work_tri) {
 	// mark work_tri with the given facenum
-	geom->geom.uv_triangles[geom->geom.uvs[parameterization].firstuvtri + work_trinum].face=facenum;
+	geom->uv_triangles[geom->uvs[parameterization].firstuvtri + work_trinum].face=facenum;
 	
 	// add edges of this triangle to meshedges
 	for (snde_index cnt=0; cnt < 3; cnt++) {
 	  snde_index edgenum;
-	  edgenum = geom->geom.uv_triangles[geom->geom.uvs[parameterization].firstuvtri + work_trinum].edges[cnt];
+	  edgenum = geom->uv_triangles[geom->uvs[parameterization].firstuvtri + work_trinum].edges[cnt];
 	  if (edgenum != SNDE_INDEX_INVALID) {
 	    meshedges.push_back(edgenum);
 	  }
@@ -109,10 +111,10 @@ namespace snde {
     return boundary_edges;
   }
 
-  snde_index find_next_unassigned_uvtri(std::shared_ptr<geometry> geom,snde_index parameterization, snde_index next_tri)
+  snde_index find_next_unassigned_uvtri(snde_geometrydata *geom,snde_index parameterization, snde_index next_tri)
   {
-    while (next_tri < geom->geom.uvs[parameterization].numuvtris) {
-      if (geom->geom.uv_triangles[geom->geom.uvs[parameterization].firstuvtri+next_tri].face == SNDE_INDEX_INVALID) {
+    while (next_tri < geom->uvs[parameterization].numuvtris) {
+      if (geom->uv_triangles[geom->uvs[parameterization].firstuvtri+next_tri].face == SNDE_INDEX_INVALID) {
 	return next_tri;
       }
       next_tri++;
@@ -121,7 +123,7 @@ namespace snde {
   }
 
   
-std::vector<snde_topological> assign_texturetri_facenums(std::shared_ptr<geometry> geom, snde_index parameterization, std::vector<std::shared_ptr<std::vector<snde_index>>> & boundary_edges_out)
+std::vector<snde_topological> assign_texturetri_facenums(snde_geometrydata *geom, snde_index parameterization, std::vector<std::shared_ptr<std::vector<snde_index>>> & boundary_edges_out)
 // each element in boundary_edges_out represents a face and contains a vector of mesh edge numbers corresponding to that face
 
 {
@@ -137,7 +139,7 @@ std::vector<snde_topological> assign_texturetri_facenums(std::shared_ptr<geometr
   // to each face for later use in construcing
   // the snde_mesheduvsurface
   
-  while(next_tri < geom->geom.uvs[parameterization].numuvtris && next_tri != SNDE_INDEX_INVALID) {
+  while(next_tri < geom->uvs[parameterization].numuvtris && next_tri != SNDE_INDEX_INVALID) {
     next_tri=find_next_unassigned_uvtri(geom,parameterization,next_tri);
     if (next_tri != SNDE_INDEX_INVALID) {
       faces.emplace_back(snde_topological{.face={ .firstfaceedgeindex=SNDE_INDEX_INVALID,.numfaceedgeindices=0,.imagenum=0,.boundary_num=SNDE_INDEX_INVALID,.surface={.TwoD={.meshed={},.nurbs={.valid=false}}}}});
@@ -155,12 +157,12 @@ std::vector<snde_topological> assign_texturetri_facenums(std::shared_ptr<geometr
 }
 
 
-snde_index identify_shared_uv_meshvertex(std::shared_ptr<geometry> geom,snde_index parameterization,snde_index edge,snde_index next_edge)
+snde_index identify_shared_uv_meshvertex(snde_geometrydata *geom,snde_index parameterization,snde_index edge,snde_index next_edge)
 // identify mesh vertex shared by edge and next edge
 {
-  snde_edge &meshedge = geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + edge];
+  snde_edge &meshedge = geom->uv_edges[geom->uvs[parameterization].firstuvedge + edge];
 
-  snde_edge &nextmeshedge = geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + next_edge];
+  snde_edge &nextmeshedge = geom->uv_edges[geom->uvs[parameterization].firstuvedge + next_edge];
 
 
   snde_index shared_vertex=SNDE_INDEX_INVALID;
@@ -176,17 +178,17 @@ snde_index identify_shared_uv_meshvertex(std::shared_ptr<geometry> geom,snde_ind
   return shared_vertex;
 }
 
-snde_index find_meshedge_by_meshvertex_from_list(std::shared_ptr<geometry> geom,snde_index parameterization,snde_index meshvertex,snde_index *meshedgeindexarray,snde_index nummeshedgeindices)
+snde_index find_meshedge_by_meshvertex_from_list(snde_geometrydata *geom,snde_index parameterization,snde_index meshvertex,snde_index *meshedgeindexarray,snde_index nummeshedgeindices)
 // Find the meshedge, from the list of meshedge indices provided, that has the specified vertex
 // returns the meshedge and a bool "prevflag" indicating if this 
 {
   snde_index cnt;
 
   for (cnt=0; cnt < nummeshedgeindices;cnt++) {
-    if (geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + meshedgeindexarray[cnt]].vertex[0]==meshvertex) {
+    if (geom->uv_edges[geom->uvs[parameterization].firstuvedge + meshedgeindexarray[cnt]].vertex[0]==meshvertex) {
       return meshedgeindexarray[cnt];
     }
-    if (geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + meshedgeindexarray[cnt]].vertex[1]==meshvertex) {
+    if (geom->uv_edges[geom->uvs[parameterization].firstuvedge + meshedgeindexarray[cnt]].vertex[1]==meshvertex) {
       return meshedgeindexarray[cnt];
     }
     
@@ -194,23 +196,23 @@ snde_index find_meshedge_by_meshvertex_from_list(std::shared_ptr<geometry> geom,
   return SNDE_INDEX_INVALID;
 }
 
-bool meshvertex_is_previous(std::shared_ptr<geometry> geom,snde_index parameterization,snde_index meshedge,snde_index meshvertex,snde_index facenum)
+bool meshvertex_is_previous(snde_geometrydata *geom,snde_index parameterization,snde_index meshedge,snde_index meshvertex,snde_index facenum)
 // return whether for a triangle in facenum with edge meshedge, the given meshvertex is shared by the triangle's previous edge
 {
-  snde_index tri_a = geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + meshedge].tri_a;
-  snde_index tri_b = geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + meshedge].tri_b;
+  snde_index tri_a = geom->uv_edges[geom->uvs[parameterization].firstuvedge + meshedge].tri_a;
+  snde_index tri_b = geom->uv_edges[geom->uvs[parameterization].firstuvedge + meshedge].tri_b;
 
   assert(meshvertex != SNDE_INDEX_INVALID);
   assert(facenum != SNDE_INDEX_INVALID);
   assert(meshedge != SNDE_INDEX_INVALID);
   
   if (tri_a != SNDE_INDEX_INVALID) {
-    if (geom->geom.uv_triangles[geom->geom.uvs[parameterization].firstuvtri + tri_a].face==facenum) {
-      snde_index prev_edge=geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + meshedge].tri_a_prev_edge;
-      if (geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + prev_edge].vertex[0]==meshvertex) {
+    if (geom->uv_triangles[geom->uvs[parameterization].firstuvtri + tri_a].face==facenum) {
+      snde_index prev_edge=geom->uv_edges[geom->uvs[parameterization].firstuvedge + meshedge].tri_a_prev_edge;
+      if (geom->uv_edges[geom->uvs[parameterization].firstuvedge + prev_edge].vertex[0]==meshvertex) {
 	return true;
       }
-      if (geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + prev_edge].vertex[1]==meshvertex) {
+      if (geom->uv_edges[geom->uvs[parameterization].firstuvedge + prev_edge].vertex[1]==meshvertex) {
 	return true;
       }
       
@@ -218,12 +220,12 @@ bool meshvertex_is_previous(std::shared_ptr<geometry> geom,snde_index parameteri
   }
 
   if (tri_b != SNDE_INDEX_INVALID) {
-    if (geom->geom.uv_triangles[geom->geom.uvs[parameterization].firstuvtri + tri_b].face==facenum) {
-      snde_index prev_edge=geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + meshedge].tri_b_prev_edge;
-      if (geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + prev_edge].vertex[0]==meshvertex) {
+    if (geom->uv_triangles[geom->uvs[parameterization].firstuvtri + tri_b].face==facenum) {
+      snde_index prev_edge=geom->uv_edges[geom->uvs[parameterization].firstuvedge + meshedge].tri_b_prev_edge;
+      if (geom->uv_edges[geom->uvs[parameterization].firstuvedge + prev_edge].vertex[0]==meshvertex) {
 	return true;
       }
-      if (geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + prev_edge].vertex[1]==meshvertex) {
+      if (geom->uv_edges[geom->uvs[parameterization].firstuvedge + prev_edge].vertex[1]==meshvertex) {
 	return true;
       }
       
@@ -235,19 +237,19 @@ bool meshvertex_is_previous(std::shared_ptr<geometry> geom,snde_index parameteri
 
 
 
-bool meshvertex_is_next(std::shared_ptr<geometry> geom,snde_index parameterization,snde_index meshedge,snde_index meshvertex,snde_index facenum)
+bool meshvertex_is_next(snde_geometrydata *geom,snde_index parameterization,snde_index meshedge,snde_index meshvertex,snde_index facenum)
 // return whether for a triangle in facenum with edge meshedge, the given meshvertex is shared by the triangle's next edge
 {
-  snde_index tri_a = geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + meshedge].tri_a;
-  snde_index tri_b = geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + meshedge].tri_b;
+  snde_index tri_a = geom->uv_edges[geom->uvs[parameterization].firstuvedge + meshedge].tri_a;
+  snde_index tri_b = geom->uv_edges[geom->uvs[parameterization].firstuvedge + meshedge].tri_b;
 
   if (tri_a != SNDE_INDEX_INVALID) {
-    if (geom->geom.uv_triangles[geom->geom.uvs[parameterization].firstuvtri + tri_a].face==facenum) {
-      snde_index next_edge=geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + meshedge].tri_a_next_edge;
-      if (geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + next_edge].vertex[0]==meshvertex) {
+    if (geom->uv_triangles[geom->uvs[parameterization].firstuvtri + tri_a].face==facenum) {
+      snde_index next_edge=geom->uv_edges[geom->uvs[parameterization].firstuvedge + meshedge].tri_a_next_edge;
+      if (geom->uv_edges[geom->uvs[parameterization].firstuvedge + next_edge].vertex[0]==meshvertex) {
 	return true;
       }
-      if (geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + next_edge].vertex[1]==meshvertex) {
+      if (geom->uv_edges[geom->uvs[parameterization].firstuvedge + next_edge].vertex[1]==meshvertex) {
 	return true;
       }
       
@@ -255,12 +257,12 @@ bool meshvertex_is_next(std::shared_ptr<geometry> geom,snde_index parameterizati
   }
 
   if (tri_b != SNDE_INDEX_INVALID) {
-    if (geom->geom.uv_triangles[geom->geom.uvs[parameterization].firstuvtri + tri_b].face==facenum) {
-      snde_index next_edge=geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + meshedge].tri_b_next_edge;
-      if (geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + next_edge].vertex[0]==meshvertex) {
+    if (geom->uv_triangles[geom->uvs[parameterization].firstuvtri + tri_b].face==facenum) {
+      snde_index next_edge=geom->uv_edges[geom->uvs[parameterization].firstuvedge + meshedge].tri_b_next_edge;
+      if (geom->uv_edges[geom->uvs[parameterization].firstuvedge + next_edge].vertex[0]==meshvertex) {
 	return true;
       }
-      if (geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + next_edge].vertex[1]==meshvertex) {
+      if (geom->uv_edges[geom->uvs[parameterization].firstuvedge + next_edge].vertex[1]==meshvertex) {
 	return true;
       }
       
@@ -275,11 +277,11 @@ bool meshvertex_is_next(std::shared_ptr<geometry> geom,snde_index parameterizati
 
 
 
-std::tuple<snde_index,snde_index,snde_index> triangle_and_otherface_from_uv_face_and_edge(std::shared_ptr<geometry> geom,snde_index parameterization,snde_index facenum,snde_index edge)
+std::tuple<snde_index,snde_index,snde_index> triangle_and_otherface_from_uv_face_and_edge(snde_geometrydata *geom,snde_index parameterization,snde_index facenum,snde_index edge)
 // returns triangle number of triangle with given edge and facenum, and the facenum of the other triangle sharing the edge, and the trianglenum of the other triangle sharing the edge 
 {
   
-  snde_edge &meshedge = geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + edge];
+  snde_edge &meshedge = geom->uv_edges[geom->uvs[parameterization].firstuvedge + edge];
 
   snde_triangle *tri_a = nullptr, *tri_b=nullptr;
   snde_index ourtrinum=SNDE_INDEX_INVALID;
@@ -287,10 +289,10 @@ std::tuple<snde_index,snde_index,snde_index> triangle_and_otherface_from_uv_face
   snde_index othertrinum=SNDE_INDEX_INVALID;
   
   if (meshedge.tri_a != SNDE_INDEX_INVALID) {
-    tri_a = &geom->geom.uv_triangles[geom->geom.uvs[parameterization].firstuvtri+meshedge.tri_a];
+    tri_a = &geom->uv_triangles[geom->uvs[parameterization].firstuvtri+meshedge.tri_a];
   }
   if (meshedge.tri_b != SNDE_INDEX_INVALID) {
-    tri_b = &geom->geom.uv_triangles[geom->geom.uvs[parameterization].firstuvtri+meshedge.tri_b];
+    tri_b = &geom->uv_triangles[geom->uvs[parameterization].firstuvtri+meshedge.tri_b];
   }
   
   if (tri_a && tri_a->face==facenum) {
@@ -315,10 +317,10 @@ std::tuple<snde_index,snde_index,snde_index> triangle_and_otherface_from_uv_face
 }
 
 
-snde_index next_edge_around_uv_meshtri(std::shared_ptr<geometry> geom,snde_index parameterization,snde_index trinum,snde_index edge,int direction)
+snde_index next_edge_around_uv_meshtri(snde_geometrydata *geom,snde_index parameterization,snde_index trinum,snde_index edge,int direction)
 {
   assert(trinum != SNDE_INDEX_INVALID);
-  snde_edge &meshedge = geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + edge];
+  snde_edge &meshedge = geom->uv_edges[geom->uvs[parameterization].firstuvedge + edge];
   snde_index next_edge=0;
 
   if (meshedge.tri_a == trinum) {
@@ -356,12 +358,12 @@ snde_index next_edge_around_uv_meshtri(std::shared_ptr<geometry> geom,snde_index
 
 
 
-      //snde_edge &newmeshedge = geom->geom.uv_edges[geom->uvs[parameterization].firstuvedge + geom->geom.vertex_edgelist[geom->geom.uvs[parameterization].firstuvvertexedgelist + geom->geom.vertex_edgelist_index[geom->geom.uvs[parameterization].firstuvvertex + shared_vertex].edgelist_index+vertex_edgelist_index]];
+      //snde_edge &newmeshedge = geom->uv_edges[geom->uvs[parameterization].firstuvedge + geom->vertex_edgelist[geom->uvs[parameterization].firstuvvertexedgelist + geom->vertex_edgelist_index[geom->uvs[parameterization].firstuvvertex + shared_vertex].edgelist_index+vertex_edgelist_index]];
     
-    //if (geom->geom.uv_triangles[geom->geom.uvs[parameterization].firsttri+newmeshedge.tri_a].face != facenum || geom->geom.uv_triangles[geom->geom.uvs[parameterization].firsttri+newmeshedge.tri_b].face != facenum) {
+    //if (geom->uv_triangles[geom->uvs[parameterization].firsttri+newmeshedge.tri_a].face != facenum || geom->uv_triangles[geom->uvs[parameterization].firsttri+newmeshedge.tri_b].face != facenum) {
     //gotfaceboundary=true;
 
-snde_index vertex_find_uvedge_faceborder(std::shared_ptr<geometry> geom,snde_index parameterization,snde_index facenum,snde_index shared_vertex,snde_index edge,int direction)
+snde_index vertex_find_uvedge_faceborder(snde_geometrydata *geom,snde_index parameterization,snde_index facenum,snde_index shared_vertex,snde_index edge,int direction)
 // Go through UV triangle edges of vertex (which are in CCW order by construction)
 // starting from UV triangle edge edge, in the given direction, searching for
 // one which is not an internal edge of the given facenum.
@@ -374,18 +376,18 @@ snde_index vertex_find_uvedge_faceborder(std::shared_ptr<geometry> geom,snde_ind
 
   snde_index edgecnt;
   
-  //for (edgecnt = 0; edgecnt < geom->geom.uv_vertex_edgelist_indices[geom->geom.uvs[parameterization].firstuvvertex + shared_vertex].edgelist_numentries; edgecnt++) {
-    //fprintf(stderr,"vertex %llu has edge %llu\n",shared_vertex,geom->geom.uv_vertex_edgelist[geom->geom.uvs[parameterization].first_uv_vertex_edgelist + geom->geom.uv_vertex_edgelist_indices[geom->geom.uvs[parameterization].firstuvvertex + shared_vertex].edgelist_index+edgecnt]);
+  //for (edgecnt = 0; edgecnt < geom->uv_vertex_edgelist_indices[geom->uvs[parameterization].firstuvvertex + shared_vertex].edgelist_numentries; edgecnt++) {
+    //fprintf(stderr,"vertex %llu has edge %llu\n",shared_vertex,geom->uv_vertex_edgelist[geom->uvs[parameterization].first_uv_vertex_edgelist + geom->uv_vertex_edgelist_indices[geom->uvs[parameterization].firstuvvertex + shared_vertex].edgelist_index+edgecnt]);
   //}
 
-  for (edgecnt = 0; edgecnt < geom->geom.uv_vertex_edgelist_indices[geom->geom.uvs[parameterization].firstuvvertex + shared_vertex].edgelist_numentries; edgecnt++) {
-    if (geom->geom.uv_vertex_edgelist[geom->geom.uvs[parameterization].first_uv_vertex_edgelist + geom->geom.uv_vertex_edgelist_indices[geom->geom.uvs[parameterization].firstuvvertex + shared_vertex].edgelist_index+edgecnt]==edge) {
+  for (edgecnt = 0; edgecnt < geom->uv_vertex_edgelist_indices[geom->uvs[parameterization].firstuvvertex + shared_vertex].edgelist_numentries; edgecnt++) {
+    if (geom->uv_vertex_edgelist[geom->uvs[parameterization].first_uv_vertex_edgelist + geom->uv_vertex_edgelist_indices[geom->uvs[parameterization].firstuvvertex + shared_vertex].edgelist_index+edgecnt]==edge) {
       vertex_edgelist_index=edgecnt;
       orig_vertex_edgelist_index=edgecnt;
       break;
     }
   }
-  assert(edgecnt != geom->geom.uv_vertex_edgelist_indices[geom->geom.uvs[parameterization].firstuvvertex + shared_vertex].edgelist_numentries); // if this fails we didn't find our edge in the vertex's edgelist!  ... try enabling reindex_tex_vertices when loading the .x3d!
+  assert(edgecnt != geom->uv_vertex_edgelist_indices[geom->uvs[parameterization].firstuvvertex + shared_vertex].edgelist_numentries); // if this fails we didn't find our edge in the vertex's edgelist!  ... try enabling reindex_tex_vertices when loading the .x3d!
   
   snde_index ourtri,otherface,othertri;
   std::tie(ourtri,otherface,othertri) = triangle_and_otherface_from_uv_face_and_edge(geom,parameterization,facenum,edge);
@@ -405,12 +407,12 @@ snde_index vertex_find_uvedge_faceborder(std::shared_ptr<geometry> geom,snde_ind
     // increment edge
     if (direction==SNDE_DIRECTION_CW) {
       // look at adjacent edges in CW order
-      vertex_edgelist_index = (vertex_edgelist_index + geom->geom.uv_vertex_edgelist_indices[geom->geom.uvs[parameterization].firstuvvertex + shared_vertex].edgelist_numentries - 1) % geom->geom.uv_vertex_edgelist_indices[geom->geom.uvs[parameterization].firstuvvertex + shared_vertex].edgelist_numentries; 
+      vertex_edgelist_index = (vertex_edgelist_index + geom->uv_vertex_edgelist_indices[geom->uvs[parameterization].firstuvvertex + shared_vertex].edgelist_numentries - 1) % geom->uv_vertex_edgelist_indices[geom->uvs[parameterization].firstuvvertex + shared_vertex].edgelist_numentries; 
       
     } else {
       assert(direction==SNDE_DIRECTION_CCW);
       // look at adjacent edges in CCW order
-      vertex_edgelist_index = (vertex_edgelist_index + 1) % geom->geom.uv_vertex_edgelist_indices[geom->geom.uvs[parameterization].firstuvvertex + shared_vertex].edgelist_numentries; 
+      vertex_edgelist_index = (vertex_edgelist_index + 1) % geom->uv_vertex_edgelist_indices[geom->uvs[parameterization].firstuvvertex + shared_vertex].edgelist_numentries; 
     }
     
     if (vertex_edgelist_index == orig_vertex_edgelist_index) {
@@ -419,7 +421,7 @@ snde_index vertex_find_uvedge_faceborder(std::shared_ptr<geometry> geom,snde_ind
       
     }
 
-    edge = geom->geom.uv_vertex_edgelist[geom->geom.uvs[parameterization].first_uv_vertex_edgelist+geom->geom.uv_vertex_edgelist_indices[geom->geom.uvs[parameterization].firstuvvertex + shared_vertex].edgelist_index+vertex_edgelist_index];
+    edge = geom->uv_vertex_edgelist[geom->uvs[parameterization].first_uv_vertex_edgelist+geom->uv_vertex_edgelist_indices[geom->uvs[parameterization].firstuvvertex + shared_vertex].edgelist_index+vertex_edgelist_index];
     
     std::tie(ourtri,otherface,othertri) = triangle_and_otherface_from_uv_face_and_edge(geom,parameterization,facenum,edge);
     
@@ -455,21 +457,20 @@ snde_index find_faceedge_by_vertex(snde_topological *topos,snde_index *topoindic
   return SNDE_INDEX_INVALID;
 }
 
-std::tuple<snde_index,snde_index,snde_index,snde_index> evaluate_texture_topology(std::shared_ptr<geometry> geom, snde_index parameterization,rwlock_token_set all_locks)
+std::tuple<snde_index,snde_index,snde_index,snde_index> evaluate_texture_topology(std::shared_ptr<arraymanager> manager, snde_geometrydata *geom,snde_index parameterization,rwlock_token_set all_locks)
 // NOTE: parameterzation fields must be locked for AT LEAST read
 // uv_topos and uv_topoindices ENTIRE ARRAYS must be locked for write, as we need to do an allocation
 // returns (firstuvtopo,numuvtopos,firstuvtopoidx,numuvtopoidxs)
 {
 
-
   // should probably verify that arrays are properly locked !!!***
   
   std::shared_ptr<memallocator> memalloc = std::make_shared<cmemallocator>();
   snde_topological *uvtopo_pool=nullptr;
-  std::shared_ptr<allocator> uvtopoalloc=std::make_shared<allocator>(memalloc,nullptr,nullptr,(void **)&uvtopo_pool,sizeof(*uvtopo_pool),0,std::set<snde_index>()); 
+  std::shared_ptr<allocator> uvtopoalloc=std::make_shared<allocator>(memalloc,nullptr,"",0,0,nullptr,(void **)&uvtopo_pool,sizeof(*uvtopo_pool),0,std::set<snde_index>()); 
 
   snde_index *uvtopoidx_pool=nullptr;
-  std::shared_ptr<allocator> uvtopoidxalloc=std::make_shared<allocator>(memalloc,nullptr,nullptr,(void **)&uvtopoidx_pool,sizeof(*uvtopoidx_pool),0,std::set<snde_index>()); 
+  std::shared_ptr<allocator> uvtopoidxalloc=std::make_shared<allocator>(memalloc,nullptr,"",0,0,nullptr,(void **)&uvtopoidx_pool,sizeof(*uvtopoidx_pool),0,std::set<snde_index>()); 
 
 
   // the following identifes the facevertex and a vector of faceedges given a meshedvertexnum
@@ -489,7 +490,7 @@ std::tuple<snde_index,snde_index,snde_index,snde_index> evaluate_texture_topolog
   memcpy(uvtopo_pool+first_face,faces.data(),numfaces*sizeof(*uvtopo_pool));
 
     
-  bool *meshedges_touched=(bool *)calloc(geom->geom.uvs[parameterization].numuvedges,sizeof(bool));
+  bool *meshedges_touched=(bool *)calloc(geom->uvs[parameterization].numuvedges,sizeof(bool));
   //std::unordered_map<snde_index,snde_index> // map by triangle edge index of meshed edge index
   
   snde_index facenum;
@@ -499,7 +500,7 @@ std::tuple<snde_index,snde_index,snde_index,snde_index> evaluate_texture_topolog
     // the adjacent face (if any) is different
 
     // OK to touch an edge twice if its for different faces. 
-    memset(meshedges_touched,0,geom->geom.uvs[parameterization].numuvedges*sizeof(bool));
+    memset(meshedges_touched,0,geom->uvs[parameterization].numuvedges*sizeof(bool));
     
     std::vector<snde_index> faceedgeindices;
     
@@ -536,7 +537,7 @@ std::tuple<snde_index,snde_index,snde_index,snde_index> evaluate_texture_topolog
 	  //fprintf(stderr,"next_edge0=%llu\n",next_edge);
 	  edge = next_edge;
 	  //fprintf(stderr,"edge=%llu direction=%d\n",edge,direction);
-	  snde_edge &meshedge = geom->geom.uv_edges[geom->geom.uvs[parameterization].firstuvedge + edge];
+	  snde_edge &meshedge = geom->uv_edges[geom->uvs[parameterization].firstuvedge + edge];
 	  assert(meshedge.tri_a != meshedge.tri_b);
 
 	  //fprintf(stderr,"edge %llu: triangles %llu and %llu, vertices %llu and %llu\n",edge,meshedge.tri_a,meshedge.tri_b,meshedge.vertex[0],meshedge.vertex[1]);
@@ -639,7 +640,7 @@ std::tuple<snde_index,snde_index,snde_index,snde_index> evaluate_texture_topolog
 	  uvtopo_pool[forward_face_vertex]=snde_topological{
 					    .facevertex={
 							 .meshedvertex=forward_mesh_vertex,
-							 .coord = { .TwoD = geom->geom.uv_vertices[forward_mesh_vertex] },
+							 .coord = { .TwoD = geom->uv_vertices[forward_mesh_vertex] },
 							 .firstfaceedgeindex=SNDE_INDEX_INVALID, // will need to fill in later!
 							 .numfaceedgeindices=0,
 	    }
@@ -657,7 +658,7 @@ std::tuple<snde_index,snde_index,snde_index,snde_index> evaluate_texture_topolog
 	  uvtopo_pool[backward_face_vertex]=snde_topological{
 					 .facevertex={
 						      .meshedvertex=backward_mesh_vertex,
-						      .coord={.TwoD = geom->geom.uv_vertices[backward_mesh_vertex]},
+						      .coord={.TwoD = geom->uv_vertices[backward_mesh_vertex]},
 						      .firstfaceedgeindex=SNDE_INDEX_INVALID, // will need to fill in later!
 						      .numfaceedgeindices=0,
 	    }
@@ -757,8 +758,8 @@ std::tuple<snde_index,snde_index,snde_index,snde_index> evaluate_texture_topolog
 	  
 	  snde_index meshvertex = uvtopo_pool[uvtopo_pool[faceedge].faceedge.vertex[vertexcnt]].facevertex.meshedvertex;
 	  
-	  //snde_index meshedgelist_index = geom->geom.uv_vertex_edgelist_indices[geom->geom.uvs[parameterization].firstuvvertex + meshvertex].edgelist_index;
-	  //snde_index meshedgelist_numentries = geom->geom.uv_vertex_edgelist_indices[geom->geom.uvs[parameterization].firstuvvertex + meshvertex].edgelist_numentries;
+	  //snde_index meshedgelist_index = geom->uv_vertex_edgelist_indices[geom->uvs[parameterization].firstuvvertex + meshvertex].edgelist_index;
+	  //snde_index meshedgelist_numentries = geom->uv_vertex_edgelist_indices[geom->uvs[parameterization].firstuvvertex + meshvertex].edgelist_numentries;
 	  snde_index meshedge=find_meshedge_by_meshvertex_from_list(geom,parameterization,meshvertex,&uvtopoidx_pool[uvtopo_pool[faceedge].faceedge.meshededge.firstmeshedgeindex],uvtopo_pool[faceedge].faceedge.meshededge.nummeshedgeindices);
 	  assert(meshedge != SNDE_INDEX_INVALID); // should find such an edge!
 	  
@@ -866,33 +867,33 @@ std::tuple<snde_index,snde_index,snde_index,snde_index> evaluate_texture_topolog
     }
   }
 
-  assert(geom->geom.uvs[parameterization].first_uv_topo==SNDE_INDEX_INVALID); // parameterization must not yet have topological data
-  assert(geom->geom.uvs[parameterization].first_uv_topoidx==SNDE_INDEX_INVALID);
+  assert(geom->uvs[parameterization].first_uv_topo==SNDE_INDEX_INVALID); // parameterization must not yet have topological data
+  assert(geom->uvs[parameterization].first_uv_topoidx==SNDE_INDEX_INVALID);
   
-  // allocate and return data in geom->geom.uv_topos and geom->geom.uv_topo_indices
+  // allocate and return data in geom->uv_topos and geom->uv_topo_indices
 
   std::vector<std::pair<std::shared_ptr<alloc_voidpp>,rwlock_token_set>> uv_topo_locks,uv_topoidx_locks;
 
-  geom->geom.uvs[parameterization].num_uv_topos = uvtopoalloc->space_needed();
-  std::tie(geom->geom.uvs[parameterization].first_uv_topo,uv_topo_locks) = geom->manager->alloc_arraylocked(all_locks,(void **)&geom->geom.uv_topos,geom->geom.uvs[parameterization].num_uv_topos);
+  geom->uvs[parameterization].num_uv_topos = uvtopoalloc->space_needed();
+  std::tie(geom->uvs[parameterization].first_uv_topo,uv_topo_locks) = manager->alloc_arraylocked(all_locks,(void **)&geom->uv_topos,geom->uvs[parameterization].num_uv_topos);
 
-  memcpy(&geom->geom.uv_topos[geom->geom.uvs[parameterization].first_uv_topo],uvtopo_pool,sizeof(*geom->geom.uv_topos) * geom->geom.uvs[parameterization].num_uv_topos);
+  memcpy(&geom->uv_topos[geom->uvs[parameterization].first_uv_topo],uvtopo_pool,sizeof(*geom->uv_topos) * geom->uvs[parameterization].num_uv_topos);
 
-  geom->geom.uvs[parameterization].firstuvface=first_face;
-  geom->geom.uvs[parameterization].numuvfaces = numfaces;
+  geom->uvs[parameterization].firstuvface=first_face;
+  geom->uvs[parameterization].numuvfaces = numfaces;
   
 
   
-  geom->geom.uvs[parameterization].num_uv_topoidxs = uvtopoidxalloc->space_needed();
-  std::tie(geom->geom.uvs[parameterization].first_uv_topoidx,uv_topoidx_locks) = geom->manager->alloc_arraylocked(all_locks,(void **)&geom->geom.uv_topo_indices,geom->geom.uvs[parameterization].num_uv_topoidxs);
+  geom->uvs[parameterization].num_uv_topoidxs = uvtopoidxalloc->space_needed();
+  std::tie(geom->uvs[parameterization].first_uv_topoidx,uv_topoidx_locks) = manager->alloc_arraylocked(all_locks,(void **)&geom->uv_topo_indices,geom->uvs[parameterization].num_uv_topoidxs);
   
-  memcpy(&geom->geom.uv_topo_indices[geom->geom.uvs[parameterization].first_uv_topoidx],uvtopoidx_pool,sizeof(*geom->geom.uv_topo_indices) * geom->geom.uvs[parameterization].num_uv_topoidxs);
+  memcpy(&geom->uv_topo_indices[geom->uvs[parameterization].first_uv_topoidx],uvtopoidx_pool,sizeof(*geom->uv_topo_indices) * geom->uvs[parameterization].num_uv_topoidxs);
   
 
   free(meshedges_touched);
 
-  return std::make_tuple(geom->geom.uvs[parameterization].first_uv_topo,geom->geom.uvs[parameterization].num_uv_topos,
-			 geom->geom.uvs[parameterization].first_uv_topoidx,geom->geom.uvs[parameterization].num_uv_topoidxs)
+  return std::make_tuple(geom->uvs[parameterization].first_uv_topo,geom->uvs[parameterization].num_uv_topos,
+			 geom->uvs[parameterization].first_uv_topoidx,geom->uvs[parameterization].num_uv_topoidxs);
 }
 
 }

@@ -70,7 +70,7 @@ class OSGFPArray : public osg::Array {
 public:
   std::shared_ptr<ndarray_recording_ref> storage; // keeps array data in memory
   size_t vecsize; /* 2 or 3 */
-  size_t elemsize; /* 4 (float) or 8 (double) */
+  size_t elemsize; /* 4 (float) or 8 (double) -- element size of the underlying storage array DIVIDED BY VECSIZE!!!*/
   snde_index nvec;
   //snde_index offset; // counted in elements (pieces of a vector)
   
@@ -87,27 +87,39 @@ public:
   /** "Normal" ctor.
    * Elements presumed to be either float or double
    */
-  OSGFPArray(std::shared_ptr<ndarray_recording_ref> storage, size_t vecsize) :
+  OSGFPArray(std::shared_ptr<ndarray_recording_ref> storage, size_t snde_vecsize, size_t osg_vecsize) :
+    // snde_vecsize is the number of floats in each snde array element
+    // osg_vecsize is the grouping to pass to OSG -- either 2 (texture coords)
+    // or 3 (3D coords)
     //snde_geom(snde_geom),
-    osg::Array((vecsize==2) ? ((storage->storage->elementsize==4) ? osg::Array::Vec2ArrayType : osg::Array::Vec2dArrayType) : ((storage->storage->elementsize==4) ? osg::Array::Vec3ArrayType : osg::Array::Vec3dArrayType),vecsize,(storage->storage->elementsize==4) ? GL_FLOAT:GL_DOUBLE),
+    osg::Array((osg_vecsize==2) ? ((storage->storage->elementsize/snde_vecsize==4) ? osg::Array::Vec2ArrayType : osg::Array::Vec2dArrayType) : ((storage->storage->elementsize/snde_vecsize==4) ? osg::Array::Vec3ArrayType : osg::Array::Vec3dArrayType),osg_vecsize,(storage->storage->elementsize/snde_vecsize==4) ? GL_FLOAT:GL_DOUBLE),
+    storage(storage),
     //offset(storage->storage->base_index),
-    nvec(storage->storage->nelem/vecsize), 
-    vecsize(vecsize),
-    elemsize(storage->storage->elementsize)
+    nvec(storage->storage->nelem*snde_vecsize/osg_vecsize), 
+    vecsize(osg_vecsize),
+    elemsize(storage->storage->elementsize/snde_vecsize)
   {
-    if (storage->storage->nelem % vecsize) {
-      throw snde_error("OSGFPArray: Number of elements is not a multiple of vecsize");
-    }
     
+    if (storage->storage->elementsize/snde_vecsize != 4) {
+      assert(storage->storage->elementsize/snde_vecsize==8);
+    }
+    if (storage->storage->elementsize % snde_vecsize) {
+      throw snde_error("OSGFPArray: Elementsize is not a multiple of vecsize");
+    }
+
+    if (storage->storage->nelem*snde_vecsize % osg_vecsize) {
+      throw snde_error("OSGFPArray: SNDE number of elements * snde_vecsize is not a multiple of osg_vecsize");
+    }
+
     if (elemsize==4) {
-      if (storage->typenum != SNDE_RTN_FLOAT32) {
-	throw snde_error("Initializing OSGFPArray() with length 4 non-float32");
-      }
+      //if (storage->typenum != SNDE_RTN_FLOAT32) {
+      //throw snde_error("Initializing OSGFPArray() with length 4 non-float32");
+      //}
       //_ptr._float_ptr=(volatile float **)(storage->storage);
     }
     else {
-      if (storage->typenum != SNDE_RTN_FLOAT64) {
-	throw snde_error("Initializing OSGFPArray() with non-length 4 non-float64");
+      if (/* storage->typenum != SNDE_RTN_FLOAT64 ||*/ elemsize != 8) {
+	throw snde_error("Initializing OSGFPArray() with non-length 4 non-length 8 underlying type");
       }
       // _ptr._double_ptr=(volatile double **)(array);
     }

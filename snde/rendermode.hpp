@@ -167,7 +167,23 @@ namespace snde {
     }
 
     bool operator==(const rendermode_ext &b) const {
-      return (mode==b.mode) && (*constraint == *b.constraint);
+      bool match = (mode==b.mode);
+      if (!match) {
+	return false;
+      }
+      if (constraint && !b.constraint) {
+	return false;
+      }
+      if (!constraint && b.constraint) {
+	return false;
+      }
+      if (!constraint && !b.constraint) {
+	return true;
+      }
+      if (constraint && b.constraint) {
+	return *constraint == *b.constraint;
+      }
+      return false; 
     }
 
 

@@ -168,6 +168,7 @@ int main(int argc, char *argv[])
   setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform nameo
 #endif // SNDE_OPENCL
   setup_storage_manager(recdb);
+  setup_math_functions(recdb,{});
   recdb->startup();
 
   

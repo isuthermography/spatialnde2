@@ -97,7 +97,6 @@ __kernel void snde_normalcalc_vertnormals(__global const struct snde_part *part,
 				    part_triangles,
 				    part_edges,
 				    part_vertices,
-				    vertnormals,
 				    trianglenum);
   vertnormals[trianglenum].vertnorms[0]=normal;
   vertnormals[trianglenum].vertnorms[1]=normal;

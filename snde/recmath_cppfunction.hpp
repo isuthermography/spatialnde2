@@ -302,7 +302,31 @@ namespace snde {
     }
   };
   
-  
+
+  // partial specialization for a recording_base or subclasses thereof
+  template <typename T> // T should be a recording_base or subclass
+  struct rmcfe_tuple_builder_helper<std::shared_ptr<T>> {
+    std::tuple<std::tuple<std::shared_ptr<T>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    {
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
+      
+      if (thisparam==end) {
+	throw snde_error("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+      }
+      nextparam++;
+
+      std::shared_ptr<T> rec_subclass = std::dynamic_pointer_cast<T>((*thisparam)->get_recording(rss,channel_path_context,definition,thisparam_index));
+      if (!rec_subclass) {
+	throw snde_error("Recording parameter %s relative to %s is not convertible to %s",std::dynamic_pointer_cast<math_parameter_recording>(*thisparam)->channel_name.c_str(),channel_path_context.c_str(),typeid(T).name());
+      }
+
+      // return statement implements the following:
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
+      return std::make_tuple(std::make_tuple(rec_subclass),nextparam,thisparam_index+1);
+    }
+  };
+
+  /*
   // specialization for a recording_base
   template <>
   struct rmcfe_tuple_builder_helper<std::shared_ptr<recording_base>> {
@@ -319,6 +343,31 @@ namespace snde {
       return std::make_tuple(std::make_tuple((*thisparam)->get_recording(rss,channel_path_context,definition,thisparam_index)),nextparam,thisparam_index+1);
     }
   };
+
+
+  // specialization for a meshed_part_recording
+  template <>
+  struct rmcfe_tuple_builder_helper<std::shared_ptr<meshed_part_recording>> {
+    std::tuple<std::tuple<std::shared_ptr<meshed_part_recording>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+    {
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
+      
+      if (thisparam==end) {
+	throw snde_error("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+      }
+      nextparam++;
+
+      std::shared_ptr<meshed_part_recording> mpr = std::dynamic_pointer_cast<meshed_part_recording>((*thisparam)->get_recording(rss,channel_path_context,definition,thisparam_index));
+      if (!mpr) {
+	throw snde_error("Recording parameter %s relative to %s is not convertible to a meshed_part_recording",channel_path_context.c_str(),std::dynamic_pointer_cast<math_parameter_recording>(*thisparam)->channel_name.c_str());
+      }
+
+      // return statement implements the following:
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
+      return std::make_tuple(std::make_tuple(mnr),nextparam,thisparam_index+1);
+    }
+  };
+
   
   // specialization for an multi_ndarray_recording
   template <>
@@ -343,8 +392,8 @@ namespace snde {
     }
   };
 
-
-    // partial specialization for an ndarray_recording_ref
+  */
+    // specialization for an ndarray_recording_ref
   template <>
   struct rmcfe_tuple_builder_helper<std::shared_ptr<ndarray_recording_ref>> {
     std::tuple<std::tuple<std::shared_ptr<ndarray_recording_ref>>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)

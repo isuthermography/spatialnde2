@@ -52,6 +52,13 @@ namespace snde {
 
   // meshed_parameterization_recording -> meshed_texvertex_recording for rendering
   
+
+  class texture_recording: public multi_ndarray_recording {
+  public:
+    texture_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize);
+    
+  };
+
   
   class image_reference { // reference to an image or texture
   public:
@@ -62,7 +69,7 @@ namespace snde {
     std::vector<snde_index> other_indices; // the u_dimnum and v_dimnum elements should be zero. Should be the same length as the number of dimensions of the referenced texture ndarray
 
     image_reference(std::string image_path, snde_index u_dimnum, snde_index v_dimnum, const std::vector<snde_index> &other_indices);
-    
+     
   };
   
   class textured_part_recording: public recording_group {

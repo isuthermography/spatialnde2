@@ -271,7 +271,7 @@ namespace snde {
   {
     size_t ndim;
     double IniValX,IniValY,IniValZ,IniValW;
-    double StepSzX,StepSzY,StepSzZ,StepSzW;
+    double StepX,StepY,StepZ,StepW;
     snde_index dimlen3,dimlen4; // Note: dimlen1, dimlen2 are class members
 
     cached_recording = params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath);
@@ -281,10 +281,10 @@ namespace snde {
     }
     
     if (!GetGeom(cached_recording,&ndim,
-		 &IniValX,&StepSzX,&dimlen1,
-		 &IniValY,&StepSzY,&dimlen2,
-		 &IniValZ,&StepSzZ,&dimlen3,
-		 &IniValW,&StepSzW,&dimlen4)) {
+		 &IniValX,&StepX,&dimlen1,
+		 &IniValY,&StepY,&dimlen2,
+		 &IniValZ,&StepZ,&dimlen3,
+		 &IniValW,&StepW,&dimlen4)) {
       throw snde_error("osg_cachedimagedata: Could not get geometry for %s",display_req->renderable_channelpath->c_str()); 
     }
 
@@ -320,6 +320,114 @@ namespace snde {
     imagetexture->setInternalFormat(GL_RGBA);
     imagetexture->setImage(image);    
 
+
+
+    // Implement proper scaling of points in parameterization
+    // space
+
+
+    
+    // TexMat should transform lower-left image corner
+    // (at 0.5,0.5 pixel offset) to (0,0) in texture coordinates
+    // and upper-right image corner (at 0.5,0,5 pixe offset)
+    // to (1,1) in texture coordinates
+
+
+  /* Should texture_transform be part of instancecache? 
+   * geometry->parameterization->image does not need startcorner and
+   * step, but perhaps could use definition of the desired corners 
+   * of the parameterization space
+   *  
+   * The texture transform converts meaningful units from 
+   * parameterization coordinates  to the range 0:1 for rendering.
+   * The channel with parameterization data (texture, i.e. this)
+   * provides a rectangular block representing a portion or 
+   * superset of the parameterization space. 
+   *  i.e.
+   * posn_within_image <- 0...1 <- texture_transform <- meaningful coordinate
+   * So the texture transform is really dependent on both the coordinate 
+   * interpretation for the uv coordinates AND the coordinate interpretation
+   * for the texture image. 
+   * 
+   * Equations (for positive Step1): 
+   *   Meaningful U coordinate of IniVal1-0.5*Step1 should map to 0.0
+   *   Meaningful U coordinate of IniVal1+(DimLen1-1+0.5)*Step1 should map to 1.0
+   * Equations (for negative Step1): 
+   *   Meaningful U coordinate of IniVal1+(Dimlen1-1+0.5)*Step1 should map to 0.0
+   *   Meaningful U coordinate of IniVal1+(-0.5)*Step1 should map to 1.0
+
+   * So the transform is strictly defined by the positioning and size of 
+   * the parameterization channel.
+   * Therefore it should be kept here, in the texture cache 
+   * (Positive Step1):
+   * The TexMat scaling will be 1.0/(Step1*DimLen1) and the offset will be:
+   *      *      scaling*(IniVal1 - 0.5*Step1) + offset = 0.0
+   *      *       offset = -scaling*(IniVal1-0.5*Step1)
+   * (Negative Step1):
+   * The TexMat scaling will be -1.0/(Step1*DimLen1) and the offset will be:
+   *      *      scaling*(IniVal1 + (dimLen1-1+0.5)*Step1) + offset = 0.0
+   *      *       offset = -scaling*(IniVal1+ (dimlen1-1+0.5)*Step1)
+
+
+
+   */
+
+    
+    double Xoffset,Yoffset;
+    
+    if (StepX > 0.0) {
+      //Xoffset = -IniValX/(fabs(StepX)*DimLenX) + StepX/(fabs(StepX)*DimLenX)/2.0; 
+      Xoffset = -IniValX/(StepX*dimlen1) + 1.0/(2.0*dimlen1); 
+    } else {
+      //Xoffset = -IniValX/(fabs(StepX)*DimLenX) - StepX*DimLenX/(fabs(StepX)*DimLenX) + StepX/(fabs(StepX)*DimLenX)/2.0;
+      // remember StepX negative
+      //Xoffset = IniValX/(StepX*dimlen1) + 1.0 - 1.0/(2.0*dimlen1);
+      //Xoffset = -IniValX/(StepX*DimLenX) - StepX*DimLenX/(StepX*DimLenX) + StepX/(StepX*DimLenX)/2.0;
+      //Xoffset = -IniValX/(StepX*dimlen1) - 1.0 + 1.0/(dimlen1*2.0);
+      Xoffset = -IniValX/(StepX*dimlen1) + 1.0/(dimlen1*2.0);
+    }
+
+    if (StepY > 0.0) {
+      //YOffset = -IniValY/(fabs(StepY)*DimLenY) + StepY/(fabs(StepY)*DimLenY)/2.0; 
+      Yoffset = -IniValY/(StepY*dimlen2) + 1.0/(dimlen2*2.0); 
+      
+    } else {
+      //YOffset = -IniValY/(fabs(StepY)*DimLenY) - StepY*DimLenY/(fabs(StepY)*DimLenY) + Step2/(2.0*fabs(StepY)*DimLenY);
+      //Yoffset = IniValY/(StepY*dimlen2) + 1.0 - 1.0/(2.0*dimlen2);
+      //YOffset = -IniValY/(StepY*DimLenY) - StepY*DimLenY/(StepY*DimLenY) + Step2/(2.0*StepY*DimLenY);
+      //Yoffset = -IniValY/(StepY*dimlen2) - 1.0 + 1.0/(2.0*dimlen2);
+      Yoffset = -IniValY/(StepY*dimlen2) + 1.0/(2.0*dimlen2);
+      }
+    /*
+    double ScalingX = 1.0/(StepX*dimlen1);
+    double ScalingY = 1.0/(StepY*dimlen2);
+
+    if (StepX > 0.0) {
+      Xoffset = -ScalingX*(IniValX-0.5*StepX);
+    } else {
+      Xoffset = ScalingX*(IniValX +(dimlen1-1+0.5)*StepX);
+    }
+
+    if (StepY > 0.0) {
+      Yoffset = -ScalingY*(IniValY-0.5*StepY);
+    } else {
+      Yoffset = ScalingY*(IniValY +(dimlen2-1+0.5)*StepY);
+    }
+*/
+#ifdef SNDE_DOUBLEPREC_COORDS
+#define TEXMATMATRIX osg::Matrixd
+#else
+#define TEXMATMATRIX osg::Matrixf
+#endif
+    //fprintf(stderr,"StepY=%f\n",StepY);
+    texture_transform = new osg::TexMat(TEXMATMATRIX{
+	(snde_coord)(1.0/(StepX*dimlen1)),0.0,0.0,0.0,
+	0.0,(snde_coord)(1.0/((StepY)*dimlen2)),0.0,0.0,
+	0.0,0.0,1.0,0.0,
+	(snde_coord)Xoffset,(snde_coord)Yoffset,0.0,1.0, 
+	});;
+    
+    
     /*
     unsigned char *arrayptr = (unsigned char *)cached_recording->cast_to_multi_ndarray()->void_shifted_arrayptr(0);
     snde_index i,j;
@@ -519,7 +627,8 @@ namespace snde {
       
     }
 
-    osg_array = new OSGFPArray(cached_recording->reference_ndarray("texvertex_arrays"),2); // 2 for 2d texture coordinates
+    osg_array = new OSGFPArray(cached_recording->reference_ndarray("texvertex_arrays"),1,2); // 2 for 2d texture coordinates
+
     
   }
 
@@ -546,7 +655,7 @@ namespace snde {
     }
 
     
-    osg_array = new OSGFPArray(cached_recording->reference_ndarray("vertex_arrays"),3); // 3 for 3d coordinates
+    osg_array = new OSGFPArray(cached_recording->reference_ndarray("vertex_arrays"),1,3); // 3 for 3d coordinates
     
   }
 
@@ -574,7 +683,7 @@ namespace snde {
     }
 
     
-    osg_array = new OSGFPArray(cached_recording->reference_ndarray("vertnormals"),3); // 3 for 3d coordinates
+    osg_array = new OSGFPArray(cached_recording->reference_ndarray("vertnormals"),9,3); // SNDE groups them by 9 (per triangle), OSG by 3 (per vertex)for 3d coordinates
     
   }
 
@@ -627,9 +736,22 @@ namespace snde {
     //texture = std::dynamic_pointer_cast<osg_rendercachetextureentry>(params.rendercache->GetEntry(params,channel_path,render_mode(SNDE_SRM_RGBATEXTURE)));
     //osg_array = new OSGFPArray(cached_recording->reference_ndarray("vertex_arrays"),3); // 3 for 3d coordinates
 
+    geode = new osg::Geode();
+    stateset=geode->getOrCreateStateSet();
+    stateset->setMode(GL_LIGHTING,osg::StateAttribute::ON);
+    //stateset->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
+    stateset->setMode(GL_DEPTH_TEST,osg::StateAttribute::ON);
+    //stateset->setMode(GL_DEPTH_TEST,osg::StateAttribute::OFF);
 
     geom = new osg::Geometry();
+    geode->addDrawable(geom);
     drawarrays = new osg::DrawArrays(osg::PrimitiveSet::TRIANGLES,0,0);
+    // Not entirely sure if ColorArray is necessary (?)
+    osg::ref_ptr<osg::Vec4Array> ColorArray=new osg::Vec4Array();
+    ColorArray->push_back(osg::Vec4(1.0,1.0,1.0,1.0)); // Setting the first 3 to less than 1.0 will dim the output. Setting the last one would probably add alpha transparency (?)
+    geom->setColorArray(ColorArray,osg::Array::BIND_OVERALL);
+    geom->setColorBinding(osg::Geometry::BIND_OVERALL);
+
     geom->addPrimitiveSet(drawarrays);
     if (!cached_recording->info->immutable) {
       geom->setDataVariance(osg::Object::DYNAMIC);
@@ -637,12 +759,12 @@ namespace snde {
       geom->setDataVariance(osg::Object::STATIC);
     }
     geom->setUseVertexBufferObjects(true);
+    drawarrays->setCount(vertexarrays_cache->osg_array->nvec); // add factor of two here to get an image !!!***
     geom->setVertexArray(vertexarrays_cache->osg_array); // (vertex coordinates)
     geom->setNormalArray(normals_cache->osg_array,osg::Array::BIND_PER_VERTEX);
-    
-    geode = new osg::Geode();
-    geode->addDrawable(geom);
 
+
+    
     osg_group = geode;
   }
 
@@ -699,7 +821,7 @@ namespace snde {
 
 
     // parameterization is our third sub-requirement
-    std::shared_ptr<display_requirement> parameterization_requirement=display_req->sub_requirements.at(1);
+    std::shared_ptr<display_requirement> parameterization_requirement=display_req->sub_requirements.at(2);
     std::shared_ptr<osg_rendercacheentry> parameterization_entry = params.rendercache->GetEntry(params,parameterization_requirement);
     if (!parameterization_entry) {
       throw snde_error("osg_cachedtexedmeshedgeom(): Could not get cache entry for parameterization channel %s",parameterization_requirement->renderable_channelpath->c_str());
@@ -728,8 +850,8 @@ namespace snde {
     geom->setUseVertexBufferObjects(true);
 
     DataArray = vertexarrays_cache->osg_array;
+    drawarrays->setCount(DataArray->nvec);
     geom->setVertexArray(DataArray); // (vertex coordinates)
-
     NormalArray = normals_cache->osg_array;
     geom->setNormalArray(NormalArray,osg::Array::BIND_PER_VERTEX);
 
@@ -800,16 +922,19 @@ namespace snde {
 
 
     geode = new osg::Geode();
+    stateset=geode->getOrCreateStateSet();
+    stateset->setMode(GL_LIGHTING,osg::StateAttribute::ON);
+    //stateset->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
+    stateset->setMode(GL_DEPTH_TEST,osg::StateAttribute::ON);
+
     geode->addDrawable(geometry_cache->osg_drawable);
     
 
-    stateset=geode->getOrCreateStateSet();
-    stateset->setMode(GL_LIGHTING,osg::StateAttribute::ON);
-    stateset->setMode(GL_DEPTH_TEST,osg::StateAttribute::ON);
 
     // !!!*** Should handle multiple textures
     if (texture_caches.size() > 0) {
       stateset->setTextureAttributeAndModes(0,texture_caches.at(0)->osg_texture,osg::StateAttribute::ON);
+      stateset->setTextureAttributeAndModes(0,texture_caches.at(0)->texture_transform,osg::StateAttribute::ON);
     }
     
     //geode->setStateSet(texture_state_set)

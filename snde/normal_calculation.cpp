@@ -211,6 +211,16 @@ namespace snde {
   //std::shared_ptr<math_function> normal_calculation_trinormals_function = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
   //  return std::make_shared<normal_calculation_trinormals>(rss,inst);
   //});
+
+  std::shared_ptr<math_function> define_spatialnde2_trinormals_function()
+  {
+    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+      return std::make_shared<normal_calculation_trinormals>(rss,inst);
+    }); 
+  }
+  
+  static int registered_trinormals_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.trinormals",define_spatialnde2_trinormals_function));
+  
   
 
 
@@ -399,20 +409,18 @@ namespace snde {
     
   };
     
-  
-  //std::shared_ptr<math_function> normal_calculation_vertnormals_function = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
-  //  return std::make_shared<normal_calculation_vertnormals>(rss,inst);
-  //});
-  
   std::shared_ptr<math_function> define_vertnormals_recording_function()
   {
-
-    // ***!!! need to fixup initialization ordering
-    //return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
-    //  return std::make_shared<normal_calculation_vertnormals>(rss,inst);
-    //});
-    return nullptr;
+    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+      return std::make_shared<normal_calculation_vertnormals>(rss,inst);
+    });
+    
   }
 
+
+  
+  static int registered_vertnormals_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.vertnormals",define_vertnormals_recording_function));
+  
+  
   
 };

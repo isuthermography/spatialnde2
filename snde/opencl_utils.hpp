@@ -234,7 +234,11 @@ namespace snde {
       cl::Kernel kernel;
       
       // Create the OpenCL kernel object
-      kernel=cl::Kernel(program,kern_fcn_name.c_str()); // ,&clerror);
+      try {
+	kernel=cl::Kernel(program,kern_fcn_name.c_str()); // ,&clerror);
+      } catch (cl::Error &e) {
+	throw snde_error("OpenCL Error: %s(%s)",e.what(),openclerrorstring.at(e.err()).c_str());
+      }
       //if (!kernel) {
       //throw openclerror(clerror,"Error creating OpenCL kernel");
       //}

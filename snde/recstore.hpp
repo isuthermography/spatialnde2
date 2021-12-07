@@ -215,19 +215,19 @@ namespace snde {
   unsigned rtn_fromtype()
   // works like rtn_typemap but can accommodate instances and subclasses of recording_base. Also nicer error message
   {
-    std::unordered_map<std::type_index,unsigned>::const_iterator wtnt_it = rtn_typemap.find(std::type_index(typeid(T)));
 
-    if (wtnt_it != rtn_typemap.end()) {
-      return wtnt_it->second;
+    // T may be a snde::recording_base subclass instance
+    if (rtn_type_is_shared_recordingbase_ptr<T>()) {
+      return SNDE_RTN_RECORDING;
     } else {
-      // T may be a snde::recording_base subclass instance
-      if (rtn_type_is_shared_recordingbase_ptr<T>()) {
-	return SNDE_RTN_RECORDING;
+      if (rtn_type_is_shared_ndarrayrecordingref_ptr<T>()) {
+	return SNDE_RTN_RECORDING_REF;
       } else {
-	if (rtn_type_is_shared_ndarrayrecordingref_ptr<T>()) {
-	  return SNDE_RTN_RECORDING_REF;
+	std::unordered_map<std::type_index,unsigned>::const_iterator wtnt_it = rtn_typemap.find(std::type_index(typeid(T)));
+	if (wtnt_it != rtn_typemap.end()) {
+	  return wtnt_it->second;
 	} else {
-	  
+
 	  throw snde_error("Type %s is not supported in this context",demangle_type_name(typeid(T).name()).c_str());
 	}
       }
@@ -250,7 +250,7 @@ namespace snde {
     std::mutex admin; 
     struct snde_recording_base *info; // owned by this class and allocated with malloc; often actually a sublcass such as snde_multi_ndarray_recording
     std::atomic_int info_state; // atomic mirror of info->state ***!!! This is referenced by the ndarray_recording_ref->info_state
-    std::shared_ptr<immutable_metadata> metadata; // pointer may not be changed once info_state reaches METADATADONE. The pointer in info is the .get() value of this pointer. 
+    std::shared_ptr<immutable_metadata> metadata; // pointer may not be changed once info_state reaches <METADATADONE. The pointer in info is the .get() value of this pointer. 
 
     std::shared_ptr<recording_storage_manager> storage_manager; // pointer initialized to a default by recording constructor, then used by the allocate_storage() method. Any assignment must be prior to that. may not be used afterward; see recording_storage in recstore_storage.hpp for details on pointed structure.
 
@@ -302,6 +302,8 @@ namespace snde {
     virtual void mark_metadata_done();  // call WITHOUT admin lock (or other locks?) held. 
     virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held.
 
+    virtual std::shared_ptr<recording_storage_manager> assign_storage_manager(std::shared_ptr<recording_storage_manager> storman);
+    virtual std::shared_ptr<recording_storage_manager> assign_storage_manager();
     
   };
 
@@ -368,8 +370,6 @@ namespace snde {
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(size_t index=0);
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(const std::string &array_name);
 
-    std::shared_ptr<recording_storage_manager> assign_storage_manager(std::shared_ptr<recording_storage_manager> storman);
-    std::shared_ptr<recording_storage_manager> assign_storage_manager();
 
     void assign_storage(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &dimlen, bool fortran_order=false);
     void assign_storage(std::shared_ptr<recording_storage> stor,std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
@@ -574,7 +574,7 @@ namespace snde {
   class transaction {
   public:
     // mutable until end of transaction when it is destroyed and converted to a globalrev structure
-    std::mutex admin; // last in the locking order except before python GIL. Must hold this lock when reading or writing structures within. Does not cover the channels/recordings themselves.
+    std::mutex admin; // after the recording_set_state in the locking order and after the class channel's admin lock, but before recordings. Must hold this lock when reading or writing structures within. Does not cover the channels/recordings themselves.
 
     uint64_t globalrev; // globalrev index for this transaction. Immutable once published
     std::unordered_set<std::shared_ptr<channel>> updated_channels;
@@ -773,12 +773,13 @@ namespace snde {
     std::unordered_map<std::shared_ptr<channelconfig>,channel_state *> completed_recordings;
 
     recording_status(const std::map<std::string,channel_state> & channel_map_param);
+
   };
 
 
   class recording_set_state : public std::enable_shared_from_this<recording_set_state> {
   public:
-    std::mutex admin; // locks changes to recstatus including channel_map contents (map itself is immutable once published), mathstatus,  and the _recordings reference maps/sets and notifiers. Precedes recstatus.channel_map.rec.admin and Python GIL in locking order
+    std::mutex admin; // locks changes to recstatus including channel_map contents (map itself is immutable once published), mathstatus,  and the _recordings reference maps/sets and notifiers. Precedes transaction->admin (i.e. recdb->current_transaction->admin) , recstatus.channel_map.rec.admin and Python GIL in locking order
     uint64_t originating_globalrev_index; // this rss may not __be__ a globalrev but it (almost certainly?) is built on one. 
     std::weak_ptr<recdatabase> recdb_weak;
     std::atomic<bool> ready; // indicates that all recordings except ondemand and data_requestonly recordings are READY (mutable recordings may be OBSOLETE)
@@ -816,6 +817,14 @@ namespace snde {
     long get_reference_count(); // get the shared_ptr reference count; useful for debugging memory leaks
 
     size_t num_complete_notifiers(); // size of recordingset_complete_notifiers; useful for debugging memory leaks
+
+
+
+      // internal use only for recording_set_state::_update_recstatus__rss_admin_transaction_admin_locked()
+    bool _urratal_check_mdonly(std::string channelpath);
+    
+    void _update_recstatus__rss_admin_transaction_admin_locked(); // This is called during end_transaction() with the recdb admin lock, the rss admin lock, and the transaction admin lock held, to identify anything misplaced in the above unordered_maps. After the call and marking of the transaction's _resulting_globalrevision, placement responsibility shifts to mark_metadata_done() and mark_as_ready() methods of the recording. 
+
 
   };
 
@@ -863,7 +872,7 @@ namespace snde {
     std::mutex admin; // Locks access to _channels and _deleted_channels and _math_functions, _globalrevs, repetitive_notifies,  and monitoring. In locking order, precedes channel admin locks, available_compute_resource_database, globalrevision admin locks, recording admin locks, and Python GIL. 
     std::map<std::string,std::shared_ptr<channel>> _channels; // Generally don't use the channel map directly. Grab the latestglobalrev and use the channel map from that. 
     std::map<std::string,std::shared_ptr<channel>> _deleted_channels; // Channels are put here after they are deleted. They can be moved back into the main list if re-created. 
-    instantiated_math_database _math_functions; 
+    instantiated_math_database _instantiated_functions; 
     
     std::map<uint64_t,std::shared_ptr<globalrevision>> _globalrevs; // Index is global revision counter. Includes at least one globalrev that is fully ready plus any that are still udndergoing computation. The last element in this is the most recently defined globalrev.
     std::shared_ptr<globalrevision> _latest_globalrev; // atomic shared pointer -- access with latest_globalrev() method;
@@ -874,7 +883,8 @@ namespace snde {
     std::shared_ptr<available_compute_resource_database> compute_resources; // has its own admin lock.
     
 
-    std::shared_ptr<recording_storage_manager> default_storage_manager; // pointer is immutable once created; contents not necessarily immutable; see recstore_storage.hpp
+    std::shared_ptr<memallocator> lowlevel_alloc; // pointer is immutable once created during startup; contents not necessarily immutable; see memallocator.hpp
+    std::shared_ptr<recording_storage_manager> default_storage_manager; // pointer is immutable once created during startup; contents not necessarily immutable; see recstore_storage.hpp
 
     std::shared_ptr<lockmanager> lockmgr; // pointer immutable after initialization; contents have their own admin lock, which is used strictly internally by them
 
@@ -894,6 +904,8 @@ namespace snde {
     std::list<std::shared_ptr<globalrevision>> globalrev_mutablenotneeded_pending;
     bool globalrev_mutablenotneeded_mustexit;
 
+    std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> _math_functions; // atomic shared pointer... use math_functions() accessor. 
+    
     
     recdatabase(std::shared_ptr<lockmanager> lockmgr=nullptr);
     recdatabase & operator=(const recdatabase &) = delete; 
@@ -914,7 +926,7 @@ namespace snde {
     // add_math_function() must be called within a transaction
     void add_math_function(std::shared_ptr<instantiated_math_function> new_function,bool hidden); // Use separate functions with/without storage manager because swig screws up the overload
     void add_math_function_storage_manager(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager);
-
+    
     void register_new_rec(std::shared_ptr<recording_base> new_rec);
     void register_new_math_rec(void *owner_id,std::shared_ptr<recording_set_state> calc_rss,std::shared_ptr<recording_base> new_rec); // registers newly created math recording in the given rss (and extracts mutable flag for the given channel into the recording structure)). 
 
@@ -935,7 +947,13 @@ namespace snde {
     std::shared_ptr<monitor_globalrevs> start_monitoring_globalrevs(std::shared_ptr<globalrevision> first = nullptr,bool inhibit_multiple = false);
 
     void globalrev_mutablenotneeded_code(); 
-    
+
+
+    std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> math_functions();
+
+    std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> _begin_atomic_math_functions_update(); // should be called with admin lock held
+    void _end_atomic_math_functions_update(std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> new_math_functions); // should be called with admin lock held
+
   };
 
 

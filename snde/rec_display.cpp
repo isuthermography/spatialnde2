@@ -95,11 +95,17 @@ multi_ndarray_recording_display_handler::multi_ndarray_recording_display_handler
 	return std::make_shared<multi_ndarray_recording_display_handler>(display,displaychan,base_rss);
       }));
   
-  // register this handler for mode SNDE_SRG_TEXTURE
+  // register this handler for mode SNDE_SRG_TEXTURE for multi_ndarray_recordings...
   static int register_mnr_display_handler_texture = register_recording_display_handler(rendergoal(SNDE_SRG_TEXTURE,typeid(multi_ndarray_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
     return std::make_shared<multi_ndarray_recording_display_handler>(display,displaychan,base_rss);
       }));
-  
+
+
+    // ... and also for texture_recordings, which are a subclass
+  static int register_mnr_display_handler_texture_texture_recording = register_recording_display_handler(rendergoal(SNDE_SRG_TEXTURE,typeid(texture_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+    return std::make_shared<multi_ndarray_recording_display_handler>(display,displaychan,base_rss);
+      }));
+
 
 // multi_ndarray_recording:SNDE_SRG_RENDERING
 //  if 2D, 3D, or 4D
@@ -310,12 +316,12 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
     
     std::string normals_chanpath = recdb_path_join(recdb_path_as_group(chanpath),"normals");
     
-    std::shared_ptr<recording_base> normals_rec = base_rss->get_recording(normals_chanpath);
+    //std::shared_ptr<recording_base> normals_rec = base_rss->get_recording(normals_chanpath);
     
-    if (!normals_rec) {
-      snde_warning("meshed_part_recording_display_handler::get_display_requirement(): No normals found for %s; rendering disabled.",chanpath.c_str());
-      return nullptr; 
-    }
+    //if (!normals_rec) {
+    //  snde_warning("meshed_part_recording_display_handler::get_display_requirement(): No normals found for %s; rendering disabled.",chanpath.c_str());
+    //  return nullptr; 
+    //}
     
     
     retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_MESHEDPARAMLESS3DPART,typeid(*this),nullptr),rec,shared_from_this());
@@ -328,8 +334,9 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
   
 
     // We add a second sub-requirement for the normals, so our renderer can find them
-    retval->sub_requirements.push_back(std::make_shared<display_requirement>(normals_chanpath,rendermode_ext(SNDE_SRM_MESHEDNORMALS,typeid(*this),nullptr),normals_rec,shared_from_this()));
-    retval->sub_requirements.at(1)->renderable_channelpath = std::make_shared<std::string>(normals_chanpath);
+    //retval->sub_requirements.push_back(std::make_shared<display_requirement>(normals_chanpath,rendermode_ext(SNDE_SRM_MESHEDNORMALS,typeid(*this),nullptr),normals_rec,shared_from_this()));
+    //retval->sub_requirements.at(1)->renderable_channelpath = std::make_shared<std::string>(normals_chanpath);
+    retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,displaychan,SNDE_SRG_VERTNORMALS,nullptr));
 
     return retval;
   } else if (simple_goal == SNDE_SRG_VERTEXARRAYS) {
@@ -670,7 +677,7 @@ std::shared_ptr<display_requirement> traverse_display_requirement(std::shared_pt
     
     return dispreq;
   }
-  snde_warning("Failed to find recording_display handler for channel %s (goal %s)",chanpath.c_str(),rendergoal(simple_goal,typeid(*rec)).str());
+  snde_warning("Failed to find recording_display handler for channel %s (goal %s)",chanpath.c_str(),rendergoal(simple_goal,typeid(*rec)).str().c_str());
   return nullptr; 
 }
 

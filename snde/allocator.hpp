@@ -477,7 +477,7 @@ namespace snde {
       /* resize all arrays  */
       for (size_t cnt=0;cnt < arrays()->size();cnt++) {
 	if ((*arrays()).at(cnt).destroyed) continue;
-	*arrays()->at(cnt).arrayptr= _memalloc->realloc(recording_path,recrevision,arrays()->at(cnt).id,*arrays()->at(cnt).arrayptr,arrays()->at(cnt).elemsize);
+	*arrays()->at(cnt).arrayptr= _memalloc->realloc(recording_path,recrevision,arrays()->at(cnt).id,*arrays()->at(cnt).arrayptr,arrays()->at(cnt).elemsize*_totalnchunks*_allocchunksize);
       
 	if (_locker) {
 	  size_t arraycnt;

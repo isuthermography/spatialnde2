@@ -25,6 +25,8 @@ namespace snde {
     
     
     std::shared_ptr<osg_rendercache> RenderCache;
+
+    bool firstrun;
     
     osg_3d_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
 		    std::shared_ptr<osg_rendercache> RenderCache,
@@ -38,10 +40,6 @@ namespace snde {
 			//std::string channel_path,
 			std::shared_ptr<display_info> display,
 			const std::map<std::string,std::shared_ptr<display_requirement>> &display_reqs,
-			double left, // left of viewport in channel horizontal units
-			double right, // right of viewport in channel horizontal units
-			double bottom, // bottom of viewport in channel vertical units
-			double top, // top of viewport in channel vertical units
 			size_t width, // width of viewport in pixels
 			size_t height); // height of viewport in pixels
     
