@@ -8,13 +8,13 @@
 #include <osg/Array>
 #include <osg/MatrixTransform>
 #include <osg/Geode>
-#include <osg/Viewport>
 #include <osg/Geometry>
 #include <osgViewer/Viewer>
 #include <osgGA/TrackballManipulator>
 //#include <osgDB/ReadFile>
 #include <osgDB/WriteFile>
-
+#include <osgUtil/SceneView>
+#include <osgViewer/Renderer>
 
 
 #include "snde/arraymanager.hpp"
@@ -25,6 +25,28 @@
 #include "snde/rec_display.hpp"
 #include "snde/recstore_display_transforms.hpp"
 #include "snde/openscenegraph_image_renderer.hpp"
+
+/* osg_layerwindow_test.cpp:
+   This example tests the functionality of the osg_layerwindow
+   class (openscenegraph_renderer.hpp) and verifies correct
+   render-to-texture behavior in a single process, single-thread
+   rendering context. 
+
+   Run it from the command line with the name of a .png file as
+   a parameter. 
+
+   When run it will open up a window for a few seconds but not draw
+   anything into it. It will write a new file next to the .png with
+   ".readback" appended to the name. This file has unwrapped 
+   RGBA data from the .png rendered via a texture into an 
+   OpenGL FrameBufferObject, and then read back. There is 
+   Python code in a comment at the bottom of main for 
+   loading in the generated file to make sure it looks
+   reasonable. 
+
+   It demonstrates critical functionality on which the 
+   compositor is based. 
+*/ 
 
 using namespace snde;
 
@@ -40,7 +62,7 @@ bool mousepressed=false;
 int winwidth,winheight;
 
 
-void png_viewer_display()
+void osg_layerwindow_test_display()
 {
   /* perform rendering into back buffer */
   /* Update viewer data here !!!! */
@@ -98,9 +120,9 @@ void png_viewer_display()
 
 
 
-void png_viewer_reshape(int width, int height)
+void osg_layerwindow_test_reshape(int width, int height)
 {
-  printf("png_viewer_reshape(%d,%d)\n",width,height);
+  printf("osg_layerwindow_test_reshape(%d,%d)\n",width,height);
   printf("x=%d,y=%d\n",renderer->GraphicsWindow->getTraits()->x,renderer->GraphicsWindow->getTraits()->y);
   if (renderer->GraphicsWindow.valid()) {
     renderer->GraphicsWindow->resized(renderer->GraphicsWindow->getTraits()->x,renderer->GraphicsWindow->getTraits()->y,width,height);
@@ -111,7 +133,7 @@ void png_viewer_reshape(int width, int height)
   winheight=height;
 }
 
-void png_viewer_mouse(int button, int state, int x, int y)
+void osg_layerwindow_test_mouse(int button, int state, int x, int y)
 {
   if (renderer->GraphicsWindow.valid()) {
     if (state==0) {
@@ -124,7 +146,7 @@ void png_viewer_mouse(int button, int state, int x, int y)
   }
 }
 
-void png_viewer_motion(int x, int y)
+void osg_layerwindow_test_motion(int x, int y)
 {
   if (renderer->GraphicsWindow.valid()) {
     renderer->GraphicsWindow->getEventQueue()->mouseMotion(x,y);
@@ -135,7 +157,7 @@ void png_viewer_motion(int x, int y)
   
 }
 
-void png_viewer_kbd(unsigned char key, int x, int y)
+void osg_layerwindow_test_kbd(unsigned char key, int x, int y)
 {
   switch(key) {
   case 'q':
@@ -153,7 +175,7 @@ void png_viewer_kbd(unsigned char key, int x, int y)
   }
 }
 
-void png_viewer_close()
+void osg_layerwindow_test_close()
 {
   if (renderer->Viewer) renderer->Viewer=nullptr;
   //glutDestroyWindow(glutGetWindow()); // (redundant because FreeGLUT performs the close)
@@ -210,25 +232,23 @@ int main(int argc, char **argv)
   glutInitWindowSize(winwidth,winheight);
   glutCreateWindow(argv[0]);
   
-  glutDisplayFunc(&png_viewer_display);
-  glutReshapeFunc(&png_viewer_reshape);
-
-  glutMouseFunc(&png_viewer_mouse);
-  glutMotionFunc(&png_viewer_motion);
-
-  glutCloseFunc(&png_viewer_close);
-
-  glutKeyboardFunc(&png_viewer_kbd);
 
   rendercache = std::make_shared<osg_rendercache>();
 
   osg::ref_ptr<osgViewer::Viewer> Viewer(new osgViewerCompat34());
 
-  osg::ref_ptr<osgViewer::GraphicsWindow> GW=new osgViewer::GraphicsWindowEmbedded(0,0,winwidth,winheight);
+  osg::ref_ptr<osg_layerwindow> LW=new osg_layerwindow(Viewer,nullptr,winwidth,winheight,true);
+  //osg::ref_ptr<osgViewer::GraphicsWindow> LW=new osgViewer::GraphicsWindowEmbedded(0,0,winwidth,winheight);
+
   Viewer->getCamera()->setViewport(new osg::Viewport(0,0,winwidth,winheight));
-  Viewer->getCamera()->setGraphicsContext(GW);
+  Viewer->getCamera()->setGraphicsContext(LW);
+  osgViewer::Renderer * Rend = dynamic_cast<osgViewer::Renderer *>(Viewer->getCamera()->getRenderer());
+  osgUtil::RenderStage *Stage = Rend->getSceneView(0)->getRenderStage();
+  Stage->setDisableFboAfterRender(false);
+
+  LW->setup_camera(Viewer->getCamera());
   
-  renderer = std::make_shared<osg_image_renderer>(Viewer,GW,
+  renderer = std::make_shared<osg_image_renderer>(Viewer,LW,
 						  rendercache,pngchan_config->channelpath);
   
   display=std::make_shared<display_info>(recdb);
@@ -236,25 +256,94 @@ int main(int argc, char **argv)
 
   std::shared_ptr<display_channel> png_displaychan = display->lookup_channel(pngchan_config->channelpath);
   png_displaychan->set_enabled(true); // enable channel
-
+  
   std::vector<std::shared_ptr<display_channel>> channels_to_display = display->update(globalrev,pngchan_config->channelpath,true,false,false);
 
   display_reqs = traverse_display_requirements(display,globalrev,channels_to_display);
-
+  
   display_transforms = std::make_shared<recstore_display_transforms>();
-
+  
   display_transforms->update(recdb,globalrev,display_reqs);
   
   // perform all the transforms
   display_transforms->with_display_transforms->wait_complete(); 
+
+
+  // perform a render
   
-  //rendercache->update_cache(recdb,display_reqs,display_transforms,channels_to_display,pngchan_config->channelpath,true);
   
-  glutPostRedisplay();
+  // Separate out datarenderer, scenerenderer, and compositor.
+  
+  rendercache->mark_obsolete();
+  
+  // ***!!! Theoretically should grab all locks that might be needed at this point, following the correct locking order
+  
+  // This would be by iterating over the display_requirements
+  // and either verifying that none of them have require_locking
+  // or by accumulating needed lock specs into an ordered set
+  // or ordered map, and then locking them in the proepr order. 
+  
+  double left = png_rec->rec->metadata->GetMetaDatumDbl("IniVal1",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("Step1",1.0)/2.0;
+  double right = png_rec->rec->metadata->GetMetaDatumDbl("IniVal1",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("Step1",1.0)*(png_rec->layout.dimlen.at(0)-0.5);
+  double bottom = png_rec->rec->metadata->GetMetaDatumDbl("IniVal2",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("Step2",1.0)/2.0;
+  double top = png_rec->rec->metadata->GetMetaDatumDbl("IniVal2",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("Step2",1.0)*(png_rec->layout.dimlen.at(1)-0.5);
+  
+  double tmp;
+  if (bottom > top) {
+    // bottom should always be less than top as y increases up
+    tmp=bottom;
+    bottom=top;
+    top=tmp;
+  }
+  
+  if (left > right) {
+    // left should always be less than right as x increases to the right
+    tmp=left;
+    left=right;
+    right=tmp;
+  }
+  
+  renderer->perform_render(recdb,display_transforms->with_display_transforms,display,display_reqs,
+			   left,
+			   right,
+			   bottom,
+			   top,
+			   winwidth,winheight);
+    
+  rendercache->erase_obsolete();
 
   
-  //glutSwapBuffers();
-  glutMainLoop();
+  
+
+  
+  // Pull data from LW->readback_img
+  //unsigned sz = LW->readback_img->getTotalSizeInBytes();
+  std::string outfname = std::string(argv[1])+".readback";
+  FILE *outfh = fopen(outfname.c_str(),"wb");
+  //fwrite(LW->readback_img->data(),1,sz,outfh);
+  fwrite((*LW->postdraw->readback_pixels)->data(),1,winwidth*winheight*4,outfh);
+  //fwrite(LW->outputbuf->getImage()->data(),1,winwidth*winheight*4,outfh);
+  fclose(outfh);
+
+  
+
+  /* To view output file, in Python
+
+%matplotlib qt
+import numpy as np
+from matplotlib import pyplot as plt
+
+rb = np.fromfile('/tmp/my_image.png.readback',np.uint8).reshape(4,1024,768,order='F')
+plt.imshow(rb[0,:,:])
+ 
+  */
+  //glutPostRedisplay();
+
+  //  glutSwapBuffers();
+  //glutMainLoop();
+
+
+  sleep(4);
 
   exit(0);
 

@@ -138,7 +138,6 @@ find_package(Eigen3 3.3)
 find_package(OpenCL)
 find_package(Threads REQUIRED)
 
-
 # Always first go for the python found
 # in the command path. But allow this to be
 # overridden if need be
@@ -164,6 +163,7 @@ find_package(PNG)
 # OpenSceneGraph (osg) dependencies
 find_package(OpenThreads)
 find_package(OpenSceneGraph REQUIRED osg osgViewer osgGA osgDB osgUtil)
+find_package(OpenGL REQUIRED COMPONENTS OpenGL) # (If this becomes a problem somehow we only make direct OpenGL calls in openscenegraph_renderer.hpp/osg_layerwindow; everything else is via OpenSceneGraph)
 
 
 find_package(GLUT)
@@ -276,6 +276,8 @@ ENDIF()
 
 # SpatialNDE2 library
 add_library(spatialnde2 SHARED ${SPATIALNDE2_SOURCES} )
+add_dependencies(spatialnde2 OpenGL::GL )
+
 
 # Need a define for direct compiling of spatialnde2 for the items that need dllimport/dllexport on Windows
 target_compile_definitions(spatialnde2 PRIVATE SPATIALNDE2_SHAREDLIB_EXPORT)
@@ -486,7 +488,7 @@ IF (Python3_FOUND)
     COMMAND ${CMAKE_COMMAND} -E echo "And ...perhaps as root or Administrator...:"
     COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "  ${PYTHON_EXECUTABLE} setup.py install"
     COMMAND ${CMAKE_COMMAND} -E echo "to install for Python" )
-  add_dependencies( InstallMessage compile_definitions Python_Create_Setup spatialnde2 spatialnde2_qt allocator_test recdb_test recmath_test recmath_test2 transform_eval_test matrixsolve_test png_viewer ondemand_test x3d_viewer )
+  add_dependencies( InstallMessage compile_definitions Python_Create_Setup spatialnde2 spatialnde2_qt allocator_test recdb_test recmath_test recmath_test2 transform_eval_test matrixsolve_test png_viewer osg_layerwindow_test ondemand_test x3d_viewer )
 ENDIF (Python3_FOUND)
 
 
@@ -511,17 +513,30 @@ ENDIF()
 IF (GLUT_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   add_executable(png_viewer test/png_viewer.cpp)
   #add_dependencies(png_viewer OpenCL_Headers)
+  add_dependencies(png_viewer OpenGL::GL )
   target_link_libraries(png_viewer ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
+
 ENDIF()
+
+
+IF (GLUT_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
+  add_executable(osg_layerwindow_test test/osg_layerwindow_test.cpp)
+  #add_dependencies(png_viewer OpenCL_Headers)
+  add_dependencies(osg_layerwindow_test OpenGL::GL )
+  target_link_libraries(osg_layerwindow_test -lGL ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}  )
+ENDIF()
+
 
 IF (GLUT_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   add_executable(x3d_viewer test/x3d_viewer.cpp)
+  add_dependencies(x3d_viewer OpenGL::GL )
   target_link_libraries(x3d_viewer ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
 ENDIF()
 
 
 IF (GLUT_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   add_executable(ondemand_test test/ondemand_test.cpp)
+  add_dependencies(ondemand_test OpenGL::GL )
   target_link_libraries(ondemand_test ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${CMAKE_THREAD_LIBS_INIT} )
 ENDIF()
 

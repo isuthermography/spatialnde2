@@ -6,6 +6,7 @@
 #include <osg/Array>
 #include <osg/Geode>
 #include <osg/Geometry>
+#include <osg/Viewport>
 #include <osgViewer/Viewer>
 #include <osgGA/TrackballManipulator>
 //#include <osgDB/ReadFile>
@@ -65,9 +66,12 @@ void x3d_viewer_display()
 void x3d_viewer_reshape(int width, int height)
 {
   if (renderer->GraphicsWindow.valid()) {
-    renderer->GraphicsWindow->resized(renderer->GraphicsWindow->getTraits()->x,renderer->GraphicsWindow->getTraits()->y,width,height);
-    renderer->GraphicsWindow->getEventQueue()->windowResize(renderer->GraphicsWindow->getTraits()->x,renderer->GraphicsWindow->getTraits()->y,width,height);
 
+    // (Are these redundant?)
+    renderer->GraphicsWindow->resized(0,0,width,height);
+    renderer->GraphicsWindow->getEventQueue()->windowResize(0,0,width,height);
+
+    
   }
   winwidth=width;
   winheight=height;
@@ -195,7 +199,12 @@ int main(int argc, char **argv)
   rendercache = std::make_shared<osg_rendercache>();
   
   osg::ref_ptr<osgViewer::Viewer> Viewer(new osgViewerCompat34());
-  renderer = std::make_shared<osg_3d_renderer>(Viewer,Viewer->setUpViewerAsEmbeddedInWindow(100,100,800,600),
+
+  osg::ref_ptr<osgViewer::GraphicsWindow> GW=new osgViewer::GraphicsWindowEmbedded(0,0,winwidth,winheight);
+  Viewer->getCamera()->setViewport(new osg::Viewport(0,0,winwidth,winheight));
+  Viewer->getCamera()->setGraphicsContext(GW);
+  
+  renderer = std::make_shared<osg_3d_renderer>(Viewer,GW,
 					       rendercache,x3dchan_config->channelpath);
 
   display=std::make_shared<display_info>(recdb);

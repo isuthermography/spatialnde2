@@ -26,6 +26,8 @@
    conflicts in case of different ondemand functions in different rss contexts calculating the same thing. 
 
  * Fixup the typemaps so as to allow run-time addition of additional types
+   * Include an inheritance tree so we can follow the tree to find a renderable
+     class from a custom class that doesn't provide a renderer. 
  
  * Intelligent math function dispatch: Figuring out how many threads to delegate to a particular parallel algorithm
 

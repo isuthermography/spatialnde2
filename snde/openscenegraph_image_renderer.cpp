@@ -25,6 +25,7 @@ namespace snde {
     
     // set background color to blueish
     Camera->setClearColor(osg::Vec4(.1,.1,.3,1.0));    
+    Camera->setClearMask(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded); // Could try more sophisticated rendering model later. 
     //Viewer->setCameraManipulator(Manipulator);

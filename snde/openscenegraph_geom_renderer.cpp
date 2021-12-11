@@ -120,6 +120,9 @@ namespace snde {
 	
 	//Camera->setProjectionMatrixAsOrtho(left,right,bottom,top,-10.0,1000.0);
 	Camera->setViewport(0,0,width,height);
+
+	Camera->setProjectionMatrixAsPerspective(30.0f,((double)width)/height,1.0f,10000.0f); // !!!*** Check last two parameters
+	
       } else {
 	snde_warning("openscenegraph_3d_renderer: cache entry not convertable to an osg_group rendering channel %s",channel_path.c_str());
       }
