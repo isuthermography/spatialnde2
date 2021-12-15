@@ -419,7 +419,7 @@ template <typename T>
   //  SNDE_RTN_RECORDING_REF not applicable
 
   PyObject *coord3_int16_dtype = PyRun_String("dtype([('x', np.int16), ('y', np.int16), ('z',np.int16)])",Py_eval_input,Globals,Globals);
-  snde::rtn_numpytypemap.emplace(SNDE_RTN_COORD3_INT16,(PyArray_Descr *)coord3_int16_dtype);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD3_INT16,(PyArray_Descr *)coord3_int16_dtype);
 
   // SNDE_RTN_INDEXVEC through SNDE_RTN_ASSEMBLY_RECORDING not applicable
 

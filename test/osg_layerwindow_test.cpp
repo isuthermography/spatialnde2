@@ -80,12 +80,12 @@ void osg_layerwindow_test_display()
     // and either verifying that none of them have require_locking
     // or by accumulating needed lock specs into an ordered set
     // or ordered map, and then locking them in the proepr order. 
-    
-    double left = png_rec->rec->metadata->GetMetaDatumDbl("IniVal1",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("Step1",1.0)/2.0;
-    double right = png_rec->rec->metadata->GetMetaDatumDbl("IniVal1",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("Step1",1.0)*(png_rec->layout.dimlen.at(0)-0.5);
-    double bottom = png_rec->rec->metadata->GetMetaDatumDbl("IniVal2",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("Step2",1.0)/2.0;
-    double top = png_rec->rec->metadata->GetMetaDatumDbl("IniVal2",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("Step2",1.0)*(png_rec->layout.dimlen.at(1)-0.5);
 
+    /*
+    double left = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_step",1.0)/2.0;
+    double right = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_step",1.0)*(png_rec->layout.dimlen.at(0)-0.5);
+    double bottom = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_step",1.0)/2.0;
+    double top = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_step",1.0)*(png_rec->layout.dimlen.at(1)-0.5);
     double tmp;
     if (bottom > top) {
       // bottom should always be less than top as y increases up
@@ -100,14 +100,11 @@ void osg_layerwindow_test_display()
       left=right;
       right=tmp;
     }
-
-    renderer->perform_render(recdb,display_transforms->with_display_transforms,display,display_reqs,
-			     left,
-			     right,
-			     bottom,
-			     top,
-			     winwidth,winheight);
+    */
     
+    renderer->prepare_render(display_transforms->with_display_transforms,rendercache,display_reqs,
+			     winwidth,winheight);
+    renderer->frame();
     rendercache->erase_obsolete();
 
   }
@@ -244,12 +241,12 @@ int main(int argc, char **argv)
   Viewer->getCamera()->setGraphicsContext(LW);
   osgViewer::Renderer * Rend = dynamic_cast<osgViewer::Renderer *>(Viewer->getCamera()->getRenderer());
   osgUtil::RenderStage *Stage = Rend->getSceneView(0)->getRenderStage();
-  Stage->setDisableFboAfterRender(false);
+  Stage->setDisableFboAfterRender(false); // !!!*** Needed?
 
   LW->setup_camera(Viewer->getCamera());
   
   renderer = std::make_shared<osg_image_renderer>(Viewer,LW,
-						  rendercache,pngchan_config->channelpath);
+						  pngchan_config->channelpath);
   
   display=std::make_shared<display_info>(recdb);
   display->set_current_globalrev(globalrev);
@@ -281,12 +278,12 @@ int main(int argc, char **argv)
   // This would be by iterating over the display_requirements
   // and either verifying that none of them have require_locking
   // or by accumulating needed lock specs into an ordered set
-  // or ordered map, and then locking them in the proepr order. 
-  
-  double left = png_rec->rec->metadata->GetMetaDatumDbl("IniVal1",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("Step1",1.0)/2.0;
-  double right = png_rec->rec->metadata->GetMetaDatumDbl("IniVal1",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("Step1",1.0)*(png_rec->layout.dimlen.at(0)-0.5);
-  double bottom = png_rec->rec->metadata->GetMetaDatumDbl("IniVal2",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("Step2",1.0)/2.0;
-  double top = png_rec->rec->metadata->GetMetaDatumDbl("IniVal2",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("Step2",1.0)*(png_rec->layout.dimlen.at(1)-0.5);
+  // or ordered map, and then locking them in the proper order. 
+  /*
+  double left = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_step",1.0)/2.0;
+  double right = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_step",1.0)*(png_rec->layout.dimlen.at(0)-0.5);
+  double bottom = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_step",1.0)/2.0;
+  double top = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_step",1.0)*(png_rec->layout.dimlen.at(1)-0.5);
   
   double tmp;
   if (bottom > top) {
@@ -302,14 +299,11 @@ int main(int argc, char **argv)
     left=right;
     right=tmp;
   }
-  
-  renderer->perform_render(recdb,display_transforms->with_display_transforms,display,display_reqs,
-			   left,
-			   right,
-			   bottom,
-			   top,
+  */
+  renderer->prepare_render(display_transforms->with_display_transforms,rendercache,display_reqs,
 			   winwidth,winheight);
-    
+  renderer->frame();
+  
   rendercache->erase_obsolete();
 
   

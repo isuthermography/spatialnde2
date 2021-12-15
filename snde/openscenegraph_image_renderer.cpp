@@ -10,15 +10,8 @@ namespace snde {
 
   osg_image_renderer::osg_image_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
 					 osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
-					 std::shared_ptr<osg_rendercache> RenderCache,
 					 std::string channel_path) :
-    channel_path(channel_path),
-    GraphicsWindow(GraphicsWindow),
-    //Viewer(new osgViewer::Viewer()),
-    Viewer(Viewer),
-    Camera(Viewer->getCamera()),
-    //RootNode(RootNode),
-    RenderCache(RenderCache)
+    osg_renderer(Viewer,GraphicsWindow,channel_path,SNDE_DRRT_IMAGE)
   {
     
     Camera->setGraphicsContext(GraphicsWindow);
@@ -27,49 +20,29 @@ namespace snde {
     Camera->setClearColor(osg::Vec4(.1,.1,.3,1.0));    
     Camera->setClearMask(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
-    Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded); // Could try more sophisticated rendering model later. 
-    //Viewer->setCameraManipulator(Manipulator);
-    //Viewer->setRunFrameScheme(osg::ON_DEMAND); // ***!!! With this OSG looks at whether it thinks a new render is needed based on scene graph changes and only renders if necessary. 
+    Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded); // OSG single threaded mode is REQUIRED (!!!)
     
-    /* Two dimensional initialization */
-    //Transform = new osg::MatrixTransform();
-    //Transform->...
-    //Viewer->setSceneData(Transform);
-    //group = new osg::group();
-    //Transform->addChild(Geode)
-    //Viewer->setSceneData(group);
-
-
-    // This stuff needs to be moved into renderer->perform_render
-    // Caller should set camera viewport,
-    // implement SetProjectionMatrix(),
-    // SetTwoDimensional()
-    // and make initial calls to those functions
-    // from their constructor,
-    // then call Viewer->realize();
+    //Viewer->setRunFrameScheme(osg::ON_DEMAND); // ***!!! With this OSG looks at whether it thinks a new render is needed based on scene graph changes and only renders if necessary.
+    
     Viewer->setCameraManipulator(nullptr);
     Camera->setViewMatrix(osg::Matrixd::identity());
 
     Viewer->realize();
-
-
       
   }
 
+
+  // actually rendering is done by osg_image_renderer::frame() which just calls Viewer->frame()
   
-  
-  void osg_image_renderer::perform_render(std::shared_ptr<recdatabase> recdb,
-					  //std::shared_ptr<recstore_display_transforms> display_transforms,
-					  std::shared_ptr<recording_set_state> with_display_transforms,
-					  //std::shared_ptr<display_channel> channel_to_display,
-					  std::shared_ptr<display_info> display,
-					  const std::map<std::string,std::shared_ptr<display_requirement>> &display_reqs,
-					  double left, // left of viewport in channel horizontal units
-					  double right, // right of viewport in channel horizontal units
-					  double bottom, // bottom of viewport in channel vertical units
-					  double top, // top of viewport in channel vertical units
-					  size_t width, // width of viewport in pixels
-					  size_t height) // height of viewport in pixels
+  std::tuple<std::shared_ptr<osg_rendercacheentry>,bool>
+  osg_image_renderer::prepare_render(//std::shared_ptr<recdatabase> recdb,
+				     std::shared_ptr<recording_set_state> with_display_transforms,
+				     //std::shared_ptr<display_info> display,
+				     std::shared_ptr<osg_rendercache> RenderCache,
+				     const std::map<std::string,std::shared_ptr<display_requirement>> &display_reqs,
+				     size_t width, // width of viewport in pixels
+				     size_t height) // height of viewport in pixels
+  // returns cache entry used, and bool that is true if it is new or modified
   {
     // look up render cache.
     std::map<std::string,std::shared_ptr<display_requirement>>::const_iterator got_req;
@@ -77,26 +50,44 @@ namespace snde {
     got_req=display_reqs.find(channel_path);
     if (got_req==display_reqs.end()) {
       snde_warning("openscenegraph_image_renderer: Was not possible to transform channel \"%s\" into something renderable",channel_path.c_str());
-      return;
+      return std::make_pair(nullptr,true);
     }
     
     std::shared_ptr<display_requirement> display_req =got_req->second;
     osg_renderparams params{
-      recdb,
+      //recdb,
       RenderCache,
       with_display_transforms,
-      display,
+      //display,
       
-      left,
-      right,
-      bottom,
-      top,
+      display_req->spatial_bounds->left,
+      display_req->spatial_bounds->right,
+      display_req->spatial_bounds->bottom,
+      display_req->spatial_bounds->top,
       width,
       height,
       
     };
+
+
+
+    std::shared_ptr<osg_rendercacheentry> imageentry;
+    bool modified;
+    std::tie(imageentry,modified) = RenderCache->GetEntry(params,display_req);
     
-    std::shared_ptr<osg_rendercacheentry> imageentry = RenderCache->GetEntry(params,display_req);
+    
+    /// NOTE: to adjust size, first send event, then 
+    //   change viewport:
+    if (width != Camera->getViewport()->width() || height != Camera->getViewport()->height()) {
+      GraphicsWindow->getEventQueue()->windowResize(0,0,width,height);
+      GraphicsWindow->resized(0,0,width,height);
+      Camera->setViewport(0,0,width,height);
+      modified = true; 
+    }
+    
+    Camera->setProjectionMatrixAsOrtho(display_req->spatial_bounds->left,display_req->spatial_bounds->right,display_req->spatial_bounds->bottom,display_req->spatial_bounds->top,-10.0,1000.0);
+
+    
 
     if (imageentry) {
 
@@ -107,23 +98,7 @@ namespace snde {
 	  //group=imagegroup;
 	  Viewer->setSceneData(imagegroup->osg_group);
 	}
-	/*
-	  if (Geode && Geode != imagegeode) {
-	  Transform->removechild(Geode);
-	  }
-	  if (Geode != imagegeode) {
-	  Geode=imagegeode;
-	  Transform->addchild(imagegeode);
-	  }*/
-	
-	/* double left;
-	   double right;
-	   double bottom;
-	   double top;
-	*/
     
-	Camera->setProjectionMatrixAsOrtho(left,right,bottom,top,-10.0,1000.0);
-	Camera->setViewport(0,0,width,height);
       } else {
 	snde_warning("openscenegraph_image_renderer: cache entry not convertable to an osg_group rendering channel \"%s\"",channel_path.c_str());
       }
@@ -132,7 +107,8 @@ namespace snde {
       
     }
 	
-    Viewer->frame();
+
+    return std::make_pair(imageentry,modified);
     
   }
   

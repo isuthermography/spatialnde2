@@ -172,7 +172,7 @@ extern "C" {
 
     
 
-    snde_imagedata *imagebuf; // temporary image buffer used for projecting data into
+    snde_imagedata *imagebuf; // image data buffer used for projecting data into. This is also used by geometry_storage for anonymous allocations
     //allocatorbase *imagebuf_alloc; // really allocator<snde_imagedata>*
 
     snde_coord *zbuffer; /* separately allocated */
@@ -189,7 +189,6 @@ extern "C" {
     snde_rendercoord *vertex_arrays; /* transformed vertex array for OpenSceneGraph / OpenGL (allocated separately) */
     snde_rendercoord *texvertex_arrays; /* transformed texture vertex array for OpenSceneGraph / OpenGL (allocated separate) */
     snde_rgba *texbuffer; // allocated separately
-    
     
   };
 #ifdef __cplusplus

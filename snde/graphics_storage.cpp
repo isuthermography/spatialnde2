@@ -200,6 +200,7 @@ namespace snde {
     name_from_arrayaddr.emplace((void **)arrayptr,arrayname);
     arrayid_from_name.emplace(arrayname,*nextid);
     elemsize_from_name.emplace(arrayname,sizeof(T));
+    typenum_from_name.emplace(arrayname,rtn_typemap.at(typeid(T)));
 
     (*nextid)++;
 
@@ -253,6 +254,7 @@ namespace snde {
     name_from_arrayaddr.emplace((void **)arrayptr,arrayname);
     arrayid_from_name.emplace(arrayname,*nextid);
     elemsize_from_name.emplace(arrayname,sizeof(T));
+    typenum_from_name.emplace(arrayname,rtn_typemap.at(typeid(T)));
 
     (*nextid)++;
     
@@ -400,11 +402,16 @@ namespace snde {
     
     
     /***!!! Insert uv patches and images here ***!!! */
+
+    add_grouped_arrays(&next_region_id,&geom.imagebuf,"imagebuf");
+    
     
     add_grouped_arrays(&next_region_id,&geom.vertex_arrays,"vertex_arrays");
     add_grouped_arrays(&next_region_id,&geom.texvertex_arrays,"texvertex_arrays");
     add_grouped_arrays(&next_region_id,&geom.texbuffer,"texbuffer");
-    
+
+
+
     // ... need to initialize rest of struct...
     // Probably want an array manager class to handle all of this
     // initialization,
@@ -460,6 +467,10 @@ namespace snde {
       throw snde_error("Mismatch between graphics array field %s element size with allocation: %u vs. %u",array_name,(unsigned)elemsize_from_name.at(array_name),(unsigned)elementsize);
     }
 
+    if (typenum_from_name.at(array_name) != typenum && !(rtn_compatible_types.count(typenum_from_name.at(array_name)) > 0 &&  rtn_compatible_types.at(typenum_from_name.at(array_name)).count(typenum) > 0 )) {
+      snde_warning("Mismatch between graphics array field %s element type with allocation: %s vs. %s",rtn_typenamemap.at(typenum_from_name.at(array_name)).c_str(),rtn_typenamemap.at(typenum).c_str());
+      
+    }
     
     std::shared_ptr<graphics_storage> retval = std::make_shared<graphics_storage>(std::dynamic_pointer_cast<graphics_storage_manager>(shared_from_this()),manager,manager->_memalloc,nullptr,recording_path,recrevision,arrayid_from_name.at(array_name),arrayaddr,elementsize,base_index,typenum,nelem,is_mutable || manager->_memalloc->requires_locking_read,is_mutable || manager->_memalloc->requires_locking_write,false);
 
@@ -541,8 +552,24 @@ namespace snde {
   {
     // Will need to mark array as locking required for write, at least....
 
-    // graphics_storage behavior
-    void **arrayaddr = arrayaddr_from_name.at(array_name);
+    // graphics_storage behavior    
+
+    std::unordered_map<std::string,void **>::iterator arrayaddr_it;
+
+    if (array_name=="") {
+      // redirect anonymous allocation requests to the image projection data buffer
+      array_name = "imagebuf"; 
+    }
+    
+
+    arrayaddr_it = arrayaddr_from_name.find(array_name);
+    if (arrayaddr_it == arrayaddr_from_name.end()) {
+      throw snde_error("graphics_storage: In allocating storage for %s, graphics_storage does not have an array for %s", recording_path.c_str(), array_name.c_str()); 
+    }
+    
+    void **arrayaddr = arrayaddr_it->second; // =arrayaddr_from_name.at(array_name);
+
+    
     
     // This is now checked inside storage_from_allocation()
     //if (elemsize_from_name.at(array_name) != elementsize) {

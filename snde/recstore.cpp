@@ -37,7 +37,7 @@ namespace snde {
       {typeid(std::shared_ptr<recording_base>),SNDE_RTN_RECORDING},      
       {typeid(std::shared_ptr<multi_ndarray_recording>),SNDE_RTN_RECORDING},      
       {typeid(std::shared_ptr<ndarray_recording_ref>),SNDE_RTN_RECORDING_REF},      
-      {typeid(snde_coord3_int16),SNDE_RTN_COORD3_INT16},
+      {typeid(snde_coord3_int16),SNDE_RTN_SNDE_COORD3_INT16},
       {typeid(std::vector<snde_index>),SNDE_RTN_INDEXVEC},
       {typeid(std::shared_ptr<recording_group>),SNDE_RTN_RECORDING_GROUP},
       {typeid(std::shared_ptr<pointcloud_recording>),SNDE_RTN_POINTCLOUD_RECORDING},
@@ -64,7 +64,17 @@ namespace snde {
       {typeid(snde_parameterization_patch),SNDE_RTN_SNDE_PARAMETERIZATION_PATCH},
       {typeid(snde_trivertnormals),SNDE_RTN_SNDE_TRIVERTNORMALS},
       {typeid(snde_rendercoord),SNDE_RTN_SNDE_RENDERCOORD},
-      
+      {typeid(snde_box2),SNDE_RTN_SNDE_BOX2},
+      {typeid(snde_boxcoord2),SNDE_RTN_SNDE_BOXCOORD2},
+      {typeid(snde_imagedata),SNDE_RTN_SNDE_IMAGEDATA},
+      {typeid(snde_coord),SNDE_RTN_COORD},
+      {typeid(snde_coord4),SNDE_RTN_SNDE_COORD4},
+      {typeid(snde_orientation2),SNDE_RTN_SNDE_ORIENTATION2},
+      {typeid(snde_orientation3),SNDE_RTN_SNDE_ORIENTATION3},
+      {typeid(snde_axis3),SNDE_RTN_SNDE_AXIS3},
+      {typeid(snde_indexrange),SNDE_RTN_SNDE_INDEXRANGE},
+      {typeid(snde_partinstance),SNDE_RTN_SNDE_PARTINSTANCE},
+      {typeid(snde_image),SNDE_RTN_SNDE_IMAGE},
 
 
   });
@@ -97,7 +107,7 @@ namespace snde {
       {SNDE_RTN_COMPLEXFLOAT16,4},
 #endif
       {SNDE_RTN_RGBD64,sizeof(snde_rgbd)},
-      {SNDE_RTN_COORD3_INT16,sizeof(snde_coord3_int16)},
+      {SNDE_RTN_SNDE_COORD3_INT16,sizeof(snde_coord3_int16)},
       // SNDE_RTN_INDEXVEC through SNDE_RTN_ASSEMBLY_RECORDING not applicable
       {SNDE_RTN_SNDE_PART,sizeof(snde_part)},
       {SNDE_RTN_SNDE_TOPOLOGICAL,sizeof(snde_topological)},
@@ -114,7 +124,17 @@ namespace snde {
       {SNDE_RTN_SNDE_PARAMETERIZATION_PATCH,sizeof(snde_parameterization_patch)},
       {SNDE_RTN_SNDE_TRIVERTNORMALS,sizeof(snde_trivertnormals)},
       {SNDE_RTN_SNDE_RENDERCOORD,sizeof(snde_rendercoord)},
-
+      {SNDE_RTN_SNDE_BOX2,sizeof(snde_box2)},
+      {SNDE_RTN_SNDE_BOXCOORD2,sizeof(snde_boxcoord2)},
+      {SNDE_RTN_SNDE_IMAGEDATA,sizeof(snde_imagedata)},
+      {SNDE_RTN_COORD,sizeof(snde_coord)},
+      {SNDE_RTN_SNDE_COORD4,sizeof(snde_coord4)},
+      {SNDE_RTN_SNDE_ORIENTATION2,sizeof(snde_orientation2)},
+      {SNDE_RTN_SNDE_ORIENTATION3,sizeof(snde_orientation3)},
+      {SNDE_RTN_SNDE_AXIS3,sizeof(snde_axis3)},
+      {SNDE_RTN_SNDE_INDEXRANGE,sizeof(snde_indexrange)},
+      {SNDE_RTN_SNDE_PARTINSTANCE,sizeof(snde_partinstance)},
+      {SNDE_RTN_SNDE_IMAGE,sizeof(snde_image)},
     });
   
   SNDE_API const std::unordered_map<unsigned,std::string> rtn_typenamemap({ // Look up type name based on typenum
@@ -139,7 +159,7 @@ namespace snde {
       {SNDE_RTN_RGBD64,"SNDE_RTN_RGBD64"},
       {SNDE_RTN_STRING,"SNDE_RTN_STRING"},
       {SNDE_RTN_RECORDING,"SNDE_RTN_RECORDING"},      
-      {SNDE_RTN_COORD3_INT16,"SNDE_RTN_COORD3_INT16"},   
+      {SNDE_RTN_SNDE_COORD3_INT16,"SNDE_RTN_SNDE_COORD3_INT16"},   
       {SNDE_RTN_INDEXVEC,"SNDE_RTN_INDEXVEC"},
 
       {SNDE_RTN_RECORDING_GROUP,"SNDE_RTN_RECORDING_GROUP"},
@@ -168,6 +188,18 @@ namespace snde {
       {SNDE_RTN_SNDE_PARAMETERIZATION_PATCH,"SNDE_RTN_SNDE_PARAMETERIZATION_PATCH"},
       {SNDE_RTN_SNDE_TRIVERTNORMALS,"SNDE_RTN_SNDE_TRIVERTNORMALS"},
       {SNDE_RTN_SNDE_RENDERCOORD,"SNDE_RTN_SNDE_RENDERCOORD"},
+
+      {SNDE_RTN_SNDE_BOX2,"SNDE_RTN_SNDE_BOX2"},
+      {SNDE_RTN_SNDE_BOXCOORD2,"SNDE_RTN_SNDE_BOXCOORD2"},
+      {SNDE_RTN_SNDE_IMAGEDATA,"SNDE_RTN_SNDE_IMAGEDATA"},
+      {SNDE_RTN_COORD,"SNDE_RTN_COORD"},
+      {SNDE_RTN_SNDE_COORD4,"SNDE_RTN_SNDE_COORD4"},
+      {SNDE_RTN_SNDE_ORIENTATION2,"SNDE_RTN_SNDE_ORIENTATION2"},
+      {SNDE_RTN_SNDE_ORIENTATION3,"SNDE_RTN_SNDE_ORIENTATION3"},
+      {SNDE_RTN_SNDE_AXIS3,"SNDE_RTN_SNDE_AXIS3"},
+      {SNDE_RTN_SNDE_INDEXRANGE,"SNDE_RTN_SNDE_INDEXRANGE"},
+      {SNDE_RTN_SNDE_PARTINSTANCE,"SNDE_RTN_SNDE_PARTINSTANCE"},
+      {SNDE_RTN_SNDE_IMAGE,"SNDE_RTN_SNDE_IMAGE"},
     });
   
 
@@ -190,7 +222,7 @@ namespace snde {
       {SNDE_RTN_COMPLEXFLOAT64,"struct { double real; double imag; }"},
       {SNDE_RTN_COMPLEXFLOAT16,"struct { half real; half imag; }"},
       {SNDE_RTN_RGBD64,"snde_rgbd"},
-      {SNDE_RTN_COORD3_INT16,"snde_coord3_int16"},
+      {SNDE_RTN_SNDE_COORD3_INT16,"snde_coord3_int16"},
       // SNDE_RTN_INDEXVEC not applicable
 
             
@@ -199,6 +231,30 @@ namespace snde {
 
     });
   
+
+  SNDE_API const std::unordered_map<unsigned,std::set<unsigned>> rtn_compatible_types({
+      // These represent typedef (and conceptual) equivalencies
+      // Note that we don't worry about transitive equivalencies as those generally wouldn't make sense
+      // and therefore shouldn't come up. 
+      {SNDE_RTN_FLOAT32, {
+	  SNDE_RTN_SNDE_IMAGEDATA,
+	  SNDE_RTN_SNDE_RENDERCOORD, 
+#ifndef SNDE_DOUBLEPREC_COORDS
+	  SNDE_RTN_COORD,
+#endif // SNDE_DOUBLEPREC_COORDS
+	}
+      },
+      {SNDE_RTN_SNDE_IMAGEDATA, { SNDE_RTN_FLOAT32 }},      
+      {SNDE_RTN_SNDE_RENDERCOORD, { SNDE_RTN_FLOAT32 }},
+      
+#ifdef SNDE_DOUBLEPREC_COORDS
+      {SNDE_RTN_FLOAT64, { SNDE_RTN_COORD } },
+      {SNDE_RTN_COORD, { SNDE_RTN_FLOAT64 } },
+#else // SNDE_DOUBLEPREC_COORDS
+      {SNDE_RTN_COORD, { SNDE_RTN_FLOAT32 } },
+#endif
+      
+    });
   
   // see https://stackoverflow.com/questions/38644146/choose-template-based-on-run-time-string-in-c
 
@@ -948,7 +1004,7 @@ namespace snde {
       ref = std::make_shared<ndtyped_recording_ref<snde_rgbd>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
       break;
 
-    case SNDE_RTN_COORD3_INT16:
+    case SNDE_RTN_SNDE_COORD3_INT16:
       ref = std::make_shared<ndtyped_recording_ref<snde_coord3_int16>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
       break;
 
@@ -1014,6 +1070,51 @@ namespace snde {
     case SNDE_RTN_SNDE_RENDERCOORD:
       ref = std::make_shared<ndtyped_recording_ref<snde_rendercoord>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
       break;
+
+    case SNDE_RTN_SNDE_BOX2:
+      ref = std::make_shared<ndtyped_recording_ref<snde_box2>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_BOXCOORD2:
+      ref = std::make_shared<ndtyped_recording_ref<snde_boxcoord2>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_IMAGEDATA:
+      ref = std::make_shared<ndtyped_recording_ref<snde_imagedata>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_COORD:
+      ref = std::make_shared<ndtyped_recording_ref<snde_coord>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_COORD4:
+      ref = std::make_shared<ndtyped_recording_ref<snde_coord4>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_ORIENTATION2:
+      ref = std::make_shared<ndtyped_recording_ref<snde_orientation2>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_ORIENTATION3:
+      ref = std::make_shared<ndtyped_recording_ref<snde_orientation3>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_AXIS3:
+      ref = std::make_shared<ndtyped_recording_ref<snde_axis3>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_INDEXRANGE:
+      ref = std::make_shared<ndtyped_recording_ref<snde_indexrange>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_PARTINSTANCE:
+      ref = std::make_shared<ndtyped_recording_ref<snde_partinstance>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_IMAGE:
+      ref = std::make_shared<ndtyped_recording_ref<snde_image>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
       
     default:
       throw snde_error("multi_ndarray_recording::reference_ndarray(): Unknown type number %u",typenum);

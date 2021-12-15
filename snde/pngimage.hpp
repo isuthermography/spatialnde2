@@ -49,35 +49,35 @@ namespace snde {
     // is 0.5 pixel in each axis beyond the bottom left corner
     
     if (unit_type==PNG_RESOLUTION_METER && res_x) {
-      md->AddMetaDatum(metadatum("Step1",1.0/res_x));
+      md->AddMetaDatum(metadatum("nde_axis0_step",1.0/res_x));
       //md->AddMetaDatum(metadatum("IniVal1",-(width*1.0)/res_x/2.0) + 1.0/res_x/2.0);
-      md->AddMetaDatum(metadatum("IniVal1",1.0/res_x/2.0));
-      md->AddMetaDatum(metadatum("Units1","meters"));      
+      md->AddMetaDatum(metadatum("nde_axis0_inival",1.0/res_x/2.0));
+      md->AddMetaDatum(metadatum("nde_axis0_units","meters"));      
     } else {
-      md->AddMetaDatum(metadatum("Step1",1.0));
+      md->AddMetaDatum(metadatum("nde_axis0_step",1.0));
       //md->AddMetaDatum(metadatum("IniVal1",-(width*1.0)/2.0)+0.5);
-      md->AddMetaDatum(metadatum("IniVal1",0.5));
-      md->AddMetaDatum(metadatum("Units1","pixels"));      
+      md->AddMetaDatum(metadatum("nde_axis0_inival",0.5));
+      md->AddMetaDatum(metadatum("nde_axis0_units","pixels"));      
     }
-    md->AddMetaDatum(metadatum("Coord1","X Position"));
+    md->AddMetaDatum(metadatum("nde_axis0_coord","X Position"));
 
     /* Note for Y axis we put inival positive and step negative so that first pixel 
        in in the upper-left corner, even with our convention  that
        the origin is in the lower-left, 0.5 pixel beyond */
     if (unit_type==PNG_RESOLUTION_METER && res_y) {
-      md->AddMetaDatum(metadatum("Step2",-1.0/res_y));
+      md->AddMetaDatum(metadatum("nde_axis1_step",-1.0/res_y));
       //md->AddMetaDatum(metadatum("IniVal2",(height*1.0)/res_y/2.0 -0.5/res_y));
-      md->AddMetaDatum(metadatum("IniVal2",(height*1.0)/res_y - 0.5/res_y));
-      md->AddMetaDatum(metadatum("Units2","meters"));
+      md->AddMetaDatum(metadatum("nde_axis1_inival",(height*1.0)/res_y - 0.5/res_y));
+      md->AddMetaDatum(metadatum("nde_axis1_units","meters"));
       fprintf(stderr,"Got Y resolution in meters\n");
     } else {
-      md->AddMetaDatum(metadatum("Step2",-1.0));
+      md->AddMetaDatum(metadatum("nde_axis1_step",-1.0));
       //md->AddMetaDatum(metadatum("IniVal2",(height*1.0)/2.0) - 0.5);
-      md->AddMetaDatum(metadatum("IniVal2",(height*1.0) - 0.5));
-      md->AddMetaDatum(metadatum("Units2","pixels"));      
+      md->AddMetaDatum(metadatum("nde_axis1_inival",(height*1.0) - 0.5));
+      md->AddMetaDatum(metadatum("nde_axis1_units","pixels"));      
       fprintf(stderr,"Got Y resolution in arbitrary\n");
     }
-    md->AddMetaDatum(metadatum("Coord2","Y Position"));
+    md->AddMetaDatum(metadatum("nde_axis1_coord","Y Position"));
 
     recref->rec->metadata = MergeMetadata(recref->rec->metadata,md);
     

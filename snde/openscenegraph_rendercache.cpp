@@ -133,8 +133,8 @@ namespace snde {
     *ndim=datastore->layout.dimlen.size();
     
     
-    *IniValX=datastore->rec->metadata->GetMetaDatumDbl("IniVal1",0.0); /* in units  */
-    *StepSzX=datastore->rec->metadata->GetMetaDatumDbl("Step1",1.0);  /* in units/index */
+    *IniValX=datastore->rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0); /* in units  */
+    *StepSzX=datastore->rec->metadata->GetMetaDatumDbl("nde_axis0_step",1.0);  /* in units/index */
     
     if (datastore->layout.dimlen.size() >= 1) {
       *dimlenx=datastore->layout.dimlen.at(0);
@@ -143,8 +143,8 @@ namespace snde {
     }
     
     
-    *IniValY=datastore->rec->metadata->GetMetaDatumDbl("IniVal2",0.0); /* in units */
-    *StepSzY=datastore->rec->metadata->GetMetaDatumDbl("Step2",1.0); /* in units/index */
+    *IniValY=datastore->rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0); /* in units */
+    *StepSzY=datastore->rec->metadata->GetMetaDatumDbl("nde_axis1_step",1.0); /* in units/index */
     
     if (datastore->layout.dimlen.size() >= 2) {
       *dimleny=datastore->layout.dimlen.at(1);
@@ -152,8 +152,8 @@ namespace snde {
       *dimleny=1;
     }
     
-    *IniValZ=datastore->rec->metadata->GetMetaDatumDbl("IniVal3",0.0); /* in units */
-    *StepSzZ=datastore->rec->metadata->GetMetaDatumDbl("Step3",1.0); /* in units/index */
+    *IniValZ=datastore->rec->metadata->GetMetaDatumDbl("nde_axis2_inival",0.0); /* in units */
+    *StepSzZ=datastore->rec->metadata->GetMetaDatumDbl("nde_axis2_step",1.0); /* in units/index */
     if (datastore->layout.dimlen.size() >= 3) {
       *dimlenz=datastore->layout.dimlen.at(2);
     } else {
@@ -161,8 +161,8 @@ namespace snde {
     }
     
     
-    *IniValW=datastore->rec->metadata->GetMetaDatumDbl("IniVal4",0.0); /* in units */
-    *StepSzW=datastore->rec->metadata->GetMetaDatumDbl("Step4",1.0); /* in units/index */
+    *IniValW=datastore->rec->metadata->GetMetaDatumDbl("nde_axis3_inival",0.0); /* in units */
+    *StepSzW=datastore->rec->metadata->GetMetaDatumDbl("nde_axis3_step",1.0); /* in units/index */
     if (datastore->layout.dimlen.size() >= 4) {
       *dimlenw=datastore->layout.dimlen.at(3);
     } else {
@@ -174,7 +174,7 @@ namespace snde {
   
 
   
-  std::shared_ptr<osg_rendercacheentry> osg_rendercache::GetEntry(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)  // mode from rendermode.hpp
+  std::pair<std::shared_ptr<osg_rendercacheentry>,bool> osg_rendercache::GetEntry(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)  // mode from rendermode.hpp
   // mode from rendermode.hpp
   {
     const std::string &channel_path = display_req->channelpath;
@@ -187,11 +187,12 @@ namespace snde {
     auto cache_it = cache.find(std::make_pair(channel_path,mode));
     
     if (cache_it != cache.end()) {
-
-      if (cache_it->second->attempt_reuse(params,display_req)) {
+      bool reusable,modified;
+      std::tie(reusable,modified) = cache_it->second->attempt_reuse(params,display_req);
+      if (reusable) {
 	
 	cache_it->second->clear_potentially_obsolete(); // not an obsolete entry
-	return cache_it->second;	
+	return std::make_pair(cache_it->second,modified);	
       }      
       
     }
@@ -217,7 +218,7 @@ namespace snde {
     std::shared_ptr<osg_rendercacheentry> retval = renderer_it->second(params,display_req);
     cache.emplace(std::make_pair(channel_path,mode),retval);
       
-    return retval;
+    return std::make_pair(retval,true);
     
     //std::shared_ptr<osg_cachedimage> imgentry = std::make_shared<osg_cachedimage>(new_recording,texture);
       
@@ -272,7 +273,7 @@ namespace snde {
     size_t ndim;
     double IniValX,IniValY,IniValZ,IniValW;
     double StepX,StepY,StepZ,StepW;
-    snde_index dimlen3,dimlen4; // Note: dimlen1, dimlen2 are class members
+    snde_index dimlenz,dimlenw; // Note: dimlenx, dimleny are class members
 
     cached_recording = params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath);
     if (!cached_recording) {
@@ -281,10 +282,10 @@ namespace snde {
     }
     
     if (!GetGeom(cached_recording,&ndim,
-		 &IniValX,&StepX,&dimlen1,
-		 &IniValY,&StepY,&dimlen2,
-		 &IniValZ,&StepZ,&dimlen3,
-		 &IniValW,&StepW,&dimlen4)) {
+		 &IniValX,&StepX,&dimlenx,
+		 &IniValY,&StepY,&dimleny,
+		 &IniValZ,&StepZ,&dimlenz,
+		 &IniValW,&StepW,&dimlenw)) {
       throw snde_error("osg_cachedimagedata: Could not get geometry for %s",display_req->renderable_channelpath->c_str()); 
     }
 
@@ -316,7 +317,7 @@ namespace snde {
     }
     
 
-    image->setImage(dimlen1,dimlen2,1,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE,(unsigned char *)cached_ndarray_rec->void_shifted_arrayptr(0),osg::Image::AllocationMode::NO_DELETE);
+    image->setImage(dimlenx,dimleny,1,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE,(unsigned char *)cached_ndarray_rec->void_shifted_arrayptr(0),osg::Image::AllocationMode::NO_DELETE);
     imagetexture->setInternalFormat(GL_RGBA);
     imagetexture->setImage(image);    
 
@@ -351,22 +352,22 @@ namespace snde {
    * 
    * Equations (for positive Step1): 
    *   Meaningful U coordinate of IniVal1-0.5*Step1 should map to 0.0
-   *   Meaningful U coordinate of IniVal1+(DimLen1-1+0.5)*Step1 should map to 1.0
+   *   Meaningful U coordinate of IniVal1+(Dimlenx-1+0.5)*Step1 should map to 1.0
    * Equations (for negative Step1): 
-   *   Meaningful U coordinate of IniVal1+(Dimlen1-1+0.5)*Step1 should map to 0.0
+   *   Meaningful U coordinate of IniVal1+(Dimlenx-1+0.5)*Step1 should map to 0.0
    *   Meaningful U coordinate of IniVal1+(-0.5)*Step1 should map to 1.0
 
    * So the transform is strictly defined by the positioning and size of 
    * the parameterization channel.
    * Therefore it should be kept here, in the texture cache 
    * (Positive Step1):
-   * The TexMat scaling will be 1.0/(Step1*DimLen1) and the offset will be:
+   * The TexMat scaling will be 1.0/(Step1*Dimlenx) and the offset will be:
    *      *      scaling*(IniVal1 - 0.5*Step1) + offset = 0.0
    *      *       offset = -scaling*(IniVal1-0.5*Step1)
    * (Negative Step1):
-   * The TexMat scaling will be -1.0/(Step1*DimLen1) and the offset will be:
-   *      *      scaling*(IniVal1 + (dimLen1-1+0.5)*Step1) + offset = 0.0
-   *      *       offset = -scaling*(IniVal1+ (dimlen1-1+0.5)*Step1)
+   * The TexMat scaling will be -1.0/(Step1*Dimlenx) and the offset will be:
+   *      *      scaling*(IniVal1 + (dimlenx-1+0.5)*Step1) + offset = 0.0
+   *      *       offset = -scaling*(IniVal1+ (dimlenx-1+0.5)*Step1)
 
 
 
@@ -377,41 +378,41 @@ namespace snde {
     
     if (StepX > 0.0) {
       //Xoffset = -IniValX/(fabs(StepX)*DimLenX) + StepX/(fabs(StepX)*DimLenX)/2.0; 
-      Xoffset = -IniValX/(StepX*dimlen1) + 1.0/(2.0*dimlen1); 
+      Xoffset = -IniValX/(StepX*dimlenx) + 1.0/(2.0*dimlenx); 
     } else {
       //Xoffset = -IniValX/(fabs(StepX)*DimLenX) - StepX*DimLenX/(fabs(StepX)*DimLenX) + StepX/(fabs(StepX)*DimLenX)/2.0;
       // remember StepX negative
-      //Xoffset = IniValX/(StepX*dimlen1) + 1.0 - 1.0/(2.0*dimlen1);
+      //Xoffset = IniValX/(StepX*dimlenx) + 1.0 - 1.0/(2.0*dimlenx);
       //Xoffset = -IniValX/(StepX*DimLenX) - StepX*DimLenX/(StepX*DimLenX) + StepX/(StepX*DimLenX)/2.0;
-      //Xoffset = -IniValX/(StepX*dimlen1) - 1.0 + 1.0/(dimlen1*2.0);
-      Xoffset = -IniValX/(StepX*dimlen1) + 1.0/(dimlen1*2.0);
+      //Xoffset = -IniValX/(StepX*dimlenx) - 1.0 + 1.0/(dimlenx*2.0);
+      Xoffset = -IniValX/(StepX*dimlenx) + 1.0/(dimlenx*2.0);
     }
 
     if (StepY > 0.0) {
       //YOffset = -IniValY/(fabs(StepY)*DimLenY) + StepY/(fabs(StepY)*DimLenY)/2.0; 
-      Yoffset = -IniValY/(StepY*dimlen2) + 1.0/(dimlen2*2.0); 
+      Yoffset = -IniValY/(StepY*dimleny) + 1.0/(dimleny*2.0); 
       
     } else {
       //YOffset = -IniValY/(fabs(StepY)*DimLenY) - StepY*DimLenY/(fabs(StepY)*DimLenY) + Step2/(2.0*fabs(StepY)*DimLenY);
-      //Yoffset = IniValY/(StepY*dimlen2) + 1.0 - 1.0/(2.0*dimlen2);
+      //Yoffset = IniValY/(StepY*dimleny) + 1.0 - 1.0/(2.0*dimleny);
       //YOffset = -IniValY/(StepY*DimLenY) - StepY*DimLenY/(StepY*DimLenY) + Step2/(2.0*StepY*DimLenY);
-      //Yoffset = -IniValY/(StepY*dimlen2) - 1.0 + 1.0/(2.0*dimlen2);
-      Yoffset = -IniValY/(StepY*dimlen2) + 1.0/(2.0*dimlen2);
+      //Yoffset = -IniValY/(StepY*dimleny) - 1.0 + 1.0/(2.0*dimleny);
+      Yoffset = -IniValY/(StepY*dimleny) + 1.0/(2.0*dimleny);
       }
     /*
-    double ScalingX = 1.0/(StepX*dimlen1);
-    double ScalingY = 1.0/(StepY*dimlen2);
+    double ScalingX = 1.0/(StepX*dimlenx);
+    double ScalingY = 1.0/(StepY*dimleny);
 
     if (StepX > 0.0) {
       Xoffset = -ScalingX*(IniValX-0.5*StepX);
     } else {
-      Xoffset = ScalingX*(IniValX +(dimlen1-1+0.5)*StepX);
+      Xoffset = ScalingX*(IniValX +(dimlenx-1+0.5)*StepX);
     }
 
     if (StepY > 0.0) {
       Yoffset = -ScalingY*(IniValY-0.5*StepY);
     } else {
-      Yoffset = ScalingY*(IniValY +(dimlen2-1+0.5)*StepY);
+      Yoffset = ScalingY*(IniValY +(dimleny-1+0.5)*StepY);
     }
 */
 #ifdef SNDE_DOUBLEPREC_COORDS
@@ -421,8 +422,8 @@ namespace snde {
 #endif
     //fprintf(stderr,"StepY=%f\n",StepY);
     texture_transform = new osg::TexMat(TEXMATMATRIX{
-	(snde_coord)(1.0/(StepX*dimlen1)),0.0,0.0,0.0,
-	0.0,(snde_coord)(1.0/((StepY)*dimlen2)),0.0,0.0,
+	(snde_coord)(1.0/(StepX*dimlenx)),0.0,0.0,0.0,
+	0.0,(snde_coord)(1.0/((StepY)*dimleny)),0.0,0.0,
 	0.0,0.0,1.0,0.0,
 	(snde_coord)Xoffset,(snde_coord)Yoffset,0.0,1.0, 
 	});;
@@ -431,10 +432,10 @@ namespace snde {
     /*
     unsigned char *arrayptr = (unsigned char *)cached_recording->cast_to_multi_ndarray()->void_shifted_arrayptr(0);
     snde_index i,j;
-    for (j=0;j < dimlen2;j++) {
-      for (i=0;i < dimlen1;i++) {
+    for (j=0;j < dimleny;j++) {
+      for (i=0;i < dimlenx;i++) {
 	
-	printf("%d ",arrayptr[4*(i+dimlen1*j)]);
+	printf("%d ",arrayptr[4*(i+dimlenx*j)]);
       }
       printf("\n");
     }
@@ -443,7 +444,7 @@ namespace snde {
     
   }
   
-  bool osg_cachedimagedata::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedimagedata::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
   {
     // only reuse if the recording pointer is the same; everything else here is
     // trivial enough it's pointless to try to reuse.
@@ -454,7 +455,9 @@ namespace snde {
       throw snde_error("osg_cachedimagedata::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return (new_recording == cached_recording && new_recording->info->immutable); // ***!!! For mutable recordings if we wanted we could verify that the pointer remains the same and just mark the array as dirty in OSG
+    bool reusable = (new_recording == cached_recording && new_recording->info->immutable); // ***!!! For mutable recordings if we wanted we could verify that the pointer remains the same and just mark the array as dirty in OSG
+
+    return std::make_pair(reusable,false); // second element is modified: if it is resuable, it is not modified. 
   }
 
 
@@ -465,7 +468,7 @@ namespace snde {
     size_t ndim;
     double IniValX,IniValY,IniValZ,IniValW;
     double StepSzX,StepSzY,StepSzZ,StepSzW;
-    snde_index dimlen1,dimlen2,dimlen3,dimlen4;
+    snde_index dimlenx,dimleny,dimlenz,dimlenw;
 
 
     cached_recording = params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath);
@@ -474,16 +477,20 @@ namespace snde {
       
     }
     if (!GetGeom(cached_recording,&ndim, // doesn't count as a parameter because dependent solely on the underlying recording
-		 &IniValX,&StepSzX,&dimlen1,
-		 &IniValY,&StepSzY,&dimlen2,
-		 &IniValZ,&StepSzZ,&dimlen3,
-		 &IniValW,&StepSzW,&dimlen4)) {
+		 &IniValX,&StepSzX,&dimlenx,
+		 &IniValY,&StepSzY,&dimleny,
+		 &IniValZ,&StepSzZ,&dimlenz,
+		 &IniValW,&StepSzW,&dimlenw)) {
       // cast failed; return empty group
       throw snde_error("osg_cachedimage: Could not get geometry for %s",display_req->renderable_channelpath->c_str()); 
     }
     
     // Get texture correpsonding to this same channel
-    texture = std::dynamic_pointer_cast<osg_rendercachetextureentry>(params.rendercache->GetEntry(params,display_req->sub_requirements.at(0)));
+    bool modified;
+    std::shared_ptr<osg_rendercacheentry> raw_entry;
+    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(0));
+
+    texture = std::dynamic_pointer_cast<osg_rendercachetextureentry>(raw_entry);
 
     if (!texture) {
       throw snde_error("osg_cachedimage: Unable to get texture cache entry for %s",display_req->sub_requirements.at(0)->renderable_channelpath->c_str());
@@ -528,24 +535,24 @@ namespace snde {
       (*ImageCoords)[0]=osg::Vec3d(IniValX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
 				   0.0);
-      (*ImageCoords)[1]=osg::Vec3d(IniValX+dimlen1*StepSzX-0.5*StepSzX,
+      (*ImageCoords)[1]=osg::Vec3d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
 				   0.0);
       (*ImageCoords)[2]=osg::Vec3d(IniValX-0.5*StepSzX,
-				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
+				   IniValY+dimleny*StepSzY-0.5*StepSzY,
 				   0.0);
       (*ImageTexCoords)[0]=osg::Vec2d(0,0);
       (*ImageTexCoords)[1]=osg::Vec2d(1,0);
       (*ImageTexCoords)[2]=osg::Vec2d(0,1);
       
       // upper-right triangle (if both StepSzX and StepSzY positive)
-      (*ImageCoords)[3]=osg::Vec3d(IniValX+dimlen1*StepSzX-0.5*StepSzX,
-				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
+      (*ImageCoords)[3]=osg::Vec3d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
+				   IniValY+dimleny*StepSzY-0.5*StepSzY,
 				   0.0);
       (*ImageCoords)[4]=osg::Vec3d(IniValX-0.5*StepSzX,
-				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
+				   IniValY+dimleny*StepSzY-0.5*StepSzY,
 				   0.0);
-      (*ImageCoords)[5]=osg::Vec3d(IniValX+dimlen1*StepSzX-0.5*StepSzX,
+      (*ImageCoords)[5]=osg::Vec3d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
 				   0.0);
       (*ImageTexCoords)[3]=osg::Vec2d(1,1);
@@ -556,10 +563,10 @@ namespace snde {
       // work as raster coordinates (StepSzY negative)
       // lower-left triangle
       (*ImageCoords)[0]=osg::Vec3d(IniValX-0.5*StepSzX,
-				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
+				   IniValY+dimleny*StepSzY-0.5*StepSzY,
 				   0.0);
-      (*ImageCoords)[1]=osg::Vec3d(IniValX+dimlen1*StepSzX-0.5*StepSzX,
-				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
+      (*ImageCoords)[1]=osg::Vec3d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
+				   IniValY+dimleny*StepSzY-0.5*StepSzY,
 				   0.0);
       (*ImageCoords)[2]=osg::Vec3d(IniValX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
@@ -569,14 +576,14 @@ namespace snde {
       (*ImageTexCoords)[2]=osg::Vec2d(0,0);
       
       // upper-right triangle 
-      (*ImageCoords)[3]=osg::Vec3d(IniValX+dimlen1*StepSzX-0.5*StepSzX,
+      (*ImageCoords)[3]=osg::Vec3d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
 				   0.0);
       (*ImageCoords)[4]=osg::Vec3d(IniValX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
 				   0.0);
-      (*ImageCoords)[5]=osg::Vec3d(IniValX+dimlen1*StepSzX-0.5*StepSzX,
-				   IniValY+dimlen2*StepSzY-0.5*StepSzY,
+      (*ImageCoords)[5]=osg::Vec3d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
+				   IniValY+dimleny*StepSzY-0.5*StepSzY,
 				   0.0);
       (*ImageTexCoords)[3]=osg::Vec2d(1,0);
       (*ImageTexCoords)[4]=osg::Vec2d(0,0);
@@ -602,7 +609,7 @@ namespace snde {
   }
 
 
-  bool osg_cachedimage::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedimage::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
   {
     // only reuse if the recording pointer is the same; everything else here is
     // trivial enough it's pointless to try to reuse.
@@ -613,7 +620,7 @@ namespace snde {
       throw snde_error("osg_cachedimage::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return (new_recording == cached_recording && new_recording->info->immutable);
+    return std::make_pair(new_recording == cached_recording && new_recording->info->immutable,false); // (reusable,modified)
   }
 
 
@@ -632,14 +639,14 @@ namespace snde {
     
   }
 
-  bool osg_cachedparameterizationdata::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedparameterizationdata::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
   {
     std::shared_ptr<meshed_texvertex_recording> new_recording = std::dynamic_pointer_cast<meshed_texvertex_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedparameterizationdata::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return (new_recording==cached_recording && new_recording->info->immutable);
+    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
   }
   
 
@@ -659,14 +666,14 @@ namespace snde {
     
   }
 
-  bool osg_cachedmeshedvertexarray::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedmeshedvertexarray::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
   {
     std::shared_ptr<meshed_vertexarray_recording> new_recording = std::dynamic_pointer_cast<meshed_vertexarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedmeshedvertexarray::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return (new_recording==cached_recording && new_recording->info->immutable);
+    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
   }
   
 
@@ -688,14 +695,14 @@ namespace snde {
   }
 
 
-  bool osg_cachedmeshednormals::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedmeshednormals::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
   {
     std::shared_ptr<meshed_vertnormals_recording> new_recording = std::dynamic_pointer_cast<meshed_vertnormals_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedmeshedvertexarray::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
-
-    return (new_recording==cached_recording && new_recording->info->immutable);
+    
+    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
   }
 
   
@@ -711,7 +718,10 @@ namespace snde {
     }
     // vertex_arrays are our first sub-requirement 
     std::shared_ptr<display_requirement> vertexarrays_requirement=display_req->sub_requirements.at(0);
-    std::shared_ptr<osg_rendercacheentry> vertexarrays_entry = params.rendercache->GetEntry(params,vertexarrays_requirement);
+    std::shared_ptr<osg_rendercacheentry> vertexarrays_entry;
+    bool modified;
+    
+    std::tie(vertexarrays_entry,modified) = params.rendercache->GetEntry(params,vertexarrays_requirement);
     if (!vertexarrays_entry) {
       throw snde_error("osg_cachedmeshedpart(): Could not get cache entry for vertex arrays channel %s",vertexarrays_requirement->renderable_channelpath->c_str());
     }
@@ -721,8 +731,10 @@ namespace snde {
     
     // normals are our second sub-requirement
     std::shared_ptr<display_requirement> normals_requirement=display_req->sub_requirements.at(1);
+    
+    std::shared_ptr<osg_rendercacheentry> normals_entry;
 
-    std::shared_ptr<osg_rendercacheentry> normals_entry = params.rendercache->GetEntry(params,normals_requirement);
+    std::tie(normals_entry,modified) = params.rendercache->GetEntry(params,normals_requirement);
     if (!normals_entry) {
       throw snde_error("osg_cachedmeshedpart(): Could not get cache entry for normals channel %s",normals_requirement->renderable_channelpath->c_str());
     }
@@ -779,14 +791,14 @@ namespace snde {
 
 
   
-  bool osg_cachedmeshedpart::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedmeshedpart::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
   {
     std::shared_ptr<meshed_part_recording> new_recording = std::dynamic_pointer_cast<meshed_part_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedmeshedpart::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return (new_recording==cached_recording && new_recording->info->immutable);
+    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
   }
 
   osg_cachedtexedmeshedgeom::osg_cachedtexedmeshedgeom(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
@@ -800,7 +812,10 @@ namespace snde {
     }
     // vertex_arrays are our first sub-requirement 
     std::shared_ptr<display_requirement> vertexarrays_requirement=display_req->sub_requirements.at(0);
-    std::shared_ptr<osg_rendercacheentry> vertexarrays_entry = params.rendercache->GetEntry(params,vertexarrays_requirement);
+    std::shared_ptr<osg_rendercacheentry> vertexarrays_entry;
+    bool modified;
+
+    std::tie(vertexarrays_entry,modified) = params.rendercache->GetEntry(params,vertexarrays_requirement);
     if (!vertexarrays_entry) {
       throw snde_error("osg_cachedtexedmeshedgeom(): Could not get cache entry for vertex arrays channel %s",vertexarrays_requirement->renderable_channelpath->c_str());
     }
@@ -811,7 +826,9 @@ namespace snde {
     // normals are our second sub-requirement
     std::shared_ptr<display_requirement> normals_requirement=display_req->sub_requirements.at(1);
 
-    std::shared_ptr<osg_rendercacheentry> normals_entry = params.rendercache->GetEntry(params,normals_requirement);
+    std::shared_ptr<osg_rendercacheentry> normals_entry;
+
+    std::tie(normals_entry,modified) = params.rendercache->GetEntry(params,normals_requirement);
     if (!normals_entry) {
       throw snde_error("osg_cachedtexedmeshedgeom(): Could not get cache entry for normals channel %s",normals_requirement->renderable_channelpath->c_str());
     }
@@ -822,7 +839,9 @@ namespace snde {
 
     // parameterization is our third sub-requirement
     std::shared_ptr<display_requirement> parameterization_requirement=display_req->sub_requirements.at(2);
-    std::shared_ptr<osg_rendercacheentry> parameterization_entry = params.rendercache->GetEntry(params,parameterization_requirement);
+    std::shared_ptr<osg_rendercacheentry> parameterization_entry;
+    
+    std::tie(parameterization_entry,modified) = params.rendercache->GetEntry(params,parameterization_requirement);
     if (!parameterization_entry) {
       throw snde_error("osg_cachedtexedmeshedgeom(): Could not get cache entry for parameterization channel %s",parameterization_requirement->renderable_channelpath->c_str());
     }
@@ -874,14 +893,14 @@ namespace snde {
   }
 
   
-  bool osg_cachedtexedmeshedgeom::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedtexedmeshedgeom::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
   {
     std::shared_ptr<textured_part_recording> new_recording = std::dynamic_pointer_cast<textured_part_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedmeshedpart::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return (new_recording==cached_recording && new_recording->info->immutable);
+    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
   }
 
 
@@ -897,7 +916,10 @@ namespace snde {
     }
     // geometry is our first sub-requirement 
     std::shared_ptr<display_requirement> geometry_requirement=display_req->sub_requirements.at(0);
-    std::shared_ptr<osg_rendercacheentry> geometry_entry = params.rendercache->GetEntry(params,geometry_requirement);
+    std::shared_ptr<osg_rendercacheentry> geometry_entry;
+    bool modified;
+
+    std::tie(geometry_entry,modified) = params.rendercache->GetEntry(params,geometry_requirement);
     if (!geometry_entry) {
       throw snde_error("osg_cachedtexedmeshedpart(): Could not get cache entry for geometry channel %s",geometry_requirement->renderable_channelpath->c_str());
     }
@@ -910,7 +932,10 @@ namespace snde {
     size_t reqnum;
     for (reqnum=1;reqnum < display_req->sub_requirements.size();reqnum++) {
       std::shared_ptr<display_requirement> texture_requirement=display_req->sub_requirements.at(reqnum);
-      std::shared_ptr<osg_rendercacheentry> texture_entry = params.rendercache->GetEntry(params,texture_requirement);
+      std::shared_ptr<osg_rendercacheentry> texture_entry;
+      bool modified;
+
+      std::tie(texture_entry,modified) = params.rendercache->GetEntry(params,texture_requirement);
       if (!texture_entry) {
 	throw snde_error("osg_cachedtexedmeshedpart(): Could not get cache entry for texture channel %s",texture_requirement->renderable_channelpath->c_str());
       }
@@ -956,14 +981,14 @@ namespace snde {
     
   }
 
-  bool osg_cachedtexedmeshedpart::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedtexedmeshedpart::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
   {
     std::shared_ptr<textured_part_recording> new_recording = std::dynamic_pointer_cast<textured_part_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedmeshedpart::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return (new_recording==cached_recording && new_recording->info->immutable);
+    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
   }
 
 
@@ -986,7 +1011,10 @@ namespace snde {
     size_t reqnum;
     for (reqnum=0;reqnum < display_req->sub_requirements.size();reqnum++) {
       std::shared_ptr<display_requirement> component_requirement=display_req->sub_requirements.at(reqnum);
-      std::shared_ptr<osg_rendercacheentry> component_entry = params.rendercache->GetEntry(params,component_requirement);
+      std::shared_ptr<osg_rendercacheentry> component_entry;
+      bool modified;
+
+      std::tie(component_entry,modified) = params.rendercache->GetEntry(params,component_requirement);
       if (!component_entry) {
 	throw snde_error("osg_cachedassembly(): Could not get cache entry for sub-component %s",component_requirement->renderable_channelpath->c_str());
       }
@@ -1014,14 +1042,14 @@ namespace snde {
   }
 
 
-  bool osg_cachedassembly::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedassembly::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
   {
     std::shared_ptr<assembly_recording> new_recording = std::dynamic_pointer_cast<assembly_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedassembly::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return (new_recording==cached_recording && new_recording->info->immutable);
+    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
   }
   
 

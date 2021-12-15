@@ -4,6 +4,483 @@
 
 namespace snde {
 
+
+
+  // should perhaps do some refactoring of the common code from these spatial_transforms...() 
+  std::tuple<std::shared_ptr<display_spatial_position>,std::shared_ptr<display_spatial_transform>,std::shared_ptr<display_channel_rendering_bounds>> spatial_transforms_for_image_channel(size_t drawareawidth,size_t drawareaheight,size_t horizontal_divisions,size_t vertical_divisions,double x_center_channel_units,double y_chanposn_divs,bool y_chan_vertzoomaroundaxis,double y_chan_vertcentercoord,double xunitscale,double yunitscale,double pixelsperdiv,bool horizontal_pixelflag, bool vertical_pixelflag,bool vert_zoom_around_axis,double dataleftedge_chanunits,double datarightedge_chanunits,double databottomedge_chanunits,double datatopedge_chanunits)
+  {
+    // x_center_channel_units is coordinate of the renderingarea (not just rendering box) center in channel units, from the axis->CenterCoord
+    // xunitscale is in channel units per division if not horizontal_pixelflag, in channel units per pixel if horizontal_pixelflag
+    // yunitscale is in channel units per division if not vertical_pixelflag, in channel units per pixel if vertical_pixelflag
+    // data edges are the actual edges of the data, i.e. 1/2 unit from pixel center. 
+
+    
+    double xunitsperdiv; 
+    if (horizontal_pixelflag) {
+      xunitsperdiv = xunitscale * pixelsperdiv;
+    } else {
+      xunitsperdiv = xunitscale; 
+    }
+
+    double yunitsperdiv; 
+    if (vertical_pixelflag) {
+      yunitsperdiv = yunitscale * pixelsperdiv;
+    } else {
+      yunitsperdiv = yunitscale; 
+    }
+
+    // So for images or waveforms this transform represents:
+    //   pixels-rel-lower-left-of-channel-renderingbox divided by channel coordinates
+
+    // Different coordinates
+    // channel coordinates (raw numbers based on image axes)
+    // Channel coordinates about the display center
+
+    double y_center_channel_units; // coordinate of the renderingarea (not just rendering box) center in channel units
+
+    // padding numbers are extra space on the left and bottom before the graticule starts,
+    // caused by the graticule aspect ratio not matching the display area aspect ratio
+    //double horizontal_padding = (drawareawidth-horizontal_divisions*pixelsperdiv)/2.0;
+    //double vertical_padding = (drawareaheight-vertical_divisions*pixelsperdiv)/2.0;
+    
+    
+    std::shared_ptr<display_spatial_position> posn;
+    std::shared_ptr<display_spatial_transform> xform;
+    std::shared_ptr<display_channel_rendering_bounds> bounds;
+
+    posn=std::make_shared<display_spatial_position>();
+    xform=std::make_shared<display_spatial_transform>();
+    bounds=std::make_shared<display_channel_rendering_bounds>();
+
+    if (y_chan_vertzoomaroundaxis) {
+      y_center_channel_units = -y_chanposn_divs*yunitsperdiv;
+    } else {
+      y_center_channel_units = y_chan_vertcentercoord;
+    }
+
+    Eigen::Matrix<double,3,3> pixels_rel_displaycenter_over_chanunits_rel_displaycenter;
+    pixels_rel_displaycenter_over_chanunits_rel_displaycenter  <<
+      pixelsperdiv/xunitsperdiv, 0, 0,
+      0, pixelsperdiv/yunitsperdiv, 0,
+      0, 0, 1;
+
+    Eigen::Matrix<double,3,3> chanunits_rel_displaycenter_over_chanunits_rel_chanorigin;
+    chanunits_rel_displaycenter_over_chanunits_rel_chanorigin <<
+      1, 0, -x_center_channel_units,
+      0, 1, -y_center_channel_units,
+      0, 0, 1;
+
+    
+    double x_renderingarea_center_rel_lowerleft_pixels = drawareawidth/2.0;
+    double y_renderingarea_center_rel_lowerleft_pixels = drawareaheight/2.0;
+
+    Eigen::Matrix<double,3,3> pixels_rel_displaycenter_over_pixels_rel_displaybotleft;
+    pixels_rel_displaycenter_over_pixels_rel_displaybotleft  <<
+      1, 0, -x_renderingarea_center_rel_lowerleft_pixels,
+      0, 1, -y_renderingarea_center_rel_lowerleft_pixels,
+      0, 0, 1;
+
+    // NOTE: all of this works by dimensional analysis 
+
+    xform->renderarea_coords_over_channel_coords = pixels_rel_displaycenter_over_pixels_rel_displaybotleft.inverse() * pixels_rel_displaycenter_over_chanunits_rel_displaycenter * chanunits_rel_displaycenter_over_chanunits_rel_chanorigin;
+    
+
+
+    // Find the lower left corner of the rendering area in channel coordinates relative
+    // to the channel origin
+    Eigen::Vector3d renderingarea_lowerleft_pixels_rel_displaybotleft;
+    renderingarea_lowerleft_pixels_rel_displaybotleft << 0,0,1;
+    Eigen::Vector3d renderingarea_lowerleft_chanunits_rel_chanorigin = chanunits_rel_displaycenter_over_chanunits_rel_chanorigin.inverse() * (pixels_rel_displaycenter_over_chanunits_rel_displaycenter.inverse() * (pixels_rel_displaycenter_over_pixels_rel_displaybotleft * renderingarea_lowerleft_pixels_rel_displaybotleft));
+
+
+    // Find the upper right corner of the rendering area in channel coordinates relative
+    // to the channel origin
+    Eigen::Vector3d renderingarea_upperright_pixels_rel_displaybotleft;
+    renderingarea_upperright_pixels_rel_displaybotleft << drawareawidth,drawareaheight,1;
+    Eigen::Vector3d renderingarea_upperright_chanunits_rel_chanorigin = chanunits_rel_displaycenter_over_chanunits_rel_chanorigin.inverse() * (pixels_rel_displaycenter_over_chanunits_rel_displaycenter.inverse() * (pixels_rel_displaycenter_over_pixels_rel_displaybotleft * renderingarea_upperright_pixels_rel_displaybotleft));
+
+
+    Eigen::Matrix<double,3,3> renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels;
+    renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels <<
+      1,0,0, // multiply this by a position relative to renderingbox lower left in pixels 
+      0,1,0, // to get a position relative to renderingarea lowerleft in pixels
+      0,0,1;  // initially we assume they line up exactly, but below we will put
+    // the corrections into the right hand column (elements #2 and #5)
+    // ... Then we're going to assign this to xform->renderarea_coords_over_renderbox_coords
+
+    // Left bound
+    if (renderingarea_lowerleft_chanunits_rel_chanorigin(0) <= dataleftedge_chanunits) {
+      // if (x_renderingarea_lowerleft_chanunits < dataleftedge_chanunits)
+      // rendering area starts to the left of the data
+      bounds->left = dataleftedge_chanunits; // left bound to give the image renderer
+
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(2) = (dataleftedge_chanunits - renderingarea_lowerleft_chanunits_rel_chanorigin(0))*pixelsperdiv/xunitsperdiv;
+      posn->x = (size_t)renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(2);
+
+    } else {
+      // image is chopped off on left by rendering area boundary
+      bounds->left = renderingarea_lowerleft_chanunits_rel_chanorigin(0); // left bound to give the image renderer
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(2) = 0.0;
+      posn->x=0;
+    }
+
+
+    // Right bound
+    if (renderingarea_upperright_chanunits_rel_chanorigin(0) > datarightedge_chanunits) {
+      // rendering area continues to the right of the data
+      bounds->right = datarightedge_chanunits; // right bound to give the image renderer
+      
+    } else {
+      // image is chopped off on right by rendering area boundary
+      bounds->right = renderingarea_upperright_chanunits_rel_chanorigin(0); // left bound to give the image renderer
+      
+    }
+    posn->width = (bounds->right - bounds->left)*pixelsperdiv/xunitsperdiv;
+
+    
+    // Bottom bound
+    if (renderingarea_lowerleft_chanunits_rel_chanorigin(1) <= databottomedge_chanunits) {
+      // if (y_renderingarea_lowerleft_chanunits < databottomedge_chanunits)
+      // rendering area starts to the bottom of the data
+      bounds->bottom = databottomedge_chanunits; // left bound to give the image renderer
+
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(5) = (databottomedge_chanunits - renderingarea_lowerleft_chanunits_rel_chanorigin(1))*pixelsperdiv/yunitsperdiv;
+
+      posn->y = (size_t)renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(5);
+
+    } else {
+      // image is chopped off on bottome by rendering area boundary
+      bounds->bottom = renderingarea_lowerleft_chanunits_rel_chanorigin(1); // left bound to give the image renderer
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(5) = 0.0;
+
+      posn->y = 0;
+    }
+
+
+    // Top bound
+    if (renderingarea_upperright_chanunits_rel_chanorigin(1) > datatopedge_chanunits) {
+      // rendering area continues to the top of the data
+      bounds->top = datatopedge_chanunits; // right bound to give the image renderer
+      
+    } else {
+      // image is chopped off on top by rendering area boundary
+      bounds->top = renderingarea_upperright_chanunits_rel_chanorigin(1); // left bound to give the image renderer
+      
+    }
+    posn->height = (bounds->top - bounds->bottom)*pixelsperdiv/yunitsperdiv;
+
+    
+    xform->renderarea_coords_over_renderbox_coords = renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels;
+
+    
+    return std::make_tuple(posn,xform,bounds);
+
+    /*
+    // rendering area starts to the left of the data
+      bounds->left = dataleftedge_chanunits; // left bound to give the image renderer
+      
+      // transform needs to convert dataleftedge_chanunits to pixels relative to channel 
+      xform->transform[6] = -x_center_channel_units*pixelsperdiv/xunitsperdiv 
+    
+    
+    
+      
+    std::shared_ptr<display_spatial_position> posn;
+    std::shared_ptr<display_spatial_transform> xform;
+    std::shared_ptr<display_channel_rendering_bounds> bounds;
+
+    xform=make_shared<display_spatial_transform>();
+    xform->transform[0]=pixelsperdiv/xunitsperdiv; // horizontal scale
+    xform->transform[4]=pixelsperdiv/yunitsperdiv; // vertical scale
+    double xshift_to_relative_to_renderingarea_center_in_pixels = -x_center_channel_units*pixelsperdiv/xunitsperdiv; // horizontal shift in pixels
+    double yshift_to_relative_to_renderingarea_center_in_pixels = -y_center_channel_units*pixelsperdiv/yunitsperdiv; // horizontal shift in pixels
+
+
+    double x_renderingarea_center_rel_lowerleft_chanunits = x_renderingarea_center_rel_lowerleft_pixels*xunitsperdiv/pixelsperdiv;
+    double y_renderingarea_center_rel_lowerleft_chanunits = y_renderingarea_center_rel_lowerleft_pixels*yunitsperdiv/pixelsperdiv;
+
+    double x_renderingarea_lowerleft_chanunits = x_center_channel_units - x_renderingarea_center_rel_lowerleft_chanunits;
+    double y_renderingarea_lowerleft_chanunits = y_center_channel_units - y_renderingarea_center_rel_lowerleft_chanunits;
+
+    */
+  }
+
+
+
+
+    std::tuple<std::shared_ptr<display_spatial_position>,std::shared_ptr<display_spatial_transform>,std::shared_ptr<display_channel_rendering_bounds>> spatial_transforms_for_waveform_channel(size_t drawareawidth,size_t drawareaheight,size_t horizontal_divisions,size_t vertical_divisions,double x_center_channel_units,double y_chanposn_divs,bool y_chan_vertzoomaroundaxis,double y_chan_vertcentercoord,double xunitscale,double yunitscale,double pixelsperdiv,bool horizontal_pixelflag, bool vertical_pixelflag,bool vert_zoom_around_axis)
+  {
+    // x_center_channel_units is coordinate of the renderingarea (not just rendering box) center in channel units, from the axis->CenterCoord
+    // xunitscale is in channel units per division if not horizontal_pixelflag, in channel units per pixel if horizontal_pixelflag
+    // yunitscale is in channel units per division if not vertical_pixelflag, in channel units per pixel if vertical_pixelflag
+    // data edges are the actual edges of the data, i.e. 1/2 unit from pixel center. 
+
+    
+    double xunitsperdiv; 
+    if (horizontal_pixelflag) {
+      xunitsperdiv = xunitscale * pixelsperdiv;
+    } else {
+      xunitsperdiv = xunitscale; 
+    }
+
+    double yunitsperdiv; 
+    if (vertical_pixelflag) {
+      yunitsperdiv = yunitscale * pixelsperdiv;
+    } else {
+      yunitsperdiv = yunitscale; 
+    }
+
+    // So for images or waveforms this transform represents:
+    //   pixels-rel-lower-left-of-channel-renderingbox divided by channel coordinates
+
+    // Different coordinates
+    // channel coordinates (raw numbers based on image axes)
+    // Channel coordinates about the display center
+
+    double y_center_channel_units; // coordinate of the renderingarea (not just rendering box) center in channel units
+
+    
+    // padding numbers are extra space on the left and bottom before the graticule starts,
+    // caused by the graticule aspect ratio not matching the display area aspect ratio
+    //double horizontal_padding = (drawareawidth-horizontal_divisions*pixelsperdiv)/2.0;
+    //double vertical_padding = (drawareaheight-vertical_divisions*pixelsperdiv)/2.0;
+
+
+    std::shared_ptr<display_spatial_position> posn;
+    std::shared_ptr<display_spatial_transform> xform;
+    std::shared_ptr<display_channel_rendering_bounds> bounds;
+
+    posn=std::make_shared<display_spatial_position>();
+    xform=std::make_shared<display_spatial_transform>();
+    bounds=std::make_shared<display_channel_rendering_bounds>();
+
+    if (y_chan_vertzoomaroundaxis) {
+      y_center_channel_units = -y_chanposn_divs*yunitsperdiv;
+    } else {
+      y_center_channel_units = y_chan_vertcentercoord;
+    }
+
+    Eigen::Matrix<double,3,3> pixels_rel_displaycenter_over_chanunits_rel_displaycenter;
+    pixels_rel_displaycenter_over_chanunits_rel_displaycenter  <<
+      pixelsperdiv/xunitsperdiv, 0, 0,
+      0, pixelsperdiv/yunitsperdiv, 0,
+      0, 0, 1;
+
+    Eigen::Matrix<double,3,3> chanunits_rel_displaycenter_over_chanunits_rel_chanorigin;
+    chanunits_rel_displaycenter_over_chanunits_rel_chanorigin <<
+      1, 0, -x_center_channel_units,
+      0, 1, -y_center_channel_units,
+      0, 0, 1;
+
+    
+    double x_renderingarea_center_rel_lowerleft_pixels = drawareawidth/2.0;
+    double y_renderingarea_center_rel_lowerleft_pixels = drawareaheight/2.0;
+
+    Eigen::Matrix<double,3,3> pixels_rel_displaycenter_over_pixels_rel_displaybotleft;
+    pixels_rel_displaycenter_over_pixels_rel_displaybotleft  <<
+      1, 0, -x_renderingarea_center_rel_lowerleft_pixels,
+      0, 1, -y_renderingarea_center_rel_lowerleft_pixels,
+      0, 0, 1;
+
+    // NOTE: all of this works by dimensional analysis 
+
+    xform->renderarea_coords_over_channel_coords = pixels_rel_displaycenter_over_pixels_rel_displaybotleft.inverse() * pixels_rel_displaycenter_over_chanunits_rel_displaycenter * chanunits_rel_displaycenter_over_chanunits_rel_chanorigin;
+    
+
+
+    // Find the lower left corner of the rendering area in channel coordinates relative
+    // to the channel origin
+    Eigen::Vector3d renderingarea_lowerleft_pixels_rel_displaybotleft;
+    renderingarea_lowerleft_pixels_rel_displaybotleft << 0,0,1;
+    Eigen::Vector3d renderingarea_lowerleft_chanunits_rel_chanorigin = chanunits_rel_displaycenter_over_chanunits_rel_chanorigin.inverse() * (pixels_rel_displaycenter_over_chanunits_rel_displaycenter.inverse() * (pixels_rel_displaycenter_over_pixels_rel_displaybotleft * renderingarea_lowerleft_pixels_rel_displaybotleft));
+
+
+    // Find the upper right corner of the rendering area in channel coordinates relative
+    // to the channel origin
+    Eigen::Vector3d renderingarea_upperright_pixels_rel_displaybotleft;
+    renderingarea_upperright_pixels_rel_displaybotleft << drawareawidth,drawareaheight,1;
+    Eigen::Vector3d renderingarea_upperright_chanunits_rel_chanorigin = chanunits_rel_displaycenter_over_chanunits_rel_chanorigin.inverse() * (pixels_rel_displaycenter_over_chanunits_rel_displaycenter.inverse() * (pixels_rel_displaycenter_over_pixels_rel_displaybotleft * renderingarea_upperright_pixels_rel_displaybotleft));
+
+
+    Eigen::Matrix<double,3,3> renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels;
+    renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels <<
+      1,0,0, // multiply this by a position relative to renderingbox lower left in pixels 
+      0,1,0, // to get a position relative to renderingarea lowerleft in pixels
+      0,0,1;  // initially we assume they line up exactly, and in this case there
+    // are no corrections because the renderbox fills the full area
+    // ... Then we're going to assign this to xform->renderarea_coords_over_renderbox_coords
+
+    // Left bound
+    bounds->left = renderingarea_lowerleft_chanunits_rel_chanorigin(0); // left bound to give the image renderer
+    posn->x=0;
+
+
+    // Right bound
+    bounds->right = renderingarea_upperright_chanunits_rel_chanorigin(0); // left bound to give the image renderer
+    posn->width = (bounds->right - bounds->left)*pixelsperdiv/xunitsperdiv;
+
+    
+    // Bottom bound
+    bounds->bottom = renderingarea_lowerleft_chanunits_rel_chanorigin(1); // left bound to give the image renderer    
+    posn->y = 0;
+
+
+    // Top bound
+    bounds->top = renderingarea_upperright_chanunits_rel_chanorigin(1); // left bound to give the image renderer
+    posn->height = (bounds->top - bounds->bottom)*pixelsperdiv/yunitsperdiv;
+
+    
+    xform->renderarea_coords_over_renderbox_coords = renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels;
+
+    
+    return std::make_tuple(posn,xform,bounds);
+
+  }
+
+
+
+
+
+  std::tuple<std::shared_ptr<display_spatial_position>,std::shared_ptr<display_spatial_transform>,std::shared_ptr<display_channel_rendering_bounds>> spatial_transforms_for_3d_channel(size_t drawareawidth,size_t drawareaheight,double x_chanposn_divs,double y_chanposn_divs,double mag,double pixelsperdiv)
+  {
+    // mag in units of displayed pixels/3d rendered pixels where 3d rendered pixels are "chan units"
+
+    // rendered pixels are the width of the display area but centered at the center
+    double dataleftedge_chanunits = -(drawareawidth/2.0);
+    double datarightedge_chanunits = drawareawidth/2.0;
+    double databottomedge_chanunits = -(drawareaheight/2.0);
+    double datatopedge_chanunits = drawareaheight/2.0;
+    
+    std::shared_ptr<display_spatial_position> posn;
+    std::shared_ptr<display_spatial_transform> xform;
+    std::shared_ptr<display_channel_rendering_bounds> bounds;
+
+    posn=std::make_shared<display_spatial_position>();
+    xform=std::make_shared<display_spatial_transform>();
+    bounds=std::make_shared<display_channel_rendering_bounds>();
+
+
+    Eigen::Matrix<double,3,3> pixels_rel_displaycenter_over_chanunits_rel_displaycenter;
+    pixels_rel_displaycenter_over_chanunits_rel_displaycenter  <<
+      mag, 0, 0,
+      0, mag, 0,
+      0, 0, 1;
+
+    Eigen::Matrix<double,3,3> chanunits_rel_displaycenter_over_chanunits_rel_chanorigin;
+    chanunits_rel_displaycenter_over_chanunits_rel_chanorigin <<
+      1, 0, x_chanposn_divs*pixelsperdiv/mag,
+      0, 1, y_chanposn_divs*pixelsperdiv/mag,
+      0, 0, 1;
+    
+    
+    double x_renderingarea_center_rel_lowerleft_pixels = drawareawidth/2.0;
+    double y_renderingarea_center_rel_lowerleft_pixels = drawareaheight/2.0;
+    
+    Eigen::Matrix<double,3,3> pixels_rel_displaycenter_over_pixels_rel_displaybotleft;
+    pixels_rel_displaycenter_over_pixels_rel_displaybotleft  <<
+      1, 0, -x_renderingarea_center_rel_lowerleft_pixels,
+      0, 1, -y_renderingarea_center_rel_lowerleft_pixels,
+      0, 0, 1;
+
+    // NOTE: all of this works by dimensional analysis 
+    
+    xform->renderarea_coords_over_channel_coords = pixels_rel_displaycenter_over_pixels_rel_displaybotleft.inverse() * pixels_rel_displaycenter_over_chanunits_rel_displaycenter * chanunits_rel_displaycenter_over_chanunits_rel_chanorigin;
+    
+
+
+    // Find the lower left corner of the rendering area in channel coordinates relative
+    // to the channel origin
+    Eigen::Vector3d renderingarea_lowerleft_pixels_rel_displaybotleft;
+    renderingarea_lowerleft_pixels_rel_displaybotleft << 0,0,1;
+    Eigen::Vector3d renderingarea_lowerleft_chanunits_rel_chanorigin = chanunits_rel_displaycenter_over_chanunits_rel_chanorigin.inverse() * (pixels_rel_displaycenter_over_chanunits_rel_displaycenter.inverse() * (pixels_rel_displaycenter_over_pixels_rel_displaybotleft * renderingarea_lowerleft_pixels_rel_displaybotleft));
+
+
+    // Find the upper right corner of the rendering area in channel coordinates relative
+    // to the channel origin
+    Eigen::Vector3d renderingarea_upperright_pixels_rel_displaybotleft;
+    renderingarea_upperright_pixels_rel_displaybotleft << drawareawidth,drawareaheight,1;
+    Eigen::Vector3d renderingarea_upperright_chanunits_rel_chanorigin = chanunits_rel_displaycenter_over_chanunits_rel_chanorigin.inverse() * (pixels_rel_displaycenter_over_chanunits_rel_displaycenter.inverse() * (pixels_rel_displaycenter_over_pixels_rel_displaybotleft * renderingarea_upperright_pixels_rel_displaybotleft));
+
+
+    
+    Eigen::Matrix<double,3,3> renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels;
+    renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels <<
+      1,0,0, // multiply this by a position relative to renderingbox lower left in pixels 
+      0,1,0, // to get a position relative to renderingarea lowerleft in pixels
+      0,0,1;  // initially we assume they line up exactly, but below we will put
+    // the corrections into the right hand column (elements #2 and #5)
+    // ... Then we're going to assign this to xform->renderarea_coords_over_renderbox_coords
+
+    // Left bound
+    if (renderingarea_lowerleft_chanunits_rel_chanorigin(0) <= dataleftedge_chanunits) {
+      // if (x_renderingarea_lowerleft_chanunits < dataleftedge_chanunits)
+      // rendering area starts to the left of the data
+      bounds->left = dataleftedge_chanunits; // left bound to give the image renderer
+
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(2) = (dataleftedge_chanunits - renderingarea_lowerleft_chanunits_rel_chanorigin(0))*mag; //*pixelsperdiv/xunitsperdiv;
+      posn->x = (size_t)renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(2);
+
+    } else {
+      // image is chopped off on left by rendering area boundary
+      bounds->left = renderingarea_lowerleft_chanunits_rel_chanorigin(0); // left bound to give the image renderer
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(2) = 0.0;
+      posn->x=0;
+    }
+
+
+    // Right bound
+    if (renderingarea_upperright_chanunits_rel_chanorigin(0) > datarightedge_chanunits) {
+      // rendering area continues to the right of the data
+      bounds->right = datarightedge_chanunits; // right bound to give the image renderer
+      
+    } else {
+      // image is chopped off on right by rendering area boundary
+      bounds->right = renderingarea_upperright_chanunits_rel_chanorigin(0); // left bound to give the image renderer
+      
+    }
+    posn->width = (bounds->right - bounds->left)*mag; // *pixelsperdiv/xunitsperdiv;
+
+    
+    // Bottom bound
+    if (renderingarea_lowerleft_chanunits_rel_chanorigin(1) <= databottomedge_chanunits) {
+      // if (y_renderingarea_lowerleft_chanunits < databottomedge_chanunits)
+      // rendering area starts to the bottom of the data
+      bounds->bottom = databottomedge_chanunits; // left bound to give the image renderer
+
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(5) = (databottomedge_chanunits - renderingarea_lowerleft_chanunits_rel_chanorigin(1))*mag; // *pixelsperdiv/yunitsperdiv;
+
+      posn->y = (size_t)renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(5);
+
+    } else {
+      // image is chopped off on bottome by rendering area boundary
+      bounds->bottom = renderingarea_lowerleft_chanunits_rel_chanorigin(1); // left bound to give the image renderer
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(5) = 0.0;
+
+      posn->y = 0;
+    }
+
+
+    // Top bound
+    if (renderingarea_upperright_chanunits_rel_chanorigin(1) > datatopedge_chanunits) {
+      // rendering area continues to the top of the data
+      bounds->top = datatopedge_chanunits; // right bound to give the image renderer
+      
+    } else {
+      // image is chopped off on top by rendering area boundary
+      bounds->top = renderingarea_upperright_chanunits_rel_chanorigin(1); // left bound to give the image renderer
+      
+    }
+    posn->height = (bounds->top - bounds->bottom)*mag; //*pixelsperdiv/yunitsperdiv;
+
+    
+    xform->renderarea_coords_over_renderbox_coords = renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels;
+
+    
+    return std::make_tuple(posn,xform,bounds);
+
+  }
+
+
   
 static std::string _assembly_join_assem_and_compnames(const std::string &assempath, const std::string &compname)
 // compname may be relative to our assembly, interpreted as a group
@@ -165,8 +642,15 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 	// image data.. for now hardwired to u=dim 0, v=dim1, frame = dim2, seq=dim3
 	snde_index u_dimnum=0;
 	snde_index v_dimnum=1;
+	
+	std::shared_ptr<display_spatial_position> posn;
+	std::shared_ptr<display_spatial_transform> xform;
+	std::shared_ptr<display_channel_rendering_bounds> bounds;
+
+	
 	std::shared_ptr<rgbacolormapparams> colormap_params;
 	{
+	  std::lock_guard<std::mutex> di_lock(display->admin);
 	  std::lock_guard<std::mutex> dc_lock(displaychan->admin);
 	  std::vector<snde_index> other_indices({0,0});
 	  if (NDim >= 3) {
@@ -182,19 +666,106 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 	    }
 	  }
 		
-	
+	  std::shared_ptr<display_axis> a = display->GetFirstAxisLocked(chanpath);
+	  std::shared_ptr<display_axis> b = display->GetSecondAxisLocked(chanpath);
+
+	  double xcenter;
+	  double xunitscale;
+	  bool horizontal_pixelflag;
+	  {
+	    std::lock_guard<std::mutex> axisadminlock(a->admin);
+	    xcenter=a->CenterCoord; /* in units */
+
+	    std::shared_ptr<display_unit> u=a->unit;
+	    std::lock_guard<std::mutex> unitadminlock(u->admin);
+	    
+	    xunitscale=u->scale;
+	    horizontal_pixelflag = u->pixelflag;
+	  }
+
+	  
+	  double yunitscale;
+	  bool vertical_pixelflag;
+	  {
+	    std::lock_guard<std::mutex> axisadminlock(b->admin);
+
+	    std::shared_ptr<display_unit> v=b->unit;
+	    std::lock_guard<std::mutex> unitadminlock(v->admin);
+	    
+	    yunitscale=v->scale;
+	    
+	    vertical_pixelflag = v->pixelflag;
+	  }
+
+	  
+	  
+	  
 	  colormap_params = std::make_shared<rgbacolormapparams>(displaychan->ColorMap,
 	    displaychan->Offset,
 	    displaychan->Scale,
 	    other_indices,
 	    u_dimnum,
 	    v_dimnum);
+
+
+	  double stepx,stepy;
+	  
+
+	  stepx = rec->metadata->GetMetaDatumDbl("nde_axis0_step",1.0);
+	  stepy = rec->metadata->GetMetaDatumDbl("nde_axis1_step",1.0);
+
+	  double left,right,bottom,top;
+
+	  if (stepx > 0) {
+	    left = rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)-stepx/2.0;	  
+	    right = rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
+	  } else {
+	    right = rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)-stepx/2.0;	  
+	    left = rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
+	  }
+	  if (stepy > 0) {
+	    bottom = rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)-stepy/2.0;
+	    top = rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
+	  } else {
+	    top = rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)-stepy/2.0;
+	    bottom = rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
+	  }
+	
+	  std::tie(posn,xform,bounds) = spatial_transforms_for_image_channel(display->drawareawidth,display->drawareaheight,
+									     display->horizontal_divisions,display->vertical_divisions,
+									     xcenter,-displaychan->Position,displaychan->VertZoomAroundAxis,
+									     displaychan->VertCenterCoord,
+									     xunitscale,yunitscale,display->pixelsperdiv,
+									     horizontal_pixelflag, vertical_pixelflag,
+									     displaychan->VertZoomAroundAxis,
+									     // ***!!! In order to implement procexpr/procrgba type
+									     // dynamic transforms we would have to queue up all of these parameters
+									     // and then call spatial_transforms_for_image_channel later, 
+									     // probably in the render cache -- as
+									     // the data edges are dependent on the data, which
+									     // wouldn't be available until the end anyway... Realistically
+									     // the axes would be different too -- so probably best just to
+									     // snapshot the display state or similar with a deep copy and
+									     // keep that snapshot as a record in the display pipeline
+
+									     // Note: The edges are the center bounds shifted by half a step
+									     left,
+									     right,
+									     bottom,
+									     top);
+	  
+	  
 	} // release displaychan lock
+
+
 	
 	retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_RGBAIMAGE,typeid(*this),colormap_params),rec,shared_from_this());
+	retval->renderer_type = SNDE_DRRT_IMAGE;
 	//retval->imgref = std::make_shared<image_reference>(chanpath,u_dimnum,v_dimnum,other_indices);
 	retval->renderable_channelpath = std::make_shared<std::string>(chanpath); 
-
+	retval->spatial_position = posn;
+	retval->spatial_transform = xform;
+	retval->spatial_bounds = bounds;
 
 	
 	// have a nested display_requirement for the image as a texture... recursive call to traverse_display_requirement()
@@ -322,10 +893,30 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
     //  snde_warning("meshed_part_recording_display_handler::get_display_requirement(): No normals found for %s; rendering disabled.",chanpath.c_str());
     //  return nullptr; 
     //}
+
+    std::shared_ptr<display_spatial_position> posn;
+    std::shared_ptr<display_spatial_transform> xform;
+    std::shared_ptr<display_channel_rendering_bounds> bounds;
+
+    {
+      std::lock_guard<std::mutex> di_lock(display->admin);
+      std::lock_guard<std::mutex> dc_lock(displaychan->admin);
+      
+      std::tie(posn,xform,bounds) = spatial_transforms_for_3d_channel(display->drawareawidth,display->drawareaheight,
+								      displaychan->HorizPosition,displaychan->Position,
+								      displaychan->Scale,display->pixelsperdiv);	  // magnification comes from the channel scale
+      
+    } // release displaychan lock
+
+	
     
     
     retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_MESHEDPARAMLESS3DPART,typeid(*this),nullptr),rec,shared_from_this());
+    retval->renderer_type = SNDE_DRRT_GEOMETRY;
     retval->renderable_channelpath = std::make_shared<std::string>(chanpath);
+    retval->spatial_position = posn;
+    retval->spatial_transform = xform;
+    retval->spatial_bounds = bounds;
     
     
     // add a sub-requirement of the vertex arrays -- recursive evaluation of this class but with SNDE_SRG_VERTEXARRAYS
@@ -502,6 +1093,22 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
     assert(texedpart_rec);
 
     std::shared_ptr<vector_renderparams<rgbacolormapparams>> texedmeshedpart_params=std::make_shared<vector_renderparams<rgbacolormapparams>>(); // will be filled in below
+
+    std::shared_ptr<display_spatial_position> posn;
+    std::shared_ptr<display_spatial_transform> xform;
+    std::shared_ptr<display_channel_rendering_bounds> bounds;
+	
+
+    {
+      std::lock_guard<std::mutex> di_lock(display->admin);
+      std::lock_guard<std::mutex> dc_lock(displaychan->admin);
+      
+      std::tie(posn,xform,bounds) = spatial_transforms_for_3d_channel(display->drawareawidth,display->drawareaheight,
+								      displaychan->Position,displaychan->HorizPosition,
+								      displaychan->Scale,display->pixelsperdiv);	  // magnification comes from the scale
+      
+    } // release displaychan lock
+    
     
     retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_TEXEDMESHEDPART,typeid(*this),texedmeshedpart_params),rec,shared_from_this());
     retval->renderable_channelpath = std::make_shared<std::string>(chanpath);
@@ -511,6 +1118,10 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
 
     // geometry
     retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,displaychan,SNDE_SRG_GEOMETRY,nullptr));
+    retval->renderer_type = SNDE_DRRT_GEOMETRY;
+    retval->spatial_position = posn;
+    retval->spatial_transform = xform;
+    retval->spatial_bounds = bounds;
     
     
     // Iterate over the texture_refs. They become the fourth and beyond sub-requirements

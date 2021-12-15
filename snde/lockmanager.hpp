@@ -43,10 +43,26 @@ Solution: atomic lists that can be traversed, sort the results, lock, then verif
    *** THESE ARE LOCKED Following the Locking order via spawn() if necessary 
  4 TRM dependency_table_lock -- not managed by lockmanager
 
+ 
 
  *** NEW, UPDATED LOCKING ORDER for mostly-immutable recording database: 
+ (rationale for transaction lock preceding dataguzzler-python module lock 
+ was that dataguzzler-python module might want to trigger other acquisitions
+ within the transaction. Also we might want to do automatic stuff that might access other dataguzzler-python
+ modules at EndTransaction(). Similar to addquerymetadatum. 
+ * Pitfall: From a Python module, to start transaction, drop the module lock, 
+   start the transaction, reacquire the module lock. Could get locked out briefly
+   at the most critical juncture for real time recording. 
+ * Advantage of this approach is that addquerymetadatum could be implemented at the 
+   spatialnde2 level in EndTransaction rather than in each acquisition module. 
+   * Also would work for math functions. 
+ * Is is possible to avoid the risk of deadlock without dropping the lock on transaction start?
+     ... MAYBE. Probably need to define a protocol for the graph of subcalls from an
+addquerymetadatum that runs in end_transaction or metadatadone.     
+  
  1. Entry into a transaction (StartTransaction()/EndTransaction() or equiv)
  1.5 dataguzzler-python module locks; 
+ 1.8 openscenegraph_renderer/osg_compositor execution_lock. 
  2. Any locks required to traverse the mostly immutable recdb (hopefully few/none) (consisting of 2.4-2.7, below)
    * StartTransaction() defines a new global revision for the calling thread
      to mess with. Other threads will still get the prior revision and the 

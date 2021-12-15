@@ -186,7 +186,7 @@ ENDIF()
 
 IF (OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   # Enable OSG support
-  set(SPATIALNDE2_OSG_SOURCES snde/openscenegraph_rendercache.cpp snde/openscenegraph_image_renderer.cpp snde/openscenegraph_geom_renderer.cpp )
+  set(SPATIALNDE2_OSG_SOURCES snde/openscenegraph_rendercache.cpp snde/openscenegraph_renderer.cpp snde/openscenegraph_image_renderer.cpp snde/openscenegraph_geom_renderer.cpp )
 ENDIF()
 
 
@@ -488,7 +488,7 @@ IF (Python3_FOUND)
     COMMAND ${CMAKE_COMMAND} -E echo "And ...perhaps as root or Administrator...:"
     COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "  ${PYTHON_EXECUTABLE} setup.py install"
     COMMAND ${CMAKE_COMMAND} -E echo "to install for Python" )
-  add_dependencies( InstallMessage compile_definitions Python_Create_Setup spatialnde2 spatialnde2_qt allocator_test recdb_test recmath_test recmath_test2 transform_eval_test matrixsolve_test png_viewer osg_layerwindow_test ondemand_test x3d_viewer )
+  add_dependencies( InstallMessage compile_definitions Python_Create_Setup spatialnde2 spatialnde2_qt allocator_test recdb_test recmath_test recmath_test2 transform_eval_test matrixsolve_test png_viewer osg_layerwindow_test ondemand_test x3d_viewer compositor_test )
 ENDIF (Python3_FOUND)
 
 
@@ -524,6 +524,13 @@ IF (GLUT_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   #add_dependencies(png_viewer OpenCL_Headers)
   add_dependencies(osg_layerwindow_test OpenGL::GL )
   target_link_libraries(osg_layerwindow_test -lGL ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}  )
+ENDIF()
+
+IF (GLUT_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
+  add_executable(compositor_test test/compositor_test.cpp)
+  #add_dependencies(png_viewer OpenCL_Headers)
+  add_dependencies(compositor_test OpenGL::GL )
+  target_link_libraries(compositor_test -lGL ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}  )
 ENDIF()
 
 

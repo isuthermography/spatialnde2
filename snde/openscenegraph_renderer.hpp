@@ -147,6 +147,9 @@
 // Then do readback in postdraw... 
 
 namespace snde {
+
+  class osg_renderer;
+  
   class osgViewerCompat34: public osgViewer::Viewer {
     // derived version of osgViewer::Viewer that gives compat34GetRequestContinousUpdate()
     // alternative to osg v3.6 getRequestContinousUpdate()
@@ -214,7 +217,11 @@ namespace snde {
 	outputbuf_tex->getTextureObject(Info.getState()->getContextID())->bind();
 	*readback_pixels=std::make_shared<std::vector<unsigned char>>(outputbuf_tex->getTextureWidth()*outputbuf_tex->getTextureHeight()*4);
 	glReadPixels(0,0,outputbuf_tex->getTextureWidth(),outputbuf_tex->getTextureHeight(),GL_RGBA,GL_UNSIGNED_BYTE,(*readback_pixels)->data());
+
+	// disable the Fbo ... like disableFboAfterRendering
 	
+	GLuint fboId = Info.getState()->getGraphicsContext()->getDefaultFboId();
+	Info.getState()->get<osg::GLExtensions>()->glBindFramebuffer(GL_FRAMEBUFFER_EXT, fboId);
       }
 
       // If we had bound our own framebuffer in the predraw callback then
@@ -251,6 +258,8 @@ namespace snde {
       // based on our viewer. 
       osgViewer::Renderer *Rend = dynamic_cast<osgViewer::Renderer *>(Viewer->getCamera()->getRenderer());
       osgUtil::RenderStage *Stage = Rend->getSceneView(0)->getRenderStage();
+
+      Stage->setDisableFboAfterRender(true); // need to drop back to the default FBO so we can do compositing
       
       FBO = Stage->getFrameBufferObject();
 
@@ -347,7 +356,7 @@ namespace snde {
     
     //osg::ref_ptr<osg::FrameBufferObject> FBO;
     osg::ref_ptr<osg::Texture2D> outputbuf;
-    osg::ref_ptr<osg::RenderBuffer> depthbuf;
+    //osg::ref_ptr<osg::RenderBuffer> depthbuf;
 
     //osg::ref_ptr<osg::Image> readback_img;
 
@@ -451,7 +460,7 @@ namespace snde {
       if (_traits) {
 	if (width != _traits->width || height != _traits->height) {
 	  
-	  depthbuf->setSize(width,height);
+	  //depthbuf->setSize(width,height);
 	  outputbuf->setTextureSize(width,height);	  
 	  //Cam->setViewport(0,0,pix_width,height);
 	  
@@ -638,66 +647,220 @@ namespace snde {
     //}
     
   };
+
+
   
+
+  // ****!!!!! Should find a way to set the DefaultFramebuffer for all the GraphicsContext !!!****
+  // ****!!!!! Need resize method.. should call display->set_pixelsperdiv() !!!****
   class osg_compositor { // Used as a base class for QTRecRender, which also inherits from QOpenGLWidget
   public:
+
+    std::weak_ptr<recdatabase> recdb; // immutable once initialized
+    // These pointers (not necessarily content) are immutable once initialized
+    // and represent the composited view. In the QT environment they need
+    // to be initialized from the main GUI thread (SNDE_OSGRCS_COMPOSITING
+    // context). They generally are only to be worked with from the main thread
+    // (compositing step)
+    osg::ref_ptr<osgViewer::Viewer> Viewer;
     osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow;
-    //osg::ref_ptr<osgViewer::Viewer> Viewer;
-    osg::ref_ptr<osgViewerCompat34> Viewer;
     osg::ref_ptr<osg::Camera> Camera;
-    //osg::ref_ptr<osg::Node> RootNode;
+
+    std::shared_ptr<display_info> display;
+    std::string selected_channel; // locked by admin lock.... maybe selected channel should instead be handled like width, height, etc. below. 
+    
+    bool threaded;
+    bool platform_supports_threaded_opengl;
 
     // PickerCrossHairs and GraticuleTransform for 2D image and 1D waveform rendering
+    // They are initialized in the compositor's constructor and immutable thereafter
     osg::ref_ptr<osg::MatrixTransform> PickerCrossHairs;
     osg::ref_ptr<osg::MatrixTransform> GraticuleTransform; // entire graticule hangs off of this!
-    
-    
-    std::shared_ptr<osg_rendercache> RenderCache;
-    std::shared_ptr<recording_set_state> RenderingState; // RenderingState is a recording set state that branches off the globalrev being rendered, and has any data transform channels needed for rendering added to it. The next RenderingState comes will come from the latest globalrev plus any needed data transform channels. If those data transform channels are unchanged since the prior rendering state they can be imported from this stored pointer. 
 
-    osg_compositor(osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
-		 //osg::ref_ptr<osg::Node> RootNode,
-		 bool twodimensional);
 
-    void perform_render(std::shared_ptr<recdatabase> recdb,
-			const std::vector<display_requirement> & display_reqs,
-			std::shared_ptr<recstore_display_transforms> display_transforms,
-			const std::vector<std::shared_ptr<display_channel>> &channels_to_display, 
-			std::shared_ptr<display_info> display,
-			bool singlechannel);
+    // these are initialized in the ONDEMANDCALCS step and referenced in subsequent steps
+    // (perhaps from different threads, but there will have been mutex/condition variable
+    // synchronization since)
+    std::vector<std::shared_ptr<display_channel>> channels_to_display;
+    std::map<std::string,std::shared_ptr<display_requirement>> display_reqs;
+    std::shared_ptr<recstore_display_transforms> display_transforms;
+
+    // Render cache is maintained by the rendering step which runs in the rendering thread
+    std::shared_ptr<osg_rendercache> RenderCache; // Should be freed (set to nullptr) ONLY by layer rendering thread with the proper OpenGL context loaded
+
+    // Renderers maintained by the rendering step which runs in the rendering thread
+    std::shared_ptr<std::map<std::string,std::shared_ptr<osg_renderer>>> renderers; // Should be freed (set to nullptr) ONLY by layer rendering thread with the proper OpenGL context loaded
+
+    // Renderers created by rendering step which runs in the rendering thread, but
+    // the integer texture ID numbers are used in the compositing step
+    std::shared_ptr<std::map<std::string,std::pair<osg::ref_ptr<osg::Texture2D>,GLuint>>> layer_rendering_rendered_textures; // should be freed ONLY by layer rendering thread. Indexed by channel name; texture pointer valid in layer rendering thread and opengl texture ID number.
+
+    //std::shared_ptr<std::map<std::string,std::pair<osg::ref_ptr<osg::Texture2D>,GLuint>>> compositing_textures; // should be freed ONLY by compositing thread. Indexed by channel name. Texture pointer valid in compositing thread
     
+    // Rendering consists of four phases, which may be in different threads,
+    // but must proceed sequentially with one thread handing off to the next
+    // 1. Waiting for trigger; the trigger indicates that an update
+    //    is necessary, such as the need_update or need_recomposite
+    //    flags below. It can come from QT, from the presence of a new
+    //    ready globalrevision, etc.  Any thread can do the trigger,
+    //    by locking the admin mutex, setting the flag, and calling the
+    //    state_update notify method. 
+    // 2. Identification of channels to render and waiting for on-demand
+    //    calculations (e.g. colormapping) to become ready
+    // 3. Rendering of enabled channels onto textures.
+    //    (Note: Easy optimization opportunity: Don't re-render if scene
+    //     hasn't changed -- i.e. same cached elements) 
+    // 4. Compositing of enabled textures onto final output.
+    //    In the QT integration this final step must be done in the
+    //    main GUI event loop. The others do not have to, unless the
+    //    platform doesn't support threaded OpenGL, in which case
+    //    step #3 also has to be in the main GUI event loop.
+
+    //std::mutex execution_lock; // Whoever is executing an above step must own th execution_lock. It is early in the locking order, prior to recdb locks (see lockmanager.hpp)
+
+    std::mutex admin; // the admin lock primarily locks next_state, execution_notify, need_update, need_recomposite
+    std::condition_variable execution_notify; //paired with the admin lock, above
+    int next_state; // When you are ready to start doing one of the above
+    // operations, acquire the admin lock and check next_state. If next_state
+    // is your responsibility (i.e. if
+    // responsibility_mapping.at(std::this_thread::get_id) contains next_state,
+    // then you take over execution. Clear need_update or need_recomposite
+    // as appropriate and then drop the admin lock and start executing.
+    // If next_state is not your responsibility, 
+    // you need to either drop the admin lock and do other stuff, or
+    // keep the admin lock but wait on the execution_notify condition
+    // variable. Once you finish, re-acquire the admin lock and
+    // (checking first to see if next_state has been modified to exceed 
+    // SNDE_SGRCS_CLEANUP, in which case you should return to the main loop and
+    // initate cleanup procedures if possible)
+    // set next_state to one of the SNDE_OSGRCS_xxxxs
+    // below representing the next step. Finally drop the admin lock and
+    // call the state_update notify method, which triggers the execution_notify
+    // condition variable with notify_all() (and subclasses might do other
+    // notification mechanisms as well such as QT slots). 
+
+    // reponsibility_mapping needs to be pre-configured with
+    // which threads take which responsibilities (SNDE_OSGRCS... below)
+    // So any given thread needs to check if it can take responsibility
+    // for a given next_state. Only a single thread should every be allowed
+    // to have responsibility for any given state. 
+    std::map<std::thread::id,std::set<int>> responsibility_mapping; // this is immutable once created
+
+    bool need_update; 
+    bool need_recomposite; 
+    
+#define SNDE_OSGRCS_WAITING 1 // Entry #1, above. This one is special
+    // in that the responsible thread should be waiting on the
+    // condition variable and checking the need_update and
+    // need_recomposite bools, and marking the next state as
+    // SNDE_OSGRCS_ONDEMANDCALCS or SNDE_OSGRCS_COMPOSITING as
+    // appropriate if one of those is set.
+#define SNDE_OSGRCS_ONDEMANDCALCS 2 // Entry #2, above
+#define SNDE_OSGRCS_RENDERING 3 // Entry #3, above
+#define SNDE_OSGRCS_COMPOSITING 4 // Entry #4, above
+    //#define SNDE_OSGRCS_CLEANUP 5
+#define SNDE_OSGRCS_COMPOSITING_CLEANUP 6 // command to worker thread(s) to cleanup
+#define SNDE_OSGRCS_RENDERING_CLEANUP 7 // command to worker thread(s) to cleanup
+#define SNDE_OSGRCS_EXIT 8 // command to worker thread(s) to exit
+    
+
+    std::shared_ptr<std::thread> worker_thread;
+
+    
+    size_t width;  // updated in peform_ondemand_calcs; Should only be modified there, and read by whoever is running a step
+    size_t height;
+    double borderwidthpixels;
+    std::map<std::string,size_t> ColorIdx_by_channelpath; // updated in perform_ondemand_calc;
+    
+    
+    // ***!!! NOTE: don't set platform_supports_threaded_opengl unless you have arranged some means for the worker thread to operate in a different OpenGL context that shares textures with the main context !!!***
+    // NOTE 2: This will be (is?) subclassed by a QT version that does just that.
+    // ***!!!! Should provide some means to set the default framebuffer for the various GraphicsWindows ***!!!
+    osg_compositor(std::shared_ptr<recdatabase> recdb,
+		   std::shared_ptr<display_info> display,
+		   osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
+		   bool threaded,bool platform_supports_threaded_opengl);
+
+    osg_compositor(const osg_compositor &) = delete;
+    osg_compositor & operator=(const osg_compositor &) = delete;
+    virtual ~osg_compositor();
+    
+
+    void trigger_update();
+    void wait_render();
+    void set_selected_channel(const std::string &selected_name);
+    std::string get_selected_channel();
+    void perform_ondemand_calcs();
+    void perform_layer_rendering();
+    void perform_compositing();
+    bool this_thread_ok_for_locked(int action);
+    bool this_thread_ok_for(int action);
+    void dispatch(bool return_if_idle,bool wait, bool loop_forever);
+    void worker_code();
+    void start();
+    void stop();
     void SetPickerCrossHairs();
+
+    //void SetPickerCrossHairs();
     
-    void SetRootNode(osg::ref_ptr<osg::Node> RootNode);
-
-    /* NOTE: to actually render, do any geometry updates, 
-       then call Viewer->frame() */
-    /* NOTE: to adjust size, first send event, then 
-       change viewport:
-
-    GraphicsWindow->getEventQueue()->windowResize(x(),y(),width,height);
-    GraphicsWindow->resized(x(),y(),width,height);
-    Camera->setViewport(0,0,width,height);
-    SetProjectionMatrix();
-
-    */
+    //void SetRootNode(osg::ref_ptr<osg::Node> RootNode);
 
 
 
+    
+    //virtual void ClearPickedOrientation()
+    //{
+    //  // notification from picker to clear any marked orientation
+    // // probably needs to be reimplemented by derived classes
+    //}
+    
+    //std::tuple<double,double> GetPadding(size_t drawareawidth,size_t drawareaheight);
 
-    virtual void ClearPickedOrientation()
+    //std::tuple<double,double> GetScalefactors(std::string recname);
+
+    //osg::Matrixd GetChannelTransform(std::string recname,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
+    
+    
+  };
+
+
+  class osg_renderer {
+  public:
+    // base class for renderers
+
+    osg::ref_ptr<osgViewer::Viewer> Viewer;
+    osg::ref_ptr<osg::Camera> Camera;
+    osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow;
+    std::string channel_path;
+
+    int type; // see SNDE_DRRT_XXXXX in rec_display.hpp
+
+
+    osg_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
+		 osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
+		 std::string channel_path,int type) :
+      Viewer(Viewer),
+      Camera(Viewer->getCamera()),
+      GraphicsWindow(GraphicsWindow),
+      channel_path(channel_path)
     {
-      // notification from picker to clear any marked orientation
-      // probably needs to be reimplemented by derived classes
+
+    }
+      
+    virtual std::tuple<std::shared_ptr<osg_rendercacheentry>,bool>
+    prepare_render(//std::shared_ptr<recdatabase> recdb,
+		   std::shared_ptr<recording_set_state> with_display_transforms,
+		   //std::shared_ptr<display_info> display,
+		   std::shared_ptr<osg_rendercache> RenderCache,
+		   const std::map<std::string,std::shared_ptr<display_requirement>> &display_reqs,
+		   size_t width,
+		   size_t height)=0;
+
+    virtual void frame()
+    {
+      Viewer->frame();
     }
 
-    std::tuple<double,double> GetPadding(size_t drawareawidth,size_t drawareaheight);
-
-    std::tuple<double,double> GetScalefactors(std::string recname);
-
-    osg::Matrixd GetChannelTransform(std::string recname,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
-    
-    
   };
 
 

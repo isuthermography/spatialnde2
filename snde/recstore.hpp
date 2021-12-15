@@ -170,6 +170,7 @@ namespace snde {
   SNDE_API extern const std::unordered_map<unsigned,std::string> rtn_typenamemap;
   SNDE_API extern const std::unordered_map<unsigned,size_t> rtn_typesizemap; // Look up element size bysed on typenum
   SNDE_API extern const std::unordered_map<unsigned,std::string> rtn_ocltypemap; // Look up opencl type string based on typenum
+  SNDE_API extern const std::unordered_map<unsigned,std::set<unsigned>> rtn_compatible_types;
 
   // https://stackoverflow.com/questions/41494844/check-if-object-is-instance-of-class-with-template
   // https://stackoverflow.com/questions/43587405/constexpr-if-alternative

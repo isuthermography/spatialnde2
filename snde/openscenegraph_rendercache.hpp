@@ -42,7 +42,9 @@ namespace snde {
     osg_rendercache(const osg_rendercache &) = delete; // shouldn't need copy constructor
     virtual ~osg_rendercache() = default; // subclassable (but not sure why)
 
-    std::shared_ptr<osg_rendercacheentry> GetEntry(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);  // mode from rendermode.hpp
+    // GetEntry returns (entry, modified_flag). if not modified flag, then everything came out of the
+    // cache unmodified so you may not need to rerender at all. 
+    std::pair<std::shared_ptr<osg_rendercacheentry>,bool> GetEntry(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);  // mode from rendermode.hpp
 
 
     void mark_obsolete(); // mark the potentially_obsolete flag of all cache entries
@@ -55,17 +57,17 @@ namespace snde {
   public:
     // Do not keep pointers to any of these in your render cache entries
     // as it could create reference loops or keep data in memory unnecessarily
-    std::shared_ptr<recdatabase> recdb;
+    //std::shared_ptr<recdatabase> recdb;
     std::shared_ptr<osg_rendercache> rendercache;
     std::shared_ptr<recording_set_state> with_display_transforms;
-    std::shared_ptr<display_info> display;
+    //std::shared_ptr<display_info> display;
 
     //std::shared_ptr<display_channel> displaychan; -- get from display->lookup_channel(channel_path)
 
     
     //std::shared_ptr<recording_base> recording; -- get from with_display_transforms->check_for_recording(channel_path) may want to keep pointer to this in render cache to keep arrays valid (but in the future find way to eliminate so we don't keep recordings in memory unnecessarily???) -- may not be the biggest deal because in the render context we will mostly be looking at subarrays transformed to rgba.
 
-    // Window boundaries -- these parameters are needed for the oscilloscope trace renderer (1D waveform recordings)
+    // Window boundaries -- these parameters are needed for the oscilloscope trace renderer (1D waveform recordings) and image renderer. Get them from display_req->spatial_bounds
     double left; // left edge of viewport in channel horizontal units
     double right; // right edge of viewport in channel horizontal units
     double bottom; // bottom edge of viewport in channel vertical units
@@ -90,7 +92,11 @@ namespace snde {
     osg_rendercacheentry(const osg_rendercacheentry &) = delete; // shouldn't need copy constructor
     virtual ~osg_rendercacheentry() = default; // subclassable
 
-    virtual bool attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
+    // attempt_reuse returns two bools:
+    //   1. Whether this cache entry can be reused
+    //   2. Whether there were any modifications here or deeper in the tree. If false,
+    //      then you may not actually have to rerender
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
     virtual void clear_potentially_obsolete(); // clear the obsolete flag
   };
 
@@ -110,7 +116,7 @@ namespace snde {
     osg_rendercachegroupentry(const osg_rendercachegroupentry &) = delete; // shouldn't need copy constructor
     virtual ~osg_rendercachegroupentry() = default; // subclassable
     
-    virtual bool attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
 
   };
 
@@ -128,7 +134,7 @@ namespace snde {
     osg_rendercachedrawableentry(const osg_rendercachedrawableentry &) = delete; // shouldn't need copy constructor
     virtual ~osg_rendercachedrawableentry() = default; // subclassable
     
-    virtual bool attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
 
   };
 
@@ -146,7 +152,7 @@ namespace snde {
     osg_rendercachetextureentry(const osg_rendercachetextureentry &) = delete; // shouldn't need copy constructor
     virtual ~osg_rendercachetextureentry() = default; // subclassable
 
-    virtual bool attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
 
   };
 
@@ -162,7 +168,7 @@ namespace snde {
     osg_rendercachearrayentry(const osg_rendercachearrayentry &) = delete; // shouldn't need copy constructor
     virtual ~osg_rendercachearrayentry() = default; // subclassable
 
-    virtual bool attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
 
   };
   
@@ -177,8 +183,8 @@ namespace snde {
     //osg::ref_ptr<osg::Texture> osg_texture;
 
     std::shared_ptr<recording_base> cached_recording;
-    snde_index dimlen1;
-    snde_index dimlen2;
+    snde_index dimlenx;
+    snde_index dimleny;
     
     osg::ref_ptr<osg::Image> image;
     osg::ref_ptr<osg::PixelBufferObject> imagepbo;
@@ -188,7 +194,7 @@ namespace snde {
     osg_cachedimagedata(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedimagedata() = default;
     
-    virtual bool attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     
   };
 
@@ -214,7 +220,7 @@ namespace snde {
     
     virtual void clear_potentially_obsolete();
 
-    virtual bool attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     
   };
 
@@ -234,7 +240,7 @@ namespace snde {
     ~osg_cachedmeshednormals() = default;
     
     //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
-    virtual bool attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+     virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     
   };
 
@@ -252,7 +258,7 @@ namespace snde {
     osg_cachedparameterizationdata(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedparameterizationdata() = default;
     
-    virtual bool attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     
   };
 
@@ -271,7 +277,7 @@ namespace snde {
     osg_cachedmeshedvertexarray(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedmeshedvertexarray() = default;
     
-    virtual bool attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     
   };
 
@@ -299,7 +305,7 @@ namespace snde {
     osg_cachedmeshedpart(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedmeshedpart() = default;
     
-    virtual bool attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
     virtual void clear_potentially_obsolete();
     
@@ -333,7 +339,7 @@ namespace snde {
     osg_cachedtexedmeshedgeom(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedtexedmeshedgeom() = default;
     
-    virtual bool attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
     virtual void clear_potentially_obsolete();
     
@@ -358,7 +364,7 @@ namespace snde {
     osg_cachedtexedmeshedpart(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedtexedmeshedpart() = default;
     
-    virtual bool attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     
     //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
 
@@ -383,7 +389,7 @@ namespace snde {
     osg_cachedassembly(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedassembly() = default;
     
-    virtual bool attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     
     //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
 

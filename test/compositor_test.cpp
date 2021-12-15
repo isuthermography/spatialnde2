@@ -25,13 +25,14 @@ using namespace snde;
 
 
 std::shared_ptr<recdatabase> recdb;
-std::shared_ptr<osg_3d_renderer> renderer;
-std::shared_ptr<osg_rendercache> rendercache;
+//std::shared_ptr<osg_3d_renderer> renderer;
+//std::shared_ptr<osg_rendercache> rendercache;
 std::shared_ptr<display_info> display;
-std::map<std::string,std::shared_ptr<display_requirement>> display_reqs;
-std::shared_ptr<recstore_display_transforms> display_transforms;
+osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow;
 std::shared_ptr<snde::channelconfig> x3dchan_config;
-std::shared_ptr<ndarray_recording_ref> x3d_rec;
+std::shared_ptr<snde::channelconfig> pngchan_config;
+std::shared_ptr<ndarray_recording_ref> png_rec;
+std::shared_ptr<osg_compositor> compositor;
 
 bool mousepressed=false;
 int winwidth,winheight;
@@ -43,20 +44,9 @@ void x3d_viewer_display()
   
   //osg::ref_ptr<OSGComponent> group = new OSGComponent(geom,cache,comp);
 
-  if (renderer) {
-
-    rendercache->mark_obsolete();
-    
-    // !!!*** Should consider locking of data to be rendered !!!*** 
-    
-    renderer->prepare_render(display_transforms->with_display_transforms,rendercache,
-			     display_reqs,
-			     winwidth,winheight);
-    renderer->frame();
-    //osgDB::writeNodeFile(*renderer->Viewer->getSceneData(),"/tmp/x3dviewer.osg");
-
-    rendercache->erase_obsolete(); // remove everything unused from the cache
-  }
+  compositor->trigger_update();
+  compositor->wait_render();
+  
   // swap front and back buffers
   glutSwapBuffers();
 
@@ -65,38 +55,38 @@ void x3d_viewer_display()
 
 void x3d_viewer_reshape(int width, int height)
 {
-  if (renderer->GraphicsWindow.valid()) {
-
-    // (Are these redundant?)
-    renderer->GraphicsWindow->resized(0,0,width,height);
-    renderer->GraphicsWindow->getEventQueue()->windowResize(0,0,width,height);
-
+  {
     
+    std::lock_guard<std::mutex> dispadmin(display->admin);
+      
+    display->drawareawidth = width;
+    display->drawareaheight = height;
   }
+  
+  
   winwidth=width;
   winheight=height;
+
+  glutPostRedisplay();
 }
 
 void x3d_viewer_mouse(int button, int state, int x, int y)
 {
-  if (renderer->GraphicsWindow.valid()) {
-    if (state==0) {
-      renderer->GraphicsWindow->getEventQueue()->mouseButtonPress(x,y,button+1);
-      mousepressed=true;
-    } else {
-      renderer->GraphicsWindow->getEventQueue()->mouseButtonRelease(x,y,button+1);
-      mousepressed=false;
-    }
+  if (state==0) {
+    GraphicsWindow->getEventQueue()->mouseButtonPress(x,y,button+1);
+    mousepressed=true;
+  } else {
+    GraphicsWindow->getEventQueue()->mouseButtonRelease(x,y,button+1);
+    mousepressed=false;
   }
+  
 }
 
 void x3d_viewer_motion(int x, int y)
 {
-  if (renderer->GraphicsWindow.valid()) {
-    renderer->GraphicsWindow->getEventQueue()->mouseMotion(x,y);
-    if (mousepressed) {
-      glutPostRedisplay();
-    }
+  GraphicsWindow->getEventQueue()->mouseMotion(x,y);
+  if (mousepressed) {
+    glutPostRedisplay();
   }
   
 }
@@ -106,30 +96,25 @@ void x3d_viewer_kbd(unsigned char key, int x, int y)
   switch(key) {
   case 'q':
   case 'Q':
-    if (renderer->Viewer.valid()) renderer->Viewer=nullptr;
     glutDestroyWindow(glutGetWindow());
     break;
-
+    
 
   default:
-    if (renderer->GraphicsWindow.valid()) {
-      renderer->GraphicsWindow->getEventQueue()->keyPress((osgGA::GUIEventAdapter::KeySymbol)key);
-      renderer->GraphicsWindow->getEventQueue()->keyRelease((osgGA::GUIEventAdapter::KeySymbol)key);
-    } 
-  }
+    GraphicsWindow->getEventQueue()->keyPress((osgGA::GUIEventAdapter::KeySymbol)key);
+    GraphicsWindow->getEventQueue()->keyRelease((osgGA::GUIEventAdapter::KeySymbol)key);
+  } 
 }
+
 
 void x3d_viewer_close()
 {
-  if (renderer->Viewer) renderer->Viewer=nullptr;
-  //glutDestroyWindow(glutGetWindow()); // (redundant because FreeGLUT performs the close)
+  compositor = nullptr;
+
+  exit(0);
 }
 
 
-//snde_image load_image_url(std::shared_ptr<geometry> geom,std::string url_context, std::string texture_url)
-//{
-//  // not yet implemented
-//}
 
 int main(int argc, char **argv)
 {
@@ -139,16 +124,16 @@ int main(int argc, char **argv)
   glutInit(&argc, argv);
 
 
-  if (argc < 2) {
-    fprintf(stderr,"USAGE: %s <x3d_file.x3d>\n", argv[0]);
+  if (argc < 3) {
+    fprintf(stderr,"USAGE: %s <x3d_file.x3d> <png_file.png>\n", argv[0]);
     exit(1);
   }
-
+  
 
 
   recdb=std::make_shared<snde::recdatabase>();
   setup_cpu(recdb,std::thread::hardware_concurrency());
-#warning "GPU acceleration temporarily disabled for viewer."
+  #warning "GPU acceleration temporarily disabled for viewer.
   //setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
   setup_storage_manager(recdb);
   std::shared_ptr<graphics_storage_manager> graphman=std::make_shared<graphics_storage_manager>("/",recdb->lowlevel_alloc,recdb->alignment_requirements,recdb->lockmgr,1e-8);
@@ -163,7 +148,16 @@ int main(int argc, char **argv)
   
   std::vector<std::shared_ptr<textured_part_recording>> part_recordings = x3d_load_geometry(recdb,graphman,argv[1],"main",(void *)&main,"/",false,true); // !!!*** Try enable vertex reindexing !!!***
 
+  pngchan_config=std::make_shared<snde::channelconfig>("png channel", "main", (void *)&main,false);
+  std::shared_ptr<snde::channel> pngchan = recdb->reserve_channel(pngchan_config);
+
+  png_rec = create_recording_ref(recdb,pngchan,(void *)&main,SNDE_RTN_UNASSIGNED);
+
   std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
+  ReadPNG(png_rec,argv[2]);
+  png_rec->rec->mark_metadata_done();
+  png_rec->rec->mark_as_ready();
+
   globalrev->wait_complete(); // globalrev must be complete before we are allowed to pass it to viewer. 
 
   
@@ -196,34 +190,40 @@ int main(int argc, char **argv)
   //std::shared_ptr<channelconfig> x3dchan_config = globalrev->recstatus.channel_map.at("/x3d_meshed0").config;
   
 
-  rendercache = std::make_shared<osg_rendercache>();
+  //rendercache = std::make_shared<osg_rendercache>();
   
   osg::ref_ptr<osgViewer::Viewer> Viewer(new osgViewerCompat34());
 
-  osg::ref_ptr<osgViewer::GraphicsWindow> GW=new osgViewer::GraphicsWindowEmbedded(0,0,winwidth,winheight);
+  GraphicsWindow = new osgViewer::GraphicsWindowEmbedded(0,0,winwidth,winheight);
   Viewer->getCamera()->setViewport(new osg::Viewport(0,0,winwidth,winheight));
-  Viewer->getCamera()->setGraphicsContext(GW);
+  Viewer->getCamera()->setGraphicsContext(GraphicsWindow);
   
-  renderer = std::make_shared<osg_3d_renderer>(Viewer,GW,
-					       x3dchan_config->channelpath);
+  //renderer = std::make_shared<osg_3d_renderer>(Viewer,GraphicsWindow,
+  //x3dchan_config->channelpath);
 
   display=std::make_shared<display_info>(recdb);
   display->set_current_globalrev(globalrev);
+  display->set_pixelsperdiv(winwidth,winheight);
   
   std::shared_ptr<display_channel> x3d_displaychan = display->lookup_channel(x3dchan_config->channelpath);
   x3d_displaychan->set_enabled(true); // enable channel
+  {
+    std::lock_guard<std::mutex> chanlock(x3d_displaychan->admin);
+    x3d_displaychan->Scale = 0.25;  // 3D channels get their magnification from the Scale parameter
+    x3d_displaychan->Position=-3.0;
+  }
+  std::shared_ptr<display_channel> png_displaychan = display->lookup_channel(pngchan_config->channelpath);
+  png_displaychan->set_enabled(true); // enable channel
 
-  std::vector<std::shared_ptr<display_channel>> channels_to_display = display->update(globalrev,x3dchan_config->channelpath,true,false,false);
 
 
-  display_reqs = traverse_display_requirements(display,globalrev,channels_to_display);
+  compositor = std::make_shared<osg_compositor>(recdb,display,Viewer,GraphicsWindow, false /* try true */, false);
+
+  compositor->set_selected_channel("/x3d0");
   
+  compositor->trigger_update();
   
-  display_transforms = std::make_shared<recstore_display_transforms>();
-  display_transforms->update(recdb,globalrev,display_reqs);
-
-  // perform all the transforms
-  display_transforms->with_display_transforms->wait_complete(); 
+  compositor->start();
 
   glutPostRedisplay();
   glutMainLoop();

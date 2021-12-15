@@ -58,11 +58,12 @@ void png_viewer_display()
     // and either verifying that none of them have require_locking
     // or by accumulating needed lock specs into an ordered set
     // or ordered map, and then locking them in the proepr order. 
-    
-    double left = png_rec->rec->metadata->GetMetaDatumDbl("IniVal1",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("Step1",1.0)/2.0;
-    double right = png_rec->rec->metadata->GetMetaDatumDbl("IniVal1",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("Step1",1.0)*(png_rec->layout.dimlen.at(0)-0.5);
-    double bottom = png_rec->rec->metadata->GetMetaDatumDbl("IniVal2",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("Step2",1.0)/2.0;
-    double top = png_rec->rec->metadata->GetMetaDatumDbl("IniVal2",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("Step2",1.0)*(png_rec->layout.dimlen.at(1)-0.5);
+
+    /*
+    double left = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_step",1.0)/2.0;
+    double right = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_step",1.0)*(png_rec->layout.dimlen.at(0)-0.5);
+    double bottom = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_step",1.0)/2.0;
+    double top = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_step",1.0)*(png_rec->layout.dimlen.at(1)-0.5);
 
     double tmp;
     if (bottom > top) {
@@ -78,13 +79,10 @@ void png_viewer_display()
       left=right;
       right=tmp;
     }
-
-    renderer->perform_render(recdb,display_transforms->with_display_transforms,display,display_reqs,
-			     left,
-			     right,
-			     bottom,
-			     top,
+    */
+    renderer->prepare_render(display_transforms->with_display_transforms,rendercache,display_reqs,
 			     winwidth,winheight);
+    renderer->frame();
     
     rendercache->erase_obsolete();
 
@@ -229,7 +227,7 @@ int main(int argc, char **argv)
   Viewer->getCamera()->setGraphicsContext(GW);
   
   renderer = std::make_shared<osg_image_renderer>(Viewer,GW,
-						  rendercache,pngchan_config->channelpath);
+						  pngchan_config->channelpath);
   
   display=std::make_shared<display_info>(recdb);
   display->set_current_globalrev(globalrev);

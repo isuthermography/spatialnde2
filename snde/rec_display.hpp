@@ -5,6 +5,9 @@
 #include <mutex>
 #include <typeindex>
 
+#include <Eigen/Dense>
+
+
 #include "snde/units.hpp"
 #include "snde/rec_display_colormap.hpp"
 #include "snde/normal_calculation.hpp"
@@ -35,7 +38,7 @@ struct display_unit {
 
   }
   
-  std::mutex admin; // protects scale; other members should be immutable
+  std::mutex admin; // protects scale; other members should be immutable. After the display_info and display_channel and display_axis locks in the locking order
   
   units unit;
   double scale; // Units per division (if not pixelflag) or units per pixel (if pixelflag)
@@ -44,7 +47,7 @@ struct display_unit {
 
 struct display_axis {
 
-  std::mutex admin; // protects CenterCoord; other members should be immutable
+  std::mutex admin; // protects CenterCoord; other members should be immutable. After the display_info and display_channel locks in the locking order but before the display_unit locks
   std::string axis;
   std::string abbrev;
   std::shared_ptr<display_unit> unit;
@@ -101,13 +104,15 @@ struct display_channel: public std::enable_shared_from_this<display_channel> {
   const std::string FullName; // immutable so you do not need to hold the admin lock to access this
   
   
-  float Scale; // vertical axis scaling for 1D recs; color axis scaling for 2D recordings; units/pixel if pixelflag is set is set for the axis/units, units/div (or equivalently units/intensity) if pixelflag is not set
+  float Scale; // vertical axis scaling for 1D recs; color axis scaling for 2D recordings; units/pixel if pixelflag is set is set for the axis/units, units/div (or equivalently units/intensity) if pixelflag is not set. Also magnification for 3d channels
   float Position; // vertical offset on display, in divisions. To get in units, multiply by GetVertUnitsPerDiv(Chan) USED ONLY IF VertZoomAroundAxis is true
+  float HorizPosition; // horizonal offset onf display, in divisions. Used only on 3D projection channels
   float VertCenterCoord; // Vertical position, in vertical axis units, of center of display. USE ONLY IF VertZoomAroundAxis is false;
   bool VertZoomAroundAxis;
   float Offset; // >= 2d only, intensity offset on display, in amplitude units
   float Alpha; // alpha transparency of channel: 1: fully visible, 0: fully transparent
   size_t ColorIdx; // index into color table for how this channel is colored
+  
   
   bool Enabled; // Is this channel currently visible
   // unsigned long long currevision;
@@ -127,13 +132,14 @@ struct display_channel: public std::enable_shared_from_this<display_channel> {
 
   
   display_channel(const std::string &FullName,//std::shared_ptr<mutableinfostore> chan_data,
-		  float Scale,float Position,float VertCenterCoord,bool VertZoomAroundAxis,float Offset,float Alpha,
+		  float Scale,float Position,float HorizPosition,float VertCenterCoord,bool VertZoomAroundAxis,float Offset,float Alpha,
 		  size_t ColorIdx,bool Enabled, size_t DisplayFrame,size_t DisplaySeq,
 		  size_t ColorMap) :
     FullName(FullName),
     //chan_data(chan_data),
     Scale(Scale),
     Position(Position),
+    HorizPosition(HorizPosition),
     VertCenterCoord(VertCenterCoord),
     VertZoomAroundAxis(VertZoomAroundAxis),
     Offset(Offset),
@@ -293,7 +299,7 @@ static std::string PrintWithSIPrefix(double val, const std::string &unitabbrev, 
 class display_info {
 public:
   
-  std::mutex admin; // locks access to below structure. Late in the locking order but prior to GIL.
+  std::mutex admin; // locks access to below structure. Late in the locking order but prior to GIL and prior to the display_channel locks; 
   size_t unique_index;
   std::vector<std::shared_ptr<display_unit>>  UnitList;
   std::vector<std::shared_ptr<display_axis>>  AxisList;
@@ -302,6 +308,8 @@ public:
   size_t vertical_divisions;
   float borderwidthpixels;
   double pixelsperdiv;
+  size_t drawareawidth;
+  size_t drawareaheight;
   display_posn selected_posn; 
   
   std::weak_ptr<recdatabase> recdb;
@@ -445,7 +453,7 @@ public:
     }
     
     // create a new display_channel
-    std::shared_ptr<display_channel> new_display_channel=std::make_shared<display_channel>(fullname,/*info, */  1.0,0.0,0.0,false,0.0,1.0,_NextColor,true,0,0,0);
+    std::shared_ptr<display_channel> new_display_channel=std::make_shared<display_channel>(fullname,/*info, */  1.0,0.0,0.0,0.0,false,0.0,1.0,_NextColor,false,0,0,0);
     
     
     //std::lock_guard<std::mutex> adminlock(admin);
@@ -552,11 +560,10 @@ public:
   
   
   
-  std::shared_ptr<display_unit> FindUnit(const std::string &name)
+  std::shared_ptr<display_unit> FindUnitLocked(const std::string &name)
   {
     units u=units::parseunits(name);
 
-    std::lock_guard<std::mutex> adminlock(admin);	  
     for (auto & uptr: UnitList) {
       if (units::compareunits(uptr->unit,u)==1.0) {
 	return uptr; 
@@ -571,14 +578,18 @@ public:
     return uptr;
   }
 
-
-  std::shared_ptr<display_axis> FindAxis(const std::string &axisname,const std::string &unitname)
+  std::shared_ptr<display_unit> FindUnit(const std::string &name)
+  {
+    std::lock_guard<std::mutex> adminlock(admin);
+    return FindUnitLocked(name);
+  };
+    
+  
+  std::shared_ptr<display_axis> FindAxisLocked(const std::string &axisname,const std::string &unitname)
   {
     units u=units::parseunits(unitname);
 
-    std::shared_ptr<display_unit> unit=FindUnit(unitname);
-
-    std::lock_guard<std::mutex> adminlock(admin);
+    std::shared_ptr<display_unit> unit=FindUnitLocked(unitname);
 
     for (auto & ax: AxisList) {
       if (axisname==ax->axis && units::compareunits(u,ax->unit->unit)==1.0) {
@@ -594,6 +605,14 @@ public:
     return ax_ptr;
   }
 
+  std::shared_ptr<display_axis> FindAxis(const std::string &axisname,const std::string &unitname)
+  {
+
+    std::lock_guard<std::mutex> adminlock(admin);
+    
+    return FindAxisLocked(axisname,unitname);
+  }
+  
   std::shared_ptr<display_axis> GetFirstAxis(const std::string &fullname /*std::shared_ptr<mutableinfostore> rec */)
   {
     std::shared_ptr<ndarray_recording_ref> rec;
@@ -604,10 +623,26 @@ public:
       return FindAxis("Time","seconds");
     }
     
-    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("Coord1","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("Units1","seconds");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis0_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis0_units","seconds");
 
     return FindAxis(AxisName,UnitName);
+  }
+
+  std::shared_ptr<display_axis> GetFirstAxisLocked(const std::string &fullname /*std::shared_ptr<mutableinfostore> rec */)
+  {
+    std::shared_ptr<ndarray_recording_ref> rec;
+    try {
+      rec = current_globalrev->get_recording_ref(fullname);
+    } catch (snde_error &) {
+      // no such reference
+      return FindAxisLocked("Time","seconds");
+    }
+    
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis0_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis0_units","seconds");
+
+    return FindAxisLocked(AxisName,UnitName);
   }
 
   std::shared_ptr<display_axis> GetSecondAxis(const std::string &fullname)
@@ -621,12 +656,32 @@ public:
     }
 
 
-    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("Coord2","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("Units2","seconds");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis1_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis1_units","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
 
+
+
+  std::shared_ptr<display_axis> GetSecondAxisLocked(const std::string &fullname)
+  {
+    std::shared_ptr<ndarray_recording_ref> rec;
+    try {
+      rec = current_globalrev->get_recording_ref(fullname);
+    } catch (snde_error &) {
+      // no such reference
+      return FindAxis("Time","seconds");
+    }
+
+
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis1_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis1_units","seconds");
+
+    return FindAxisLocked(AxisName,UnitName);
+  }
+
+  
   std::shared_ptr<display_axis> GetThirdAxis(const std::string &fullname)
   {
     std::shared_ptr<ndarray_recording_ref> rec;
@@ -637,10 +692,27 @@ public:
       return FindAxis("Time","seconds");
     }
 
-    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("Coord3","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("Units3","seconds");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis2_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis2_units","seconds");
 
     return FindAxis(AxisName,UnitName);
+  }
+
+
+    std::shared_ptr<display_axis> GetThirdAxisLocked(const std::string &fullname)
+  {
+    std::shared_ptr<ndarray_recording_ref> rec;
+    try {
+      rec = current_globalrev->get_recording_ref(fullname);
+    } catch (snde_error &) {
+      // no such reference
+      return FindAxis("Time","seconds");
+    }
+
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis2_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis2_units","seconds");
+
+    return FindAxisLocked(AxisName,UnitName);
   }
 
   std::shared_ptr<display_axis> GetFourthAxis(const std::string &fullname)
@@ -653,10 +725,26 @@ public:
       return FindAxis("Time","seconds");
     }
 
-    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("Coord4","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("Units4","seconds");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis3_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis3_units","seconds");
 
     return FindAxis(AxisName,UnitName);
+  }
+
+    std::shared_ptr<display_axis> GetFourthAxisLocked(const std::string &fullname)
+  {
+    std::shared_ptr<ndarray_recording_ref> rec;
+    try {
+      rec = current_globalrev->get_recording_ref(fullname);
+    } catch (snde_error &) {
+      // no such reference
+      return FindAxis("Time","seconds");
+    }
+
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis3_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis3_units","seconds");
+
+    return FindAxisLocked(AxisName,UnitName);
   }
 
   std::shared_ptr<display_axis> GetAmplAxis(const std::string &fullname)
@@ -669,10 +757,27 @@ public:
       return FindAxis("Time","seconds");
     }
 
-    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("AmplCoord","Voltage");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("AmplUnits","Volts");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_amplcoord","Voltage");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_amplunits","Volts");
 
     return FindAxis(AxisName,UnitName);
+  }
+
+
+  std::shared_ptr<display_axis> GetAmplAxisLocked(const std::string &fullname)
+  {
+    std::shared_ptr<ndarray_recording_ref> rec;
+    try {
+      rec = current_globalrev->get_recording_ref(fullname);
+    } catch (snde_error &) {
+      // no such reference
+      return FindAxis("Time","seconds");
+    }
+
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_amplcoord","Voltage");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_amplunits","Volts");
+
+    return FindAxisLocked(AxisName,UnitName);
   }
 
   void SetVertScale(std::shared_ptr<display_channel> c,double scalefactor,bool pixelflag)
@@ -833,18 +938,94 @@ public:
     return 0.0;
   }
 };
+  
+  class display_spatial_position {
+  public:
+    size_t x; // position of lowerleft of channel renderingbox vs lowerleft of full
+              // rendering area in pixels
+    size_t y; 
+    size_t width; // size of channel renderingbox in pixels
+    size_t height; 
+  };
+
+  class display_spatial_transform {
+  public:
+    // This defines the transforms from rendered channel coordinates or rendered 3D coordinates 
+    // to rendering area pixel coordinates as a 3x3 matrix in 2D inhomogeneous coordinates.
+    //
+    
+    // Note that the pixel area goes from (0,0) to (width,height) inclusive, with the
+    // first pixel center at (0.5,0.5) (see
+    // https://www.realtimerendering.com/blog/the-center-of-the-pixel-is-0-50-5/ )
+    //
+    // This is based on a glViewport(0,0,width,height)
+    // and a glOrtho(0.0,width,0.0,height,...)
+    //
+    // So for images or waveforms this transform represents:
+    //   pixels-rel-lower-left-of-channel-renderingbox divided by channel coordinates
+    //
+    
+    // NOTE: Stored in fortran order (row-major), so it may appear transposed from C++
+    Eigen::Matrix<double,3,3,Eigen::RowMajor> renderarea_coords_over_renderbox_coords; // renderarea in pixels relative to its lower-left; renderbox in pixels relative to its lower left
+    Eigen::Matrix<double,3,3,Eigen::RowMajor> renderarea_coords_over_channel_coords; // renderarea in pixels relative to its lowerleft, channel relative to its native data origin
+
+    bool operator==(const display_spatial_transform &other) const
+    {
+      return renderarea_coords_over_renderbox_coords == other.renderarea_coords_over_renderbox_coords;
+    }
+    
+    bool operator!=(const display_spatial_transform &other) const
+    {
+      return !(*this == other);
+    }
+    
+  };
+
+  class display_channel_rendering_bounds {
+  public:
+    // These are the parameters to glOrtho()
+    double left; // in channel units
+    double right;
+    double bottom;
+    double top;
+  };
+  
+
+  std::tuple<std::shared_ptr<display_spatial_position>,std::shared_ptr<display_spatial_transform>,std::shared_ptr<display_channel_rendering_bounds>> spatial_transforms_for_image_channel(size_t drawareawidth,size_t drawareaheight,size_t horizontal_divisions,size_t vertical_divisions,double x_center_channel_units,double y_chanposn_divs,bool y_chan_vertzoomaroundaxis,double y_chan_vertcentercoord,double xunitscale,double yunitscale,double pixelsperdiv,bool horizontal_pixelflag, bool vertical_pixelflag,bool vert_zoom_around_axis,double dataleftedge_chanunits,double datarightedge_chanunits,double databottomedge_chanunits,double datatopedge_chanunits);
+
+  std::tuple<std::shared_ptr<display_spatial_position>,std::shared_ptr<display_spatial_transform>,std::shared_ptr<display_channel_rendering_bounds>> spatial_transforms_for_waveform_channel(size_t drawareawidth,size_t drawareaheight,size_t horizontal_divisions,size_t vertical_divisions,double x_center_channel_units,double y_chanposn_divs,bool y_chan_vertzoomaroundaxis,double y_chan_vertcentercoord,double xunitscale,double yunitscale,double pixelsperdiv,bool horizontal_pixelflag, bool vertical_pixelflag,bool vert_zoom_around_axis);
+
+  std::tuple<std::shared_ptr<display_spatial_position>,std::shared_ptr<display_spatial_transform>,std::shared_ptr<display_channel_rendering_bounds>> spatial_transforms_for_3d_channel(size_t drawareawidth,size_t drawareaheight,double x_chanposn_divs,double y_chanposn_divs,double mag,double pixelsperdiv);
 
 
+  
   struct display_requirement {
     // ***!!! The channelpath and mode (with extended parameters) should uniquely define
-    // the needed output (generated on-demand channels via the renderable function
-    // and renderable channelpath)
+    // the rendering configuration (generated on-demand channels via the renderable function
+    // and renderable channelpath). The rendermode_ext mode ends up being the key for the
+    // rendercache -- which stores renderable OSG trees. So anything that might affect 
+    // the OSG tree has to go into mode (generally via the extension and a renderparams subclass).
+    //
+    // Even if the mode is the same and the rendercache ends up reusing its same output,
+    // we still need to reexecute the OSG tree (i.e. rerender) if spatial_position,
+    // spatial_transform, or spatial_bounds (below) change, if the display area
+    // geometry changes, or if the 3D OSG Manipulator changes position. 
     
     std::string channelpath;
     rendermode_ext mode; // see rendermode.hpp; contains parameter block
     std::shared_ptr<recording_base> original_recording;
-    std::shared_ptr<recording_display_handler_base> display_handler; 
-    //std::shared_ptr<image_reference> imgref; // image reference, out of original_recording; or nullptr; CAN WE GET RID OF THIS????
+    std::shared_ptr<recording_display_handler_base> display_handler;
+
+    int renderer_type; // see SNDE_DRRT_xxxx
+#define SNDE_DRRT_INVALID 0
+    //#define SNDE_DRRT_WAVEFORM 1  // waveform actually should be handled identically to image at the moment so we just use that
+#define SNDE_DRRT_IMAGE 2
+#define SNDE_DRRT_GEOMETRY 3
+    
+    // A re-render can be avoided if (a) mode matches, (b) spatial_transform is matches (both null OK), (c) osg_rendercacheentry is the same pointer, (d) for 3D renders the manipulator orientation matches, and (e) display area width and height are unchanged.
+    std::shared_ptr<display_spatial_position> spatial_position; // for root requirements only, specifies the  the drawing area for this channel in integer pixels (not including surrounding highlight box) relative to the lower left corner of our rendering area. 
+    std::shared_ptr<display_spatial_transform> spatial_transform; // for root requirements only, this documents the spatial transformations between render area pixel coordinates, channel coordinates, and renderbox pixel coordinates. 
+    std::shared_ptr<display_channel_rendering_bounds> spatial_bounds; // for root requirements only. These are the bounds in channel units of what is being (or to be ) displayed. For 3D rendering channels, "channel units" are interpreted to be pixels at the 3D rendering resolution
     
     std::shared_ptr<std::string> renderable_channelpath;
     std::shared_ptr<instantiated_math_function> renderable_function;
@@ -854,7 +1035,8 @@ public:
       channelpath(channelpath),
       mode(mode),
       original_recording(original_recording),
-      display_handler(display_handler)
+      display_handler(display_handler),
+      renderer_type(SNDE_DRRT_INVALID)
     {
 
     }
@@ -870,6 +1052,11 @@ public:
     std::shared_ptr<display_info> display;
     std::shared_ptr<display_channel> displaychan;
     std::shared_ptr<recording_set_state> base_rss;
+
+    size_t drawareawidth;
+    size_t drawareaheight;
+    
+    
     recording_display_handler_base(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) :
       display(display),
       displaychan(displaychan),

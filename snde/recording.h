@@ -105,7 +105,7 @@ struct snde_multi_ndarray_recording {
 #define SNDE_RTN_STRING 17 // not usable for recordings, but used internally for math parameters. 
 #define SNDE_RTN_RECORDING 18 // not usable for recordings, but used internally for math parameters. 
 #define SNDE_RTN_RECORDING_REF 19 // not usable for recordings, but used internally for math parameters. 
-#define SNDE_RTN_COORD3_INT16 20 // x,y,z coordinates, with each being 16 bit signed integer
+#define SNDE_RTN_SNDE_COORD3_INT16 20 // x,y,z coordinates, with each being 16 bit signed integer
 #define SNDE_RTN_INDEXVEC 21 // std::vector<snde_index>... used for math function params only
 #define SNDE_RTN_RECORDING_GROUP 22
 #define SNDE_RTN_POINTCLOUD_RECORDING 23
@@ -134,5 +134,18 @@ struct snde_multi_ndarray_recording {
 #define SNDE_RTN_SNDE_TRIVERTNORMALS 45
 #define SNDE_RTN_SNDE_RENDERCOORD 46
 
+#define SNDE_RTN_SNDE_BOX2 47
+#define SNDE_RTN_SNDE_BOXCOORD2 48
+#define SNDE_RTN_SNDE_IMAGEDATA 49
+#define SNDE_RTN_COORD 50
+// (Note gap)
+#define SNDE_RTN_SNDE_COORD4 52
+#define SNDE_RTN_SNDE_ORIENTATION2 53
+#define SNDE_RTN_SNDE_ORIENTATION3 54
+#define SNDE_RTN_SNDE_AXIS3 55
+#define SNDE_RTN_SNDE_INDEXRANGE 56
+#define SNDE_RTN_SNDE_PARTINSTANCE 57
+#define SNDE_RTN_SNDE_IMAGE 58
+// Still need to add NURBS types
 
 #endif // SNDE_RECORDING_H

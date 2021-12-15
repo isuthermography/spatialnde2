@@ -84,6 +84,7 @@ public:
     std::unordered_map<std::string,void **> arrayaddr_from_name; // immutable once constructed
     std::unordered_map<void **,std::string> name_from_arrayaddr; // immutable once constructed
     std::unordered_map<std::string,size_t> elemsize_from_name; // immutable once constructed
+    std::unordered_map<std::string,unsigned> typenum_from_name; // immutable once constructed
     
     std::unordered_map<std::string,memallocator_regionid> arrayid_from_name; // immutable once constructed
 

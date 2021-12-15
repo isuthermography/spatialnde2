@@ -694,6 +694,7 @@ struct snde_partinstance {
 
   
 struct snde_image  {
+  // ***!!!! Probably needs an update!
   snde_index imgbufoffset; /* index into image buffer array */
   //snde_index rgba_imgbufoffset; /* index into rgba image buffer array (if imgbufoffset is SNDE_INDEX_INVALID */
   

@@ -254,6 +254,15 @@ namespace snde {
       return false;
     }
 
+
+    if ((extra_params && !ref.extra_params) || (!extra_params && ref.extra_params)) {
+      return false;
+    }
+
+    if (!extra_params && !ref.extra_params) {
+      return true;
+    }
+
     if (*extra_params != *ref.extra_params) {
       // use math_instance_parameter::operator()
       return false;
