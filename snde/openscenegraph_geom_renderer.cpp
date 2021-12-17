@@ -1,13 +1,14 @@
 
 #include "snde/openscenegraph_geom_renderer.hpp"
 #include "snde/rec_display.hpp"
+#include "snde/display_requirements.hpp"
 
 namespace snde {
 
 
   
 
-  osg_3d_renderer::osg_3d_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
+  osg_geom_renderer::osg_geom_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
 				   osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
 				   std::string channel_path) :
     osg_renderer(Viewer,GraphicsWindow,channel_path,SNDE_DRRT_GEOMETRY),
@@ -38,7 +39,7 @@ namespace snde {
   
   
   std::tuple<std::shared_ptr<osg_rendercacheentry>,bool>
-  osg_3d_renderer::prepare_render(//std::shared_ptr<recdatabase> recdb,
+  osg_geom_renderer::prepare_render(//std::shared_ptr<recdatabase> recdb,
 				  std::shared_ptr<recording_set_state> with_display_transforms,
 				  //std::shared_ptr<display_info> display,
 				  std::shared_ptr<osg_rendercache> RenderCache,

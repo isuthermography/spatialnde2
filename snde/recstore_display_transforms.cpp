@@ -1,5 +1,6 @@
 #include "snde/recstore_display_transforms.hpp"
 #include "snde/notify.hpp"
+#include "snde/display_requirements.hpp"
 
 namespace snde {
 

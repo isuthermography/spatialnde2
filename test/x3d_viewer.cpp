@@ -17,6 +17,7 @@
 //#include "normal_calculation.hpp"
 #include "snde/x3d.hpp"
 #include "snde/rec_display.hpp"
+#include "snde/display_requirements.hpp"
 #include "snde/recstore_display_transforms.hpp"
 #include "snde/recstore_setup.hpp"
 #include "snde/recstore_setup_opencl.hpp"
@@ -25,7 +26,7 @@ using namespace snde;
 
 
 std::shared_ptr<recdatabase> recdb;
-std::shared_ptr<osg_3d_renderer> renderer;
+std::shared_ptr<osg_geom_renderer> renderer;
 std::shared_ptr<osg_rendercache> rendercache;
 std::shared_ptr<display_info> display;
 std::map<std::string,std::shared_ptr<display_requirement>> display_reqs;
@@ -204,8 +205,8 @@ int main(int argc, char **argv)
   Viewer->getCamera()->setViewport(new osg::Viewport(0,0,winwidth,winheight));
   Viewer->getCamera()->setGraphicsContext(GW);
   
-  renderer = std::make_shared<osg_3d_renderer>(Viewer,GW,
-					       x3dchan_config->channelpath);
+  renderer = std::make_shared<osg_geom_renderer>(Viewer,GW,
+						 x3dchan_config->channelpath);
 
   display=std::make_shared<display_info>(recdb);
   display->set_current_globalrev(globalrev);

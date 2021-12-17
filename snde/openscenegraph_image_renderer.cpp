@@ -1,6 +1,7 @@
 
 #include "snde/openscenegraph_image_renderer.hpp"
 #include "snde/rec_display.hpp"
+#include "snde/display_requirements.hpp"
 
 namespace snde {
 

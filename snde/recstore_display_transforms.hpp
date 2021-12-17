@@ -8,6 +8,8 @@
 #include "snde/rec_display.hpp"
 
 namespace snde {
+  class display_requirement; // display_requirements.hpp
+  
   class recstore_display_transforms {
   public:
     // ***!!! NOTE: This class is NOT thread-safe. It should be owned by a thread

@@ -23,6 +23,7 @@
 
 #include "snde/recstore_setup.hpp"
 #include "snde/rec_display.hpp"
+#include "snde/display_requirements.hpp"
 #include "snde/recstore_display_transforms.hpp"
 #include "snde/openscenegraph_image_renderer.hpp"
 

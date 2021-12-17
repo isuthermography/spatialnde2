@@ -109,7 +109,7 @@ else()
   set(SHARED_LIBRARY_SUFFIX_PYTHON .so )
 endif()
 
-set(SPATIALNDE2_SOURCES snde/allocator.cpp snde/lockmanager.cpp snde/recmath_compute_resource.cpp snde/recmath.cpp snde/recmath_parameter.cpp snde/recstore.cpp snde/recstore_storage.cpp snde/recmath_cppfunction.cpp snde/notify.cpp snde/snde_error.cpp snde/graphics_storage.cpp snde/rec_display.cpp snde/recstore_display_transforms.cpp snde/graphics_recording.cpp snde/cached_recording.cpp snde/recstore_setup.cpp snde/rec_display_vertexarray.c snde/rec_display_texvertexarray.c snde/normal_calc.c ) # snde/infostore_or_component.cpp snde/geometry.cpp snde/revision_manager.cpp snde/mutablerecstore.cpp )
+set(SPATIALNDE2_SOURCES snde/allocator.cpp snde/lockmanager.cpp snde/recmath_compute_resource.cpp snde/recmath.cpp snde/recmath_parameter.cpp snde/recstore.cpp snde/recstore_storage.cpp snde/recmath_cppfunction.cpp snde/notify.cpp snde/snde_error.cpp snde/graphics_storage.cpp snde/rec_display.cpp snde/recstore_display_transforms.cpp snde/graphics_recording.cpp snde/cached_recording.cpp snde/recstore_setup.cpp snde/rec_display_vertexarray.c snde/rec_display_texvertexarray.c snde/normal_calc.c snde/display_requirements.cpp ) # snde/infostore_or_component.cpp snde/geometry.cpp snde/revision_manager.cpp snde/mutablerecstore.cpp )
 
 if (NOT WIN32)
   set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/shared_memory_allocator_posix.cpp )
@@ -186,7 +186,7 @@ ENDIF()
 
 IF (OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   # Enable OSG support
-  set(SPATIALNDE2_OSG_SOURCES snde/openscenegraph_rendercache.cpp snde/openscenegraph_renderer.cpp snde/openscenegraph_image_renderer.cpp snde/openscenegraph_geom_renderer.cpp )
+  set(SPATIALNDE2_OSG_SOURCES snde/openscenegraph_rendercache.cpp snde/openscenegraph_renderer.cpp snde/openscenegraph_image_renderer.cpp snde/openscenegraph_geom_renderer.cpp snde/openscenegraph_compositor.cpp snde/openscenegraph_layerwindow.cpp )
 ENDIF()
 
 

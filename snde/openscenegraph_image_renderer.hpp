@@ -24,6 +24,9 @@ namespace snde {
         
     osg_image_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
 		       std::string channel_path);
+    osg_image_renderer(const osg_image_renderer &) = delete;
+    osg_image_renderer & operator=(const osg_image_renderer &) = delete;
+    virtual ~osg_image_renderer() = default; 
     
 
     std::tuple<std::shared_ptr<osg_rendercacheentry>,bool>

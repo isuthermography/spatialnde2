@@ -5,7 +5,7 @@
 #include "snde/quaternion.h"
 #include "snde/openscenegraph_rendercache.hpp"
 #include "snde/rec_display.hpp"
-
+#include "snde/display_requirements.hpp"
 
 namespace snde {
   

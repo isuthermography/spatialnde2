@@ -10,7 +10,7 @@
 
 namespace snde {
   
-  class osg_3d_renderer: public osg_renderer { 
+  class osg_geom_renderer: public osg_renderer { 
   public:
 
     // inherited members from osg_renderer
@@ -27,8 +27,11 @@ namespace snde {
 
     //    bool firstrun;
     
-    osg_3d_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
+    osg_geom_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
 		    std::string channel_path);
+    osg_geom_renderer(const osg_geom_renderer &) = delete;
+    osg_geom_renderer & operator=(const osg_geom_renderer &) = delete;
+    virtual ~osg_geom_renderer() = default; 
     
     
     std::tuple<std::shared_ptr<osg_rendercacheentry>,bool>

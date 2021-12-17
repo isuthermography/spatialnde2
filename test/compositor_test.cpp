@@ -20,12 +20,13 @@
 #include "snde/recstore_display_transforms.hpp"
 #include "snde/recstore_setup.hpp"
 #include "snde/recstore_setup_opencl.hpp"
+#include "snde/openscenegraph_compositor.hpp"
 
 using namespace snde;
 
 
 std::shared_ptr<recdatabase> recdb;
-//std::shared_ptr<osg_3d_renderer> renderer;
+//std::shared_ptr<osg_geom_renderer> renderer;
 //std::shared_ptr<osg_rendercache> rendercache;
 std::shared_ptr<display_info> display;
 osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow;
@@ -133,7 +134,7 @@ int main(int argc, char **argv)
 
   recdb=std::make_shared<snde::recdatabase>();
   setup_cpu(recdb,std::thread::hardware_concurrency());
-  #warning "GPU acceleration temporarily disabled for viewer.
+  #warning "GPU acceleration temporarily disabled for viewer."
   //setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
   setup_storage_manager(recdb);
   std::shared_ptr<graphics_storage_manager> graphman=std::make_shared<graphics_storage_manager>("/",recdb->lowlevel_alloc,recdb->alignment_requirements,recdb->lockmgr,1e-8);
@@ -198,7 +199,7 @@ int main(int argc, char **argv)
   Viewer->getCamera()->setViewport(new osg::Viewport(0,0,winwidth,winheight));
   Viewer->getCamera()->setGraphicsContext(GraphicsWindow);
   
-  //renderer = std::make_shared<osg_3d_renderer>(Viewer,GraphicsWindow,
+  //renderer = std::make_shared<osg_geom_renderer>(Viewer,GraphicsWindow,
   //x3dchan_config->channelpath);
 
   display=std::make_shared<display_info>(recdb);

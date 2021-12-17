@@ -22,6 +22,7 @@
 
 #include "snde/recstore_setup.hpp"
 #include "snde/rec_display.hpp"
+#include "snde/display_requirements.hpp"
 #include "snde/recstore_display_transforms.hpp"
 #include "snde/openscenegraph_image_renderer.hpp"
 #include "snde/colormap.h"
@@ -168,7 +169,7 @@ double my_sinc(double x)
   if (x < .01) {
     return 1.0-M_PI*M_PI*x*x/6.0;
   }
-  return sin(M_PI*x)/(M_PI*x);
+  return sin(M_PI*x)/(M_PI*x); 
 }
 
 
