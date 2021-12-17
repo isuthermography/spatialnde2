@@ -15,6 +15,9 @@
 
 
 namespace snde {
+
+  class osg_compositor;
+  
 // Threading approach:
 // Can delegate most rendering (exc. final compositing) to
 // a separate thread, but be warned. Per QT, not all graphics
@@ -143,11 +146,23 @@ namespace snde {
 // overriding the provided RenderBuffer?
 // Then do readback in postdraw... 
 
+
+  class osg_compositor_eventhandler: public osgGA::GUIEventHandler {
+  public:
+    std::weak_ptr<osg_compositor> comp;
+    std::shared_ptr<display_info> display;
+    
+    osg_compositor_eventhandler(std::shared_ptr<osg_compositor> comp,std::shared_ptr<display_info> display);
+
+    virtual bool handle(const osgGA::GUIEventAdapter &eventadapt,
+			osgGA::GUIActionAdapter &actionadapt);
+  };
+  
   
 
   // ****!!!!! Should find a way to set the DefaultFramebuffer for all the GraphicsContext !!!****
   // ****!!!!! Need resize method.. should call display->set_pixelsperdiv() !!!****
-  class osg_compositor { // Used as a base class for QTRecRender, which also inherits from QOpenGLWidget
+  class osg_compositor: public std::enable_shared_from_this<osg_compositor> { // Used as a base class for QTRecRender, which also inherits from QOpenGLWidget
   public:
 
     std::weak_ptr<recdatabase> recdb; // immutable once initialized
@@ -157,11 +172,13 @@ namespace snde {
     // context). They generally are only to be worked with from the main thread
     // (compositing step)
     osg::ref_ptr<osgViewer::Viewer> Viewer;
+    osg::ref_ptr<osg::Group> RootGroup;
     osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow;
     osg::ref_ptr<osg::Camera> Camera;
+    osg::ref_ptr<osg_compositor_eventhandler> eventhandler; 
 
     std::shared_ptr<display_info> display;
-    std::string selected_channel; // locked by admin lock.... maybe selected channel should instead be handled like width, height, etc. below. 
+    std::string selected_channel; // locked by admin lock.... maybe selected channel should instead be handled like width, height, etc. below. or stored in display_info copy we will eventually have? 
     
     bool threaded;
     bool platform_supports_threaded_opengl;
@@ -183,7 +200,7 @@ namespace snde {
     std::shared_ptr<osg_rendercache> RenderCache; // Should be freed (set to nullptr) ONLY by layer rendering thread with the proper OpenGL context loaded
 
     // Renderers maintained by the rendering step which runs in the rendering thread
-    std::shared_ptr<std::map<std::string,std::shared_ptr<osg_renderer>>> renderers; // Should be freed (set to nullptr) ONLY by layer rendering thread with the proper OpenGL context loaded
+    std::shared_ptr<std::map<std::string,std::shared_ptr<osg_renderer>>> renderers; // Should be freed (set to nullptr) ONLY by layer rendering thread with the proper OpenGL context loaded. This is locked by the admin lock because it may be accessed by event handling threads to pass events on to the viewer
 
     // Renderers created by rendering step which runs in the rendering thread, but
     // the integer texture ID numbers are used in the compositing step

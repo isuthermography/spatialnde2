@@ -29,7 +29,7 @@ namespace snde {
     std::mutex admin; // protects scale; other members should be immutable. After the display_info and display_channel and display_axis locks in the locking order
     
     units unit;
-    double scale; // Units per division (if not pixelflag) or units per pixel (if pixelflag)
+    double scale; // Horizontal units per division (if not pixelflag) or units per pixel (if pixelflag)
     bool pixelflag;
   };
   
@@ -57,7 +57,8 @@ namespace snde {
 		 double DefaultUnitsPerDiv);
   };
   
-  
+
+  /*
   class recdisplay_notification_receiver {
     // abstract base class
   public:
@@ -69,6 +70,7 @@ namespace snde {
     
     virtual void mark_as_dirty(std::shared_ptr<display_channel> dirtychan)=0;
   };
+  */
   
   struct display_channel: public std::enable_shared_from_this<display_channel> {
     
@@ -99,10 +101,10 @@ namespace snde {
     
     // NOTE: Adjustement deps needs to be cleaned periodically of lost weak pointers!
     // receivers in adjustment_deps should be called during a transaction! */
-    std::set<std::weak_ptr<recdisplay_notification_receiver>,std::owner_less<std::weak_ptr<recdisplay_notification_receiver>>> adjustment_deps;
+    //std::set<std::weak_ptr<recdisplay_notification_receiver>,std::owner_less<std::weak_ptr<recdisplay_notification_receiver>>> adjustment_deps;
     
     std::mutex admin; // protects all members, as the display_channel
-  // may be accessed from transform threads, not just the GUI thread
+    // may be accessed from transform threads, not just the GUI thread
     
     
     display_channel(const std::string &FullName,//std::shared_ptr<mutableinfostore> chan_data,
@@ -119,7 +121,7 @@ namespace snde {
     //  std::atomic_store(&_FullName,New_NamePtr);
     //}
     
-    void add_adjustment_dep(std::shared_ptr<recdisplay_notification_receiver> notifier);
+    //void add_adjustment_dep(std::shared_ptr<recdisplay_notification_receiver> notifier);
     void mark_as_dirty();
     
   };
@@ -155,14 +157,29 @@ namespace snde {
     {1.0,0.0,1.0}, /* Magenta */
   };
   
-  
+
+  // special key definitions
+#define SNDE_RDK_LEFT 100
+#define SNDE_RDK_RIGHT 101
+#define SNDE_RDK_UP 102
+#define SNDE_RDK_DOWN 103
+#define SNDE_RDK_PAGEUP 104
+#define SNDE_RDK_PAGEDOWN 105
+#define SNDE_RDK_HOME 106
+#define SNDE_RDK_END 107
+#define SNDE_RDK_INSERT 108
+#define SNDE_RDK_DELETE 109
+#define SNDE_RDK_BACKSPACE 110
+#define SNDE_RDK_ENTER 111
+#define SNDE_RDK_TAB 112
+#define SNDE_RDK_ESC 113
   
   
   
   class display_info {
   public:
     
-    std::mutex admin; // locks access to below structure. Late in the locking order but prior to GIL and prior to the display_channel locks; 
+    mutable std::mutex admin; // locks access to below structure. Late in the locking order but prior to GIL and prior to the display_channel locks; 
     size_t unique_index;
     std::vector<std::shared_ptr<display_unit>>  UnitList;
     std::vector<std::shared_ptr<display_axis>>  AxisList;
@@ -191,7 +208,7 @@ namespace snde {
     
     void set_selected_posn(const display_posn &markerposn);
     
-    display_posn get_selected_posn();
+    display_posn get_selected_posn() const;
     
     std::shared_ptr<display_channel> lookup_channel(const std::string &recfullname);
     
@@ -236,9 +253,11 @@ namespace snde {
     
     std::tuple<bool,double,bool> GetVertScale(std::shared_ptr<display_channel> c);  // returns (success,scalefactor,pixelflag)
     
-    
-    
     double GetVertUnitsPerDiv(std::shared_ptr<display_channel> c);
+
+    void handle_key_down(const std::string &selected_channel,int key,bool shift,bool alt,bool ctrl);
+    void handle_special_down(const std::string &selected_channel,int special,bool shift,bool alt,bool ctrl);
+    
   };
   
 

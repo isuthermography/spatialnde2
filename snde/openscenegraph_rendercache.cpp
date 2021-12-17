@@ -216,6 +216,7 @@ namespace snde {
     
     
     std::shared_ptr<osg_rendercacheentry> retval = renderer_it->second(params,display_req);
+    cache.erase(std::make_pair(channel_path,mode));
     cache.emplace(std::make_pair(channel_path,mode),retval);
       
     return std::make_pair(retval,true);

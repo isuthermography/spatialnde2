@@ -80,7 +80,10 @@ void x3d_viewer_mouse(int button, int state, int x, int y)
     GraphicsWindow->getEventQueue()->mouseButtonRelease(x,y,button+1);
     mousepressed=false;
   }
-  
+
+  snde_warning("x3d_viewer_mouse: Empty=%d",(int)compositor->GraphicsWindow->getEventQueue()->empty());
+
+  glutPostRedisplay();
 }
 
 void x3d_viewer_motion(int x, int y)
@@ -104,6 +107,7 @@ void x3d_viewer_kbd(unsigned char key, int x, int y)
   default:
     GraphicsWindow->getEventQueue()->keyPress((osgGA::GUIEventAdapter::KeySymbol)key);
     GraphicsWindow->getEventQueue()->keyRelease((osgGA::GUIEventAdapter::KeySymbol)key);
+    glutPostRedisplay();
   } 
 }
 
@@ -195,7 +199,7 @@ int main(int argc, char **argv)
   
   osg::ref_ptr<osgViewer::Viewer> Viewer(new osgViewerCompat34());
 
-  GraphicsWindow = new osgViewer::GraphicsWindowEmbedded(0,0,winwidth,winheight);
+  GraphicsWindow = new osg_ParanoidGraphicsWindowEmbedded(0,0,winwidth,winheight);
   Viewer->getCamera()->setViewport(new osg::Viewport(0,0,winwidth,winheight));
   Viewer->getCamera()->setGraphicsContext(GraphicsWindow);
   

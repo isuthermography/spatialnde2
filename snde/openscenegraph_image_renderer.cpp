@@ -15,6 +15,7 @@ namespace snde {
     osg_renderer(Viewer,GraphicsWindow,channel_path,SNDE_DRRT_IMAGE)
   {
     
+    EventQueue=GraphicsWindow->getEventQueue();
     Camera->setGraphicsContext(GraphicsWindow);
     
     // set background color to blueish
@@ -95,11 +96,21 @@ namespace snde {
       std::shared_ptr<osg_rendercachegroupentry> imagegroup = std::dynamic_pointer_cast<osg_rendercachegroupentry>(imageentry); 
 
       if (imagegroup) {
-	if (Viewer->getSceneData() != imagegroup->osg_group){
-	  //group=imagegroup;
-	  Viewer->setSceneData(imagegroup->osg_group);
+	//if (Viewer->getSceneData() != imagegroup->osg_group){
+	//  //group=imagegroup;
+	//  Viewer->setSceneData(imagegroup->osg_group);
+	//}
+    	if (RootGroup->getNumChildren() && RootGroup->getChild(0) != imagegroup->osg_group) {
+	  RootGroup->removeChildren(0,1);
 	}
-    
+	if (!RootGroup->getNumChildren()) {
+	  RootGroup->addChild(imagegroup->osg_group);
+	}
+
+	if (!Viewer->getSceneData()) {
+	  Viewer->setSceneData(RootGroup);
+	}
+	
       } else {
 	snde_warning("openscenegraph_image_renderer: cache entry not convertable to an osg_group rendering channel \"%s\"",channel_path.c_str());
       }

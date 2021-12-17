@@ -107,9 +107,12 @@ namespace snde {
     // setup as the draw framebuffer -- this may be redundant but makes
     // sure the FBO is properly configured in the OpenGL state. 
     FBO->apply(*Info.getState(),osg::FrameBufferObject::DRAW_FRAMEBUFFER);
-    if (readback) {
-      FBO->apply(*Info.getState(),osg::FrameBufferObject::READ_FRAMEBUFFER);	
-    }
+    //if (readback) {
+
+    // get GL errors from OSG if we don't also set the read framebuffer
+    FBO->apply(*Info.getState(),osg::FrameBufferObject::READ_FRAMEBUFFER);	
+      //}
+    //assert(glGetError()== GL_NO_ERROR);
     
     // Verify the framebuffer configuration (Draw mode)
     GLenum status = Info.getState()->get<osg::GLExtensions>()->glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
@@ -124,6 +127,7 @@ namespace snde {
       
     }
     
+    //assert(glGetError()== GL_NO_ERROR);
     
     if (readback) {
       // Verify the framebuffer configuration (Read mode)
@@ -141,9 +145,17 @@ namespace snde {
       }
     }
     
+    //assert(glGetError()== GL_NO_ERROR);
     
     // Make sure we are drawing onto the FBO attachment
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
+    //assert(glGetError()== GL_NO_ERROR);
+
+
+    // debugging
+    //glViewport(0,0,outputbuf->getTextureWidth(),outputbuf->getTextureHeight());
+    //assert(glGetError()== GL_NO_ERROR);
     
     
     // These next few lines can be used for debugging to make
@@ -312,6 +324,11 @@ namespace snde {
       osg::ref_ptr<osg::State> ourstate=new osg::State();
       ourstate->setGraphicsContext(this);
 
+      // for debugging only -- good for tracking down any opengl errors
+      // identified by OSG
+      //ourstate->setCheckForGLErrors(osg::State::CheckForGLErrors::ONCE_PER_ATTRIBUTE);
+      
+      
       // Use (and increment the usage count) of the shared context, if given
       if (shared_context) {
 	ourstate->setContextID(shared_context->getState()->getContextID());
@@ -384,7 +401,11 @@ namespace snde {
   {
     OSG_INFO << "makeCurrent()\n";
     
-    getState();
+    getState()->reset(); // the OSG-expected state for THIS WINDOW may have been messed up (e.g. by another window). So we need to reset the assumptions about the OpenGL state
+
+    // !!!*** reset() above may be unnecessarily pessimistic, dirtying all array buffers, etc. (why???)
+    
+    getState()->apply();
     
     //FBO->setAttachment(osg::Camera::COLOR_BUFFER0, osg::FrameBufferAttachment(outputbuf.get()));
     //FBO->setAttachment(osg::Camera::DEPTH_BUFFER, osg::FrameBufferAttachment(depthbuf.get()));

@@ -31,11 +31,12 @@ namespace snde {
 
   }
 
+  /*
   recdisplay_notification_receiver::recdisplay_notification_receiver()
   {
     
   }
-
+  */
 
 
 
@@ -69,7 +70,7 @@ namespace snde {
     this->Enabled=Enabled;
   }
 
-
+  /*
   void display_channel::add_adjustment_dep(std::shared_ptr<recdisplay_notification_receiver> notifier)
   {
     std::lock_guard<std::mutex> dc_lock(admin);
@@ -88,9 +89,10 @@ namespace snde {
     }
     
   }
+  */
 
 
-
+  /*
   void display_channel::mark_as_dirty()
   {
     std::vector<std::shared_ptr<recdisplay_notification_receiver>> tonotify;
@@ -116,7 +118,7 @@ namespace snde {
     }
     
   }
-
+  */
   
   bool operator==(const RecColor &lhs, const RecColor &rhs)
   {
@@ -261,7 +263,7 @@ namespace snde {
   }
 
 
-  display_posn display_info::get_selected_posn()
+  display_posn display_info::get_selected_posn() const
   {
     std::lock_guard<std::mutex> adminlock(admin);
 
@@ -810,5 +812,17 @@ namespace snde {
     return 0.0;
   }
 
+  
+  void display_info::handle_key_down(const std::string &selected_channel,int key,bool shift,bool alt,bool ctrl)
+  {
+    snde_warning("Key down: %d",key);
+  }
 
+  
+  void display_info::handle_special_down(const std::string &selected_channel,int special,bool shift,bool alt,bool ctrl)
+  {
+    
+  }
+
+  
 };

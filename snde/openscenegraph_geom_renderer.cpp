@@ -15,7 +15,8 @@ namespace snde {
     Manipulator(new osgGA::TrackballManipulator())
     //firstrun(true)
   {
-    
+
+    EventQueue=GraphicsWindow->getEventQueue();
     //Camera->setGraphicsContext(GraphicsWindow);
     
     // set background color to blueish
@@ -32,7 +33,7 @@ namespace snde {
 
     Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded); // We handle threading ourselves... this is REQUIRED
     Viewer->setCameraManipulator(Manipulator);
-
+    //Viewer->addEventHandler(Manipulator);
     Viewer->realize();
   }
 
@@ -82,10 +83,19 @@ namespace snde {
       std::shared_ptr<osg_rendercachegroupentry> rendergroup = std::dynamic_pointer_cast<osg_rendercachegroupentry>(renderentry);
       
       if (rendergroup) {
-	if (Viewer->getSceneData() != rendergroup->osg_group){
-	  Viewer->setSceneData(rendergroup->osg_group);
+	//if (Viewer->getSceneData() != rendergroup->osg_group){
+	//Viewer->setSceneData(rendergroup->osg_group);
+	//}
+
+	if (RootGroup->getNumChildren() && RootGroup->getChild(0) != rendergroup->osg_group) {
+	  RootGroup->removeChildren(0,1);
 	}
-	
+	if (!RootGroup->getNumChildren()) {
+	  RootGroup->addChild(rendergroup->osg_group);
+	}
+	if (!Viewer->getSceneData()) {
+	  Viewer->setSceneData(RootGroup);
+	}
 	
       } else {
 	snde_warning("openscenegraph_3d_renderer: cache entry not convertable to an osg_group rendering channel %s",channel_path.c_str());

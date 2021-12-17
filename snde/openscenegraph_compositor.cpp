@@ -1,3 +1,4 @@
+#include <osgGA/GUIEventAdapter>
 
 #include "snde/openscenegraph_renderer.hpp"
 #include "snde/openscenegraph_compositor.hpp"
@@ -10,8 +11,106 @@
 
 namespace snde {
 
+  static const std::unordered_map<int,int> osg_special_keymappings({
+      {osgGA::GUIEventAdapter::KEY_Left,SNDE_RDK_LEFT},
+      {osgGA::GUIEventAdapter::KEY_Right,SNDE_RDK_RIGHT},
+      {osgGA::GUIEventAdapter::KEY_Up,SNDE_RDK_UP},
+      {osgGA::GUIEventAdapter::KEY_Down,SNDE_RDK_DOWN},
+      {osgGA::GUIEventAdapter::KEY_Page_Up,SNDE_RDK_PAGEUP},
+      {osgGA::GUIEventAdapter::KEY_Page_Down,SNDE_RDK_PAGEDOWN},
+      {osgGA::GUIEventAdapter::KEY_Home,SNDE_RDK_HOME},
+      {osgGA::GUIEventAdapter::KEY_End,SNDE_RDK_END},
+      {osgGA::GUIEventAdapter::KEY_Insert,SNDE_RDK_INSERT},
+      {osgGA::GUIEventAdapter::KEY_Delete,SNDE_RDK_DELETE},
+      {osgGA::GUIEventAdapter::KEY_BackSpace,SNDE_RDK_BACKSPACE},
+      {osgGA::GUIEventAdapter::KEY_Return,SNDE_RDK_ENTER},
+      {osgGA::GUIEventAdapter::KEY_Tab,SNDE_RDK_TAB},
+      {osgGA::GUIEventAdapter::KEY_Escape,SNDE_RDK_ESC},
+    });
+  
+
+  osg_compositor_eventhandler::osg_compositor_eventhandler(std::shared_ptr<osg_compositor> comp,std::shared_ptr<display_info> display) :
+      comp(comp),
+      display(display)
+  {
+    
+  }
+
+  bool osg_compositor_eventhandler::handle(const osgGA::GUIEventAdapter &eventadapt,
+					   osgGA::GUIActionAdapter &actionadapt)
+  {
+
+    std::shared_ptr<osg_compositor> comp_strong = comp.lock();
+    if (!comp_strong) {
+      return false;
+    }
 
 
+    std::string selected_channel;
+    {
+      std::lock_guard<std::mutex> comp_admin(comp_strong->admin);
+      selected_channel = comp_strong->selected_channel;
+    }
+    //snde_warning("osg_compositor: Handling event: %s %d",selected_channel.c_str(),eventadapt.getEventType());
+
+    if (!selected_channel.size()) {
+      return false; // no event processing if no channel selected
+    }
+    //if (eventadapt.getEventType() == osgGA::GUIEventAdapter::FRAME) {
+    //  snde_warning("osg_eventhandler frame: Empty=%d",(int)comp_strong->GraphicsWindow->getEventQueue()->empty());
+    //}
+    
+    if (eventadapt.getEventType() == osgGA::GUIEventAdapter::KEYDOWN) {
+      bool shift=(bool)(eventadapt.getModKeyMask() & osgGA::GUIEventAdapter::MODKEY_SHIFT);
+      bool ctrl=(bool)(eventadapt.getModKeyMask() & osgGA::GUIEventAdapter::MODKEY_CTRL);
+      bool alt=(bool)(eventadapt.getModKeyMask() & osgGA::GUIEventAdapter::MODKEY_ALT);
+
+      snde_warning("osg_compositor: Handling keyboard event");
+
+      if (eventadapt.getKey() >= ' ' && eventadapt.getKey() <= '~') {
+	// ASCII space...tilde  includes all regular
+	// characters of both cases
+	display->handle_key_down(selected_channel,eventadapt.getKey(),shift,ctrl,alt);
+      } else {
+	std::unordered_map<int,int>::const_iterator special_it;
+
+	special_it = osg_special_keymappings.find(eventadapt.getKey());
+	if (special_it != osg_special_keymappings.end()) {
+	  display->handle_special_down(selected_channel,special_it->second,shift,ctrl,alt);
+	  return true; 
+	}
+      }
+    } else if (eventadapt.getEventType() == osgGA::GUIEventAdapter::PUSH ||
+	       eventadapt.getEventType() == osgGA::GUIEventAdapter::RELEASE ||
+	       eventadapt.getEventType() == osgGA::GUIEventAdapter::DOUBLECLICK ||
+	       eventadapt.getEventType() == osgGA::GUIEventAdapter::DRAG) {
+      // mouseclick or drag... pass it on to the selected channel
+
+      std::shared_ptr<osg_renderer> renderer;
+
+      {
+	std::lock_guard<std::mutex> adminlock(comp_strong->admin); // locking required for renderers field
+	std::map<std::string,std::shared_ptr<osg_renderer>>::iterator renderer_it;
+	renderer_it=comp_strong->renderers->find(selected_channel);
+	if (renderer_it != comp_strong->renderers->end()) {
+	  renderer = renderer_it->second;
+	}
+      }
+
+      snde_warning("osg_compositor: Forwarding mouse event to 0x%lx for %s",(unsigned long)renderer->EventQueue.get(),selected_channel.c_str());
+
+      if (renderer) {
+	// OSG event queues seem to be thread safe (see e.g. locking in src/osgGA/EventQueue.cpp)
+	// so this should be OK
+	assert(renderer->Viewer->getCameraManipulator());
+	renderer->EventQueue->addEvent(new osgGA::GUIEventAdapter(eventadapt,osg::CopyOp::DEEP_COPY_OBJECTS));
+	return true;
+      }
+      
+    }
+
+    return false;
+  }
 
 
   osg_compositor::osg_compositor(std::shared_ptr<recdatabase> recdb,
@@ -24,6 +123,7 @@ namespace snde {
     display(display),
     GraphicsWindow(GraphicsWindow),
     Viewer(Viewer),
+    RootGroup(new osg::Group()),
     threaded(threaded),
     platform_supports_threaded_opengl(platform_supports_threaded_opengl),
     next_state(SNDE_OSGRCS_WAITING),
@@ -49,7 +149,7 @@ namespace snde {
     Camera->setCullingMode(osg::CullSettings::ENABLE_ALL_CULLING);
     
     Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded);
-    
+    Viewer->setSceneData(RootGroup);
     
     /* Two dimensional initialization */
     GraticuleTransform = new osg::MatrixTransform();
@@ -244,10 +344,15 @@ namespace snde {
       RenderCache = std::make_shared<osg_rendercache>();
     }
 
-    if (!renderers) {
-      renderers = std::make_shared<std::map<std::string,std::shared_ptr<osg_renderer>>>();
+
+    {
+      std::lock_guard<std::mutex> adminlock(admin);
+      if (!renderers) {
+	renderers = std::make_shared<std::map<std::string,std::shared_ptr<osg_renderer>>>();
+      }
     }
 
+    
     if (!layer_rendering_rendered_textures) {
       layer_rendering_rendered_textures = std::make_shared<std::map<std::string,std::pair<osg::ref_ptr<osg::Texture2D>,GLuint>>>();
     }
@@ -262,45 +367,72 @@ namespace snde {
     
     for (auto && display_req: display_reqs) {
       // look up renderer
-      std::map<std::string,std::shared_ptr<osg_renderer>>::iterator renderer_it=renderers->find(display_req.second->channelpath);
-
+      
+      std::map<std::string,std::shared_ptr<osg_renderer>>::iterator renderer_it;
       std::shared_ptr<osg_renderer> renderer;
-      if (renderer_it==renderers->end() || renderer_it->second->type != display_req.second->renderer_type) {
-	// Need a new renderer
-	osg::ref_ptr<osgViewer::Viewer> Viewer(new osgViewerCompat34());
-	osg::ref_ptr<osg_layerwindow> LW=new osg_layerwindow(Viewer,nullptr,width,height,false);
-	Viewer->getCamera()->setGraphicsContext(LW);
-	Viewer->getCamera()->setViewport(new osg::Viewport(0,0,width,height));	
-	LW->setup_camera(Viewer->getCamera());
-	
-	if (display_req.second->renderer_type == SNDE_DRRT_IMAGE) {
-	  renderer=std::make_shared<osg_image_renderer>(Viewer,LW,display_req.second->channelpath);
-	} else if (display_req.second->renderer_type == SNDE_DRRT_GEOMETRY) {
-	  renderer=std::make_shared<osg_geom_renderer>(Viewer,LW,display_req.second->channelpath);
-	  
-	} else {
-	  snde_warning("osg_compositor: invalid render type SNDE_DRRT_#%d",display_req.second->renderer_type);
-	  continue;
-	  
-	}
-	renderers->emplace(display_req.second->channelpath,renderer);
-	  
-      } else {	
-	// use pre-existing renderer
-	renderer=renderer_it->second;
-      }
+      
+      {
+	std::unique_lock<std::mutex> adminlock(admin); // locking required for renderers field
+	renderer_it=renderers->find(display_req.second->channelpath);
 
+	if (renderer_it==renderers->end() || renderer_it->second->type != display_req.second->renderer_type) {
+	  //snde_warning("compositor: New renderer for %s rit_type = %d; drt = %d",display_req.second->channelpath.c_str(),renderer_it==renderers->end() ? -1 : renderer_it->second->type,display_req.second->renderer_type);
+	  adminlock.unlock();
+	  // Need a new renderer
+	  osg::ref_ptr<osgViewer::Viewer> Viewer(new osgViewerCompat34());
+	  osg::ref_ptr<osg_layerwindow> LW=new osg_layerwindow(Viewer,nullptr,width,height,false);
+	  Viewer->getCamera()->setGraphicsContext(LW);
+	  Viewer->getCamera()->setViewport(new osg::Viewport(0,0,width,height));	
+	  LW->setup_camera(Viewer->getCamera());
+	  
+	  if (display_req.second->renderer_type == SNDE_DRRT_IMAGE) {
+	    renderer=std::make_shared<osg_image_renderer>(Viewer,LW,display_req.second->channelpath);
+	  } else if (display_req.second->renderer_type == SNDE_DRRT_GEOMETRY) {
+	    renderer=std::make_shared<osg_geom_renderer>(Viewer,LW,display_req.second->channelpath);
+	    
+	  } else {
+	    snde_warning("osg_compositor: invalid render type SNDE_DRRT_#%d",display_req.second->renderer_type);
+	    continue;
+	    
+	  }
+	  adminlock.lock();
+
+	  renderers->erase(display_req.second->channelpath);
+	  renderers->emplace(display_req.second->channelpath,renderer);
+	} else {	
+	  // use pre-existing renderer
+	  renderer=renderer_it->second;
+	}
+      }
+      
       // perform rendering
       std::shared_ptr<osg_rendercacheentry> cacheentry;
       bool modified;
 
       std::tie(cacheentry,modified) = renderer->prepare_render(display_transforms->with_display_transforms,RenderCache,display_reqs,width,height);
 
-      if (cacheentry && modified) {
+      // rerender either if there is a modification to the tree, or if we have OSG events (such as rotating, etc)
+      snde_warning("compositor about to render %s: 0x%lx empty=%d",display_req.second->channelpath.c_str(),(unsigned long)renderer->EventQueue.get(),renderer->EventQueue->empty());
+      if (cacheentry && (modified || !renderer->EventQueue->empty())) {
 	renderer->frame();
 
+	// Push a dummy event prior to the frame on the queue
+	// without this we can't process events on our pseudo-GraphicsWindow because
+	// osgGA::EventQueue::takeEvents() looks for an event prior to the cutoffTime
+	// when selecting events to take. If it doesn't find any then you don't get any
+	// events (?).
+	// The cutofftime comes from renderer->Viewer->_frameStamp->getReferenceTime()
+	osg::ref_ptr<osgGA::Event> dummy_event = new osgGA::Event();
+	dummy_event->setTime(renderer->Viewer->getFrameStamp()->getReferenceTime()-1.0);
+	renderer->EventQueue->addEvent(dummy_event);
+
+	//std::tie(cacheentry,modified) = renderer->prepare_render(display_transforms->with_display_transforms,RenderCache,display_reqs,width,height);
+	//renderer->frame();
+	
 	// store our generated texture and its ID
-	osg::ref_ptr<osg::Texture2D> generated_texture = dynamic_cast<osg_layerwindow *>(renderer->GraphicsWindow.get())->outputbuf; 
+	osg::ref_ptr<osg::Texture2D> generated_texture = dynamic_cast<osg_layerwindow *>(renderer->GraphicsWindow.get())->outputbuf;
+	layer_rendering_rendered_textures->erase(display_req.second->channelpath);
+	
 	layer_rendering_rendered_textures->emplace(std::piecewise_construct,
 						   std::forward_as_tuple(display_req.second->channelpath),
 						   std::forward_as_tuple(std::make_pair(generated_texture,generated_texture->getTextureObject(renderer->GraphicsWindow->getState()->getContextID())->id())));
@@ -323,6 +455,9 @@ namespace snde {
       
     }
 
+    //snde_warning("perform_compositing: Empty=%d",(int)GraphicsWindow->getEventQueue()->empty());
+
+    
     Camera->setProjectionMatrixAsOrtho(0,width,0,height,0.0,10000.0); // check last two parameters 
 
     osg::ref_ptr<osg::Group> group=new osg::Group();
@@ -474,10 +609,19 @@ namespace snde {
       }
       
     }
+    
+    //snde_warning("perform_compositing2: Empty=%d",(int)GraphicsWindow->getEventQueue()->empty());
 
+    //Viewer->setSceneData(group); setSceneData() seems to clear our event queue, so instead we swap out the contents of a persistent group (RootGroup) that was set as the scene data in the constructor
 
-    Viewer->setSceneData(group);
-
+    
+    if (RootGroup->getNumChildren()) {
+      RootGroup->removeChildren(0,1);
+    }
+    RootGroup->addChild(group);
+    
+    
+    //snde_warning("drawing frame: Empty=%d",(int)GraphicsWindow->getEventQueue()->empty());
     Viewer->frame();
     
   }
@@ -613,6 +757,13 @@ namespace snde {
   void osg_compositor::start()
   {
     std::lock_guard<std::mutex> adminlock(admin);
+
+    if (!eventhandler) {
+      eventhandler = new osg_compositor_eventhandler(shared_from_this(),display);
+      Viewer->addEventHandler(eventhandler);
+
+      Viewer->getCamera()->setAllowEventFocus(false); // prevent camera from eating our events and interfering
+    }
     if (threaded) {
 
       

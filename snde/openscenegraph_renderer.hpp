@@ -36,8 +36,10 @@ namespace snde {
     // base class for renderers
 
     osg::ref_ptr<osgViewer::Viewer> Viewer;
+    osg::ref_ptr<osg::Group> RootGroup; // Need Root group because swapping out SceneData clears event queue
     osg::ref_ptr<osg::Camera> Camera;
     osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow;
+    osg::ref_ptr<osgGA::EventQueue> EventQueue; // we keep a separate pointer to the event queue because getEventQueue() may not e thread safe but the EventQueue itself seems to be. 
     std::string channel_path;
 
     int type; // see SNDE_DRRT_XXXXX in rec_display.hpp
@@ -63,6 +65,32 @@ namespace snde {
 
   };
 
+
+  class osg_ParanoidGraphicsWindowEmbedded: public osgViewer::GraphicsWindowEmbedded {
+  public:
+    osg_ParanoidGraphicsWindowEmbedded(int x, int y, int width, int height) :
+      osgViewer::GraphicsWindowEmbedded(x,y,width,height)
+    {
+
+    }
+
+    virtual const char* libraryName() const { return "snde"; }
+    
+    virtual const char* className() const { return "osg_ParanoidGraphicsWindowEmbedded"; }
+
+    virtual bool makeCurrentImplementation()
+    {
+      // paranoid means no assumption that the state hasn't been messed with behind our backs
+      
+      getState()->reset(); // the OSG-expected state for THIS WINDOW may have been messed up (e.g. by another window). So we need to reset the assumptions about the OpenGL state
+
+      // !!!*** reset() above may be unnecessarily pessimistic, dirtying all array buffers, etc. (why???)
+
+      getState()->apply();
+      return true;
+    }
+    
+  };
 
 }
 
