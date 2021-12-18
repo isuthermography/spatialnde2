@@ -14,6 +14,13 @@
 //#include "snde/mutablerecstore.hpp"
 //#include "snde/revision_manager.hpp"
 
+// ***!!!! This should probably have some major rework, using a snapshot of the settings
+// at the start of a rendering pass to inform the rendering pass, and taking the output
+// from the pass (including on-demand waveforms, etc.) to update the settings as appropriate.
+// i.e. all of the get_recording_ref()'s should be eliminated. The locking should be eliminated
+// (since once snapshotted it will only be accessed from one thread at a time), etc. 
+
+
 namespace snde {
 
   class globalrevision; // recstore.hpp

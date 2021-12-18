@@ -112,6 +112,19 @@ void x3d_viewer_kbd(unsigned char key, int x, int y)
 }
 
 
+void x3d_viewer_spc(int special_key, int x, int y)
+{
+  switch(special_key) {
+  case GLUT_KEY_LEFT:
+    GraphicsWindow->getEventQueue()->keyPress(osgGA::GUIEventAdapter::KEY_Left);
+    GraphicsWindow->getEventQueue()->keyRelease(osgGA::GUIEventAdapter::KEY_Left);      
+    glutPostRedisplay();
+    break;
+    
+  } 
+}
+
+
 void x3d_viewer_close()
 {
   compositor = nullptr;
@@ -153,7 +166,7 @@ int main(int argc, char **argv)
   
   std::vector<std::shared_ptr<textured_part_recording>> part_recordings = x3d_load_geometry(recdb,graphman,argv[1],"main",(void *)&main,"/",false,true); // !!!*** Try enable vertex reindexing !!!***
 
-  pngchan_config=std::make_shared<snde::channelconfig>("png channel", "main", (void *)&main,false);
+  pngchan_config=std::make_shared<snde::channelconfig>("/png channel", "main", (void *)&main,false);
   std::shared_ptr<snde::channel> pngchan = recdb->reserve_channel(pngchan_config);
 
   png_rec = create_recording_ref(recdb,pngchan,(void *)&main,SNDE_RTN_UNASSIGNED);
@@ -182,6 +195,7 @@ int main(int argc, char **argv)
   glutCloseFunc(&x3d_viewer_close);
 
   glutKeyboardFunc(&x3d_viewer_kbd);
+  glutSpecialFunc(&x3d_viewer_spc);
 
   // load the scene. (testing only)
   //osg::ref_ptr<osg::Node> loadedModel = osgDB::readRefNodeFile(argv[2]);
@@ -222,9 +236,10 @@ int main(int argc, char **argv)
 
 
 
-  compositor = std::make_shared<osg_compositor>(recdb,display,Viewer,GraphicsWindow, false /* try true */, false);
+  compositor = std::make_shared<osg_compositor>(recdb,display,Viewer,GraphicsWindow, true /* try true */, false);
 
-  compositor->set_selected_channel("/x3d0");
+  compositor->set_selected_channel("/x3d0");  // uncomment this line to test mouse forwarding
+  //compositor->set_selected_channel("/png channel");  // uncomment this line to test keyboard forwarding (cursor left)
   
   compositor->trigger_update();
   

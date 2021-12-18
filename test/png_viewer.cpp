@@ -181,7 +181,7 @@ int main(int argc, char **argv)
 
   snde::active_transaction transact(recdb); // Transaction RAII holder
 
-  pngchan_config=std::make_shared<snde::channelconfig>("png channel", "main", (void *)&main,false);
+  pngchan_config=std::make_shared<snde::channelconfig>("/png channel", "main", (void *)&main,false);
   std::shared_ptr<snde::channel> pngchan = recdb->reserve_channel(pngchan_config);
   
   png_rec = create_recording_ref(recdb,pngchan,(void *)&main,SNDE_RTN_UNASSIGNED);

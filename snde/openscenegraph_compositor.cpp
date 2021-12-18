@@ -96,13 +96,12 @@ namespace snde {
 	  renderer = renderer_it->second;
 	}
       }
-
-      snde_warning("osg_compositor: Forwarding mouse event to 0x%lx for %s",(unsigned long)renderer->EventQueue.get(),selected_channel.c_str());
+      
+      //snde_warning("osg_compositor: Forwarding mouse event to 0x%lx for %s",(unsigned long)renderer->EventQueue.get(),selected_channel.c_str());
 
       if (renderer) {
 	// OSG event queues seem to be thread safe (see e.g. locking in src/osgGA/EventQueue.cpp)
 	// so this should be OK
-	assert(renderer->Viewer->getCameraManipulator());
 	renderer->EventQueue->addEvent(new osgGA::GUIEventAdapter(eventadapt,osg::CopyOp::DEEP_COPY_OBJECTS));
 	return true;
       }

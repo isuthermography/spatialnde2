@@ -815,13 +815,58 @@ namespace snde {
   
   void display_info::handle_key_down(const std::string &selected_channel,int key,bool shift,bool alt,bool ctrl)
   {
-    snde_warning("Key down: %d",key);
+    
   }
 
   
   void display_info::handle_special_down(const std::string &selected_channel,int special,bool shift,bool alt,bool ctrl)
   {
+    // Primarily we do this through the QT GUI but it's also possible to implement straight in
+    // OSG if needed (because that gives a better way to
+    // ensure consistency with sliders, etc.) This is currenly more of an example than anything. 
     
+    std::shared_ptr<display_axis> a = GetFirstAxis(selected_channel);
+    std::shared_ptr<display_unit> u;
+    double scale;
+    {
+      std::lock_guard<std::mutex> axisadm(a->admin);
+      u=a->unit;
+      std::lock_guard<std::mutex> unitadm(u->admin);
+      scale = u->scale;
+    }
+    
+    switch (special) {
+    case SNDE_RDK_LEFT:
+      double perdiv=scale;
+      int power=(int)(log(perdiv)/log(10.0) + 1000.01) -1000;
+      int bigdigit = (int)(0.5+perdiv/pow(10,power));
+
+      switch(bigdigit) {
+      case 1:
+	bigdigit=2;
+	break;
+	
+      case 2:
+	bigdigit=5;
+	break; 
+	
+      case 5: 
+	bigdigit=10;
+	break;
+	
+      case 10: 
+	bigdigit=20;
+	break;
+	
+      }
+
+      {
+	std::lock_guard<std::mutex> unitadm(u->admin);
+	u->scale=pow(10,power)*bigdigit;
+      }
+      break;
+      
+    }
   }
 
   
