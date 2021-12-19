@@ -17,6 +17,7 @@
 namespace snde {
 
   class osg_compositor;
+  class osg_renderer; // openscenegraph_renderer.hpp
   
 // Threading approach:
 // Can delegate most rendering (exc. final compositing) to
@@ -149,10 +150,15 @@ namespace snde {
 
   class osg_compositor_eventhandler: public osgGA::GUIEventHandler {
   public:
-    std::weak_ptr<osg_compositor> comp;
+    osg_compositor *comp; // use the compositor_dead flag (only set in main GUI loop thread) instead of a weak_ptr so that osg_compositor is compatible with both shared_ptr and QT ownership models. compositor_dead will be set in the destructor of the osg_compositor
+    bool compositor_dead; // used as a validity flag for comp
     std::shared_ptr<display_info> display;
     
-    osg_compositor_eventhandler(std::shared_ptr<osg_compositor> comp,std::shared_ptr<display_info> display);
+    osg_compositor_eventhandler(osg_compositor *comp,std::shared_ptr<display_info> display);
+
+    osg_compositor_eventhandler(const osg_compositor_eventhandler &) = delete;
+    osg_compositor_eventhandler & operator=(const osg_compositor_eventhandler &) = delete;
+    virtual ~osg_compositor_eventhandler() = default; 
 
     virtual bool handle(const osgGA::GUIEventAdapter &eventadapt,
 			osgGA::GUIActionAdapter &actionadapt);
@@ -160,9 +166,9 @@ namespace snde {
   
   
 
-  // ****!!!!! Should find a way to set the DefaultFramebuffer for all the GraphicsContext !!!****
   // ****!!!!! Need resize method.. should call display->set_pixelsperdiv() !!!****
-  class osg_compositor: public std::enable_shared_from_this<osg_compositor> { // Used as a base class for QTRecRender, which also inherits from QOpenGLWidget
+  // note that qt_osg_compositor derives from this and specializes it. 
+  class osg_compositor { // Used as a base class for QTRecRender, which also inherits from QOpenGLWidget
   public:
 
     std::weak_ptr<recdatabase> recdb; // immutable once initialized
@@ -178,10 +184,11 @@ namespace snde {
     osg::ref_ptr<osg_compositor_eventhandler> eventhandler; 
 
     std::shared_ptr<display_info> display;
-    std::string selected_channel; // locked by admin lock.... maybe selected channel should instead be handled like width, height, etc. below. or stored in display_info copy we will eventually have? 
+    std::string selected_channel; // locked by admin lock.... maybe selected channel should instead be handled like compositor_width, compositor_height, etc. below. or stored in display_info copy we will eventually have? 
     
     bool threaded;
-    bool platform_supports_threaded_opengl;
+    bool enable_threaded_opengl;
+    GLuint LayerDefaultFramebufferObject; // default FBO # for layer renderers 
 
     // PickerCrossHairs and GraticuleTransform for 2D image and 1D waveform rendering
     // They are initialized in the compositor's constructor and immutable thereafter
@@ -257,6 +264,8 @@ namespace snde {
     // to have responsibility for any given state. 
     std::map<std::thread::id,std::set<int>> responsibility_mapping; // this is immutable once created
 
+
+    bool threads_started; // whether we have performed the thread/responsibility_mapping initialization (regardless of if we are using a threaded model)
     bool need_update; 
     bool need_recomposite; 
     
@@ -275,11 +284,12 @@ namespace snde {
 #define SNDE_OSGRCS_EXIT 8 // command to worker thread(s) to exit
     
 
-    std::shared_ptr<std::thread> worker_thread;
-
+    std::shared_ptr<std::thread> worker_thread; // NOTE: Not used by QT subclass
+    std::shared_ptr<std::thread::id> worker_thread_id; // C++ id of worker thread (set even by QT subclass); Immutable once published (after start())
     
-    size_t width;  // updated in peform_ondemand_calcs; Should only be modified there, and read by whoever is running a step
-    size_t height;
+    
+    size_t compositor_width;  // updated in peform_ondemand_calcs; Should only be modified there, and read by whoever is running a step
+    size_t compositor_height;
     double borderwidthpixels;
     std::map<std::string,size_t> ColorIdx_by_channelpath; // updated in perform_ondemand_calc;
     
@@ -290,27 +300,30 @@ namespace snde {
     osg_compositor(std::shared_ptr<recdatabase> recdb,
 		   std::shared_ptr<display_info> display,
 		   osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
-		   bool threaded,bool platform_supports_threaded_opengl);
+		   bool threaded,bool enable_threaded_opengl,GLuint LayerDefaultFramebufferObject=0);
 
     osg_compositor(const osg_compositor &) = delete;
     osg_compositor & operator=(const osg_compositor &) = delete;
     virtual ~osg_compositor();
     
 
-    void trigger_update();
-    void wait_render();
-    void set_selected_channel(const std::string &selected_name);
-    std::string get_selected_channel();
-    void perform_ondemand_calcs();
-    void perform_layer_rendering();
-    void perform_compositing();
-    bool this_thread_ok_for_locked(int action);
-    bool this_thread_ok_for(int action);
-    void dispatch(bool return_if_idle,bool wait, bool loop_forever);
-    void worker_code();
-    void start();
-    void stop();
-    void SetPickerCrossHairs();
+    virtual void trigger_update();
+    virtual void wait_render();
+    virtual void set_selected_channel(const std::string &selected_name);
+    virtual std::string get_selected_channel();
+    virtual void perform_ondemand_calcs();
+    virtual void perform_layer_rendering();
+    virtual void perform_compositing();
+    virtual bool this_thread_ok_for_locked(int action);
+    virtual bool this_thread_ok_for(int action);
+    virtual void dispatch(bool return_if_idle,bool wait, bool loop_forever);
+    virtual void worker_code();
+    virtual void _start_worker_thread();
+    virtual void _join_worker_thread();
+
+    virtual void start();
+    virtual void stop();
+    virtual void SetPickerCrossHairs();
 
     //void SetPickerCrossHairs();
     

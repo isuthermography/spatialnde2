@@ -243,11 +243,13 @@ IF (OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   link_directories(${OPENSCENEGRAPH_LIB_DIR})
 
 ENDIF()
-  #IF (Qt5_FOUND)
-#  include_directories(${Qt5Widgets_INCLUDE_DIRS} ${Qt5Core_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5OpenGL_INCLUDE_DIRS} ${Qt5UiTools_INCLUDE_DIRS} ) 
+IF (Qt5_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
+  include_directories(${Qt5Widgets_INCLUDE_DIRS} ${Qt5Core_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5OpenGL_INCLUDE_DIRS} ${Qt5UiTools_INCLUDE_DIRS} ) 
+  QT5_WRAP_CPP(qt_osg_compositor_MOC snde/qt_osg_compositor.cpp snde/qt_osg_compositor.hpp)
+  set(SPATIALNDE2_QT_SOURCES snde/qt_osg_compositor.cpp ${qt_osg_compositor_MOC} ) # snde/qtrecviewer.cpp ${qtrecviewer_MOC} )
+
 #  QT5_WRAP_CPP(qtrecviewer_MOC snde/qtrecviewer.cpp snde/qtrecviewer.hpp)
-#  set(SPATIALNDE2_QT_SOURCES snde/qtrecviewer.cpp ${qtrecviewer_MOC} )
-#ENDIF()
+ENDIF()
 
 IF (LibXml2_FOUND)
   include_directories(${LIBXML2_INCLUDE_DIR})

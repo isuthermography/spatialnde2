@@ -29,8 +29,9 @@ namespace snde {
     });
   
 
-  osg_compositor_eventhandler::osg_compositor_eventhandler(std::shared_ptr<osg_compositor> comp,std::shared_ptr<display_info> display) :
+  osg_compositor_eventhandler::osg_compositor_eventhandler(osg_compositor *comp,std::shared_ptr<display_info> display) :
       comp(comp),
+      compositor_dead(false),
       display(display)
   {
     
@@ -40,16 +41,15 @@ namespace snde {
 					   osgGA::GUIActionAdapter &actionadapt)
   {
 
-    std::shared_ptr<osg_compositor> comp_strong = comp.lock();
-    if (!comp_strong) {
-      return false;
+    if (compositor_dead) {
+      return false; 
     }
 
 
     std::string selected_channel;
     {
-      std::lock_guard<std::mutex> comp_admin(comp_strong->admin);
-      selected_channel = comp_strong->selected_channel;
+      std::lock_guard<std::mutex> comp_admin(comp->admin);
+      selected_channel = comp->selected_channel;
     }
     //snde_warning("osg_compositor: Handling event: %s %d",selected_channel.c_str(),eventadapt.getEventType());
 
@@ -57,7 +57,7 @@ namespace snde {
       return false; // no event processing if no channel selected
     }
     //if (eventadapt.getEventType() == osgGA::GUIEventAdapter::FRAME) {
-    //  snde_warning("osg_eventhandler frame: Empty=%d",(int)comp_strong->GraphicsWindow->getEventQueue()->empty());
+    //  snde_warning("osg_eventhandler frame: Empty=%d",(int)comp->GraphicsWindow->getEventQueue()->empty());
     //}
     
     if (eventadapt.getEventType() == osgGA::GUIEventAdapter::KEYDOWN) {
@@ -89,10 +89,10 @@ namespace snde {
       std::shared_ptr<osg_renderer> renderer;
 
       {
-	std::lock_guard<std::mutex> adminlock(comp_strong->admin); // locking required for renderers field
+	std::lock_guard<std::mutex> adminlock(comp->admin); // locking required for renderers field
 	std::map<std::string,std::shared_ptr<osg_renderer>>::iterator renderer_it;
-	renderer_it=comp_strong->renderers->find(selected_channel);
-	if (renderer_it != comp_strong->renderers->end()) {
+	renderer_it=comp->renderers->find(selected_channel);
+	if (renderer_it != comp->renderers->end()) {
 	  renderer = renderer_it->second;
 	}
       }
@@ -117,22 +117,25 @@ namespace snde {
 				 osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
 				 osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
 				 bool threaded,
-				 bool platform_supports_threaded_opengl) : // ***!!! NOTE: don't set platform_supports_threaded_opengl unless you have arranged some means for the worker thread to operate in a different OpenGL context that shares textures with the main context !!!***
+				 bool enable_threaded_opengl,
+				 GLuint LayerDefaultFramebufferObject/*=0*/) : // ***!!! NOTE: don't set enabled_threaded_opengl unless you have arranged some means for the worker thread to operate in a different OpenGL context that shares textures with the main context. This would probably have to be done by a context !!!***
     recdb(recdb),
     display(display),
     GraphicsWindow(GraphicsWindow),
     Viewer(Viewer),
     RootGroup(new osg::Group()),
     threaded(threaded),
-    platform_supports_threaded_opengl(platform_supports_threaded_opengl),
+    enable_threaded_opengl(enable_threaded_opengl),
+    LayerDefaultFramebufferObject(LayerDefaultFramebufferObject),
     next_state(SNDE_OSGRCS_WAITING),
+    threads_started(false),
     need_update(true),
     need_recomposite(true),
     Camera(Viewer->getCamera()),
     display_transforms(std::make_shared<recstore_display_transforms>()),
     RenderCache(nullptr),
-    width(0), // assigned in perform_ondemand_calcs
-    height(0),
+    compositor_width(0), // assigned in perform_ondemand_calcs
+    compositor_height(0),
     borderwidthpixels(0)
   {
     
@@ -252,6 +255,9 @@ namespace snde {
     //if (threaded) {
     stop();
     //}
+    if (eventhandler) {
+      eventhandler->compositor_dead=true;
+    }
   }
 
   void osg_compositor::trigger_update()
@@ -309,8 +315,8 @@ namespace snde {
     
     {
       std::lock_guard<std::mutex> disp_admin(display->admin);
-      width = display->drawareawidth;
-      height = display->drawareaheight;
+      compositor_width = display->drawareawidth;
+      compositor_height = display->drawareaheight;
       borderwidthpixels = display->borderwidthpixels;
 
       for (auto && display_chan: channels_to_display) {
@@ -379,9 +385,11 @@ namespace snde {
 	  adminlock.unlock();
 	  // Need a new renderer
 	  osg::ref_ptr<osgViewer::Viewer> Viewer(new osgViewerCompat34());
-	  osg::ref_ptr<osg_layerwindow> LW=new osg_layerwindow(Viewer,nullptr,width,height,false);
+	  osg::ref_ptr<osg_layerwindow> LW=new osg_layerwindow(Viewer,nullptr,compositor_width,compositor_height,false);
+	  LW->setDefaultFboId(LayerDefaultFramebufferObject);
+	    
 	  Viewer->getCamera()->setGraphicsContext(LW);
-	  Viewer->getCamera()->setViewport(new osg::Viewport(0,0,width,height));	
+	  Viewer->getCamera()->setViewport(new osg::Viewport(0,0,compositor_width,compositor_height));	
 	  LW->setup_camera(Viewer->getCamera());
 	  
 	  if (display_req.second->renderer_type == SNDE_DRRT_IMAGE) {
@@ -408,7 +416,7 @@ namespace snde {
       std::shared_ptr<osg_rendercacheentry> cacheentry;
       bool modified;
 
-      std::tie(cacheentry,modified) = renderer->prepare_render(display_transforms->with_display_transforms,RenderCache,display_reqs,width,height);
+      std::tie(cacheentry,modified) = renderer->prepare_render(display_transforms->with_display_transforms,RenderCache,display_reqs,compositor_width,compositor_height);
 
       // rerender either if there is a modification to the tree, or if we have OSG events (such as rotating, etc)
       snde_warning("compositor about to render %s: 0x%lx empty=%d",display_req.second->channelpath.c_str(),(unsigned long)renderer->EventQueue.get(),renderer->EventQueue->empty());
@@ -425,7 +433,7 @@ namespace snde {
 	dummy_event->setTime(renderer->Viewer->getFrameStamp()->getReferenceTime()-1.0);
 	renderer->EventQueue->addEvent(dummy_event);
 
-	//std::tie(cacheentry,modified) = renderer->prepare_render(display_transforms->with_display_transforms,RenderCache,display_reqs,width,height);
+	//std::tie(cacheentry,modified) = renderer->prepare_render(display_transforms->with_display_transforms,RenderCache,display_reqs,compositor_width,compositor_height);
 	//renderer->frame();
 	
 	// store our generated texture and its ID
@@ -447,17 +455,17 @@ namespace snde {
   void osg_compositor::perform_compositing()
   {
     assert(this_thread_ok_for(SNDE_OSGRCS_COMPOSITING));
-    if (width != Camera->getViewport()->width() || height != Camera->getViewport()->height()) {
-      GraphicsWindow->getEventQueue()->windowResize(0,0,width,height);
-      GraphicsWindow->resized(0,0,width,height);
-      Camera->setViewport(0,0,width,height);
+    if (compositor_width != Camera->getViewport()->width() || compositor_height != Camera->getViewport()->height()) {
+      GraphicsWindow->getEventQueue()->windowResize(0,0,compositor_width,compositor_height);
+      GraphicsWindow->resized(0,0,compositor_width,compositor_height);
+      Camera->setViewport(0,0,compositor_width,compositor_height);
       
     }
 
     //snde_warning("perform_compositing: Empty=%d",(int)GraphicsWindow->getEventQueue()->empty());
 
     
-    Camera->setProjectionMatrixAsOrtho(0,width,0,height,0.0,10000.0); // check last two parameters 
+    Camera->setProjectionMatrixAsOrtho(0,compositor_width,0,compositor_height,0.0,10000.0); // check last two parameters 
 
     osg::ref_ptr<osg::Group> group=new osg::Group();
     double depth=-1.0*(channels_to_display.size()+1);  // start negative to be compatible with usual OpenGL coordinate frame where negative z's are in front of the cameras
@@ -488,7 +496,7 @@ namespace snde {
 	texobj->setAllocated();
 	tex->setTextureObject(GraphicsWindow->getState()->getContextID(),texobj);
 
-	snde_warning("borderbox: width=%d,height=%d",width,height);
+	snde_warning("borderbox: width=%d,height=%d",compositor_width,compositor_height);
 	/* !!!*** NOTE: Apparently had trouble previously with double precision vs single precision arrays (?) */
 	
 	// Z position of border is -0.5 relative to image, so it appears on top
@@ -500,8 +508,8 @@ namespace snde {
 	}
 
 	float borderbox_xright = dispreq->spatial_position->x+dispreq->spatial_position->width+borderwidthpixels/2.0;
-	if (borderbox_xright > width-0.5) {
-	  borderbox_xright = width-0.5;
+	if (borderbox_xright > compositor_width-0.5) {
+	  borderbox_xright = compositor_width-0.5;
 	}
 
 	float borderbox_ybot = dispreq->spatial_position->y-borderwidthpixels/2.0;
@@ -510,8 +518,8 @@ namespace snde {
 	}
 
 	float borderbox_ytop = dispreq->spatial_position->y+dispreq->spatial_position->height+borderwidthpixels/2.0;
-	if (borderbox_ytop > height-0.5) {
-	  borderbox_ytop = height-0.5;
+	if (borderbox_ytop > compositor_height-0.5) {
+	  borderbox_ytop = compositor_height-0.5;
 	}
 
 
@@ -676,6 +684,7 @@ namespace snde {
 	  executed_something=true; 
 	}
 	if (need_update) {
+	  // need_update overrides need_recomposite 
 	  next_state = SNDE_OSGRCS_ONDEMANDCALCS;
 	  need_update = false;
 	  executed_something=true; 
@@ -739,7 +748,7 @@ namespace snde {
       
       execution_notify.notify_all();
 
-      if (wait && !loop_forever && executed_compositing) {
+      if (!loop_forever && executed_compositing) {
 	// finished a pass
 	return; 
       }
@@ -753,36 +762,63 @@ namespace snde {
     dispatch(false,true,true);
   }
 
+  void osg_compositor::_start_worker_thread()
+  {
+    if (threaded) {
+      worker_thread = std::make_shared<std::thread>([ this ]() { this->worker_code(); });
+      worker_thread_id = std::make_shared<std::thread::id>(worker_thread->get_id());
+    } else {
+      worker_thread_id = std::make_shared<std::thread::id>(std::this_thread::get_id());
+    }
+    
+    threads_started=true; 
+  }
+  
+  void osg_compositor::_join_worker_thread()
+  {
+    if (threaded && threads_started) {
+      worker_thread->join();
+      worker_thread=nullptr;
+    }
+    threads_started=false;
+    worker_thread_id=nullptr; 
+    
+  }
+
+    
   void osg_compositor::start()
   {
     std::lock_guard<std::mutex> adminlock(admin);
 
     if (!eventhandler) {
-      eventhandler = new osg_compositor_eventhandler(shared_from_this(),display);
+      eventhandler = new osg_compositor_eventhandler(this,display);
       Viewer->addEventHandler(eventhandler);
 
       Viewer->getCamera()->setAllowEventFocus(false); // prevent camera from eating our events and interfering
     }
-    if (threaded) {
+    if (!threads_started) {
+      _start_worker_thread(); // sets threads_started
 
-      
-      worker_thread = std::make_shared<std::thread>([ this ]() { this->worker_code(); });
-
-      if (platform_supports_threaded_opengl) {
-	responsibility_mapping.emplace(worker_thread->get_id(),std::set<int>{SNDE_OSGRCS_WAITING,SNDE_OSGRCS_ONDEMANDCALCS,SNDE_OSGRCS_RENDERING,SNDE_OSGRCS_RENDERING_CLEANUP,SNDE_OSGRCS_EXIT});
+      // assign thread responsibilities 
+      if (threaded) {
 	
-	responsibility_mapping.emplace(std::this_thread::get_id(),std::set<int>{SNDE_OSGRCS_COMPOSITING,SNDE_OSGRCS_COMPOSITING_CLEANUP,SNDE_OSGRCS_EXIT});
+	
+	if (enable_threaded_opengl) {
+	  responsibility_mapping.emplace(*worker_thread_id,std::set<int>{SNDE_OSGRCS_WAITING,SNDE_OSGRCS_ONDEMANDCALCS,SNDE_OSGRCS_RENDERING,SNDE_OSGRCS_RENDERING_CLEANUP,SNDE_OSGRCS_EXIT});
+	  
+	  responsibility_mapping.emplace(std::this_thread::get_id(),std::set<int>{SNDE_OSGRCS_COMPOSITING,SNDE_OSGRCS_COMPOSITING_CLEANUP,SNDE_OSGRCS_EXIT});
+	} else {
+	  responsibility_mapping.emplace(*worker_thread_id,std::set<int>{SNDE_OSGRCS_WAITING,SNDE_OSGRCS_ONDEMANDCALCS,SNDE_OSGRCS_EXIT});
+	  responsibility_mapping.emplace(std::this_thread::get_id(),std::set<int>{SNDE_OSGRCS_COMPOSITING,SNDE_OSGRCS_RENDERING,SNDE_OSGRCS_COMPOSITING_CLEANUP,SNDE_OSGRCS_RENDERING_CLEANUP,SNDE_OSGRCS_EXIT});
+	}
+	
+	
       } else {
-	responsibility_mapping.emplace(worker_thread->get_id(),std::set<int>{SNDE_OSGRCS_WAITING,SNDE_OSGRCS_ONDEMANDCALCS,SNDE_OSGRCS_EXIT});
-	responsibility_mapping.emplace(std::this_thread::get_id(),std::set<int>{SNDE_OSGRCS_COMPOSITING,SNDE_OSGRCS_RENDERING,SNDE_OSGRCS_COMPOSITING_CLEANUP,SNDE_OSGRCS_RENDERING_CLEANUP,SNDE_OSGRCS_EXIT});
+	responsibility_mapping.emplace(std::this_thread::get_id(),std::set<int>{SNDE_OSGRCS_WAITING,SNDE_OSGRCS_ONDEMANDCALCS,SNDE_OSGRCS_COMPOSITING,SNDE_OSGRCS_RENDERING,SNDE_OSGRCS_COMPOSITING_CLEANUP,SNDE_OSGRCS_RENDERING_CLEANUP,SNDE_OSGRCS_EXIT});
+	
       }
 
-      
-    } else {
-      responsibility_mapping.emplace(std::this_thread::get_id(),std::set<int>{SNDE_OSGRCS_WAITING,SNDE_OSGRCS_ONDEMANDCALCS,SNDE_OSGRCS_COMPOSITING,SNDE_OSGRCS_RENDERING,SNDE_OSGRCS_COMPOSITING_CLEANUP,SNDE_OSGRCS_RENDERING_CLEANUP,SNDE_OSGRCS_EXIT});
-      
     }
-
 
     
   }
@@ -797,11 +833,8 @@ namespace snde {
     }
 
     dispatch(false,true,true); // perform any cleanup actions that are our thread's responsibility
-    
-    if (threaded) {
-      worker_thread->join();
-      worker_thread=nullptr;
-    }
+
+    _join_worker_thread();
   }
 
   
