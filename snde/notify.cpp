@@ -513,6 +513,12 @@ namespace snde {
 	  recdb_strong->monitoring.erase(monitoring_deadptr);
 	}
 
+
+	// perform the quick notifications
+	for (auto && quicknotify: recdb_strong->ready_globalrev_quicknotifies_called_recdb_locked) {
+	  (*quicknotify)(recdb_strong,complete_globalrev);
+	}
+	
 	// clear the reference in complete_globalrev to the mutable_recordings_need_holder
 	// now once all of the monitoring is done, the globalrev_mutable_lock gets destroyed,
 	// triggering the globalrev_mutablenotneeded_thread to requeue any blocked computations

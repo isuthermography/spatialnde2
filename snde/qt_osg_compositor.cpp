@@ -1,6 +1,11 @@
+#include <QMouseEvent>
+#include <QWheelEvent>
+#include <QTouchEvent>
 
 #include "snde/qt_osg_compositor.hpp"
 #include "snde/openscenegraph_renderer.hpp"
+#include "snde/colormap.h"
+#include "snde/rec_display.hpp"
 
 namespace snde {
 
@@ -37,17 +42,28 @@ namespace snde {
   
   qt_osg_compositor::qt_osg_compositor(std::shared_ptr<recdatabase> recdb,
 				       std::shared_ptr<display_info> display,
-				       osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
+				       osg::ref_ptr<osgViewer::Viewer> Viewer,
 				       bool threaded,bool enable_threaded_opengl,
-				       QPointer<QTRecViewer> Parent_Viewer,QWidget *parent/*=nullptr*/) :
+				       QPointer<QTRecViewer> Parent_QTRViewer,QWidget *parent/*=nullptr*/) :
     QOpenGLWidget(parent),
     osg_compositor(recdb,display,Viewer,new osg_ParanoidGraphicsWindowEmbedded(0,0,width(),height()),
 		   threaded,confirm_threaded_opengl(enable_threaded_opengl),defaultFramebufferObject() /* probably 0 as QT OGL hasn't started... we'll assign an updated value in initializeGL() below */ ),
     RenderContext(nullptr),
     qt_worker_thread(nullptr),
-    Parent_Viewer(Parent_Viewer)
+    Parent_QTRViewer(Parent_QTRViewer)
   {
+
+    Viewer->getCamera()->setViewport(new osg::Viewport(0,0,width(),height()));
+    Viewer->getCamera()->setGraphicsContext(GraphicsWindow);
     
+    //AnimTimer = new QTimer(this);
+    //AnimTimer->setInterval(16); // 16 ms ~ 60 Hz
+
+    setMouseTracking(true); // ???
+    setAttribute(Qt::WA_AcceptTouchEvents,true);
+
+    //QObject::connect(AnimTimer,SIGNAL(timeout()),this,SLOT(update()));
+
   }
 
   qt_osg_compositor::~qt_osg_compositor()
@@ -210,6 +226,29 @@ namespace snde {
   }
 
 
+  void qt_osg_compositor::perform_compositing()
+  {
+
+    osg_compositor::perform_compositing();
+
+    // enable continuous updating if requested 
+    /*
+    if (request_continuous_update) {
+      if (!AnimTimer->isActive()) {
+	AnimTimer->start();
+	fprintf(stderr,"Starting animation timer!\n");
+      }
+    } else {
+      fprintf(stderr,"Manipulator not animating\n");
+      if (AnimTimer->isActive()) {
+	AnimTimer->stop();
+      }
+      
+    }
+
+    */
+  }
+  
   void qt_osg_compositor::paintGL()
   {
     // mark that at minimum we need a recomposite 
@@ -220,4 +259,170 @@ namespace snde {
     // execute up to one full rendering pass but don't allow waiting in the QT main thread main loop
     dispatch(true,false,false);
   }
+
+  void qt_osg_compositor::resizeGL(int width, int height)
+  {
+#warning "resizeGL not yet implemented."
+    /*
+    GraphicsWindow->getEventQueue()->windowResize(x(),y(),width,height);
+    GraphicsWindow->resized(x(),y(),width,height);
+    Camera->setViewport(0,0,width,height);
+    SetProjectionMatrix();
+    QTViewer->update();
+    */
+    
+    trigger_rerender();
+  }
+
+
+
+
+  void qt_osg_compositor::mouseMoveEvent(QMouseEvent *event)
+  {
+    // translate Qt mouseMoveEvent to OpenSceneGraph
+    GraphicsWindow->getEventQueue()->mouseMotion(event->x(), event->y()); //,event->timestamp()/1000.0);
+    
+    // for some reason drags with the middle mouse button pressed
+    // get the buttons field filtered out (?)
+    
+    // should we only update if a button is pressed??
+    //fprintf(stderr,"buttons=%llx\n",(unsigned long long)event->buttons());
+    if (event->buttons()) {
+      trigger_rerender();
+    }
+  }
+  
+  void qt_osg_compositor::mousePressEvent(QMouseEvent *event)
+  {
+    int button;
+    switch(event->button()) {
+    case Qt::LeftButton:
+      button=1;
+      break;
+      
+    case Qt::MiddleButton:
+      button=2;
+      break;
+      
+    case Qt::RightButton:
+      button=3;
+      break;
+      
+    default:
+      button=0;
+      
+      
+    }
+    
+    GraphicsWindow->getEventQueue()->mouseButtonPress(event->x(),event->y(),button); //,event->timestamp()/1000.0);
+    
+    trigger_rerender();
+    
+    // Can adapt QT events -> OSG events here
+    // would do e.g.
+    //GraphicsWindow->getEventQueue()->mouseButtonPress(event->x(),event->y(),button#)
+    // Would also want to forward mouseButtonRelease() 
+  }
+  
+  void qt_osg_compositor::mouseReleaseEvent(QMouseEvent *event)
+  {
+    int button;
+    switch(event->button()) {
+    case Qt::LeftButton:
+      button=1;
+      break;
+      
+    case Qt::MiddleButton:
+      button=2;
+      break;
+      
+    case Qt::RightButton:
+      button=3;
+      break;
+	
+    default:
+      button=0;
+      
+      
+    }
+    
+    GraphicsWindow->getEventQueue()->mouseButtonRelease(event->x(),event->y(),button); //,event->timestamp()/1000.0);
+    
+    trigger_rerender();
+    
+      // Can adapt QT events -> OSG events here
+      // would do e.g.
+      //GraphicsWindow->getEventQueue()->mouseButtonPress(event->x(),event->y(),button#)
+      // Would also want to forward mouseButtonRelease() 
+  }
+  
+  void qt_osg_compositor::wheelEvent(QWheelEvent *event)
+  {
+    GraphicsWindow->getEventQueue()->mouseScroll( (event->angleDelta().y() > 0) ?
+						  osgGA::GUIEventAdapter::SCROLL_UP :
+						  osgGA::GUIEventAdapter::SCROLL_DOWN);
+    //event->timestamp()/1000.0);
+    trigger_rerender();
+    
+  }
+  
+  
+  bool qt_osg_compositor::event(QEvent *event)
+  {
+    if (event->type()==QEvent::TouchBegin || event->type()==QEvent::TouchUpdate || event->type()==QEvent::TouchEnd) {
+      QList<QTouchEvent::TouchPoint> TouchPoints = static_cast<QTouchEvent *>(event)->touchPoints();
+      
+      //double timestamp=static_cast<QInputEvent *>(event)->timestamp()/1000.0;
+      
+      for (auto & TouchPoint: TouchPoints) {
+	
+	if (TouchPoint.state()==Qt::TouchPointPressed) {
+	  GraphicsWindow->getEventQueue()->touchBegan(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_BEGAN,TouchPoint.pos().x(),TouchPoint.pos().y(),1); //,timestamp);
+	} else if (TouchPoint.state()==Qt::TouchPointMoved) {
+	  GraphicsWindow->getEventQueue()->touchMoved(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_MOVED,TouchPoint.pos().x(),TouchPoint.pos().y(),1); //,timestamp);
+	  
+	} else if (TouchPoint.state()==Qt::TouchPointStationary) {
+	  GraphicsWindow->getEventQueue()->touchMoved(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_STATIONERY,TouchPoint.pos().x(),TouchPoint.pos().y(),1); //,timestamp);
+	  
+	} else if (TouchPoint.state()==Qt::TouchPointReleased) {
+	  GraphicsWindow->getEventQueue()->touchEnded(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_ENDED,TouchPoint.pos().x(),TouchPoint.pos().y(),1); //,timestamp);
+	  
+	}
+      }
+      trigger_rerender();
+      return true;
+    } else {
+      
+      return QOpenGLWidget::event(event);
+    }
+  }
+  
+  
+  /*
+  void qt_osg_compositor::ClearPickedOrientation()
+  {
+    // notification from picker to clear any marked orientation
+    if (QTViewer->GeomRenderer) {
+      QTViewer->GeomRenderer->ClearPickedOrientation();
+    }
+  }
+  */
+
+  void qt_osg_compositor::rerender()
+  // QT slot indicating that rerendering is needed
+  {
+    trigger_rerender();
+
+    if (!threaded) {
+      emit update(); // in non-threaded mode we have to go into paintGL() to initiate the update (otherwise sub-thread will take care of it for us)
+    }
+  }
+  
+  void qt_osg_compositor::update()
+  // QT slot indicating that we should do a display update, i.e. a re-composite
+  {
+    QOpenGLWidget::update(); // re-composite done inside paintGL();
+  }
+
+  
 }

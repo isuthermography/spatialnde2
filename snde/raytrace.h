@@ -387,7 +387,7 @@ static IPOPS_INLINE int ray_intersects_polygon(snde_coord3 *vertices,
 }
 
 
-#define FRIN_STACKSIZE 100
+#define FRIN_STACKSIZE 100 // !!!*** NOTE: Not much point in this being deeper than the maximum number of levels of boxes (which is currently 22)
 
 static RAYTRACE_INLINE int find_ray_first_part_intersection_nonrecursive(snde_index instnum,
 									 //snde_index numtris,

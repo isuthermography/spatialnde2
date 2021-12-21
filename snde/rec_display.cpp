@@ -43,7 +43,7 @@ namespace snde {
   display_channel::display_channel(const std::string &FullName,//std::shared_ptr<mutableinfostore> chan_data,
 				   float Scale,float Position,float HorizPosition,float VertCenterCoord,bool VertZoomAroundAxis,float Offset,float Alpha,
 				   size_t ColorIdx,bool Enabled, size_t DisplayFrame,size_t DisplaySeq,
-				   size_t ColorMap) :
+				   size_t ColorMap,int render_mode) :
     FullName(FullName),
     //chan_data(chan_data),
     Scale(Scale),
@@ -57,7 +57,8 @@ namespace snde {
     Enabled(Enabled),
     DisplayFrame(DisplayFrame),
     DisplaySeq(DisplaySeq),
-    ColorMap(ColorMap)
+    ColorMap(ColorMap),
+    render_mode(render_mode)
 
   {
 
@@ -119,19 +120,8 @@ namespace snde {
     
   }
   */
-  
-  bool operator==(const RecColor &lhs, const RecColor &rhs)
-  {
-    return (lhs.R == rhs.R && lhs.G==rhs.G && lhs.B==rhs.B);
-  }
 
-  bool operator!=(const RecColor &lhs, const RecColor &rhs)
-  {
-    return !(lhs==rhs);
-  }
-
-
-  static std::string PrintWithSIPrefix(double val, const std::string &unitabbrev, int sigfigs)
+  std::string PrintWithSIPrefix(double val, const std::string &unitabbrev, int sigfigs)
   {
     std::string buff="";
     
@@ -172,6 +162,19 @@ namespace snde {
     }
 
     return buff;
+  }
+
+
+
+  
+  bool operator==(const RecColor &lhs, const RecColor &rhs)
+  {
+    return (lhs.R == rhs.R && lhs.G==rhs.G && lhs.B==rhs.B);
+  }
+
+  bool operator!=(const RecColor &lhs, const RecColor &rhs)
+  {
+    return !(lhs==rhs);
   }
 
 
@@ -312,7 +315,7 @@ namespace snde {
     }
     
     // create a new display_channel
-    std::shared_ptr<display_channel> new_display_channel=std::make_shared<display_channel>(fullname,/*info, */  1.0,0.0,0.0,0.0,false,0.0,1.0,_NextColor,false,0,0,0);
+    std::shared_ptr<display_channel> new_display_channel=std::make_shared<display_channel>(fullname,/*info, */  1.0,0.0,0.0,0.0,false,0.0,1.0,_NextColor,false,0,0,0,SNDE_DCRM_INVALID);
     
     
     //std::lock_guard<std::mutex> adminlock(admin);

@@ -3813,6 +3813,22 @@ namespace snde {
     return monitor; 
   }
 
+  void recdatabase::register_ready_globalrev_quicknotifies_called_recdb_locked(std::shared_ptr<std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision>)>> quicknotify)
+  {
+    std::lock_guard<std::mutex> recdb_admin(admin);
+
+    ready_globalrev_quicknotifies_called_recdb_locked.emplace(quicknotify);
+  }
+  
+  void recdatabase::unregister_ready_globalrev_quicknotifies_called_recdb_locked(std::shared_ptr<std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision>)>> quicknotify)
+  {
+    std::lock_guard<std::mutex> recdb_admin(admin);
+    
+    ready_globalrev_quicknotifies_called_recdb_locked.erase(quicknotify);
+    
+  }
+
+
   void recdatabase::globalrev_mutablenotneeded_code()
   {
     std::unique_lock<std::mutex> globalrev_mutablenotneeded_lockholder(globalrev_mutablenotneeded_lock);

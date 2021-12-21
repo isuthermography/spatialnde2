@@ -64,6 +64,7 @@
  * Improved bounding box library (bounding_hyperboxes.hpp)
  * C API wrapper for better ABI compatibility
  * Expression parser for defining math functions and/or coordinate transform operations. 
- 
+
+ * Need to implement scalar and waveform rendering modes in display_requirements.cpp
 
  * ***Check all calls to emplace() except display/rendering logic

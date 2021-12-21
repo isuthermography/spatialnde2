@@ -244,11 +244,14 @@ IF (OpenThreads_FOUND AND OpenSceneGraph_FOUND)
 
 ENDIF()
 IF (Qt5_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
-  include_directories(${Qt5Widgets_INCLUDE_DIRS} ${Qt5Core_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5OpenGL_INCLUDE_DIRS} ${Qt5UiTools_INCLUDE_DIRS} ) 
-  QT5_WRAP_CPP(qt_osg_compositor_MOC snde/qt_osg_compositor.cpp snde/qt_osg_compositor.hpp)
-  set(SPATIALNDE2_QT_SOURCES snde/qt_osg_compositor.cpp ${qt_osg_compositor_MOC} ) # snde/qtrecviewer.cpp ${qtrecviewer_MOC} )
+  include_directories(${Qt5Widgets_INCLUDE_DIRS} ${Qt5Core_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5OpenGL_INCLUDE_DIRS} ${Qt5UiTools_INCLUDE_DIRS} )
+  
+  QT5_WRAP_CPP(qt_osg_compositor_MOC snde/qt_osg_compositor.cpp snde/qt_osg_compositor.hpp )
+  QT5_WRAP_CPP(qtrecviewer_support_MOC snde/qtrecviewer_support.cpp snde/qtrecviewer_support.hpp )
+  QT5_WRAP_CPP(qtrecviewer_MOC snde/qtrecviewer.cpp snde/qtrecviewer.hpp )
+  
+  set(SPATIALNDE2_QT_SOURCES snde/qt_osg_compositor.cpp ${qt_osg_compositor_MOC} snde/qtrecviewer_support.cpp ${qtrecviewer_support_MOC} snde/qtrecviewer.cpp ${qtrecviewer_MOC} )
 
-#  QT5_WRAP_CPP(qtrecviewer_MOC snde/qtrecviewer.cpp snde/qtrecviewer.hpp)
 ENDIF()
 
 IF (LibXml2_FOUND)
@@ -298,7 +301,7 @@ ENDIF()
 IF (Qt5_FOUND)
   qt5_add_resources(SPATIALNDE2_QT_RCC snde/qtrecviewer.qrc )
   add_library(spatialnde2_qt SHARED ${SPATIALNDE2_QT_SOURCES} ${SPATIALNDE2_QT_RCC})
-  target_link_libraries(spatialnde2_qt Qt5::Core)
+  target_link_libraries(spatialnde2_qt Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools)
 ENDIF()
 
 # SpatialNDE2 headers
@@ -490,7 +493,7 @@ IF (Python3_FOUND)
     COMMAND ${CMAKE_COMMAND} -E echo "And ...perhaps as root or Administrator...:"
     COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "  ${PYTHON_EXECUTABLE} setup.py install"
     COMMAND ${CMAKE_COMMAND} -E echo "to install for Python" )
-  add_dependencies( InstallMessage compile_definitions Python_Create_Setup spatialnde2 spatialnde2_qt allocator_test recdb_test recmath_test recmath_test2 transform_eval_test matrixsolve_test png_viewer osg_layerwindow_test ondemand_test x3d_viewer compositor_test )
+  add_dependencies( InstallMessage compile_definitions Python_Create_Setup spatialnde2 spatialnde2_qt allocator_test recdb_test recmath_test recmath_test2 transform_eval_test matrixsolve_test png_viewer osg_layerwindow_test ondemand_test x3d_viewer compositor_test x3d_viewer_qt )
 ENDIF (Python3_FOUND)
 
 
@@ -556,9 +559,9 @@ IF (Qt5_FOUND AND OpenCL_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenScene
 ENDIF()
 
 IF (Qt5_FOUND AND Python3_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND OpenCL_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PNG_FOUND)
-  #add_executable(x3d_viewer_qt example/x3d_viewer_qt.cpp)
-  #add_dependencies(x3d_viewer_qt OpenCL_Headers)
-  #target_link_libraries(x3d_viewer_qt ${SPATIALNDE2_QT_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${OpenCL_LIBRARIES}  ${LIBXML2_LIBRARIES} ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
+  add_executable(x3d_viewer_qt test/x3d_viewer_qt.cpp)
+  add_dependencies(x3d_viewer_qt OpenGL::GL )
+  target_link_libraries(x3d_viewer_qt ${SPATIALNDE2_QT_LIBS} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS}  ${OPENSCENEGRAPH_LIBRARIES} ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
 ENDIF()
 
 

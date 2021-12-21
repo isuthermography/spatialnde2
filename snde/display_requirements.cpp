@@ -654,6 +654,10 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 	  std::lock_guard<std::mutex> di_lock(display->admin);
 	  std::lock_guard<std::mutex> dc_lock(displaychan->admin);
 	  std::vector<snde_index> other_indices({0,0});
+
+	  // !!!*** displaychan updates should be more formally assigned and passed around
+	  displaychan->render_mode = SNDE_DCRM_IMAGE;
+	  
 	  if (NDim >= 3) {
 	    if (displaychan->DisplayFrame >= array_rec->layouts[0].dimlen[2]) {
 	      displaychan->DisplayFrame = array_rec->layouts[0].dimlen[2]-1;	    
@@ -903,6 +907,10 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
     {
       std::lock_guard<std::mutex> di_lock(display->admin);
       std::lock_guard<std::mutex> dc_lock(displaychan->admin);
+
+      // !!!*** displaychan updates should be more formally passed around,
+      // and perhaps this update should not occur unless this was actually a render goal (?)
+      displaychan->render_mode = SNDE_DCRM_IMAGE;
       
       std::tie(posn,xform,bounds) = spatial_transforms_for_3d_channel(display->drawareawidth,display->drawareaheight,
 								      displaychan->HorizPosition,displaychan->Position,
@@ -1105,6 +1113,9 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
       std::lock_guard<std::mutex> di_lock(display->admin);
       std::lock_guard<std::mutex> dc_lock(displaychan->admin);
       
+      // !!!*** displaychan updates should be more formally passed around,
+      // and perhaps this update should not occur unless this was actually a render goal (?)
+      displaychan->render_mode = SNDE_DCRM_IMAGE;
       std::tie(posn,xform,bounds) = spatial_transforms_for_3d_channel(display->drawareawidth,display->drawareaheight,
 								      displaychan->Position,displaychan->HorizPosition,
 								      displaychan->Scale,display->pixelsperdiv);	  // magnification comes from the scale
@@ -1253,6 +1264,16 @@ std::shared_ptr<display_requirement> assembly_recording_display_handler::get_dis
   assert(simple_goal == SNDE_SRG_RENDERING);
 
   const std::string &chanpath = displaychan->FullName;
+
+  {
+
+    std::lock_guard<std::mutex> displaychan_admin(displaychan->admin);
+    // !!!*** displaychan updates should be more formally passed around,
+    // and perhaps this update should not occur unless this was actually a render goal (?)
+    displaychan->render_mode = SNDE_DCRM_IMAGE;
+  }
+
+  
   std::shared_ptr<recording_base> rec = base_rss->get_recording(chanpath);
   
   std::shared_ptr<assembly_recording> assempart_rec=std::dynamic_pointer_cast<assembly_recording>(rec);

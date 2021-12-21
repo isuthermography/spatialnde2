@@ -28,7 +28,7 @@
      <widget class="QWidget" name="LeftOfSplitter">
       <layout class="QVBoxLayout" name="LeftOfSplitterVBox" stretch="1,0">
        <item>
-        <widget class="QScrollArea" name="wfmListScrollArea">
+        <widget class="QScrollArea" name="recListScrollArea">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
            <horstretch>1</horstretch>
@@ -38,7 +38,7 @@
          <property name="widgetResizable">
           <bool>true</bool>
          </property>
-         <widget class="QWidget" name="wfmListScrollAreaContent">
+         <widget class="QWidget" name="recListScrollAreaContent">
           <property name="geometry">
            <rect>
             <x>0</x>
@@ -51,7 +51,7 @@
         </widget>
        </item>
        <item>
-        <widget class="QTextEdit" name="WfmInfoText">
+        <widget class="QTextEdit" name="RecInfoText">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
            <horstretch>0</horstretch>
@@ -285,7 +285,7 @@
   </layout>
  </widget>
  <tabstops>
-  <tabstop>wfmListScrollArea</tabstop>
+  <tabstop>recListScrollArea</tabstop>
  </tabstops>
  <resources>
   <include location="qtrecviewer.qrc"/>

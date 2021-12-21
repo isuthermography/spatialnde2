@@ -905,6 +905,8 @@ namespace snde {
     std::list<std::shared_ptr<globalrevision>> globalrev_mutablenotneeded_pending;
     bool globalrev_mutablenotneeded_mustexit;
 
+    std::set<std::shared_ptr<std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision>)>>> ready_globalrev_quicknotifies_called_recdb_locked; // locked by admin lock.  
+    
     std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> _math_functions; // atomic shared pointer... use math_functions() accessor. 
     
     
@@ -946,6 +948,14 @@ namespace snde {
     void wait_recording_names(std::shared_ptr<recording_set_state> rss,const std::vector<std::string> &metadataonly, const std::vector<std::string> fullyready);
 
     std::shared_ptr<monitor_globalrevs> start_monitoring_globalrevs(std::shared_ptr<globalrevision> first = nullptr,bool inhibit_multiple = false);
+
+    // These functions can be used to manage quicknotifies that are called when a new globalrev
+    // becomes ready. They are called with the recdb locked (be aware of locking order!!!)
+    // and MUST return very rapidly -- shouldn't do anything of substance: Generally
+    // just queue some sort of event for some thread or event loop to take care of later
+    // IN MOST USAGE TO GET GLOBALREV UPDATES YOU SHOULD USE start_monitoring_globalrevs()!!!
+    void register_ready_globalrev_quicknotifies_called_recdb_locked(std::shared_ptr<std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision>)>> quicknotify);
+    void unregister_ready_globalrev_quicknotifies_called_recdb_locked(std::shared_ptr<std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision>)>> quicknotify);
 
     void globalrev_mutablenotneeded_code(); 
 

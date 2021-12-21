@@ -18,6 +18,7 @@ namespace snde {
 
   class osg_compositor;
   class osg_renderer; // openscenegraph_renderer.hpp
+  class osgViewerCompat34; // openscenegraph_renderer.hpp
   
 // Threading approach:
 // Can delegate most rendering (exc. final compositing) to
@@ -218,7 +219,7 @@ namespace snde {
     // Rendering consists of four phases, which may be in different threads,
     // but must proceed sequentially with one thread handing off to the next
     // 1. Waiting for trigger; the trigger indicates that an update
-    //    is necessary, such as the need_update or need_recomposite
+    //    is necessary, such as the need_rerender or need_recomposite
     //    flags below. It can come from QT, from the presence of a new
     //    ready globalrevision, etc.  Any thread can do the trigger,
     //    by locking the admin mutex, setting the flag, and calling the
@@ -236,13 +237,13 @@ namespace snde {
 
     //std::mutex execution_lock; // Whoever is executing an above step must own th execution_lock. It is early in the locking order, prior to recdb locks (see lockmanager.hpp)
 
-    std::mutex admin; // the admin lock primarily locks next_state, execution_notify, need_update, need_recomposite
+    std::mutex admin; // the admin lock primarily locks next_state, execution_notify, need_rerender, need_recomposite
     std::condition_variable execution_notify; //paired with the admin lock, above
     int next_state; // When you are ready to start doing one of the above
     // operations, acquire the admin lock and check next_state. If next_state
     // is your responsibility (i.e. if
     // responsibility_mapping.at(std::this_thread::get_id) contains next_state,
-    // then you take over execution. Clear need_update or need_recomposite
+    // then you take over execution. Clear need_rerender or need_recomposite
     // as appropriate and then drop the admin lock and start executing.
     // If next_state is not your responsibility, 
     // you need to either drop the admin lock and do other stuff, or
@@ -266,12 +267,12 @@ namespace snde {
 
 
     bool threads_started; // whether we have performed the thread/responsibility_mapping initialization (regardless of if we are using a threaded model)
-    bool need_update; 
+    bool need_rerender; 
     bool need_recomposite; 
     
 #define SNDE_OSGRCS_WAITING 1 // Entry #1, above. This one is special
     // in that the responsible thread should be waiting on the
-    // condition variable and checking the need_update and
+    // condition variable and checking the need_rerender and
     // need_recomposite bools, and marking the next state as
     // SNDE_OSGRCS_ONDEMANDCALCS or SNDE_OSGRCS_COMPOSITING as
     // appropriate if one of those is set.
@@ -292,6 +293,8 @@ namespace snde {
     size_t compositor_height;
     double borderwidthpixels;
     std::map<std::string,size_t> ColorIdx_by_channelpath; // updated in perform_ondemand_calc;
+
+    std::atomic_bool request_continuous_update; // updated in perform_layer_rendering(); true if any renderer is requesting continuous updates
     
     
     // ***!!! NOTE: don't set platform_supports_threaded_opengl unless you have arranged some means for the worker thread to operate in a different OpenGL context that shares textures with the main context !!!***
@@ -307,7 +310,7 @@ namespace snde {
     virtual ~osg_compositor();
     
 
-    virtual void trigger_update();
+    virtual void trigger_rerender();
     virtual void wait_render();
     virtual void set_selected_channel(const std::string &selected_name);
     virtual std::string get_selected_channel();

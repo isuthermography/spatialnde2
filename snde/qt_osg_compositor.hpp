@@ -49,14 +49,17 @@ namespace snde {
     QOpenGLContext *RenderContext; // used by the renderers within the compositor
     qt_osg_worker_thread *qt_worker_thread; // replaces osg_compositor worker_thread, owned by this object as parent
     QOffscreenSurface *DummyOffscreenSurface; // offscreen surface; we never actually render this but it provdes an OpenGL context into which we can allocate our own framebuffers
+    // QTimer *AnimTimer;
+    // osg::ref_ptr<osg_picker> picker;
+    
 
     // Weak QObject references
-    QPointer<QTRecViewer> Parent_Viewer; // weak pointer connection used for event forwarding; nullptr OK
+    QPointer<QTRecViewer> Parent_QTRViewer; // weak pointer connection used for event forwarding; nullptr OK
 
     qt_osg_compositor(std::shared_ptr<recdatabase> recdb,
 		      std::shared_ptr<display_info> display,
-		      osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
-		      bool threaded,bool enable_threaded_opengl,QPointer<QTRecViewer> Parent_Viewer,QWidget *parent=nullptr);
+		      osg::ref_ptr<osgViewer::Viewer> Viewer,
+		      bool threaded,bool enable_threaded_opengl,QPointer<QTRecViewer> Parent_QTRViewer,QWidget *parent=nullptr);
     
     qt_osg_compositor(const qt_osg_compositor &) = delete;
     qt_osg_compositor & operator=(const qt_osg_compositor &) = delete;
@@ -69,11 +72,22 @@ namespace snde {
     virtual void _join_worker_thread();
     virtual void perform_ondemand_calcs();
     virtual void perform_layer_rendering();
-    
-    virtual void paintGL();
+    virtual void perform_compositing();
 
+    virtual void paintGL();
+    virtual void resizeGL(int width,int height); 
+
+
+    virtual void mouseMoveEvent(QMouseEvent *event);
+    virtual void mousePressEvent(QMouseEvent *event);
+    virtual void mouseReleaseEvent(QMouseEvent *event);
+    virtual void wheelEvent(QWheelEvent *event);
+    virtual bool event(QEvent *event);
+
+    //virtual void ClearPickedOrientation(); 
   
   public slots:
+    void rerender();
     void update();
 
   };

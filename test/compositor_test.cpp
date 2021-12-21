@@ -45,7 +45,7 @@ void x3d_viewer_display()
   
   //osg::ref_ptr<OSGComponent> group = new OSGComponent(geom,cache,comp);
 
-  compositor->trigger_update();
+  compositor->trigger_rerender();
   compositor->wait_render();
   
   // swap front and back buffers
@@ -241,7 +241,7 @@ int main(int argc, char **argv)
   compositor->set_selected_channel("/x3d0");  // uncomment this line to test mouse forwarding
   //compositor->set_selected_channel("/png channel");  // uncomment this line to test keyboard forwarding (cursor left)
   
-  compositor->trigger_update();
+  compositor->trigger_rerender();
   
   compositor->start();
 

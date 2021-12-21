@@ -129,14 +129,15 @@ namespace snde {
     LayerDefaultFramebufferObject(LayerDefaultFramebufferObject),
     next_state(SNDE_OSGRCS_WAITING),
     threads_started(false),
-    need_update(true),
+    need_rerender(true),
     need_recomposite(true),
     Camera(Viewer->getCamera()),
     display_transforms(std::make_shared<recstore_display_transforms>()),
     RenderCache(nullptr),
     compositor_width(0), // assigned in perform_ondemand_calcs
     compositor_height(0),
-    borderwidthpixels(0)
+    borderwidthpixels(0),
+    request_continuous_update(false)
   {
     
     Camera->setGraphicsContext(GraphicsWindow);
@@ -260,11 +261,11 @@ namespace snde {
     }
   }
 
-  void osg_compositor::trigger_update()
+  void osg_compositor::trigger_rerender()
   {
     {
       std::lock_guard<std::mutex> adminlock(admin);
-      need_update=true;
+      need_rerender=true;
     }
     
   }
@@ -361,6 +362,10 @@ namespace snde {
     if (!layer_rendering_rendered_textures) {
       layer_rendering_rendered_textures = std::make_shared<std::map<std::string,std::pair<osg::ref_ptr<osg::Texture2D>,GLuint>>>();
     }
+
+
+    bool new_request_continuous_update = false; 
+    
     RenderCache->mark_obsolete();
 
     // ***!!! NEED TO grab all locks that might be needed at this point, following the correct locking order ***!!!
@@ -375,7 +380,8 @@ namespace snde {
       
       std::map<std::string,std::shared_ptr<osg_renderer>>::iterator renderer_it;
       std::shared_ptr<osg_renderer> renderer;
-      
+
+      osg::ref_ptr<osgViewerCompat34> LayerViewer;
       {
 	std::unique_lock<std::mutex> adminlock(admin); // locking required for renderers field
 	renderer_it=renderers->find(display_req.second->channelpath);
@@ -384,18 +390,18 @@ namespace snde {
 	  //snde_warning("compositor: New renderer for %s rit_type = %d; drt = %d",display_req.second->channelpath.c_str(),renderer_it==renderers->end() ? -1 : renderer_it->second->type,display_req.second->renderer_type);
 	  adminlock.unlock();
 	  // Need a new renderer
-	  osg::ref_ptr<osgViewer::Viewer> Viewer(new osgViewerCompat34());
-	  osg::ref_ptr<osg_layerwindow> LW=new osg_layerwindow(Viewer,nullptr,compositor_width,compositor_height,false);
+	  LayerViewer = new osgViewerCompat34();
+	  osg::ref_ptr<osg_layerwindow> LW=new osg_layerwindow(LayerViewer,nullptr,compositor_width,compositor_height,false);
 	  LW->setDefaultFboId(LayerDefaultFramebufferObject);
 	    
-	  Viewer->getCamera()->setGraphicsContext(LW);
-	  Viewer->getCamera()->setViewport(new osg::Viewport(0,0,compositor_width,compositor_height));	
-	  LW->setup_camera(Viewer->getCamera());
-	  
+	  LayerViewer->getCamera()->setGraphicsContext(LW);
+	  LayerViewer->getCamera()->setViewport(new osg::Viewport(0,0,compositor_width,compositor_height));	
+	  LW->setup_camera(LayerViewer->getCamera());
+
 	  if (display_req.second->renderer_type == SNDE_DRRT_IMAGE) {
-	    renderer=std::make_shared<osg_image_renderer>(Viewer,LW,display_req.second->channelpath);
+	    renderer=std::make_shared<osg_image_renderer>(LayerViewer,LW,display_req.second->channelpath);
 	  } else if (display_req.second->renderer_type == SNDE_DRRT_GEOMETRY) {
-	    renderer=std::make_shared<osg_geom_renderer>(Viewer,LW,display_req.second->channelpath);
+	    renderer=std::make_shared<osg_geom_renderer>(LayerViewer,LW,display_req.second->channelpath);
 	    
 	  } else {
 	    snde_warning("osg_compositor: invalid render type SNDE_DRRT_#%d",display_req.second->renderer_type);
@@ -409,6 +415,8 @@ namespace snde {
 	} else {	
 	  // use pre-existing renderer
 	  renderer=renderer_it->second;
+	  LayerViewer = dynamic_cast<osgViewerCompat34 *>(renderer->Viewer.get());
+	  assert(LayerViewer);
 	}
       }
       
@@ -443,12 +451,19 @@ namespace snde {
 	layer_rendering_rendered_textures->emplace(std::piecewise_construct,
 						   std::forward_as_tuple(display_req.second->channelpath),
 						   std::forward_as_tuple(std::make_pair(generated_texture,generated_texture->getTextureObject(renderer->GraphicsWindow->getState()->getContextID())->id())));
+
+
+	if (LayerViewer->compat34GetRequestContinousUpdate()) {//(Viewer->getRequestContinousUpdate()) { // Manipulator->isAnimating doesn't work for some reason(?)
+	  new_request_continuous_update = true; 
+	}
       }
       
       
     }
 
     RenderCache->erase_obsolete();
+
+    request_continuous_update = new_request_continuous_update;
   }
 
 
@@ -630,6 +645,8 @@ namespace snde {
     
     //snde_warning("drawing frame: Empty=%d",(int)GraphicsWindow->getEventQueue()->empty());
     Viewer->frame();
+
+
     
   }
 
@@ -663,7 +680,7 @@ namespace snde {
     bool executed_something=false;
     bool executed_compositing=false; 
 
-    if (return_if_idle && next_state==SNDE_OSGRCS_WAITING && !need_recomposite && !need_update) {
+    if (return_if_idle && next_state==SNDE_OSGRCS_WAITING && !need_recomposite && !need_rerender) {
       // idle and return_if_idle flag
       return;
     }
@@ -683,10 +700,10 @@ namespace snde {
 	  need_recomposite=false;
 	  executed_something=true; 
 	}
-	if (need_update) {
+	if (need_rerender) {
 	  // need_update overrides need_recomposite 
 	  next_state = SNDE_OSGRCS_ONDEMANDCALCS;
-	  need_update = false;
+	  need_rerender = false;
 	  executed_something=true; 
 	}
       } else if (next_state == SNDE_OSGRCS_ONDEMANDCALCS) {

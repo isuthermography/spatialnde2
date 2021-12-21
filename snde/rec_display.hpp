@@ -104,6 +104,14 @@ namespace snde {
     // NeedAxisScales
     size_t ColorMap; // colormap selection
     
+    int render_mode; // see SNDE_DCRM_XXXX, below
+#define SNDE_DCRM_INVALID 0
+#define SNDE_DCRM_SCALAR 1
+#define SNDE_DCRM_WAVEFORM 2
+#define SNDE_DCRM_IMAGE 3
+#define SNDE_DCRM_GEOMETRY 4
+    
+
     //std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> adjustment_deps; // these trm_dependencies should be triggered when these parameters are changed. *** SHOULD BE REPLACED BY revman_rec_display method
     
     // NOTE: Adjustement deps needs to be cleaned periodically of lost weak pointers!
@@ -117,9 +125,11 @@ namespace snde {
     display_channel(const std::string &FullName,//std::shared_ptr<mutableinfostore> chan_data,
 		    float Scale,float Position,float HorizPosition,float VertCenterCoord,bool VertZoomAroundAxis,float Offset,float Alpha,
 		    size_t ColorIdx,bool Enabled, size_t DisplayFrame,size_t DisplaySeq,
-		    size_t ColorMap);
+		    size_t ColorMap,int render_mode);
     
     void set_enabled(bool Enabled);
+    
+    
     
     
     //void UpdateFullName(const std::string &new_FullName)
@@ -148,12 +158,16 @@ namespace snde {
     
   };
   
+  std::string PrintWithSIPrefix(double val, const std::string &unitabbrev, int sigfigs);
+  
   struct RecColor {
   double R,G,B;
     
     friend bool operator==(const RecColor &lhs, const RecColor &rhs);
     friend bool operator!=(const RecColor &lhs, const RecColor &rhs);
   };
+
+
   
   static const RecColor RecColorTable[]={
     {1.0,0.0,0.0}, /* Red */

@@ -20,7 +20,7 @@
 #define SNDE_COLORMAP_HOT 1
 #define SNDE_COLORMAP_COLORFUL 2
 
-static inline float round_to_uchar(float inp)
+static inline float snde_round_to_uchar(float inp)
 {
   inp=round(inp);
   if (inp > 255.0f) {
@@ -92,7 +92,7 @@ static inline snde_rgba snde_colormap(snde_index ColorMap,float val,uint8_t alph
     }
   } else {
     // SNDE_COLORMAP_GRAY
-    out.r = (unsigned char)round_to_uchar(val*255.0f);
+    out.r = (unsigned char)snde_round_to_uchar(val*255.0f);
     out.g = out.r;
     out.b = out.g;
     out.a = alpha;
