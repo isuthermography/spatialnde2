@@ -68,10 +68,23 @@ namespace snde {
 
   class osg_ParanoidGraphicsWindowEmbedded: public osgViewer::GraphicsWindowEmbedded {
   public:
+    std::atomic<bool> gl_initialized;
+    
     osg_ParanoidGraphicsWindowEmbedded(int x, int y, int width, int height) :
-      osgViewer::GraphicsWindowEmbedded(x,y,width,height)
+      osgViewer::GraphicsWindowEmbedded(x,y,width,height),
+      gl_initialized(false)
     {
 
+    }
+
+    void gl_is_available()
+    {
+      gl_initialized=true;
+    }
+    
+    void gl_not_available()
+    {
+      gl_initialized=false;
     }
 
     virtual const char* libraryName() const { return "snde"; }
@@ -82,11 +95,27 @@ namespace snde {
     {
       // paranoid means no assumption that the state hasn't been messed with behind our backs
       
+      //if (!referenceCount()) {
+	// this means we might be in the destructor, in which case there might not be a valid
+	// OpenGL context, and we should just return
+      //return false;
+      //}
+      if (!gl_initialized) {
+	return false;
+      }
+      
       getState()->reset(); // the OSG-expected state for THIS WINDOW may have been messed up (e.g. by another window). So we need to reset the assumptions about the OpenGL state
 
       // !!!*** reset() above may be unnecessarily pessimistic, dirtying all array buffers, etc. (why???)
 
       getState()->apply();
+
+      getState()->initializeExtensionProcs();
+      
+      // make sure the correct framebuffer is bound... but only if we actually have extensions
+      if (getState()->_extensionMap.size() > 0) {
+	getState()->get<osg::GLExtensions>()->glBindFramebuffer(GL_FRAMEBUFFER_EXT, getDefaultFboId());
+      }
       return true;
     }
     

@@ -15,6 +15,7 @@ namespace snde {
 
   class instantiated_math_function; // recmath.hpp
   class recording_display_handler_base;
+  class registered_recording_display_handler;
   class display_info; // rec_display.hpp
   class display_channel; // rec_display.hpp
   
@@ -75,6 +76,10 @@ namespace snde {
   std::tuple<std::shared_ptr<display_spatial_position>,std::shared_ptr<display_spatial_transform>,std::shared_ptr<display_channel_rendering_bounds>> spatial_transforms_for_waveform_channel(size_t drawareawidth,size_t drawareaheight,size_t horizontal_divisions,size_t vertical_divisions,double x_center_channel_units,double y_chanposn_divs,bool y_chan_vertzoomaroundaxis,double y_chan_vertcentercoord,double xunitscale,double yunitscale,double pixelsperdiv,bool horizontal_pixelflag, bool vertical_pixelflag,bool vert_zoom_around_axis);
 
   std::tuple<std::shared_ptr<display_spatial_position>,std::shared_ptr<display_spatial_transform>,std::shared_ptr<display_channel_rendering_bounds>> spatial_transforms_for_3d_channel(size_t drawareawidth,size_t drawareaheight,double x_chanposn_divs,double y_chanposn_divs,double mag,double pixelsperdiv);
+
+  std::shared_ptr<std::multimap<rendergoal,std::shared_ptr<registered_recording_display_handler>>> recording_display_handler_registry();
+  
+  int register_recording_display_handler(rendergoal goal,std::shared_ptr<registered_recording_display_handler> handler);
 
 
   
@@ -146,7 +151,7 @@ namespace snde {
     
     virtual ~recording_display_handler_base()=default; // polymorphic
 
-    virtual std::shared_ptr<display_requirement> get_display_requirement(int simple_goal,std::shared_ptr<renderparams_base> params_from_parent)=0;
+    virtual std::shared_ptr<display_requirement> get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent)=0;
   };
   
   class registered_recording_display_handler {
@@ -173,7 +178,7 @@ namespace snde {
     
     virtual ~multi_ndarray_recording_display_handler()=default; // polymorphic
 
-    virtual std::shared_ptr<display_requirement> get_display_requirement(int simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
+    virtual std::shared_ptr<display_requirement> get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
 
     
   };
@@ -191,7 +196,7 @@ namespace snde {
     
     virtual ~meshed_part_recording_display_handler()=default; // polymorphic
 
-    virtual std::shared_ptr<display_requirement> get_display_requirement(int simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
+    virtual std::shared_ptr<display_requirement> get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
 
     
   };
@@ -209,7 +214,7 @@ namespace snde {
     
     virtual ~meshed_parameterization_recording_display_handler()=default; // polymorphic
 
-    virtual std::shared_ptr<display_requirement> get_display_requirement(int simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
+    virtual std::shared_ptr<display_requirement> get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
 
     
   };
@@ -226,7 +231,7 @@ namespace snde {
     
     virtual ~textured_part_recording_display_handler()=default; // polymorphic
 
-    virtual std::shared_ptr<display_requirement> get_display_requirement(int simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
+    virtual std::shared_ptr<display_requirement> get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
 
     
   };
@@ -243,13 +248,13 @@ namespace snde {
     
     virtual ~assembly_recording_display_handler()=default; // polymorphic
 
-    virtual std::shared_ptr<display_requirement> get_display_requirement(int simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
+    virtual std::shared_ptr<display_requirement> get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
 
     
   };
 
 
-  std::shared_ptr<display_requirement> traverse_display_requirement(std::shared_ptr<display_info> display,std::shared_ptr<recording_set_state> base_rss,std::shared_ptr<display_channel> displaychan, int simple_goal,std::shared_ptr<renderparams_base> params_from_parent); // simple_goal such as SNDE_SRG_RENDERING
+  std::shared_ptr<display_requirement> traverse_display_requirement(std::shared_ptr<display_info> display,std::shared_ptr<recording_set_state> base_rss,std::shared_ptr<display_channel> displaychan, std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent); // simple_goal such as SNDE_SRG_RENDERING
 
   
   // Go through the vector of channels we want to display,

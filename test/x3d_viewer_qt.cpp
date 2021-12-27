@@ -62,6 +62,7 @@ int main(int argc, char **argv)
   std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
   
 
+  QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts); // Eliminate annoying QT warning message
   QApplication qapp(argc,argv);  
   QMainWindow window;
 
@@ -78,6 +79,7 @@ int main(int argc, char **argv)
   window.setCentralWidget(Viewer);
   window.show();
 
-  return qapp.exec();
- 
+  qapp.exec();
+
+  return 0;
 }

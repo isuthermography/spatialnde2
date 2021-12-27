@@ -144,7 +144,7 @@ static VECOPS_INLINE void multcmatvec3(snde_coord *mat,snde_coord *vec,snde_coor
   }
 }
 
-static VECOPS_INLINE void multmatvec2(snde_coord *mat,snde_coord *vec,snde_coord *out)
+static VECOPS_INLINE void multcmatvec2(snde_coord *mat,snde_coord *vec,snde_coord *out)
 // cmat stored row-major (C-style)
 {
   int outel,sumidx;
@@ -274,6 +274,19 @@ static VECOPS_INLINE void addcoordcoord3(snde_coord3 vec1,snde_coord3 vec2,snde_
   }
 }
 
+
+static VECOPS_INLINE void accumcoordcoord3(snde_coord3 vec1,snde_coord3 *out)
+// NOTE: if vec1 is 2D coordinates in a 3D projective space,
+// then it must be a vector, not a position
+{
+  int outidx;
+
+  for (outidx=0;outidx < 3; outidx++) {
+    out->coord[outidx] += vec1.coord[outidx];    
+  }
+}
+
+
 static VECOPS_INLINE void addcoordcoord4proj(snde_coord4 vec1,snde_coord4 vec2,snde_coord4 *out)
 // 3d coords in 4d projective space only
 {
@@ -390,14 +403,6 @@ static VECOPS_INLINE snde_coord normvec3(snde_coord *vec)
 }
 
 
-static VECOPS_INLINE snde_coord normsqcoord3(snde_coord3 vec)
-/* returns vector norm */
-{
-  snde_coord factor;
-
-  factor=(vec.coord[0]*vec.coord[0]+vec.coord[1]*vec.coord[1]+vec.coord[2]*vec.coord[2]);
-  return factor;
-}
 
 static VECOPS_INLINE snde_coord normcoord3(snde_coord3 vec)
 /* returns vector norm (3d non-projective coordinates) */
@@ -407,6 +412,16 @@ static VECOPS_INLINE snde_coord normcoord3(snde_coord3 vec)
   factor=sqrt(vec.coord[0]*vec.coord[0]+vec.coord[1]*vec.coord[1]+vec.coord[2]*vec.coord[2]);
   return factor;
 }
+
+static VECOPS_INLINE snde_coord normsqcoord3(snde_coord3 vec)
+/* returns square of vector norm (3d non-projective coordinates) */
+{
+  snde_coord factor;
+
+  factor=(vec.coord[0]*vec.coord[0]+vec.coord[1]*vec.coord[1]+vec.coord[2]*vec.coord[2]);
+  return factor;
+}
+
 
 static VECOPS_INLINE void normalizevec3(snde_coord *vec)
 /* in-place vector normalization */
@@ -627,6 +642,43 @@ static VECOPS_INLINE void fmatrixsolve_print(snde_coord *A, snde_coord *b, size_
   printf("\n\n");
 }
 
+
+static VECOPS_INLINE void fmatrixmul(snde_coord *A1,snde_index A1_dimlen[2],snde_index A1_strides[2],
+				     snde_coord *A2,snde_index A2_dimlen[2],snde_index A2_strides[2],
+				     snde_coord *Aout,snde_index Aout_dimlen[2],snde_index Aout_strides[2])
+{
+  snde_index Aout_i1,Aout_i2,isum;
+  if (A1_dimlen[1] != A2_dimlen[0] || A1_dimlen[0] != Aout_dimlen[0] || A2_dimlen[1] != Aout_dimlen[1]) {
+    // mismatched dimensions
+#ifdef __OPENCL_VERSION__
+    // Can't do assert() in OpenCL, so we just set the output to all NaN's.
+    for (Aout_i1=0;Aout_i1 < Aout_dimlen[0];Aout_i1++) {
+      for (Aout_i2=0;Aout_i2 < Aout_dimlen[1];Aout_i2++) {
+	Aout[Aout_i1 * Aout_strides[0] + Aout_i2 * Aout_strides[1]] = my_infnan(0); // NaN
+      }
+    }
+    return;
+    
+#else // __OPENCL_VERSION__
+    assert(0); // matrix dimensions must agree
+#endif
+  }
+
+  
+  for (Aout_i1=0;Aout_i1 < Aout_dimlen[0];Aout_i1++) {
+    for (Aout_i2=0;Aout_i2 < Aout_dimlen[1];Aout_i2++) {
+
+      snde_coord accum=0.0f;
+      
+      for (isum=0; isum < A1_dimlen[1]; isum++) {
+	accum += A1[ Aout_i1*A1_strides[0] + isum*A1_strides[1] ]*A2[ isum*A2_strides[0] + Aout_i2*A2_strides[1] ];
+      }
+      
+      Aout[Aout_i1 * Aout_strides[0] + Aout_i2 * Aout_strides[1]] = accum;
+      
+    }
+  }
+}
 
 
 static VECOPS_INLINE void fmatrixsolve(snde_coord *A,snde_coord *b,size_t n,size_t nsolve,size_t *pivots,int printflag)

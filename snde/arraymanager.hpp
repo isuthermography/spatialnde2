@@ -457,6 +457,8 @@ namespace snde {
     {
       //std::lock_guard<std::mutex> adminlock(admin);
       std::shared_ptr<allocator> alloc=(*allocators()).at(allocatedptr).alloc;
+
+      //snde_warning("arraymanager: free(0x%llx,%d)",(unsigned long long)((uintptr_t)allocatedptr),addr);
       snde_index alloclen = alloc->get_length(addr);
 
       // remove any pending_modified markers for arrays managed
@@ -587,9 +589,9 @@ namespace snde {
 	      
 	      this_arrayptr_allocationinfo->second.alloc->remove_array((void **)thisaddr);
 	    
-	      if (this_arrayptr_allocationinfo->second.alloc->num_arrays()==0 && this_arrayptr_allocationinfo->second.alloc.use_count() > 2) {
-		throw(std::runtime_error("Residual references to array allocation during structure deletion")); /* This error indicates that excess std::shared_ptr<allocator> references are alive during cleanup */
-	      }
+	      //if (this_arrayptr_allocationinfo->second.alloc->num_arrays()==0 && this_arrayptr_allocationinfo->second.alloc.use_count() > 3) {
+	      //	throw(snde_error("Residual references to array allocation during structure deletion (addr 0x%llx (pos=%d)",(unsigned long long)thisaddr,pos)); /* This error indicates that excess std::shared_ptr<allocator> references are alive during cleanup. I think it was important back when the free array space was used for the free list. */
+	      //}
 	    
 	      while (new_arrays_managed_by_allocator->find(this_arrayptr_allocationinfo->first) != new_arrays_managed_by_allocator->end()) {
 		auto amba_it = new_arrays_managed_by_allocator->find(this_arrayptr_allocationinfo->first);

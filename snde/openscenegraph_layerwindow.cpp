@@ -1,3 +1,5 @@
+#include <osg/Texture>
+
 #include "snde/openscenegraph_layerwindow.hpp"
 
 
@@ -92,7 +94,21 @@ namespace snde {
     osgUtil::RenderStage *Stage = Rend->getSceneView(0)->getRenderStage();
     
     Stage->setDisableFboAfterRender(true); // need to drop back to the default FBO so we can do compositing
-    
+
+
+    // OSG doesn't actually resize the texture so we need to do that ourselves in case it has changed
+    osg::Texture::TextureObject *OutputBufTexObj = outputbuf->getTextureObject(Info.getState()->getContextID());
+    if (OutputBufTexObj) {
+      // (If OutputBufTexObj doesn't exist then it will be created with the correct parameters when needed
+      // and this is unnecessary)
+      OutputBufTexObj->bind();      
+      glTexImage2D( GL_TEXTURE_2D, 0, outputbuf->getInternalFormat(),
+		    outputbuf->getTextureWidth(), outputbuf->getTextureHeight(),
+		    outputbuf->getBorderWidth(),
+		    outputbuf->getInternalFormat(),
+		    outputbuf->getSourceType(),nullptr);
+
+    }
     FBO = Stage->getFrameBufferObject();
     
     // Our attachment here overrides the RenderBuffer that OSG's FBO
@@ -290,8 +306,10 @@ namespace snde {
       if (width != _traits->width || height != _traits->height) {
 	
 	//depthbuf->setSize(width,height);
-	outputbuf->setTextureSize(width,height);	  
+	outputbuf->setTextureSize(width,height);
+	snde_warning("layerwindow: setting texture size to %d by %d", width,height);
 	//Cam->setViewport(0,0,pix_width,height);
+	
 	
       }
       

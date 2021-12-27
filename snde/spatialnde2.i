@@ -342,6 +342,9 @@ template <typename T>
 %include "recmath.i"
 %include "recmath_cppfunction.i"
 %include "notify.i"
+%include "rendermode.i"
+%include "display_requirements.i"
+%include "qtrecviewer.i"
 %include "recstore_setup.i"
 
 #ifdef SNDE_OPENCL

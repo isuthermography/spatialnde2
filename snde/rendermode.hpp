@@ -19,21 +19,25 @@ namespace snde {
     // snde::recording_base) and the rendering goal
     // (simple_goal)
     
-    // For now it is rather trivial -- just wrapping an int, but it
+    // For now it is rather trivial -- just wrapping a string, but it
     // will likely be extended in the future
     // to support add-on rendering code and guided intelligent choosing of modes.
     
     // Modes will be selected in rec_display.cpp:traverse_display_requirements()
     // and encoded in the display_requirement 
-    int simple_goal; // see SNDE_SRG_XXXX
+    std::string simple_goal; // see SNDE_SRG_XXXX
     std::type_index recording_type; // typeindex corresponding to the subclass of snde::recording_base
     
-    rendergoal(int simple_goal,std::type_index recording_type) :
+    rendergoal(std::string simple_goal,std::type_index recording_type) :
       simple_goal(simple_goal),
       recording_type(recording_type)
     {
       
     }
+
+    rendergoal(const rendergoal &orig) = default;
+    rendergoal & operator=(const rendergoal &) = default;
+    ~rendergoal() = default;
     
     bool operator==(const rendergoal &b) const {
       return (simple_goal==b.simple_goal && recording_type==b.recording_type);
@@ -51,19 +55,17 @@ namespace snde {
     }
     
     std::string str() const {
-      return ssprintf("SNDE_SRG_#%d_%s",simple_goal,recording_type.name());
+      return ssprintf("SNDE_SRG: %s_%s",simple_goal.c_str(),recording_type.name());
     }
   };
 
-  // Start at 1000 to provide an distinction between
-  // these and the SNDE_SRM_... constants
-#define SNDE_SRG_INVALID 1000 // undetermined/invalid display mode
-#define SNDE_SRG_RENDERING 1001 // goal is to perform rendering of the underlying data in this recording
-#define SNDE_SRG_TEXTURE 1002 // goal is to create a texture representing the underlying data in this recording
-#define SNDE_SRG_VERTEXARRAYS 1003 // goal is to create otriangle vertex arrays
-#define SNDE_SRG_VERTNORMALS 1004 // goal is to create otriangle vertex arrays
-#define SNDE_SRG_GEOMETRY 1005 // goal is to create bare geometry (vertices and parameterization, but no texture)
-#define SNDE_SRG_CLASSSPECIFIC 1006 // render in a way that is specific to the particular recording_type indexed in the rendermode
+#define SNDE_SRG_INVALID "SNDE_SRG_INVALID" // undetermined/invalid display mode
+#define SNDE_SRG_RENDERING "SNDE_SRG_RENDERING" // goal is to perform rendering of the underlying data in this recording
+#define SNDE_SRG_TEXTURE "SNDE_SRG_TEXTURE" // goal is to create a texture representing the underlying data in this recording
+#define SNDE_SRG_VERTEXARRAYS "SNDE_SRG_VERTEXARRAYS"  // goal is to create triangle vertex arrays
+#define SNDE_SRG_VERTNORMALS "SNDE_SRG_VERTNORMALS" // goal is to create otriangle vertex arrays
+#define SNDE_SRG_GEOMETRY "SNDE_SRG_GEOMETRY" // goal is to create bare geometry (vertices and parameterization, but no texture)
+  //#define SNDE_SRG_CLASSSPECIFIC 1006 // render in a way that is specific to the particular recording_type indexed in the rendermode
   
   //#define SNDE_SRG_RAW 2 // raw data OK (used for passing 1D waveforms to the renderer)
   //#define SNDE_SRG_RGBAIMAGEDATA 3 // render as an RGBA texture
@@ -73,7 +75,7 @@ namespace snde {
   struct rendergoal_hash {
     size_t operator()(const rendergoal &x) const
     {
-      return std::hash<int>{}(x.simple_goal) ^ std::hash<std::type_index>{}(x.recording_type);
+      return std::hash<std::string>{}(x.simple_goal) ^ std::hash<std::type_index>{}(x.recording_type);
     }
   };
 
@@ -90,43 +92,46 @@ namespace snde {
     
     // Modes will be selected in rec_display.cpp:traverse_display_requirements()
     // and encoded in the display_requirement 
-    int simple_mode; // see SNDE_SRM_XXXX
+    std::string simple_mode; // see SNDE_SRM_XXXX
     std::type_index handler_type; // typeindex corresponding to the subclass of snde::recording_display_handler_base
     
-    rendermode(int simple_mode,std::type_index handler_type) :
+    rendermode(std::string simple_mode,std::type_index handler_type) :
       simple_mode(simple_mode),
       handler_type(handler_type)
     {
       
     }
+    rendermode(const rendermode &orig) = default;
+    rendermode & operator=(const rendermode &) = default;
+    ~rendermode() = default;
     
     bool operator==(const rendermode &b) const {
       return (simple_mode==b.simple_mode && handler_type==b.handler_type);
     }
 
     std::string str() const {
-      return ssprintf("SNDE_SRM_#%d_%s",simple_mode,handler_type.name());
+      return ssprintf("SNDE_SRM: %s_%s",simple_mode.c_str(),handler_type.name());
     }
   };
   
-#define SNDE_SRM_INVALID 0 // undetermined/invalid display mode
-#define SNDE_SRM_RAW 1 // raw data OK (used for passing 1D waveforms to the renderer)
-#define SNDE_SRM_RGBAIMAGEDATA 2 // render as an RGBA texture
-#define SNDE_SRM_RGBAIMAGE 3 // render as an RGBA image
-#define SNDE_SRM_MESHEDNORMALS 4 // collect array of meshed normals
-#define SNDE_SRM_VERTEXARRAYS 5 // collect array of triangle vertices
-#define SNDE_SRM_MESHED2DPARAMETERIZATION 6 // collect array of texture triangle vertices (parameterization
-#define SNDE_SRM_MESHEDPARAMLESS3DPART 7 // render meshed 3D geometry part with no 2D parameterization or texture
-#define SNDE_SRM_TEXEDMESHED3DGEOM 8 // render meshed 3D geometry with texture
-#define SNDE_SRM_TEXEDMESHEDPART 9 // render textured meshed 3D geometry part
-#define SNDE_SRM_ASSEMBLY 10 // render a collection of objects (group) representing an assembly
+#define SNDE_SRM_INVALID "SNDE_SRM_INVALID" // undetermined/invalid display mode
+#define SNDE_SRM_RAW "SNDE_SRM_RAW" // raw data OK (used for passing 1D waveforms to the renderer)
+#define SNDE_SRM_RGBAIMAGEDATA "SNDE_SRM_RGBAIMAGEDATA" // render as an RGBA texture
+#define SNDE_SRM_RGBAIMAGE "SNDE_SRM_RGBAIMAGE" // render as an RGBA image
+#define SNDE_SRM_MESHEDNORMALS "SNDE_SRM_MESHEDNORMALS" // collect array of meshed normals
+#define SNDE_SRM_VERTEXARRAYS "SNDE_SRM_VERTEXARRAYS" // collect array of triangle vertices
+#define SNDE_SRM_MESHED2DPARAMETERIZATION "SNDE_SRM_MESHED2DPARAMETERIZATION" // collect array of texture triangle vertices (parameterization
+#define SNDE_SRM_MESHEDPARAMLESS3DPART "SNDE_SRM_MESHEDPARAMELESS3DPART" // render meshed 3D geometry part with no 2D parameterization or texture
+#define SNDE_SRM_TEXEDMESHED3DGEOM "SNDE_SRM_TEXEDMESHED3DGEOM" // render meshed 3D geometry with texture
+#define SNDE_SRM_TEXEDMESHEDPART "SNDE_SRM_TEXEDMESHEDPART" // render textured meshed 3D geometry part
+#define SNDE_SRM_ASSEMBLY "SNDE_SRM_ASSEMBLY" // render a collection of objects (group) representing an assembly
   
-#define SNDE_SRM_CLASSSPECIFIC 11 // render in a way that is specific to the particular recording_type indexed in the rendermode
+  //#define SNDE_SRM_CLASSSPECIFIC 11 // render in a way that is specific to the particular recording_type indexed in the rendermode
 
   struct rendermode_hash {
     size_t operator()(const rendermode &x) const
     {
-      return std::hash<int>{}(x.simple_mode) ^ std::hash<std::type_index>{}(x.handler_type);
+      return std::hash<std::string>{}(x.simple_mode) ^ std::hash<std::type_index>{}(x.handler_type);
     }
   };
 
@@ -140,6 +145,9 @@ namespace snde {
     // the appropriate behavior of operator==() becomes
     // somewhat ambiguous in that case 
   public:
+    renderparams_base() = default;
+    renderparams_base(const renderparams_base &orig) = default;
+    renderparams_base & operator=(const renderparams_base &) = delete; // shouldn't need this...
     virtual ~renderparams_base() = default;
     virtual size_t hash()=0;
     virtual bool operator==(const renderparams_base &b)=0;
@@ -159,12 +167,15 @@ namespace snde {
     rendermode mode;
     std::shared_ptr<renderparams_base> constraint; // constraint limits the validity of this cache entry
 
-    rendermode_ext(int simple_mode,std::type_index handler_type,std::shared_ptr<renderparams_base> constraint) :
+    rendermode_ext(std::string simple_mode,std::type_index handler_type,std::shared_ptr<renderparams_base> constraint) :
       mode(simple_mode,handler_type),
       constraint(constraint)
     {
 
     }
+    rendermode_ext(const rendermode_ext &orig) = default;
+    rendermode_ext & operator=(const rendermode_ext &) = default; 
+    ~rendermode_ext() = default;
 
     bool operator==(const rendermode_ext &b) const {
       bool match = (mode==b.mode);
@@ -223,7 +234,7 @@ namespace snde {
     {
 
     }
-    
+    virtual ~rgbacolormapparams() = default;
     virtual size_t hash()
     {
       size_t hashv = std::hash<int>{}(ColorMap) ^ std::hash<double>{}(Offset) ^ std::hash<double>{}(Scale) ^ std::hash<snde_index>{}(u_dimnum) ^ std::hash<snde_index>{}(v_dimnum);
@@ -312,6 +323,8 @@ namespace snde {
     std::vector<std::shared_ptr<renderparams_base>> component_params; // inner vector for each embedded part or sub assembly 
     // we don't worry about the orientation because that is part of our recording and
     // therefore orientation changes will get caught by the recording equality test of our attempt_reuse() function
+    assemblyparams() = default;
+    virtual ~assemblyparams() = default;
     
     virtual size_t hash()
     {

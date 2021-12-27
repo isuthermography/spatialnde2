@@ -20,7 +20,8 @@ namespace snde {
     recording_storage(recording_path,recrevision,id,basearray,elementsize,base_index,typenum,nelem,manager->locker,requires_locking_read,requires_locking_write,finalized),
     manager(manager),
     memalloc(memalloc),
-    graphman(graphman)
+    graphman(graphman),
+    leader_storage(leader_storage)
 
     // Note: Called with array locks held
   {
@@ -472,7 +473,7 @@ namespace snde {
       
     }
     
-    std::shared_ptr<graphics_storage> retval = std::make_shared<graphics_storage>(std::dynamic_pointer_cast<graphics_storage_manager>(shared_from_this()),manager,manager->_memalloc,nullptr,recording_path,recrevision,arrayid_from_name.at(array_name),arrayaddr,elementsize,base_index,typenum,nelem,is_mutable || manager->_memalloc->requires_locking_read,is_mutable || manager->_memalloc->requires_locking_write,false);
+    std::shared_ptr<graphics_storage> retval = std::make_shared<graphics_storage>(std::dynamic_pointer_cast<graphics_storage_manager>(shared_from_this()),manager,manager->_memalloc,leader_storage,recording_path,recrevision,arrayid_from_name.at(array_name),arrayaddr,elementsize,base_index,typenum,nelem,is_mutable || manager->_memalloc->requires_locking_read,is_mutable || manager->_memalloc->requires_locking_write,false);
 
     // if not(requires_locking_write) we must switch the pointer to a nonmoving_copy_or_reference NOW because otherwise the array might be moved around as we try to write.
     // if not(requires_locking_read) we must switch the pointer to a nonmoving_copy_or_reference on finalization

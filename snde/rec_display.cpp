@@ -660,20 +660,22 @@ namespace snde {
   void display_info::SetVertScale(std::shared_ptr<display_channel> c,double scalefactor,bool pixelflag)
   {
     std::shared_ptr<display_axis> a;
+    snde_warning("display->SetVertScale()");
+
     const std::string chan_name = c->FullName;
-    
-    std::shared_ptr<ndarray_recording_ref> chan_data;
-    try {
-      chan_data = current_globalrev->get_recording_ref(chan_name);
-    } catch (snde_error &) {
-      // no such reference
-      return;
+    int render_mode;
+    {
+
+      std::lock_guard<std::mutex> chanadmin(c->admin);
+      render_mode = c->render_mode;
     }
 
-    size_t ndim=chan_data->layout.dimlen.size();
+    snde_warning("SetVertScale(): scalefactor=%f; render_mode=%d",scalefactor,render_mode);
 
     /*  set the scaling of whatever unit is used on the vertical axis of this channel */
-    if (ndim==1) {
+    if (render_mode==SNDE_DCRM_INVALID) {
+      // do nothing
+    } else if (render_mode==SNDE_DCRM_WAVEFORM) {
       a = GetAmplAxis(chan_name);
       //if (pixelflag) {
       //  c->UnitsPerDiv=scalefactor/pixelsperdiv;
@@ -683,9 +685,9 @@ namespace snde {
       //}
 	
       return;
-    } else if (ndim==0) {
+    } else if (render_mode==SNDE_DCRM_SCALAR) {
       return;
-    } else if (ndim >= 2) {
+    } else if (render_mode==SNDE_DCRM_IMAGE) {
       /* image or image array */
       a=GetSecondAxis(chan_name);
       //if (pixelflag)
@@ -694,6 +696,8 @@ namespace snde {
       std::lock_guard<std::mutex> adminlock(a->unit->admin);
       a->unit->scale=scalefactor;
       return;
+    } else if (render_mode==SNDE_DCRM_GEOMETRY) {
+      c->Scale = scalefactor;
     } else {
       assert(0);
       return;
@@ -711,19 +715,19 @@ namespace snde {
     bool success=false;
 
     const std::string &chan_name = c->FullName;
-    
-    std::shared_ptr<ndarray_recording_ref> chan_data;
-    try {
-      chan_data = current_globalrev->get_recording_ref(chan_name);
-    } catch (snde_error &) {
-      // no such reference
-      return std::make_tuple(false,0.0,false);
+    int render_mode;
+    {
+
+      std::lock_guard<std::mutex> chanadmin(c->admin);
+      render_mode = c->render_mode;
     }
     
-    size_t ndim=chan_data->layout.dimlen.size();
+    
 
     /* return the units/div of whatever unit is used on the vertical axis of this channel */
-    if (ndim==1) {
+    if (render_mode==SNDE_DCRM_INVALID) {
+      // do nothing
+    } else if (render_mode==SNDE_DCRM_WAVEFORM) {
       a = GetAmplAxis(chan_name);
       //if (a->unit->pixelflag) {
       //  scalefactor=c->UnitsPerDiv*pixelsperdiv;
@@ -735,10 +739,10 @@ namespace snde {
       //}
       std::lock_guard<std::mutex> adminlock(a->admin);
       return std::make_tuple(true,scalefactor,a->unit->pixelflag);
-    } else if (ndim==0) {
+    } else if (render_mode==SNDE_DCRM_SCALAR) {
       //return std::make_tuple(true,1.0,false);
       return std::make_tuple(false,0.0,false);
-    } else if (ndim >= 2) {
+    } else if (render_mode == SNDE_DCRM_IMAGE) {
       /* image or image array */
       a=GetSecondAxis(chan_name);
       //if (a->unit->pixelflag)
@@ -749,6 +753,15 @@ namespace snde {
 	scalefactor=a->unit->scale;
 	return std::make_tuple(true,scalefactor,a->unit->pixelflag);
       }
+    } else if (render_mode == SNDE_DCRM_GEOMETRY) {
+      {
+	{
+	  std::lock_guard<std::mutex> adminlock(c->admin);
+	  scalefactor=c->Scale;
+	}
+	return std::make_tuple(true,scalefactor,false); // a->unit->pixelflag);
+      }
+      
     } else {
       assert(0);
       return std::make_tuple(false,0.0,false);
@@ -776,10 +789,18 @@ namespace snde {
     }
 
 
-    size_t ndim=chan_data->layout.dimlen.size();
+    int render_mode;
+    {
+
+      std::lock_guard<std::mutex> chanadmin(c->admin);
+      render_mode = c->render_mode;
+    }
+    
 
     /* return the units/div of whatever unit is used on the vertical axis of this channel */
-    if (ndim==1) {
+    if (render_mode==SNDE_DCRM_INVALID) {
+
+    } else if (render_mode==SNDE_DCRM_WAVEFORM) {
       a = GetAmplAxis(chan_name);
       {
 	std::lock_guard<std::mutex> adminlock(c->admin);
@@ -793,9 +814,9 @@ namespace snde {
 	UnitsPerDiv *= pixelsperdiv;
       } 
       return UnitsPerDiv;
-    } else if (ndim==0) {
+    } else if (render_mode == SNDE_DCRM_SCALAR) {
       return 1.0;
-    } else if (ndim >= 2) {
+    } else if (render_mode==SNDE_DCRM_IMAGE) {
       /* image or image array */
       a=GetSecondAxis(chan_name);
       {
@@ -807,6 +828,8 @@ namespace snde {
 	}
       }
       return UnitsPerDiv;
+    } else if (render_mode==SNDE_DCRM_GEOMETRY) {
+      
     } else {
       assert(0);
       return 0.0;

@@ -65,7 +65,7 @@ namespace snde {
     };
 
     std::shared_ptr<osg_rendercacheentry> renderentry;
-    bool modified;
+    bool modified=false;
     
     std::tie(renderentry,modified) = RenderCache->GetEntry(params,display_req);
     
@@ -77,7 +77,7 @@ namespace snde {
       modified = true;
     }
     Camera->setProjectionMatrixAsPerspective(30.0f,((double)width)/height,1.0f,10000.0f); // !!!*** Check last two parameters
-    
+    snde_warning("setProjectionMatrixAsPerspective aspect ratio = %f",((double)width)/height);
     
     if (renderentry) {
       std::shared_ptr<osg_rendercachegroupentry> rendergroup = std::dynamic_pointer_cast<osg_rendercachegroupentry>(renderentry);

@@ -38,8 +38,8 @@ namespace snde {
     display = std::make_shared<display_info>(recdb);
     
     OSGWidget=new qt_osg_compositor(recdb,display,new osgViewer::Viewer(),
-				    false, // threaded; try true
-				    false, // enable_threaded_opengl; try true
+				    true, // threaded; try true
+				    true, // enable_threaded_opengl; try true
 				    this,this);
     viewerGridLayout->addWidget(OSGWidget,1,0);
     
@@ -141,9 +141,9 @@ namespace snde {
 							"   image: url(\":/darrow.png\");\n"
 							"}\n"));
 
-    posmgr = std::make_shared<qtrec_position_manager>(display,HorizSlider,VertSlider,HorizZoom,VertZoom);
+    posmgr = new qtrec_position_manager(display,HorizSlider,VertSlider,HorizZoom,VertZoom,this,this);
 
-    OSGWidget->start();
+    //OSGWidget->start();  // we can't call start() ourselves... we have to wait for InitializeGL()
 
     ready_globalrev_quicknotify = std::make_shared<std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision>)>>( [ this ](std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision>) {
       QMetaObject::invokeMethod(this,"update_rec_list",Qt::QueuedConnection); // trigger update_rec_list slot in QT main loop
@@ -153,26 +153,26 @@ namespace snde {
       
     
     QObject::connect(HorizSlider,SIGNAL(actionTriggered(int)),
-		     posmgr.get(), SLOT(HorizSliderActionTriggered(int)));
+		     posmgr, SLOT(HorizSliderActionTriggered(int)));
     
     QObject::connect(VertSlider,SIGNAL(actionTriggered(int)),
-		     posmgr.get(), SLOT(VertSliderActionTriggered(int)));
+		     posmgr, SLOT(VertSliderActionTriggered(int)));
     
     
     QObject::connect(HorizZoom,SIGNAL(actionTriggered(int)),
-		     posmgr.get(), SLOT(HorizZoomActionTriggered(int)));
+		     posmgr, SLOT(HorizZoomActionTriggered(int)));
     QObject::connect(VertZoom,SIGNAL(actionTriggered(int)),
-		     posmgr.get(), SLOT(VertZoomActionTriggered(int)));
+		     posmgr, SLOT(VertZoomActionTriggered(int)));
     
     QObject::connect(VertZoomInButton,SIGNAL(clicked(bool)),
-		     posmgr.get(), SLOT(VertZoomIn(bool)));
+		     posmgr, SLOT(VertZoomIn(bool)));
     QObject::connect(HorizZoomInButton,SIGNAL(clicked(bool)),
-		     posmgr.get(), SLOT(HorizZoomIn(bool)));
+		     posmgr, SLOT(HorizZoomIn(bool)));
     
     QObject::connect(VertZoomOutButton,SIGNAL(clicked(bool)),
-		     posmgr.get(), SLOT(VertZoomOut(bool)));
+		     posmgr, SLOT(VertZoomOut(bool)));
     QObject::connect(HorizZoomOutButton,SIGNAL(clicked(bool)),
-		     posmgr.get(), SLOT(HorizZoomOut(bool)));
+		     posmgr, SLOT(HorizZoomOut(bool)));
     
     QObject::connect(DarkenButton,SIGNAL(clicked(bool)),
 		     this, SLOT(Darken(bool)));
@@ -188,14 +188,14 @@ namespace snde {
     
     
     
-    QObject::connect(posmgr.get(),SIGNAL(NewPosition()),
+    QObject::connect(posmgr,SIGNAL(NewPosition()),
 		       OSGWidget,SLOT(rerender()));
     
     QObject::connect(this,SIGNAL(NeedRedraw()),
 		     OSGWidget,SLOT(rerender()));
     
     
-    QObject::connect(posmgr.get(),SIGNAL(NewPosition()),
+    QObject::connect(posmgr,SIGNAL(NewPosition()),
 		     this,SLOT(UpdateViewerStatus()));
     
     
@@ -548,13 +548,13 @@ namespace snde {
 	}
       } else if (render_mode == SNDE_DCRM_GEOMETRY) {
 
-#warning "UpdateViewerStaus on SNDE_DCRM_GEOMETRY not implemented"
+#warning "UpdateViewerStatus on SNDE_DCRM_GEOMETRY not implemented"
 	
       } else if (render_mode == SNDE_DCRM_SCALAR) {
-#warning "UpdateViewerStaus on SNDE_DCRM_SCALAR not implemented"
+#warning "UpdateViewerStatus on SNDE_DCRM_SCALAR not implemented"
  
       } else {
-	snde_warning("qtrecviewer: invalid render_mode: %d on channel %s",render_mode,posmgr->selected_channel->FullName);
+	snde_warning("qtrecviewer: invalid render_mode: %d on channel %s (0x%llx)",render_mode,posmgr->selected_channel->FullName.c_str(),(unsigned long long)((uintptr_t)posmgr->selected_channel.get()));
       }
       
     
@@ -580,7 +580,7 @@ namespace snde {
 	    displaychan->Enabled = checked;
 	  }
 	  //displaychan->mark_as_dirty();
-	  OSGWidget->update();
+	  emit NeedRedraw();
 	}
       }
     }

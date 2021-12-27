@@ -267,8 +267,14 @@ namespace snde {
 
 
     bool threads_started; // whether we have performed the thread/responsibility_mapping initialization (regardless of if we are using a threaded model)
+
+    // These all locked with admin lock
     bool need_rerender; 
-    bool need_recomposite; 
+    bool need_recomposite;
+    bool need_resize; // pull new size from resize_width and resize_height, below
+
+    int resize_width;  // set with need_resize
+    int resize_height; 
     
 #define SNDE_OSGRCS_WAITING 1 // Entry #1, above. This one is special
     // in that the responsible thread should be waiting on the
@@ -314,15 +320,24 @@ namespace snde {
     virtual void wait_render();
     virtual void set_selected_channel(const std::string &selected_name);
     virtual std::string get_selected_channel();
-    virtual void perform_ondemand_calcs();
-    virtual void perform_layer_rendering();
-    virtual void perform_compositing();
+    virtual void perform_ondemand_calcs(std::unique_lock<std::mutex> *adminlock);
+    virtual void perform_layer_rendering(std::unique_lock<std::mutex> *adminlock);
+    virtual void perform_compositing(std::unique_lock<std::mutex> *adminlock);
     virtual bool this_thread_ok_for_locked(int action);
     virtual bool this_thread_ok_for(int action);
+    virtual void wake_up_ondemand_locked(std::unique_lock<std::mutex> *adminlock);
+    virtual void wake_up_renderer_locked(std::unique_lock<std::mutex> *adminlock);
+    virtual void wake_up_compositor_locked(std::unique_lock<std::mutex> *adminlock);
+    virtual void clean_up_renderer_locked(std::unique_lock<std::mutex> *adminlock);
+ 
+
     virtual void dispatch(bool return_if_idle,bool wait, bool loop_forever);
     virtual void worker_code();
-    virtual void _start_worker_thread();
+    virtual void _start_worker_thread(std::unique_lock<std::mutex> *adminlock);
     virtual void _join_worker_thread();
+    virtual void resize_compositor(int width, int height);
+    
+    
 
     virtual void start();
     virtual void stop();

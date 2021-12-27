@@ -50,6 +50,7 @@ namespace snde {
   public:    
     std::shared_ptr<display_info> display;
     std::shared_ptr<display_channel> selected_channel;
+    QTRecViewer *Parent_Viewer; // our parent
     QAbstractSlider *HorizSlider; // owned by our parent
     QAbstractSlider *VertSlider; // owned by our parent
 
@@ -69,9 +70,10 @@ namespace snde {
     
     qtrec_position_manager(std::shared_ptr<display_info> display,QAbstractSlider *HorizSlider,QAbstractSlider *VertSlider,QAbstractSlider *HorizZoom,
 			   //QToolButton *HorizZoomInButton, QToolButton *HorizZoomOutButton,
-			   QAbstractSlider *VertZoom
+			   QAbstractSlider *VertZoom,
 			   //QToolButton *VertZoomInButton,QToolButton *VertZoomOutButton
-			   );
+			   QTRecViewer *Parent_Viewer,
+			   QObject *Parent);
     ~qtrec_position_manager()=default;
 
 

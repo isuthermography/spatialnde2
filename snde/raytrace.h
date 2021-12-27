@@ -938,7 +938,7 @@ void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
       r2_uv = pos[0]*pos[0] + pos[1]*pos[1];
 
       // pos is in uv units so far, and so are jacobian/jacimg
-      multmatvec2(jacinv,&pos.coord[0],&srcpos.coord[0]); // srcpos gives position in (a,b) units, which are source pixels
+      multcmatvec2(jacinv,&pos.coord[0],&srcpos.coord[0]); // srcpos gives position in (a,b) units, which are source pixels
       r2_src = srcpos[0]*srcpos[0]+srcpos[1]*srcpos[1];
       //fprintf(stderr,"r_uv=%g; min_radius_uv = %g\n",sqrt(r2_uv),fabs(min_radius_uv_pixels));
       //fprintf(stderr,"r_src=%g; min_radius_src = %g\n",sqrt(r2_src),fabs(min_radius_src_pixels));

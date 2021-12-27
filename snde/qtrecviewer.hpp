@@ -52,8 +52,7 @@ namespace snde {
     QVBoxLayout *RecListScrollAreaLayout;
     //   QSpacerItem *RecListScrollAreaBottomSpace;
     QLineEdit *ViewerStatus;
-
-    std::shared_ptr<qtrec_position_manager> posmgr; 
+    qtrec_position_manager *posmgr; 
 
     std::shared_ptr<std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision>)>> ready_globalrev_quicknotify;
     

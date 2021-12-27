@@ -15,6 +15,13 @@
 #define SNDE_API
 #endif
 
+
+#ifdef __GNUG__ // catches g++ and clang see https://www.gnu.org/software/libc/manual/html_node/Backtraces.html
+
+#include <execinfo.h>
+
+#endif // __GNUG__
+
 #include <string>
 #include <stdexcept>
 #include <cstring>
@@ -107,12 +114,54 @@ namespace snde {
 
   class snde_error : public std::runtime_error {
   public:
+    std::string whatstr; 
+#ifdef __GNUG__ // catches g++ and clang see https://www.gnu.org/software/libc/manual/html_node/Backtraces.html
+    void *backtrace_buffer[100];
+    char **backtrace_syms;
+    int num_syms;
 
+#endif // __GNUG__
     template<typename ... Args>
     snde_error(std::string fmt, Args && ... args) : std::runtime_error(std::string("SNDE runtime error: ")+ssprintf(fmt,std::forward<Args>(args) ...)) { 
-      
+      whatstr = std::string(std::runtime_error::what())+"\n";
+#ifdef __GNUG__ // catches g++ and clang
+      num_syms = backtrace(backtrace_buffer,sizeof(backtrace_buffer)/sizeof(void *));
+
+      backtrace_syms = backtrace_symbols(backtrace_buffer,num_syms);
+
+
+      int cnt;
+      for (cnt=1; cnt < num_syms; cnt++) {
+	whatstr += ssprintf("[ %d ]: %s\n",cnt,backtrace_syms[cnt]);
+      }
+#endif
     }
 
+    snde_error &operator=(const snde_error &) = delete;
+    snde_error(const snde_error &orig) :
+      runtime_error(orig)
+    {
+#ifdef __GNUG__ // catches g++ and clang
+      num_syms = 0;
+      backtrace_syms=nullptr;
+      whatstr = orig.whatstr; 
+#endif // __GNUG__
+    }
+    
+#ifdef __GNUG__ // catches g++ and clang
+    virtual ~snde_error()
+    {
+      if (backtrace_syms) {	
+	free(backtrace_syms);
+      }
+    }
+#endif // __GNUG__
+
+    virtual const char *what() const noexcept
+    {
+      return whatstr.c_str();
+    }
+    
     // Alternate constructor with leading int (that is ignored)
     // so we can construct without doing string formatting
     //snde_error(int junk,std::string msg) : std::runtime_error(std::string("SNDE runtime error: ") + msg) {

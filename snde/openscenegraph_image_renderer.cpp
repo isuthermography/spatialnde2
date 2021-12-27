@@ -74,7 +74,7 @@ namespace snde {
 
 
     std::shared_ptr<osg_rendercacheentry> imageentry;
-    bool modified;
+    bool modified=false;
     std::tie(imageentry,modified) = RenderCache->GetEntry(params,display_req);
     
     
