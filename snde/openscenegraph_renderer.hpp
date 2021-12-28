@@ -23,6 +23,26 @@ namespace snde {
     // derived version of osgViewer::Viewer that gives compat34GetRequestContinousUpdate()
     // alternative to osg v3.6 getRequestContinousUpdate()
   public:
+
+    osgViewerCompat34() = default;
+    osgViewerCompat34(const osgViewerCompat34 &orig) :
+      osgViewer::Viewer(orig)
+    {
+      //_frameStamp = new osg::FrameStamp;
+      //_frameStamp->setFrameNumber(0);
+      //_frameStamp->setReferenceTime(0);
+      //_frameStamp->setSimulationTime(0);
+      _frameStamp = orig._frameStamp;
+
+      //_eventVisitor = new osgGA::EventVisitor;
+      //_eventVisitor->setActionAdapter(this);
+      //_eventVisitor->setFrameStamp(_frameStamp.get());
+      
+      //_updateVisitor = new osgUtil::UpdateVisitor;
+      //_updateVisitor->setFrameStamp(_frameStamp.get());
+      _updateVisitor = orig._updateVisitor;
+    }
+
     bool compat34GetRequestContinousUpdate()
     {
       return _requestContinousUpdate;

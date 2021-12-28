@@ -113,7 +113,7 @@ namespace snde {
 	      chanadmin.unlock();
 	      Viewer->LessContrast(false);
 	      
-	    } else if (Viewer->posmgr->selected_channel->render_mode == SNDE_DCRM_WAVEFORM) {
+	    } else /* if (Viewer->posmgr->selected_channel->render_mode == SNDE_DCRM_WAVEFORM)*/ {
 	      chanadmin.unlock();
 	      Viewer->posmgr->VertZoomOut(false);
 	    }
@@ -130,7 +130,7 @@ namespace snde {
 	      // image data... increase contrast instead
 	      chanadmin.unlock();
 	      Viewer->MoreContrast(false);
-	    } else if (Viewer->posmgr->selected_channel->render_mode == SNDE_DCRM_WAVEFORM) {	      
+	    } else /* if (Viewer->posmgr->selected_channel->render_mode == SNDE_DCRM_WAVEFORM)*/ {	      
 	      chanadmin.unlock();
 	      Viewer->posmgr->VertZoomIn(false);
 	    }
@@ -141,25 +141,25 @@ namespace snde {
 	
       case Qt::Key_Home:
 	if (event->type()==QEvent::KeyPress) {
-	  Viewer->posmgr->HorizSliderActionTriggered(QAbstractSlider::SliderSingleStepAdd);
+	  Viewer->posmgr->HorizSliderActionTriggered(QAbstractSlider::SliderSingleStepSub);
 	}
 	return true;
 	
       case Qt::Key_End:
 	if (event->type()==QEvent::KeyPress) {
-	  Viewer->posmgr->HorizSliderActionTriggered(QAbstractSlider::SliderSingleStepSub);
+	  Viewer->posmgr->HorizSliderActionTriggered(QAbstractSlider::SliderSingleStepAdd);
 	}
 	return true;
 	
       case Qt::Key_PageUp:
 	if (event->type()==QEvent::KeyPress) {
-	  Viewer->posmgr->VertSliderActionTriggered(QAbstractSlider::SliderSingleStepAdd);
+	  Viewer->posmgr->VertSliderActionTriggered(QAbstractSlider::SliderSingleStepSub);
 	}
 	return true;
 	
       case Qt::Key_PageDown:
 	if (event->type()==QEvent::KeyPress) {
-	  Viewer->posmgr->VertSliderActionTriggered(QAbstractSlider::SliderSingleStepSub);
+	  Viewer->posmgr->VertSliderActionTriggered(QAbstractSlider::SliderSingleStepAdd);
 	}
 	return true;
 
@@ -315,8 +315,8 @@ namespace snde {
     Parent_Viewer(Parent_Viewer)
   {
     power=100.0;
-    nsteps=1000;
-    nzoomsteps=43; // should be multiple of 6+1, e.g. 2*3*7=42, add 1 -> 43
+    nsteps=100;
+    nzoomsteps=31; // should be multiple of 6+1, e.g. 2*3*7=42, add 1 -> 43
     
     
     assert((nzoomsteps-1) % 6 == 0); // enforce multiple of 6+1
@@ -335,10 +335,15 @@ namespace snde {
     bool horizpixelflag=false;
     
     if (selected_channel) {
-      std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->FullName);
-      std::lock_guard<std::mutex> axislock(a->unit->admin);
-      horizscale = a->unit->scale;
-       horizpixelflag = a->unit->pixelflag;
+      if (selected_channel->render_mode != SNDE_DCRM_GEOMETRY) {
+	std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->FullName);
+	std::lock_guard<std::mutex> axislock(a->unit->admin);
+	horizscale = a->unit->scale;
+	horizpixelflag = a->unit->pixelflag;
+      } else {
+	// geometry -- just clone the vertical scale
+	return GetVertScale();
+      }
     }
     
     return std::make_tuple(horizscale,horizpixelflag);
@@ -370,7 +375,8 @@ namespace snde {
 
   void qtrec_position_manager::SetHorizScale(double horizscale,bool horizpixelflag)
   {
-    //fprintf(stderr,"SetHorizScale %.2g\n",horizscale);
+    fprintf(stderr,"SetHorizScale %.2g\n",horizscale);
+    assert(horizscale > 0.0);
     if (selected_channel) {
       std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->FullName);
       {
@@ -450,7 +456,15 @@ namespace snde {
       forwardsliderpos=0;
     }
 
-    return nzoomsteps-1 - forwardsliderpos; // return properly REVERSED sliderpos
+    int retval = nzoomsteps-1 - forwardsliderpos; // return properly REVERSED sliderpos
+
+    if (retval >= nzoomsteps) {
+      retval = nzoomsteps-1;
+    }
+    if (retval < 0) {
+      retval = 0;
+    }
+    return retval;
   }
 
 
@@ -495,9 +509,16 @@ namespace snde {
     
     if (selected_channel) {
       vertunitsperdiv = display->GetVertUnitsPerDiv(selected_channel);
-      
+
+      int render_mode;
+      {
+	std::lock_guard<std::mutex> selchan_admin(selected_channel->admin);
+
+	render_mode = selected_channel->render_mode;
+      }
+
       std::lock_guard<std::mutex> adminlock(selected_channel->admin);
-      if (selected_channel->VertZoomAroundAxis) {
+      if (selected_channel->VertZoomAroundAxis || render_mode == SNDE_DCRM_GEOMETRY) {
 	BottomEdge=-selected_channel->Position*vertunitsperdiv-vertunitsperdiv*display->vertical_divisions/2;
 	TopEdge=-selected_channel->Position*vertunitsperdiv+vertunitsperdiv*display->vertical_divisions/2;	
       } else {
@@ -634,27 +655,27 @@ namespace snde {
 	case QAbstractSlider::SliderSingleStepAdd:
 	  if (a) {
 	    std::lock_guard<std::mutex> adminlock(a->admin);
-	    a->CenterCoord+=horizunitsperdiv;
+	    a->CenterCoord-=horizunitsperdiv;
 	  }
 	  
 	  break;
 	case QAbstractSlider::SliderSingleStepSub:
 	  if (a) {
 	    std::lock_guard<std::mutex> adminlock(a->admin);
-	    a->CenterCoord-=horizunitsperdiv;
+	    a->CenterCoord+=horizunitsperdiv;
 	  }
 	  break;
 	  
 	case QAbstractSlider::SliderPageStepAdd:
 	  if (a) {
 	    std::lock_guard<std::mutex> adminlock(a->admin);
-	    a->CenterCoord+=horizunitsperdiv*display->horizontal_divisions;
+	    a->CenterCoord+=horizunitsperdiv*display->horizontal_divisions/2.0;
 	  }
 	  break;
 	case QAbstractSlider::SliderPageStepSub:
 	  if (a) {
 	    std::lock_guard<std::mutex> adminlock(a->admin);
-	    a->CenterCoord-=horizunitsperdiv*display->horizontal_divisions;
+	    a->CenterCoord-=horizunitsperdiv*display->horizontal_divisions/2.0;
 	  }	
 	  break;
 	  
@@ -679,14 +700,14 @@ namespace snde {
 	case QAbstractSlider::SliderSingleStepAdd:
 	  {
 	    std::lock_guard<std::mutex> adminlock(selected_channel->admin);
-	    selected_channel->HorizPosition++;
+	    selected_channel->HorizPosition--;
 	  }
 	  break;
 	  
 	case QAbstractSlider::SliderSingleStepSub:
 	  {
 	    std::lock_guard<std::mutex> adminlock(selected_channel->admin);
-	    selected_channel->HorizPosition--;
+	    selected_channel->HorizPosition++;
 	  }
 	  break;
       
@@ -698,7 +719,7 @@ namespace snde {
 	      horizontal_divisions = display->horizontal_divisions;
 	    }
 	    std::lock_guard<std::mutex> adminlock(selected_channel->admin);
-	    selected_channel->HorizPosition+=horizontal_divisions;
+	    selected_channel->HorizPosition+=horizontal_divisions/2.0;
 	  }
 	  break;
 	  
@@ -710,7 +731,7 @@ namespace snde {
 	      horizontal_divisions = display->horizontal_divisions;
 	    }
 	    std::lock_guard<std::mutex> adminlock(selected_channel->admin);
-	    selected_channel->HorizPosition-=horizontal_divisions;
+	    selected_channel->HorizPosition-=horizontal_divisions/2.0;
 	  }	
 	  break;
 	  
@@ -749,11 +770,16 @@ namespace snde {
     
     double CenterCoord=0.0;
     double vertunitsperdiv=1.0;
-    
+    int render_mode=SNDE_DCRM_INVALID;
+
     std::shared_ptr<display_axis> a = nullptr;
     if (selected_channel) {
       vertunitsperdiv = display->GetVertUnitsPerDiv(selected_channel);
       
+      std::lock_guard<std::mutex> selchan_admin(selected_channel->admin);
+      
+      render_mode = selected_channel->render_mode;
+    
       
     }
     
@@ -761,21 +787,21 @@ namespace snde {
     case QAbstractSlider::SliderSingleStepAdd:
       if (selected_channel) {
 	std::lock_guard<std::mutex> adminlock(selected_channel->admin);
-	if (selected_channel->VertZoomAroundAxis) {
-	  selected_channel->Position++;
+	if (selected_channel->VertZoomAroundAxis || render_mode == SNDE_DCRM_GEOMETRY) {
+	  selected_channel->Position--;
 	} else {
-	  selected_channel->VertCenterCoord -= vertunitsperdiv;
+	  selected_channel->VertCenterCoord += vertunitsperdiv;
 	}
       }
-      
+      snde_warning("VertPosition = %f",selected_channel->Position);
       break;
     case QAbstractSlider::SliderSingleStepSub:
       if (selected_channel) {
 	std::lock_guard<std::mutex> adminlock(selected_channel->admin);
-	if (selected_channel->VertZoomAroundAxis) {
-	  selected_channel->Position--;
+	if (selected_channel->VertZoomAroundAxis || render_mode == SNDE_DCRM_GEOMETRY) {
+	  selected_channel->Position++;
 	} else {
-	  selected_channel->VertCenterCoord += vertunitsperdiv;
+	  selected_channel->VertCenterCoord -= vertunitsperdiv;
 	}
       }
       break;
@@ -788,10 +814,10 @@ namespace snde {
 	  vertical_divisions = display->vertical_divisions;
 	}
 	std::lock_guard<std::mutex> adminlock(selected_channel->admin);
-	if (selected_channel->VertZoomAroundAxis) {
-	  selected_channel->Position+=vertical_divisions;
+	if (selected_channel->VertZoomAroundAxis || render_mode == SNDE_DCRM_GEOMETRY) {
+	  selected_channel->Position+=vertical_divisions/2.0;
 	  } else {
-	  selected_channel->VertCenterCoord -= vertunitsperdiv*vertical_divisions;	    
+	  selected_channel->VertCenterCoord -= vertunitsperdiv*vertical_divisions/2.0;	    
 	}
       }
       break;
@@ -803,10 +829,10 @@ namespace snde {
 	  vertical_divisions = display->vertical_divisions;
 	}
 	std::lock_guard<std::mutex> adminlock(selected_channel->admin);
-	if (selected_channel->VertZoomAroundAxis) {
-	  selected_channel->Position-=vertical_divisions;
+	if (selected_channel->VertZoomAroundAxis || render_mode == SNDE_DCRM_GEOMETRY) {
+	  selected_channel->Position-=vertical_divisions/2.0;
 	} else {
-	  selected_channel->VertCenterCoord += vertunitsperdiv*vertical_divisions;	    
+	  selected_channel->VertCenterCoord += vertunitsperdiv*vertical_divisions/2.0;	    
 	}
       }	
       break;
@@ -827,10 +853,10 @@ namespace snde {
 	  BottomEdgeRec = log(1.0 - VertPosn/((nsteps-1)/2.0 + 1.0) )*((nsteps-1)/2+1)*vertunitsperdiv;
 	}
 	
-	if (selected_channel->VertZoomAroundAxis) {
+	if (selected_channel->VertZoomAroundAxis || render_mode == SNDE_DCRM_GEOMETRY) {
 	  std::lock_guard<std::mutex> adminlock(selected_channel->admin);
 	  selected_channel->Position = -BottomEdgeRec/vertunitsperdiv + vertical_divisions/2;
-	  snde_warning("Position = %f vert units",selected_channel->Position);
+	  //snde_warning("Position = %f vert units",selected_channel->Position);
 	} else {
 	  std::lock_guard<std::mutex> adminlock(selected_channel->admin);
 	  selected_channel->VertCenterCoord = BottomEdgeRec + vertunitsperdiv*vertical_divisions/2;
@@ -839,7 +865,7 @@ namespace snde {
 	
 	
       }
-	break;
+      break;
     }
     //selected_channel->mark_as_dirty();
     trigger();
@@ -866,8 +892,10 @@ namespace snde {
 	SetHorizScale(rounded_scale,horizpixelflag);	  
       } else {
 	// Step up
-	double new_scale = GetScaleFromZoomPos(horiz_zoom_pos+1,horizpixelflag);
-	SetHorizScale(new_scale,horizpixelflag);	  
+	if (horiz_zoom_pos+1 < nzoomsteps) {
+	  double new_scale = GetScaleFromZoomPos(horiz_zoom_pos+1,horizpixelflag);
+	  SetHorizScale(new_scale,horizpixelflag);
+	}
       }
       break;
       
@@ -880,8 +908,10 @@ namespace snde {
       } else {
 	// Step down
 	snde_warning("horiz slider: step down");
-	double new_scale = GetScaleFromZoomPos(horiz_zoom_pos-1,horizpixelflag);
-	SetHorizScale(new_scale,horizpixelflag);	  
+	if (horiz_zoom_pos > 0) {
+	  double new_scale = GetScaleFromZoomPos(horiz_zoom_pos-1,horizpixelflag);
+	  SetHorizScale(new_scale,horizpixelflag);
+	}
       }
       break;
       
@@ -920,8 +950,10 @@ namespace snde {
       } else {
 	// Step up
 	snde_warning("vert slider: step up");
-	double new_scale = GetScaleFromZoomPos(vert_zoom_pos+1,vertpixelflag);
-	SetVertScale(new_scale,vertpixelflag);	  
+	if (vert_zoom_pos+1 < nzoomsteps) {
+	  double new_scale = GetScaleFromZoomPos(vert_zoom_pos+1,vertpixelflag);
+	  SetVertScale(new_scale,vertpixelflag);
+	}  
       }
       break;
       
@@ -936,8 +968,10 @@ namespace snde {
       } else {
 	// Step down
 	snde_warning("vert slider: step down");
-	double new_scale = GetScaleFromZoomPos(vert_zoom_pos-1,vertpixelflag);
-	SetVertScale(new_scale,vertpixelflag);	  
+	if (vert_zoom_pos > 0) {
+	  double new_scale = GetScaleFromZoomPos(vert_zoom_pos-1,vertpixelflag);
+	  SetVertScale(new_scale,vertpixelflag);
+	}
       }
       break;
       

@@ -91,7 +91,7 @@ namespace snde {
     float Position; // vertical offset on display, in divisions. To get in units, multiply by GetVertUnitsPerDiv(Chan) USED ONLY IF VertZoomAroundAxis is true
     float HorizPosition; // horizonal offset onf display, in divisions. Used only on 3D projection channels
     float VertCenterCoord; // Vertical position, in vertical axis units, of center of display. USE ONLY IF VertZoomAroundAxis is false;
-    bool VertZoomAroundAxis;
+    bool VertZoomAroundAxis; // if false, when we zoom vertically the location of the display center remains fixed; if true when we zoom vertically the location of object's horizontal axis (y value of 0) remains fixed
     float Offset; // >= 2d only, intensity offset on display, in amplitude units
     float Alpha; // alpha transparency of channel: 1: fully visible, 0: fully transparent
     size_t ColorIdx; // index into color table for how this channel is colored

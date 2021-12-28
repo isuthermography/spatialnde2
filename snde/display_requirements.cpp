@@ -53,6 +53,9 @@ namespace snde {
     xform=std::make_shared<display_spatial_transform>();
     bounds=std::make_shared<display_channel_rendering_bounds>();
 
+    posn->drawareawidth = drawareawidth;
+    posn->drawareaheight = drawareaheight;
+    
     if (y_chan_vertzoomaroundaxis) {
       y_center_channel_units = -y_chanposn_divs*yunitsperdiv;
     } else {
@@ -136,7 +139,7 @@ namespace snde {
       bounds->right = renderingarea_upperright_chanunits_rel_chanorigin(0); // left bound to give the image renderer
       
     }
-    posn->width = (bounds->right - bounds->left)*pixelsperdiv/xunitsperdiv;
+    posn->width = std::max(0.0,(bounds->right - bounds->left)*pixelsperdiv/xunitsperdiv);
 
     
     // Bottom bound
@@ -168,7 +171,8 @@ namespace snde {
       bounds->top = renderingarea_upperright_chanunits_rel_chanorigin(1); // left bound to give the image renderer
       
     }
-    posn->height = (bounds->top - bounds->bottom)*pixelsperdiv/yunitsperdiv;
+    posn->height = std::max(0.0,(bounds->top - bounds->bottom)*pixelsperdiv/yunitsperdiv);
+
 
     
     xform->renderarea_coords_over_renderbox_coords = renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels;
@@ -255,6 +259,9 @@ namespace snde {
     xform=std::make_shared<display_spatial_transform>();
     bounds=std::make_shared<display_channel_rendering_bounds>();
 
+    posn->drawareawidth = drawareawidth;
+    posn->drawareaheight = drawareaheight;
+
     if (y_chan_vertzoomaroundaxis) {
       y_center_channel_units = -y_chanposn_divs*yunitsperdiv;
     } else {
@@ -318,7 +325,7 @@ namespace snde {
 
     // Right bound
     bounds->right = renderingarea_upperright_chanunits_rel_chanorigin(0); // left bound to give the image renderer
-    posn->width = (bounds->right - bounds->left)*pixelsperdiv/xunitsperdiv;
+    posn->width = std::max(0.0,(bounds->right - bounds->left)*pixelsperdiv/xunitsperdiv);
 
     
     // Bottom bound
@@ -328,7 +335,7 @@ namespace snde {
 
     // Top bound
     bounds->top = renderingarea_upperright_chanunits_rel_chanorigin(1); // left bound to give the image renderer
-    posn->height = (bounds->top - bounds->bottom)*pixelsperdiv/yunitsperdiv;
+    posn->height = std::max(0.0,(bounds->top - bounds->bottom)*pixelsperdiv/yunitsperdiv);
 
     
     xform->renderarea_coords_over_renderbox_coords = renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels;
@@ -344,7 +351,8 @@ namespace snde {
 
   std::tuple<std::shared_ptr<display_spatial_position>,std::shared_ptr<display_spatial_transform>,std::shared_ptr<display_channel_rendering_bounds>> spatial_transforms_for_3d_channel(size_t drawareawidth,size_t drawareaheight,double x_chanposn_divs,double y_chanposn_divs,double mag,double pixelsperdiv)
   {
-    // mag in units of displayed pixels/3d rendered pixels where 3d rendered pixels are "chan units"
+    // mag in units of displayed pixels/3d rendered pixels where 3d rendered pixels assuming
+    // we were rendering to the full drawing area are "chan units"
 
     // rendered pixels are the width of the display area but centered at the center
     double dataleftedge_chanunits = -(drawareawidth/2.0);
@@ -360,6 +368,8 @@ namespace snde {
     xform=std::make_shared<display_spatial_transform>();
     bounds=std::make_shared<display_channel_rendering_bounds>();
 
+    posn->drawareawidth = drawareawidth;
+    posn->drawareaheight = drawareaheight;
 
     Eigen::Matrix<double,3,3> pixels_rel_displaycenter_over_chanunits_rel_displaycenter;
     pixels_rel_displaycenter_over_chanunits_rel_displaycenter  <<
@@ -439,7 +449,7 @@ namespace snde {
       bounds->right = renderingarea_upperright_chanunits_rel_chanorigin(0); // left bound to give the image renderer
       
     }
-    posn->width = (bounds->right - bounds->left)*mag; // *pixelsperdiv/xunitsperdiv;
+    posn->width = std::max(0.0,(bounds->right - bounds->left)*mag); // *pixelsperdiv/xunitsperdiv;
 
     
     // Bottom bound
@@ -471,7 +481,7 @@ namespace snde {
       bounds->top = renderingarea_upperright_chanunits_rel_chanorigin(1); // left bound to give the image renderer
       
     }
-    posn->height = (bounds->top - bounds->bottom)*mag; //*pixelsperdiv/yunitsperdiv;
+    posn->height = std::max(0.0,(bounds->top - bounds->bottom)*mag); //*pixelsperdiv/yunitsperdiv;
 
     
     xform->renderarea_coords_over_renderbox_coords = renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels;
@@ -916,11 +926,12 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
       // and perhaps this update should not occur unless this was actually a render goal (?)
       displaychan->render_mode = SNDE_DCRM_GEOMETRY;
 
-      snde_warning("3d_channel HorizPosition: %f Position: %f",displaychan->HorizPosition,displaychan->Position);
+      snde_warning("3d_channel HorizPosition: %f Position: %f pixelsperdiv=%f",displaychan->HorizPosition,displaychan->Position,display->pixelsperdiv);
       
       std::tie(posn,xform,bounds) = spatial_transforms_for_3d_channel(display->drawareawidth,display->drawareaheight,
 								      displaychan->HorizPosition,displaychan->Position,
-								      displaychan->Scale,display->pixelsperdiv);	  // magnification comes from the channel scale
+								      1.0/displaychan->Scale,display->pixelsperdiv);	  // magnification comes from the channel scale
+
       
     } // release displaychan lock
 
@@ -1123,8 +1134,8 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
       // and perhaps this update should not occur unless this was actually a render goal (?)
       displaychan->render_mode = SNDE_DCRM_GEOMETRY;
       std::tie(posn,xform,bounds) = spatial_transforms_for_3d_channel(display->drawareawidth,display->drawareaheight,
-								      displaychan->Position,displaychan->HorizPosition,
-								      displaychan->Scale,display->pixelsperdiv);	  // magnification comes from the scale
+								      displaychan->HorizPosition,displaychan->Position,
+								      1.0/displaychan->Scale,display->pixelsperdiv);	  // magnification comes from the scale
       
     } // release displaychan lock
     

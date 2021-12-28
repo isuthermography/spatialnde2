@@ -146,7 +146,8 @@ namespace snde {
     //bool potentially_obsolete; // set by mark_obsolete()
 
     osg::ref_ptr<osg::Texture> osg_texture;
-    
+    osg::ref_ptr<osg::TexMat> texture_transform;
+
     osg_rendercachetextureentry()=default;
     osg_rendercachetextureentry & operator=(const osg_rendercachetextureentry &) = delete; // shouldn't need copy assignment
     osg_rendercachetextureentry(const osg_rendercachetextureentry &) = delete; // shouldn't need copy constructor
@@ -188,7 +189,6 @@ namespace snde {
     
     osg::ref_ptr<osg::Image> image;
     osg::ref_ptr<osg::PixelBufferObject> imagepbo;
-    osg::ref_ptr<osg::TexMat> texture_transform;
     
 
     osg_cachedimagedata(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);

@@ -21,6 +21,7 @@ namespace snde {
     // set background color to blueish
     Camera->setClearColor(osg::Vec4(.1,.1,.3,1.0));    
     Camera->setClearMask(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    Camera->setCullingMode(osg::CullSettings::NO_CULLING); // otherwise triangles we use for rendering can get culled as we zoom in far enough that their vertices go off-screen?
     
     Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded); // OSG single threaded mode is REQUIRED (!!!)
     
@@ -71,55 +72,76 @@ namespace snde {
       
     };
 
+    snde_warning("image render width bounds: left: %f right: %f bottom: %f top: %f",
+		 display_req->spatial_bounds->left,
+		 display_req->spatial_bounds->right,
+		 display_req->spatial_bounds->bottom,
+		 display_req->spatial_bounds->top);
 
 
     std::shared_ptr<osg_rendercacheentry> imageentry;
     bool modified=false;
-    std::tie(imageentry,modified) = RenderCache->GetEntry(params,display_req);
     
-    
-    /// NOTE: to adjust size, first send event, then 
-    //   change viewport:
-    if (width != Camera->getViewport()->width() || height != Camera->getViewport()->height()) {
-      GraphicsWindow->getEventQueue()->windowResize(0,0,width,height);
-      GraphicsWindow->resized(0,0,width,height);
-      Camera->setViewport(0,0,width,height);
-      modified = true; 
-    }
-    
-    Camera->setProjectionMatrixAsOrtho(display_req->spatial_bounds->left,display_req->spatial_bounds->right,display_req->spatial_bounds->bottom,display_req->spatial_bounds->top,-10.0,1000.0);
+    if (display_req->spatial_bounds->bottom >= display_req->spatial_bounds->top ||
+	display_req->spatial_bounds->left >= display_req->spatial_bounds->right) {
+      // negative or zero display area
 
-    
+      if (RootGroup->getNumChildren()) {
 
-    if (imageentry) {
-
-      std::shared_ptr<osg_rendercachegroupentry> imagegroup = std::dynamic_pointer_cast<osg_rendercachegroupentry>(imageentry); 
-
-      if (imagegroup) {
-	//if (Viewer->getSceneData() != imagegroup->osg_group){
-	//  //group=imagegroup;
-	//  Viewer->setSceneData(imagegroup->osg_group);
-	//}
-    	if (RootGroup->getNumChildren() && RootGroup->getChild(0) != imagegroup->osg_group) {
-	  RootGroup->removeChildren(0,1);
-	}
-	if (!RootGroup->getNumChildren()) {
-	  RootGroup->addChild(imagegroup->osg_group);
-	}
-
-	if (!Viewer->getSceneData()) {
-	  Viewer->setSceneData(RootGroup);
-	}
-	
-      } else {
-	snde_warning("openscenegraph_image_renderer: cache entry not convertable to an osg_group rendering channel \"%s\"",channel_path.c_str());
+	RootGroup->removeChildren(0,RootGroup->getNumChildren());
       }
-    } else {
-      snde_warning("openscenegraph_image_renderer: cache entry not available rendering channel \"%s\"",channel_path.c_str());
-      
-    }
-	
 
+      modified = true; 
+    } else { // Positive display area 
+      std::tie(imageentry,modified) = RenderCache->GetEntry(params,display_req);
+    
+      /// NOTE: to adjust size, first send event, then 
+      //   change viewport:
+      if (display_req->spatial_position->width != Camera->getViewport()->width() || display_req->spatial_position->height != Camera->getViewport()->height()) {
+	GraphicsWindow->getEventQueue()->windowResize(0,0,display_req->spatial_position->width,display_req->spatial_position->height);
+	GraphicsWindow->resized(0,0,display_req->spatial_position->width,display_req->spatial_position->height);
+	Camera->setViewport(0,0,display_req->spatial_position->width,display_req->spatial_position->height);
+	modified = true;
+	snde_warning("image position: width: %d height: %d",
+		     display_req->spatial_position->width,
+		     display_req->spatial_position->height);
+
+      }
+      
+      Camera->setProjectionMatrixAsOrtho(display_req->spatial_bounds->left,display_req->spatial_bounds->right,display_req->spatial_bounds->bottom,display_req->spatial_bounds->top,-10.0,1000.0);
+      
+      
+      
+      if (imageentry) {
+	
+	std::shared_ptr<osg_rendercachegroupentry> imagegroup = std::dynamic_pointer_cast<osg_rendercachegroupentry>(imageentry); 
+	
+	if (imagegroup) {
+	  //if (Viewer->getSceneData() != imagegroup->osg_group){
+	  //  //group=imagegroup;
+	  //  Viewer->setSceneData(imagegroup->osg_group);
+	  //}
+	  if (RootGroup->getNumChildren() && RootGroup->getChild(0) != imagegroup->osg_group) {
+	    RootGroup->removeChildren(0,1);
+	  }
+	  if (!RootGroup->getNumChildren()) {
+	    RootGroup->addChild(imagegroup->osg_group);
+	  }
+	  
+	  if (!Viewer->getSceneData()) {
+	    Viewer->setSceneData(RootGroup);
+	  }
+	  
+	} else {
+	  snde_warning("openscenegraph_image_renderer: cache entry not convertable to an osg_group rendering channel \"%s\"",channel_path.c_str());
+	}
+      } else {
+	snde_warning("openscenegraph_image_renderer: cache entry not available rendering channel \"%s\"",channel_path.c_str());
+	
+      }
+	
+    }
+    
     return std::make_pair(imageentry,modified);
     
   }

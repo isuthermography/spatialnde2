@@ -39,7 +39,7 @@ namespace snde {
     
     OSGWidget=new qt_osg_compositor(recdb,display,new osgViewer::Viewer(),
 				    true, // threaded; try true
-				    true, // enable_threaded_opengl; try true
+				    true, // enable_threaded_opengl
 				    this,this);
     viewerGridLayout->addWidget(OSGWidget,1,0);
     
@@ -111,12 +111,6 @@ namespace snde {
 							"   width: 20px;\n"
 							"   margin: 0px 0px 60px 0px;\n"
 							"}\n"
-							"QScrollBar::add-line:vertical {\n"
-							"   height: 20px;\n"
-							"   border: 2px outset black;\n"
-							"   subcontrol-position: bottom;\n"
-							"   subcontrol-origin: margin;\n"
-							"}\n"
 							"QScrollBar::sub-line:vertical {\n"
 							"   height: 20px;\n"
 							"   border: 2px outset black;\n"
@@ -124,7 +118,19 @@ namespace snde {
 							"   subcontrol-origin: margin;\n"
 							"   position: absolute;\n"
 							"   bottom: 30px;\n"
-							
+							"}\n"
+							"QScrollBar::add-line:vertical {\n"
+							"   height: 20px;\n"
+							"   border: 2px outset black;\n"
+							"   subcontrol-position: bottom;\n"
+							"   subcontrol-origin: margin;\n"
+							"}\n"
+							"QScrollBar::down-arrow:vertical {\n"
+							"   width: 18px;\n"
+							"   height: 18px;\n"
+							"   color: black;\n"
+							//"   background: pink;\n"
+							"   image: url(\":/darrow.png\");\n"
 							"}\n"
 							"QScrollBar::up-arrow:vertical {\n"
 							"   width: 18px;\n"
@@ -133,13 +139,7 @@ namespace snde {
 							//"   background: pink;\n"
 							"   image: url(\":/uarrow.png\");\n"
 							"}\n"
-							"QScrollBar::down-arrow:vertical {\n"
-							"   width: 18px;\n"
-							"   height: 18px;\n"
-							"   color: black;\n"
-							//"   background: pink;\n"
-							"   image: url(\":/darrow.png\");\n"
-							"}\n"));
+						     ));
 
     posmgr = new qtrec_position_manager(display,HorizSlider,VertSlider,HorizZoom,VertZoom,this,this);
 

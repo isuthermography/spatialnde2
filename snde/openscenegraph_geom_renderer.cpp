@@ -45,8 +45,8 @@ namespace snde {
 				  //std::shared_ptr<display_info> display,
 				  std::shared_ptr<osg_rendercache> RenderCache,
 				  const std::map<std::string,std::shared_ptr<display_requirement>> &display_reqs,
-				  size_t width, // width of viewport in pixels
-				  size_t height) // height of viewport in pixels
+				  size_t width, // width of full-display viewport in pixels
+				  size_t height) // height of full-display viewport in pixels
   {
     // look up render cache.
     std::shared_ptr<display_requirement> display_req = display_reqs.at(channel_path);
@@ -55,10 +55,10 @@ namespace snde {
       RenderCache,
       with_display_transforms,
       
-      0.0, //left,
-      0.0, //right,
-      0.0, //bottom,
-      0.0, //top,
+      display_req->spatial_bounds->left,
+      display_req->spatial_bounds->right,
+      display_req->spatial_bounds->bottom,
+      display_req->spatial_bounds->top,
       width,
       height,
       
@@ -67,48 +67,79 @@ namespace snde {
     std::shared_ptr<osg_rendercacheentry> renderentry;
     bool modified=false;
     
-    std::tie(renderentry,modified) = RenderCache->GetEntry(params,display_req);
-    
-    
-    if (width != Camera->getViewport()->width() || height != Camera->getViewport()->height()) {
-      GraphicsWindow->getEventQueue()->windowResize(0,0,width,height);
-      GraphicsWindow->resized(0,0,width,height);
-      Camera->setViewport(0,0,width,height);
-      modified = true;
-    }
-    Camera->setProjectionMatrixAsPerspective(30.0f,((double)width)/height,1.0f,10000.0f); // !!!*** Check last two parameters
-    snde_warning("setProjectionMatrixAsPerspective aspect ratio = %f",((double)width)/height);
-    
-    if (renderentry) {
-      std::shared_ptr<osg_rendercachegroupentry> rendergroup = std::dynamic_pointer_cast<osg_rendercachegroupentry>(renderentry);
-      
-      if (rendergroup) {
-	//if (Viewer->getSceneData() != rendergroup->osg_group){
-	//Viewer->setSceneData(rendergroup->osg_group);
-	//}
 
-	if (RootGroup->getNumChildren() && RootGroup->getChild(0) != rendergroup->osg_group) {
-	  RootGroup->removeChildren(0,1);
-	}
-	if (!RootGroup->getNumChildren()) {
-	  RootGroup->addChild(rendergroup->osg_group);
-	}
-	if (!Viewer->getSceneData()) {
-	  Viewer->setSceneData(RootGroup);
-	}
-	
-      } else {
-	snde_warning("openscenegraph_3d_renderer: cache entry not convertable to an osg_group rendering channel %s",channel_path.c_str());
-      }
-    } else {
-      snde_warning("openscenegraph_3d_renderer: cache entry not available rendering channel %s",channel_path.c_str());
+
+    if (display_req->spatial_bounds->bottom >= display_req->spatial_bounds->top ||
+	display_req->spatial_bounds->left >= display_req->spatial_bounds->right) {
+      // negative or zero display area
+      Viewer->setSceneData(nullptr);
+
+      modified = true; 
+    } else { // Positive display area 
+
+      std::tie(renderentry,modified) = RenderCache->GetEntry(params,display_req);
       
-    }
-    
-    //if (firstrun) {
-    //  Viewer->realize();
-    //  firstrun=false;
-    //}
+      if (display_req->spatial_position->width != Camera->getViewport()->width() || display_req->spatial_position->height != Camera->getViewport()->height()) {
+	GraphicsWindow->getEventQueue()->windowResize(0,0,display_req->spatial_position->width,display_req->spatial_position->height);
+	GraphicsWindow->resized(0,0,display_req->spatial_position->width,display_req->spatial_position->height);
+	Camera->setViewport(0,0,display_req->spatial_position->width,display_req->spatial_position->height);
+	modified = true;
+      }
+      Camera->setProjectionMatrixAsPerspective(30.0f,((double)width)/height,1.0f,10000.0f); // !!!*** Check last two parameters
+      //snde_warning("setProjectionMatrixAsPerspective aspect ratio = %f",((double)width)/height);
+      
+      // Create projection matrix.
+      // Focal behavior comes from the spatial position width/height
+      double fovy = 30.0; // degrees
+      double aspect = display_req->spatial_position->drawareawidth/display_req->spatial_position->drawareaheight;
+      double znear = 1.0;
+      double zfar = 10000.0;
+      
+      double xshift = (display_req->spatial_bounds->right + display_req->spatial_bounds->left)/(display_req->spatial_bounds->right - display_req->spatial_bounds->left);
+      double yshift = (display_req->spatial_bounds->top + display_req->spatial_bounds->bottom)/(display_req->spatial_bounds->top - display_req->spatial_bounds->bottom);
+      
+      double f = 1.0/tan(fovy/2.0); // per gluPerspective man page
+      
+      
+      osg::Matrixf ProjectionMatrix(f/aspect, 0, 0, 0,  // per gluPerspecitve man page
+				    0,        f, 0, 0,  // (remember osg Matrices appear transposed!)
+				    0,        0, (zfar+znear)/(znear-zfar), -1,
+				    -xshift/4.0,-yshift/4.0, (2*zfar*znear)/(znear-zfar), 0);  // View as the image shifts off screen is wrong. I don't think we're doing the xshift/yshift correctly
+      
+      //Camera->setProjectionMatrix(ProjectionMatrix);
+      
+      // (Do we need to set modified flag if the projection matrix changes???)
+      
+      if (renderentry) {
+	std::shared_ptr<osg_rendercachegroupentry> rendergroup = std::dynamic_pointer_cast<osg_rendercachegroupentry>(renderentry);
+	
+	if (rendergroup) {
+	  //if (Viewer->getSceneData() != rendergroup->osg_group){
+	  //Viewer->setSceneData(rendergroup->osg_group);
+	  //}
+	  
+	  if (RootGroup->getNumChildren() && RootGroup->getChild(0) != rendergroup->osg_group) {
+	    RootGroup->removeChildren(0,1);
+	  }
+	  if (!RootGroup->getNumChildren()) {
+	    RootGroup->addChild(rendergroup->osg_group);
+	  }
+	  if (!Viewer->getSceneData()) {
+	    Viewer->setSceneData(RootGroup);
+	  }
+	  
+	} else {
+	  snde_warning("openscenegraph_3d_renderer: cache entry not convertable to an osg_group rendering channel %s",channel_path.c_str());
+	}
+      } else {
+	snde_warning("openscenegraph_3d_renderer: cache entry not available rendering channel %s",channel_path.c_str());
+	
+      }
+      
+      //if (firstrun) {
+      //  Viewer->realize();
+      //  firstrun=false;
+      //}
 
     /*    osg::Matrixd viewmat = Camera->getViewMatrix();
     {
@@ -122,7 +153,7 @@ namespace snde {
       }
       
       }*/
-
+    }
 
     return std::make_tuple(renderentry,modified);
     

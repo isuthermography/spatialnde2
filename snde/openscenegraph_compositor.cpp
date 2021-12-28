@@ -1,4 +1,5 @@
 #include <osgGA/GUIEventAdapter>
+#include <osgViewer/Renderer>
 
 #include "snde/openscenegraph_renderer.hpp"
 #include "snde/openscenegraph_compositor.hpp"
@@ -433,6 +434,7 @@ namespace snde {
 	    adminlock2.unlock();
 	    // Need a new renderer
 	    LayerViewer = new osgViewerCompat34();
+	    LayerViewer->setThreadingModel(osgViewer::Viewer::SingleThreaded);
 	    osg::ref_ptr<osg_layerwindow> LW=new osg_layerwindow(LayerViewer,nullptr,compositor_width,compositor_height,false);
 	    LW->setDefaultFboId(LayerDefaultFramebufferObject);
 	    
@@ -459,6 +461,62 @@ namespace snde {
 	  } else {	
 	    // use pre-existing renderer
 	    renderer=renderer_it->second;
+
+
+	    // Force re-setup on camera
+	    // Not sure why this is necessary but without it, when you enlarge the window
+	    // after creation it only draws up to the original size of the rendering area
+	    // for this layer.
+	    
+	    dynamic_cast<osgViewer::Renderer *>(renderer->Viewer->getCamera()->getRenderer())->setCameraRequiresSetUp(true);
+	    
+	    
+	    // old debugging stuff
+	    /*
+	    osg::ref_ptr<osg::Camera> oldcamera = renderer->Viewer->getCamera();
+	    {
+	      osg::ref_ptr<osgViewer::Viewer> oldviewer=renderer->Viewer;
+	      assert(renderer->GraphicsWindow->getState());
+	      //renderer->Viewer = new osgViewerCompat34(*dynamic_cast<osgViewerCompat34*>(renderer->Viewer.get())); //new osgViewerCompat34();
+	      //renderer->Viewer->getCamera()->setRenderer(new osgViewer::Renderer(renderer->Viewer->getCamera()));
+	      renderer->Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded);
+	      
+	      //oldviewer->setCamera(nullptr); // need to clear the camera before the oldviewer goes away lest it kill our graphics contexts
+	    }
+	    //renderer->Viewer->setCamera(new osg::Camera());
+	    //renderer->Viewer->getCamera()->setGraphicsContext(renderer->GraphicsWindow);
+	    //renderer->Viewer->getCamera()->setViewport(0,0,0,0);
+	    //renderer->Viewer->setCamera(oldcamera);
+	    //renderer->Camera = renderer->Viewer->getCamera();
+	    
+	    assert(renderer->GraphicsWindow->getState());
+	    osg::ref_ptr<osg_layerwindow> LW=(dynamic_cast<osg_layerwindow *>(renderer->GraphicsWindow.get()));
+	    LW->Viewer=renderer->Viewer;
+	    LW->predraw->Viewer=renderer->Viewer;
+	    LW->postdraw->Viewer=renderer->Viewer;
+	    //LW->setup_camera(renderer->Viewer->getCamera());
+	    //LW->setState(new osg::State());
+	    //LW->getState()->setGraphicsContext(LW);
+	    //LW->getState()->setContextID(osg::GraphicsContext::createNewContextID());
+	    */
+	    
+	    /*
+            osg::ref_ptr<osg_layerwindow> LW=new osg_layerwindow(renderer->Viewer,nullptr,compositor_width,compositor_height,false);
+	    
+	    LW->setDefaultFboId(LayerDefaultFramebufferObject);
+	    
+	    renderer->Viewer->getCamera()->setGraphicsContext(LW);
+	    renderer->Viewer->getCamera()->setViewport(0,0,0,0);
+	    //LayerViewer->getCamera()->setViewport(new osg::Viewport(0,0,compositor_width,compositor_height));	 (let the renderer set the viewport so it can detect modifications
+	    
+	    LW->setup_camera(renderer->Viewer->getCamera());
+	    
+
+	    renderer=std::make_shared<osg_image_renderer>(renderer->Viewer,LW,display_req.second->channelpath);
+	    */
+
+	    
+
 	    LayerViewer = dynamic_cast<osgViewerCompat34 *>(renderer->Viewer.get());
 	    assert(LayerViewer);
 	    if (resizing) {
@@ -503,7 +561,7 @@ namespace snde {
 						     std::forward_as_tuple(display_req.second->channelpath),
 						     std::forward_as_tuple(std::make_pair(generated_texture,generated_texture->getTextureObject(renderer->GraphicsWindow->getState()->getContextID())->id())));
 	  
-	  
+
 	  if (LayerViewer->compat34GetRequestContinousUpdate()) {//(Viewer->getRequestContinousUpdate()) { // Manipulator->isAnimating doesn't work for some reason(?)
 	    new_request_continuous_update = true; 
 	  }
@@ -638,15 +696,37 @@ namespace snde {
 	// Two triangles    
 	osg::ref_ptr<osg::Vec3Array> ImageCoords=new osg::Vec3Array(6);
 	osg::ref_ptr<osg::Vec2Array> ImageTexCoords=new osg::Vec2Array(6);
+
+
+	float image_xleft = dispreq->spatial_position->x;
+	if (image_xleft < 0.0) {
+	  image_xleft = 0.0;
+	}
+
+	float image_xright = dispreq->spatial_position->x+dispreq->spatial_position->width;
+	if (image_xright > compositor_width) {
+	  image_xright = compositor_width;
+	}
 	
-	(*ImageCoords)[0]=osg::Vec3(dispreq->spatial_position->x,
-				     dispreq->spatial_position->y,
+	float image_ybot = dispreq->spatial_position->y;
+	if (image_ybot < 0.0) {
+	  image_ybot = 0.0;
+	}
+	
+	float image_ytop = dispreq->spatial_position->y+dispreq->spatial_position->height;
+	if (image_ytop > compositor_height) {
+	  image_ytop = compositor_height;
+	}
+
+	
+	(*ImageCoords)[0]=osg::Vec3(image_xleft,
+				     image_ybot,
 				     depth);
-	(*ImageCoords)[1]=osg::Vec3(dispreq->spatial_position->x + dispreq->spatial_position->width,
-				     dispreq->spatial_position->y,
+	(*ImageCoords)[1]=osg::Vec3(image_xright,
+				     image_ybot,
 				     depth);
-	(*ImageCoords)[2]=osg::Vec3(dispreq->spatial_position->x,
-				     dispreq->spatial_position->y + dispreq->spatial_position->height,
+	(*ImageCoords)[2]=osg::Vec3(image_xleft,
+				     image_ytop,
 				     depth);
 	
 	(*ImageTexCoords)[0]=osg::Vec2(0,0);
@@ -654,19 +734,19 @@ namespace snde {
 	(*ImageTexCoords)[2]=osg::Vec2(0,1);
       
 	// upper-right triangle 
-	(*ImageCoords)[3]=osg::Vec3(dispreq->spatial_position->x + dispreq->spatial_position->width,
-				     dispreq->spatial_position->y + dispreq->spatial_position->height,
-				     depth);
-	(*ImageCoords)[4]=osg::Vec3(dispreq->spatial_position->x,
-				     dispreq->spatial_position->y + dispreq->spatial_position->height,
-				     depth);
-	(*ImageCoords)[5]=osg::Vec3(dispreq->spatial_position->x + dispreq->spatial_position->width,
-				     dispreq->spatial_position->y,
-				     depth);
+	(*ImageCoords)[3]=osg::Vec3(image_xright,
+				    image_ytop,
+				    depth);
+	(*ImageCoords)[4]=osg::Vec3(image_xleft,
+				    image_ytop,
+				    depth);
+	(*ImageCoords)[5]=osg::Vec3(image_xright,
+				    image_ybot,
+				    depth);
 	(*ImageTexCoords)[3]=osg::Vec2(1,1);
 	(*ImageTexCoords)[4]=osg::Vec2(0,1);
 	(*ImageTexCoords)[5]=osg::Vec2(1,0);
-
+	
 
 	osg::ref_ptr<osg::Geode> ImageGeode = new osg::Geode();
 	osg::ref_ptr<osg::Geometry> ImageGeom = new osg::Geometry();

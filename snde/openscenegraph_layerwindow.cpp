@@ -56,6 +56,14 @@ namespace snde {
       outputbuf_tex->getTextureObject(Info.getState()->getContextID())->bind();
       *readback_pixels=std::make_shared<std::vector<unsigned char>>(outputbuf_tex->getTextureWidth()*outputbuf_tex->getTextureHeight()*4);
       glReadPixels(0,0,outputbuf_tex->getTextureWidth(),outputbuf_tex->getTextureHeight(),GL_RGBA,GL_UNSIGNED_BYTE,(*readback_pixels)->data());
+
+      
+      
+      //FILE *fh=fopen("/tmp/foo.img","wb");
+      //fwrite((*readback_pixels)->data(),1,(outputbuf_tex->getTextureWidth()*outputbuf_tex->getTextureHeight()*4),fh);
+      //fclose(fh);
+    
+
       
       // disable the Fbo ... like disableFboAfterRendering
       
@@ -101,7 +109,8 @@ namespace snde {
     if (OutputBufTexObj) {
       // (If OutputBufTexObj doesn't exist then it will be created with the correct parameters when needed
       // and this is unnecessary)
-      OutputBufTexObj->bind();      
+      OutputBufTexObj->bind();
+      snde_warning("osg_layerwindow: Calling glTexImage2D (id %d) with width=%d, height=%d",(int)OutputBufTexObj->id(),outputbuf->getTextureWidth(), outputbuf->getTextureHeight());
       glTexImage2D( GL_TEXTURE_2D, 0, outputbuf->getInternalFormat(),
 		    outputbuf->getTextureWidth(), outputbuf->getTextureHeight(),
 		    outputbuf->getBorderWidth(),
@@ -168,7 +177,11 @@ namespace snde {
 
     //assert(glGetError()== GL_NO_ERROR);
 
-
+    //glViewport( 0, 0, outputbuf->getTextureWidth(),outputbuf->getTextureHeight());
+    //glClearColor(.5,.4,.3,1.0);
+    //glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+ 
+    
     // debugging
     //glViewport(0,0,outputbuf->getTextureWidth(),outputbuf->getTextureHeight());
     //assert(glGetError()== GL_NO_ERROR);
@@ -305,12 +318,37 @@ namespace snde {
     if (_traits) {
       if (width != _traits->width || height != _traits->height) {
 	
+	_traits->width = width;
+	_traits->height = height;
 	//depthbuf->setSize(width,height);
+
+	// There seem (?) to be driver bugs where if you attempt grow an existing texture
+	// only the original corner is valid. So we try just completely swapping out the texture
+
+	
 	outputbuf->setTextureSize(width,height);
-	snde_warning("layerwindow: setting texture size to %d by %d", width,height);
-	//Cam->setViewport(0,0,pix_width,height);
+
+	/*
+	outputbuf = new osg::Texture2D(); // !!!*** see also init() where outputbuf is initially created ***!!!
+	outputbuf->setTextureSize(_traits->width,_traits->height);
+	outputbuf->setSourceFormat(GL_RGBA);
+	//outputbuf->setInternalFormat(GL_RGBA8UI); // using this causes  GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT 0x8CD6 error
+	outputbuf->setInternalFormat(GL_RGBA);
+	outputbuf->setWrap(osg::Texture::WRAP_S,osg::Texture::CLAMP_TO_EDGE);
+	outputbuf->setWrap(osg::Texture::WRAP_T,osg::Texture::CLAMP_TO_EDGE);
+	outputbuf->setSourceType(GL_UNSIGNED_BYTE);
+	outputbuf->setFilter(osg::Texture::MIN_FILTER,osg::Texture::LINEAR);
+	outputbuf->setFilter(osg::Texture::MAG_FILTER,osg::Texture::LINEAR);
 	
+	predraw->outputbuf=outputbuf;
+	if (readback) {
+	  postdraw->outputbuf_tex = outputbuf;
+	}
+	*/
 	
+	//snde_warning("layerwindow: setting texture size to %d by %d", width,height);
+	Viewer->getCamera()->setViewport(0,0,width,height);//  (redundant)
+
       }
       
       osgViewer::GraphicsWindow::resizedImplementation(0,0,width,height);
@@ -358,8 +396,8 @@ namespace snde {
       
       ourstate->initializeExtensionProcs();
       
-	
-      outputbuf = new osg::Texture2D();
+      
+      outputbuf = new osg::Texture2D(); // !!!*** See also resizedImplementation() where outputbuf is re-created
       outputbuf->setTextureSize(_traits->width,_traits->height);
       outputbuf->setSourceFormat(GL_RGBA);
       //outputbuf->setInternalFormat(GL_RGBA8UI); // using this causes  GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT 0x8CD6 error
@@ -392,7 +430,7 @@ namespace snde {
       
       // Create callbacks for use in setup_camera();
       predraw = new osg_layerwindow_predraw_callback(Viewer,outputbuf,readback);
-      postdraw = new osg_layerwindow_postdraw_callback(Viewer,readback ? outputbuf : nullptr); 
+      postdraw = new osg_layerwindow_postdraw_callback(Viewer,(readback/*=true*/ /* ***!!!! */ )  ? outputbuf : nullptr); 
       
 
     }

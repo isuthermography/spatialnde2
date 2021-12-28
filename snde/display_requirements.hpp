@@ -25,7 +25,10 @@ namespace snde {
               // rendering area in pixels
     size_t y; 
     size_t width; // size of channel renderingbox in pixels
-    size_t height; 
+    size_t height;
+    
+    size_t drawareawidth; // size of entire drawing area in pixels
+    size_t drawareaheight;
   };
 
   class display_spatial_transform {
@@ -44,6 +47,9 @@ namespace snde {
     // So for images or waveforms this transform represents:
     //   pixels-rel-lower-left-of-channel-renderingbox divided by channel coordinates
     //
+
+    // rendering area is the visible domain to be rendered to
+    // render box is the portion into which we are rendering this channel
     
     // NOTE: Stored in fortran order (row-major), so it may appear transposed from C++
     Eigen::Matrix<double,3,3,Eigen::RowMajor> renderarea_coords_over_renderbox_coords; // renderarea in pixels relative to its lower-left; renderbox in pixels relative to its lower left

@@ -249,6 +249,8 @@ namespace snde {
     AxisList.push_back(std::make_shared<display_axis>("Intensity","I",FindUnit("arbitrary"),false,0.0,0.0,1.0));
 
     pixelsperdiv=1.0; // will need to be updated by set_pixelsperdiv
+    drawareawidth=1.0; // also updated by set_pixelsperdiv
+    drawareaheight=1.0;
   }
 
   void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalrev)
@@ -291,12 +293,18 @@ namespace snde {
     return iter->second;
   }
 
-  void display_info::set_pixelsperdiv(size_t drawareawidth,size_t drawareaheight)
+  void display_info::set_pixelsperdiv(size_t new_drawareawidth,size_t new_drawareaheight)
   {
     std::lock_guard<std::mutex> adminlock(admin);
+
+    drawareawidth = new_drawareawidth;
+    drawareaheight = new_drawareaheight;
+    
     double pixelsperdiv_width = drawareawidth*1.0/horizontal_divisions;
     double pixelsperdiv_height = drawareaheight*1.0/vertical_divisions;
 
+    
+    
     pixelsperdiv = std::min(pixelsperdiv_width,pixelsperdiv_height);
   }
 

@@ -474,7 +474,7 @@ namespace snde {
 
     cached_recording = params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath);
     if (!cached_recording) {
-      throw snde_error("osg_cachedimagedata: Could not get recording for %s",display_req->renderable_channelpath->c_str()); 
+      throw snde_error("osg_cachedimage: Could not get recording for %s",display_req->renderable_channelpath->c_str()); 
       
     }
     if (!GetGeom(cached_recording,&ndim, // doesn't count as a parameter because dependent solely on the underlying recording
@@ -515,6 +515,7 @@ namespace snde {
     imagestateset=imagegeode->getOrCreateStateSet();
     imagestateset->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
     imagestateset->setTextureAttributeAndModes(0,imagetexture,osg::StateAttribute::ON);
+    imagestateset->setTextureAttributeAndModes(0,texture->texture_transform,osg::StateAttribute::ON);
     
     osg::ref_ptr<osg::Vec4Array> ColorArray=new osg::Vec4Array();
     ColorArray->push_back(osg::Vec4(1.0,1.0,1.0,1.0)); // Setting the first 3 to less than 1.0 will dim the output. Setting the last one would probably add alpha transparency (?)
@@ -542,9 +543,18 @@ namespace snde {
       (*ImageCoords)[2]=osg::Vec3d(IniValX-0.5*StepSzX,
 				   IniValY+dimleny*StepSzY-0.5*StepSzY,
 				   0.0);
+
+      /*
       (*ImageTexCoords)[0]=osg::Vec2d(0,0);
       (*ImageTexCoords)[1]=osg::Vec2d(1,0);
-      (*ImageTexCoords)[2]=osg::Vec2d(0,1);
+      (*ImageTexCoords)[2]=osg::Vec2d(0,1);*/
+      (*ImageTexCoords)[0]=osg::Vec2d(IniValX-0.5*StepSzX,
+				      IniValY-0.5*StepSzY);
+      (*ImageTexCoords)[1]=osg::Vec2d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
+				      IniValY-0.5*StepSzY);
+      (*ImageTexCoords)[2]=osg::Vec2d(IniValX-0.5*StepSzX,
+				      IniValY+dimleny*StepSzY-0.5*StepSzY);
+      
       
       // upper-right triangle (if both StepSzX and StepSzY positive)
       (*ImageCoords)[3]=osg::Vec3d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
@@ -556,13 +566,23 @@ namespace snde {
       (*ImageCoords)[5]=osg::Vec3d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
 				   0.0);
+      /*
       (*ImageTexCoords)[3]=osg::Vec2d(1,1);
       (*ImageTexCoords)[4]=osg::Vec2d(0,1);
       (*ImageTexCoords)[5]=osg::Vec2d(1,0);
+      */
+      (*ImageTexCoords)[3]=osg::Vec2d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
+				      IniValY+dimleny*StepSzY-0.5*StepSzY);
+      (*ImageTexCoords)[4]=osg::Vec2d(IniValX-0.5*StepSzX,
+				      IniValY+dimleny+StepSzY-0.5*StepSzY);
+      (*ImageTexCoords)[5]=osg::Vec2d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
+				      IniValY-0.5*StepSzY);
+      
     } else {
       // One of StepSzX or StepSzY is positive, one is negative
       // work as raster coordinates (StepSzY negative)
       // lower-left triangle
+      
       (*ImageCoords)[0]=osg::Vec3d(IniValX-0.5*StepSzX,
 				   IniValY+dimleny*StepSzY-0.5*StepSzY,
 				   0.0);
@@ -572,10 +592,17 @@ namespace snde {
       (*ImageCoords)[2]=osg::Vec3d(IniValX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
 				   0.0);
+      /*
       (*ImageTexCoords)[0]=osg::Vec2d(0,1);
       (*ImageTexCoords)[1]=osg::Vec2d(1,1);
       (*ImageTexCoords)[2]=osg::Vec2d(0,0);
-      
+      */
+      (*ImageTexCoords)[0]=osg::Vec2d(IniValX-0.5*StepSzX,
+				      IniValY+dimleny*StepSzY-0.5*StepSzY);
+      (*ImageTexCoords)[1]=osg::Vec2d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
+				      IniValY+dimleny*StepSzY-0.5*StepSzY);
+      (*ImageTexCoords)[2]=osg::Vec2d(IniValX-0.5*StepSzX,
+				      IniValY-0.5*StepSzY);
       // upper-right triangle 
       (*ImageCoords)[3]=osg::Vec3d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
@@ -586,10 +613,17 @@ namespace snde {
       (*ImageCoords)[5]=osg::Vec3d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
 				   IniValY+dimleny*StepSzY-0.5*StepSzY,
 				   0.0);
+      /*
       (*ImageTexCoords)[3]=osg::Vec2d(1,0);
       (*ImageTexCoords)[4]=osg::Vec2d(0,0);
       (*ImageTexCoords)[5]=osg::Vec2d(1,1);
-      
+      */
+      (*ImageTexCoords)[3]=osg::Vec2d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
+				      IniValY-0.5*StepSzY);
+      (*ImageTexCoords)[4]=osg::Vec2d(IniValX-0.5*StepSzX,
+				      IniValY-0.5*StepSzY);
+      (*ImageTexCoords)[5]=osg::Vec2d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
+				      IniValY+dimleny*StepSzY-0.5*StepSzY);
     }
     
 

@@ -52,7 +52,7 @@ namespace snde {
     qt_worker_thread(nullptr),
     Parent_QTRViewer(Parent_QTRViewer)
   {
-
+    Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded);
     Viewer->getCamera()->setViewport(new osg::Viewport(0,0,width(),height()));
     Viewer->getCamera()->setGraphicsContext(GraphicsWindow);
     
@@ -380,6 +380,8 @@ namespace snde {
     //GraphicsWindow->getEventQueue()->windowResize(0,0,width,height);
     //GraphicsWindow->resized(0,0,width,height);
     //Camera->setViewport(0,0,width,height);
+    display->set_pixelsperdiv(width,height);
+    
     resize_compositor(width,height);
     
     trigger_rerender();
