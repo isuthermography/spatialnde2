@@ -4,9 +4,18 @@ global recdb
 import multiprocessing
 import spatialnde2 as snde
 
-recdb=snde.recdatabase()
-snde.setup_cpu(recdb,multiprocessing.cpu_count())
-snde.setup_storage_manager(recdb)
-snde.setup_math_functions(recdb,[])
-recdb.startup()
+enable_opencl=False
+
+
+if not "recdb" in globals():
+    recdb=snde.recdatabase()
+    snde.setup_cpu(recdb,multiprocessing.cpu_count())
+    if enable_opencl:
+        snde.setup_opencl()
+        pass
+   
+    snde.setup_storage_manager(recdb)
+    snde.setup_math_functions(recdb,[])
+    recdb.startup()
+    pass
 

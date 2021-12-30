@@ -241,24 +241,33 @@ namespace snde {
     fprintf(stderr,"SNDE WARNING: %s\n",warnstr.c_str());
   }
 
-  SNDE_API extern unsigned current_debugflags;
+  SNDE_API extern unsigned initial_debugflags;
+  unsigned current_debugflags();
+
   
   template<typename ... Args>
   void snde_debug(unsigned dbgclass,std::string fmt, Args && ... args)
   {
-    if (dbgclass & current_debugflags) {
+    
+    if (dbgclass & current_debugflags()) {
       std::string warnstr = ssprintf(fmt,std::forward<Args>(args) ...);
       fprintf(stderr,"SNDE DEBUG: %s\n",warnstr.c_str());
     }
   }
-  // defines for dbgclass/current_debugflags
+    // defines for dbgclass/current_debugflags
+    // !!!*** SEE ALSO CHECKFLAG ENTRIES IN SNDE_ERROR.CPP ***!!! 
 #define SNDE_DC_RECDB (1<<0)
 #define SNDE_DC_RECMATH (1<<1)
 #define SNDE_DC_NOTIFY (1<<2)
 #define SNDE_DC_LOCKING (1<<3)
 #define SNDE_DC_APP (1<<4)
-#define SNDE_DC_COMPUTE_DISPATCH (1<<4)
-#define SNDE_DC_ALL ((1<<6)-1)
-  
+#define SNDE_DC_COMPUTE_DISPATCH (1<<5)
+#define SNDE_DC_RENDERING (1<<6)
+#define SNDE_DC_DISPLAY (1<<7)
+#define SNDE_DC_EVENT (1<<8)
+#define SNDE_DC_VIEWER (1<<9)
+#define SNDE_DC_ALL ((1<<10)-1)
+
+   
 }
 #endif /* SNDE_ERROR_HPP */

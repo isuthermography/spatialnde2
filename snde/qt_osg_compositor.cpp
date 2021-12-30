@@ -80,7 +80,7 @@ namespace snde {
 
     // perform OSG event traversal prior to rendering so as to be able to process
     // mouse events, etc. BEFORE compositing
-    snde_warning("trigger_rerender()");
+    snde_debug(SNDE_DC_RENDERING,"trigger_rerender()");
     Viewer->eventTraversal();
     
     osg_compositor::trigger_rerender();
@@ -187,7 +187,7 @@ namespace snde {
       RenderContext->moveToThread(qt_worker_thread);
       DummyOffscreenSurface->moveToThread(qt_worker_thread);
 
-      snde_warning("RC and DOC: movetothread 0x%llx 0x%llx 0x%llx",(unsigned long long)RenderContext,(unsigned long long)DummyOffscreenSurface,(unsigned long long)qt_worker_thread);
+      snde_debug(SNDE_DC_RENDERING,"RC and DOC: movetothread 0x%llx 0x%llx 0x%llx",(unsigned long long)RenderContext,(unsigned long long)DummyOffscreenSurface,(unsigned long long)qt_worker_thread);
     }
 
     
@@ -283,7 +283,7 @@ namespace snde {
     dummy_event->setTime(Viewer->getFrameStamp()->getReferenceTime()-1.0);
     GraphicsWindow->getEventQueue()->addEvent(dummy_event);
 
-    snde_warning("Dummy events added; need_recomposite=%d",(int)need_recomposite);
+    snde_debug(SNDE_DC_RENDERING,"Dummy events added; need_recomposite=%d",(int)need_recomposite);
     
     // enable continuous updating if requested 
     /*
@@ -358,7 +358,7 @@ namespace snde {
   void qt_osg_compositor::paintGL()
   {
     // mark that at minimum we need a recomposite
-    snde_warning("paintGL()");
+    snde_debug(SNDE_DC_RENDERING,"paintGL()");
     {
       std::lock_guard<std::mutex> adminlock(admin);
       need_recomposite=true;
@@ -393,7 +393,7 @@ namespace snde {
   void qt_osg_compositor::mouseMoveEvent(QMouseEvent *event)
   {
     // translate Qt mouseMoveEvent to OpenSceneGraph
-    snde_warning("Generating mousemotion");
+    snde_debug(SNDE_DC_EVENT,"Generating mousemotion");
     GraphicsWindow->getEventQueue()->mouseMotion(event->x(), event->y()); //,event->timestamp()/1000.0);
     
     // for some reason drags with the middle mouse button pressed
@@ -429,7 +429,7 @@ namespace snde {
       
     }
 
-    snde_warning("Mouse press event (%d,%d,%d)",event->x(),event->y(),button);
+    snde_debug(SNDE_DC_EVENT,"Mouse press event (%d,%d,%d)",event->x(),event->y(),button);
     
     GraphicsWindow->getEventQueue()->mouseButtonPress(event->x(),event->y(),button); //,event->timestamp()/1000.0);
     
@@ -463,6 +463,7 @@ namespace snde {
       
     }
     
+    snde_debug(SNDE_DC_EVENT,"Mouse release event (%d,%d,%d)",event->x(),event->y(),button);
     GraphicsWindow->getEventQueue()->mouseButtonRelease(event->x(),event->y(),button); //,event->timestamp()/1000.0);
     
     trigger_rerender();
@@ -528,7 +529,7 @@ namespace snde {
   void qt_osg_compositor::rerender()
   // QT slot indicating that rerendering is needed
   {
-    snde_warning("qt_osg_compositor: Got rerender");
+    snde_debug(SNDE_DC_RENDERING,"qt_osg_compositor: Got rerender");
     trigger_rerender();
 
     if (!threaded) {
@@ -539,7 +540,7 @@ namespace snde {
   void qt_osg_compositor::update()
   // QT slot indicating that we should do a display update, i.e. a re-composite
   {
-    snde_warning("qt_osg_compositor::update()");
+    snde_debug(SNDE_DC_RENDERING,"qt_osg_compositor::update()");
     QOpenGLWidget::update(); // re-composite done inside paintGL();
   }
 

@@ -750,7 +750,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 	    bottom = rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
 	  }
 
-	  snde_warning("spatial_transforms_for_image_channel: xunitscale=%f",xunitscale);
+	  snde_debug(SNDE_DC_DISPLAY,"spatial_transforms_for_image_channel: xunitscale=%f",xunitscale);
 	  std::tie(posn,xform,bounds) = spatial_transforms_for_image_channel(display->drawareawidth,display->drawareaheight,
 									     display->horizontal_divisions,display->vertical_divisions,
 									     xcenter,-displaychan->Position,displaychan->VertZoomAroundAxis,
@@ -926,7 +926,7 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
       // and perhaps this update should not occur unless this was actually a render goal (?)
       displaychan->render_mode = SNDE_DCRM_GEOMETRY;
 
-      snde_warning("3d_channel HorizPosition: %f Position: %f pixelsperdiv=%f",displaychan->HorizPosition,displaychan->Position,display->pixelsperdiv);
+      snde_debug(SNDE_DC_DISPLAY,"3d_channel HorizPosition: %f Position: %f pixelsperdiv=%f",displaychan->HorizPosition,displaychan->Position,display->pixelsperdiv);
       
       std::tie(posn,xform,bounds) = spatial_transforms_for_3d_channel(display->drawareawidth,display->drawareaheight,
 								      displaychan->HorizPosition,displaychan->Position,

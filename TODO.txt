@@ -24,7 +24,7 @@
  * In recmath_compute_resource.cpp make the exception handler for math
    functions return an empty recording rather than causing a hang
 
- * Dataguzzler-python module contexts precede recording data in the locking order. Make a hook for the dataguzzler-python module context switcher to call when switching into a context to check if any recording locks are held by the current thread, and diagnose the error. If this is not implemented there is the risk of hard-to-diagnose random deadlocks if dataguzzler-python modules make external calls to other modules while holding a spatialnde2 recording lock. (Similarly perhaps implement a wrapped lock within dataguzzler-python with similar behavior for intra-module locks?)
+ * Dataguzzler-python module contexts precede recording data in the locking order. Make a hook for the dataguzzler-python module context switcher to call when switching into a context to check if any recording locks are held by the current thread, and diagnose the error. If this is not implemented there is the risk of hard-to-diagnose random deadlocks if dataguzzler-python modules make external calls to other modules while holding a spatialnde2 recording lock. (Similarly perhaps implement a wrapped lock within dataguzzler-python with similar behavior for intra-module locks?). So far none of this is an issue as spatialnde2 recording locks aren't exposed to Python at all. 
  
  * Consider the various scenarios relating to the transaction lock and dataguzzler-python
    module locks. One possibility is that the dataguzzler-python module could choose to have

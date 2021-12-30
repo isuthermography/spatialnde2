@@ -7,11 +7,36 @@
 
 namespace snde {
 
-  SNDE_API unsigned current_debugflags=0;
-  //SNDE_API unsigned current_debugflags=SNDE_DC_COMPUTE_DISPATCH;
-  //SNDE_API unsigned current_debugflags=SNDE_DC_RECDB|SNDE_DC_NOTIFY;
-  //SNDE_API unsigned current_debugflags=SNDE_DC_ALL;
+  SNDE_API unsigned initial_debugflags=0;
+  //SNDE_API unsigned initial_debugflags=SNDE_DC_COMPUTE_DISPATCH;
+  //SNDE_API unsigned initial_debugflags=SNDE_DC_RECDB|SNDE_DC_NOTIFY;
+  //SNDE_API unsigned initial_debugflags=SNDE_DC_ALL;
 
+  unsigned check_debugflag(unsigned flag, char *env_var)
+  {
+    char *var_val = std::getenv(env_var);
+
+    if (var_val && strlen(var_val) && std::string("0") != var_val) {
+      return flag;
+    }
+
+    return 0;
+  }
+  
+  unsigned read_debugflags()
+  {
+    unsigned debugflags = initial_debugflags;
+
+    debugflags |= check_debugflag(SNDE_DC_RECDB,"SNDE_DC_RECDB");
+  }
+  
+
+  unsigned current_debugflags()
+  {
+    static unsigned flags = read_debugflags(); // thread safe per C++11
+
+    return flags; 
+  }
 
   
   std::string demangle_type_name(const char *name)

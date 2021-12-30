@@ -33,6 +33,7 @@ namespace snde {
 
     Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded); // We handle threading ourselves... this is REQUIRED
     Viewer->setCameraManipulator(Manipulator);
+    Manipulator->setAllowThrow(false); // leave at false unless/until we get the other animation infrastructure working (basically relevant event callbacks compatible with the OSG timers)
     //Viewer->addEventHandler(Manipulator);
     Viewer->realize();
   }
@@ -72,7 +73,11 @@ namespace snde {
     if (display_req->spatial_bounds->bottom >= display_req->spatial_bounds->top ||
 	display_req->spatial_bounds->left >= display_req->spatial_bounds->right) {
       // negative or zero display area
-      Viewer->setSceneData(nullptr);
+      if (RootGroup->getNumChildren()) {
+	
+	RootGroup->removeChildren(0,RootGroup->getNumChildren());
+      }
+      
 
       modified = true; 
     } else { // Positive display area 
@@ -87,6 +92,12 @@ namespace snde {
       }
       Camera->setProjectionMatrixAsPerspective(30.0f,((double)width)/height,1.0f,10000.0f); // !!!*** Check last two parameters
       //snde_warning("setProjectionMatrixAsPerspective aspect ratio = %f",((double)width)/height);
+
+      {
+	osg::Vec3f eye,center,up;
+	Camera->getViewMatrixAsLookAt(eye,center,up);
+	snde_debug(SNDE_DC_RENDERING,"Camera View on %s: eye: %f %f %f center: %f %f %f up: %f %f %f",channel_path.c_str(),eye[0],eye[1],eye[2],center[0],center[1],center[2],up[0],up[1],up[2]); 
+      }
       
       // Create projection matrix.
       // Focal behavior comes from the spatial position width/height

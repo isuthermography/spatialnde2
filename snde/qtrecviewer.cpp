@@ -258,6 +258,7 @@ namespace snde {
     //for (auto reciter=reclist->begin();reciter != reclist->end();reciter++) {
     //std::shared_ptr<mutableinfostore> infostore=*reciter;
     posmgr->set_selected(displaychan);
+    OSGWidget->set_selected_channel(displaychan->FullName);
     selected = displaychan->FullName;
     //}
     
@@ -274,7 +275,9 @@ namespace snde {
     std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
 
     if (!recdb_strong) return;
-    
+
+    // !!!*** NOTE: osg_compositor allso calls display->update(), but with all three bools false
+    // ... is it a problem that both modules are calling display->update??? (and perhaps from different threads!) 
     std::vector<std::shared_ptr<display_channel>> currentreclist = display->update(recdb_strong->latest_ready_globalrev(),selected,false,true,false);
     
     // clear touched flag for all selectors

@@ -72,7 +72,7 @@ namespace snde {
       
     };
 
-    snde_warning("image render width bounds: left: %f right: %f bottom: %f top: %f",
+    snde_debug(SNDE_DC_RENDERING,"image render width bounds: left: %f right: %f bottom: %f top: %f",
 		 display_req->spatial_bounds->left,
 		 display_req->spatial_bounds->right,
 		 display_req->spatial_bounds->bottom,
@@ -102,7 +102,7 @@ namespace snde {
 	GraphicsWindow->resized(0,0,display_req->spatial_position->width,display_req->spatial_position->height);
 	Camera->setViewport(0,0,display_req->spatial_position->width,display_req->spatial_position->height);
 	modified = true;
-	snde_warning("image position: width: %d height: %d",
+	snde_debug(SNDE_DC_RENDERING,"image position: width: %d height: %d",
 		     display_req->spatial_position->width,
 		     display_req->spatial_position->height);
 

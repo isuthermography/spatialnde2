@@ -110,7 +110,7 @@ namespace snde {
       // (If OutputBufTexObj doesn't exist then it will be created with the correct parameters when needed
       // and this is unnecessary)
       OutputBufTexObj->bind();
-      snde_warning("osg_layerwindow: Calling glTexImage2D (id %d) with width=%d, height=%d",(int)OutputBufTexObj->id(),outputbuf->getTextureWidth(), outputbuf->getTextureHeight());
+      snde_debug(SNDE_DC_RENDERING,"osg_layerwindow: Calling glTexImage2D (id %d) with width=%d, height=%d",(int)OutputBufTexObj->id(),outputbuf->getTextureWidth(), outputbuf->getTextureHeight());
       glTexImage2D( GL_TEXTURE_2D, 0, outputbuf->getInternalFormat(),
 		    outputbuf->getTextureWidth(), outputbuf->getTextureHeight(),
 		    outputbuf->getBorderWidth(),

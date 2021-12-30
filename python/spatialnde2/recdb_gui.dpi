@@ -1,0 +1,39 @@
+from dataguzzler_python import dgpy
+import spatialnde2 as snde
+
+global snde_recdb_windows
+global snde_RecViewerWindow
+global viewer
+
+if not "snde_recdb_windows" in globals():
+   
+    snde_recdb_windows=[]
+    include(snde,"recdb.dpi")
+    include(dgpy,"Qt.dpi") # in case not already started
+    
+    class snde_RecViewerWindow(Qt.QtWidgets.QMainWindow): 
+        viewer = None
+
+        def __init__(self):
+            super().__init__()
+            self.viewer = snde.QTRecViewer(recdb,self)
+            self.setCentralWidget(self.viewer.QWidget())
+
+            # Intelligent default size
+            self.resize(QApp.primaryScreen().availableGeometry().size()*0.7);
+            
+            pass
+        pass
+    pass
+
+def viewer():
+    new_window = InstantiateInQtMainThread("dgpy_config","snde_RecViewerWindow")
+    new_window.show()
+
+    # Give the window a place to live where
+    # it won't lose its reference count
+    snde_recdb_windows.append(new_window)
+    pass
+
+# Create an initial viewer
+viewer()

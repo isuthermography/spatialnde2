@@ -54,7 +54,7 @@ namespace snde {
       std::lock_guard<std::mutex> comp_admin(comp->admin);
       selected_channel = comp->selected_channel;
     }
-    snde_warning("osg_compositor: Handling event: %s %d",selected_channel.c_str(),eventadapt.getEventType());
+    snde_debug(SNDE_DC_EVENT,"osg_compositor: Handling event: %s %d",selected_channel.c_str(),eventadapt.getEventType());
 
     if (!selected_channel.size()) {
       return false; // no event processing if no channel selected
@@ -68,7 +68,7 @@ namespace snde {
       bool ctrl=(bool)(eventadapt.getModKeyMask() & osgGA::GUIEventAdapter::MODKEY_CTRL);
       bool alt=(bool)(eventadapt.getModKeyMask() & osgGA::GUIEventAdapter::MODKEY_ALT);
 
-      snde_warning("osg_compositor: Handling keyboard event");
+      snde_debug(SNDE_DC_EVENT,"osg_compositor: Handling keyboard event");
 
       if (eventadapt.getKey() >= ' ' && eventadapt.getKey() <= '~') {
 	// ASCII space...tilde  includes all regular
@@ -88,7 +88,7 @@ namespace snde {
 	       eventadapt.getEventType() == osgGA::GUIEventAdapter::DOUBLECLICK ||
 	       eventadapt.getEventType() == osgGA::GUIEventAdapter::DRAG) {
       // mouseclick or drag... pass it on to the selected channel
-      snde_warning("osg_compositor: Handling mouse event");
+      snde_debug(SNDE_DC_EVENT,"osg_compositor: Handling mouse event");
 
       std::shared_ptr<osg_renderer> renderer;
 
@@ -266,10 +266,10 @@ namespace snde {
   osg_compositor::~osg_compositor()
   {
     //if (threaded) {
-    snde_warning("~osg_compositor()");
+    snde_debug(SNDE_DC_RENDERING,"~osg_compositor()");
     // NOTE: If we are actually a qt_osg_compositor(), that destructor wold have already called stop() once!
     stop();
-    snde_warning("~osg_compositor(): stop() complete");
+    snde_debug(SNDE_DC_RENDERING,"~osg_compositor(): stop() complete");
     //}
     if (eventhandler) {
       eventhandler->compositor_dead=true;
@@ -536,7 +536,7 @@ namespace snde {
 	std::tie(cacheentry,modified) = renderer->prepare_render(display_transforms->with_display_transforms,RenderCache,display_reqs,compositor_width,compositor_height);
 	
 	// rerender either if there is a modification to the tree, or if we have OSG events (such as rotating, etc)
-	snde_warning("compositor about to render %s: 0x%lx modified=%d; empty=%d",display_req.second->channelpath.c_str(),(unsigned long)renderer->EventQueue.get(),(int)modified,renderer->EventQueue->empty());
+	snde_debug(SNDE_DC_RENDERING,"compositor about to render %s: 0x%lx modified=%d; empty=%d",display_req.second->channelpath.c_str(),(unsigned long)renderer->EventQueue.get(),(int)modified,renderer->EventQueue->empty());
 	if (cacheentry && (modified || !renderer->EventQueue->empty())) {
 	  renderer->frame();
 	  
@@ -603,7 +603,7 @@ namespace snde {
 
     osg::ref_ptr<osg::Group> group=new osg::Group();
     double depth=-1.0*(channels_to_display.size()+1);  // start negative to be compatible with usual OpenGL coordinate frame where negative z's are in front of the cameras
-    snde_warning("starting compositing loop:");
+    snde_debug(SNDE_DC_RENDERING,"starting compositing loop:");
 
     group->getOrCreateStateSet()->setMode(GL_DEPTH_TEST,osg::StateAttribute::OFF);
     
@@ -630,13 +630,13 @@ namespace snde {
 	texobj->setAllocated();
 	tex->setTextureObject(GraphicsWindow->getState()->getContextID(),texobj);
 
-	snde_warning("borderbox: width=%d,height=%d",compositor_width,compositor_height);
+	snde_debug(SNDE_DC_RENDERING,"borderbox: width=%d,height=%d",compositor_width,compositor_height);
 	/* !!!*** NOTE: Apparently had trouble previously with double precision vs single precision arrays (?) */
 	
 	// Z position of border is -0.5 relative to image, so it appears on top
 	// around edge
 
-	snde_warning("borderbox: spatial x = %d; y = %d; width = %d; height = %d",dispreq->spatial_position->x,dispreq->spatial_position->y,dispreq->spatial_position->width,dispreq->spatial_position->height);
+	snde_debug(SNDE_DC_RENDERING,"borderbox: spatial x = %d; y = %d; width = %d; height = %d",dispreq->spatial_position->x,dispreq->spatial_position->y,dispreq->spatial_position->width,dispreq->spatial_position->height);
 	
 	float borderbox_xleft = dispreq->spatial_position->x-borderwidthpixels/2.0;
 	if (borderbox_xleft < 0.5) {
@@ -659,20 +659,20 @@ namespace snde {
 	}
 
 
-	snde_warning("borderbox: xleft=%f,ybot=%f,xright=%f,ytop=%f",borderbox_xleft,borderbox_ybot,borderbox_xright,borderbox_ytop);
+	snde_debug(SNDE_DC_RENDERING,"borderbox: xleft=%f,ybot=%f,xright=%f,ytop=%f",borderbox_xleft,borderbox_ybot,borderbox_xright,borderbox_ytop);
 		
 	osg::ref_ptr<osg::Vec3Array> BorderCoords=new osg::Vec3Array(8);
-	(*BorderCoords)[0]=osg::Vec3(borderbox_xleft,borderbox_ybot,depth-0.5);
-	(*BorderCoords)[1]=osg::Vec3(borderbox_xright,borderbox_ybot,depth-0.5);
+	(*BorderCoords)[0]=osg::Vec3(borderbox_xleft,borderbox_ybot,depth+0.5);
+	(*BorderCoords)[1]=osg::Vec3(borderbox_xright,borderbox_ybot,depth+0.5);
 	
-	(*BorderCoords)[2]=osg::Vec3(borderbox_xright,borderbox_ybot,depth-0.5);
-	(*BorderCoords)[3]=osg::Vec3(borderbox_xright,borderbox_ytop,depth-0.5);
+	(*BorderCoords)[2]=osg::Vec3(borderbox_xright,borderbox_ybot,depth+0.5);
+	(*BorderCoords)[3]=osg::Vec3(borderbox_xright,borderbox_ytop,depth+0.5);
 	
-	(*BorderCoords)[4]=osg::Vec3(borderbox_xright,borderbox_ytop,depth-0.5);
-	(*BorderCoords)[5]=osg::Vec3(borderbox_xleft,borderbox_ytop,depth-0.5);
+	(*BorderCoords)[4]=osg::Vec3(borderbox_xright,borderbox_ytop,depth+0.5);
+	(*BorderCoords)[5]=osg::Vec3(borderbox_xleft,borderbox_ytop,depth+0.5);
 	
-	(*BorderCoords)[6]=osg::Vec3(borderbox_xleft,borderbox_ytop,depth-0.5);
-	(*BorderCoords)[7]=osg::Vec3(borderbox_xleft,borderbox_ybot,depth-0.5);
+	(*BorderCoords)[6]=osg::Vec3(borderbox_xleft,borderbox_ytop,depth+0.5);
+	(*BorderCoords)[7]=osg::Vec3(borderbox_xleft,borderbox_ybot,depth+0.5);
 
 	osg::ref_ptr<osg::Geode> bordergeode = new osg::Geode();
 	osg::ref_ptr<osg::Geometry> bordergeom = new osg::Geometry();
@@ -766,11 +766,11 @@ namespace snde {
 
 	group->addChild(ImageGeode);
 	
-	snde_warning("osg_compositor::perform_compositing(): Rendered channel %s",displaychan->FullName.c_str());
+	snde_debug(SNDE_DC_RENDERING,"osg_compositor::perform_compositing(): Rendered channel %s",displaychan->FullName.c_str());
 	
-	depth--; // next layer is deeper (though maybe we should flip this around and build from deep to shallow to make transparency work better)
+	depth++; // next layer is shallower (less negative)
       } else {
-	snde_warning("osg_compositor::perform_compositing(): Did not find rendered layer for channel %s",displaychan->FullName.c_str());
+	snde_debug(SNDE_DC_RENDERING,"osg_compositor::perform_compositing(): Did not find rendered layer for channel %s",displaychan->FullName.c_str());
       }
       
     }
@@ -790,7 +790,7 @@ namespace snde {
     Viewer->frame();
 
     adminlock->lock();
-    snde_warning("Compositing complete; need_recomposite=%d",(int)need_recomposite);
+    snde_debug(SNDE_DC_RENDERING,"Compositing complete; need_recomposite=%d",(int)need_recomposite);
   }
 
   bool osg_compositor::this_thread_ok_for_locked(int action)
@@ -867,17 +867,17 @@ namespace snde {
     // as well as layering a GUI on top that doesn't cooperate particularly well with OSG. 
     
     while (next_state != SNDE_OSGRCS_EXIT) {
-      snde_warning("start ttofl: %d next_state:%d need_recomposite: %d, need_rerender: %d",this_thread_ok_for_locked(next_state),next_state,need_recomposite,need_rerender);
+      snde_debug(SNDE_DC_RENDERING,"start ttofl: %d next_state:%d need_recomposite: %d, need_rerender: %d",this_thread_ok_for_locked(next_state),next_state,need_recomposite,need_rerender);
       while ((!this_thread_ok_for_locked(next_state)  && !(next_state==SNDE_OSGRCS_WAITING && (need_recomposite || need_rerender))) || (next_state==SNDE_OSGRCS_WAITING && !need_recomposite && !need_rerender)) {
 	if ( (wait && loop_forever) || (wait && !loop_forever && !executed_something)) {
-	  snde_warning("osg_compositor tid %d waiting",std::this_thread::get_id());
+	  snde_debug(SNDE_DC_RENDERING,"osg_compositor tid %d waiting",std::this_thread::get_id());
 	  execution_notify.wait(adminlock);
 	} else {
 	  return; // caller said not to wait
 	}
-	snde_warning("ttofl: %d next_state:%d need_recomposite: %d, need_rerender: %d",this_thread_ok_for_locked(next_state),next_state,need_recomposite,need_rerender);
+	snde_debug(SNDE_DC_RENDERING,"ttofl: %d next_state:%d need_recomposite: %d, need_rerender: %d",this_thread_ok_for_locked(next_state),next_state,need_recomposite,need_rerender);
       }
-      snde_warning("osg_compositor tid %d wakeup",std::this_thread::get_id());
+      snde_debug(SNDE_DC_RENDERING,"osg_compositor tid %d wakeup",std::this_thread::get_id());
       
       if (next_state == SNDE_OSGRCS_WAITING) {
 	if (need_recomposite) {

@@ -359,7 +359,7 @@ namespace snde {
     
     // go through reclist backwards, assembling reclist
     // so last entries in reclist will be first 
-    // (except for selected_chan which will be very first, if given).
+    // (except for selected_chan which will be very last, if given).
 
     std::vector<std::string>::reverse_iterator cl_next_iter;
     
@@ -389,9 +389,9 @@ namespace snde {
 	
 	if ((include_disabled || ci_iter->second->Enabled) || (selected_only && fullname==selected)) {
 	  if (selected.size() > 0 && fullname == selected) {
-	    retval.insert(retval.begin(),ci_iter->second);
-	    //assert(!selected_chan);
-	    //selected_chan = ci_iter->second;
+	    //retval.insert(retval.begin(),ci_iter->second);
+	    assert(!selected_chan);
+	    selected_chan = ci_iter->second;
 	  } else if (!selected_only) {
 	    retval.push_back(ci_iter->second);
 	    //retval.insert(retval.begin(),ci_iter->second);
@@ -413,9 +413,9 @@ namespace snde {
 	
 	if ((include_disabled || new_display_channel->Enabled) || (selected_only && fullname==selected)) {
 	  if (selected.size() > 0 && fullname == selected) {
-	    retval.insert(retval.begin(),new_display_channel);
-	    //assert(!selected_chan);
-	    //selected_chan = new_display_channel;
+	    //retval.insert(retval.begin(),new_display_channel);
+	    assert(!selected_chan);
+	    selected_chan = new_display_channel;
 	  } else if (!selected_only) {
 	    retval.push_back(new_display_channel);
 	  }
@@ -425,7 +425,9 @@ namespace snde {
 	
       }
     }
-      
+    if (selected_chan) {
+      retval.push_back(selected_chan);
+    }
     
     return retval;
   }
@@ -668,7 +670,7 @@ namespace snde {
   void display_info::SetVertScale(std::shared_ptr<display_channel> c,double scalefactor,bool pixelflag)
   {
     std::shared_ptr<display_axis> a;
-    snde_warning("display->SetVertScale()");
+    snde_debug(SNDE_DC_DISPLAY,"display->SetVertScale()");
 
     const std::string chan_name = c->FullName;
     int render_mode;
@@ -678,7 +680,7 @@ namespace snde {
       render_mode = c->render_mode;
     }
 
-    snde_warning("SetVertScale(): scalefactor=%f; render_mode=%d",scalefactor,render_mode);
+    snde_debug(SNDE_DC_DISPLAY,"SetVertScale(): scalefactor=%f; render_mode=%d",scalefactor,render_mode);
 
     /*  set the scaling of whatever unit is used on the vertical axis of this channel */
     if (render_mode==SNDE_DCRM_INVALID) {
