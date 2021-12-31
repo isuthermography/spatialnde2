@@ -52,7 +52,7 @@ namespace snde {
     // ***!!!! Conceptually creating a graphics_storage should pass ownership
     // of the particular array zone, so it is automatically free'd.
     // ***!!! But what about follower arrays?
-    graphics_storage(std::shared_ptr<graphics_storage_manager> graphman,std::shared_ptr<arraymanager> manager,std::shared_ptr<memallocator> memalloc,std::shared_ptr<graphics_storage> leader_storage,std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized); // if leader_storage is nullptr, then the storage onwership is passed to the new object, which will free it. 
+    graphics_storage(std::shared_ptr<graphics_storage_manager> graphman,std::shared_ptr<arraymanager> manager,std::shared_ptr<memallocator> memalloc,std::shared_ptr<graphics_storage> leader_storage,std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized); // if leader_storage is nullptr, then the storage onwership is passed to the new object, which will free it. 
     graphics_storage(const graphics_storage &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
     graphics_storage& operator=(const graphics_storage &) = delete; 
     virtual ~graphics_storage(); // virtual destructor so we can subclass. Notifies follower cachemanagers, even though openclcachemanager doesn't actuall care
@@ -92,6 +92,8 @@ public:
     
     std::mutex follower_cachemanagers_lock; // locks updates to _follower_cachemanagers
     std::shared_ptr<std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>>> _follower_cachemanagers; // atomic shared pointer: Access with follower_cachemanagers()
+
+    uint64_t base_rss_unique_id; // initialized from rss_get_unique() in constructor; helps prevent collsions in shared memory object naming
     
     
     graphics_storage_manager(const std::string &graphics_recgroup_path,std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> lockmngr,double tol);
@@ -104,6 +106,7 @@ public:
 							      std::shared_ptr<graphics_storage> leader_storage, // nullptr if we are creating a leader
 							      std::string array_name,
 							      uint64_t recrevision,
+							      uint64_t originating_rss_unique_id,
 							      snde_index base_index, // as allocated for leader_array
 							      size_t elementsize,
 							      unsigned typenum, // MET_...
@@ -117,6 +120,7 @@ public:
 								    std::shared_ptr<graphics_storage> leader_storage,
 								    std::string follower_array_name,
 								    uint64_t recrevision,
+								    uint64_t originating_rss_unique_id, // graphics_storage does not ultimately use this for anything but it passes it around
 								    snde_index base_index, // as allocated for leader_array
 								    size_t elementsize,
 								    unsigned typenum, // MET_...
@@ -126,6 +130,7 @@ public:
     
     virtual std::shared_ptr<recording_storage> allocate_recording_lockprocess(std::string recording_path,std::string array_name, // use "" for default array
 									      uint64_t recrevision,
+									      uint64_t originating_rss_unique_id,
 									      size_t elementsize,
 									      unsigned typenum, // MET_...
 									      snde_index nelem,
@@ -136,6 +141,8 @@ public:
     
     virtual std::shared_ptr<recording_storage> allocate_recording(std::string recording_path,std::string array_name, // use "" for default array
 								  uint64_t recrevision,
+								  uint64_t originating_rss_unique_id,
+								  size_t multiarray_index,
 								  size_t elementsize,
 								  unsigned typenum, // MET_...
 								  snde_index nelem,

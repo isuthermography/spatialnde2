@@ -49,12 +49,13 @@ namespace snde {
 
   class memkey_hash {
   public:
-    size_t operator() (std::tuple<std::string,uint64_t,memallocator_regionid> const &key) const {
+    size_t operator() (std::tuple<std::string,uint64_t,uint64_t,memallocator_regionid> const &key) const {
       const std::string &recpath=std::get<0>(key);
       const uint64_t &recrev=std::get<1>(key);
-      const memallocator_regionid &id=std::get<2>(key);
+      const uint64_t &originating_rss_unique_id=std::get<2>(key);
+      const memallocator_regionid &id=std::get<3>(key);
 
-      return std::hash<std::string>()(recpath)+std::hash<uint64_t>()(recrev)+std::hash<memallocator_regionid>()(id);
+      return std::hash<std::string>()(recpath)^std::hash<uint64_t>()(recrev)^std::hash<uint64_t>()(originating_rss_unique_id),std::hash<memallocator_regionid>()(id);
     }
   };
 
@@ -66,24 +67,25 @@ namespace snde {
     // once created
     //std::string recpath;
     //uint64_t recrevision;
+    //uint64_t originating_rss_unique_id
     //std::string base_shm_name; // not including _{id}.dat suffix
 
     std::mutex _admin; // final lock in locking order; used internally only
     // _shm_info is locked by the admin mutex
-    std::unordered_map<std::tuple<std::string,uint64_t,memallocator_regionid>,shared_memory_info_posix,memkey_hash/*,memkey_equal*/> _shm_info;
+    std::unordered_map<std::tuple<std::string,uint64_t,uint64_t,memallocator_regionid>,shared_memory_info_posix,memkey_hash/*,memkey_equal*/> _shm_info;
 
     
     shared_memory_allocator_posix();
 
-    std::string base_shm_name(std::string recpath, uint64_t recrevision);
+    std::string base_shm_name(std::string recpath, uint64_t recrevision,uint64_t originating_rss_unique_id);
 
-    virtual void *malloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes);
-    virtual void *calloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes);
-    virtual void *realloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr,std::size_t newsize);
+    virtual void *malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes);
+    virtual void *calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes);
+    virtual void *realloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void *ptr,std::size_t newsize);
     virtual bool supports_nonmoving_reference(); // returns true if this allocator can return a nonmoving reference rather than a copy. The nonmoving reference will stay coherent with the original.
     
-    virtual std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void **basearray,void *ptr, std::size_t shift, std::size_t length);
-    virtual void free(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr);
+    virtual std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id, void **basearray,void *ptr, std::size_t shift, std::size_t length);
+    virtual void free(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void *ptr);
 
     virtual ~shared_memory_allocator_posix();
     

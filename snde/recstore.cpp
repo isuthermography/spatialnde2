@@ -322,8 +322,9 @@ namespace snde {
     info_state(SNDE_RECS_INITIALIZING),
     metadata(nullptr),
     storage_manager(storage_manager), // initially null but defined in end_transaction() for non-math recordings
-    recdb_weak(recdb), 
+    recdb_weak(recdb),
     defining_transact(defining_transact),
+    originating_rss_unique_id(0), // must be assigned post-construction
     _originating_rss(_originating_rss)
   {
     //uint64_t new_revision = ++chan->latest_revision; // atomic variable so it is safe to pre-increment
@@ -1201,7 +1202,7 @@ namespace snde {
     
     // NOTE: Graphics storage manager allocate_recording() will create a nonmoving shadow if possible
     // to eliminate the need for locking
-    stor = storman->allocate_recording(info->name,array_name,info->revision,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem,!info->immutable);
+    stor = storman->allocate_recording(info->name,array_name,originating_rss_unique_id,array_index,info->revision,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem,!info->immutable);
     
     assign_storage(stor,array_index,dimlen,fortran_order);
 
@@ -1233,7 +1234,7 @@ namespace snde {
     
     // NOTE: Graphics storage manager allocate_recording() will create a nonmoving shadow if possible
     // to eliminate the need for locking
-    stor = storman->allocate_recording(info->name,array_name,info->revision,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem,!info->immutable);
+    stor = storman->allocate_recording(info->name,array_name,info->revision,originating_rss_unique_id,array_index,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem,!info->immutable);
     
     assign_storage(stor,array_index,dimlen,fortran_order);
 
@@ -1498,14 +1499,15 @@ namespace snde {
     tr_lock_acquire.swap(transaction_lock_holder); // transfer lock into holder
     //recdb->_transaction_raii_holder=shared_from_this();
 
-    assert(!recdb->current_transaction);
-
-    recdb->current_transaction=std::make_shared<transaction>();
-
-    
     uint64_t previous_globalrev_index = 0;
     {
       std::lock_guard<std::mutex> recdb_lock(recdb->admin);
+
+      assert(!recdb->current_transaction);
+      
+      recdb->current_transaction=std::make_shared<transaction>();
+      
+    
 
       if (recdb->_globalrevs.size()) {
 	// if there are any globalrevs (otherwise we are starting the first!)
@@ -1518,14 +1520,15 @@ namespace snde {
 	// this is the first globalrev
 	previous_globalrev = nullptr; 
       }
-    }      
-    recdb->current_transaction->globalrev = previous_globalrev_index+1;
+      recdb->current_transaction->globalrev = previous_globalrev_index+1;
+      recdb->current_transaction->rss_unique_index = rss_get_unique(); // will be transferred into the rss during end_transaction()
+    }     
     
 
     
   }
 
-  static void _identify_changed_channels(const std::map<std::string,std::shared_ptr<channelconfig>> &all_channels_by_name,std::shared_ptr<instantiated_math_database> mathdb, std::unordered_set<std::shared_ptr<instantiated_math_function>> *unknownchanged_math_functions,std::unordered_set<std::shared_ptr<instantiated_math_function>> *changed_math_functions,std::unordered_set<std::shared_ptr<channelconfig>> *unknownchanged_channels,std::unordered_set<std::shared_ptr<channelconfig>> *changed_channels_dispatched,std::unordered_set<std::shared_ptr<channelconfig>> *changed_channels_need_dispatch,std::unordered_set<std::shared_ptr<instantiated_math_function>> *possiblychanged_math_functions,const std::unordered_set<std::shared_ptr<channelconfig>>::iterator &channel_to_dispatch_it ) // channel_to_dispatch should be in changed_channels_need_dispatch
+  static void _identify_changed_channels(const std::map<std::string,std::shared_ptr<channelconfig>> &all_channels_by_name,std::shared_ptr<instantiated_math_database> mathdb, std::unordered_set<std::shared_ptr<instantiated_math_function>> *unknownchanged_math_functions,std::unordered_set<std::shared_ptr<instantiated_math_function>> *changed_math_functions,std::unordered_set<std::shared_ptr<channelconfig>> *unknownchanged_channels,std::unordered_set<std::shared_ptr<channelconfig>> *changed_channels_dispatched,std::unordered_set<std::shared_ptr<channelconfig>> *changed_channels_need_dispatch,std::unordered_set<std::shared_ptr<instantiated_math_function>> *possiblychanged_math_functions,const std::unordered_set<std::shared_ptr<channelconfig>>::iterator &channel_to_dispatch_it,bool enable_ondemand) // channel_to_dispatch should be in changed_channels_need_dispatch
   // mathdb must be immutable; (i.e. it must already be copied into the global revision)
   {
     // std::unordered_set iterators remain valid so long as the iterated element itself is not erased, and the set does not need rehashing.
@@ -1539,6 +1542,7 @@ namespace snde {
     changed_channels_dispatched->emplace(channel_to_dispatch);
 
     // look up what is dependent on this channel
+    //snde_debug(,"_identify_changed_channels(): Dispatching %s with %d math dependencies",channel_to_dispatch->channelpath.c_str(),);
     
     auto dep_it = mathdb->all_dependencies_of_channel.find(channel_to_dispatch->channelpath);
     if (dep_it != mathdb->all_dependencies_of_channel.end()) {
@@ -1546,8 +1550,8 @@ namespace snde {
       std::unordered_set<std::shared_ptr<instantiated_math_function>> &dependent_math_functions=dep_it->second;
       
       for (auto && instantiated_math_ptr: dependent_math_functions) {
-	if (instantiated_math_ptr->ondemand || instantiated_math_ptr->disabled) {
-	  // ignore disabled and ondemand dependent channels (for now)
+	if ((instantiated_math_ptr->ondemand && !enable_ondemand) || instantiated_math_ptr->disabled) {
+	  // ignore disabled and ondemand dependent channels as appropriate
 	  continue; 
 	}
 
@@ -1600,7 +1604,7 @@ namespace snde {
 
 
 
-  static void _identify_possiblychanged_channels(const std::map<std::string,std::shared_ptr<channelconfig>> &all_channels_by_name,std::shared_ptr<instantiated_math_database> mathdb, std::unordered_set<std::shared_ptr<instantiated_math_function>> *unknownchanged_math_functions,std::unordered_set<std::shared_ptr<instantiated_math_function>> *changed_math_functions,std::unordered_set<std::shared_ptr<channelconfig>> *unknownchanged_channels,std::unordered_set<std::shared_ptr<channelconfig>> *changed_channels_dispatched,std::unordered_set<std::shared_ptr<channelconfig>> *possiblychanged_channels_dispatched,std::unordered_set<std::shared_ptr<channelconfig>> *possiblychanged_channels_need_dispatch,std::unordered_set<std::shared_ptr<instantiated_math_function>> *possiblychanged_math_functions,const std::unordered_set<std::shared_ptr<channelconfig>>::iterator &channel_to_dispatch_it ) // channel_to_dispatch should be in changed_channels_need_dispatch
+  static void _identify_possiblychanged_channels(const std::map<std::string,std::shared_ptr<channelconfig>> &all_channels_by_name,std::shared_ptr<instantiated_math_database> mathdb, std::unordered_set<std::shared_ptr<instantiated_math_function>> *unknownchanged_math_functions,std::unordered_set<std::shared_ptr<instantiated_math_function>> *changed_math_functions,std::unordered_set<std::shared_ptr<channelconfig>> *unknownchanged_channels,std::unordered_set<std::shared_ptr<channelconfig>> *changed_channels_dispatched,std::unordered_set<std::shared_ptr<channelconfig>> *possiblychanged_channels_dispatched,std::unordered_set<std::shared_ptr<channelconfig>> *possiblychanged_channels_need_dispatch,std::unordered_set<std::shared_ptr<instantiated_math_function>> *possiblychanged_math_functions,const std::unordered_set<std::shared_ptr<channelconfig>>::iterator &channel_to_dispatch_it, bool enable_ondemand ) // channel_to_dispatch should be in changed_channels_need_dispatch
   // mathdb must be immutable; (i.e. it must already be copied into the global revision)
   {
     // std::unordered_set iterators remain valid so long as the iterated element itself is not erased, and the set does not need rehashing.
@@ -1621,8 +1625,8 @@ namespace snde {
       std::unordered_set<std::shared_ptr<instantiated_math_function>> &dependent_math_functions=dep_it->second;
       
       for (auto && instantiated_math_ptr: dependent_math_functions) {
-	if (instantiated_math_ptr->ondemand || instantiated_math_ptr->disabled) {
-	  // ignore disabled and ondemand dependent channels (for now)
+	if ((instantiated_math_ptr->ondemand && !enable_ondemand) || instantiated_math_ptr->disabled) {
+	  // ignore disabled and ondemand dependent channels as appropriate
 	  continue; 
 	}
 
@@ -1773,6 +1777,8 @@ namespace snde {
 					     // for possibly dependent channels 
 					     std::unordered_set<std::shared_ptr<channelconfig>> *changed_channels_need_dispatch,
 					     std::unordered_set<std::shared_ptr<channelconfig>> *changed_channels_dispatched,
+					     // Set of channels known to be definitely unchanged
+					     std::unordered_set<std::shared_ptr<channelconfig>> *unchanged_channels,
 					     // set of channels not yet known to be changed
 					     std::unordered_set<std::shared_ptr<channelconfig>> *unknownchanged_channels,
 					     // set of math functions not known to be changed or unchanged
@@ -1782,7 +1788,8 @@ namespace snde {
 					     std::unordered_set<std::shared_ptr<channelconfig>> *explicitly_updated_channels,
     std::unordered_set<channel_state *> *ready_channels, // references into the new_rss->recstatus.channel_map
 					     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> *ready_to_execute,
-					     bool *all_ready)
+					     bool *all_ready,
+					     bool enable_ondemand)
   {
 
 
@@ -1820,7 +1827,7 @@ namespace snde {
     // or derive (perhaps indirectly) by non-new_revision_optional function(s) from a directly modified channel 
     std::unordered_set<std::shared_ptr<channelconfig>>::iterator channel_to_dispatch_it = changed_channels_need_dispatch->begin();
     while (channel_to_dispatch_it != changed_channels_need_dispatch->end()) {
-      _identify_changed_channels(all_channels_by_name,new_rss->mathstatus.math_functions, unknownchanged_math_functions,changed_math_functions,unknownchanged_channels,changed_channels_dispatched,changed_channels_need_dispatch,&possiblychanged_math_functions,channel_to_dispatch_it );
+      _identify_changed_channels(all_channels_by_name,new_rss->mathstatus.math_functions, unknownchanged_math_functions,changed_math_functions,unknownchanged_channels,changed_channels_dispatched,changed_channels_need_dispatch,&possiblychanged_math_functions,channel_to_dispatch_it, enable_ondemand );
 
       channel_to_dispatch_it = changed_channels_need_dispatch->begin();
     }
@@ -1855,7 +1862,7 @@ namespace snde {
     // Now recursively seek out any other possiblychanged_channels 
     channel_to_dispatch_it = possiblychanged_channels_need_dispatch.begin();
     while (channel_to_dispatch_it != possiblychanged_channels_need_dispatch.end()) {
-      _identify_possiblychanged_channels(all_channels_by_name,new_rss->mathstatus.math_functions, unknownchanged_math_functions,changed_math_functions,unknownchanged_channels,changed_channels_dispatched,&possiblychanged_channels_dispatched,&possiblychanged_channels_need_dispatch,&possiblychanged_math_functions,channel_to_dispatch_it );
+      _identify_possiblychanged_channels(all_channels_by_name,new_rss->mathstatus.math_functions, unknownchanged_math_functions,changed_math_functions,unknownchanged_channels,changed_channels_dispatched,&possiblychanged_channels_dispatched,&possiblychanged_channels_need_dispatch,&possiblychanged_math_functions,channel_to_dispatch_it, enable_ondemand );
 
       channel_to_dispatch_it = possiblychanged_channels_need_dispatch.begin();
     }
@@ -1874,7 +1881,12 @@ namespace snde {
     // and unknownchanged_channels represents channels which are known to be definitively unchanged (not dependent directly or indirectly on anything that may have changed)
     std::unordered_set<std::shared_ptr<channelconfig>> &definitelychanged_channels_to_process=*changed_channels_dispatched;
     std::unordered_set<std::shared_ptr<channelconfig>> &possiblychanged_channels_to_process=possiblychanged_channels_dispatched;
-    std::unordered_set<std::shared_ptr<channelconfig>> &unchanged_channels=*unknownchanged_channels;
+    //std::unordered_set<std::shared_ptr<channelconfig>> &unchanged_channels=*unknownchanged_channels;
+    // Anything remaining in unknownchanged_channels is now definitively unchanged
+    for (auto && unchanged_channel: *unknownchanged_channels) {
+      unchanged_channels->emplace(unchanged_channel);
+    }
+    
 
     // have changed_math_functions, possiblychanged_math_functions. Anything unknown is now an unchanged_math_function
     std::unordered_set<std::shared_ptr<instantiated_math_function>> &unchanged_math_functions = *unknownchanged_math_functions; 
@@ -1921,7 +1933,7 @@ namespace snde {
 
     // Now reference previous revision of all unchanged channels, inserting into the new new_rss's channel_map
     // and also marking any corresponding function_status as complete
-    for (auto && unchanged_channel: unchanged_channels) {
+    for (auto && unchanged_channel: *unchanged_channels) {
       // recall unchanged_channels are not changed or dependent directly or indirectly on anything changed
       
       std::shared_ptr<recording_base> channel_rec;
@@ -2332,7 +2344,7 @@ namespace snde {
     for (auto && mathfunction_alldeps: new_rss->mathstatus.math_functions->all_dependencies_of_function) {
       std::shared_ptr<instantiated_math_function> mathfunction = mathfunction_alldeps.first;
 
-      if (mathfunction->disabled || mathfunction->ondemand) { // don't worry about disabled or on-demand functions
+      if (mathfunction->disabled || (mathfunction->ondemand && !enable_ondemand)) { // don't worry about disabled or on-demand functions unless we are in ondemand mode
 	continue;
       }
       
@@ -2395,10 +2407,10 @@ namespace snde {
 
 	      if (possiblychanged_channels_to_process.find(prereq_config) != possiblychanged_channels_to_process.end()) {
 		throw snde_error("end_transaction(): possiblychanged channel turns out to be complete");
-	      } else if (definitelychanged_channels_to_process.find(prereq_config) != definitelychanged_channels_to_process.end()) {
+	      } else if (definitelychanged_channels_to_process.find(prereq_config) != definitelychanged_channels_to_process.end() || explicitly_updated_channels->find(prereq_config) != explicitly_updated_channels->end()) {
 		prereq_modified = true; 
-	      } else if (unchanged_channels.find(prereq_config) == unchanged_channels.end()) {
-		throw snde_error("end_transaction(): complete channel not in definitelychanged or unchanged.");		
+	      } else if (unchanged_channels->find(prereq_config) == unchanged_channels->end()) {
+		throw snde_error("end_transaction(): complete prereq channel %s not in definitelychanged or or explicitly_updated or unchanged.",prereq_channel.c_str());		
 	      }
 
 	      if (prereq_modified) {
@@ -2590,7 +2602,7 @@ namespace snde {
       }
       
       // build a class globalrevision from recdb->current_transaction using this new channel_map
-      globalrev = std::make_shared<globalrevision>(recdb_strong->current_transaction->globalrev,recdb_strong->current_transaction,recdb_strong,recdb_strong->_instantiated_functions,initial_channel_map,previous_globalrev);
+      globalrev = std::make_shared<globalrevision>(recdb_strong->current_transaction->globalrev,recdb_strong->current_transaction,recdb_strong,recdb_strong->_instantiated_functions,initial_channel_map,previous_globalrev,recdb_strong->current_transaction->rss_unique_index);
       //globalrev->recstatus.channel_map.reserve(recdb_strong->_channels.size());
 
       globalrev->mutable_recordings_need_holder=std::make_shared<globalrev_mutable_lock>(recdb_strong,globalrev);
@@ -2758,24 +2770,29 @@ namespace snde {
 
     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> ready_to_execute;
     bool all_ready=false;
+
+    std::unordered_set<std::shared_ptr<channelconfig>> unchanged_channels;
     
     build_rss_from_functions_and_channels(recdb_strong,
 					  previous_globalrev,
 					  globalrev,
-					all_channels_by_name,
-					// set of channels definitely changed, according to whether we've dispatched them in our graph search
-					// for possibly dependent channels 
-					&changed_channels_need_dispatch,
-					&changed_channels_dispatched,
-					// set of channels not yet known to be changed
-					&unknownchanged_channels,
-					// set of math functions not known to be changed or unchanged
+					  all_channels_by_name,
+					  // set of channels definitely changed, according to whether we've dispatched them in our graph search
+					  // for possibly dependent channels 
+					  &changed_channels_need_dispatch,
+					  &changed_channels_dispatched,
+					  // set of channels known to be unchanged (pass as empty)
+					  &unchanged_channels,
+					  // set of channels not yet known to be changed
+					  &unknownchanged_channels,
+					  // set of math functions not known to be changed or unchanged
 					  &unknownchanged_math_functions,
-					// set of math functions known to be (definitely) changed
+					  // set of math functions known to be (definitely) changed
 					  &changed_math_functions,
 					  &explicitly_updated_channels,
 					  &ready_channels,
-					  &ready_to_execute,&all_ready);
+					  &ready_to_execute,&all_ready,
+					  false); // enable_ondemand
 
     
     // ***!!! Need to got through unchanged_incomplete_math_functions and get notifies when these become complete, if necessary (?)
@@ -3334,8 +3351,33 @@ namespace snde {
       }
     }
   }
+
+  uint64_t rss_get_unique()
+  {
+    // return a process-wide unique (incrementing) identifier. Process wide
+    // so that even if you run multiple recording databases you still won't
+    // get a collision. Use the return from this as the unique_index parameter
+    // to the recording_set_state constructor
+
+    // remember that c++11 and higher guarantee atomic static initalization
+
+    // By initializing  with a random number (up to 65535: 4 hex digits)
+    // we introduce plenty of entropy to prevent name collisions between shared
+    // memory objects even if somehow the process ID # is the same
+    // (as the shared memory object naming includes both this and the process ID
+    // and the revision)
+
+    // This is also used to seed the "starting revision" used by recstore_display_transforms
+    static unsigned seed=time(nullptr);
+    static std::atomic<uint64_t> *index=new std::atomic<uint64_t>(rand_r(&seed)*65535.0/RAND_MAX);
+
+    return (*index)++;
+    
+  }
   
-  recording_set_state::recording_set_state(std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state) :
+  recording_set_state::recording_set_state(std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state,uint64_t originating_globalrev_index,uint64_t unique_index) :
+    originating_globalrev_index(0), 
+    unique_index(unique_index), // must be assigned after construction
     recdb_weak(recdb),
     ready(false),
     recstatus(channel_map_param),
@@ -3509,8 +3551,8 @@ namespace snde {
     }
   }
   
-  globalrevision::globalrevision(uint64_t globalrev, std::shared_ptr<transaction> defining_transact, std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state) :
-    recording_set_state(recdb,math_functions,channel_map_param,prereq_state),
+  globalrevision::globalrevision(uint64_t globalrev, std::shared_ptr<transaction> defining_transact, std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state,uint64_t unique_index) :
+    recording_set_state(recdb,math_functions,channel_map_param,prereq_state,globalrev,unique_index),
     defining_transact(defining_transact),
     globalrev(globalrev),
     mutable_recordings_still_needed(true)
@@ -3670,6 +3712,7 @@ namespace snde {
 
   void recdatabase::register_new_rec(std::shared_ptr<recording_base> new_rec)
   {
+    std::lock_guard<std::mutex> recdb_admin(admin);
     std::lock_guard<std::mutex> curtrans_lock(current_transaction->admin);
     current_transaction->new_recordings.emplace(new_rec->info->name,new_rec);
     

@@ -69,7 +69,7 @@ namespace snde {
     void deselect_other_selectors(QTRecSelector *Selected);
 							  
   public slots:
-    void update_rec_list();
+    void update_rec_list(); // Triggered from a hint from the recording database that there was a new globalrev
     
     void UpdateViewerStatus();
     void SelectorClicked(bool checked);
@@ -80,7 +80,8 @@ namespace snde {
     void MoreContrast(bool checked);
 
   signals:
-    void NeedRedraw();    
+    void NeedRedraw();
+    void NewGlobalRev(); // emitted after QtRecViewer updates its recording list upon detection of a globalrev update by update_rec_list() and once update_rec_list has updated the recording lists.
 
   };
   

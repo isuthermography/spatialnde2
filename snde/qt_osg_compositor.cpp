@@ -169,7 +169,9 @@ namespace snde {
       //qt_worker_thread->setParent(this);
       qt_worker_thread = new qt_osg_worker_thread(this,this); // just calls worker_code() method
       // connect output signal of worker thread to this (QOpenGLWidget update slot)
-      connect(qt_worker_thread,&qt_osg_worker_thread::compositor_need_update,this,&qt_osg_compositor::update);
+      bool success;
+      success = connect(qt_worker_thread,&qt_osg_worker_thread::compositor_need_update,this,&qt_osg_compositor::update);
+      assert(success);
       qt_worker_thread->start();
       
 

@@ -118,7 +118,7 @@ namespace snde {
 	snde_index nmemb = leader_storage->nelem;
 
 
-	std::shared_ptr<graphics_storage> trinormals_storage = graphman->storage_from_allocation(result_rec->info->name,leader_storage,"trinormals",result_rec->info->revision,addr,sizeof(*graphman->geom.trinormals),rtn_typemap.at(typeid(*graphman->geom.trinormals)),nmemb);
+	std::shared_ptr<graphics_storage> trinormals_storage = graphman->storage_from_allocation(result_rec->info->name,leader_storage,"trinormals",result_rec->info->revision,rss->unique_index,addr,sizeof(*graphman->geom.trinormals),rtn_typemap.at(typeid(*graphman->geom.trinormals)),nmemb);
 	result_rec->assign_storage(trinormals_storage,"trinormals",{nmemb});
 
 
@@ -318,9 +318,10 @@ namespace snde {
 	snde_index numtris = rec_tri_info->dimlen[0];
 	
 	
-	std::shared_ptr<graphics_storage> vertnormals_storage = std::dynamic_pointer_cast<graphics_storage>(graphman->allocate_recording(result_rec->info->name,"vertnormals",result_rec->info->revision,sizeof(*graphman->geom.vertnormals),rtn_typemap.at(typeid(*graphman->geom.vertnormals)),numtris,false));
-	result_rec->assign_storage(vertnormals_storage,"vertnormals",{numtris});
-	
+	//std::shared_ptr<graphics_storage> vertnormals_storage = std::dynamic_pointer_cast<graphics_storage>(graphman->allocate_recording(result_rec->info->name,"vertnormals",result_rec->info->revision,sizeof(*graphman->geom.vertnormals),rtn_typemap.at(typeid(*graphman->geom.vertnormals)),numtris,false));
+	//result_rec->assign_storage(vertnormals_storage,"vertnormals",{numtris});
+	result_rec->allocate_storage("vertnormals",{numtris},false);
+
 
 	//parts_ref = recording->reference_ndarray("parts")
 	

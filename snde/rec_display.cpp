@@ -183,6 +183,7 @@ namespace snde {
 
   display_info::display_info(std::shared_ptr<recdatabase> recdb) :
     recdb(recdb),
+    current_globalrev_index(0),
     selected_posn(display_posn{
       nullptr,
       0.0,
@@ -256,7 +257,14 @@ namespace snde {
   void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalrev)
   {
     std::lock_guard<std::mutex> adminlock(admin);
-    this->current_globalrev=globalrev;
+
+    // we enforce globalrevs strictly increasing in part to
+    // avoid the data race documented in the comments above display_info::update()
+
+    if (globalrev->globalrev > current_globalrev_index) {
+      current_globalrev=globalrev;
+      current_globalrev_index = globalrev->globalrev;
+    }
   }
 
 
@@ -334,13 +342,26 @@ namespace snde {
 
 
 
-  std::vector<std::shared_ptr<display_channel>> display_info::update(std::shared_ptr<globalrevision> globalrev,const std::string &selected, bool selected_only,bool include_disabled,bool include_hidden)
+  std::vector<std::shared_ptr<display_channel>> display_info::update(std::shared_ptr<globalrevision> globalrev_param,const std::string &selected, bool selected_only,bool include_disabled,bool include_hidden)
 
   // for now globalrev is assumed to be fully ready (!)
     
   // if include_disabled is set, disabled channels will be included
   // if selected is not the empty string, it will be moved to the front of the list
-  // to be rendered on top 
+  // to be rendered on top
+
+  // NOTE: This is called both by qtrecviewer -- to manage the list of channels on the left
+  // with include_disabled true -- and by openscenegraph_compositor -- to manage the channels
+  // to be rendered, with include_disabled false. Both of these calls are on the same
+  // display_info structure in different threads. So the locking is important. And this
+  // routine needs to just update the class's internal lists according to the globalrev and
+  // independently return the requested vector of display_channels.
+
+
+  // Not that there is a potential race with multiple calls to this function if there are very
+  // rapid and different globalrev updates, which could cause this routine to be called
+  // with the globalrevisions out of order. For this reason, the we keep track of the
+  // global revision index in set_current_globalrev() and won't go back.
     
   // STILL NEED TO IMPLEMENT THE FOLLOWING: 
   // if include_hidden is set, hidden channels will be included
@@ -351,7 +372,7 @@ namespace snde {
 
     std::unordered_set<std::string> channels_considered;
     
-    set_current_globalrev(globalrev);
+    set_current_globalrev(globalrev_param);
 
 
     std::lock_guard<std::mutex> adminlock(admin);
@@ -368,9 +389,9 @@ namespace snde {
       const std::string &cl_name = *cl_name_iter;
       
       auto ci_iter = channel_info.find(cl_name);
-      auto reciter = globalrev->recstatus.channel_map.find(cl_name);
+      auto reciter = current_globalrev->recstatus.channel_map.find(cl_name);
 
-      if (reciter==globalrev->recstatus.channel_map.end()) {
+      if (reciter==current_globalrev->recstatus.channel_map.end()) {
 	// channel is gone; remove from channel_info
 	channel_info.erase(cl_name);
 
@@ -403,7 +424,7 @@ namespace snde {
     }
 
 
-    for (auto reciter = globalrev->recstatus.channel_map.begin(); reciter != globalrev->recstatus.channel_map.end(); reciter++) {
+    for (auto reciter = current_globalrev->recstatus.channel_map.begin(); reciter != current_globalrev->recstatus.channel_map.end(); reciter++) {
       
       const std::string &fullname=reciter->first;
       channel_state &chanstate=reciter->second;
@@ -474,7 +495,7 @@ namespace snde {
     }
 
     // need to create axis
-    std::shared_ptr<display_axis> ax_ptr=std::make_shared<display_axis>(axisname,"",unit,false,0.0,0.0,1.0);
+    std::shared_ptr<display_axis> ax_ptr=std::make_shared<display_axis>(axisname,axisname,unit,false,0.0,0.0,1.0);
 
     AxisList.push_back(ax_ptr);
 

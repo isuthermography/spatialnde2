@@ -91,31 +91,33 @@ namespace snde {
     
   }
 
-  std::string shared_memory_allocator_posix::base_shm_name(std::string recpath,uint64_t recrevision)
+  std::string shared_memory_allocator_posix::base_shm_name(std::string recpath,uint64_t recrevision,uint64_t originating_rss_unique_id)
   {
     // NOTE: This doesn't currently permit multiple recording databases in the
     // same process with identically named recordings because these names
     // may conflict. If we want to support such an application we could always
     // add a recdb identifier or our "this" pointer to the filename
-    return ssprintf("/snde_%llu_%llu_%s_%llu",
+    return ssprintf("/snde_%llx_%llx_%s_%llu_%llx",
 		    (unsigned long long)getuid(),
 		    (unsigned long long)getpid(),
 		    posixshm_encode_recpath(recpath).c_str(),
-		    (unsigned long long)recrevision);
+		    (unsigned long long)recrevision,
+		    (unsigned long long)originating_rss_unique_id);
 
   }
   
-  void *shared_memory_allocator_posix::malloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes)
+  void *shared_memory_allocator_posix::malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes)
   {
     // POSIX shm always zeros empty space, so we just use calloc
     
-    return calloc(recording_path,recrevision,id,nbytes); 
+    return calloc(recording_path,recrevision,originating_rss_unique_id,id,nbytes); 
   }
-  void *shared_memory_allocator_posix::calloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes)
+  
+  void *shared_memory_allocator_posix::calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes)
   {
 
-    std::string shm_name = ssprintf("%s_%llu.dat",
-				    base_shm_name(recording_path,recrevision).c_str(),
+    std::string shm_name = ssprintf("%s_%llx.dat",
+				    base_shm_name(recording_path,recrevision,originating_rss_unique_id).c_str(),
 				    (unsigned long long)id);
     
     int fd = shm_open(shm_name.c_str(),O_RDWR|O_CREAT|O_EXCL,0777);
@@ -136,11 +138,11 @@ namespace snde {
 
     {
       std::lock_guard<std::mutex> lock(_admin);    
-      assert(_shm_info.find(std::make_tuple(recording_path,recrevision,id))==_shm_info.end()); // 
+      assert(_shm_info.find(std::make_tuple(recording_path,recrevision,originating_rss_unique_id,id))==_shm_info.end()); // 
 
       // shared_memory_info_posix(id,shm_name,fd,addr,nbytes);
       _shm_info.emplace(std::piecewise_construct,
-			std::forward_as_tuple(std::make_tuple(recording_path,recrevision,id)), // index
+			std::forward_as_tuple(std::make_tuple(recording_path,recrevision,originating_rss_unique_id,id)), // index
 			std::forward_as_tuple(id,shm_name,fd,addr,nbytes)); // parameters to shared_memory_info_posix constructor
     }
 
@@ -150,10 +152,10 @@ namespace snde {
     return addr;
   }
   
-  void *shared_memory_allocator_posix::realloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr,std::size_t newsize)
+  void *shared_memory_allocator_posix::realloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void *ptr,std::size_t newsize)
   {
     std::lock_guard<std::mutex> lock(_admin);    
-    shared_memory_info_posix &this_info = _shm_info.find(std::make_tuple(recording_path,recrevision,id))->second;
+    shared_memory_info_posix &this_info = _shm_info.find(std::make_tuple(recording_path,recrevision,originating_rss_unique_id,id))->second;
     assert(this_info.addr==ptr);
 
     if (munmap(this_info.addr,this_info.nbytes)) {
@@ -178,7 +180,7 @@ namespace snde {
     return true; 
   }
   
-  std::shared_ptr<nonmoving_copy_or_reference> shared_memory_allocator_posix::obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void **basearray,void *ptr, std::size_t shift, std::size_t length)
+  std::shared_ptr<nonmoving_copy_or_reference> shared_memory_allocator_posix::obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id, void **basearray,void *ptr, std::size_t shift, std::size_t length)
   {
 
     long page_size;
@@ -190,7 +192,7 @@ namespace snde {
     
     std::lock_guard<std::mutex> lock(_admin);    
 
-    shared_memory_info_posix &this_info = _shm_info.find(std::make_tuple(recording_path,recrevision,id))->second;
+    shared_memory_info_posix &this_info = _shm_info.find(std::make_tuple(recording_path,recrevision,originating_rss_unique_id,id))->second;
     assert(this_info.addr==ptr);
     
     size_t shiftpages = shift/page_size;
@@ -206,11 +208,11 @@ namespace snde {
     
   }
 
-  void shared_memory_allocator_posix::free(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr)
+  void shared_memory_allocator_posix::free(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void *ptr)
   {
     std::lock_guard<std::mutex> lock(_admin);    
 
-    std::unordered_map<std::tuple<std::string,uint64_t,memallocator_regionid>,shared_memory_info_posix,memkey_hash/*,memkey_equal*/>::iterator this_it = _shm_info.find(std::make_tuple(recording_path,recrevision,id));
+    std::unordered_map<std::tuple<std::string,uint64_t,uint64_t,memallocator_regionid>,shared_memory_info_posix,memkey_hash/*,memkey_equal*/>::iterator this_it = _shm_info.find(std::make_tuple(recording_path,recrevision,originating_rss_unique_id,id));
     shared_memory_info_posix &this_info = this_it->second;
     assert(this_info.addr==ptr);
 

@@ -14,6 +14,9 @@
 
 
 namespace snde {
+  // NOTE: for recording_storage_manager_simple, the index into the multiarray and the memallocator
+  // regionid are the same. But this is NOT true for the graphics_storage_manager, which uses index
+  // of definition of array in the graphics_storage constructor as the memallocator_regionid
   typedef size_t memallocator_regionid;
 
   //  inline memallocator_regionid ma_regionid()
@@ -97,12 +100,12 @@ namespace snde {
     // virtual destructor required so we can be subclassed
     virtual ~memallocator()=default;
 
-    virtual void *malloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes)=0;
-    virtual void *calloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes)=0;
-    virtual void *realloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr,std::size_t newsize)=0;
+    virtual void *malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes)=0;
+    virtual void *calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes)=0;
+    virtual void *realloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void *ptr,std::size_t newsize)=0;
     virtual bool supports_nonmoving_reference()=0; // returns true if this allocator can return a nonmoving reference rather than a copy. The nonmoving reference will stay coherent with the original. 
-    virtual std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void **basearray,void *ptr, std::size_t offset, std::size_t length)=0; // Note: May (generally should be) called with the underlying data array locked for read to prevent ptr from being modified under us
-    virtual void free(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr)=0;
+    virtual std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id, void **basearray,void *ptr, std::size_t offset, std::size_t length)=0; // Note: May (generally should be) called with the underlying data array locked for read to prevent ptr from being modified under us
+    virtual void free(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void *ptr)=0;
   };
 
   class cmemallocator: public memallocator {
@@ -123,15 +126,15 @@ namespace snde {
 
     }
 
-    void *malloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes) {
+    void *malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes) {
       return std::malloc(nbytes);
     }
   
-    void *calloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::size_t nbytes) {
+    void *calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes) {
       return std::calloc(nbytes,1);
     }
 
-    void *realloc(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr,std::size_t newsize) {
+    void *realloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void *ptr,std::size_t newsize) {
       return std::realloc(ptr,newsize);
     }
     bool supports_nonmoving_reference() // returns true if this allocator can return a nonmoving reference rather than a copy. The nonmoving reference will stay coherent with the original.
@@ -139,7 +142,7 @@ namespace snde {
       return false; 
     }
     
-    std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id, void **basearray,void *ptr, std::size_t offset, std::size_t nbytes)
+    std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id, void **basearray,void *ptr, std::size_t offset, std::size_t nbytes)
     {
       void *copyptr = std::malloc(nbytes);
       memcpy(copyptr,((char *)ptr)+offset,nbytes);
@@ -147,7 +150,7 @@ namespace snde {
     }
 
     
-    void free(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void *ptr) {
+    void free(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void *ptr) {
       return std::free(ptr);
     }
 

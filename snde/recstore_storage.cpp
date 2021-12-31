@@ -9,9 +9,10 @@
 
 namespace snde {
 
-  recording_storage::recording_storage(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized) :
+  recording_storage::recording_storage(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized) :
     recording_path(recording_path),
     recrevision(recrevision),
+    originating_rss_unique_id(originating_rss_unique_id),
     id(id),
     _basearray(basearray),
     shiftedarray(nullptr),
@@ -29,8 +30,8 @@ namespace snde {
 
   }
 
-  recording_storage_simple::recording_storage_simple(std::string recording_path,uint64_t recrevision,memallocator_regionid id,size_t elementsize,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr) :
-    recording_storage(recording_path,recrevision,id,nullptr,elementsize,0,typenum,nelem,lockmgr,requires_locking_read,requires_locking_write,finalized),
+  recording_storage_simple::recording_storage_simple(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,size_t elementsize,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr) :
+    recording_storage(recording_path,recrevision,originating_rss_unique_id,id,nullptr,elementsize,0,typenum,nelem,lockmgr,requires_locking_read,requires_locking_write,finalized),
     lowlevel_alloc(lowlevel_alloc),
     _baseptr(baseptr)
   {
@@ -51,7 +52,7 @@ namespace snde {
     }
     
     // free allocation from recording_storage_manager_simple::allocate_recording()
-    lowlevel_alloc->free(recording_path,recrevision,id,_baseptr);
+    lowlevel_alloc->free(recording_path,recrevision,originating_rss_unique_id,id,_baseptr);
   }
 
   void *recording_storage_simple::dataaddr_or_null()
@@ -79,9 +80,8 @@ namespace snde {
 
   std::shared_ptr<recording_storage> recording_storage_simple::obtain_nonmoving_copy_or_reference()
   {
-    //assert(orig_id==0);  // recording_storage_simple only has id's of 0
-    std::shared_ptr<nonmoving_copy_or_reference> ref = lowlevel_alloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,id,_basearray,_baseptr,base_index*elementsize,nelem*elementsize);
-    std::shared_ptr<recording_storage_reference> reference = std::make_shared<recording_storage_reference>(recording_path,recrevision,id,nelem,shared_from_this(),ref);
+    std::shared_ptr<nonmoving_copy_or_reference> ref = lowlevel_alloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,originating_rss_unique_id,id,_basearray,_baseptr,base_index*elementsize,nelem*elementsize);
+    std::shared_ptr<recording_storage_reference> reference = std::make_shared<recording_storage_reference>(recording_path,recrevision,originating_rss_unique_id,id,nelem,shared_from_this(),ref);
 
     return reference;
   }
@@ -117,8 +117,8 @@ namespace snde {
   }
 
 
-  recording_storage_reference::recording_storage_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id,snde_index nelem,std::shared_ptr<recording_storage> orig,std::shared_ptr<nonmoving_copy_or_reference> ref) :
-    recording_storage(recording_path,recrevision,id,nullptr,orig->elementsize,orig->base_index,orig->typenum,nelem,orig->lockmgr,orig->requires_locking_read,orig->requires_locking_write,true), // always finalized because it is immutable
+  recording_storage_reference::recording_storage_reference(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,snde_index nelem,std::shared_ptr<recording_storage> orig,std::shared_ptr<nonmoving_copy_or_reference> ref) :
+    recording_storage(recording_path,recrevision,originating_rss_unique_id,id,nullptr,orig->elementsize,orig->base_index,orig->typenum,nelem,orig->lockmgr,orig->requires_locking_read,orig->requires_locking_write,true), // always finalized because it is immutable
     orig(orig),
     ref(ref)
   {
@@ -177,19 +177,27 @@ namespace snde {
   std::shared_ptr<recording_storage>
   recording_storage_manager_simple::allocate_recording(std::string recording_path, std::string array_name, // use "" for default behavior -- which is all that is supported anyway
 						       uint64_t recrevision,
+						       uint64_t originating_rss_unique_id,
+						       size_t multiarray_index,
 						       size_t elementsize,
 						       unsigned typenum, // MET_...
 						       snde_index nelem,
 						       bool is_mutable) // returns (storage pointer,base_index); note that the recording_storage nelem may be different from what was requested.
   // must be thread-safe
+  // NOTE: for recording_storage_manager_simple, the index into the multiarray and the memallocator
+  // regionid are the same. But this is NOT true for the graphics_storage_manager
+  // in recording_storage_manager_simple we freely cast back and forth because they are
+  // both size_t under the hood
   {
+
+
     
     size_t alignment_extra=0;
     if (alignment_requirements) {
       alignment_extra=alignment_requirements->get_alignment();
     }
     
-    void *baseptr = lowlevel_alloc->calloc(recording_path,recrevision,0,nelem*elementsize+alignment_extra);  // freed in destructor for recording_storage_simple
+    void *baseptr = lowlevel_alloc->calloc(recording_path,recrevision,originating_rss_unique_id,(memallocator_regionid)multiarray_index,nelem*elementsize+alignment_extra);  // freed in destructor for recording_storage_simple
     // enforce alignment requirements
     baseptr = allocator_alignment::alignment_shift(baseptr,alignment_extra);
 
@@ -197,7 +205,7 @@ namespace snde {
       throw snde_error("recording_storage_manager_simple::allocate_recording(): Mutable recordings or those using allocators that require locking require a lock manager");
     }
 
-    std::shared_ptr<recording_storage_simple> retval = std::make_shared<recording_storage_simple>(recording_path,recrevision,0,elementsize,typenum,nelem,lockmgr,is_mutable || lowlevel_alloc->requires_locking_read,is_mutable || lowlevel_alloc->requires_locking_write,false,lowlevel_alloc,baseptr);
+    std::shared_ptr<recording_storage_simple> retval = std::make_shared<recording_storage_simple>(recording_path,recrevision,originating_rss_unique_id,(memallocator_regionid)multiarray_index,elementsize,typenum,nelem,lockmgr,is_mutable || lowlevel_alloc->requires_locking_read,is_mutable || lowlevel_alloc->requires_locking_write,false,lowlevel_alloc,baseptr);
 
 
     return retval;

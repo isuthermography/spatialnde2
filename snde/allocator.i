@@ -78,9 +78,10 @@ namespace snde {
     std::shared_ptr<lockmanager> _locker; // could be NULL if there is no locker
     std::deque<std::shared_ptr<std::function<void(snde_index)>>> pool_realloc_callbacks; // locked by allocatormutex
 
-    // These next 3 parameters are immutable once assigned
+    // These next 4 parameters are immutable once assigned
     std::string recording_path;
-    uint64_t recrevision; 
+    uint64_t recrevision;
+    uint64_t originating_rss_unique_id;
     memallocator_regionid id;
 
 
@@ -113,7 +114,7 @@ namespace snde {
     rangetracker<allocation> allocations_unmerged;
     snde_index _allocchunksize; // size of chunks we allocate, in numbers of elements
   
-    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes);
+    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes);
 
     allocator(const allocator &)=delete; /* copy constructor disabled */
     allocator& operator=(const allocator &)=delete; /* assignment disabled */

@@ -215,6 +215,7 @@ namespace snde {
     
     std::weak_ptr<recdatabase> recdb;
     std::shared_ptr<globalrevision> current_globalrev;
+    uint64_t current_globalrev_index;
     
     std::unordered_map<std::string,std::shared_ptr<display_channel>> channel_info;
     std::vector<std::string> channel_layer_order; // index is nominal order, string is full channel name

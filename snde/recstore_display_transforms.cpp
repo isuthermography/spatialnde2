@@ -96,7 +96,13 @@ namespace snde {
       return retval; // all duplicate requirements eliminated
       
     }
-      
+
+  recstore_display_transforms::recstore_display_transforms() :
+    starting_revision(rss_get_unique())
+  {
+
+  }
+  
   void recstore_display_transforms::update(std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> globalrev,const std::map<std::string,std::shared_ptr<display_requirement>> &requirements)
   // define a new with_display_transforms member based on a new globalrev and a list of display requirements.
   // the globalrev is presumed to be fullyready.
@@ -115,17 +121,18 @@ namespace snde {
     latest_globalrev = globalrev;
 
     if (!previous_globalrev) {
-      
-      previous_globalrev=std::make_shared<globalrevision>(0,nullptr,recdb,instantiated_math_database(),std::map<std::string,channel_state>(),nullptr);
+      // dummy previous globalrev
+      previous_globalrev=std::make_shared<globalrevision>(0,nullptr,recdb,instantiated_math_database(),std::map<std::string,channel_state>(),nullptr,0);
     }
 
     if (!previous_with_transforms) {
-      previous_with_transforms = std::make_shared<recording_set_state>(recdb,instantiated_math_database(),std::map<std::string,channel_state>(),nullptr);
+      // dummy previous recording_set_state
+      previous_with_transforms = std::make_shared<recording_set_state>(recdb,instantiated_math_database(),std::map<std::string,channel_state>(),nullptr,0,0);
     }
 
     std::unordered_set<std::shared_ptr<channelconfig>> unknownchanged_channels;
     std::unordered_set<std::shared_ptr<channelconfig>> changed_channels_need_dispatch;
-    std::unordered_set<std::shared_ptr<channelconfig>> ignored_channels;
+    std::unordered_set<std::shared_ptr<channelconfig>> unchanged_channels;
     std::unordered_set<std::shared_ptr<channelconfig>> explicitly_updated_channels; // no explicitly updated channels in this case
 
 
@@ -158,14 +165,16 @@ namespace snde {
       // Check to see here if there was a change from previous_globalrev to globalrev
       
       // If so it should go into changed_channels_need_dispatch
-      // Otherwise should go into ignored_channels and NOT unknownchanged_channels. 
+      // Otherwise should go into unchanged_channels and NOT unknownchanged_channels. 
 
       auto prev_it = previous_globalrev->recstatus.channel_map.find(channame_chanstate.first);
       if (prev_it != previous_globalrev->recstatus.channel_map.end() && prev_it->second.rec() == channame_chanstate.second.rec()) {
 	// channel is unchanged
-	ignored_channels.emplace(channame_chanstate.second.config);
+	snde_debug(SNDE_DC_DISPLAY,"Channel %s is unchanged",channame_chanstate.first.c_str());
+	unchanged_channels.emplace(channame_chanstate.second.config);
       } else {
 	// channel modified
+	snde_debug(SNDE_DC_DISPLAY,"Channel %s is modified",channame_chanstate.first.c_str());
 	changed_channels_need_dispatch.emplace(channame_chanstate.second.config);
       }
 
@@ -182,12 +191,17 @@ namespace snde {
       if (dispreq->renderable_function) {
 	assert(dispreq->channelpath != *dispreq->renderable_channelpath);
 
+	snde_debug(SNDE_DC_DISPLAY,"recstore_display_transforms::update() got renderable_function %s->%s",dispreq->channelpath.c_str(),dispreq->renderable_channelpath->c_str());
+	
 	std::shared_ptr<channelconfig> renderableconfig;
 
 	// search for pre-existing channel in previous_with_transforms
 	auto preexist_it = previous_with_transforms->recstatus.channel_map.find(*dispreq->renderable_channelpath);
 	// to reuse, we have to find something of the same name where the math_fcns compare by value, indicating the same function and parameters
 	if (preexist_it != previous_with_transforms->recstatus.channel_map.end() && *preexist_it->second.config->math_fcn == *dispreq->renderable_function) {
+	  
+	  snde_debug(SNDE_DC_DISPLAY,"recstore_display_transforms::update() found old config");
+
 	  // reuse old config
 	  renderableconfig = preexist_it->second.config;
 
@@ -201,6 +215,8 @@ namespace snde {
 	  
 	} else {
 	  // need to make new config
+	  snde_debug(SNDE_DC_DISPLAY,"recstore_display_transforms::update() making new config");
+
 	  renderableconfig = std::make_shared<channelconfig>(*dispreq->renderable_channelpath,
 											    "recstore_display_transform",
 							     (void *)recdb.get(), // math channels owned by recdb pointer
@@ -234,6 +250,9 @@ namespace snde {
 	    
 	} else {
 	  rdt_channel=std::make_shared<channel>(renderableconfig);
+
+	  rdt_channel->latest_revision = starting_revision;
+	  
 	}
 	
 	// add to initial_channel_map
@@ -259,7 +278,7 @@ namespace snde {
     // build a class recording_set_state using this new channel_map
 
     
-    with_display_transforms = std::make_shared<recording_set_state>(recdb,initial_mathdb,initial_channel_map,nullptr);
+    with_display_transforms = std::make_shared<recording_set_state>(recdb,initial_mathdb,initial_channel_map,nullptr,previous_globalrev->globalrev,rss_get_unique());
     with_display_transforms->mathstatus.math_functions->_rebuild_dependency_map(); // (not automatically done on construction)
 
     // For everything we copied in from the globalrev (above),
@@ -300,15 +319,15 @@ namespace snde {
 
     
     // make sure hash tables won't rehash and screw up iterators or similar
-    changed_channels_need_dispatch.reserve(changed_channels_need_dispatch.size()+unknownchanged_channels.size()+ignored_channels.size());
+    changed_channels_need_dispatch.reserve(changed_channels_need_dispatch.size()+unknownchanged_channels.size()+unchanged_channels.size());
     
     std::unordered_set<std::shared_ptr<channelconfig>> changed_channels_dispatched;
-    changed_channels_dispatched.reserve(changed_channels_need_dispatch.size()+unknownchanged_channels.size()+ignored_channels.size());
+    changed_channels_dispatched.reserve(changed_channels_need_dispatch.size()+unknownchanged_channels.size()+unchanged_channels.size());
     
-    // all modified channels/recordings from the globalrevs have been put in changed_channels_need_dispatched and removed them from ignored_channels
+    // all modified channels/recordings from the globalrevs have been put in changed_channels_need_dispatched and removed them from unchanged_channels
     // if they have changed between the two globalrevs 
     // channels which haven't changed have been imported into the globalrev, removed from unknownchanged_channels, 
-    // and placed into the ignored_channels list. 
+    // and placed into the unchanged_channels list. 
 
     
     // Pull all channels from the globalrev, taking them out of unknownchanged_channels
@@ -320,7 +339,9 @@ namespace snde {
     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> ready_to_execute;
     bool all_ready=false;
 
+    snde_debug(SNDE_DC_DISPLAY,"recstore_display_transforms::update calling build_rss_from_functions_and_channels() with %d unknownchanged_math_functions and %d changed_math_functions and %d ccnd and %d ccd",unknownchanged_math_functions.size(),changed_math_functions.size(),changed_channels_need_dispatch.size(),changed_channels_dispatched.size());
 
+    
     build_rss_from_functions_and_channels(recdb,
 					  previous_with_transforms,
 					  with_display_transforms,
@@ -329,6 +350,8 @@ namespace snde {
 					  // for possibly dependent channels 
 					  &changed_channels_need_dispatch,
 					  &changed_channels_dispatched,
+					  // set of channels known to be unchanged (pass as empty)
+					  &unchanged_channels,
 					  // set of channels not yet known to be changed
 					  &unknownchanged_channels,
 					  // set of math functions not known to be changed or unchanged
@@ -337,7 +360,10 @@ namespace snde {
 					  &changed_math_functions,
 					  &explicitly_updated_channels,
 					  &ready_channels,
-					  &ready_to_execute,&all_ready);
+					  &ready_to_execute,&all_ready,
+					  true); // enable_ondemand
+
+    snde_debug(SNDE_DC_DISPLAY,"recstore_display_transforms::update build_rss_from_functions_and_channels() complete with %d unknownchanged_math_functions and %d changed_math_functions",unknownchanged_math_functions.size(),changed_math_functions.size());
 
     // globalrev->_update_recstatus__rss_admin_transaction_admin_locked()
     // isn't needed here because in the math calculations, the resulting

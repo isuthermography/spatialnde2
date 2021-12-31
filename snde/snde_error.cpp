@@ -12,7 +12,7 @@ namespace snde {
   //SNDE_API unsigned initial_debugflags=SNDE_DC_RECDB|SNDE_DC_NOTIFY;
   //SNDE_API unsigned initial_debugflags=SNDE_DC_ALL;
 
-  unsigned check_debugflag(unsigned flag, char *env_var)
+  unsigned check_debugflag(unsigned flag, const char *env_var)
   {
     char *var_val = std::getenv(env_var);
 
@@ -28,6 +28,18 @@ namespace snde {
     unsigned debugflags = initial_debugflags;
 
     debugflags |= check_debugflag(SNDE_DC_RECDB,"SNDE_DC_RECDB");
+    debugflags |= check_debugflag(SNDE_DC_RECMATH,"SNDE_DC_RECMATH");
+    debugflags |= check_debugflag(SNDE_DC_NOTIFY,"SNDE_DC_NOTIFY");
+    debugflags |= check_debugflag(SNDE_DC_LOCKING,"SNDE_DC_LOCKING");
+    debugflags |= check_debugflag(SNDE_DC_APP,"SNDE_DC_APP");
+    debugflags |= check_debugflag(SNDE_DC_COMPUTE_DISPATCH,"SNDE_DC_COMPUTE_DISPATCH");
+    debugflags |= check_debugflag(SNDE_DC_RENDERING,"SNDE_DC_RENDERING");
+    debugflags |= check_debugflag(SNDE_DC_DISPLAY,"SNDE_DC_DISPLAY");
+    debugflags |= check_debugflag(SNDE_DC_EVENT,"SNDE_DC_EVENT");
+    debugflags |= check_debugflag(SNDE_DC_VIEWER,"SNDE_DC_VIEWER");
+    debugflags |= check_debugflag(SNDE_DC_ALL,"SNDE_DC_ALL");
+
+    return debugflags;
   }
   
 

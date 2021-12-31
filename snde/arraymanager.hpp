@@ -228,7 +228,7 @@ namespace snde {
     //}
 
     
-    virtual void add_allocated_array(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes = std::set<snde_index>())
+    virtual void add_allocated_array(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes = std::set<snde_index>())
     {
       //std::lock_guard<std::mutex> adminlock(admin);
 
@@ -249,7 +249,7 @@ namespace snde {
 	//allocators[arrayptr]=std::make_shared<allocator>(_memalloc,locker,arrayptr,elemsize,totalnelem);
 	
 	
-	(*new_allocators)[arrayptr]=allocationinfo{std::make_shared<allocator>(_memalloc,locker,recording_path,recrevision,id,alignment_requirements,arrayptr,elemsize,0,follower_elemsizes),elemsize,totalnelem,0};
+	(*new_allocators)[arrayptr]=allocationinfo{std::make_shared<allocator>(_memalloc,locker,recording_path,recrevision,originating_rss_unique_id,id,alignment_requirements,arrayptr,elemsize,0,follower_elemsizes),elemsize,totalnelem,0};
 	
 	(*new_allocation_arrays)[arrayptr]=arrayptr;
 	new_arrays_managed_by_allocator->emplace(std::make_pair(arrayptr,arrayptr));

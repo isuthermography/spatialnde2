@@ -467,10 +467,10 @@ std::tuple<snde_index,snde_index,snde_index,snde_index> evaluate_texture_topolog
   
   std::shared_ptr<memallocator> memalloc = std::make_shared<cmemallocator>();
   snde_topological *uvtopo_pool=nullptr;
-  std::shared_ptr<allocator> uvtopoalloc=std::make_shared<allocator>(memalloc,nullptr,"",0,0,nullptr,(void **)&uvtopo_pool,sizeof(*uvtopo_pool),0,std::set<snde_index>()); 
+  std::shared_ptr<allocator> uvtopoalloc=std::make_shared<allocator>(memalloc,nullptr,"",0,0,0,nullptr,(void **)&uvtopo_pool,sizeof(*uvtopo_pool),0,std::set<snde_index>()); 
 
   snde_index *uvtopoidx_pool=nullptr;
-  std::shared_ptr<allocator> uvtopoidxalloc=std::make_shared<allocator>(memalloc,nullptr,"",0,0,nullptr,(void **)&uvtopoidx_pool,sizeof(*uvtopoidx_pool),0,std::set<snde_index>()); 
+  std::shared_ptr<allocator> uvtopoidxalloc=std::make_shared<allocator>(memalloc,nullptr,"",0,0,0,nullptr,(void **)&uvtopoidx_pool,sizeof(*uvtopoidx_pool),0,std::set<snde_index>()); 
 
 
   // the following identifes the facevertex and a vector of faceedges given a meshedvertexnum

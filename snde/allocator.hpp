@@ -230,9 +230,10 @@ namespace snde {
     std::shared_ptr<lockmanager> _locker; // could be NULL if there is no locker
     std::deque<std::shared_ptr<std::function<void(snde_index)>>> pool_realloc_callbacks; // locked by allocatormutex
 
-    // These next 3 parameters are immutable once assigned
+    // These next 4 parameters are immutable once assigned
     std::string recording_path;
     uint64_t recrevision; 
+    uint64_t originating_rss_unique_id;
     memallocator_regionid id; // ID of primary array
 
     bool destroyed;
@@ -269,9 +270,10 @@ namespace snde {
     
     snde_index _allocchunksize; // size of chunks we allocate, in numbers of elements
   
-    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::string recording_path,uint64_t recrevision,memallocator_regionid id,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes) :
+    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes) :
       recording_path(recording_path),
       recrevision(recrevision),
+      originating_rss_unique_id(originating_rss_unique_id),
       id(id)
     {
       // must hold writelock on array
@@ -367,7 +369,7 @@ namespace snde {
 	_totalnchunks=2;
       }
       // Perform memory allocation 
-      *(*arrays()).at(0).arrayptr = _memalloc->malloc(recording_path,recrevision,id,_totalnchunks * _allocchunksize * elemsize);
+      *(*arrays()).at(0).arrayptr = _memalloc->malloc(recording_path,recrevision,originating_rss_unique_id,id,_totalnchunks * _allocchunksize * elemsize);
 
       if (_locker) {
 	_locker->set_array_size((*arrays()).at(0).arrayptr,(*arrays()).at(0).elemsize,_totalnchunks*_allocchunksize);
@@ -425,7 +427,7 @@ namespace snde {
 
       if (*(*new_arrays)[0].arrayptr) {
 	/* if main array already allocated */
-	*arrayptr=_memalloc->calloc(recording_path,recrevision,other_array_id,_totalnchunks*_allocchunksize * elsize);
+	*arrayptr=_memalloc->calloc(recording_path,recrevision,originating_rss_unique_id,other_array_id,_totalnchunks*_allocchunksize * elsize);
       } else {
         *arrayptr = nullptr;
       }
@@ -455,7 +457,7 @@ namespace snde {
 	    /* removing our master array invalidates the entire allocator */
 	    destroyed=true; 
 	  }
-	  _memalloc->free(recording_path,recrevision,ary->id,*ary->arrayptr);
+	  _memalloc->free(recording_path,recrevision,originating_rss_unique_id,ary->id,*ary->arrayptr);
 	  //arrays.erase(ary);
 	  ary->destroyed=true; 
 	  return;
@@ -477,7 +479,7 @@ namespace snde {
       /* resize all arrays  */
       for (size_t cnt=0;cnt < arrays()->size();cnt++) {
 	if ((*arrays()).at(cnt).destroyed) continue;
-	*arrays()->at(cnt).arrayptr= _memalloc->realloc(recording_path,recrevision,arrays()->at(cnt).id,*arrays()->at(cnt).arrayptr,arrays()->at(cnt).elemsize*_totalnchunks*_allocchunksize);
+	*arrays()->at(cnt).arrayptr= _memalloc->realloc(recording_path,recrevision,originating_rss_unique_id,arrays()->at(cnt).id,*arrays()->at(cnt).arrayptr,arrays()->at(cnt).elemsize*_totalnchunks*_allocchunksize);
       
 	if (_locker) {
 	  size_t arraycnt;
@@ -793,7 +795,7 @@ namespace snde {
       for (size_t cnt=0;cnt < arrays()->size();cnt++) {
 	if (*arrays()->at(cnt).arrayptr) {
 	  if (!arrays()->at(cnt).destroyed) {
-	    _memalloc->free(recording_path,recrevision,arrays()->at(cnt).id,*arrays()->at(cnt).arrayptr);
+	    _memalloc->free(recording_path,recrevision,originating_rss_unique_id,arrays()->at(cnt).id,*arrays()->at(cnt).arrayptr);
 	    *(arrays()->at(cnt).arrayptr) = NULL;
 	  }
 	}

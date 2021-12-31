@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
 
   std::shared_ptr<memallocator> lowlevel_alloc=std::make_shared<cmemallocator>();
   std::shared_ptr<allocator_alignment> alignment=std::make_shared<allocator_alignment>();
-  std::shared_ptr<allocator> test_allocator=std::make_shared<allocator>(lowlevel_alloc,nullptr,"/test_allocator",0,0,alignment,(void **)&test_array,sizeof(*test_array),100000,std::set<snde_index>());
+  std::shared_ptr<allocator> test_allocator=std::make_shared<allocator>(lowlevel_alloc,nullptr,"/test_allocator",0,0,0,alignment,(void **)&test_array,sizeof(*test_array),100000,std::set<snde_index>());
 
   // allocate 7739 element array
 

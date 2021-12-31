@@ -1198,7 +1198,7 @@ namespace snde {
     std::shared_ptr<graphics_storage_manager> graphman = std::dynamic_pointer_cast<graphics_storage_manager>(rec->storage_manager);
     assert(graphman);
     
-    retval = graphman->storage_from_allocation(rec->info->name,nullptr,array_name,rec->info->revision,addr,sizeof(T),rtn_typemap.at(typeid(T)),nmemb);
+    retval = graphman->storage_from_allocation(rec->info->name,nullptr,array_name,rec->info->revision,rec->originating_rss_unique_id,addr,sizeof(T),rtn_typemap.at(typeid(T)),nmemb);
     rec->assign_storage(retval,array_name,{nmemb});
     return retval;
   }
@@ -1213,7 +1213,7 @@ namespace snde {
 
     snde_index addr = leader_storage->base_index;
     snde_index nmemb = leader_storage->nelem;
-    retval = graphman->storage_from_allocation(rec->info->name,leader_storage,array_name,rec->info->revision,addr,sizeof(T),rtn_typemap.at(typeid(T)),nmemb);
+    retval = graphman->storage_from_allocation(rec->info->name,leader_storage,array_name,rec->info->revision,rec->originating_rss_unique_id,addr,sizeof(T),rtn_typemap.at(typeid(T)),nmemb);
     rec->assign_storage(retval,array_name,{nmemb});
     return retval;
   }
@@ -1971,10 +1971,10 @@ namespace snde {
       std::shared_ptr<meshed_part_recording> meshedcurpart = create_recording<meshed_part_recording>(recdb,meshedcurpart_chan,(void *)owner);
       meshedcurpart->assign_storage_manager(graphman);
       
-      //std::shared_ptr<graphics_storage> meshedcurpartpartstore = storage_from_allocation(meshedcurpart->info->name,nullptr,"parts",meshedcurpart->info->revision,firstpart,sizeof(*graphman->geom.parts),rtn_typemap.at(typeid(*graphman->geom.parts)),1);
+      //std::shared_ptr<graphics_storage> meshedcurpartpartstore = storage_from_allocation(meshedcurpart->info->name,nullptr,"parts",meshedcurpart->info->revision,rec->originating_rss_unique_id,firstpart,sizeof(*graphman->geom.parts),rtn_typemap.at(typeid(*graphman->geom.parts)),1);
       //meshedcurpart->assign_storage(meshedcurpartpartstore,"parts",{1});
 
-      //std::shared_ptr<graphics_storage> meshedcurparttrianglesstore = storage_from_allocation(meshedcurpart->info->name,nullptr,"triangles",meshedcurpart->info->revision,firsttri,sizeof(*graphman->geom.triangles),rtn_typemap.at(typeid(*graphman->geom.triangles)),coordIndex.size());
+      //std::shared_ptr<graphics_storage> meshedcurparttrianglesstore = storage_from_allocation(meshedcurpart->info->name,nullptr,"triangles",meshedcurpart->info->revision,rec->originating_rss_unique_id,firsttri,sizeof(*graphman->geom.triangles),rtn_typemap.at(typeid(*graphman->geom.triangles)),coordIndex.size());
       //meshedcurpart->assign_storage(meshedcurparttrianglestore,"triangles",{coordIndex.size()});
 
       x3d_assign_allocated_storage(meshedcurpart,"parts",graphman->geom.parts,firstpart,1);

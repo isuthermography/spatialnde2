@@ -97,7 +97,6 @@ namespace snde {
 	
       case Qt::Key_Right:
 	if (event->type()==QEvent::KeyPress) {
-	  //fprintf(stderr,"Press right\n");
 	  Viewer->posmgr->HorizZoomIn(false);
 	}
 	// else fprintf(stderr,"Release right\n");
@@ -375,7 +374,7 @@ namespace snde {
 
   void qtrec_position_manager::SetHorizScale(double horizscale,bool horizpixelflag)
   {
-    fprintf(stderr,"SetHorizScale %.2g\n",horizscale);
+    snde_debug(SNDE_DC_VIEWER,"SetHorizScale %.2g",horizscale);
     assert(horizscale > 0.0);
     if (selected_channel) {
       if (selected_channel->render_mode != SNDE_DCRM_GEOMETRY) {
@@ -606,7 +605,7 @@ namespace snde {
     
     
     int vert_zoom_pos = GetZoomPosFromScale(vertscale, vertpixelflag);
-    fprintf(stderr,"Set vert Zoom sliderpos: %d\n",vert_zoom_pos);
+    snde_debug(SNDE_DC_VIEWER,"Set vert Zoom sliderpos: %d",vert_zoom_pos);
     VertZoom->setSliderPosition(vert_zoom_pos);
     
     
@@ -895,10 +894,12 @@ namespace snde {
       
       if (rounded_scale > horizscale*1.01) {
 	// round up
+	snde_debug(SNDE_DC_VIEWER,"Zooming in, selected channel=\"%s\" round up; rounded_scale = %f, horizscale*1.01=%f",selected_channel->FullName.c_str(),rounded_scale,horizscale*1.01);
 	SetHorizScale(rounded_scale,horizpixelflag);	  
       } else {
 	// Step up
 	if (horiz_zoom_pos+1 < nzoomsteps) {
+	  snde_debug(SNDE_DC_VIEWER,"Zooming in, selected channel=\"%s\" step up",selected_channel->FullName.c_str());
 	  double new_scale = GetScaleFromZoomPos(horiz_zoom_pos+1,horizpixelflag);
 	  SetHorizScale(new_scale,horizpixelflag);
 	}
@@ -922,7 +923,7 @@ namespace snde {
       break;
       
     case QAbstractSlider::SliderMove:
-      fprintf(stderr,"Got Horiz Zoom slidermove: %d\n",HorizZoom->sliderPosition());
+      snde_debug(SNDE_DC_VIEWER,"Got Horiz Zoom slidermove: %d\n",HorizZoom->sliderPosition());
       
       double HorizZoomPosn = GetScaleFromZoomPos(HorizZoom->sliderPosition(),horizpixelflag);
       SetHorizScale(HorizZoomPosn,horizpixelflag);	  
@@ -982,7 +983,7 @@ namespace snde {
       break;
       
     case QAbstractSlider::SliderMove:
-      fprintf(stderr,"Got Vert Zoom slidermove: %d\n",VertZoom->sliderPosition());
+      snde_debug(SNDE_DC_VIEWER,"Got Vert Zoom slidermove: %d",VertZoom->sliderPosition());
       double VertZoomPosn = GetScaleFromZoomPos(VertZoom->sliderPosition(),vertpixelflag);
       SetVertScale(VertZoomPosn,vertpixelflag);	  
       
@@ -1005,7 +1006,7 @@ namespace snde {
 
   void qtrec_position_manager::HorizZoomIn(bool)
   {
-    //fprintf(stderr,"HorizZoomIn()\n");
+    snde_debug(SNDE_DC_VIEWER,"HorizZoomIn()");
     HorizZoomActionTriggered(QAbstractSlider::SliderSingleStepAdd);      
   }
 

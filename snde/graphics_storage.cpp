@@ -16,8 +16,8 @@ namespace snde {
   // ***!!!! Conceptually creating a graphics_storage should pass ownership
   // of the particular array zone, so it is automatically free'd.
   // ***!!! But what about follower arrays?
-  graphics_storage::graphics_storage(std::shared_ptr<graphics_storage_manager> graphman,std::shared_ptr<arraymanager> manager,std::shared_ptr<memallocator> memalloc,std::shared_ptr<graphics_storage> leader_storage,std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized) :
-    recording_storage(recording_path,recrevision,id,basearray,elementsize,base_index,typenum,nelem,manager->locker,requires_locking_read,requires_locking_write,finalized),
+  graphics_storage::graphics_storage(std::shared_ptr<graphics_storage_manager> graphman,std::shared_ptr<arraymanager> manager,std::shared_ptr<memallocator> memalloc,std::shared_ptr<graphics_storage> leader_storage,std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized) :
+    recording_storage(recording_path,recrevision,originating_rss_unique_id,id,basearray,elementsize,base_index,typenum,nelem,manager->locker,requires_locking_read,requires_locking_write,finalized),
     manager(manager),
     memalloc(memalloc),
     graphman(graphman),
@@ -118,12 +118,12 @@ namespace snde {
 	all_locks = lockprocess->finish();
 	
       }
-      ref_ptr=memalloc->obtain_nonmoving_copy_or_reference(graphman_strong->graphics_recgroup_path/*recording_path*/,0 /* our recrevisions are always 0 because we just keep reusing the same array */,id,_basearray,*_basearray,elementsize*base_index,elementsize*nelem);
+      ref_ptr=memalloc->obtain_nonmoving_copy_or_reference(graphman_strong->graphics_recgroup_path/*recording_path*/,0 /* our recrevisions are always 0 because we just keep reusing the same array */,graphman_strong->base_rss_unique_id,id,_basearray,*_basearray,elementsize*base_index,elementsize*nelem);
 
       // locks released as context expires. 
     }
     
-    std::shared_ptr<recording_storage_reference> reference = std::make_shared<recording_storage_reference>(recording_path,recrevision,id,nelem,shared_from_this(),ref_ptr);
+    std::shared_ptr<recording_storage_reference> reference = std::make_shared<recording_storage_reference>(recording_path,recrevision,originating_rss_unique_id,id,nelem,shared_from_this(),ref_ptr);
 
     return reference;
   }
@@ -192,7 +192,7 @@ namespace snde {
   // NOTE: CONTENTS MUST REMAIN PARALLEL TO ALTERNATE SPECIALIZATION OF add_arrays_given_sizes(), BELOW
   {
     if ((void **)leaderptr == (void**)arrayptr) {
-      manager->add_allocated_array(graphics_recgroup_path,0,*nextid,(void **)leaderptr,sizeof(**leaderptr),0,elemsizes);
+      manager->add_allocated_array(graphics_recgroup_path,0,0,*nextid,(void **)leaderptr,sizeof(**leaderptr),0,elemsizes);
     } else {
       manager->add_follower_array(*nextid,(void **)leaderptr,(void **)arrayptr,sizeof(**arrayptr));
       
@@ -245,7 +245,7 @@ namespace snde {
   // NOTE: CONTENTS MUST REMAIN PARALLEL TO ALTERNATE SPECIALIZATION OF add_arrays_given_sizes(), ABOVE
   {
     if ((void **)leaderptr == (void**)arrayptr) {
-      manager->add_allocated_array(graphics_recgroup_path,0,*nextid,(void **)leaderptr,sizeof(**leaderptr),0,elemsizes);
+      manager->add_allocated_array(graphics_recgroup_path,0,0,*nextid,(void **)leaderptr,sizeof(**leaderptr),0,elemsizes);
     } else {
       manager->add_follower_array(*nextid,(void **)leaderptr,(void **)arrayptr,sizeof(**arrayptr));
       
@@ -299,7 +299,8 @@ namespace snde {
     recording_storage_manager(), // superclass
     manager(std::make_shared<arraymanager>(memalloc,alignment_requirements,lockmgr)),
     graphics_recgroup_path(graphics_recgroup_path),
-    geom() // Triggers value-initialization of .data which zero-initializes all members
+    geom(), // Triggers value-initialization of .data which zero-initializes all members
+    base_rss_unique_id(rss_get_unique())
   {
     std::atomic_store(&_follower_cachemanagers,std::make_shared<std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>>>());
 
@@ -311,6 +312,11 @@ namespace snde {
     // for each follower array we do an add_follower_array()
     // the add_allocated array takes a set of element sizes for all the followes
     // so that the allocation can be compatible with them
+
+    // NOTE: for recording_storage_manager_simple, the index into the multiarray and the memallocator
+    // regionid are the same. But this is NOT true for the graphics_storage_manager, which uses index
+    // of definition of array in the graphics_storage constructor as the memallocator_regionid.
+    // This index is what is stored in next_region_id here in the constructor. 
 
     
 
@@ -456,7 +462,7 @@ namespace snde {
 										      std::shared_ptr<graphics_storage> leader_storage, // nullptr if we are creating a leader
 										      std::string array_name,
 										      uint64_t recrevision,
-										      snde_index base_index, // as allocated for leader_array
+										      uint64_t originating_rss_unique_id,								           snde_index base_index, // as allocated for leader_array
 										      size_t elementsize,
 										      unsigned typenum, // MET_...
 										      snde_index nelem,
@@ -465,7 +471,7 @@ namespace snde {
   {
     void **arrayaddr = arrayaddr_from_name.at(array_name);
     if (elemsize_from_name.at(array_name) != elementsize) {
-      throw snde_error("Mismatch between graphics array field %s element size with allocation: %u vs. %u",array_name,(unsigned)elemsize_from_name.at(array_name),(unsigned)elementsize);
+      throw snde_error("Mismatch between graphics array field %s element size with allocation: %u vs. %u",array_name.c_str(),(unsigned)elemsize_from_name.at(array_name),(unsigned)elementsize);
     }
 
     if (typenum_from_name.at(array_name) != typenum && !(rtn_compatible_types.count(typenum_from_name.at(array_name)) > 0 &&  rtn_compatible_types.at(typenum_from_name.at(array_name)).count(typenum) > 0 )) {
@@ -473,7 +479,7 @@ namespace snde {
       
     }
     
-    std::shared_ptr<graphics_storage> retval = std::make_shared<graphics_storage>(std::dynamic_pointer_cast<graphics_storage_manager>(shared_from_this()),manager,manager->_memalloc,leader_storage,recording_path,recrevision,arrayid_from_name.at(array_name),arrayaddr,elementsize,base_index,typenum,nelem,is_mutable || manager->_memalloc->requires_locking_read,is_mutable || manager->_memalloc->requires_locking_write,false);
+    std::shared_ptr<graphics_storage> retval = std::make_shared<graphics_storage>(std::dynamic_pointer_cast<graphics_storage_manager>(shared_from_this()),manager,manager->_memalloc,leader_storage,recording_path,recrevision,originating_rss_unique_id,arrayid_from_name.at(array_name),arrayaddr,elementsize,base_index,typenum,nelem,is_mutable || manager->_memalloc->requires_locking_read,is_mutable || manager->_memalloc->requires_locking_write,false);
 
     // if not(requires_locking_write) we must switch the pointer to a nonmoving_copy_or_reference NOW because otherwise the array might be moved around as we try to write.
     // if not(requires_locking_read) we must switch the pointer to a nonmoving_copy_or_reference on finalization
@@ -484,7 +490,7 @@ namespace snde {
 	// switch pointer to a nonmoving copy or reference
 	
 	// assign _ref: 
-	retval->assign_ref(manager->_memalloc->obtain_nonmoving_copy_or_reference(graphics_recgroup_path/*recording_path*/,0 /* our recrevisions are always 0 because we just keep reusing the same array */,retval->id,retval->_basearray,*retval->_basearray,elementsize*base_index,elementsize*nelem));
+	retval->assign_ref(manager->_memalloc->obtain_nonmoving_copy_or_reference(graphics_recgroup_path/*recording_path*/,0 /* our recrevisions are always 0 because we just keep reusing the same array */,base_rss_unique_id,retval->id,retval->_basearray,*retval->_basearray,elementsize*base_index,elementsize*nelem));
       } else {
 	// read and write locks required because entire array may move around
 	retval->requires_locking_write=true;
@@ -515,6 +521,7 @@ namespace snde {
 										    std::shared_ptr<graphics_storage> leader_storage,
 										    std::string follower_array_name,
 										    uint64_t recrevision,
+										    uint64_t originating_rss_unique_id,
 										    snde_index base_index, // as allocated for leader_array
 										    size_t elementsize,
 										    unsigned typenum, // MET_...
@@ -529,6 +536,7 @@ namespace snde {
 				     leader_storage, 
 				     follower_array_name,
 				     recrevision,
+				     originating_rss_unique_id,
 				     base_index, // as allocated for leader_array
 				     elementsize,
 				     typenum, // MET_...
@@ -544,6 +552,7 @@ namespace snde {
   
   std::shared_ptr<recording_storage> graphics_storage_manager::allocate_recording_lockprocess(std::string recording_path,std::string array_name, // use "" for default array
 											      uint64_t recrevision,
+											      uint64_t originating_rss_unique_id,
 											      size_t elementsize,
 											      unsigned typenum, // MET_...
 											      snde_index nelem,
@@ -589,6 +598,7 @@ namespace snde {
 				     nullptr, // nullptr since we are creating a leader
 				     array_name,
 				     recrevision,
+				     originating_rss_unique_id,
 				     addr, // as allocated for leader_array
 				     elementsize,
 				     typenum,
@@ -602,6 +612,8 @@ namespace snde {
   
   std::shared_ptr<recording_storage> graphics_storage_manager::allocate_recording(std::string recording_path,std::string array_name, // use "" for default array
 										  uint64_t recrevision,
+										  uint64_t originating_rss_unique_id,
+										  size_t multiarray_index, // We don't care about the multiarray_index. Our indexes used in filenames come from which array within snde_geometrydata
 										  size_t elementsize,
 										  unsigned typenum, // MET_...
 										  snde_index nelem,
@@ -614,6 +626,7 @@ namespace snde {
 
     retstorage = allocate_recording_lockprocess(recording_path,array_name, // use "" for default array
 						recrevision,
+						originating_rss_unique_id,
 						elementsize,
 						typenum, // MET_...
 						nelem,

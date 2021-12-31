@@ -38,6 +38,7 @@ namespace snde {
   public:
     std::string recording_path; // immutable once constructed
     uint64_t recrevision;  // immutable once constructed
+    uint64_t originating_rss_unique_id;
     memallocator_regionid id;  //immutable once constructed
     
     void **_basearray; // pointer to lockable address for recording array (lockable if recording is mutable or requires_locking_read or requires_locking_write). Don't use directly, get via lockableaddr() method
@@ -60,7 +61,7 @@ namespace snde {
     std::atomic<bool> finalized; // if set, this is an immutable recording and its values have been set. Does NOT mean the data is valid indefinitely, as this could be a reference that loses validity at some point.
     
     // constructor
-    recording_storage(std::string recording_path,uint64_t recrevision,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized);
+    recording_storage(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized);
     
     // Rule of 3
     recording_storage(const recording_storage &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
@@ -104,7 +105,7 @@ namespace snde {
 
     
     // don't create this yourself, get it from recording_storage_manager_simple
-    recording_storage_simple(std::string recording_path,uint64_t recrevision,memallocator_regionid id,size_t elementsize,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr);
+    recording_storage_simple(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,size_t elementsize,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr);
     recording_storage_simple(const recording_storage_simple &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
     recording_storage_simple& operator=(const recording_storage_simple &) = delete; 
     virtual ~recording_storage_simple(); // frees  _baseptr, notifies followers 
@@ -127,7 +128,7 @@ namespace snde {
     std::shared_ptr<recording_storage> orig; // low-level allocator
     std::shared_ptr<nonmoving_copy_or_reference> ref; 
 
-    recording_storage_reference(std::string recording_path,uint64_t recrevision,memallocator_regionid id,snde_index nelem,std::shared_ptr<recording_storage> orig,std::shared_ptr<nonmoving_copy_or_reference> ref);
+    recording_storage_reference(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,snde_index nelem,std::shared_ptr<recording_storage> orig,std::shared_ptr<nonmoving_copy_or_reference> ref);
     virtual ~recording_storage_reference() = default; 
     virtual void *dataaddr_or_null();
     virtual void *cur_dataaddr();
@@ -153,6 +154,8 @@ namespace snde {
     
     virtual std::shared_ptr<recording_storage>  allocate_recording(std::string recording_path,std::string array_name, // use "" for default array
 								   uint64_t recrevision,
+								   uint64_t originating_rss_unique_id,
+								   size_t multiarray_index,
 								   size_t elementsize,
 								   unsigned typenum, // MET_...
 								   snde_index nelem,
@@ -172,6 +175,8 @@ namespace snde {
     virtual ~recording_storage_manager_simple() = default; 
     virtual std::shared_ptr<recording_storage> allocate_recording(std::string recording_path,std::string array_name, // use "" for default array within recording
 								  uint64_t recrevision,
+								  uint64_t originating_rss_unique_id,
+								  size_t multiarray_index,
 								  size_t elementsize,
 								  unsigned typenum, // MET_...
 								  snde_index nelem,

@@ -185,6 +185,7 @@ int main(int argc, char **argv)
   recdb=std::make_shared<snde::recdatabase>();
   setup_cpu(recdb,std::thread::hardware_concurrency());
   setup_storage_manager(recdb);
+  setup_math_functions(recdb,{});
   recdb->startup();
 
   snde::active_transaction transact(recdb); // Transaction RAII holder

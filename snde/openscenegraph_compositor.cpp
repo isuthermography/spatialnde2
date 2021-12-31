@@ -323,7 +323,7 @@ namespace snde {
       
       std::shared_ptr<globalrevision> globalrev = recdb_strong->latest_ready_globalrev();
       
-      display->set_current_globalrev(globalrev);
+      //display->set_current_globalrev(globalrev); (redundant with display->update)
       
       std::string selected_channel_copy;
       {
@@ -606,6 +606,8 @@ namespace snde {
     snde_debug(SNDE_DC_RENDERING,"starting compositing loop:");
 
     group->getOrCreateStateSet()->setMode(GL_DEPTH_TEST,osg::StateAttribute::OFF);
+
+    std::vector<osg::ref_ptr<osg::Texture2D>> temporary_texture_references;
     
     for (auto && displaychan: channels_to_display) {
       std::map<std::string,std::pair<osg::ref_ptr<osg::Texture2D>,GLuint>>::iterator tex_it;
@@ -629,7 +631,8 @@ namespace snde {
 	
 	texobj->setAllocated();
 	tex->setTextureObject(GraphicsWindow->getState()->getContextID(),texobj);
-
+	temporary_texture_references.push_back(tex); // store the reference so we can clear it prior to deletion and avoid the annoying message
+	
 	snde_debug(SNDE_DC_RENDERING,"borderbox: width=%d,height=%d",compositor_width,compositor_height);
 	/* !!!*** NOTE: Apparently had trouble previously with double precision vs single precision arrays (?) */
 	
@@ -789,6 +792,12 @@ namespace snde {
     //snde_warning("drawing frame: Empty=%d",(int)GraphicsWindow->getEventQueue()->empty());
     Viewer->frame();
 
+    for (auto && texobj: temporary_texture_references) {
+      // undo the tex->setTextureObject() from perform_compositing(). This eliminates the nasty message about releaseTextureObject() being unimplemented
+      texobj->setTextureObject(GraphicsWindow->getState()->getContextID(),nullptr);
+    }
+    temporary_texture_references.clear();
+    
     adminlock->lock();
     snde_debug(SNDE_DC_RENDERING,"Compositing complete; need_recomposite=%d",(int)need_recomposite);
   }
@@ -1116,7 +1125,9 @@ namespace snde {
     CrossHairsGeom->setVertexArray(CrossHairsLinesCoords);
     
   }
-  
+
+
+
 
 
 };

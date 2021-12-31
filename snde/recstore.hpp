@@ -261,6 +261,8 @@ namespace snde {
     // DON'T ACCESS THESE DIRECTLY! Use the .get_originating_rss() and ._get_originating_rss_recdb_and_rec_admin_prelocked() methods.
     std::weak_ptr<recdatabase> recdb_weak;  // Right now I think this is here solely so that we can get access to the available_compute_resources_database to queue more calculations after a recording is marked as ready. Also used by assign_storage_manager(). Immutable once created so safe to read.  
     std::weak_ptr<transaction> defining_transact; // This pointer should be valid for a recording defined as part of a transaction; nullptr for an ondemand math recording, for example. Weak ptr should be convertible to strong as long as the originating_rss is still current.
+
+    uint64_t originating_rss_unique_id; // must be assigned by creator (i.e. create_recording<>() or create_recording_math<>()) immediately after creation. Immutable from then on. 
     
     std::weak_ptr<recording_set_state> _originating_rss; // locked by admin mutex; if expired than originating_rss has been freed. if nullptr then this was defined as part of a transaction that was may still be going on when the recording was defined. Use get_originating_rss() which handles locking and getting the originating_rss from the defining_transact
 
@@ -578,6 +580,7 @@ namespace snde {
     std::mutex admin; // after the recording_set_state in the locking order and after the class channel's admin lock, but before recordings. Must hold this lock when reading or writing structures within. Does not cover the channels/recordings themselves.
 
     uint64_t globalrev; // globalrev index for this transaction. Immutable once published
+    uint64_t rss_unique_index; // unique_index field that will be assigned to the recording_set_state. Immutable once published
     std::unordered_set<std::shared_ptr<channel>> updated_channels;
     //Keep track of whether a new recording is required for the channel (e.g. if it has a new owner) (use false for math recordings)
     std::map<std::string,bool> new_recording_required; // index is channel name for updated channels
@@ -604,6 +607,8 @@ namespace snde {
 					     // for possibly dependent channels 
 					     std::unordered_set<std::shared_ptr<channelconfig>> *changed_channels_need_dispatch,
 					     std::unordered_set<std::shared_ptr<channelconfig>> *changed_channels_dispatched,
+					     // Set of channels known to be definitely unchanged
+					     std::unordered_set<std::shared_ptr<channelconfig>> *unchanged_channels,
 					     // set of channels not yet known to be changed
 					     std::unordered_set<std::shared_ptr<channelconfig>> *unknownchanged_channels,
 					     // set of math functions not known to be changed or unchanged
@@ -613,7 +618,8 @@ namespace snde {
 					     std::unordered_set<std::shared_ptr<channelconfig>> *explicitly_updated_channels,
     std::unordered_set<channel_state *> *ready_channels, // references into the new_rss->recstatus.channel_map
 					     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> *ready_to_execute,
-					     bool *all_ready);
+					     bool *all_ready,
+					     bool enable_ondemand);
 
   
   class active_transaction /* : public std::enable_shared_from_this<active_transaction> */ {
@@ -778,10 +784,16 @@ namespace snde {
   };
 
 
+  // return a process-wide unique (incrementing) identifier. Process wide
+  // so that even if you run multiple recording databases you still won't
+  // get a collision. Use a value from this function as the 
+  uint64_t rss_get_unique();
+
   class recording_set_state : public std::enable_shared_from_this<recording_set_state> {
   public:
     std::mutex admin; // locks changes to recstatus including channel_map contents (map itself is immutable once published), mathstatus,  and the _recordings reference maps/sets and notifiers. Precedes transaction->admin (i.e. recdb->current_transaction->admin) , recstatus.channel_map.rec.admin and Python GIL in locking order
-    uint64_t originating_globalrev_index; // this rss may not __be__ a globalrev but it (almost certainly?) is built on one. 
+    uint64_t originating_globalrev_index; // this rss may not __be__ a globalrev but it (almost certainly?) is built on one.
+    uint64_t unique_index; // This is a number unique within the process for this RSS. Used to disambiguate shared memory names, for example. Immutable post-construction 
     std::weak_ptr<recdatabase> recdb_weak;
     std::atomic<bool> ready; // indicates that all recordings except ondemand and data_requestonly recordings are READY (mutable recordings may be OBSOLETE)
     recording_status recstatus;
@@ -791,7 +803,7 @@ namespace snde {
     std::shared_ptr<lockmanager> lockmgr; // pointer is immutable after initialization
 
     
-    recording_set_state(std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state); // constructor
+    recording_set_state(std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state,uint64_t originating_globalrev_index,uint64_t unique_index); // constructor
     // Rule of 3
     recording_set_state& operator=(const recording_set_state &) = delete; 
     recording_set_state(const recording_set_state &orig) = delete;
@@ -864,7 +876,7 @@ namespace snde {
     std::shared_ptr<globalrev_mutable_lock> mutable_recordings_need_holder;
     std::atomic<bool> mutable_recordings_still_needed; 
 
-    globalrevision(uint64_t globalrev, std::shared_ptr<transaction> defining_transact, std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state);   
+    globalrevision(uint64_t globalrev, std::shared_ptr<transaction> defining_transact, std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state,uint64_t rss_unique_index);   
   };
   
 
@@ -891,8 +903,8 @@ namespace snde {
 
     std::atomic<bool> started;
 
-    std::mutex transaction_lock; // ***!!! Before any dataguzzler-python module locks, etc.
-    std::shared_ptr<transaction> current_transaction; // only valid while transaction_lock is held.
+    std::mutex transaction_lock; // ***!!! Before any dataguzzler-python module locks, etc. Before the recdb admin lock
+    std::shared_ptr<transaction> current_transaction; // only valid while transaction_lock is held. But changing/accessing also requires the recdb admin lock
 
     std::set<std::weak_ptr<monitor_globalrevs>,std::owner_less<std::weak_ptr<monitor_globalrevs>>> monitoring;
     uint64_t monitoring_notify_globalrev; // latest globalrev for which monitoring has already been notified
@@ -1266,9 +1278,13 @@ namespace snde {
     std::shared_ptr<recording_storage_manager> storage_manager = select_storage_manager_for_recording_during_transaction(recdb,chan->config()->channelpath.c_str());
     
     uint64_t new_revision = ++chan->latest_revision; // atomic variable so it is safe to pre-increment
+
+    // It is safe to use recdb->current_transaction here even with out locking because
+    // the caller is responsible for making sure we are in a transaction
+    // i.e. appropriate synchronization must happen before and after. 
     
     std::shared_ptr<T> new_rec = std::make_shared<T>(recdb,storage_manager,recdb->current_transaction,chan->config()->channelpath,nullptr,new_revision,0,args...);
-
+    new_rec->originating_rss_unique_id = recdb->current_transaction->rss_unique_index;
     
     recdb->register_new_rec(new_rec);
     return new_rec;
@@ -1302,8 +1318,8 @@ namespace snde {
 
     std::shared_ptr<T> new_rec = std::make_shared<T>(recdb,storage_manager,defining_transact,chanpath,calc_rss,new_revision,0,args...);
     
-
-
+    new_rec->originating_rss_unique_id = calc_rss->unique_index;
+    
     
     recdb->register_new_math_rec((void*)recdb.get(),calc_rss,new_rec);
     return new_rec;

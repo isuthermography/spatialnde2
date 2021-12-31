@@ -146,59 +146,92 @@ namespace snde {
     //OSGWidget->start();  // we can't call start() ourselves... we have to wait for InitializeGL()
 
     ready_globalrev_quicknotify = std::make_shared<std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision>)>>( [ this ](std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision>) {
+      snde_debug(SNDE_DC_VIEWER,"Invoking qtrecviewer update_rec_list slot because of globalrev update");
+      
       QMetaObject::invokeMethod(this,"update_rec_list",Qt::QueuedConnection); // trigger update_rec_list slot in QT main loop
     });
     
     recdb->register_ready_globalrev_quicknotifies_called_recdb_locked(ready_globalrev_quicknotify);
-      
+
+    bool success=false;
     
-    QObject::connect(HorizSlider,SIGNAL(actionTriggered(int)),
-		     posmgr, SLOT(HorizSliderActionTriggered(int)));
+    success=QObject::connect(HorizSlider,SIGNAL(actionTriggered(int)),
+			     posmgr, SLOT(HorizSliderActionTriggered(int)));
+    assert(success);
+
+    success=QObject::connect(VertSlider,SIGNAL(actionTriggered(int)),
+			     posmgr, SLOT(VertSliderActionTriggered(int)));
+    assert(success);
+
     
-    QObject::connect(VertSlider,SIGNAL(actionTriggered(int)),
-		     posmgr, SLOT(VertSliderActionTriggered(int)));
+    success = QObject::connect(HorizZoom,SIGNAL(actionTriggered(int)),
+			       posmgr, SLOT(HorizZoomActionTriggered(int)));
+    assert(success);
+
+    success = QObject::connect(VertZoom,SIGNAL(actionTriggered(int)),
+			       posmgr, SLOT(VertZoomActionTriggered(int)));
+    assert(success);
     
-    
-    QObject::connect(HorizZoom,SIGNAL(actionTriggered(int)),
-		     posmgr, SLOT(HorizZoomActionTriggered(int)));
-    QObject::connect(VertZoom,SIGNAL(actionTriggered(int)),
-		     posmgr, SLOT(VertZoomActionTriggered(int)));
-    
-    QObject::connect(VertZoomInButton,SIGNAL(clicked(bool)),
+    success = QObject::connect(VertZoomInButton,SIGNAL(clicked(bool)),
 		     posmgr, SLOT(VertZoomIn(bool)));
-    QObject::connect(HorizZoomInButton,SIGNAL(clicked(bool)),
+    assert(success);
+
+    success = QObject::connect(HorizZoomInButton,SIGNAL(clicked(bool)),
 		     posmgr, SLOT(HorizZoomIn(bool)));
-    
-    QObject::connect(VertZoomOutButton,SIGNAL(clicked(bool)),
+    assert(success);
+
+    success = QObject::connect(VertZoomOutButton,SIGNAL(clicked(bool)),
 		     posmgr, SLOT(VertZoomOut(bool)));
-    QObject::connect(HorizZoomOutButton,SIGNAL(clicked(bool)),
+    assert(success);
+
+    success = QObject::connect(HorizZoomOutButton,SIGNAL(clicked(bool)),
 		     posmgr, SLOT(HorizZoomOut(bool)));
+    assert(success);
     
-    QObject::connect(DarkenButton,SIGNAL(clicked(bool)),
+    success = QObject::connect(DarkenButton,SIGNAL(clicked(bool)),
 		     this, SLOT(Darken(bool)));
-    QObject::connect(ResetIntensityButton,SIGNAL(clicked(bool)),
+    assert(success);
+
+    success = QObject::connect(ResetIntensityButton,SIGNAL(clicked(bool)),
 		     this, SLOT(ResetIntensity(bool)));
-    QObject::connect(BrightenButton,SIGNAL(clicked(bool)),
+    assert(success);
+
+
+    success = QObject::connect(BrightenButton,SIGNAL(clicked(bool)),
 		     this, SLOT(Brighten(bool)));
-    
-    QObject::connect(LessContrastButton,SIGNAL(clicked(bool)),
+    assert(success);
+
+    success = QObject::connect(LessContrastButton,SIGNAL(clicked(bool)),
 		     this, SLOT(LessContrast(bool)));
-    QObject::connect(MoreContrastButton,SIGNAL(clicked(bool)),
+    assert(success);
+
+    success = QObject::connect(MoreContrastButton,SIGNAL(clicked(bool)),
 		     this, SLOT(MoreContrast(bool)));
+    assert(success);
     
     
     
-    QObject::connect(posmgr,SIGNAL(NewPosition()),
+    success = QObject::connect(posmgr,SIGNAL(NewPosition()),
 		       OSGWidget,SLOT(rerender()));
+    assert(success);
     
-    QObject::connect(this,SIGNAL(NeedRedraw()),
+    success = QObject::connect(this,SIGNAL(NeedRedraw()),
 		     OSGWidget,SLOT(rerender()));
+    assert(success);
     
     
-    QObject::connect(posmgr,SIGNAL(NewPosition()),
+    success = QObject::connect(posmgr,SIGNAL(NewPosition()),
 		     this,SLOT(UpdateViewerStatus()));
+    assert(success);
     
-    
+    success = QObject::connect(this,SIGNAL(NewGlobalRev()),
+				    OSGWidget,SLOT(rerender()));
+    assert(success);
+
+    success = QObject::connect(this,SIGNAL(NewGlobalRev()),
+		     this,SLOT(UpdateViewerStatus()));    
+    assert(success);
+
     // eventfilter monitors for keypresses
     //      installEventFilter(this);
 
@@ -274,10 +307,14 @@ namespace snde {
   {
     std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
 
+    snde_debug(SNDE_DC_VIEWER,"QTRecViewer executing update_rec_list()");
+    
     if (!recdb_strong) return;
 
     // !!!*** NOTE: osg_compositor allso calls display->update(), but with all three bools false
-    // ... is it a problem that both modules are calling display->update??? (and perhaps from different threads!) 
+    // ... is it a problem that both modules are calling display->update??? (and perhaps from different threads!)
+    // Answer: It is OK. display->update just does internal housekeeping on the display_info list
+    // of channels. The bools just determine which channels are returned. 
     std::vector<std::shared_ptr<display_channel>> currentreclist = display->update(recdb_strong->latest_ready_globalrev(),selected,false,true,false);
     
     // clear touched flag for all selectors
@@ -351,6 +388,10 @@ namespace snde {
     
     // add our stretch
     RecListScrollAreaLayout->addStretch(10);
+
+    snde_debug(SNDE_DC_VIEWER,"QTRecViewer update_rec_list() emitting NewGlobalRev()");
+    emit NewGlobalRev();
+    
   }
   
   void QTRecViewer::deselect_other_selectors(QTRecSelector *Selected)
@@ -379,10 +420,12 @@ namespace snde {
       //chan_data = recdb->lookup(posmgr->selected_channel->FullName);
 
       int render_mode;
+      bool chan_enabled;
       {
 	std::lock_guard<std::mutex> selchan_admin(posmgr->selected_channel->admin);
 
 	render_mode = posmgr->selected_channel->render_mode;
+	chan_enabled = posmgr->selected_channel->Enabled;
       }
       
       std::shared_ptr<display_axis> a = display->GetFirstAxis(posmgr->selected_channel->FullName);	
@@ -395,6 +438,7 @@ namespace snde {
 	  std::lock_guard<std::mutex> adminlock(a->unit->admin);
 	  horizscale = a->unit->scale;
 	  horizpixelflag = a->unit->pixelflag;
+	  snde_debug(SNDE_DC_VIEWER,"Horizontal axis: a=%s",a->axis.c_str());
 	}
 	// Gawdawful C++ floating point formatting
 	//std::stringstream inipos;
@@ -485,6 +529,8 @@ namespace snde {
 	    vertunitsperdiv=scalefactor;
 	    
 	    pixelflag=a->unit->pixelflag;
+	    snde_debug(SNDE_DC_VIEWER,"Image: Vertical axis: a=%s",a->axis.c_str());
+	  
 	  }
 	  
 	  {
@@ -543,6 +589,8 @@ namespace snde {
 	  
 	  std::lock_guard<std::mutex> adminlock(a->admin);
 	  //statusline += a->abbrev+"0=" + inipos.str() + " " + intscalestr.str() + a->unit->unit.print(false) + "/intensity";
+	  snde_debug(SNDE_DC_VIEWER,"Image: Amplitude axis: a=%s",a->axis.c_str());
+
 	  statusline += a->abbrev+"0=" + PrintWithSIPrefix(posmgr->selected_channel->Offset,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3) + "/intensity";
 	  
 	  needjoin=true;
@@ -557,7 +605,9 @@ namespace snde {
 #warning "UpdateViewerStatus on SNDE_DCRM_SCALAR not implemented"
  
       } else {
-	snde_warning("qtrecviewer: invalid render_mode: %d on channel %s (0x%llx)",render_mode,posmgr->selected_channel->FullName.c_str(),(unsigned long long)((uintptr_t)posmgr->selected_channel.get()));
+	if (chan_enabled) {
+	  snde_warning("qtrecviewer: invalid render_mode: %d on channel %s (0x%llx)",render_mode,posmgr->selected_channel->FullName.c_str(),(unsigned long long)((uintptr_t)posmgr->selected_channel.get()));
+	}
       }
       
     
@@ -700,7 +750,7 @@ namespace snde {
       std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->FullName);
       if (a && render_mode == SNDE_DCRM_IMAGE) {
 	//double contrastpower_floor = floor(log(posmgr->selected_channel->scale)/log(10.0));
-	double contrastpower_ceil = floor(log(Scale)/log(10.0));
+	double contrastpower_ceil = ceil(log(Scale)/log(10.0));
 	
 	//double leadingdigit_floor;
 	//int leadingdigit_flooridx;
@@ -715,13 +765,15 @@ namespace snde {
 	std::tie(leadingdigit_ceilidx,leadingdigit_ceil) = round_to_zoom_digit(round(Scale/pow(10,contrastpower_ceil)));
 	
 	double difference = leadingdigit_ceil*pow(10,contrastpower_ceil) - Scale;
+	snde_debug(SNDE_DC_VIEWER,"LessContrast: difference/Scale = %f",fabs(difference/Scale));
 	if (fabs(difference/Scale) < .1) {
 	  // no significant change from the ceil operation
 	  // bump up by one notch
 	  
 	  const double newleadingdigits[]={2.0,5.0,10.0};
+	  snde_debug(SNDE_DC_VIEWER,"LessContrast: Bumping up leadingdigit_ceil from %f to %f.",leadingdigit_ceil,newleadingdigits[leadingdigit_ceilidx]);
 	  leadingdigit_ceil = newleadingdigits[leadingdigit_ceilidx];
-	  
+
 	  
 	}
 	
