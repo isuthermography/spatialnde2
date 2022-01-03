@@ -117,7 +117,7 @@ namespace snde {
     std::shared_ptr<display_spatial_transform> spatial_transform; // for root requirements only, this documents the spatial transformations between render area pixel coordinates, channel coordinates, and renderbox pixel coordinates. 
     std::shared_ptr<display_channel_rendering_bounds> spatial_bounds; // for root requirements only. These are the bounds in channel units of what is being (or to be ) displayed. For 3D rendering channels, "channel units" are interpreted to be pixels at the 3D rendering resolution
     
-    std::shared_ptr<std::string> renderable_channelpath;
+    std::shared_ptr<std::string> renderable_channelpath;  // shared_ptr aspect could probably be removed now that we default it to the channelpath
     std::shared_ptr<instantiated_math_function> renderable_function;
     std::vector<std::shared_ptr<display_requirement>> sub_requirements;
     
@@ -126,7 +126,8 @@ namespace snde {
       mode(mode),
       original_recording(original_recording),
       display_handler(display_handler),
-      renderer_type(SNDE_DRRT_INVALID)
+      renderer_type(SNDE_DRRT_INVALID),
+      renderable_channelpath(std::make_shared<std::string>(channelpath)) // (default to input channel; often overridden)
     {
 
     }

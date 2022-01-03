@@ -1359,21 +1359,21 @@ namespace snde {
 
 	// Use pixel size in given texture_rec to get scaling for texture coordinates.
 
-	double Step1 = texture_ref->rec->metadata->GetMetaDatumDbl("nde_axis0_step",1.0);
+	double Step1 = texture_ref->rec->metadata->GetMetaDatumDbl("nde_array-axis0_step",1.0);
 	assert(Step1 > 0.0); 
-	double Step2 = texture_ref->rec->metadata->GetMetaDatumDbl("nde_axis1_step",1.0);
+	double Step2 = texture_ref->rec->metadata->GetMetaDatumDbl("nde_array-axis1_step",1.0);
 
 	//double IniVal1 = texture_ref->rec->metadata->GetMetaDatumDbl("IniVal1",-texture_ref->layout.dimlen[0]/2.0);
 	//double IniVal2 = texture_ref->rec->metadata->GetMetaDatumDbl("IniVal2",texture_ref->layout.dimlen[1]/2.0);
 	//	double IniVal1 = texture_ref->rec->metadata->GetMetaDatumDbl("IniVal1",0.0+Step1/2.0);
-	double IniVal1 = texture_ref->rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0);
+	double IniVal1 = texture_ref->rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0);
 	double IniVal2;
 	//if (Step2 < 0.0) {
 	//  IniVal2 = texture_ref->rec->metadata->GetMetaDatumDbl("IniVal2",texture_ref->layout.dimlen[1]*fabs(Step2)+Step2/2.0);
 	//} else {
 	//  IniVal2 = texture_ref->rec->metadata->GetMetaDatumDbl("IniVal2",0.0+Step2/2.0);
 	//}
-	IniVal2 = texture_ref->rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0);
+	IniVal2 = texture_ref->rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0);
 	
 	TexCoordsToParameterizationCoords(0,0)=fabs(Step1)*texture_ref->layout.dimlen[0];
 	TexCoordsToParameterizationCoords(1,1)=fabs(Step2)*texture_ref->layout.dimlen[1];

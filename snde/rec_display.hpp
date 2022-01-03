@@ -88,6 +88,7 @@ namespace snde {
     
     
     float Scale; // vertical axis scaling for 1D recs; color axis scaling for 2D recordings; units/pixel if pixelflag is set is set for the axis/units, units/div (or equivalently units/intensity) if pixelflag is not set. Also magnification for 3d channels
+    float RenderScale; // scaling of the 3D rendering
     float Position; // vertical offset on display, in divisions. To get in units, multiply by GetVertUnitsPerDiv(Chan) USED ONLY IF VertZoomAroundAxis is true
     float HorizPosition; // horizonal offset onf display, in divisions. Used only on 3D projection channels
     float VertCenterCoord; // Vertical position, in vertical axis units, of center of display. USE ONLY IF VertZoomAroundAxis is false;
@@ -222,6 +223,7 @@ namespace snde {
     
     const std::shared_ptr<math_function> vertnormals_function; // immutable
     const std::shared_ptr<math_function> colormapping_function; // immutable
+    const std::shared_ptr<math_function> pointcloud_colormapping_function; // immutable
     const std::shared_ptr<math_function> vertexarray_function; // immutable
     const std::shared_ptr<math_function> texvertexarray_function; // immutable
     
@@ -274,6 +276,9 @@ namespace snde {
     
     
     std::tuple<bool,double,bool> GetVertScale(std::shared_ptr<display_channel> c);  // returns (success,scalefactor,pixelflag)
+    void SetRenderScale(std::shared_ptr<display_channel> c,double scale, bool ignored_pixelflag);
+
+    std::tuple<bool,double> GetRenderScale(std::shared_ptr<display_channel> c);
     
     double GetVertUnitsPerDiv(std::shared_ptr<display_channel> c);
 

@@ -224,7 +224,61 @@ namespace snde {
     
   };
 
- 
+
+  class osg_cachedpointcloudvertices: public osg_rendercachearrayentry {
+  public:
+    //osg::ref_ptr<OSGFPArray> osg_array; (inherited from osg_rendercacheentry)
+    std::shared_ptr<multi_ndarray_recording> cached_recording;
+
+    
+    osg_cachedpointcloudvertices(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    ~osg_cachedpointcloudvertices() = default;
+    
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+
+  };
+
+
+  class osg_cachedpointcloudcolormap: public osg_rendercachearrayentry {
+  public:
+    //osg::ref_ptr<OSGFPArray> osg_array; (inherited from osg_rendercacheentry)
+    std::shared_ptr<multi_ndarray_recording> cached_recording;
+
+    
+    osg_cachedpointcloudcolormap(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    ~osg_cachedpointcloudcolormap() = default;
+    
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+
+  };
+
+
+  class osg_cachedpointcloud: public osg_rendercachegroupentry {
+  public:
+    //osg::ref_ptr<OSGFPArray> osg_array; (inherited from osg_rendercacheentry)
+    std::shared_ptr<multi_ndarray_recording> cached_recording;
+
+    osg::ref_ptr<osg::Geode> pc_geode;
+    osg::ref_ptr<osg::Geometry> pc_geom;
+    osg::ref_ptr<osg::DrawArrays> pc_points;
+    osg::ref_ptr<osg::StateSet> pc_stateset;
+    osg::ref_ptr<osg::Vec4Array> pc_color;
+    
+
+    std::shared_ptr<osg_cachedpointcloudcolormap> colormap;
+    std::shared_ptr<osg_cachedpointcloudvertices> vertices;
+
+    osg_cachedpointcloud(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    ~osg_cachedpointcloud() = default;
+    
+    virtual void clear_potentially_obsolete();
+    
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+
+  };
+
+
+  
    class osg_cachedmeshednormals: public osg_rendercachearrayentry {
   public:
     // inherited from osg_rendercacheentry:

@@ -129,7 +129,7 @@ struct snde_multi_ndarray_recording {
 #define SNDE_RTN_SNDE_BOX2 47
 #define SNDE_RTN_SNDE_BOXCOORD2 48
 #define SNDE_RTN_SNDE_IMAGEDATA 49
-#define SNDE_RTN_COORD 50
+#define SNDE_RTN_SNDE_COORD 50
 // (note gap)
 #define SNDE_RTN_SNDE_COORD4 52
 #define SNDE_RTN_SNDE_ORIENTATION2 53

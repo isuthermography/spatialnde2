@@ -7,9 +7,9 @@
 import sys
 %}
 
-%pythoncode %{
-snde_error = _spatialnde2_python.snde_error
-%}
+//%pythoncode %{
+//snde_error = _spatialnde2_python.snde_error
+//%}
 
 // Workaround for swig to understand what size_t aliases
 #ifdef SIZEOF_SIZE_T_IS_8
@@ -169,7 +169,7 @@ namespace snde {
 
 %{
 #define SWIG_FILE_WITH_INIT
-#include "snde/snde_error.hpp"
+  //#include "snde/snde_error.hpp"
   
 
   static PyObject *snde_error_exc;
@@ -322,6 +322,7 @@ template <typename T>
 // }
 
 %include "geometry_types.i"
+%include "snde_error.i"
 %include "memallocator.i"
 %include "lock_types.i"
 %include "rangetracker.i"
@@ -421,12 +422,20 @@ template <typename T>
   //  SNDE_RTN_RECORDING not applicable
   //  SNDE_RTN_RECORDING_REF not applicable
 
-  PyObject *coord3_int16_dtype = PyRun_String("dtype([('x', np.int16), ('y', np.int16), ('z',np.int16)])",Py_eval_input,Globals,Globals);
+  PyObject *coord3_int16_dtype = PyRun_String("dtype([('coord', np.int16, 3), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD3_INT16,(PyArray_Descr *)coord3_int16_dtype);
 
   // SNDE_RTN_INDEXVEC through SNDE_RTN_ASSEMBLY_RECORDING not applicable
 
-  // ***!!! Still need numpy dtypes for graphics arrays!!!***
+  // ***!!! Still need numpy dtypes for most graphics arrays!!!***
+#ifdef SNDE_DOUBLEPREC_COORDS
+  PyObject *coord3_dtype = PyRun_String("dtype([('coord', np.floa64, 3), ])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD3,(PyArray_Descr *)coord3_dtype);
+#else
+  PyObject *coord3_dtype = PyRun_String("dtype([('coord', np.float32, 3), ])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD3,(PyArray_Descr *)coord3_dtype);
+#endif // SNDE_DOUBLEPREC_COORDS
+
 
   Py_DECREF(NumpyModule);
   Py_DECREF(np_dtype);

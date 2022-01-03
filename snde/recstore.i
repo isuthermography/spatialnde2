@@ -22,7 +22,7 @@ snde_rawaccessible(snde::recdatabase);
 snde_rawaccessible(snde::instantiated_math_function);
 
 %{
-#include "recstore.hpp"
+#include "snde/recstore.hpp"
 
 %}
 
@@ -317,6 +317,11 @@ namespace snde {
   %extend ndarray_recording_ref {
     PyObject *data()
     {
+      auto numpytypemap_it = snde::rtn_numpytypemap.find(self->ndinfo()->typenum);
+      if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
+	throw snde::snde_error("No corresponding numpy datatype found for snde type #%u",self->ndinfo()->typenum);
+      }
+      
       PyArray_Descr *ArrayDescr = snde::rtn_numpytypemap.at(self->ndinfo()->typenum);
 
       // make npy_intp dims and strides from layout.dimlen and layout.strides

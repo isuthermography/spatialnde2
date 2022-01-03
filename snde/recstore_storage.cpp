@@ -65,7 +65,7 @@ namespace snde {
     if (shiftedarray) {
       return shiftedarray;
     }
-    return (void *)(((char *)_basearray) + elementsize*base_index);
+    return (void *)(((char *)(*_basearray)) + elementsize*base_index);
   }
 
   void **recording_storage_simple::lockableaddr()

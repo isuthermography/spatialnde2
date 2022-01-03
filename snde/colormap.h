@@ -19,6 +19,7 @@
 #define SNDE_COLORMAP_GRAY 0
 #define SNDE_COLORMAP_HOT 1
 #define SNDE_COLORMAP_COLORFUL 2
+#define SNDE_COLORMAP_MAXPLUSONE 3 // end limit
 
 static inline float snde_round_to_uchar(float inp)
 {
@@ -35,9 +36,10 @@ static inline float snde_round_to_uchar(float inp)
 static inline snde_rgba snde_colormap(snde_index ColorMap,float val,uint8_t alpha)
 {
   snde_rgba out;
+  // maps -0.5...0.5 onto color 
   
   if (ColorMap==SNDE_COLORMAP_HOT) {
-    float scaledval=val*3.0f;
+    float scaledval=(val+0.5)*3.0f;
     if (scaledval < 0.0f) scaledval=0.0f;
     if (scaledval > 3.0f) scaledval=3.0f;
 
@@ -59,7 +61,7 @@ static inline snde_rgba snde_colormap(snde_index ColorMap,float val,uint8_t alph
     }
     
   } else if (ColorMap==SNDE_COLORMAP_COLORFUL) {
-    float scaledval=val*4.0f;
+    float scaledval=(val+0.5)*4.0f;
     if (scaledval < 0.0f) scaledval=0.0f;
     if (scaledval > 4.0f) scaledval=4.0f;
 
@@ -92,12 +94,90 @@ static inline snde_rgba snde_colormap(snde_index ColorMap,float val,uint8_t alph
     }
   } else {
     // SNDE_COLORMAP_GRAY
-    out.r = (unsigned char)snde_round_to_uchar(val*255.0f);
+    out.r = (unsigned char)snde_round_to_uchar((val+0.5)*255.0f);
     out.g = out.r;
     out.b = out.g;
     out.a = alpha;
   }
   return out;
 }
+
+
+
+
+static inline void snde_colormap_float(snde_index ColorMap,float val,float alpha,float *out)
+{
+  // maps -0.5...0.5 onto color 
+  
+  if (ColorMap==SNDE_COLORMAP_HOT) {
+    float scaledval=(val+0.5)*3.0f;
+    if (scaledval < 0.0f) scaledval=0.0f;
+    if (scaledval > 3.0f) scaledval=3.0f;
+
+    if (scaledval <= 1.0f) {
+      out[0]=scaledval;
+      out[1]=0.0f;
+      out[2]=0.0f;
+      out[3]=alpha;
+    } else if (scaledval <= 2.0f) {
+      out[0]=1.0f;
+      out[1]=(scaledval-1.0f);
+      out[2]=0.0f;
+      out[3]=alpha;
+    } else {
+      out[0]=1.0f;
+      out[1]=1.0f;
+      out[2]=(scaledval-2.0f);
+      out[3]=alpha;
+    }
+    
+  } else if (ColorMap==SNDE_COLORMAP_COLORFUL) {
+    float scaledval=(val+0.5)*4.0f;
+    if (scaledval < 0.0f) scaledval=0.0f;
+    if (scaledval > 4.0f) scaledval=4.0f;
+
+    if (scaledval <= 0.5f) {
+      out[0]=0.f;
+      out[1]=0.f;
+      out[2]=(scaledval+0.5f);
+      out[3]=alpha;
+    } else if (scaledval <= 1.5f) {
+      out[0]=0.f;
+      out[1]=(scaledval-0.5f);
+      out[2]=1.f;
+      out[3]=alpha;
+    } else if (scaledval <= 2.5f) {
+      out[0]=(scaledval-1.5f);
+      out[1]=1.0f;
+      out[2]=(2.5f-scaledval);
+      out[3]=alpha;
+    } else if (scaledval <= 3.5f) {
+      out[0]=1.0f;
+      out[1]=(3.5f-scaledval);
+      out[2]=0.0f;
+      out[3]=alpha;
+    } else {
+      out[0]=1.0f;
+      out[1]=(scaledval-3.5f)*2.0f;
+      out[2]=(scaledval-3.5f)*2.0f;
+      out[3]=alpha;
+      
+    }
+  } else {
+    // SNDE_COLORMAP_GRAY
+    float scaledval = (val+0.5f);
+    if (scaledval < 0.0f) {
+      scaledval = 0.0f; 
+    }
+    if (scaledval > 1.0f) {
+      scaledval=1.0f;
+    }
+    out[0] = scaledval;
+    out[1] = scaledval;
+    out[2] = scaledval;
+    out[3] = scaledval;
+  }
+}
+
 
 #endif // SNDE_COLORMAP_H

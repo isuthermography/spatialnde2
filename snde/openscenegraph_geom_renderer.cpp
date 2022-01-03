@@ -73,9 +73,9 @@ namespace snde {
     if (display_req->spatial_bounds->bottom >= display_req->spatial_bounds->top ||
 	display_req->spatial_bounds->left >= display_req->spatial_bounds->right) {
       // negative or zero display area
-      if (RootGroup->getNumChildren()) {
+      if (RootTransform->getNumChildren()) {
 	
-	RootGroup->removeChildren(0,RootGroup->getNumChildren());
+	RootTransform->removeChildren(0,RootTransform->getNumChildren());
       }
       
 
@@ -129,14 +129,14 @@ namespace snde {
 	  //Viewer->setSceneData(rendergroup->osg_group);
 	  //}
 	  
-	  if (RootGroup->getNumChildren() && RootGroup->getChild(0) != rendergroup->osg_group) {
-	    RootGroup->removeChildren(0,1);
+	  if (RootTransform->getNumChildren() && RootTransform->getChild(0) != rendergroup->osg_group) {
+	    RootTransform->removeChildren(0,1);
 	  }
-	  if (!RootGroup->getNumChildren()) {
-	    RootGroup->addChild(rendergroup->osg_group);
+	  if (!RootTransform->getNumChildren()) {
+	    RootTransform->addChild(rendergroup->osg_group);
 	  }
 	  if (!Viewer->getSceneData()) {
-	    Viewer->setSceneData(RootGroup);
+	    Viewer->setSceneData(RootTransform);
 	  }
 	  
 	} else {

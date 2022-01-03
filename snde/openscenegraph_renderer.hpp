@@ -9,7 +9,8 @@
 
 #include <osgViewer/Renderer>
 #include <osgViewer/Viewer>
-
+#include <osg/Group>
+#include <osg/MatrixTransform>
 
 #include "snde/recstore.hpp"
 #include "snde/openscenegraph_rendercache.hpp"
@@ -56,7 +57,7 @@ namespace snde {
     // base class for renderers
 
     osg::ref_ptr<osgViewer::Viewer> Viewer;
-    osg::ref_ptr<osg::Group> RootGroup; // Need Root group because swapping out SceneData clears event queue
+    osg::ref_ptr<osg::MatrixTransform> RootTransform; // Need Root group because swapping out SceneData clears event queue
     osg::ref_ptr<osg::Camera> Camera;
     osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow;
     osg::ref_ptr<osgGA::EventQueue> EventQueue; // we keep a separate pointer to the event queue because getEventQueue() may not e thread safe but the EventQueue itself seems to be. 

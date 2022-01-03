@@ -66,6 +66,7 @@ namespace snde {
     QToolButton *ResetIntensityButton = DesignerTree->findChild<QToolButton*>("ResetIntensityButton");
     QToolButton *BrightenButton = DesignerTree->findChild<QToolButton*>("BrightenButton");
     QToolButton *LessContrastButton = DesignerTree->findChild<QToolButton*>("LessContrastButton");
+    QToolButton *ColormapButton = DesignerTree->findChild<QToolButton*>("ColormapButton");
     QToolButton *MoreContrastButton = DesignerTree->findChild<QToolButton*>("MoreContrastButton");
     
     
@@ -203,6 +204,9 @@ namespace snde {
 
     success = QObject::connect(LessContrastButton,SIGNAL(clicked(bool)),
 		     this, SLOT(LessContrast(bool)));
+    assert(success);
+    success = QObject::connect(ColormapButton,SIGNAL(clicked(bool)),
+		     this, SLOT(RotateColormap(bool)));
     assert(success);
 
     success = QObject::connect(MoreContrastButton,SIGNAL(clicked(bool)),
@@ -599,7 +603,35 @@ namespace snde {
 	}
       } else if (render_mode == SNDE_DCRM_GEOMETRY) {
 
-#warning "UpdateViewerStatus on SNDE_DCRM_GEOMETRY not implemented"
+	double scalefactor;
+	//std::shared_ptr<mutableinfostore> chan_data;
+	{
+	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+	  //chan_data = posmgr->selected_channel->chan_data;
+	  scalefactor=posmgr->selected_channel->Scale;
+	}
+	
+	a=display->GetAmplAxis(posmgr->selected_channel->FullName);
+	
+	if (a) {
+	  if (needjoin) {
+	    statusline += " | ";
+	  }
+	  //double intensityunitsperdiv=scalefactor;
+	  
+	  //if (a->unit->pixelflag) vertunitsperdiv*=display->pixelsperdiv;
+	  
+	  std::lock_guard<std::mutex> adminlock(a->admin);
+	  //statusline += a->abbrev+"0=" + inipos.str() + " " + intscalestr.str() + a->unit->unit.print(false) + "/intensity";
+	  snde_debug(SNDE_DC_VIEWER,"Image: Amplitude axis: a=%s",a->axis.c_str());
+
+	  statusline += a->abbrev+"0=" + PrintWithSIPrefix(posmgr->selected_channel->Offset,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3) + "/intensity";
+	  
+	  needjoin=true;
+	  
+	  
+	}
+
 	
       } else if (render_mode == SNDE_DCRM_SCALAR) {
 #warning "UpdateViewerStatus on SNDE_DCRM_SCALAR not implemented"
@@ -658,7 +690,7 @@ namespace snde {
       std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->FullName);
       
 	
-      if (a && render_mode == SNDE_DCRM_IMAGE) {
+      if (a && (render_mode == SNDE_DCRM_IMAGE || render_mode == SNDE_DCRM_GEOMETRY)) {
 	{
 	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
 	  posmgr->selected_channel->Offset += posmgr->selected_channel->Scale/8.0;
@@ -685,7 +717,7 @@ namespace snde {
       }
       
       std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->FullName);
-      if (a && render_mode == SNDE_DCRM_IMAGE) {
+      if (a && (render_mode == SNDE_DCRM_IMAGE  || render_mode == SNDE_DCRM_GEOMETRY)) {
 	{
 	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
 	  posmgr->selected_channel->Offset = 0.0;
@@ -713,7 +745,7 @@ namespace snde {
       
       std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->FullName);
       
-      if (a && render_mode == SNDE_DCRM_IMAGE) {
+      if (a && (render_mode == SNDE_DCRM_IMAGE || render_mode == SNDE_DCRM_GEOMETRY)) {
 	{
 	  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
 	  posmgr->selected_channel->Offset -= posmgr->selected_channel->Scale/8.0;
@@ -748,7 +780,7 @@ namespace snde {
       
       
       std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->FullName);
-      if (a && render_mode == SNDE_DCRM_IMAGE) {
+      if (a && (render_mode == SNDE_DCRM_IMAGE || render_mode == SNDE_DCRM_GEOMETRY)) {
 	//double contrastpower_floor = floor(log(posmgr->selected_channel->scale)/log(10.0));
 	double contrastpower_ceil = ceil(log(Scale)/log(10.0));
 	
@@ -789,6 +821,19 @@ namespace snde {
     }
     
   }
+
+  void QTRecViewer::RotateColormap(bool checked)
+  {
+    if (posmgr->selected_channel) {
+      std::lock_guard<std::mutex> selchan_admin(posmgr->selected_channel->admin);
+      posmgr->selected_channel->ColorMap++;
+      if (posmgr->selected_channel->ColorMap >= SNDE_COLORMAP_MAXPLUSONE) {
+	posmgr->selected_channel->ColorMap=0;
+      }
+    }
+    
+    emit NeedRedraw();
+  }
   
   void QTRecViewer::MoreContrast(bool checked)
   {
@@ -809,7 +854,7 @@ namespace snde {
       }
       
       std::shared_ptr<display_axis> a=display->GetAmplAxis(posmgr->selected_channel->FullName);
-      if (a && render_mode == SNDE_DCRM_IMAGE) {
+      if (a && (render_mode == SNDE_DCRM_IMAGE || render_mode == SNDE_DCRM_GEOMETRY)) {
 	double contrastpower_floor = floor(log(Scale)/log(10.0));
 	
 	double leadingdigit_floor;

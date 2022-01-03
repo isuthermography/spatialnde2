@@ -192,7 +192,7 @@ namespace snde {
   // NOTE: CONTENTS MUST REMAIN PARALLEL TO ALTERNATE SPECIALIZATION OF add_arrays_given_sizes(), BELOW
   {
     if ((void **)leaderptr == (void**)arrayptr) {
-      manager->add_allocated_array(graphics_recgroup_path,0,0,*nextid,(void **)leaderptr,sizeof(**leaderptr),0,elemsizes);
+      manager->add_allocated_array(graphics_recgroup_path,0,base_rss_unique_id,*nextid,(void **)leaderptr,sizeof(**leaderptr),0,elemsizes);
     } else {
       manager->add_follower_array(*nextid,(void **)leaderptr,(void **)arrayptr,sizeof(**arrayptr));
       
@@ -245,7 +245,7 @@ namespace snde {
   // NOTE: CONTENTS MUST REMAIN PARALLEL TO ALTERNATE SPECIALIZATION OF add_arrays_given_sizes(), ABOVE
   {
     if ((void **)leaderptr == (void**)arrayptr) {
-      manager->add_allocated_array(graphics_recgroup_path,0,0,*nextid,(void **)leaderptr,sizeof(**leaderptr),0,elemsizes);
+      manager->add_allocated_array(graphics_recgroup_path,0,base_rss_unique_id,*nextid,(void **)leaderptr,sizeof(**leaderptr),0,elemsizes);
     } else {
       manager->add_follower_array(*nextid,(void **)leaderptr,(void **)arrayptr,sizeof(**arrayptr));
       

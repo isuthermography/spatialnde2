@@ -86,9 +86,9 @@ namespace snde {
 	display_req->spatial_bounds->left >= display_req->spatial_bounds->right) {
       // negative or zero display area
 
-      if (RootGroup->getNumChildren()) {
+      if (RootTransform->getNumChildren()) {
 
-	RootGroup->removeChildren(0,RootGroup->getNumChildren());
+	RootTransform->removeChildren(0,RootTransform->getNumChildren());
       }
 
       modified = true; 
@@ -109,9 +109,18 @@ namespace snde {
       }
       
       Camera->setProjectionMatrixAsOrtho(display_req->spatial_bounds->left,display_req->spatial_bounds->right,display_req->spatial_bounds->bottom,display_req->spatial_bounds->top,-10.0,1000.0);
-      
-      
-      
+
+      // rcocc = renderbox_coords_over_channel_coords
+      //Eigen::Matrix<double,3,3,Eigen::RowMajor> rcocc = display_req->spatial_transform->renderarea_coords_over_channel_coords*display_req->spatial_transform->renderarea_coords_over_renderbox_coords.inverse();
+
+      // need to convert from Eigen 3x3 matrix representing 2D projective coordinates to an OpenSceneGraph Matrixd
+      // representing 3D projective coordinates.
+      // Remember that OSG takes entries fortran-order (row major) 
+      /*RootTransform->setMatrix(osg::Matrixd(rcocc.coeff(0,0), rcocc.coeff(1,0), 0.0, 0.0, // first column
+					    rcocc.coeff(0,1), rcocc.coeff(1,1), 0.0, 0.0, // second column 
+					    0.0, 0.0, 1.0, 0.0, // third column
+					    rcocc.coeff(0,2), rcocc.coeff(1,2), 0.0, 1.0)); // offsets
+					    snde_debug(SNDE_DC_RENDERING,"Transform: %8.4f  %8.4f  %8.4f\n           %8.4f  %8.4f %8.4f\n	       %8.4f  %8.4f %8.4f",rcocc.coeff(0,0),rcocc.coeff(0,1),rcocc.coeff(0,2),rcocc.coeff(1,0),rcocc.coeff(1,1),rcocc.coeff(1,2),rcocc.coeff(2,0),rcocc.coeff(2,1),rcocc.coeff(2,2));  */ 
       if (imageentry) {
 	
 	std::shared_ptr<osg_rendercachegroupentry> imagegroup = std::dynamic_pointer_cast<osg_rendercachegroupentry>(imageentry); 
@@ -121,15 +130,15 @@ namespace snde {
 	  //  //group=imagegroup;
 	  //  Viewer->setSceneData(imagegroup->osg_group);
 	  //}
-	  if (RootGroup->getNumChildren() && RootGroup->getChild(0) != imagegroup->osg_group) {
-	    RootGroup->removeChildren(0,1);
+	  if (RootTransform->getNumChildren() && RootTransform->getChild(0) != imagegroup->osg_group) {
+	    RootTransform->removeChildren(0,1);
 	  }
-	  if (!RootGroup->getNumChildren()) {
-	    RootGroup->addChild(imagegroup->osg_group);
+	  if (!RootTransform->getNumChildren()) {
+	    RootTransform->addChild(imagegroup->osg_group);
 	  }
 	  
 	  if (!Viewer->getSceneData()) {
-	    Viewer->setSceneData(RootGroup);
+	    Viewer->setSceneData(RootTransform);
 	  }
 	  
 	} else {

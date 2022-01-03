@@ -65,6 +65,9 @@ namespace snde {
 #define SNDE_SRG_VERTEXARRAYS "SNDE_SRG_VERTEXARRAYS"  // goal is to create triangle vertex arrays
 #define SNDE_SRG_VERTNORMALS "SNDE_SRG_VERTNORMALS" // goal is to create otriangle vertex arrays
 #define SNDE_SRG_GEOMETRY "SNDE_SRG_GEOMETRY" // goal is to create bare geometry (vertices and parameterization, but no texture)
+#define SNDE_SRG_POINTCLOUD "SNDE_SRG_POINTCLOUD" // goal is to render a point cloud
+#define SNDE_SRG_POINTCLOUDCOLORMAP "SNDE_SRG_POINTCLOUDCOLORMAP" // goal is to render a point cloud colormap
+  
   //#define SNDE_SRG_CLASSSPECIFIC 1006 // render in a way that is specific to the particular recording_type indexed in the rendermode
   
   //#define SNDE_SRG_RAW 2 // raw data OK (used for passing 1D waveforms to the renderer)
@@ -125,6 +128,9 @@ namespace snde {
 #define SNDE_SRM_TEXEDMESHED3DGEOM "SNDE_SRM_TEXEDMESHED3DGEOM" // render meshed 3D geometry with texture
 #define SNDE_SRM_TEXEDMESHEDPART "SNDE_SRM_TEXEDMESHEDPART" // render textured meshed 3D geometry part
 #define SNDE_SRM_ASSEMBLY "SNDE_SRM_ASSEMBLY" // render a collection of objects (group) representing an assembly
+#define SNDE_SRM_POINTCLOUD "SNDE_SRM_POINTCLOUD" // render a point cloud in 3D space
+#define SNDE_SRM_POINTCLOUDCOLORMAP "SNDE_SRM_POINTCLOUDCOLORMAP" // colormapping for a point cloud in 3D space
+#define SNDE_SRM_POINTCLOUDVERTICES "SNDE_SRM_POINTCLOUDVERTICES" // vertices for a point cloud in 3D space
   
   //#define SNDE_SRM_CLASSSPECIFIC 11 // render in a way that is specific to the particular recording_type indexed in the rendermode
 

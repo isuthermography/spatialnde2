@@ -19,7 +19,7 @@ namespace snde {
     //int type; // see SNDE_DRRT_XXXXX in rec_display.hpp
 
 
-    osg::ref_ptr<osg::Group> group;
+    //osg::ref_ptr<osg::Group> group;
     
         
     osg_image_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,

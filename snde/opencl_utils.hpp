@@ -185,7 +185,7 @@ namespace snde {
     std::string kern_fcn_name;
     std::vector<std::string> program_source;
     
-    std::unordered_map<context_device,cl::Program,context_device_hash,context_device_equal> program_dict;
+    std::unordered_map<context_device,const cl::Program,context_device_hash,context_device_equal> program_dict;
   public:
     opencl_program(std::string kern_fcn_name,std::vector<std::string> program_source_strings) :
       kern_fcn_name(kern_fcn_name),
@@ -207,11 +207,11 @@ namespace snde {
     {
       std::lock_guard<std::mutex> program_lock(program_mutex);
       cl_int clerror=0;
-      cl::Program program;
       context_device cd(context,device);
       
       if (!program_dict.count(cd)) {
-	
+	cl::Program program;
+      
 	std::string build_log;
 
 	// check for double precision support
@@ -225,17 +225,19 @@ namespace snde {
 	if (build_log.size() > 0) {
 	  fprintf(stderr,"OpenCL build log:\n%s\n",build_log.c_str());
 	}
-	
-	program_dict[cd]=program;
+
+	program_dict.emplace(cd,program);
+	//program_dict[cd]=program;
       }
+
       
-      program=program_dict[cd];
+      cl::Program const_program(program_dict.find(cd)->second);
       
       cl::Kernel kernel;
       
       // Create the OpenCL kernel object
       try {
-	kernel=cl::Kernel(program,kern_fcn_name.c_str()); // ,&clerror);
+	kernel=cl::Kernel(const_program,kern_fcn_name.c_str()); // ,&clerror);
       } catch (cl::Error &e) {
 	throw snde_error("OpenCL Error: %s(%s)",e.what(),openclerrorstring.at(e.err()).c_str());
       }

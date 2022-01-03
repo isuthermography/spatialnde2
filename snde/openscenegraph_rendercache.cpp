@@ -19,12 +19,27 @@ namespace snde {
       return std::make_shared<osg_cachedimage>(params,display_req);
     });
   
+  static int osg_registered_pointcloudvertices = osg_register_renderer(rendermode(SNDE_SRM_POINTCLOUDVERTICES,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedpointcloudvertices>(params,display_req);
+    });
+
+  static int osg_registered_pointcloudcolormap = osg_register_renderer(rendermode(SNDE_SRM_POINTCLOUDCOLORMAP,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedpointcloudcolormap>(params,display_req);
+    });
+
+  static int osg_registered_pointcloud = osg_register_renderer(rendermode(SNDE_SRM_POINTCLOUD,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedpointcloud>(params,display_req);
+    });
+
+  
   static int osg_registered_meshednormals = osg_register_renderer(rendermode(SNDE_SRM_MESHEDNORMALS,typeid(meshed_part_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
       return std::make_shared<osg_cachedmeshednormals>(params,display_req);
     });
   static int osg_registered_meshedvertexarray = osg_register_renderer(rendermode(SNDE_SRM_VERTEXARRAYS,typeid(meshed_part_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
       return std::make_shared<osg_cachedmeshedvertexarray>(params,display_req);
     });
+
+
   static int osg_registered_parameterizationdata = osg_register_renderer(rendermode(SNDE_SRM_MESHED2DPARAMETERIZATION,typeid(meshed_parameterization_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
       return std::make_shared<osg_cachedparameterizationdata>(params,display_req);
     });
@@ -133,8 +148,8 @@ namespace snde {
     *ndim=datastore->layout.dimlen.size();
     
     
-    *IniValX=datastore->rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0); /* in units  */
-    *StepSzX=datastore->rec->metadata->GetMetaDatumDbl("nde_axis0_step",1.0);  /* in units/index */
+    *IniValX=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0); /* in units  */
+    *StepSzX=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis0_step",1.0);  /* in units/index */
     
     if (datastore->layout.dimlen.size() >= 1) {
       *dimlenx=datastore->layout.dimlen.at(0);
@@ -143,8 +158,8 @@ namespace snde {
     }
     
     
-    *IniValY=datastore->rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0); /* in units */
-    *StepSzY=datastore->rec->metadata->GetMetaDatumDbl("nde_axis1_step",1.0); /* in units/index */
+    *IniValY=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0); /* in units */
+    *StepSzY=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis1_step",1.0); /* in units/index */
     
     if (datastore->layout.dimlen.size() >= 2) {
       *dimleny=datastore->layout.dimlen.at(1);
@@ -152,8 +167,8 @@ namespace snde {
       *dimleny=1;
     }
     
-    *IniValZ=datastore->rec->metadata->GetMetaDatumDbl("nde_axis2_inival",0.0); /* in units */
-    *StepSzZ=datastore->rec->metadata->GetMetaDatumDbl("nde_axis2_step",1.0); /* in units/index */
+    *IniValZ=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis2_inival",0.0); /* in units */
+    *StepSzZ=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis2_step",1.0); /* in units/index */
     if (datastore->layout.dimlen.size() >= 3) {
       *dimlenz=datastore->layout.dimlen.at(2);
     } else {
@@ -161,8 +176,8 @@ namespace snde {
     }
     
     
-    *IniValW=datastore->rec->metadata->GetMetaDatumDbl("nde_axis3_inival",0.0); /* in units */
-    *StepSzW=datastore->rec->metadata->GetMetaDatumDbl("nde_axis3_step",1.0); /* in units/index */
+    *IniValW=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis3_inival",0.0); /* in units */
+    *StepSzW=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis3_step",1.0); /* in units/index */
     if (datastore->layout.dimlen.size() >= 4) {
       *dimlenw=datastore->layout.dimlen.at(3);
     } else {
@@ -533,6 +548,7 @@ namespace snde {
 
     
     if ((StepSzX >= 0 && StepSzY >= 0) || (StepSzX < 0 && StepSzY < 0)) {
+      snde_debug(SNDE_DC_RENDERING,"Channel %s image regular",display_req->renderable_channelpath->c_str());
       // lower-left triangle (if both StepSzX and StepSzY positive)
       (*ImageCoords)[0]=osg::Vec3d(IniValX-0.5*StepSzX,
 				   IniValY-0.5*StepSzY,
@@ -574,11 +590,12 @@ namespace snde {
       (*ImageTexCoords)[3]=osg::Vec2d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
 				      IniValY+dimleny*StepSzY-0.5*StepSzY);
       (*ImageTexCoords)[4]=osg::Vec2d(IniValX-0.5*StepSzX,
-				      IniValY+dimleny+StepSzY-0.5*StepSzY);
+				      IniValY+dimleny*StepSzY-0.5*StepSzY);
       (*ImageTexCoords)[5]=osg::Vec2d(IniValX+dimlenx*StepSzX-0.5*StepSzX,
 				      IniValY-0.5*StepSzY);
       
     } else {
+      snde_debug(SNDE_DC_RENDERING,"Channel %s image flipped",display_req->renderable_channelpath->c_str());
       // One of StepSzX or StepSzY is positive, one is negative
       // work as raster coordinates (StepSzY negative)
       // lower-left triangle
@@ -659,6 +676,169 @@ namespace snde {
   }
 
 
+  osg_cachedpointcloudvertices::osg_cachedpointcloudvertices(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachearrayentry()
+  {
+    cached_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+
+    
+    if (!cached_recording) {
+      throw snde_error("osg_cachedpointcloudvertices: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
+    }
+    
+    osg_array = new OSGFPArray(cached_recording->reference_ndarray(),3,3); // 3 for 3d point coordinates    
+  }
+
+
+  std::pair<bool,bool> osg_cachedpointcloudvertices::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  {
+    std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    if (!new_recording) {
+      throw snde_error("osg_cachedpointcloudvertices::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
+    }
+
+    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+  }
+
+
+
+  osg_cachedpointcloudcolormap::osg_cachedpointcloudcolormap(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachearrayentry()
+  {
+    cached_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+
+    
+    if (!cached_recording) {
+      throw snde_error("osg_cachedpointcloudcolormap: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
+    }
+    
+    osg_array = new OSGFPArray(cached_recording->reference_ndarray(),1,4); // 4 for RGB&A components    
+  }
+
+
+  std::pair<bool,bool> osg_cachedpointcloudcolormap::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  {
+    std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    if (!new_recording) {
+      throw snde_error("osg_cachedpointcloudcolormap::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
+    }
+
+    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+  }
+
+
+
+
+    osg_cachedpointcloud::osg_cachedpointcloud(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachegroupentry()
+  {
+    cached_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    
+    
+    if (!cached_recording) {
+      throw snde_error("osg_cachedpointcloud: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
+    }
+
+    bool modified;
+
+    // get sub-requirement #0: SNDE_SRM_POINTCLOUDCOLORMAP
+    std::shared_ptr<osg_rendercacheentry> raw_entry;
+    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(0));
+    
+    // std::shared_ptr<osg_cachedpointcloudcolormap> colormap; (included in class definition)
+    colormap = std::dynamic_pointer_cast<osg_cachedpointcloudcolormap>(raw_entry);
+    if (!colormap) {
+      throw snde_error("osg_cachedpointcloud: Unable to get colormap cache entry for %s",display_req->sub_requirements.at(0)->renderable_channelpath->c_str());
+    }
+
+    
+    
+    // get sub-requirement #1: SNDE_SRM_POINTCLOUDVERTICES
+    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(1));
+    //std::shared_ptr<osg_cachedpointcloudvertices> vertices; (included in class definition)
+    vertices = std::dynamic_pointer_cast<osg_cachedpointcloudvertices>(raw_entry);
+    if (!vertices) {
+      throw snde_error("osg_cachedpointcloud: Unable to get vertex cache entry for %s",display_req->sub_requirements.at(0)->renderable_channelpath->c_str());
+    }
+    
+    pc_geode = new osg::Geode();
+    pc_geom = new osg::Geometry();
+    pc_points = new osg::DrawArrays(osg::PrimitiveSet::POINTS,0,0);
+
+    snde_index numpoints=1;
+    std::shared_ptr<ndarray_recording_ref> ref=cached_recording->reference_ndarray();
+    for (size_t dimnum=0;dimnum < ref->layout.dimlen.size();dimnum++) {
+      numpoints *= ref->layout.dimlen.at(dimnum);
+    }
+
+    /*
+    //snde_warning("pc_points: %d",numpoints);
+
+    snde_float32 min=1e9;
+    snde_float32 max=-1e9;
+    for (size_t ycnt=0;ycnt < ref->layout.dimlen.at(1);ycnt++) {
+      for (size_t xcnt=0;xcnt < ref->layout.dimlen.at(0);xcnt++) {
+        snde_coord3 val = ((snde_coord3*)ref->void_shifted_arrayptr())[ref->element_offset(xcnt,ycnt)];
+	for (int ax=0;ax < 3;ax++) {
+	  snde_float32 num = val.coord[ax];
+	  if (num < min) min=num;
+	  if (num > max) max=num;
+	}
+      }
+    }
+
+    snde_warning("pc_points: %d; min=%f max=%f",numpoints,min,max);
+    */
+
+    
+    pc_points->setCount(numpoints);
+    
+    osg_group = new osg::Group();
+    osg_group->addChild(pc_geode);
+    pc_geom->setUseVertexBufferObjects(true);
+    pc_geom->addPrimitiveSet(pc_points);
+    
+    pc_stateset = pc_geode->getOrCreateStateSet();
+    pc_stateset->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
+    pc_geom->setColorArray(colormap->osg_array,osg::Array::BIND_PER_VERTEX);
+    pc_geom->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
+
+    pc_geom->setStateSet(pc_stateset); // probably redundant 
+    pc_geom->setVertexArray(vertices->osg_array);
+    pc_geode->addDrawable(pc_geom);
+    
+    /*
+osg::BoundingBox bbox = pc_geom->getBoundingBox();
+
+    snde_warning("bbox minx=%f miny=%f minz=%f bbox maxx=%f bbox maxy=%f bbox maxz=%f",bbox._min.x(),bbox._min.y(),bbox._min.z(),bbox._max.x(),bbox._max.y(),bbox._max.z());
+    */
+  }
+
+  void osg_cachedpointcloud::clear_potentially_obsolete()
+  {
+    potentially_obsolete=false;
+
+    // also clear potentially_obsolete flag of our colormap and vertices
+    colormap->clear_potentially_obsolete();
+    vertices->clear_potentially_obsolete();
+  }
+
+
+
+  std::pair<bool,bool> osg_cachedpointcloud::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  {
+    std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    if (!new_recording) {
+      throw snde_error("osg_cachedpointcloudcolormap::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
+    }
+
+    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+  }
+
+
+
+
+  
   osg_cachedparameterizationdata::osg_cachedparameterizationdata(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
     osg_rendercachearrayentry()
   {
@@ -670,7 +850,6 @@ namespace snde {
     }
 
     osg_array = new OSGFPArray(cached_recording->reference_ndarray("texvertex_arrays"),1,2); // 2 for 2d texture coordinates
-
     
   }
 
@@ -1020,7 +1199,7 @@ namespace snde {
   {
     std::shared_ptr<textured_part_recording> new_recording = std::dynamic_pointer_cast<textured_part_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
-      throw snde_error("osg_cachedmeshedpart::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
+      throw snde_error("osg_cachedtexedmeshedpart::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
     return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)

@@ -148,14 +148,14 @@ namespace snde {
 #endif // __GNUG__
     }
     
-#ifdef __GNUG__ // catches g++ and clang
     virtual ~snde_error()
     {
+#ifdef __GNUG__ // catches g++ and clang
       if (backtrace_syms) {	
 	free(backtrace_syms);
       }
-    }
 #endif // __GNUG__
+    }
 
     virtual const char *what() const noexcept
     {
@@ -221,12 +221,12 @@ namespace snde {
     return retval;
   }
   
-  class posix_error : public std::runtime_error {
+  class posix_error : public snde_error {
   public:
     int _errno;
 
     template<typename ... Args>
-    posix_error(std::string fmt, Args && ... args) : _errno(errno), std::runtime_error(ssprintf("POSIX runtime error %d (%s): %s",_errno,portable_strerror(_errno).c_str(),cssprintf(fmt,std::forward<Args>(args) ...))) { /* cssprintf will leak memory, but that's OK because this is an error and should only happen rarely  */
+    posix_error(std::string fmt, Args && ... args) : _errno(errno), snde_error("%s",ssprintf("POSIX runtime error %d (%s): %s",_errno,portable_strerror(_errno).c_str(),ssprintf(fmt,std::forward<Args>(args) ...).c_str()).c_str()) { 
       //std::string foo=openclerrorstring[clerrnum];
       //std::string bar=openclerrorstring.at(clerrnum);
       //std::string fubar=openclerrorstring.at(-37);
@@ -255,7 +255,7 @@ namespace snde {
     }
   }
     // defines for dbgclass/current_debugflags
-    // !!!*** SEE ALSO CHECKFLAG ENTRIES IN SNDE_ERROR.CPP ***!!! 
+    // !!!*** SEE ALSO CHECKFLAG ENTRIES IN SNDE_ERROR.CPP AND ENTRIES IN snde_error.i ***!!! 
 #define SNDE_DC_RECDB (1<<0)
 #define SNDE_DC_RECMATH (1<<1)
 #define SNDE_DC_NOTIFY (1<<2)

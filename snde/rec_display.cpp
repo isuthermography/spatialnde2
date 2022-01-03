@@ -47,6 +47,7 @@ namespace snde {
     FullName(FullName),
     //chan_data(chan_data),
     Scale(Scale),
+    RenderScale(1.0),
     Position(Position),
     HorizPosition(HorizPosition),
     VertCenterCoord(VertCenterCoord),
@@ -192,6 +193,7 @@ namespace snde {
     }),
     vertnormals_function(recdb->math_functions()->at("spatialnde2.vertnormals")),
     colormapping_function(recdb->math_functions()->at("spatialnde2.colormap")),
+    pointcloud_colormapping_function(recdb->math_functions()->at("spatialnde2.pointcloud_colormap")),
     vertexarray_function(recdb->math_functions()->at("spatialnde2.meshedpart_vertexarray")),
     texvertexarray_function(recdb->math_functions()->at("spatialnde2.meshedparameterization_texvertexarray"))
 
@@ -524,8 +526,8 @@ namespace snde {
       return FindAxis("Time","seconds");
     }
     
-    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis0_coord","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis0_units","seconds");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis0_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis0_units","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
@@ -542,8 +544,8 @@ namespace snde {
       return FindAxisLocked("Time","seconds");
     }
     
-    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis0_coord","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis0_units","seconds");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis0_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis0_units","seconds");
 
     return FindAxisLocked(AxisName,UnitName);
   }
@@ -561,8 +563,8 @@ namespace snde {
     }
 
 
-    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis1_coord","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis1_units","seconds");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis1_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis1_units","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
@@ -579,8 +581,8 @@ namespace snde {
     }
 
 
-    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis1_coord","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis1_units","seconds");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis1_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis1_units","seconds");
 
     return FindAxisLocked(AxisName,UnitName);
   }
@@ -596,8 +598,8 @@ namespace snde {
       return FindAxis("Time","seconds");
     }
 
-    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis2_coord","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis2_units","seconds");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis2_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis2_units","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
@@ -613,8 +615,8 @@ namespace snde {
       return FindAxis("Time","seconds");
     }
 
-    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis2_coord","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis2_units","seconds");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis2_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis2_units","seconds");
 
     return FindAxisLocked(AxisName,UnitName);
   }
@@ -629,8 +631,8 @@ namespace snde {
       return FindAxis("Time","seconds");
     }
 
-    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis3_coord","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis3_units","seconds");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis3_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis3_units","seconds");
 
     return FindAxis(AxisName,UnitName);
   }
@@ -646,8 +648,8 @@ namespace snde {
       return FindAxis("Time","seconds");
     }
 
-    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_axis3_coord","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_axis3_units","seconds");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis3_coord","Time");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis3_units","seconds");
 
     return FindAxisLocked(AxisName,UnitName);
   }
@@ -801,6 +803,22 @@ namespace snde {
   }
 
 
+
+  void display_info::SetRenderScale(std::shared_ptr<display_channel> c,double scale, bool ignored_pixelflag)
+  {
+    std::lock_guard<std::mutex> chanadmin(c->admin);
+    c->RenderScale = scale;
+  }
+  
+  std::tuple<bool,double> display_info::GetRenderScale(std::shared_ptr<display_channel> c)
+  {
+    std::lock_guard<std::mutex> chanadmin(c->admin);
+    return std::make_tuple(true,c->RenderScale);
+
+  }
+
+
+  
 
   double display_info::GetVertUnitsPerDiv(std::shared_ptr<display_channel> c)
   {

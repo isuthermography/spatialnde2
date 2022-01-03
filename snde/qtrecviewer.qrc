@@ -12,5 +12,6 @@
   <file>Darken.png</file>  
   <file>LessContrast.png</file>
   <file>MoreContrast.png</file>
+  <file>colormap.png</file>
 </qresource>
 </RCC>

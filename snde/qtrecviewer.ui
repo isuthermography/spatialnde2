@@ -255,6 +255,17 @@
              </widget>
 	   </item>
 	   <item>
+             <widget class="QToolButton" name="ColormapButton">
+               <property name="text">
+		 <string>Change colormap</string>
+               </property>
+               <property name="icon">
+		 <iconset resource="qtrecviewer.qrc">
+		 <normaloff>:colormap.png</normaloff>:/colormap</iconset>
+               </property>
+             </widget>
+	   </item>
+	   <item>
              <widget class="QToolButton" name="MoreContrastButton">
                <property name="text">
 		 <string>More contrast</string>

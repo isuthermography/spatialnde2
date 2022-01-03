@@ -67,7 +67,7 @@ namespace snde {
       {typeid(snde_box2),SNDE_RTN_SNDE_BOX2},
       {typeid(snde_boxcoord2),SNDE_RTN_SNDE_BOXCOORD2},
       {typeid(snde_imagedata),SNDE_RTN_SNDE_IMAGEDATA},
-      {typeid(snde_coord),SNDE_RTN_COORD},
+      {typeid(snde_coord),SNDE_RTN_SNDE_COORD},
       {typeid(snde_coord4),SNDE_RTN_SNDE_COORD4},
       {typeid(snde_orientation2),SNDE_RTN_SNDE_ORIENTATION2},
       {typeid(snde_orientation3),SNDE_RTN_SNDE_ORIENTATION3},
@@ -127,7 +127,7 @@ namespace snde {
       {SNDE_RTN_SNDE_BOX2,sizeof(snde_box2)},
       {SNDE_RTN_SNDE_BOXCOORD2,sizeof(snde_boxcoord2)},
       {SNDE_RTN_SNDE_IMAGEDATA,sizeof(snde_imagedata)},
-      {SNDE_RTN_COORD,sizeof(snde_coord)},
+      {SNDE_RTN_SNDE_COORD,sizeof(snde_coord)},
       {SNDE_RTN_SNDE_COORD4,sizeof(snde_coord4)},
       {SNDE_RTN_SNDE_ORIENTATION2,sizeof(snde_orientation2)},
       {SNDE_RTN_SNDE_ORIENTATION3,sizeof(snde_orientation3)},
@@ -192,7 +192,7 @@ namespace snde {
       {SNDE_RTN_SNDE_BOX2,"SNDE_RTN_SNDE_BOX2"},
       {SNDE_RTN_SNDE_BOXCOORD2,"SNDE_RTN_SNDE_BOXCOORD2"},
       {SNDE_RTN_SNDE_IMAGEDATA,"SNDE_RTN_SNDE_IMAGEDATA"},
-      {SNDE_RTN_COORD,"SNDE_RTN_COORD"},
+      {SNDE_RTN_SNDE_COORD,"SNDE_RTN_SNDE_COORD"},
       {SNDE_RTN_SNDE_COORD4,"SNDE_RTN_SNDE_COORD4"},
       {SNDE_RTN_SNDE_ORIENTATION2,"SNDE_RTN_SNDE_ORIENTATION2"},
       {SNDE_RTN_SNDE_ORIENTATION3,"SNDE_RTN_SNDE_ORIENTATION3"},
@@ -229,6 +229,10 @@ namespace snde {
       
       //!!!**** CONTINUE HERE!!!***
 
+      {SNDE_RTN_SNDE_COORD,"snde_coord"},
+      
+      
+      
     });
   
 
@@ -240,7 +244,7 @@ namespace snde {
 	  SNDE_RTN_SNDE_IMAGEDATA,
 	  SNDE_RTN_SNDE_RENDERCOORD, 
 #ifndef SNDE_DOUBLEPREC_COORDS
-	  SNDE_RTN_COORD,
+	  SNDE_RTN_SNDE_COORD,
 #endif // SNDE_DOUBLEPREC_COORDS
 	}
       },
@@ -248,10 +252,10 @@ namespace snde {
       {SNDE_RTN_SNDE_RENDERCOORD, { SNDE_RTN_FLOAT32 }},
       
 #ifdef SNDE_DOUBLEPREC_COORDS
-      {SNDE_RTN_FLOAT64, { SNDE_RTN_COORD } },
-      {SNDE_RTN_COORD, { SNDE_RTN_FLOAT64 } },
+      {SNDE_RTN_FLOAT64, { SNDE_RTN_SNDE_COORD } },
+      {SNDE_RTN_SNDE_COORD, { SNDE_RTN_FLOAT64 } },
 #else // SNDE_DOUBLEPREC_COORDS
-      {SNDE_RTN_COORD, { SNDE_RTN_FLOAT32 } },
+      {SNDE_RTN_SNDE_COORD, { SNDE_RTN_FLOAT32 } },
 #endif
       
     });
@@ -1084,7 +1088,7 @@ namespace snde {
       ref = std::make_shared<ndtyped_recording_ref<snde_imagedata>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
       break;
 
-    case SNDE_RTN_COORD:
+    case SNDE_RTN_SNDE_COORD:
       ref = std::make_shared<ndtyped_recording_ref<snde_coord>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
       break;
 

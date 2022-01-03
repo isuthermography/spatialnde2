@@ -99,6 +99,7 @@ namespace snde {
 	if (event->type()==QEvent::KeyPress) {
 	  Viewer->posmgr->HorizZoomIn(false);
 	}
+	
 	// else fprintf(stderr,"Release right\n");
 	return true;
 	
@@ -107,8 +108,8 @@ namespace snde {
 	if (event->type()==QEvent::KeyPress) {
 	  if (Viewer->posmgr->selected_channel) {
 	    std::unique_lock<std::mutex> chanadmin(Viewer->posmgr->selected_channel->admin);
-	    if (Viewer->posmgr->selected_channel->render_mode == SNDE_DCRM_IMAGE) {
-	      // image data... decrease contrast instead
+	    if (Viewer->posmgr->selected_channel->render_mode == SNDE_DCRM_IMAGE || Viewer->posmgr->selected_channel->render_mode == SNDE_DCRM_GEOMETRY) {
+	      // image or geometry data... decrease contrast instead
 	      chanadmin.unlock();
 	      Viewer->LessContrast(false);
 	      
@@ -125,8 +126,8 @@ namespace snde {
 	  
 	  if (Viewer->posmgr->selected_channel) {
 	    std::unique_lock<std::mutex> chanadmin(Viewer->posmgr->selected_channel->admin);
-	    if (Viewer->posmgr->selected_channel->render_mode == SNDE_DCRM_IMAGE) {
-	      // image data... increase contrast instead
+	    if (Viewer->posmgr->selected_channel->render_mode == SNDE_DCRM_IMAGE || Viewer->posmgr->selected_channel->render_mode == SNDE_DCRM_GEOMETRY) {
+	      // image or geometry data... increase contrast instead
 	      chanadmin.unlock();
 	      Viewer->MoreContrast(false);
 	    } else /* if (Viewer->posmgr->selected_channel->render_mode == SNDE_DCRM_WAVEFORM)*/ {	      
@@ -171,6 +172,13 @@ namespace snde {
       case Qt::Key_Delete:
 	if (event->type()==QEvent::KeyPress) {
 	  Viewer->Darken(false);
+	}
+	return true;
+
+      case 'c':
+      case 'C':
+	if (event->type()==QEvent::KeyPress) {
+	  Viewer->RotateColormap(false);
 	}
 	return true;
 	
@@ -332,6 +340,7 @@ namespace snde {
   {
     double horizscale = 2.0/display->horizontal_divisions;
     bool horizpixelflag=false;
+    bool success=false;
     
     if (selected_channel) {
       if (selected_channel->render_mode != SNDE_DCRM_GEOMETRY) {
@@ -341,7 +350,7 @@ namespace snde {
 	horizpixelflag = a->unit->pixelflag;
       } else {
 	// geometry -- just clone the vertical scale
-	return GetVertScale();
+	std::tie(success,horizscale) = display->GetRenderScale(selected_channel);
       }
     }
     
@@ -354,8 +363,12 @@ namespace snde {
     bool success=false;
     bool vertpixelflag=false;
     if (selected_channel) {
-      std::tie(success,vertscale,vertpixelflag) = display->GetVertScale(selected_channel);
-      
+      if (selected_channel->render_mode != SNDE_DCRM_GEOMETRY) {
+	std::tie(success,vertscale,vertpixelflag) = display->GetVertScale(selected_channel);
+      } else {
+	std::tie(success,vertscale) = display->GetRenderScale(selected_channel);
+
+      }
     }
     
     if (!success) {
@@ -385,8 +398,7 @@ namespace snde {
 	  a->unit->pixelflag = horizpixelflag;
 	}
       } else {
-	// delegate to vertical axis for geometry rendering
-	SetVertScale(horizscale,horizpixelflag);
+	display->SetRenderScale(selected_channel,horizscale,horizpixelflag);
       }
       //selected_channel->mark_as_dirty();
     }
@@ -397,8 +409,12 @@ namespace snde {
     snde_debug(SNDE_DC_VIEWER,"SetVertScale()");
     if (selected_channel) {
       snde_debug(SNDE_DC_VIEWER,"SetVertScale(); selected_channel");
-      display->SetVertScale(selected_channel,vertscale,vertpixelflag);
-      
+      if (selected_channel->render_mode != SNDE_DCRM_GEOMETRY) {
+	display->SetVertScale(selected_channel,vertscale,vertpixelflag);
+      } else {
+	display->SetRenderScale(selected_channel,vertscale,vertpixelflag);
+
+      }
     }
   }
 
@@ -1007,13 +1023,53 @@ namespace snde {
   void qtrec_position_manager::HorizZoomIn(bool)
   {
     snde_debug(SNDE_DC_VIEWER,"HorizZoomIn()");
-    HorizZoomActionTriggered(QAbstractSlider::SliderSingleStepAdd);      
+    HorizZoomActionTriggered(QAbstractSlider::SliderSingleStepAdd);
+
+    if (selected_channel) {
+      int render_mode;
+      {
+	std::lock_guard<std::mutex> selchan_admin(selected_channel->admin);
+	render_mode = selected_channel->render_mode;
+      }
+
+      if (render_mode == SNDE_DCRM_IMAGE) {
+	// for images we vertically zoom along with horizontal (at least for now)
+	// unless the vertical and horizontal axes are already the same
+	std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->FullName);
+	std::shared_ptr<display_axis> b = display->GetSecondAxis(selected_channel->FullName);
+
+	if (a != b) {
+	  VertZoomActionTriggered(QAbstractSlider::SliderSingleStepAdd);	  
+	}
+	
+      }
+    }
+
   }
 
 
   void qtrec_position_manager::HorizZoomOut(bool)
   {
     HorizZoomActionTriggered(QAbstractSlider::SliderSingleStepSub);      
+    if (selected_channel) {
+      int render_mode;
+      {
+	std::lock_guard<std::mutex> selchan_admin(selected_channel->admin);
+	render_mode = selected_channel->render_mode;
+      }
+
+      if (render_mode == SNDE_DCRM_IMAGE) {
+	// for images we vertically zoom along with horizontal (at least for now)
+	// unless the vertical and horizontal axes are already the same
+	std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->FullName);
+	std::shared_ptr<display_axis> b = display->GetSecondAxis(selected_channel->FullName);
+
+	if (a != b) {
+	  VertZoomActionTriggered(QAbstractSlider::SliderSingleStepSub);	  
+	}
+	
+      }
+    }
   }
 
 

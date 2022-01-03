@@ -78,6 +78,7 @@ namespace snde {
     void Brighten(bool checked);
     void LessContrast(bool checked);
     void MoreContrast(bool checked);
+    void RotateColormap(bool checked);
 
   signals:
     void NeedRedraw();

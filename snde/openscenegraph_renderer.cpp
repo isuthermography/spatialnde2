@@ -9,7 +9,7 @@ namespace snde {
 			     osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
 			     std::string channel_path,int type) :
     Viewer(Viewer),
-    RootGroup(new osg::Group()),
+    RootTransform(new osg::MatrixTransform()),
     Camera(Viewer->getCamera()),
     GraphicsWindow(GraphicsWindow),
     channel_path(channel_path),

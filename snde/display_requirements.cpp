@@ -109,22 +109,22 @@ namespace snde {
       1,0,0, // multiply this by a position relative to renderingbox lower left in pixels 
       0,1,0, // to get a position relative to renderingarea lowerleft in pixels
       0,0,1;  // initially we assume they line up exactly, but below we will put
-    // the corrections into the right hand column (elements #2 and #5)
+    // the corrections into the right hand column (elements #(0,2) and #(1,2))
     // ... Then we're going to assign this to xform->renderarea_coords_over_renderbox_coords
 
     // Left bound
-    if (renderingarea_lowerleft_chanunits_rel_chanorigin(0) <= dataleftedge_chanunits) {
+    if (renderingarea_lowerleft_chanunits_rel_chanorigin(0,0) <= dataleftedge_chanunits) {
       // if (x_renderingarea_lowerleft_chanunits < dataleftedge_chanunits)
       // rendering area starts to the left of the data
       bounds->left = dataleftedge_chanunits; // left bound to give the image renderer
 
-      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(2) = (dataleftedge_chanunits - renderingarea_lowerleft_chanunits_rel_chanorigin(0))*pixelsperdiv/xunitsperdiv;
-      posn->x = (size_t)renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(2);
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(0,2) = (dataleftedge_chanunits - renderingarea_lowerleft_chanunits_rel_chanorigin(0,0))*pixelsperdiv/xunitsperdiv;
+      posn->x = (size_t)renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(0,2);
 
     } else {
       // image is chopped off on left by rendering area boundary
       bounds->left = renderingarea_lowerleft_chanunits_rel_chanorigin(0); // left bound to give the image renderer
-      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(2) = 0.0;
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(0,2) = 0.0;
       posn->x=0;
     }
 
@@ -133,10 +133,12 @@ namespace snde {
     if (renderingarea_upperright_chanunits_rel_chanorigin(0) > datarightedge_chanunits) {
       // rendering area continues to the right of the data
       bounds->right = datarightedge_chanunits; // right bound to give the image renderer
+      snde_debug(SNDE_DC_DISPLAY,"right bound from datarightedge_chanunits: %f",datarightedge_chanunits);
       
     } else {
       // image is chopped off on right by rendering area boundary
-      bounds->right = renderingarea_upperright_chanunits_rel_chanorigin(0); // left bound to give the image renderer
+      bounds->right = renderingarea_upperright_chanunits_rel_chanorigin(0); // right bound to give the image renderer
+      snde_debug(SNDE_DC_DISPLAY,"right bound from renderingarea: %f; datarightedge_chanunits=%f",bounds->right,datarightedge_chanunits);
       
     }
     posn->width = std::max(0.0,(bounds->right - bounds->left)*pixelsperdiv/xunitsperdiv);
@@ -148,14 +150,14 @@ namespace snde {
       // rendering area starts to the bottom of the data
       bounds->bottom = databottomedge_chanunits; // left bound to give the image renderer
 
-      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(5) = (databottomedge_chanunits - renderingarea_lowerleft_chanunits_rel_chanorigin(1))*pixelsperdiv/yunitsperdiv;
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(1,2) = (databottomedge_chanunits - renderingarea_lowerleft_chanunits_rel_chanorigin(1))*pixelsperdiv/yunitsperdiv;
 
-      posn->y = (size_t)renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(5);
-
+      posn->y = (size_t)renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(1,2);
+      
     } else {
       // image is chopped off on bottome by rendering area boundary
       bounds->bottom = renderingarea_lowerleft_chanunits_rel_chanorigin(1); // left bound to give the image renderer
-      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(5) = 0.0;
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(1,2) = 0.0;
 
       posn->y = 0;
     }
@@ -173,10 +175,20 @@ namespace snde {
     }
     posn->height = std::max(0.0,(bounds->top - bounds->bottom)*pixelsperdiv/yunitsperdiv);
 
-
+    {
+      std::stringstream ss;
+      ss << renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels;
+      snde_debug(SNDE_DC_DISPLAY,"rallporbllp: %s",ss.str().c_str());
+    }
     
     xform->renderarea_coords_over_renderbox_coords = renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels;
+    {
+      std::stringstream ss;
+      ss << xform->renderarea_coords_over_renderbox_coords;
+      snde_debug(SNDE_DC_DISPLAY,"racorbc: %s",ss.str().c_str());
+    }
 
+    snde_debug(SNDE_DC_DISPLAY,"bounds: left: %f right: %f bottom: %f top: %f",bounds->left,bounds->right,bounds->bottom,bounds->top);
     
     return std::make_tuple(posn,xform,bounds);
 
@@ -419,7 +431,7 @@ namespace snde {
       1,0,0, // multiply this by a position relative to renderingbox lower left in pixels 
       0,1,0, // to get a position relative to renderingarea lowerleft in pixels
       0,0,1;  // initially we assume they line up exactly, but below we will put
-    // the corrections into the right hand column (elements #2 and #5)
+    // the corrections into the right hand column (elements #(0,2) and #(1,2))
     // ... Then we're going to assign this to xform->renderarea_coords_over_renderbox_coords
 
     // Left bound
@@ -428,13 +440,13 @@ namespace snde {
       // rendering area starts to the left of the data
       bounds->left = dataleftedge_chanunits; // left bound to give the image renderer
 
-      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(2) = (dataleftedge_chanunits - renderingarea_lowerleft_chanunits_rel_chanorigin(0))*mag; //*pixelsperdiv/xunitsperdiv;
-      posn->x = (size_t)renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(2);
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(0,2) = (dataleftedge_chanunits - renderingarea_lowerleft_chanunits_rel_chanorigin(0))*mag; //*pixelsperdiv/xunitsperdiv;
+      posn->x = (size_t)renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(0,2);
 
     } else {
       // image is chopped off on left by rendering area boundary
       bounds->left = renderingarea_lowerleft_chanunits_rel_chanorigin(0); // left bound to give the image renderer
-      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(2) = 0.0;
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(0,2) = 0.0;
       posn->x=0;
     }
 
@@ -458,14 +470,14 @@ namespace snde {
       // rendering area starts to the bottom of the data
       bounds->bottom = databottomedge_chanunits; // left bound to give the image renderer
 
-      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(5) = (databottomedge_chanunits - renderingarea_lowerleft_chanunits_rel_chanorigin(1))*mag; // *pixelsperdiv/yunitsperdiv;
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(1,2) = (databottomedge_chanunits - renderingarea_lowerleft_chanunits_rel_chanorigin(1))*mag; // *pixelsperdiv/yunitsperdiv;
 
-      posn->y = (size_t)renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(5);
+      posn->y = (size_t)renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(1,2);
 
     } else {
       // image is chopped off on bottome by rendering area boundary
       bounds->bottom = renderingarea_lowerleft_chanunits_rel_chanorigin(1); // left bound to give the image renderer
-      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(5) = 0.0;
+      renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels(1,2) = 0.0;
 
       posn->y = 0;
     }
@@ -598,6 +610,15 @@ static int register_mnr_display_handler_rendering_texture_recording = register_r
     return std::make_shared<multi_ndarray_recording_display_handler>(display,displaychan,base_rss);
       }));
 
+// Register this handler for SNDE_SRG_POINTCLOUDCOLORMAP on multi_ndarray_recordings
+static int register_mnr_display_handler_pointcloudcolormap = register_recording_display_handler(rendergoal(SNDE_SRG_POINTCLOUDCOLORMAP,typeid(multi_ndarray_recording)),std::make_shared<registered_recording_display_handler>( [] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+      return std::make_shared<multi_ndarray_recording_display_handler>(display,displaychan,base_rss);
+      }));
+// Register this handler for SNDE_SRG_POINTCLOUD on multi_ndarray_recordings
+static int register_mnr_display_handler_pointcloud = register_recording_display_handler(rendergoal(SNDE_SRG_POINTCLOUD,typeid(multi_ndarray_recording)),std::make_shared<registered_recording_display_handler>( [] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+      return std::make_shared<multi_ndarray_recording_display_handler>(display,displaychan,base_rss);
+      }));
+
 
 // multi_ndarray_recording:SNDE_SRG_RENDERING
 //  if 2D, 3D, or 4D
@@ -670,6 +691,9 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 	  std::vector<snde_index> other_indices({0,0});
 
 	  // !!!*** displaychan updates should be more formally assigned and passed around
+	  // this is interpreted by qtrecviewer for how the controls should work
+	  // as distinct from renderer_type in display_requirement, which is used to select the actual renderer.
+	  // Should these be unified somehow? 
 	  displaychan->render_mode = SNDE_DCRM_IMAGE;
 	  
 	  if (NDim >= 3) {
@@ -730,24 +754,24 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 	  double stepx,stepy;
 	  
 
-	  stepx = rec->metadata->GetMetaDatumDbl("nde_axis0_step",1.0);
-	  stepy = rec->metadata->GetMetaDatumDbl("nde_axis1_step",1.0);
+	  stepx = rec->metadata->GetMetaDatumDbl("nde_array-axis0_step",1.0);
+	  stepy = rec->metadata->GetMetaDatumDbl("nde_array-axis1_step",1.0);
 
 	  double left,right,bottom,top;
 
 	  if (stepx > 0) {
-	    left = rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)-stepx/2.0;	  
-	    right = rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
+	    left = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)-stepx/2.0;	  
+	    right = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
 	  } else {
-	    right = rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)-stepx/2.0;	  
-	    left = rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
+	    right = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)-stepx/2.0;	  
+	    left = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
 	  }
 	  if (stepy > 0) {
-	    bottom = rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)-stepy/2.0;
-	    top = rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
+	    bottom = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)-stepy/2.0;
+	    top = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
 	  } else {
-	    top = rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)-stepy/2.0;
-	    bottom = rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
+	    top = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)-stepy/2.0;
+	    bottom = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
 	  }
 
 	  snde_debug(SNDE_DC_DISPLAY,"spatial_transforms_for_image_channel: xunitscale=%f",xunitscale);
@@ -778,7 +802,10 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 	} // release displaychan lock
 
 
-	
+
+	// should colormap_params really be in the rendermode_ext key for this one or just the next one?
+	// I think the answer is both because the nested requirement won't be looked at
+	// if the parent just pulls from the cache
 	retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_RGBAIMAGE,typeid(*this),colormap_params),rec,shared_from_this());
 	retval->renderer_type = SNDE_DRRT_IMAGE;
 	//retval->imgref = std::make_shared<image_reference>(chanpath,u_dimnum,v_dimnum,other_indices);
@@ -856,6 +883,113 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     }
   
     return retval;
+  } else if (simple_goal == SNDE_SRG_POINTCLOUD) {
+    // want to render this as a point cloud
+    // multi_ndarray_recording:SNDE_SRG_POINTCLOUD
+    //  -> MAIN multi_ndarray_recording_display_handler:SNDE_SRM_POINTCLOUD:multi_ndarray_recording -> osg_cachedpointclou    //     SUB multi_ndarray_recording:SNDE_SRG_POINTCLOUDCOLORMAP
+    //       -> MAIN multi_ndarray_recording_display_handler:SNDE_SRM_POINTCLOUDCOLORMAP:multi_ndarray_recording -> osg_cachedpointcloudclormap
+    //     SUB multi_ndarray_recording:SNDE_SRM_POINTCLOUDVERTICES
+    // 
+
+    std::shared_ptr<display_channel> displaychan = display->lookup_channel(chanpath);
+    
+    assert(displaychan); // lookup_channel always returns something
+
+
+    // Simple ndarray recording
+    std::shared_ptr<ndarray_recording_ref> ref = array_rec->reference_ndarray();
+    
+
+
+
+    
+    std::shared_ptr<rgbacolormapparams> colormap_params;
+    {
+      std::lock_guard<std::mutex> dc_admin(displaychan->admin);
+      // we need a parameter block to go into the rendermode_ext key. Reuse the rgbacolormapparams structure defined in rendermode.hpp
+      
+      colormap_params = std::make_shared<rgbacolormapparams>(displaychan->ColorMap,
+							     displaychan->Offset,
+							     displaychan->Scale,
+							     std::vector<snde_index>(), // dimension info isn't used in this case
+							     0,
+							     0);
+
+      // !!!*** displaychan updates should be more formally assigned and passed around
+      //  (or maybe (probably???) these should go into the display_requirement that we generate...
+      // This one selects how the qtrecviewer controls work
+      displaychan->render_mode = SNDE_DCRM_GEOMETRY;
+      
+    }
+
+
+    std::shared_ptr<display_spatial_position> posn;
+    std::shared_ptr<display_spatial_transform> xform;
+    std::shared_ptr<display_channel_rendering_bounds> bounds;
+
+    
+    {
+      std::lock_guard<std::mutex> di_lock(display->admin);
+      std::lock_guard<std::mutex> dc_lock(displaychan->admin);
+      
+      // !!!*** displaychan updates should be more formally passed around,
+      // and perhaps this update should not occur unless this was actually a render goal (?)
+      displaychan->render_mode = SNDE_DCRM_GEOMETRY; // note distinction from SNDE_DRRT_GEOMETRY (below)
+      
+      snde_debug(SNDE_DC_DISPLAY,"3d_channel HorizPosition: %f Position: %f pixelsperdiv=%f",displaychan->HorizPosition,displaychan->Position,display->pixelsperdiv);
+      
+      std::tie(posn,xform,bounds) = spatial_transforms_for_3d_channel(display->drawareawidth,display->drawareaheight,
+								      displaychan->HorizPosition,displaychan->Position,
+								      1.0/displaychan->RenderScale,display->pixelsperdiv);	  // magnification comes from the channel scale
+      
+      
+    } // release displaychan lock
+
+	
+
+    
+    retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_POINTCLOUD,typeid(*this),colormap_params),rec,shared_from_this()); // display_requirement
+    retval->renderer_type = SNDE_DRRT_GEOMETRY; // this selects the lowlevel renderer used by openscenegraph_compositor
+
+    retval->spatial_position = posn;
+    retval->spatial_transform = xform;
+    retval->spatial_bounds = bounds;
+    
+    // This will eventually call the code below (simple_goal==SNDE_SRG_POINTCLOUDCOLORMAP) 
+    retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,displaychan,SNDE_SRG_POINTCLOUDCOLORMAP,colormap_params));
+    // This will eventually call the code below (simple_goal==SNDE_SRM_POINTCLOUDVERTICES) 
+    retval->sub_requirements.push_back(std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_POINTCLOUDVERTICES,typeid(*this),nullptr),rec,shared_from_this()));
+    
+    
+
+    return retval;
+  } else if (simple_goal == SNDE_SRG_POINTCLOUDCOLORMAP) {
+
+    std::string renderable_channelpath = recdb_path_join(recdb_path_as_group(chanpath),"_snde_rec_pccolormap_di"+std::to_string(display->unique_index));
+
+    std::shared_ptr<rgbacolormapparams> colormap_params = std::dynamic_pointer_cast<rgbacolormapparams>(params_from_parent);
+
+    std::shared_ptr<instantiated_math_function> renderable_function = display->pointcloud_colormapping_function->instantiate({
+	std::make_shared<math_parameter_recording>(chanpath),
+	std::make_shared<math_parameter_int_const>(colormap_params->ColorMap),
+	std::make_shared<math_parameter_double_const>(colormap_params->Offset), 
+	std::make_shared<math_parameter_double_const>(colormap_params->Scale), 
+      },
+      { std::make_shared<std::string>(renderable_channelpath) },
+      recdb_path_as_group(chanpath),
+      false, // is_mutable
+      true, // ondemand
+      false, // mdonly
+      std::make_shared<math_definition>("c++ definition of point cloud colormapping"),
+      nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
+    
+    retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_POINTCLOUDCOLORMAP,typeid(*this),colormap_params),rec,shared_from_this()); // display_requirement
+    
+    
+    retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
+    retval->renderable_function = renderable_function;
+
+    return retval;
   }
 
   throw snde_error("multi_ndarray_recording_display_handler::get_display_requirement(): Unknown simple_goal");
@@ -930,7 +1064,7 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
       
       std::tie(posn,xform,bounds) = spatial_transforms_for_3d_channel(display->drawareawidth,display->drawareaheight,
 								      displaychan->HorizPosition,displaychan->Position,
-								      1.0/displaychan->Scale,display->pixelsperdiv);	  // magnification comes from the channel scale
+								      1.0/displaychan->RenderScale,display->pixelsperdiv);	  // magnification comes from the channel scale
 
       
     } // release displaychan lock
@@ -1135,7 +1269,7 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
       displaychan->render_mode = SNDE_DCRM_GEOMETRY;
       std::tie(posn,xform,bounds) = spatial_transforms_for_3d_channel(display->drawareawidth,display->drawareaheight,
 								      displaychan->HorizPosition,displaychan->Position,
-								      1.0/displaychan->Scale,display->pixelsperdiv);	  // magnification comes from the scale
+								      1.0/displaychan->RenderScale,display->pixelsperdiv);	  // magnification comes from the scale
       
     } // release displaychan lock
     
@@ -1328,8 +1462,8 @@ std::shared_ptr<display_requirement> traverse_display_requirement(std::shared_pt
     
     return dispreq;
   }
-  snde_warning("Failed to find recording_display handler for channel %s (goal %s)",chanpath.c_str(),rendergoal(simple_goal,typeid(*rec)).str().c_str());
-  return nullptr; 
+  throw snde_error("Failed to find recording_display handler for channel %s (goal %s)",chanpath.c_str(),rendergoal(simple_goal,typeid(*rec)).str().c_str());
+  //return nullptr; 
 }
 
 
@@ -1346,8 +1480,23 @@ std::map<std::string,std::shared_ptr<display_requirement>> traverse_display_requ
   
   for (auto && displaychan: displaychans) {
     // !!!*** We should probably snapshot and copy both display and the display_channels wthing displaychans in case they change !!!***
-    // (Or we need to properly protect access with locks) 
-    std::shared_ptr<display_requirement> dispreq = traverse_display_requirement(display,base_rss,displaychan,SNDE_SRG_RENDERING,nullptr);
+    // (Or we need to properly protect access with locks)
+
+    
+    
+    const std::string &chanpath = displaychan->FullName;
+    std::shared_ptr<recording_base> rec = base_rss->get_recording(chanpath);
+
+    // default to SNDE_SRG_RENDERING  but allow metadata to provide an alternate goal 
+    std::string rendergoal = rec->metadata->GetMetaDatumStr("snde_render_goal",SNDE_SRG_RENDERING);
+
+    std::shared_ptr<display_requirement> dispreq;
+    try {
+      dispreq = traverse_display_requirement(display,base_rss,displaychan,rendergoal,nullptr);
+    }
+    catch (const snde_error &e) {
+      snde_warning("Exception determining display requirements for %s: %s",chanpath.c_str(),e.what());
+    }
     
     if (dispreq) {
       retval.emplace(dispreq->channelpath,dispreq);
