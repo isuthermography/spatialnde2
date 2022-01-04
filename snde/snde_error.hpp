@@ -223,10 +223,13 @@ namespace snde {
   
   class posix_error : public snde_error {
   public:
-    int _errno;
+    int _myerrno;
 
     template<typename ... Args>
-    posix_error(std::string fmt, Args && ... args) : _errno(errno), snde_error("%s",ssprintf("POSIX runtime error %d (%s): %s",_errno,portable_strerror(_errno).c_str(),ssprintf(fmt,std::forward<Args>(args) ...).c_str()).c_str()) { 
+    posix_error(std::string fmt, Args && ... args) : 
+        _myerrno(errno), 
+        snde_error("%s",ssprintf("POSIX runtime error %d (%s): %s", _myerrno,portable_strerror(_myerrno).c_str(),ssprintf(fmt,std::forward<Args>(args) ...).c_str()).c_str())
+    { 
       //std::string foo=openclerrorstring[clerrnum];
       //std::string bar=openclerrorstring.at(clerrnum);
       //std::string fubar=openclerrorstring.at(-37);

@@ -35,10 +35,12 @@
 /* This is based on the assumption that the osg::Vec3 and osg::Vec3d
    classes are trivially copyable and standard layout */
 
+#ifndef _MSC_VER
 static_assert(std::is_standard_layout<osg::Vec3>::value);
 static_assert(std::is_trivially_copyable<osg::Vec3>::value);
 static_assert(std::is_standard_layout<osg::Vec3d>::value);
 static_assert(std::is_trivially_copyable<osg::Vec3d>::value);
+#endif
 
 /* ***!!! This should probably be moved somewhere more central */
 
@@ -265,7 +267,7 @@ public:
     //const osg::Vec3& elem_rhs = _ptr[rhs];
     //if (elem_lhs<elem_rhs) return -1;
     //if (elem_rhs<elem_lhs) return  1;
-    //return 0;
+    return 0;
   }
 
   virtual unsigned int getElementSize() const {

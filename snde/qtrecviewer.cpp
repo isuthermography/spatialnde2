@@ -634,8 +634,11 @@ namespace snde {
 
 	
       } else if (render_mode == SNDE_DCRM_SCALAR) {
-#warning "UpdateViewerStatus on SNDE_DCRM_SCALAR not implemented"
- 
+			#ifndef _MSC_VER
+				#warning "UpdateViewerStatus on SNDE_DCRM_SCALAR not implemented"
+			#else
+				#pragma message("UpdateViewerStatus on SNDE_DCRM_SCALAR not implemented")
+			#endif 
       } else {
 	if (chan_enabled) {
 	  snde_warning("qtrecviewer: invalid render_mode: %d on channel %s (0x%llx)",render_mode,posmgr->selected_channel->FullName.c_str(),(unsigned long long)((uintptr_t)posmgr->selected_channel.get()));

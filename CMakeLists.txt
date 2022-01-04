@@ -23,8 +23,6 @@ endif()
 # Select coordinate precision: single vs. double
 set(SNDE_DOUBLEPREC_COORDS OFF CACHE BOOL "Use double precision for geometric coordinates rather than single precision" )
 
-
-
 # Set installation location rules
 
 IF(APPLE)    # Apple
@@ -55,7 +53,12 @@ IF(SNDE_DOUBLEPREC_COORDS)
 ENDIF()
 
 ## Application is C++11 (now 14)
-set(CMAKE_CXX_STANDARD 14)
+if (MSVC)
+    set(CMAKE_CXX_STANDARD 20)
+else (MSVC)
+    set(CMAKE_CXX_STANDARD 14)
+endif (MSVC)
+
 if(NOT MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-ignored-attributes") # -fstack-protector-all")
 endif()
@@ -84,6 +87,7 @@ endif()
 # Add bigobj flag for msbuild compiler (enabling compiling completely from the Anaconda prompt on Windows)
 IF(MSVC)
     add_compile_options(-bigobj)
+    set(SPATIALNDE2_COMPILE_DEFINTIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} _USE_MATH_DEFINES)
 ENDIF(MSVC)
 
 # Workaround to specify 64 bit integers not terms of int64_t/uint64_t to accommodate
@@ -295,13 +299,16 @@ ENDIF()
 
 IF (OpenSceneGraph_FOUND)
   add_library(spatialnde2_osg SHARED ${SPATIALNDE2_OSG_SOURCES} )
-  target_link_libraries(spatialnde2_osg ${OPENSCENEGRAPH_LIBRARIES} spatialnde2)
+  target_link_libraries(spatialnde2_osg ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES} spatialnde2)
+  IF (MSVC)
+    target_link_libraries(spatialnde2_osg opengl32)
+  ENDIF()
 ENDIF()
 
 IF (Qt5_FOUND)
   qt5_add_resources(SPATIALNDE2_QT_RCC snde/qtrecviewer.qrc )
   add_library(spatialnde2_qt SHARED ${SPATIALNDE2_QT_SOURCES} ${SPATIALNDE2_QT_RCC})
-  target_link_libraries(spatialnde2_qt Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools)
+  target_link_libraries(spatialnde2_qt Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools ${OPENSCENEGRAPH_LIBRARIES} spatialnde2 spatialnde2_osg)
 ENDIF()
 
 # SpatialNDE2 headers

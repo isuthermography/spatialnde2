@@ -3373,7 +3373,12 @@ namespace snde {
 
     // This is also used to seed the "starting revision" used by recstore_display_transforms
     static unsigned seed=time(nullptr);
+#ifndef _MSC_VER
     static std::atomic<uint64_t> *index=new std::atomic<uint64_t>(rand_r(&seed)*65535.0/RAND_MAX);
+#else
+    srand(seed);
+    static std::atomic<uint64_t>* index = new std::atomic<uint64_t>(rand() * 65535.0 / RAND_MAX);
+#endif
 
     return (*index)++;
     

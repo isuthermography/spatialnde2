@@ -1,6 +1,7 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QTouchEvent>
+#include <QGuiApplication>
 
 #include "snde/qt_osg_compositor.hpp"
 #include "snde/openscenegraph_renderer.hpp"
@@ -101,8 +102,9 @@ namespace snde {
     if (threaded && enable_threaded_opengl) {
       RenderContext = new QOpenGLContext();
       RenderContext->setShareContext(context());
-      RenderContext->setScreen(screen());
-      DummyOffscreenSurface = new QOffscreenSurface(screen());
+      QScreen* pScreen = QGuiApplication::screenAt(mapToGlobal({ width() / 2,0 }));
+      RenderContext->setScreen(pScreen);
+      DummyOffscreenSurface = new QOffscreenSurface(pScreen);
       DummyOffscreenSurface->setFormat(context()->format());
       DummyOffscreenSurface->create();
       

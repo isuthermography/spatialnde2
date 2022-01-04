@@ -284,7 +284,7 @@ typedef struct {
   snde_coord4 quat; // normalized quaternion ... represented as , i (x) component, j (y) component, k (z) component, real (w) component
 } snde_orientation3;
 
-typedef struct {
+typedef struct _snde_rgba {
   uint8_t r;
   uint8_t g;
   uint8_t b;
@@ -311,7 +311,7 @@ typedef struct {
 } snde_rgba;
 
 
-typedef struct {
+typedef struct _snde_rgbd {
   uint8_t r;
   uint8_t g;
   uint8_t b;

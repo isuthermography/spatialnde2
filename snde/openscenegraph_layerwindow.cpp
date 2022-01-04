@@ -1,4 +1,6 @@
 #include <osg/Texture>
+#include <osg/FrameBufferObject>
+
 
 #include "snde/openscenegraph_layerwindow.hpp"
 
@@ -140,10 +142,10 @@ namespace snde {
     //assert(glGetError()== GL_NO_ERROR);
     
     // Verify the framebuffer configuration (Draw mode)
-    GLenum status = Info.getState()->get<osg::GLExtensions>()->glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+    GLenum status = Info.getState()->get<osg::GLExtensions>()->glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER_EXT);
     
-    if (status != GL_FRAMEBUFFER_COMPLETE) {
-      if (status==GL_FRAMEBUFFER_UNSUPPORTED) {
+    if (status != GL_FRAMEBUFFER_COMPLETE_EXT) {
+      if (status==GL_FRAMEBUFFER_UNSUPPORTED_EXT) {
 	throw snde_error("osg_layerwindow: Framebuffer configuration not supported by OpenGL implementation");
       } else {
 	throw snde_error("osg_layerwindow: Unknown framebuffer error: %x",(unsigned)status);
@@ -157,10 +159,10 @@ namespace snde {
     if (readback) {
       // Verify the framebuffer configuration (Read mode)
       
-      GLenum status = Info.getState()->get<osg::GLExtensions>()->glCheckFramebufferStatus(GL_READ_FRAMEBUFFER);
+      GLenum status = Info.getState()->get<osg::GLExtensions>()->glCheckFramebufferStatus(GL_READ_FRAMEBUFFER_EXT);
       
-      if (status != GL_FRAMEBUFFER_COMPLETE) {
-	if (status==GL_FRAMEBUFFER_UNSUPPORTED) {
+      if (status != GL_FRAMEBUFFER_COMPLETE_EXT) {
+	if (status==GL_FRAMEBUFFER_UNSUPPORTED_EXT) {
 	  throw snde_error("osg_layerwindow: Framebuffer configuration not supported by OpenGL implementation");
 	} else {
 	  throw snde_error("osg_layerwindow: Unknown framebuffer error: %x",(unsigned)status);
@@ -173,7 +175,7 @@ namespace snde {
     //assert(glGetError()== GL_NO_ERROR);
     
     // Make sure we are drawing onto the FBO attachment
-    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+    glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 
     //assert(glGetError()== GL_NO_ERROR);
 

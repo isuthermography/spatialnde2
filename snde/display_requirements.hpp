@@ -89,7 +89,8 @@ namespace snde {
 
 
   
-  struct display_requirement {
+  class display_requirement {
+  public:
     // ***!!! The channelpath and mode (with extended parameters) should uniquely define
     // the rendering configuration (generated on-demand channels via the renderable function
     // and renderable channelpath). The rendermode_ext mode ends up being the key for the
@@ -261,17 +262,14 @@ namespace snde {
   };
 
 
-  std::shared_ptr<display_requirement> traverse_display_requirement(std::shared_ptr<display_info> display,std::shared_ptr<recording_set_state> base_rss,std::shared_ptr<display_channel> displaychan, std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent); // simple_goal such as SNDE_SRG_RENDERING
-
+  std::shared_ptr<display_requirement> traverse_display_requirement(std::shared_ptr<display_info> display, std::shared_ptr<recording_set_state> base_rss, std::shared_ptr<display_channel> displaychan, std::string simple_goal, std::shared_ptr<renderparams_base> params_from_parent); // simple_goal such as SNDE_SRG_RENDERING
   
   // Go through the vector of channels we want to display,
   // and figure out
   // (a) all channels that will be necessary, and
   // (b) the math function (if necessary) to render to rgba, and
   // (c) the name of the renderable rgba channel
-  std::map<std::string,std::shared_ptr<display_requirement>> traverse_display_requirements(std::shared_ptr<display_info> display,std::shared_ptr<recording_set_state> base_rss /* (usually a globalrev) */, const std::vector<std::shared_ptr<display_channel>> &displaychans);
-
-  
+  std::map<std::string, std::shared_ptr<display_requirement>> traverse_display_requirements(std::shared_ptr<display_info> display, std::shared_ptr<recording_set_state> base_rss /* (usually a globalrev) */, const std::vector<std::shared_ptr<display_channel>>& displaychans);
 
 };
 

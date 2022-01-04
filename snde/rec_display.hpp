@@ -24,7 +24,7 @@
 namespace snde {
 
   class globalrevision; // recstore.hpp
-  struct display_channel; // forward declaration
+  class display_channel; // forward declaration
 
   //typedef std::unordered_map<std::pair<std::string,rendermode>,std::pair<std::shared_ptr<recording_base>,std::shared_ptr<image_reference>>,chanpathmode_hash> chanpathmode_rectexref_dict;
   
@@ -79,11 +79,12 @@ namespace snde {
   };
   */
   
-  struct display_channel: public std::enable_shared_from_this<display_channel> {
+  class display_channel: public std::enable_shared_from_this<display_channel> {
     
     
     //std::shared_ptr<std::string> _FullName; // Atomic shared pointer pointing to full name, including slash separating tree elements
     //std::shared_ptr<mutableinfostore> chan_data;
+  public:
     const std::string FullName; // immutable so you do not need to hold the admin lock to access this
     
     
@@ -234,7 +235,7 @@ namespace snde {
     
     display_posn get_selected_posn() const;
     
-    std::shared_ptr<display_channel> lookup_channel(const std::string &recfullname);
+    std::shared_ptr<display_channel> lookup_channel(const std::string& recfullname);
     
     void set_pixelsperdiv(size_t drawareawidth,size_t drawareaheight);
     

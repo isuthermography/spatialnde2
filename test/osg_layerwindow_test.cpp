@@ -1,5 +1,6 @@
-#ifndef _MSC_VER
+#ifndef WIN32
 #include <unistd.h>
+
 #endif
 
 #include <GL/glut.h>
@@ -339,7 +340,7 @@ plt.imshow(rb[0,:,:])
   //glutMainLoop();
 
 
-  sleep(4);
+  _sleep(4);
 
   exit(0);
 

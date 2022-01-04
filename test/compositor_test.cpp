@@ -1,4 +1,6 @@
+#ifndef _MSC_VER
 #include <unistd.h>
+#endif
 
 #include <GL/glut.h>
 #include <GL/freeglut.h>
@@ -151,7 +153,11 @@ int main(int argc, char **argv)
 
   recdb=std::make_shared<snde::recdatabase>();
   setup_cpu(recdb,std::thread::hardware_concurrency());
-  #warning "GPU acceleration temporarily disabled for viewer."
+  #ifndef _MSC_VER
+    #warning "GPU acceleration temporarily disabled for viewer."
+  #else
+      #pragma message("GPU acceleration temporarily disabled for viewer.")
+  #endif   
   //setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
   setup_storage_manager(recdb);
   std::shared_ptr<graphics_storage_manager> graphman=std::make_shared<graphics_storage_manager>("/",recdb->lowlevel_alloc,recdb->alignment_requirements,recdb->lockmgr,1e-8);

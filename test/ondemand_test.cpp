@@ -27,6 +27,10 @@
 #include "snde/openscenegraph_image_renderer.hpp"
 #include "snde/colormap.h"
 
+#ifdef _MSC_VER
+    #define M_PI   3.14159265358979323846264338327950288
+#endif
+
 using namespace snde;
 
 std::shared_ptr<snde::recdatabase> recdb;

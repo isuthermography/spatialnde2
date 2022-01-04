@@ -35,7 +35,7 @@ namespace snde {
   
   class posix_error : public snde_error {
   public:
-    int _errno;
+    int _myerrno;
     
     posix_error(std::string); // pretend it only takes one argument for Python
   };

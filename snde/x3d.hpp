@@ -1352,7 +1352,7 @@ namespace snde {
       
       Eigen::Matrix<double,3,3> TexCoordsToParameterizationCoords=Eigen::Matrix<double,3,3>::Identity();
       
-      if (texture_ref and texture_ref->layout.dimlen.size() >= 2) {
+      if (texture_ref && texture_ref->layout.dimlen.size() >= 2) {
 	// uv_imagedata_channels should be comma-separated list
 	fprintf(stderr,"x3d: adding uv_imagedata_channels metadata\n");
 	metadata.AddMetaDatum(metadatum("uv_imagedata_channels",texture_rec->info->name));

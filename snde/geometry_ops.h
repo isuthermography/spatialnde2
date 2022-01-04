@@ -1,8 +1,13 @@
 #ifndef SNDE_GEOMETRY_OPS_H
 #define SNDE_GEOMETRY_OPS_H
 
+
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#ifdef _MSC_VER
+    #define M_PI   3.14159265358979323846264338327950288
 #endif
 
 
