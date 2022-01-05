@@ -194,13 +194,13 @@ namespace snde {
 	      colormap_kern.setArg(2,sizeof(stride_u),&stride_u);
 	      colormap_kern.setArg(3,sizeof(stride_v),&stride_v);
 
-	      snde_float32 ocl_offset = offset;
+	      snde_float32 ocl_offset = (snde_float32)offset;
 	      colormap_kern.setArg(4,sizeof(ocl_offset),&ocl_offset);
 	      uint8_t ocl_alpha = 255;
 	      colormap_kern.setArg(5,sizeof(ocl_alpha),&ocl_alpha);
 	      uint32_t ocl_colormap_type = colormap_type;
 	      colormap_kern.setArg(6,sizeof(ocl_colormap_type),&ocl_colormap_type);
-	      snde_float32 ocl_intensityperunits = 1.0/unitsperintensity;
+	      snde_float32 ocl_intensityperunits = (snde_float32)(1.0/unitsperintensity);
 	      colormap_kern.setArg(7,sizeof(ocl_intensityperunits),&ocl_intensityperunits);
 	      
 	      cl::Event kerndone;
@@ -232,7 +232,7 @@ namespace snde {
 		  pos.at(u_dim)=upos;
 		  pos.at(v_dim)=vpos;
 		  //result_rec->element(pos) = do_colormap(colormap_type,recording->element(pos)-offset)/unitsperintensity;
-		  result_rec->element(pos) = snde_colormap(colormap_type,(recording->element(pos)-offset)/unitsperintensity,255);
+		  result_rec->element(pos) = snde_colormap(colormap_type,(float)((recording->element(pos)-offset)/unitsperintensity),255);
 		}
 	      }
 #ifdef SNDE_OPENCL
@@ -297,7 +297,7 @@ namespace snde {
 	{
 	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
 							numdatapoints*(3*sizeof(snde_coord)+sizeof(snde_rgba)), // data_bytes for transfer
-							numdatapoints*(10), // flops
+							numdatapoints*(10.0), // flops
 							1, // max effective cpu cores
 							1), // useful_cpu_cores (min # of cores to supply
 	  
@@ -385,13 +385,13 @@ namespace snde {
 	      snde_index stride=1; // number of coord3's  per point
 	      colormap_kern.setArg(2,sizeof(stride),&stride);
 
-	      snde_float32 ocl_offset = offset;
+	      snde_float32 ocl_offset = (snde_float32)offset;
 	      colormap_kern.setArg(3,sizeof(ocl_offset),&ocl_offset);
-	      snde_float32 ocl_alpha = 1.0;
+	      snde_float32 ocl_alpha = 1.0f;
 	      colormap_kern.setArg(4,sizeof(ocl_alpha),&ocl_alpha);
 	      uint32_t ocl_colormap_type = colormap_type;
 	      colormap_kern.setArg(5,sizeof(ocl_colormap_type),&ocl_colormap_type);
-	      snde_float32 ocl_intensityperunits = 1.0/unitsperintensity;
+	      snde_float32 ocl_intensityperunits = (snde_float32)(1.0f/unitsperintensity);
 	      colormap_kern.setArg(6,sizeof(ocl_intensityperunits),&ocl_intensityperunits);
 	      
 	      cl::Event kerndone;

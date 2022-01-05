@@ -100,7 +100,7 @@ namespace snde {
     // Find the upper right corner of the rendering area in channel coordinates relative
     // to the channel origin
     Eigen::Vector3d renderingarea_upperright_pixels_rel_displaybotleft;
-    renderingarea_upperright_pixels_rel_displaybotleft << drawareawidth,drawareaheight,1;
+    renderingarea_upperright_pixels_rel_displaybotleft << (double)drawareawidth,(double)drawareaheight,1.0;
     Eigen::Vector3d renderingarea_upperright_chanunits_rel_chanorigin = chanunits_rel_displaycenter_over_chanunits_rel_chanorigin.inverse() * (pixels_rel_displaycenter_over_chanunits_rel_displaycenter.inverse() * (pixels_rel_displaycenter_over_pixels_rel_displaybotleft * renderingarea_upperright_pixels_rel_displaybotleft));
 
 
@@ -141,7 +141,7 @@ namespace snde {
       snde_debug(SNDE_DC_DISPLAY,"right bound from renderingarea: %f; datarightedge_chanunits=%f",bounds->right,datarightedge_chanunits);
       
     }
-    posn->width = std::max(0.0,(bounds->right - bounds->left)*pixelsperdiv/xunitsperdiv);
+    posn->width = (size_t)std::max(0.0,(bounds->right - bounds->left)*pixelsperdiv/xunitsperdiv);
 
     
     // Bottom bound
@@ -318,7 +318,7 @@ namespace snde {
     // Find the upper right corner of the rendering area in channel coordinates relative
     // to the channel origin
     Eigen::Vector3d renderingarea_upperright_pixels_rel_displaybotleft;
-    renderingarea_upperright_pixels_rel_displaybotleft << drawareawidth,drawareaheight,1;
+    renderingarea_upperright_pixels_rel_displaybotleft << (double)drawareawidth,(double)drawareaheight,1.0;
     Eigen::Vector3d renderingarea_upperright_chanunits_rel_chanorigin = chanunits_rel_displaycenter_over_chanunits_rel_chanorigin.inverse() * (pixels_rel_displaycenter_over_chanunits_rel_displaycenter.inverse() * (pixels_rel_displaycenter_over_pixels_rel_displaybotleft * renderingarea_upperright_pixels_rel_displaybotleft));
 
 
@@ -337,7 +337,7 @@ namespace snde {
 
     // Right bound
     bounds->right = renderingarea_upperright_chanunits_rel_chanorigin(0); // left bound to give the image renderer
-    posn->width = std::max(0.0,(bounds->right - bounds->left)*pixelsperdiv/xunitsperdiv);
+    posn->width = (size_t)std::max(0.0,(bounds->right - bounds->left)*pixelsperdiv/xunitsperdiv);
 
     
     // Bottom bound
@@ -347,7 +347,7 @@ namespace snde {
 
     // Top bound
     bounds->top = renderingarea_upperright_chanunits_rel_chanorigin(1); // left bound to give the image renderer
-    posn->height = std::max(0.0,(bounds->top - bounds->bottom)*pixelsperdiv/yunitsperdiv);
+    posn->height = (size_t)std::max(0.0,(bounds->top - bounds->bottom)*pixelsperdiv/yunitsperdiv);
 
     
     xform->renderarea_coords_over_renderbox_coords = renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels;
@@ -421,7 +421,7 @@ namespace snde {
     // Find the upper right corner of the rendering area in channel coordinates relative
     // to the channel origin
     Eigen::Vector3d renderingarea_upperright_pixels_rel_displaybotleft;
-    renderingarea_upperright_pixels_rel_displaybotleft << drawareawidth,drawareaheight,1;
+    renderingarea_upperright_pixels_rel_displaybotleft << (double)drawareawidth,(double)drawareaheight,1.0;
     Eigen::Vector3d renderingarea_upperright_chanunits_rel_chanorigin = chanunits_rel_displaycenter_over_chanunits_rel_chanorigin.inverse() * (pixels_rel_displaycenter_over_chanunits_rel_displaycenter.inverse() * (pixels_rel_displaycenter_over_pixels_rel_displaybotleft * renderingarea_upperright_pixels_rel_displaybotleft));
 
 
@@ -461,7 +461,7 @@ namespace snde {
       bounds->right = renderingarea_upperright_chanunits_rel_chanorigin(0); // left bound to give the image renderer
       
     }
-    posn->width = std::max(0.0,(bounds->right - bounds->left)*mag); // *pixelsperdiv/xunitsperdiv;
+    posn->width = (size_t)std::max(0.0,(bounds->right - bounds->left)*mag); // *pixelsperdiv/xunitsperdiv;
 
     
     // Bottom bound
@@ -493,7 +493,7 @@ namespace snde {
       bounds->top = renderingarea_upperright_chanunits_rel_chanorigin(1); // left bound to give the image renderer
       
     }
-    posn->height = std::max(0.0,(bounds->top - bounds->bottom)*mag); //*pixelsperdiv/yunitsperdiv;
+    posn->height = (size_t)std::max(0.0,(bounds->top - bounds->bottom)*mag); //*pixelsperdiv/yunitsperdiv;
 
     
     xform->renderarea_coords_over_renderbox_coords = renderingarea_lowerleft_pixels_over_renderbox_lowerleft_pixels;

@@ -184,7 +184,6 @@ void osg_layerwindow_test_close()
 
 int main(int argc, char **argv)
 {
-  snde_index revnum;
   
   glutInit(&argc,argv);
 

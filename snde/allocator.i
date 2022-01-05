@@ -16,14 +16,14 @@ namespace snde {
   class allocator_alignment {
   public:
     //std::mutex admin; // locks access to members. Last in locking order
-    std::vector<unsigned> address_alignment; /* required address alignments, in bytes */
-    std::shared_ptr<unsigned> cached_alignment;
+    std::vector<size_t> address_alignment; /* required address alignments, in bytes */
+    std::shared_ptr<size_t> cached_alignment;
 
     allocator_alignment();
-    void add_requirement(unsigned alignment);
+    void add_requirement(size_t alignment);
 
-    unsigned get_alignment();
-    static void *alignment_shift(void *ptr,unsigned alignment);    
+    size_t get_alignment();
+    static void *alignment_shift(void *ptr,size_t alignment);    
   };
 
 

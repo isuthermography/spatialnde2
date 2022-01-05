@@ -1111,7 +1111,8 @@ typedef uint64_t snde_infostore_lock_mask_t;
       std::vector<lockindex_t> idxs;
       idxs.reserve(_arrays()->size());
 
-      for (auto & lockindex_voidpp: *_arrays()) {
+      auto arrays = _arrays();
+      for (auto & lockindex_voidpp: *arrays) {
 	idxs.push_back(lockindex_voidpp.first);
       }
       std::sort(idxs.begin(),idxs.end());
@@ -1129,8 +1130,8 @@ typedef uint64_t snde_infostore_lock_mask_t;
       std::vector<lockindex_t> idxs;
       idxs.reserve(_arrayidx()->size());
 
-
-      for (auto & voidptr_lockindex: *_arrayidx()) {
+      auto arrayidx = _arrayidx();
+      for (auto & voidptr_lockindex: *arrayidx) {
 	idxs.push_back(voidptr_lockindex.second);	
       }
       std::sort(idxs.begin(),idxs.end());
@@ -1354,7 +1355,8 @@ typedef uint64_t snde_infostore_lock_mask_t;
       std::vector<lockindex_t> idxs;
       idxs.reserve(_arrays()->size());
 
-      for (auto & lockindex_voidpp: *_arrays()) {
+      auto arrays = _arrays();
+      for (auto & lockindex_voidpp: *arrays) {
 	idxs.push_back(lockindex_voidpp.first);
       }
       std::sort(idxs.begin(),idxs.end());
@@ -1372,8 +1374,8 @@ typedef uint64_t snde_infostore_lock_mask_t;
       std::vector<lockindex_t> idxs;
       idxs.reserve(_arrayidx()->size());
 
-
-      for (auto & voidptr_lockindex: *_arrayidx()) {
+      auto arrayidx = _arrayidx();
+      for (auto & voidptr_lockindex: *arrayidx) {
 	idxs.push_back(voidptr_lockindex.second);	
       }
       std::sort(idxs.begin(),idxs.end());
@@ -2161,13 +2163,13 @@ namespace snde {
     std::string as_string() {
       std::string ret="";
 
-      ret+=ssprintf("snde::lockholder at 0x%lx with  %d allocations and %d locks\n",(unsigned long)this,(int)allocvalues.size(),(int)values.size());
+      ret+=ssprintf("snde::lockholder at 0x%llx with  %d allocations and %d locks\n",(unsigned long long)this,(int)allocvalues.size(),(int)values.size());
       ret+=ssprintf("---------------------------------------------------------------------------\n");
       for (auto & array_startidx : allocvalues) {
-	ret+=ssprintf("allocation for array 0x%lx allocid=\"%s\" startidx=%lu\n",(unsigned long)array_startidx.first.first,array_startidx.first.second.c_str(),(unsigned long)array_startidx.second.first);
+	ret+=ssprintf("allocation for array 0x%llx allocid=\"%s\" startidx=%lu\n",(unsigned long long)array_startidx.first.first,array_startidx.first.second.c_str(),(unsigned long)array_startidx.second.first);
       }
       for (auto & idx_tokens : values) {
-	ret+=ssprintf("locks for array 0x%lx write=%s startidx=%lu numelem=%lu\n",(unsigned long)idx_tokens.first.array,idx_tokens.first.write ? "true": "false",(unsigned long)idx_tokens.first.startidx,(unsigned long)idx_tokens.first.numelem);
+	ret+=ssprintf("locks for array 0x%llx write=%s startidx=%lu numelem=%lu\n",(unsigned long long)idx_tokens.first.array,idx_tokens.first.write ? "true": "false",(unsigned long)idx_tokens.first.startidx,(unsigned long)idx_tokens.first.numelem);
       }
       return ret;
     }

@@ -39,7 +39,7 @@ public:
       {
 	std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
 						      numentries*sizeof(snde_float32)*2, // data_bytes for transfer
-						      numentries, // flops
+						      (snde_float64)numentries, // flops
 						      1, // max effective cpu cores
 						      1), // useful_cpu_cores (min # of cores to supply
       };
@@ -83,7 +83,7 @@ public:
 	  return std::make_shared<exec_function_override_type>([ this,locktokens,result_rec,recording,multiplier ]() {
 	    // exec code
 	    for (snde_index pos=0;pos < recording->layout.dimlen.at(0);pos++){
-	      result_rec->element({pos}) = recording->element({pos}) * multiplier;
+	      result_rec->element({pos}) = (T)(recording->element({pos}) * multiplier);
 	    }
 	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
 	    result_rec->rec->mark_as_ready();

@@ -22,13 +22,13 @@ extern "C" {
 };
 
 namespace snde {
-  std::map<unsigned,unsigned> prime_factorization(unsigned number)
+  std::map<size_t,size_t> prime_factorization(size_t number)
   {
     // return prime factorization as vector of (integer,power) pairs
-    unsigned divisor=2;
-    unsigned power=0;
+    size_t divisor=2;
+    size_t power=0;
     
-    std::map<unsigned,unsigned> factors_powers;
+    std::map<size_t,size_t> factors_powers;
     
     while (number >= 2) {
       /* evaluate possible factors up to sqrt(value), 
@@ -60,10 +60,10 @@ namespace snde {
 }
 
 namespace snde {
-  unsigned multiply_factors(std::map<unsigned,unsigned> factors)
+  size_t multiply_factors(std::map<size_t,size_t> factors)
   {
-    unsigned product=1;
-    unsigned cnt; 
+    size_t product=1;
+    size_t cnt; 
     for (auto && factor_power: factors) {
       for (cnt=0; cnt < factor_power.second;cnt++) {
 	product *= factor_power.first;

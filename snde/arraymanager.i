@@ -43,7 +43,14 @@ namespace snde {
   class allocationinfo  { 
   public:
     std::shared_ptr<snde::allocator> alloc;
+    size_t elemsize;
+    size_t _totalnelem;
     size_t allocindex; // index into alloc->arrays
+    
+    allocationinfo();
+    allocationinfo(std::shared_ptr<snde::allocator> alloc,size_t elemsize,size_t _totalnelem,size_t allocindex);
+    allocationinfo(const allocationinfo &orig);
+    //allocationinfo& operator=(const allocationinfo &orig);
   };
 
 

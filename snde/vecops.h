@@ -374,10 +374,10 @@ static VECOPS_INLINE snde_coord to_unit_vector4(snde_coord *vec)
 {
   snde_coord factor;
 
-  factor=1.0/sqrt(vec[0]*vec[0]+vec[1]*vec[1]+vec[2]*vec[2]);
+  factor=(snde_coord)(1.0f/sqrt(vec[0]*vec[0]+vec[1]*vec[1]+vec[2]*vec[2]));
 #ifdef __OPENCL_VERSION__
   /* if this is an opencl kernel, a W component makes the result invalid */
-  if (vec[3] != 0.0) {
+  if (vec[3] != 0.0f) {
     factor = my_infnan(0); // NaN factor
   }
 #else
@@ -398,7 +398,7 @@ static VECOPS_INLINE snde_coord normvec3(snde_coord *vec)
 {
   snde_coord factor;
 
-  factor=sqrt(vec[0]*vec[0]+vec[1]*vec[1]+vec[2]*vec[2]);
+  factor=(snde_coord)sqrt(vec[0]*vec[0]+vec[1]*vec[1]+vec[2]*vec[2]);
   return factor;
 }
 
@@ -409,7 +409,7 @@ static VECOPS_INLINE snde_coord normcoord3(snde_coord3 vec)
 {
   snde_coord factor;
 
-  factor=sqrt(vec.coord[0]*vec.coord[0]+vec.coord[1]*vec.coord[1]+vec.coord[2]*vec.coord[2]);
+  factor=(snde_coord)sqrt(vec.coord[0]*vec.coord[0]+vec.coord[1]*vec.coord[1]+vec.coord[2]*vec.coord[2]);
   return factor;
 }
 
@@ -451,7 +451,7 @@ static VECOPS_INLINE snde_coord normvec2(snde_coord *vec)
 {
   snde_coord factor;
 
-  factor=sqrt(vec[0]*vec[0]+vec[1]*vec[1]);
+  factor=(snde_coord)sqrt(vec[0]*vec[0]+vec[1]*vec[1]);
   return factor;
 }
 
@@ -460,7 +460,7 @@ static VECOPS_INLINE snde_coord normcoord2(snde_coord2 vec)
 {
   snde_coord factor;
 
-  factor=sqrt(vec.coord[0]*vec.coord[0]+vec.coord[1]*vec.coord[1]);
+  factor=(snde_coord)sqrt(vec.coord[0]*vec.coord[0]+vec.coord[1]*vec.coord[1]);
   return factor;
 }
 
@@ -490,7 +490,7 @@ static VECOPS_INLINE snde_coord to_unit_vector3(snde_coord *vec)
 {
   snde_coord factor;
 
-  factor=1.0/sqrt(vec[0]*vec[0]+vec[1]*vec[1]+vec[2]*vec[2]);
+  factor=(snde_coord)(1.0f/sqrt(vec[0]*vec[0]+vec[1]*vec[1]+vec[2]*vec[2]));
   vec[0] *= factor;
   vec[1] *= factor;
   vec[2] *= factor;
@@ -504,7 +504,7 @@ static VECOPS_INLINE snde_coord to_unit_coord3(snde_coord3 *vec)
 {
   snde_coord factor;
 
-  factor=1.0/sqrt(vec->coord[0]*vec->coord[0]+vec->coord[1]*vec->coord[1]+vec->coord[2]*vec->coord[2]);
+  factor=(snde_coord)(1.0f/sqrt(vec->coord[0]*vec->coord[0]+vec->coord[1]*vec->coord[1]+vec->coord[2]*vec->coord[2]));
   vec->coord[0] *= factor;
   vec->coord[1] *= factor;
   vec->coord[2] *= factor;
@@ -607,7 +607,7 @@ static VECOPS_INLINE void mean2vec3(snde_coord *vec1,snde_coord *vec2,snde_coord
   int cnt;
   
   for (cnt=0;cnt < 3; cnt++) {
-    out[cnt]=(vec1[cnt]+vec2[cnt])/2.0;
+    out[cnt]=(snde_coord)((vec1[cnt]+vec2[cnt])/2.0f);
   }
 }
 
@@ -616,7 +616,7 @@ static VECOPS_INLINE void mean2coord3(snde_coord3 vec1,snde_coord3 vec2,snde_coo
   int cnt;
   
   for (cnt=0;cnt < 3; cnt++) {
-    out->coord[cnt]=(vec1.coord[cnt]+vec2.coord[cnt])/2.0;
+    out->coord[cnt]=(vec1.coord[cnt]+vec2.coord[cnt])/2.0f;
   }
 }
 
@@ -709,11 +709,11 @@ static VECOPS_INLINE void fmatrixsolve(snde_coord *A,snde_coord *b,size_t n,size
   for (row=0; row < n; row++) {
     // find largest magnitude row
     old_pivots_row=pivots[row];
-    bestpivot=fabs(A[pivots[row] + row*n]);  // pull out this diagonal etnry to start
+    bestpivot=(snde_coord)fabs(A[pivots[row] + row*n]);  // pull out this diagonal etnry to start
     swapped=FALSE;
     for (rsrch=row+1; rsrch < n; rsrch++) {
       if (fabs(A[pivots[rsrch] + row*n]) > bestpivot) {
-	bestpivot=fabs(A[pivots[rsrch] + row*n]);
+	bestpivot=(snde_coord)fabs(A[pivots[rsrch] + row*n]);
 	pivots[row]=pivots[rsrch];
 	swappedentry=rsrch;
 	swapped=TRUE;

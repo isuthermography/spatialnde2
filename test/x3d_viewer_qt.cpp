@@ -33,7 +33,6 @@ void StdErrOutput(QtMsgType type, const QMessageLogContext &context, const QStri
 
 int main(int argc, char **argv)
 {
-  snde_index revnum;
   
 
   if (argc < 2) {

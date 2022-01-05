@@ -45,7 +45,7 @@ snde_coord3 snde_normalcalc_triangle(OCL_GLOBAL_ADDR const struct snde_part *par
   // If vector from 0th to 1st vertex and vector from 0th to 2nd
   // vertex are too close to parallel, find another vertex
     
-  const snde_coord min_cross_product = 1e-3;
+  const snde_coord min_cross_product = 1e-3f;
   snde_bool tooparallel=normvec3(N.coord) < min_cross_product;
 
   if (tooparallel) {

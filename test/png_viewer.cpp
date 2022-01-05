@@ -162,7 +162,6 @@ void png_viewer_close()
 
 int main(int argc, char **argv)
 {
-  snde_index revnum;
   
   glutInit(&argc,argv);
 

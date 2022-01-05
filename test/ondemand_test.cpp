@@ -175,7 +175,6 @@ double my_sinc(double x)
 
 int main(int argc, char **argv)
 {
-  snde_index revnum;
   
   glutInit(&argc,argv);
 

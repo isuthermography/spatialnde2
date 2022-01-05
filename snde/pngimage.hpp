@@ -89,16 +89,12 @@ namespace snde {
   {
     FILE *infile;
     
-    unsigned char header[8];
     png_structp png;
     png_infop info;
     png_infop endinfo;
-    png_bytep data;
-    png_bytep *row_p;
     short int number = 0x1;
     bool is_little_endian = (bool)*((char*)&number);
     
-    double gamma;
     png_uint_32 width,height;
     int bit_depth=0, color_type=0,interlace_method=0,compression_method=0,filter_method=0;
     
