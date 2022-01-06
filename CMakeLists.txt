@@ -48,7 +48,11 @@ if((NOT WIN32) AND (NOT APPLE))
 endif()
 
 
+# SPATIALNDE2_COMPILE_DEFINITIONS is used to set -D options for the compile and will also be stored in the Python tree and install output
 set(SPATIALNDE2_COMPILE_DEFINITIONS )
+set(SPATIALNDE2_COMPILE_LIBRARY_DIRS )
+set(SPATIALNDE2_COMPILE_LIBRARIES )
+
 
 IF(SNDE_DOUBLEPREC_COORDS)
   set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_DOUBLEPREC_COORDS ) 
@@ -333,12 +337,6 @@ IF (OpenThreads_FOUND AND OpenSceneGraph_FOUND AND Python3_FOUND)
 ENDIF()
 
 
-add_custom_target(compile_definitions ALL
-  DEPENDS spatialnde2
-  COMMAND ${CMAKE_COMMAND} -E echo ${SPATIALNDE2_COMPILE_DEFINITIONS} >"${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt"
-  )
-  
-
 add_definitions(${SPATIALNDE2_COMPILE_DEFINITIONS})
 
 
@@ -432,7 +430,7 @@ IF (Python3_FOUND)
   # openscenegraph or qt, for example
   IF(WIN32)
     add_custom_command(OUTPUT ${PYTHONPKGFILES}
-    DEPENDS compile_definitions python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS}  
+    DEPENDS compile_configuration python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS}  
     # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
     
     COMMAND ${CMAKE_COMMAND} -E copy python/setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
@@ -440,6 +438,9 @@ IF (Python3_FOUND)
     
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_ocl${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_osg${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
@@ -460,7 +461,7 @@ IF (Python3_FOUND)
     )
   ELSE()
     add_custom_command(OUTPUT ${PYTHONPKGFILES}
-    DEPENDS compile_definitions python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS}  
+    DEPENDS compile_configuration python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS}  
     # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
     
     COMMAND ${CMAKE_COMMAND} -E copy python/setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
@@ -468,6 +469,9 @@ IF (Python3_FOUND)
     
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_ocl${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_osg${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
@@ -494,7 +498,7 @@ IF (Python3_FOUND)
     COMMAND ${CMAKE_COMMAND} -E echo "And ...perhaps as root or Administrator...:"
     COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "  ${PYTHON_EXECUTABLE} setup.py install"
     COMMAND ${CMAKE_COMMAND} -E echo "to install for Python" )
-  add_dependencies( InstallMessage compile_definitions Python_Create_Setup spatialnde2 spatialnde2_qt allocator_test recdb_test recmath_test recmath_test2 transform_eval_test matrixsolve_test png_viewer osg_layerwindow_test ondemand_test x3d_viewer compositor_test x3d_viewer_qt )
+  add_dependencies( InstallMessage compile_configuration Python_Create_Setup spatialnde2 spatialnde2_qt allocator_test recdb_test recmath_test recmath_test2 transform_eval_test matrixsolve_test png_viewer osg_layerwindow_test ondemand_test x3d_viewer compositor_test x3d_viewer_qt )
 ENDIF (Python3_FOUND)
 
 
@@ -637,7 +641,10 @@ IF(SWIG_FOUND AND Python3_FOUND )
 
 	set(SPATIALNDE2_SWIG_SOURCES snde/spatialnde2.i  )
 	set_property(SOURCE snde/spatialnde2.i PROPERTY SWIG_MODULE_NAME spatialnde2_python)
-	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${Python3_LIBRARIES} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${SPATIALNDE2_QT_LIBS} )
+
+	
+	set(SWIG_SPATIALNDE2_LINK_TARGETS Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools ) # Libraries needed by swig_spatialnde2 that are swig targets
+	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${Python3_LIBRARIES} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${SPATIALNDE2_QT_LIBS} )
 
 	#IF(NOT WIN32)
 	#  set(SPATIALNDE2_SWIG_SOURCES ${SPATIALNDE2_SWIG_SOURCES} snde/shared_memory_allocator_posix.cpp )
@@ -653,7 +660,7 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	ENDIF()
     
 	SWIG_ADD_LIBRARY(spatialnde2_python LANGUAGE python SOURCES ${SPATIALNDE2_SWIG_SOURCES} )
-	TARGET_LINK_LIBRARIES(spatialnde2_python ${SWIG_SPATIALNDE2_LINK_LIBRARIES})
+	TARGET_LINK_LIBRARIES(spatialnde2_python ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${SWIG_SPATIALNDE2_LINK_TARGETS})
 	
 	add_dependencies(spatialnde2 OpenCL_Headers)
     ELSE ()
@@ -668,6 +675,31 @@ ENDIF(SWIG_FOUND AND Python3_FOUND)
 #    OUTPUT_VARIABLE _AUTOGEN_PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
 #      set(PYTHON_SITE_PACKAGES ${_AUTOGEN_PYTHON_SITE_PACKAGES} CACHE PATH "Directory containing site-packages")
 #ENDIF()
+
+
+
+get_target_property(LIBSPATIALNDE2_INCLUDE_DIRECTORIES spatialnde2 INCLUDE_DIRECTORIES)
+
+
+get_target_property(LIBSPATIALNDE2_LIBRARY_DIRECTORIES spatialnde2 LINK_DIRECTORIES)
+
+#get_target_property(SPATIALNDE2_PYTHON_LIBRARIES spatialnde2_python  LINK_LIBRARIES)
+
+
+set(SWIG_SPATIALNDE2_EVALUATED_LINK_TARGETS)
+foreach(dep in LISTS ${SWIG_SPATIALNDE2_LINK_TARGETS})
+  list(APPEND SWIG_SPATIALNDE2_EVALUATED_LINK_TARGETS  "$<$<STREQUAL:$<TARGET_NAME_IF_EXISTS:${dep}>,${dep}>:$<TARGET_FILE:${dep}>>" )
+endforeach()
+
+add_custom_target(compile_configuration ALL
+  DEPENDS spatialnde2
+  COMMAND ${CMAKE_COMMAND} -E echo ${SPATIALNDE2_COMPILE_DEFINITIONS} >"${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt"
+  COMMAND ${CMAKE_COMMAND} -E echo ${INCLUDE_DIRECTORIES} ${LIBSPATIALNDE2_INCLUDE_DIRECTORIES} >"${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt"
+  COMMAND ${CMAKE_COMMAND} -E echo ${LINK_DIRECTORIES} ${LIBSPATIALNDE2_LIBRARY_DIRECTORIES} >"${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt"
+  COMMAND ${CMAKE_COMMAND} -E echo ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${SWIG_SPATIALNDE2_EVALUATED_LINK_TARGETS} >"${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt"
+  #COMMAND ${CMAKE_COMMAND} -E echo ${SPATIALNDE2_PYTHON_LIBRARIES} >"${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt"
+  )
+
 
 
 
@@ -755,6 +787,9 @@ install(TARGETS
         DESTINATION ${APP_INSTALL_DIR}/lib)
 install(FILES
         ${CMAKE_BINARY_DIR}/compile_definitions.txt
+        ${CMAKE_BINARY_DIR}/compile_include_dirs.txt
+        ${CMAKE_BINARY_DIR}/compile_library_dirs.txt
+        ${CMAKE_BINARY_DIR}/compile_libraries.txt
         DESTINATION ${APP_INSTALL_DIR})
 
       
@@ -803,3 +838,5 @@ ENDIF (NOT OpenCL_FOUND)
 #foreach (_variableName ${_variableNames})
 #    message(STATUS "${_variableName}=${${_variableName}}")
 #endforeach()
+
+

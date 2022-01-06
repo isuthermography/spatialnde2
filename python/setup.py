@@ -81,6 +81,9 @@ spatialnde2_dlls = [ dllname for dllname in os.listdir('spatialnde2') if (dllnam
 package_data = {
     "spatialnde2": [
         "compile_definitions.txt",
+        "compile_include_dirs.txt",
+        "compile_library_dirs.txt",
+        "compile_libraries.txt",
         "snde/*", # All headers, installed into this location by cmake build process
         "*.dpi", # .dpi files for dataguzzler-python
     ] + spatialnde2_dlls
