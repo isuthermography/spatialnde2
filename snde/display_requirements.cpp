@@ -774,7 +774,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 	    bottom = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
 	  }
 
-	  snde_debug(SNDE_DC_DISPLAY,"spatial_transforms_for_image_channel: xunitscale=%f",xunitscale);
+	  snde_debug(SNDE_DC_DISPLAY,"spatial_transforms_for_image_channel: xunitscale=%f, yunitscale=%f",xunitscale,yunitscale);
 	  std::tie(posn,xform,bounds) = spatial_transforms_for_image_channel(display->drawareawidth,display->drawareaheight,
 									     display->horizontal_divisions,display->vertical_divisions,
 									     xcenter,-displaychan->Position,displaychan->VertZoomAroundAxis,

@@ -76,6 +76,7 @@ void x3d_viewer_reshape(int width, int height)
   }
   winwidth=width;
   winheight=height;
+  display->set_pixelsperdiv(winwidth,winheight);
 }
 
 void x3d_viewer_mouse(int button, int state, int x, int y)
@@ -209,6 +210,7 @@ int main(int argc, char **argv)
 
   display=std::make_shared<display_info>(recdb);
   display->set_current_globalrev(globalrev);
+  display->set_pixelsperdiv(winwidth,winheight);
   
   std::shared_ptr<display_channel> x3d_displaychan = display->lookup_channel(x3dchan_config->channelpath);
   x3d_displaychan->set_enabled(true); // enable channel
