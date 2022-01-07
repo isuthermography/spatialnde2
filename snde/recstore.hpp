@@ -310,7 +310,19 @@ namespace snde {
     
   };
 
+  class null_recording: public recording_base {
+  public:
 
+    null_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize=0);
+    
+    
+    // rule of 3
+    null_recording & operator=(const null_recording &) = delete; 
+    null_recording(const null_recording &orig) = delete;
+    virtual ~null_recording()=default;
+
+  };
+  
   class recording_group : public recording_base {
   public:
     // Group elements are not stored here; they are found by searching

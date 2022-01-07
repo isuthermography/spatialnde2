@@ -122,6 +122,14 @@ namespace snde {
     
     int fd = shm_open(shm_name.c_str(),O_RDWR|O_CREAT|O_EXCL,0777);
     if (fd < 0) {
+      if (errno==EEXIST) {
+	throw posix_error("shared_memory_allocator_posix::calloc attempting to create duplicate shared memory object: %s",shm_name.c_str());
+
+      }
+      if (errno==EMFILE) {
+	throw posix_error("shared_memory_allocator_posix::calloc too many open files while attempting create duplicate shared memory object: %s",shm_name.c_str());
+
+      }
       throw posix_error("shared_memory_allocator_posix::calloc shm_open(%s)",shm_name.c_str());
     }
 

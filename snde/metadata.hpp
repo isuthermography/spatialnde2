@@ -192,7 +192,13 @@ public:
     {
       
     }
-    
+
+    constructible_metadata(const constructible_metadata &orig) :
+      metadata(orig.metadata)
+    {
+      
+    }
+
     
     int64_t GetMetaDatumInt(std::string Name,int64_t defaultval) const
     {

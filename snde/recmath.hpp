@@ -470,6 +470,17 @@ namespace snde {
   };
 
 
+  class math_parameter_mismatch: public snde_error {
+  public:
+    template<typename ... Args>
+    math_parameter_mismatch(std::string fmt, Args && ... args) :
+      snde_error(fmt,std::forward<Args>(args) ...)
+    {
+
+    }
+    virtual ~math_parameter_mismatch() = default;
+  };
+
 
   class registered_math_function {
   public:

@@ -844,10 +844,15 @@ namespace snde {
   }
 
 
+  null_recording::null_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize/*=0*/) :
+    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,recording_default_info_structsize(info_structsize,sizeof(snde_recording_base)))
+  {
+    
+  }
   
 
   recording_group::recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,std::shared_ptr<std::string> path_to_primary,size_t info_structsize/*=0*/) :
-    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize),
+    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,recording_default_info_structsize(info_structsize,sizeof(snde_recording_base))),
     path_to_primary(path_to_primary)
   {
 
@@ -1223,7 +1228,7 @@ namespace snde {
     
     // NOTE: Graphics storage manager allocate_recording() will create a nonmoving shadow if possible
     // to eliminate the need for locking
-    stor = storman->allocate_recording(info->name,array_name,originating_rss_unique_id,array_index,info->revision,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem,!info->immutable);
+    stor = storman->allocate_recording(info->name,array_name,info->revision,originating_rss_unique_id,array_index,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem,!info->immutable);
     
     assign_storage(stor,array_index,dimlen,fortran_order);
 
@@ -2738,8 +2743,9 @@ namespace snde {
     // Second, make sure if a channel was created, it has a recording present and gets put in the channel_map
     for (auto && updated_chan: recdb_strong->current_transaction->updated_channels) {
       std::shared_ptr<channelconfig> config = updated_chan->config();
-      std::shared_ptr<multi_ndarray_recording> new_rec;
-      std::shared_ptr<ndarray_recording_ref> new_rec_ref;
+      //std::shared_ptr<multi_ndarray_recording> new_rec;
+      //std::shared_ptr<ndarray_recording_ref> new_rec_ref;
+      std::shared_ptr<null_recording> new_rec;
 
       if (config->math) {
 	continue; // math channels get their recordings defined automatically
@@ -2755,8 +2761,8 @@ namespace snde {
       // new recording should be required but not present; create one
       assert(recdb_strong->current_transaction->new_recording_required.at(config->channelpath) && new_recording_it==recdb_strong->current_transaction->new_recordings.end());
       //new_rec = std::make_shared<recording_base>(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32); // constructor adds itself to current transaction
-      new_rec_ref = create_recording_ref(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32);
-      new_rec = new_rec_ref->rec;
+      //new_rec_ref = create_recording_ref(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32);
+      new_rec = std::make_shared<null_recording>(recdb_strong,select_storage_manager_for_recording_during_transaction(recdb_strong,config->channelpath.c_str()),recdb_strong->current_transaction,config->channelpath,globalrev,++updated_chan->latest_revision);
       //recordings_needing_finalization.emplace(new_rec); // Since we provided this, we need to make it ready, below
       
       // insert new recording into channel_map
@@ -2773,7 +2779,7 @@ namespace snde {
       // assign blank waveform content
       new_rec->metadata = std::make_shared<immutable_metadata>();
       new_rec->mark_metadata_done();
-      new_rec->allocate_storage(0,std::vector<snde_index>());
+      //new_rec->allocate_storage(0,std::vector<snde_index>());
       new_rec->mark_as_ready();
       
       // mark it as completed

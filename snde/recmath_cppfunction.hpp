@@ -176,7 +176,7 @@ namespace snde {
       
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy string parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy string parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       
@@ -192,7 +192,7 @@ namespace snde {
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       // return statement implements the following:
@@ -208,7 +208,7 @@ namespace snde {
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       // return statement implements the following:
@@ -224,7 +224,7 @@ namespace snde {
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy unsigned integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy unsigned integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       // return statement implements the following:
@@ -240,7 +240,7 @@ namespace snde {
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy unsigned integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy unsigned integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       // return statement implements the following:
@@ -257,7 +257,7 @@ namespace snde {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy double precision parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy double precision parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       
@@ -274,7 +274,7 @@ namespace snde {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy double precision parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy double precision parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       
@@ -292,7 +292,7 @@ namespace snde {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy index vector parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy index vector parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       
@@ -311,13 +311,13 @@ namespace snde {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
 
       std::shared_ptr<T> rec_subclass = std::dynamic_pointer_cast<T>((*thisparam)->get_recording(rss,channel_path_context,definition,thisparam_index));
       if (!rec_subclass) {
-	throw snde_error("Recording parameter %s relative to %s is not convertible to %s",std::dynamic_pointer_cast<math_parameter_recording>(*thisparam)->channel_name.c_str(),channel_path_context.c_str(),typeid(T).name());
+	throw math_parameter_mismatch("Recording parameter %s relative to %s is not convertible to %s",std::dynamic_pointer_cast<math_parameter_recording>(*thisparam)->channel_name.c_str(),channel_path_context.c_str(),typeid(T).name());
       }
 
       // return statement implements the following:
@@ -335,7 +335,7 @@ namespace snde {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       // return statement implements the following:
@@ -353,13 +353,13 @@ namespace snde {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
 
       std::shared_ptr<meshed_part_recording> mpr = std::dynamic_pointer_cast<meshed_part_recording>((*thisparam)->get_recording(rss,channel_path_context,definition,thisparam_index));
       if (!mpr) {
-	throw snde_error("Recording parameter %s relative to %s is not convertible to a meshed_part_recording",channel_path_context.c_str(),std::dynamic_pointer_cast<math_parameter_recording>(*thisparam)->channel_name.c_str());
+	throw math_parameter_mismatch("Recording parameter %s relative to %s is not convertible to a meshed_part_recording",channel_path_context.c_str(),std::dynamic_pointer_cast<math_parameter_recording>(*thisparam)->channel_name.c_str());
       }
 
       // return statement implements the following:
@@ -377,13 +377,13 @@ namespace snde {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
 
       std::shared_ptr<multi_ndarray_recording> mnr = std::dynamic_pointer_cast<multi_ndarray_recording>((*thisparam)->get_recording(rss,channel_path_context,definition,thisparam_index));
       if (!mnr) {
-	throw snde_error("Recording parameter %s relative to %s is not convertible to a multi_ndarray_recording",channel_path_context.c_str(),std::dynamic_pointer_cast<math_parameter_recording>(*thisparam)->channel_name.c_str());
+	throw math_parameter_mismatch("Recording parameter %s relative to %s is not convertible to a multi_ndarray_recording",channel_path_context.c_str(),std::dynamic_pointer_cast<math_parameter_recording>(*thisparam)->channel_name.c_str());
       }
 
       // return statement implements the following:
@@ -401,7 +401,7 @@ namespace snde {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
 
@@ -425,7 +425,7 @@ namespace snde {
       std::shared_ptr<ndtyped_recording_ref<T>> ret;
       
       if (thisparam==end) {
-	throw snde_error("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy recording parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       // return statement implements the following:
@@ -434,7 +434,8 @@ namespace snde {
 
       ret = std::dynamic_pointer_cast<ndtyped_recording_ref<T>>(nrr);
       if (!ret) {
-	throw snde_error("Recording parameter %s relative to %s is not convertible to an ndtyped_recording_ref<%s>",channel_path_context.c_str(),std::dynamic_pointer_cast<math_parameter_recording>(*thisparam)->channel_name.c_str(),demangle_type_name(typeid(T).name()).c_str());
+	//assert(0);
+	throw math_parameter_mismatch("Recording parameter %s relative to %s is not convertible to an ndtyped_recording_ref<%s>",std::dynamic_pointer_cast<math_parameter_recording>(*thisparam)->channel_name.c_str(),channel_path_context.c_str(),demangle_type_name(typeid(T).name()).c_str());
 	
       }
       
@@ -451,7 +452,7 @@ namespace snde {
     {
     
       if (thisparam!=end) {
-	throw snde_error("Too many parameters provided to satisfy integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Too many parameters provided to satisfy integer parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       // return statement implements the following:
       //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
@@ -475,7 +476,7 @@ namespace snde {
     
     param_extract_last = std::get<1>(parameters_param_extract_last);
     if (param_extract_last != inst->parameters.end()) {
-      throw snde_error("Too many parameters provided for %s",inst->definition->definition_command.c_str());
+      throw math_parameter_mismatch("Too many parameters provided for %s",inst->definition->definition_command.c_str());
     }
     
     return std::get<0>(parameters_param_extract_last);

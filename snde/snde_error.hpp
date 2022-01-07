@@ -114,6 +114,7 @@ namespace snde {
 
   class snde_error : public std::runtime_error {
   public:
+    std::string shortwhatstr; 
     std::string whatstr; 
 #ifdef __GNUG__ // catches g++ and clang see https://www.gnu.org/software/libc/manual/html_node/Backtraces.html
     void *backtrace_buffer[100];
@@ -123,7 +124,8 @@ namespace snde {
 #endif // __GNUG__
     template<typename ... Args>
     snde_error(std::string fmt, Args && ... args) : std::runtime_error(std::string("SNDE runtime error: ")+ssprintf(fmt,std::forward<Args>(args) ...)) { 
-      whatstr = std::string(std::runtime_error::what())+"\n";
+      shortwhatstr = std::string(std::runtime_error::what());
+      whatstr = shortwhatstr+"\n";
 #ifdef __GNUG__ // catches g++ and clang
       num_syms = backtrace(backtrace_buffer,sizeof(backtrace_buffer)/sizeof(void *));
 
@@ -161,7 +163,12 @@ namespace snde {
     {
       return whatstr.c_str();
     }
-    
+
+    virtual const char *shortwhat() const noexcept
+    {
+      return shortwhatstr.c_str();
+    }
+
     // Alternate constructor with leading int (that is ignored)
     // so we can construct without doing string formatting
     //snde_error(int junk,std::string msg) : std::runtime_error(std::string("SNDE runtime error: ") + msg) {

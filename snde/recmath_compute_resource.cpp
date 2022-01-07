@@ -52,6 +52,191 @@ namespace snde {
   }
 
 
+#define SNDE_FRS_INVALID 0  
+#define SNDE_FRS_DEFINED (1<<1)  // Can binary OR these numbers together for FromResultState but NOT ToResultState
+#define SNDE_FRS_INSTANTIATED (1<<2)
+#define SNDE_FRS_METADATAONLY (1<<3)
+#define SNDE_FRS_COMPLETED (1<<4)
+#define SNDE_FRS_ALL (1<<5) // ToResultState only
+#define SNDE_FRS_ANY (SNDE_FRS_DEFINED|SNDE_FRS_INSTANTIATED|SNDE_FRS_METADATAONLY|SNDE_FRS_COMPLETED) // FromResultState only
+  
+  static void _transfer_function_result_state(std::shared_ptr<math_function_execution> execfunc,std::shared_ptr<recording_set_state> ignore_rss,int FromResultState,int ToResultState, const std::vector<std::shared_ptr<recording_base>> &result_channel_recs) // result_channel_recs should be same length as inst->result_channel_paths and hold the results we want to program in. Programming in only occurs if ToResultState is SNDE_FRS_INSTANTIATED or SNDE_FRS_ALL
+  {
+
+    std::set<std::weak_ptr<recording_set_state>,std::owner_less<std::weak_ptr<recording_set_state>>> referencing_rss_copy; // will have all recording set states that reference this executing_math_function
+    
+    {
+      std::lock_guard<std::mutex> execfunc_admin(execfunc->admin);
+      referencing_rss_copy = execfunc->referencing_rss;
+      
+      
+    }
+
+    // assign recordings to all referencing rss recordings (should all still exist)
+    for (auto && referencing_rss_weak: referencing_rss_copy) {
+      std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
+
+      if (referencing_rss_strong==ignore_rss) {
+	continue; // ignore ignored-rss
+      }
+      
+      std::lock_guard<std::mutex> referencing_rss_admin(referencing_rss_strong->admin);
+      
+      for (size_t cnt=0;cnt < execfunc->inst->result_channel_paths.size(); cnt++) {
+	std::shared_ptr<std::string> result_channel_path_ptr = execfunc->inst->result_channel_paths.at(cnt);
+
+	if (result_channel_path_ptr) {
+	  channel_state &referencing_rss_channel_state = referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(execfunc->inst->channel_path_context,*result_channel_path_ptr));
+	  // none should have preassigned recordings --not true because parallel update or end_transaction() could be going on
+	  //assert(!referencing_rss_channel_state.rec());
+	  size_t numerased;
+	  
+	  if (FromResultState & SNDE_FRS_DEFINED) {
+	    numerased = referencing_rss_strong->recstatus.defined_recordings.erase(referencing_rss_channel_state.config);
+	    if (FromResultState == SNDE_FRS_DEFINED) {
+	      assert(numerased==1); 
+	    }	  
+	  }
+	  
+	  if (FromResultState & SNDE_FRS_INSTANTIATED) {
+	    numerased = referencing_rss_strong->recstatus.instantiated_recordings.erase(referencing_rss_channel_state.config);
+	    if (FromResultState == SNDE_FRS_INSTANTIATED) {
+	      assert(numerased==1); 
+	    }	  
+	  }
+	  
+	  if (FromResultState & SNDE_FRS_METADATAONLY) {
+	    numerased = referencing_rss_strong->recstatus.defined_recordings.erase(referencing_rss_channel_state.config);
+	    if (FromResultState == SNDE_FRS_METADATAONLY) {
+	      assert(numerased==1); 
+	    }	  
+	  }
+	  
+	  if (ToResultState == SNDE_FRS_INSTANTIATED) {
+	    referencing_rss_strong->recstatus.instantiated_recordings.emplace(referencing_rss_channel_state.config,&referencing_rss_channel_state);
+	  }
+	  if (ToResultState == SNDE_FRS_METADATAONLY) {
+	    referencing_rss_strong->recstatus.metadataonly_recordings.emplace(referencing_rss_channel_state.config,&referencing_rss_channel_state);
+	  }
+	  if (ToResultState == SNDE_FRS_COMPLETED || ToResultState == SNDE_FRS_ALL) {
+	    
+	    referencing_rss_strong->recstatus.completed_recordings.emplace(referencing_rss_channel_state.config,&referencing_rss_channel_state);
+	  }
+
+	  if (ToResultState == SNDE_FRS_INSTANTIATED || ToResultState==SNDE_FRS_ALL) {
+	    referencing_rss_channel_state.end_atomic_rec_update(result_channel_recs.at(cnt));
+	  }
+	}
+      }
+    }
+
+    
+  }
+  
+
+  static void _execution_complete_notify(std::shared_ptr<recdatabase> recdb,std::shared_ptr<math_function_execution> execfunc,bool mdonly)
+  {
+    std::set<std::weak_ptr<recording_set_state>,std::owner_less<std::weak_ptr<recording_set_state>>> referencing_rss_copy; // will have all recording set states that reference this executing_math_function
+    
+    {
+      std::lock_guard<std::mutex> execfunc_admin(execfunc->admin);
+      referencing_rss_copy = execfunc->referencing_rss;
+      
+      
+    }
+
+    for (auto && referencing_rss_weak: referencing_rss_copy) {
+      std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
+      
+      for (auto && result_channel_path_ptr: execfunc->inst->result_channel_paths) {
+	channel_state &chanstate = referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(execfunc->inst->channel_path_context,*result_channel_path_ptr));
+	//chanstate.issue_math_notifications(recdb,ready_rss); // taken care of by notify_math_function_executed(), below
+	chanstate.issue_nonmath_notifications(referencing_rss_strong);
+	
+      }
+      
+      //snde_debug(SNDE_DC_RECMATH,"qc: already finished rss notify %lx",(unsigned long)referencing_rss_strong.get());
+      //snde_debug(SNDE_DC_RECMATH|SNDE_DC_NOTIFY,"pool code: rss notify %lx",(unsigned long)referencing_rss_strong.get());
+      std::string math_function_channel0_name="(nullptr)";
+      if (execfunc->inst->result_channel_paths.at(0)) {
+	math_function_channel0_name=*execfunc->inst->result_channel_paths.at(0);
+      }
+      snde_debug(SNDE_DC_RECMATH|SNDE_DC_NOTIFY,"math function %s rss notify %lx",math_function_channel0_name.c_str(),(unsigned long)referencing_rss_strong.get());
+      // Issue function completion notification
+      if (recdb) {
+	referencing_rss_strong->mathstatus.notify_math_function_executed(recdb,referencing_rss_strong,execfunc->inst,mdonly); // note mdonly hardwired to false here
+      }
+    }
+    
+    
+
+  }
+  
+  void _wrap_up_execution(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> ready_rss,std::shared_ptr<instantiated_math_function> ready_fcn,const std::vector<std::shared_ptr<recording_base>> &result_channel_recs)
+  // ***!!!!! You must have the execution ticket -- "true" value from try_execution_ticket() in order to call this
+  {
+
+    // make sure all of the result_channel_recs are marked as complete
+    for (auto && result_channel_rec: result_channel_recs) {
+      if (result_channel_rec) {
+	if (!result_channel_rec->metadata) {
+	  result_channel_rec->metadata = std::make_shared<immutable_metadata>();
+	}
+	if (result_channel_rec->info_state < SNDE_RECS_METADATAREADY) {
+	  result_channel_rec->mark_metadata_done();
+	}
+	if (result_channel_rec->info_state < SNDE_RECS_READY) {
+	  result_channel_rec->mark_as_ready();
+	}
+      }
+    }
+    
+    std::shared_ptr<math_function_execution> execfunc;
+    {
+      std::lock_guard<std::mutex> ready_rss_admin(ready_rss->admin);
+      math_function_status &ready_rss_status = ready_rss->mathstatus.function_status.at(ready_fcn);
+
+      execfunc = ready_rss_status.execfunc;
+      assert(execfunc); // execfunc should have been assigned (At the latest) by check_dep_fcn_ready(), which  should have been called before us.
+      
+    }
+    assert(execfunc->inst == ready_fcn);
+    
+    _transfer_function_result_state(execfunc,nullptr,SNDE_FRS_ANY,SNDE_FRS_COMPLETED,result_channel_recs);
+    
+    // mark math_status and execfunc as complete
+    execfunc->metadata_executed = true;
+    execfunc->fully_complete = true;
+    {
+      std::lock_guard<std::mutex> ready_rss_admin(ready_rss->admin);
+      math_function_status &ready_rss_status = ready_rss->mathstatus.function_status.at(ready_fcn);
+      
+      ready_rss_status.complete=true;
+    }
+    
+
+    {
+      std::lock_guard<std::mutex> execfunc_admin(execfunc->admin);
+      
+      // clear execfunc->rss to eliminate reference loop once at least metadata execution is complete
+      execfunc->rss = nullptr;
+      if (execfunc->execution_tracker) { // execution_tracker might be null if initiate_execution() failed. 
+	execfunc->execution_tracker->rss = nullptr;
+      }
+      execfunc->executing = false; // release the execution ticket
+    }
+    
+    
+    // issue notifications
+    
+    // ... in all referencing rss's
+    _execution_complete_notify(recdb,execfunc,false);
+
+    
+    
+    
+  }
+  
 
   
   
@@ -244,20 +429,53 @@ namespace snde {
       snde_debug(SNDE_DC_RECMATH,"execfunc=0x%lx; rss=0x%lx",(unsigned long)execfunc.get(),(unsigned long)ready_rss.get());
       snde_debug(SNDE_DC_RECMATH,"ready_to_execute:%d",(int)ready_rss_status.ready_to_execute);
       if (ready_rss_status.ready_to_execute && execfunc->try_execution_ticket()) {
-	// we are taking care of execution
+	// we are taking care of execution -- we have the execution ticket!
 	assert(ready_rss_status.execution_demanded); 
 	ready_rss_status.ready_to_execute=false;
 	ready_rss_admin.unlock();
 
 
-	execfunc->execution_tracker = ready_fcn->fcn->initiate_execution(ready_rss,ready_fcn);
+	try {
+	  execfunc->execution_tracker = ready_fcn->fcn->initiate_execution(ready_rss,ready_fcn);
+	} catch (const math_parameter_mismatch &exc) {
+	  snde_warning("Math parameter mismatch in initiate_execution(): %s (function %s)",exc.shortwhat(),execfunc->inst->definition->definition_command.c_str());
+	  snde_debug(SNDE_DC_RECMATH,"Full backtrace: %s",exc.what());
+
+	  std::vector<std::shared_ptr<recording_base>> result_channel_recs;
+	  while (result_channel_recs.size() < execfunc->inst->result_channel_paths.size()) {
+	    // Create a null recording for any undefined results
+	    std::shared_ptr<std::string> path_ptr = execfunc->inst->result_channel_paths.at(result_channel_recs.size());
+	    if (path_ptr) {
+	      result_channel_recs.push_back(create_recording_math<null_recording>(recdb_path_join(execfunc->inst->channel_path_context,*path_ptr),execfunc->rss));
+	    } else {
+	      result_channel_recs.push_back(nullptr);
+	    }
+
+	  }
+	  _transfer_function_result_state(execfunc,nullptr,SNDE_FRS_ANY,SNDE_FRS_INSTANTIATED,result_channel_recs);
+	  
+	  _wrap_up_execution(recdb,ready_rss,ready_fcn,result_channel_recs);
+	  return;
+
+	}
 	bool actually_execute=true;
 	
 	// Check new_revision_optional
 	if (ready_fcn->fcn->new_revision_optional) {
 	  // Need to check if it s OK to execute
+#ifndef SNDE_RCR_DISABLE_EXCEPTION_HANDLING
+	  try {
+#endif
+	    actually_execute = execfunc->execution_tracker->perform_decide_execution();
+#ifndef SNDE_RCR_DISABLE_EXCEPTION_HANDLING
+	  } catch(const std::exception &exc) {
+	    // Only consider exceptions derived from std::exception because there's no general way to print anything else, so we might as well just crash in that case. 
+	    // func is our math_function_execution
+	    snde_warning("Exception class %s caught in perform_decide_execution(): %s (function %s)",typeid(exc).name(),exc.what(),execfunc->inst->definition->definition_command.c_str());
+	    actually_execute=false;
+#endif
+	  }
 	  
-	  actually_execute = execfunc->execution_tracker->perform_decide_execution();
 	}
 	
 	if (!actually_execute) {
@@ -267,56 +485,9 @@ namespace snde {
 
 	  // grab recording results from execfunc->execution_tracker->self_dependent_recordings
 	  assert(ready_fcn->result_channel_paths.size()==execfunc->execution_tracker->self_dependent_recordings.size());
-
-	  // assign recordings to all referencing rss recordings (should all still exist)
-	  for (auto && referencing_rss_weak: execfunc->referencing_rss) {
-	    std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
-	    std::lock_guard<std::mutex> referencing_rss_admin(referencing_rss_strong->admin);
-	    
-	    for (size_t cnt=0;cnt < ready_fcn->result_channel_paths.size(); cnt++) {
-	      channel_state &referencing_rss_channel_state = referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(ready_fcn->channel_path_context,*ready_fcn->result_channel_paths.at(cnt)));
-	      assert(!referencing_rss_channel_state.rec());
-
-	      referencing_rss_strong->recstatus.defined_recordings.erase(referencing_rss_channel_state.config);
-	      referencing_rss_strong->recstatus.completed_recordings.emplace(referencing_rss_channel_state.config,&referencing_rss_channel_state);
-	      referencing_rss_channel_state.end_atomic_rec_update(execfunc->execution_tracker->self_dependent_recordings.at(cnt));
-	    }
-	  }
+	  std::vector<std::shared_ptr<recording_base>> result_channel_recs=execfunc->execution_tracker->self_dependent_recordings;
 	  
-	  // mark math_status and execfunc as complete
-	  execfunc->metadata_executed = true;
-	  execfunc->fully_complete = true;
-	  {
-	    std::lock_guard<std::mutex> ready_rss_admin(ready_rss->admin);
-	    math_function_status &ready_rss_status = ready_rss->mathstatus.function_status.at(ready_fcn);
-	    
-	    ready_rss_status.complete=true;
-	  }
-	  
-	  // clear execfunc->rss to eliminate reference loop once at least metadata execution is complete
-	  execfunc->rss = nullptr;
-	  execfunc->execution_tracker->rss = nullptr;
-	  execfunc->executing = false; // release the execution ticket
-
-	  
-	  // issue notifications
-
-	  // ... in all referencing rss's
-	  for (auto && referencing_rss_weak: execfunc->referencing_rss) {
-	    std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
-	    
-	    for (auto && result_channel_path_ptr: ready_fcn->result_channel_paths) {
-	      channel_state &chanstate = referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(ready_fcn->channel_path_context,*result_channel_path_ptr));
-	      //chanstate.issue_math_notifications(recdb,ready_rss); // taken care of by notify_math_function_executed(), below
-	      chanstate.issue_nonmath_notifications(referencing_rss_strong);
-	      
-	    }
-	    
-	    snde_debug(SNDE_DC_RECMATH,"qc: already finished rss notify %lx",(unsigned long)referencing_rss_strong.get());
-	    // Issue function completion notification
-	    referencing_rss_strong->mathstatus.notify_math_function_executed(recdb,referencing_rss_strong,execfunc->inst,false); // note mdonly hardwired to false here
-	  }
-	  
+	  _wrap_up_execution(recdb,ready_rss,ready_fcn,result_channel_recs);
 	  snde_debug(SNDE_DC_RECMATH,"qc: already finished");
 	  return;
 	}
@@ -620,6 +791,9 @@ namespace snde {
 
 	// not worrying about cpu affinity yet.
 
+	std::vector<std::shared_ptr<recording_base>> result_channel_recs;
+	bool mdonly = false;
+	
 	// Set the build-time variable SNDE_RCR_DISABLE_EXCEPTION_HANDLING to disable the try {} ... catch{} block in math execution so that you can capture the offending scenario in the debugger
 	//#define SNDE_RCR_DISABLE_EXCEPTION_HANDLING
 #ifndef SNDE_RCR_DISABLE_EXCEPTION_HANDLING
@@ -629,7 +803,7 @@ namespace snde {
 	  admin_lock.unlock();
 	  
 	  // will eventually need the lock manager from somewhere(!!!***???)
-	  bool mdonly = func->mdonly;
+	  mdonly = func->mdonly;
 	  //bool is_mutable;
 	  //bool mdonly_executed;
 	  
@@ -656,51 +830,58 @@ namespace snde {
 		if (result_channel_path_ptr) {
 		  
 		  channel_state &chanstate = func->rss->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*result_channel_path_ptr));
-		  if (chanstate.rec()) {
-		    // have a recording
-		    size_t erased_from_defined_recordings = func->rss->recstatus.defined_recordings.erase(chanstate.config);
+		  if (!chanstate.rec()) {
+		    // don't have a recording
+		    // Function was supposed to create this but didn't.
+		    // Create a null recording
+		    chanstate.end_atomic_rec_update(create_recording_math<null_recording>(recdb_path_join(func->inst->channel_path_context,*result_channel_path_ptr),func->rss));
 		    
-		    assert(erased_from_defined_recordings==1); // recording should have been listed in defined_recordings
-		    func->rss->recstatus.instantiated_recordings.emplace(chanstate.config,&chanstate);
-		  } else {
-		    // ***!!! If the math function failed to define
-		    // a recording here, we should probably import
-		    // from the previous globalrev !!!***
 		  }
+		  size_t erased_from_defined_recordings = func->rss->recstatus.defined_recordings.erase(chanstate.config);
+		    
+		  assert(erased_from_defined_recordings==1); // recording should have been listed in defined_recordings
+		  func->rss->recstatus.instantiated_recordings.emplace(chanstate.config,&chanstate);
+		   
 		}
 	      }
 	    }
+	    for (auto && result_channel_path_ptr: func->inst->result_channel_paths) {
+	      if (result_channel_path_ptr) {
+		channel_state &chanstate = func->rss->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*result_channel_path_ptr));
+		result_channel_recs.push_back(chanstate.rec());
+	      } else {
+		result_channel_recs.push_back(nullptr);
+	      }
+	    }
+
+	    _transfer_function_result_state(func,func->rss,SNDE_FRS_DEFINED,SNDE_FRS_INSTANTIATED,result_channel_recs);
+	    
 	    
 	    func->execution_tracker->perform_metadata();
 	    func->metadata_executed=true;
-	  }
-	  
-	  if (mdonly) {
-	    func->metadataonly_complete = true; 
 	    
-	    // assign recordings to all referencing rss recordings (should all still exist)
-	    // (only needed if we're not doing it below)
-	    // !!!*** This block should be refactored
-	    for (auto && referencing_rss_weak: func->referencing_rss) {
-	      std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
-	      if (referencing_rss_strong == func->rss) {
-		continue; // no need to reassign our source
-	      }
+	    if (mdonly) {
+	      func->metadataonly_complete = true; 
 	      
-	      std::lock_guard<std::mutex> referencing_rss_admin(referencing_rss_strong->admin);
-	      
-	      for (size_t cnt=0;cnt < func->inst->result_channel_paths.size(); cnt++) {
-		// none should have preassigned recordings --not true because parallel update or end_transaction() could be going on
-		//assert(!referencing_rss->recstatus.channel_map.at(&result_channel_paths.at(cnt)).rec());
-		channel_state &referencing_rss_channel_state=referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt)));
-		
-		referencing_rss_strong->recstatus.instantiated_recordings.erase(referencing_rss_channel_state.config);
-		referencing_rss_strong->recstatus.metadataonly_recordings.emplace(referencing_rss_channel_state.config,&referencing_rss_channel_state);
-		
-		referencing_rss_channel_state.end_atomic_rec_update(func->rss->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).rec());
+	      // assign recordings to all referencing rss recordings (should all still exist)
+	      // (only needed if we're not doing it below)
+	      _transfer_function_result_state(func,func->rss,SNDE_FRS_INSTANTIATED,SNDE_FRS_METADATAONLY,result_channel_recs); // note: result_channel_recs ignored at this phase
+	    }
+	    
+	    
+	  } else {
+	  	    
+	    for (auto && result_channel_path_ptr: func->inst->result_channel_paths) {
+	      if (result_channel_path_ptr) {
+		channel_state &chanstate = func->rss->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*result_channel_path_ptr));
+		result_channel_recs.push_back(chanstate.rec());
+	      } else {
+		result_channel_recs.push_back(nullptr);
 	      }
 	    }
+
 	  }
+
 	  
 	  if (!mdonly) {
 	    func->execution_tracker->perform_lock_alloc();
@@ -708,29 +889,9 @@ namespace snde {
 	    
 	    func->fully_complete = true;
 	    
+	    _transfer_function_result_state(func,func->rss,SNDE_FRS_INSTANTIATED|SNDE_FRS_METADATAONLY,SNDE_FRS_COMPLETED,result_channel_recs); // note: result_channel_recs ignored at this phase
 	    
-	    // re-assign recordings to all referencing rss recordings (should all still exist) in case we have more followers than before
-	    // !!!*** This block should be refactored
-	    for (auto && referencing_rss_weak: func->referencing_rss) {
-	      std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
-	      if (referencing_rss_strong == func->rss) {
-		continue; // no need to reassign our source
-	      }
-	      
-	      std::lock_guard<std::mutex> referencing_rss_admin(referencing_rss_strong->admin);
-	      
-	      for (size_t cnt=0;cnt < func->inst->result_channel_paths.size(); cnt++) {
-		// none should have preassigned recordings --not true because parallel update or end_transaction() could be going on
-		//assert(!referencing_rss->recstatus.channel_map.at(&result_channel_paths.at(cnt)).rec());
-		channel_state & referencing_rss_channel_state = referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt)));
-		
-		referencing_rss_strong->recstatus.instantiated_recordings.erase(referencing_rss_channel_state.config);
-		referencing_rss_strong->recstatus.completed_recordings.emplace(referencing_rss_channel_state.config,&referencing_rss_channel_state);
-		
-		referencing_rss_channel_state.end_atomic_rec_update(func->rss->recstatus.channel_map.at(*func->inst->result_channel_paths.at(cnt)).rec());
-	      }
-	    }
-	  
+	    
 	  }
 	  
 	  
@@ -751,32 +912,8 @@ namespace snde {
 	      func->execution_tracker->perform_exec();
 	      
 	      func->fully_complete = true;
+	      _transfer_function_result_state(func,func->rss,SNDE_FRS_INSTANTIATED|SNDE_FRS_METADATAONLY,SNDE_FRS_COMPLETED,result_channel_recs); // note: result_channel_recs ignored at this phase	      
 	      
-	      // re-assign recordings to all referencing rss recordings (should all still exist) in case we have more followers than before
-	      // !!!*** This block should be refactored
-	      for (auto && referencing_rss_weak: func->referencing_rss) {
-		std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
-		if (referencing_rss_strong == func->rss) {
-		  continue; // no need to reassign our source
-		}
-		
-		std::lock_guard<std::mutex> referencing_rss_admin(referencing_rss_strong->admin);
-		
-		for (size_t cnt=0;cnt < func->inst->result_channel_paths.size(); cnt++) {
-		  // none should have preassigned recordings --not true because parallel update or end_transaction() could be going on
-		  //assert(!referencing_rss->recstatus.channel_map.at(&result_channel_paths.at(cnt)).rec());
-		  
-		  channel_state &referencing_rss_channel_state = referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt)));
-		  
-		  referencing_rss_strong->recstatus.instantiated_recordings.erase(referencing_rss_channel_state.config);
-		  referencing_rss_strong->recstatus.completed_recordings.emplace(referencing_rss_channel_state.config,&referencing_rss_channel_state);
-		
-		  referencing_rss_channel_state.end_atomic_rec_update(func->rss->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*func->inst->result_channel_paths.at(cnt))).rec());
-		}
-	      }
-	    
-	      
-	    
 	      rss_admin.lock();
 	      func_admin.lock();
 	    }
@@ -791,53 +928,83 @@ namespace snde {
 	    func->execution_tracker->rss = nullptr;
 	  }
 	  
-	  func->executing = false; // release the execution ticket
-	  
-	  std::shared_ptr<recdatabase> recdb_strong = recdb.lock();
-	  
-	  snde_debug(SNDE_DC_RECMATH,"Pool code completed math function");
-	  //fflush(stdout);
-	  
-	  
-	  // Need to do notifications that the math function finished in all referencing rss's
-	  for (auto && referencing_rss_weak: func->referencing_rss) {
-	    std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
-	    
-	    for (auto && result_channel_path_ptr: func->inst->result_channel_paths) {
-	      channel_state &chanstate = referencing_rss_strong->recstatus.channel_map.at(recdb_path_join(func->inst->channel_path_context,*result_channel_path_ptr));
-	      //chanstate.issue_math_notifications(recdb,ready_rss); // taken care of by notify_math_function_executed(), below
-	      chanstate.issue_nonmath_notifications(referencing_rss_strong);
-	      
-	    }
-	    
-	    // Issue function completion notification
-	    if (recdb_strong) {
-	      snde_debug(SNDE_DC_RECMATH|SNDE_DC_NOTIFY,"pool code: rss notify %lx",(unsigned long)referencing_rss_strong.get());
-	      referencing_rss_strong->mathstatus.notify_math_function_executed(recdb_strong,referencing_rss_strong,func->inst,mdonly); 
-	    }
-	  }
-
-	  //printf("Pool code completed notification\n");
-	  //fflush(stdout);
-	  // Completion notification:
-	  //  * removing ourselves from functions_using_cores and triggering computations_added_or_completed
-	  admin_lock.lock();
-
-	  // release compute resources
-	  func->execution_tracker->compute_resource->release_assigned_resources(admin_lock);
-	  
-	  // Notify that we are done
-	  std::shared_ptr<available_compute_resource_database> acrd_strong=acrd.lock();
-	  if (acrd_strong) {
-	    acrd_strong->notify_acrd_of_changes_to_prioritized_computations();
-	  }
 #ifndef SNDE_RCR_DISABLE_EXCEPTION_HANDLING
 	} catch(const std::exception &exc) {
 	  // Only consider exceptions derived from std::exception because there's no general way to print anything else, so we might as well just crash in that case. 
 	  // func is our math_function_execution
 	  snde_warning("Exception class %s caught in math thread pool: %s (function %s)",typeid(exc).name(),exc.what(),func->inst->definition->definition_command.c_str());
+
+	  // mark as complete
+	  func->fully_complete = true;
+
+	  while (result_channel_recs.size() < func->inst->result_channel_paths.size()) {
+	    // Create a null recording for any undefined results
+	    std::shared_ptr<std::string> path_ptr = func->inst->result_channel_paths.at(result_channel_recs.size());
+	    if (path_ptr) {
+	      result_channel_recs.push_back(create_recording_math<null_recording>(recdb_path_join(func->inst->channel_path_context,*path_ptr),func->rss));
+	    } else {
+	      result_channel_recs.push_back(nullptr);
+	    }
+	    
+	  }
+	  _transfer_function_result_state(func,nullptr,SNDE_FRS_ANY,SNDE_FRS_INSTANTIATED,result_channel_recs);
+
+	  // make sure all of the result_channel_recs are marked as complete
+	  for (auto && result_channel_rec: result_channel_recs) {
+	    if (result_channel_rec) {
+	      if (!result_channel_rec->metadata) {
+		result_channel_rec->metadata = std::make_shared<immutable_metadata>();
+	      }
+	      if (result_channel_rec->info_state < SNDE_RECS_METADATAREADY) {
+		result_channel_rec->mark_metadata_done();
+	      }
+	      if (result_channel_rec->info_state < SNDE_RECS_READY) {
+		result_channel_rec->mark_as_ready();
+	      }
+	    }
+	  }
+	  
+	  
+	  // mark all the waveforms as complete in all dependent rss's. 
+	  _transfer_function_result_state(func,nullptr,SNDE_FRS_ANY,SNDE_FRS_ALL,result_channel_recs); 
+	  {
+	    std::unique_lock<std::mutex> rss_admin(recstate->admin);
+	    std::unique_lock<std::mutex> func_admin(func->admin);
+
+	    // set function status as complete
+	    math_function_status &our_status = recstate->mathstatus.function_status.at(func->inst);
+	    our_status.complete=true;
+
+
+	  }
 	}
 #endif // SNDE_RCR_DISABLE_EXCEPTION_HANDLING
+	func->executing = false; // release the execution ticket
+	
+	
+	std::shared_ptr<recdatabase> recdb_strong = recdb.lock();
+	
+	snde_debug(SNDE_DC_RECMATH,"Pool code completed math function");
+	//fflush(stdout);
+	
+	
+	// Need to do notifications that the math function finished in all referencing rss's
+	_execution_complete_notify(recdb_strong,func,mdonly);
+	
+	//printf("Pool code completed notification\n");
+	//fflush(stdout);
+	// Completion notification:
+	//  * removing ourselves from functions_using_cores and triggering computations_added_or_completed
+	admin_lock.lock();
+	
+	// release compute resources
+	func->execution_tracker->compute_resource->release_assigned_resources(admin_lock);
+	
+	// Notify that we are done
+	std::shared_ptr<available_compute_resource_database> acrd_strong=acrd.lock();
+	if (acrd_strong) {
+	  acrd_strong->notify_acrd_of_changes_to_prioritized_computations();
+	}
       }
     }
   }
