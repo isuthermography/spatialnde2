@@ -929,6 +929,23 @@ namespace snde {
   }
 
 
+  void multi_ndarray_recording::define_array(size_t index,unsigned typenum,std::string name)   // should be called exactly once for each index < mndinfo()->num_arrays
+  {
+    define_array(index,typenum);
+
+    if (isdigit(name.at(0))) {
+      throw snde_error("Array names snould not begin with a digit");
+    }
+    std::lock_guard<std::mutex> rec_admin(admin); 
+
+    if (name_mapping.find(name) != name_mapping.end()) {
+      throw snde_error("Recording array %s already defined",name.c_str());
+    }
+    name_mapping.emplace(name,index);
+    name_reverse_mapping.emplace(index,name);
+    
+  }
+
   std::shared_ptr<ndarray_recording_ref> multi_ndarray_recording::reference_ndarray(size_t index)
   {
 
@@ -1968,7 +1985,7 @@ namespace snde {
 	}
       }
       std::map<std::string,channel_state>::iterator channel_map_it;
-      bool added_successfully;
+      //bool added_successfully;
       //std::tie(channel_map_it,added_successfully) =
       //new_rss->recstatus.channel_map.emplace(std::piecewise_construct,
       //std::forward_as_tuple(unchanged_channel->channelpath),
@@ -2154,7 +2171,7 @@ namespace snde {
       cmf_status.mdonly = mdonly;
       cmf_status.execfunc = std::make_shared<math_function_execution>(new_rss,changed_math_function,mdonly,changed_math_function->is_mutable);
       
-      snde_debug(SNDE_DC_RECDB,"make execfunc=0x%lx; new_rss=0x%lx",(unsigned long)cmf_status.execfunc.get(),(unsigned long)new_rss.get());
+      snde_debug(SNDE_DC_RECDB,"make execfunc=0x%llx; new_rss=0x%lx",(unsigned long long)cmf_status.execfunc.get(),(unsigned long long )new_rss.get());
 
       // since execution is mandatory we define the new
       // revision numbers for each of the channels now, so that
@@ -3374,10 +3391,10 @@ namespace snde {
     // This is also used to seed the "starting revision" used by recstore_display_transforms
     static unsigned seed=time(nullptr);
 #ifndef _MSC_VER
-    static std::atomic<uint64_t> *index=new std::atomic<uint64_t>(rand_r(&seed)*65535.0/RAND_MAX);
+    static std::atomic<uint64_t> *index=new std::atomic<uint64_t>((uint64_t)(rand_r(&seed)*65535.0/RAND_MAX));
 #else
     srand(seed);
-    static std::atomic<uint64_t>* index = new std::atomic<uint64_t>(rand() * 65535.0 / RAND_MAX);
+    static std::atomic<uint64_t> *index = new std::atomic<uint64_t>((uint64_t)rand() * 65535.0 / RAND_MAX);
 #endif
 
     return (*index)++;

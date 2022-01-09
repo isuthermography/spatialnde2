@@ -252,8 +252,8 @@ namespace snde {
     AxisList.push_back(std::make_shared<display_axis>("Intensity","I",FindUnit("arbitrary"),false,0.0,0.0,1.0));
 
     pixelsperdiv=1.0; // will need to be updated by set_pixelsperdiv
-    drawareawidth=1.0; // also updated by set_pixelsperdiv
-    drawareaheight=1.0;
+    drawareawidth=1; // also updated by set_pixelsperdiv
+    drawareaheight=1;
   }
 
   void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalrev)
@@ -714,7 +714,7 @@ namespace snde {
       //  c->UnitsPerDiv=scalefactor/pixelsperdiv;
       //} else {
       std::lock_guard<std::mutex> adminlock(c->admin);
-      c->Scale=scalefactor;	  
+      c->Scale=(float)scalefactor;	  
       //}
 	
       return;
@@ -807,7 +807,7 @@ namespace snde {
   void display_info::SetRenderScale(std::shared_ptr<display_channel> c,double scale, bool ignored_pixelflag)
   {
     std::lock_guard<std::mutex> chanadmin(c->admin);
-    c->RenderScale = scale;
+    c->RenderScale = (float)scale;
   }
   
   std::tuple<bool,double> display_info::GetRenderScale(std::shared_ptr<display_channel> c)

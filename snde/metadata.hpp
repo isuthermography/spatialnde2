@@ -31,6 +31,9 @@ public:
   metadatum() :  // invalid, empty metadatum
     Name(""),
     intval(0),
+    unsignedval(0),
+    strval(""),
+    dblval(0.0),
     md_type(MWS_MDT_NONE)
   {
 
@@ -51,6 +54,9 @@ public:
   metadatum(std::string Name,int64_t intval) :
     Name(Name),
     intval(intval),
+    unsignedval(0),
+    strval(""),
+    dblval(0.0),
     md_type(MWS_MDT_INT)
   {
     
@@ -59,7 +65,10 @@ public:
   
   metadatum(std::string Name,std::string strval) :
     Name(Name),
+    intval(0),
+    unsignedval(0),
     strval(strval),
+    dblval(0.0),
     md_type(MWS_MDT_STR)
   {
     
@@ -67,6 +76,9 @@ public:
   
   metadatum(std::string Name,double dblval) :
     Name(Name),
+    intval(0),
+    unsignedval(0),
+    strval(""),
     dblval(dblval),
     md_type(MWS_MDT_DBL)
   {
@@ -75,7 +87,10 @@ public:
 
   metadatum(std::string Name,uint64_t unsignedval) :
     Name(Name),
+    intval(0),
     unsignedval(unsignedval),
+    strval(""),
+    dblval(0.0),
     md_type(MWS_MDT_UNSIGNED)
   {
     
@@ -85,6 +100,9 @@ public:
 #if (SIZEOF_SNDE_INDEX != 8)
   metadatum(std::string Name,snde_index indexval) :
     Name(Name),
+    intval(0),
+    strval(""),
+    dblval(0.0),
     md_type(MWS_MDT_UNSIGNED)
   {
     if (indexval==SNDE_INDEX_INVALID) {

@@ -43,8 +43,8 @@ namespace snde {
   {
     char *buf=NULL;
     va_list ap;
-    int len;
-    int nbytes;
+    size_t len;
+    long long nbytes;
     
     len=4*fmt.size();
     
@@ -73,8 +73,8 @@ namespace snde {
   static inline std::string vssprintf(const std::string fmt,va_list ap)
   {
     char *buf=NULL;
-    int len;
-    int nbytes;
+    size_t len;
+    long long nbytes;
     
     len=4*fmt.size();
     

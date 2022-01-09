@@ -139,7 +139,6 @@ void x3d_viewer_close()
 int main(int argc, char **argv)
 {
   std::string clmsgs;
-  snde_index revnum;
   
   glutInit(&argc, argv);
 

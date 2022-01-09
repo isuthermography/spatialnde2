@@ -97,6 +97,9 @@ namespace snde {
     
       /// NOTE: to adjust size, first send event, then 
       //   change viewport:
+      
+      snde_debug(SNDE_DC_RENDERING,"width=%d; height=%d; spatial_position->width=%d; spatial_position->height=%d",width,height,display_req->spatial_position->width,display_req->spatial_position->height);
+      
       if (display_req->spatial_position->width != Camera->getViewport()->width() || display_req->spatial_position->height != Camera->getViewport()->height()) {
 	GraphicsWindow->getEventQueue()->windowResize(0,0,display_req->spatial_position->width,display_req->spatial_position->height);
 	GraphicsWindow->resized(0,0,display_req->spatial_position->width,display_req->spatial_position->height);

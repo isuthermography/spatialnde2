@@ -61,6 +61,7 @@ namespace snde {
 
 
     rwlock() :
+      writelockpending(0),
       reader(this,0),
       writer(this,1)
     {

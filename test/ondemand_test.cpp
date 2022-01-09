@@ -112,6 +112,7 @@ void test_viewer_reshape(int width, int height)
   }
   winwidth=width;
   winheight=height;
+  display->set_pixelsperdiv(winwidth,winheight);
 }
 
 void test_viewer_mouse(int button, int state, int x, int y)
@@ -179,7 +180,6 @@ double my_sinc(double x)
 
 int main(int argc, char **argv)
 {
-  snde_index revnum;
   
   glutInit(&argc,argv);
 
@@ -251,6 +251,7 @@ int main(int argc, char **argv)
   
   display=std::make_shared<display_info>(recdb);
   display->set_current_globalrev(globalrev);
+  display->set_pixelsperdiv(winwidth,winheight);
 
   std::shared_ptr<display_channel> test_displaychan = display->lookup_channel(testchan_config->channelpath);
   test_displaychan->set_enabled(true); // enable channel

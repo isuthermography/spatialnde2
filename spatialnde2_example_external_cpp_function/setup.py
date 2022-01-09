@@ -6,14 +6,39 @@ from setuptools import setup,Extension
 from Cython.Build import cythonize
 import spatialnde2 as snde
 
+def fixup_cmake_libs(libs):
+    ret_libs = []
+    ret_explicit = []
+    for lib in libs:
+        if lib.startswith("-l"):
+            ret_libs.append(lib[2:])
+            pass
+        elif "/" in lib or "\\" in lib:
+            ret_explicit.append(lib)
+            pass
+        else:
+            ret_libs.append(lib)
+            pass
+        pass
+    return (ret_explicit,ret_libs)
+
+spatialnde2_compile_definitions = open(os.path.join(os.path.dirname(snde.__file__),"compile_definitions.txt")).read().strip().split(" ")
+spatialnde2_compile_include_dirs = open(os.path.join(os.path.dirname(snde.__file__),"compile_include_dirs.txt")).read().strip().split(" ")
+spatialnde2_compile_library_dirs = open(os.path.join(os.path.dirname(snde.__file__),"compile_library_dirs.txt")).read().strip().split(" ")
+spatialnde2_compile_libraries_cmake = open(os.path.join(os.path.dirname(snde.__file__),"compile_libraries.txt")).read().strip().split(" ")
+
+(spatialnde2_compile_explicit_libraries,spatialnde2_compile_libraries) = fixup_cmake_libs(spatialnde2_compile_libraries_cmake)
+
+
 ext_modules=cythonize(
     Extension("spatialnde2_example_external_cpp_function.scalar_multiply",
               sources=["spatialnde2_example_external_cpp_function/scalar_multiply.pyx"],
-              include_dirs=[os.path.dirname(snde.__file__), os.path.join(os.path.dirname(sys.executable), 'Library', 'include')],
+              include_dirs=[os.path.dirname(snde.__file__)] + spatialnde2_compile_include_dirs,
               
-              library_dirs=[os.path.dirname(snde.__file__)],
-              extra_compile_args = open(os.path.join(os.path.dirname(snde.__file__),"compile_definitions.txt")).read().strip().split(" "),
-              libraries=["spatialnde2"]
+              library_dirs=[os.path.dirname(snde.__file__)] + spatialnde2_compile_library_dirs,
+              extra_compile_args = spatialnde2_compile_definitions,
+              extra_link_args = spatialnde2_compile_explicit_libraries,
+              libraries=["spatialnde2"]  + spatialnde2_compile_libraries
               ))
 
 setup(name="spatialnde2_example_external_cpp_function",

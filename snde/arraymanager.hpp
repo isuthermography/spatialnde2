@@ -36,6 +36,46 @@ namespace snde {
        data... perhaps the whole array or perhaps per specific piece 
        Need also to consider the locking semantics of the something. 
     */
+
+
+    allocationinfo():
+      alloc(nullptr),
+      elemsize(0),
+      _totalnelem(0),
+      allocindex(0)
+    {
+      
+    }
+
+    allocationinfo(std::shared_ptr<allocator> alloc,size_t elemsize,size_t _totalnelem,size_t allocindex):
+      alloc(alloc),
+      elemsize(elemsize),
+      _totalnelem(_totalnelem),
+      allocindex(allocindex)
+    {
+
+    }
+    
+    allocationinfo(const allocationinfo &orig):
+      alloc(orig.alloc),
+      elemsize(orig.elemsize),
+      _totalnelem(orig._totalnelem),
+      allocindex(orig.allocindex)
+    {
+
+    }
+
+    allocationinfo& operator=(const allocationinfo &orig)
+    {
+      alloc=orig.alloc;
+      elemsize=orig.elemsize;
+      _totalnelem=orig._totalnelem;
+      allocindex=orig.allocindex;
+
+      return *this;
+    }
+    ~allocationinfo() = default;
+    
     size_t totalnelem()
     {
       if (!alloc) return _totalnelem;
@@ -249,7 +289,7 @@ namespace snde {
 	//allocators[arrayptr]=std::make_shared<allocator>(_memalloc,locker,arrayptr,elemsize,totalnelem);
 	
 	
-	(*new_allocators)[arrayptr]=allocationinfo{std::make_shared<allocator>(_memalloc,locker,recording_path,recrevision,originating_rss_unique_id,id,alignment_requirements,arrayptr,elemsize,0,follower_elemsizes),elemsize,totalnelem,0};
+	(*new_allocators)[arrayptr]=allocationinfo(std::make_shared<allocator>(_memalloc,locker,recording_path,recrevision,originating_rss_unique_id,id,alignment_requirements,arrayptr,elemsize,0,follower_elemsizes),elemsize,totalnelem,0);
 	
 	(*new_allocation_arrays)[arrayptr]=arrayptr;
 	new_arrays_managed_by_allocator->emplace(std::make_pair(arrayptr,arrayptr));
@@ -287,7 +327,7 @@ namespace snde {
 
 	
 	//alloc->add_other_array(arrayptr,elemsize);
-	(*new_allocators)[arrayptr]=allocationinfo{alloc,elemsize,0,alloc->add_other_array(id,arrayptr,elemsize)};
+	(*new_allocators)[arrayptr]=allocationinfo(alloc,elemsize,0,alloc->add_other_array(id,arrayptr,elemsize));
 	
 	(*new_allocation_arrays)[arrayptr]=allocatedptr;
 	
@@ -319,7 +359,7 @@ namespace snde {
 	std::tie(new_allocators,new_allocation_arrays,new_arrays_managed_by_allocator,new_pending_modified_trackers)
 	  = _begin_atomic_update();
 	
-	(*new_allocators)[arrayptr]=allocationinfo{nullptr,elemsize,totalnelem,0};
+	(*new_allocators)[arrayptr]=allocationinfo(nullptr,elemsize,totalnelem,0);
 	(*new_allocation_arrays)[arrayptr]=nullptr;
 
 	new_pending_modified_trackers->emplace(arrayptr,std::make_shared<pending_modified_tracker>());

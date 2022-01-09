@@ -367,6 +367,7 @@ namespace snde {
     inline snde_ndarray_info *ndinfo(size_t index) {return &((snde_multi_ndarray_recording *)info)->arrays[index];}
 
     void define_array(size_t index,unsigned typenum);   // should be called exactly once for each index < mndinfo()->num_arrays
+    void define_array(size_t index,unsigned typenum,std::string name);   // should be called exactly once for each index < mndinfo()->num_arrays
 
     
     

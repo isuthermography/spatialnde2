@@ -61,7 +61,7 @@ static inline void polycentroid3(snde_coord3 *verts, uint32_t numvertices, snde_
   for (vertcnt=0; vertcnt < numvertices; vertcnt++) {
     val=0.0;
     for (axcnt=0; axcnt < 3; axcnt++) {
-      val += pow(verts[vertcnt].coord[axcnt] - refpoint.coord[axcnt],(snde_coord)2.0f);
+      val += (snde_coord)pow(verts[vertcnt].coord[axcnt] - refpoint.coord[axcnt],(snde_coord)2.0f);
     }
 
     if (val > max_sq) {
@@ -127,7 +127,6 @@ static inline void get_we_triverts_3d(OCL_GLOBAL_ADDR const snde_triangle *part_
   // returns a vertex from the given triangle
 {
   snde_index thisedge;
-  snde_coord3 thisvert;
 
   //edgecnt=0;
 
@@ -268,9 +267,9 @@ static inline int point_in_polygon_2d_c(snde_coord2 *vertices_rel_point,snde_ind
     }
     
     if (det > 0) {
-      windingnum += acos(cosparam);
+      windingnum += (snde_coord)acos(cosparam);
     } else if (det < 0) {
-      windingnum -= acos(cosparam);
+      windingnum -= (snde_coord)acos(cosparam);
     } else {
       // det==0.0 
       
@@ -294,7 +293,7 @@ static inline int point_in_polygon_2d_c(snde_coord2 *vertices_rel_point,snde_ind
   }
   
   
-  windingnum=fabs(windingnum)*(1.0f/(2.0f*((float)M_PI))); // divide out radians to number of winds; don't care about clockwise vs. ccw
+  windingnum=(snde_coord)fabs(windingnum)*(1.0f/(2.0f*((float)M_PI))); // divide out radians to number of winds; don't care about clockwise vs. ccw
   if (windingnum > .999f && windingnum < 1.001f) {
     // Almost exactly one loop... got it! 
     return TRUE;
@@ -314,7 +313,7 @@ static inline int point_in_polygon_2d_c(snde_coord2 *vertices_rel_point,snde_ind
   return FALSE;
 }
 
-static inline int point_in_polygon_3d_c(snde_coord3 *vertices, snde_coord2 *vertbuf2d_vert2d_rel_point,snde_coord nvertices,snde_coord3 point, snde_cmat23 inplanemat)
+static inline int point_in_polygon_3d_c(snde_coord3 *vertices, snde_coord2 *vertbuf2d_vert2d_rel_point,snde_index nvertices,snde_coord3 point, snde_cmat23 inplanemat)
 {
   snde_coord3 vert3d_rel_point;
   //snde_coord2 vert2d_rel_point;

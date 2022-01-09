@@ -36,7 +36,8 @@ namespace snde {
     std::shared_ptr<graphics_storage_manager> graphman_strong=graphman.lock();
     
     if (graphman_strong) {
-      for (auto && cachemgr: *graphman_strong->follower_cachemanagers()) {
+      auto follower_cachemanagers = graphman_strong->follower_cachemanagers();
+      for (auto && cachemgr: *follower_cachemanagers) {
 	std::shared_ptr<cachemanager> cmgr_strong=cachemgr.lock();
 	if (cmgr_strong) {
 	  cmgr_strong->notify_storage_expiration(lockableaddr(),base_index,nelem); // really has no effect (but we do it for completeness) as the openclcachemanager notify_storage_expiration ignores anything with a nonzero base-index (like all of our data)
@@ -439,8 +440,9 @@ namespace snde {
 
     pool_realloc_callbacks.clear();
     
-    // Notify all caches that we are going away. 
-    for (auto && cachemgr: *follower_cachemanagers()) {
+    // Notify all caches that we are going away.
+    auto follower_cachemanagers_loc = follower_cachemanagers();
+    for (auto && cachemgr: *follower_cachemanagers_loc) {
       std::shared_ptr<cachemanager> cmgr_strong = cachemgr.lock();
       if (cmgr_strong) {
 	for (auto && arrayname_arrayaddr: arrayaddr_from_name) {
@@ -664,8 +666,9 @@ namespace snde {
 
 
 
-    // Now notify any follower cachemanagers. 
-    for (auto && cmgr: *follower_cachemanagers()) {
+    // Now notify any follower cachemanagers.
+    auto follower_cachemanagers_loc=follower_cachemanagers();
+    for (auto && cmgr: *follower_cachemanagers_loc) {
       std::shared_ptr<cachemanager> cmgr_strong=cmgr.lock();
       if (cmgr_strong) {
 	if (cmgr_strong != already_knows) {

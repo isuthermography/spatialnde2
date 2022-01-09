@@ -76,7 +76,6 @@ namespace snde {
 
   class x3derror : public snde_error {
   public:
-    char *msg;
     xmlParserSeverities severity;
     xmlTextReaderLocatorPtr locator;
 
@@ -785,6 +784,14 @@ namespace snde {
     bool ccw;
     bool solid;
     Eigen::Matrix<double,4,4> transform; /* Apply this transform to all coordinates when interpreting contents */
+
+    x3d_indexedset() :
+      normalPerVertex(true),
+      ccw(true),
+      solid(true)
+    {
+
+    }
   };
   
   class x3d_indexedfaceset : public x3d_indexedset {

@@ -221,7 +221,7 @@ snde_array_is_c_contiguous(SNDE_AIO_GLOBAL snde_index *dimlen,
 			 snde_index ndim)
 {
   snde_index dimnum;
-  snde_index exp_stride; // expected stride
+  snde_index exp_stride=1; // expected stride
   for (dimnum=0; dimnum < ndim;dimnum ++) {
     if (strides[ndim-dimnum-1] != exp_stride) {
       return FALSE;

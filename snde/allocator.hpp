@@ -30,28 +30,28 @@ namespace snde {
    
   */
 
-  std::map<unsigned,unsigned> prime_factorization(unsigned number);
+  std::map<size_t,size_t> prime_factorization(size_t number);
 
-  unsigned multiply_factors(std::map<unsigned,unsigned> factors);
+  size_t multiply_factors(std::map<size_t,size_t> factors);
   
   class allocator_alignment {
   public:
     std::mutex admin; // locks access to members. Last in locking order
-    std::vector<unsigned> address_alignment; /* required address alignments, in bytes */
-    std::shared_ptr<unsigned> cached_alignment;
+    std::vector<size_t> address_alignment; /* required address alignments, in bytes */
+    std::shared_ptr<size_t> cached_alignment;
 
     allocator_alignment() 
     {
       address_alignment.push_back(8); /* always require at least 8-byte (64-bit) alignment */      
     }
-    void add_requirement(unsigned alignment)
+    void add_requirement(size_t alignment)
     {
       std::lock_guard<std::mutex> adminlock(admin);
       address_alignment.push_back(alignment);
       cached_alignment = nullptr; 
     }
 
-    unsigned get_alignment()
+    size_t get_alignment()
     {
       std::lock_guard<std::mutex> adminlock(admin);
 
@@ -60,15 +60,15 @@ namespace snde {
       }
       // alignment is least common multiple of the various elements of address_alignment
       //std::vector<std::vector<unsigned>> factors;
-      std::vector<std::map<unsigned,unsigned>> factors_powers; 
+      std::vector<std::map<size_t,size_t>> factors_powers; 
 
-      std::unordered_map<unsigned,unsigned> factors_maxpowers;
+      std::unordered_map<size_t,size_t> factors_maxpowers;
 
       //fprintf(stderr,"get_alignment():\n");
       // evaluate prime factorization
-      for (unsigned reqnum=0;reqnum < address_alignment.size();reqnum++) {
+      for (size_t reqnum=0;reqnum < address_alignment.size();reqnum++) {
 
-	unsigned alignment = address_alignment[reqnum];
+	size_t alignment = address_alignment[reqnum];
 
 
 	//fprintf(stderr," alignment requirement: %d\n",alignment);
@@ -78,11 +78,12 @@ namespace snde {
 
 
 	// adjust stored maximum power for each divisor
-	for (auto && factor_power: *(factors_powers.end()-1)) {
+	std::vector<std::map<size_t,size_t>>::iterator factors_powers_lastentry = factors_powers.end()-1;
+	for (auto && factor_power: *factors_powers_lastentry) {
 	  // adjust factors_maxpowers entry if power is greater than this
-	  unsigned maxpower=0;
-	  unsigned divisor=factor_power.first;
-	  unsigned power=factor_power.second;
+	  size_t maxpower=0;
+	  size_t divisor=factor_power.first;
+	  size_t power=factor_power.second;
 	  if (factors_maxpowers.find(divisor) != factors_maxpowers.end()) {
 	    maxpower=factors_maxpowers.at(divisor);		
 	  }
@@ -98,19 +99,19 @@ namespace snde {
       /* least common multiple comes from the product 
 	 of the highest powers of each prime factor */
 
-      unsigned result=1;
+      size_t result=1;
       for (auto & factor_maxpower : factors_maxpowers) {
-	for (unsigned power=0;power < factor_maxpower.second;power++) {
+	for (size_t power=0;power < factor_maxpower.second;power++) {
 	  result=result*factor_maxpower.first;
 	}
       }
       //fprintf(stderr,"alignment result: %d\n",result);
-      cached_alignment=std::make_shared<unsigned>(result);
+      cached_alignment=std::make_shared<size_t>(result);
       return result;
     }
 
 
-    static void *alignment_shift(void *ptr,unsigned alignment) // alignment should be from get_alignment(). ptr must have at least this much extra space available
+    static void *alignment_shift(void *ptr,size_t alignment) // alignment should be from get_alignment(). ptr must have at least this much extra space available
     
     {
       if (!alignment) {
@@ -120,7 +121,7 @@ namespace snde {
       // check for power of 2
       if ( (alignment & (alignment-1))==0) {
 	// power of 2 alignments, use std::align
-	size_t space = 1+alignment;
+	size_t space = 1+(size_t)alignment;
 	std::align(alignment,1,ptr,space);
 	return ptr; 
       }
@@ -299,18 +300,18 @@ namespace snde {
 	our_alignment.address_alignment = alignment->address_alignment;
 	
       }
-      our_alignment.add_requirement(_allocchunksize*elemsize);
+      our_alignment.add_requirement(((size_t)_allocchunksize)*elemsize);
       
       //for (auto && follower_elemsize: follower_elemsizes) {
       //our_alignment.add_requirement(follower_elemsize);
       //}
       
-      unsigned initial_allocchunksize = our_alignment.get_alignment()/elemsize;
+      size_t initial_allocchunksize = our_alignment.get_alignment()/elemsize;
 
       // identify prime factors of preexisting alignment requirements
       // present in elemsize, and create sub_alignment with those
       // factors divided out (if present)
-      std::map<unsigned,unsigned> elemsizeprimefactors = prime_factorization(elemsize);
+      std::map<size_t,size_t> elemsizeprimefactors = prime_factorization(elemsize);
 
       
       //sub_alignment = our_alignment; // copy our_alignment
@@ -318,7 +319,7 @@ namespace snde {
       
       // now divide factors from elemsize out of sub_alignment
       for (snde_index align_idx=0;align_idx < sub_alignment.address_alignment.size();align_idx++) {
-	std::map<unsigned,unsigned> alignprimefactors = prime_factorization(sub_alignment.address_alignment.at(align_idx));
+	std::map<size_t,size_t> alignprimefactors = prime_factorization(sub_alignment.address_alignment.at(align_idx));
 
 	for (auto && primefactor_power: elemsizeprimefactors) {
 	  auto alignfactorref = alignprimefactors.find(primefactor_power.first);
@@ -339,7 +340,7 @@ namespace snde {
       // now add in follower element size requirements, likewise
       // with elemsize factors divided out
       for (auto && follower_elemsize: follower_elemsizes) {
-	std::map<unsigned,unsigned> followerprimefactors = prime_factorization(follower_elemsize);
+	std::map<size_t,size_t> followerprimefactors = prime_factorization(follower_elemsize);
 	//fprintf(stderr,"follower elemsize: %d\n",(int)follower_elemsize);
 
 	// now remove elemsize factors from followerprimefactors
@@ -359,7 +360,7 @@ namespace snde {
 	
       }
       
-      _allocchunksize = initial_allocchunksize*sub_alignment.get_alignment();
+      _allocchunksize = ((size_t)initial_allocchunksize)*sub_alignment.get_alignment();
             
 				    
       // _totalnchunks = totalnelem / _allocchunksize  but round up. 
@@ -439,7 +440,8 @@ namespace snde {
     {
       std::lock_guard<std::mutex> lock(allocatormutex);
       size_t size=0;
-      for (auto & ary: (*arrays())) {
+      auto arrays_loc = arrays();
+      for (auto & ary: *arrays_loc) {
 	if (!ary.destroyed) size++;
       }
       return size;

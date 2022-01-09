@@ -154,7 +154,7 @@ namespace snde {
       
       bool operator==(const arrayposition &other)
       {
-	snde_index dimnum;
+	//snde_index dimnum;
 	assert(layout->dimlen.size()==other.layout->dimlen.size());
 	
 	return (bool)snde_array_index_equal(layout->dimlen.data(),
