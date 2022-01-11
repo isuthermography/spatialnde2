@@ -299,7 +299,7 @@ namespace snde {
     std::shared_ptr<math_function_execution> execfunc; // tracking of this particular execution. Later globalrevs that will use the result unchanged may also point to this. (Each pointing globalrev should be registered in the execfunc's referencing_rss set so that it can get callbacks on completion). Note that this may be nullptr in various scenarios:  These might be new_revision_optional with changed inputs, dynamic dependencies with unchanged inputs, or functions dependent on those sorts of functions   (!!!*** Note than an unassigned execfunc needs to create an implicit self-dependency)
     
     std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<channelconfig>>> missing_external_channel_prerequisites; // all missing (non-ready...or !!!*** nonmdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Will be used e.g. for dependencies of on-demand recordings calculated in their own rss context
-    std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_function_prerequisites; // all missing (non-ready... or !!!*** non-mdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Currently used solely for self-dependencies (which can't be mdonly)
+    std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_function_prerequisites; // all missing (non-ready... or !!!*** non-mdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Currently used solely for self-dependencies (which can't be mdonly)... Paired with external_dependencies_on_function
 
     bool mdonly; // if this execution is actually mdonly. Feeds into execfunc->mdonly
 
@@ -354,7 +354,7 @@ namespace snde {
     void end_atomic_extra_internal_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> newextdep);
     std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> extra_internal_dependencies_on_channel();
 
-    void notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> fcn,bool mdonly);
+    void notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> fcn,bool mdonly,bool possibly_redundant,std::shared_ptr<recording_set_state> prerequisite_state);
     
     // check_dep_fcn_ready() assumes dep_rss admin lock is already held
     void check_dep_fcn_ready(std::shared_ptr<recdatabase> recdb,
@@ -390,6 +390,7 @@ namespace snde {
     std::atomic<bool> executing; // the execution ticket (see try_execution_ticket() method)
     std::atomic<bool> is_mutable; // if this execution does in-place mutation of one or more of its parameters.
     std::atomic<bool> mdonly; // if this execution is actually mdonly
+    std::atomic<bool> instantiated; // if recordings are defined
     std::atomic<bool> metadata_executed; // if execution has completed at least through metadata
     std::atomic<bool> metadataonly_complete; // if we are only executing to metadataonly, this is the complete flag.
     std::atomic<bool> fully_complete; // function has fully executed to ready state

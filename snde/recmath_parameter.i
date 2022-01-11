@@ -7,6 +7,9 @@ snde_rawaccessible(snde::math_parameter_string_const);
 %shared_ptr(snde::math_parameter_int_const);
 snde_rawaccessible(snde::math_parameter_int_const);
 
+%shared_ptr(snde::math_parameter_unsigned_const);
+snde_rawaccessible(snde::math_parameter_unsigned_const);
+
 %shared_ptr(snde::math_parameter_double_const);
 snde_rawaccessible(snde::math_parameter_double_const);
 
@@ -81,6 +84,18 @@ namespace snde {
 
     math_parameter_int_const(int64_t int_constant);
     virtual int64_t get_int(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
+
+    virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
+    virtual bool operator!=(const math_parameter &ref);
+
+  };
+
+  class math_parameter_unsigned_const: public math_parameter {
+  public:
+    uint64_t unsigned_constant;
+
+    math_parameter_unsigned_const(uint64_t unsigned_constant);
+    virtual uint64_t get_unsigned(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
 
     virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
     virtual bool operator!=(const math_parameter &ref);

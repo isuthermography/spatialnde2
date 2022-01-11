@@ -370,7 +370,7 @@ namespace snde {
     std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_function(); 
 
 
-    void notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> fcn,bool mdonly);
+    void notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> fcn,bool mdonly,bool possibly_redundant,std::shared_ptr<recording_set_state> prerequisite_state);
     
     // check_dep_fcn_ready() assumes dep_rss admin lock is already held
     void check_dep_fcn_ready(std::shared_ptr<recdatabase> recdb,
@@ -379,6 +379,7 @@ namespace snde {
 			     math_function_status *mathstatus_ptr,
 			     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute_appendvec,
 			     std::unique_lock<std::mutex> &dep_rss_admin_holder);
+
 
   };
 

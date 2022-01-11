@@ -383,6 +383,7 @@ namespace snde {
 	if (math_function_name_ptr.second->mdonly) {
 	  mdonly_pending_functions.emplace(math_function_name_ptr.second);
 	} else {
+	  snde_debug(SNDE_DC_RECMATH,"mathstatus 0x%llx %s is pending",(unsigned long long)this,math_function_name_ptr.first.c_str());
 	  pending_functions.emplace(math_function_name_ptr.second);	  
 	}
 	
@@ -453,7 +454,9 @@ namespace snde {
 
 
   
-  void math_status::notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> recstate,std::shared_ptr<instantiated_math_function> fcn,bool mdonly)
+  void math_status::notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> recstate,std::shared_ptr<instantiated_math_function> fcn,bool mdonly,bool possibly_redundant,std::shared_ptr<recording_set_state> prerequisite_state)
+  // possibly_redundant is set when our notification is a result of
+  // an exception or similar and hence might be redundant
   {
     std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_function;
     
@@ -479,12 +482,23 @@ namespace snde {
 	recstate->mathstatus.mdonly_pending_functions.erase(pending_it);
 	recstate->mathstatus.completed_mdonly_functions.emplace(fcn);
       } else {
-	pending_it = recstate->mathstatus.pending_functions.find(fcn);
-	if (pending_it==recstate->mathstatus.pending_functions.end()) {
+	pending_it = recstate->mathstatus.pending_functions.find(fcn);	
+	if (pending_it==recstate->mathstatus.pending_functions.end() && !possibly_redundant) {
+	  // We might need to remove this error as realistically it is likely given all the possible
+	  // race conditions required by locking/unlocking etc. that redundant notifications may happen,
+	  // in which case we might (rarely) legitimately get duplicate notifications
+	  // this is here in the interim to troubleshoot excessive duplicate notifications
+	  // (they should be extremely rare)
+	  snde_debug(SNDE_DC_RECMATH,"mathstatus for error 0x%llx",(unsigned long long)&recstate->mathstatus);
 	  throw snde_error("Math function %s executed without being in pending_functions queue",fcn->definition->definition_command.c_str());
+	} else if (pending_it!=recstate->mathstatus.pending_functions.end()) {
+	  recstate->mathstatus.pending_functions.erase(pending_it);
+	  recstate->mathstatus.completed_functions.emplace(fcn);
 	}
-	recstate->mathstatus.pending_functions.erase(pending_it);
-	recstate->mathstatus.completed_functions.emplace(fcn);
+	std::shared_ptr<globalrevision> recglobalrev = std::dynamic_pointer_cast<globalrevision>(recstate);
+	if (recglobalrev) {
+	  snde_debug(SNDE_DC_RECMATH,"Math function %s in globalrev %llu completed and removed from pending_functions (mathstatus 0x%llx)",fcn->definition->definition_command.c_str(),(unsigned long long)recglobalrev->globalrev,(unsigned long long)&recstate->mathstatus);
+	}
       }
 
       // These assigned before calling this function
@@ -506,6 +520,15 @@ namespace snde {
     assert(ext_dep_it != external_dependencies_on_function->end()); // should always have a vector, even if it's empty
 
 
+    std::shared_ptr<globalrevision> globalrevstate=std::dynamic_pointer_cast<globalrevision>(recstate);
+    if (globalrevstate) {
+      snde_debug(SNDE_DC_RECMATH,"globalrev %d checking external dependencies on %s (0x%llx): got %d",
+		 globalrevstate->globalrev,
+		 fcn->definition->definition_command.c_str(),
+		 (unsigned long long)fcn.get(),
+		 ext_dep_it->second.size());
+    }
+    
     for (auto && rss_fcn: ext_dep_it->second) {
       std::shared_ptr<recording_set_state> ext_dep_rss;
       std::shared_ptr<instantiated_math_function> ext_dep_fcn;
@@ -516,10 +539,21 @@ namespace snde {
 
       std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>::iterator
 	dependent_prereq_it = ext_dep_status.missing_external_function_prerequisites.find(std::make_tuple((std::shared_ptr<recording_set_state>)recstate,(std::shared_ptr<instantiated_math_function>)fcn));
+
+      std::shared_ptr<globalrevision> ext_dep_globalrev=std::dynamic_pointer_cast<globalrevision>(ext_dep_rss);
+      
+      if (ext_dep_globalrev) {
+	snde_debug(SNDE_DC_RECMATH,"Checking if %s in globalrev %llu can now execute; rte size=%llu",ext_dep_fcn->definition->definition_command.c_str(),(unsigned long long)ext_dep_globalrev->globalrev,(unsigned long long)ready_to_execute.size());
+      }
+
+      
       if (dependent_prereq_it != ext_dep_status.missing_external_function_prerequisites.end()) {
 	ext_dep_status.missing_external_function_prerequisites.erase(dependent_prereq_it);
       }
       ext_dep_rss->mathstatus.check_dep_fcn_ready(recdb,ext_dep_rss,ext_dep_fcn,&ext_dep_status,ready_to_execute,dep_rss_admin);
+      if (ext_dep_globalrev) {
+	snde_debug(SNDE_DC_RECMATH,"After checking if %s in globalrev %llu can now execute, rte size=%llu",ext_dep_fcn->definition->definition_command.c_str(),(unsigned long long)ext_dep_globalrev->globalrev,(unsigned long long)ready_to_execute.size());
+      }
       
     }
 
@@ -531,7 +565,7 @@ namespace snde {
       std::shared_ptr<instantiated_math_function> ready_fcn;
 
       std::tie(ready_rss,ready_fcn) = ready_rss_ready_fcn;
-      recdb->compute_resources->queue_computation(recdb,ready_rss,ready_fcn);
+      recdb->compute_resources->queue_computation(recdb,ready_rss,ready_fcn); // will only queue if we got the execution ticket
     }
 
 
@@ -545,7 +579,7 @@ namespace snde {
       // the math notification according to whether the channel was
       // updated (would also have to treat function significantly
       // like execution_optional)
-      chanstate.issue_math_notifications(recdb,recstate,true);
+      chanstate.issue_math_notifications(recdb,recstate,prerequisite_state);
     }
 
       
@@ -577,6 +611,17 @@ namespace snde {
     
   {
 
+
+    std::shared_ptr<globalrevision> dep_globalrev = std::dynamic_pointer_cast<globalrevision>(dep_rss);
+    if (dep_globalrev) {
+      snde_debug(SNDE_DC_RECMATH,"recmath: check_dep_fcn_ready(%s); num_modified_prerequisites=%llu; globalrev=%llu",dep_fcn->definition->definition_command.c_str(),(unsigned long long)mathstatus_ptr->num_modified_prerequisites,(unsigned long long)dep_globalrev->globalrev);
+      
+    } else {
+      snde_debug(SNDE_DC_RECMATH,"recmath: check_dep_fcn_ready(%s); num_modified_prerequisites=%llu",dep_fcn->definition->definition_command.c_str(),(unsigned long long)mathstatus_ptr->num_modified_prerequisites);
+    }
+    mathstatus_ptr->execution_demanded = mathstatus_ptr->execution_demanded || (mathstatus_ptr->num_modified_prerequisites > 0); 
+     
+    
     if (!mathstatus_ptr->missing_prerequisites.size() &&
 	!mathstatus_ptr->missing_external_channel_prerequisites.size() &&
 	!mathstatus_ptr->missing_external_function_prerequisites.size()) {
@@ -584,23 +629,24 @@ namespace snde {
       // all currently listed prerequisites are ready
 
       if (!mathstatus_ptr->execfunc) {
-	// if it is a dynamic dependency, then call the relevant
+	// if it could be a dynamic dependency, then call the relevant
 	// method and see if more dependencies can be found.
-	// if so, make recursive call back to this function and return	
-	dep_rss_admin_holder.unlock();
-	bool more_deps = (*dep_fcn->fcn->find_additional_deps)(dep_rss,dep_fcn,mathstatus_ptr);
-	
-	dep_rss_admin_holder.lock();
-
-	if (more_deps) {
-	  check_dep_fcn_ready(recdb,dep_rss,dep_fcn,mathstatus_ptr,ready_to_execute_appendvec,dep_rss_admin_holder);
-	  return;
+	// if so, make recursive call back to this function and return
+	if (dep_fcn->fcn->find_additional_deps) {
+	  dep_rss_admin_holder.unlock();
+	  bool more_deps = (*dep_fcn->fcn->find_additional_deps)(dep_rss,dep_fcn,mathstatus_ptr);
+	  
+	  dep_rss_admin_holder.lock();
+	  
+	  if (more_deps) {
+	    check_dep_fcn_ready(recdb,dep_rss,dep_fcn,mathstatus_ptr,ready_to_execute_appendvec,dep_rss_admin_holder);
+	    return;
+	  }
 	}
-	
 	// Check if prerequisites are unchanged from prior rev
 	//  ... in this case copy in execfunc from prior rev
 	// (all prerequisites should at least be in place)
-
+	
 	// Note: We know the the math function definition itself is unchanged, because otherwise
 	// execfunc would have been assigned in recstore.cpp end_transaction()
 	// So all we have to check here is the full list of prerequisites
@@ -625,13 +671,16 @@ namespace snde {
 
 	    if ( (*paramstate.revision) != (*parampriorstate.revision)) {
 	      // parameter has changed: Need a recalculation
+	      snde_debug(SNDE_DC_RECMATH,"recmath: %s need recalc due to %s revision mismatch",dep_fcn->definition->definition_command.c_str(),dep_fcn_param_fullpath.c_str());
 	      need_recalc=true;
 	      break;
 	    }
 	  }
 	}
 
-	if (!need_recalc) {
+	mathstatus_ptr->execution_demanded = mathstatus_ptr->execution_demanded || need_recalc;
+	
+	if (!mathstatus_ptr->execution_demanded) {
 	  // copy in execfunc from prior state
 	  // (we can look it up based on our instantiated_math_function because
 	  // we would already have an execfunc in place if our instantiated_math_function
@@ -647,24 +696,38 @@ namespace snde {
 	    
 	  }
 
-
-	  // register with execfunc's registering_rss so we get completion notifications
-	  {
-	    
-	    std::lock_guard<std::mutex> execfunc_admin(execfunc->admin);
-	    execfunc->referencing_rss.emplace(std::weak_ptr<recording_set_state>(dep_rss));
-
-	  }
-
 	  
+	  // register with execfunc's registering_rss so we get completion notifications
+	  
+	  // 1/10/22 ***!!! if execfunc is complete and didn't run then we are complete too and will need
+	  // to copy the recordings into place notify anybody dependent on those
+	  // recordings of the completion.
+	  // if execfunc is not complete then we have to make sure that this registration
+	  // in reference_rss will make those things happen when execfunc is finally complete.
+	  
+	  join_rss_into_function_result_state(execfunc,prior_state,dep_rss);
+	  //{   
+	  //  // (now done by join_rss_into_function_result_state())
+	  //  std::lock_guard<std::mutex> execfunc_admin(execfunc->admin);
+	  //  execfunc->referencing_rss.emplace(std::weak_ptr<recording_set_state>(dep_rss));
+	  //
+	  //}
+
+
 	  dep_rss_admin_holder.lock();
 
-	  // assign execfunc  
+	  // assign execfunc  into our status
 	  mathstatus_ptr->execfunc = execfunc;
+	  mathstatus_ptr->complete=execfunc->fully_complete; 
 
+	  dep_rss_admin_holder.unlock();
 
 	  // if execfunc is already complete, we need to
-	  // trigger the notifications now. 
+	  // trigger the notifications now.
+
+	  execution_complete_notify_single_referencing_rss(recdb,execfunc,execfunc->mdonly,false,prior_state,dep_rss);
+	  //dep_rss_admin_holder.lock();
+	  /*
 	  if ((mathstatus_ptr->mdonly && execfunc->metadata_executed) ||
 	      (!mathstatus_ptr->mdonly && execfunc->fully_complete)) {
 	    // execfunc is already complete so we may have to take care of notifications
@@ -681,21 +744,35 @@ namespace snde {
 	      chanstate.issue_nonmath_notifications(dep_rss);
 
 	    }
-
-	    // Issue function completion notification
-	    dep_rss->mathstatus.notify_math_function_executed(recdb,dep_rss,execfunc->inst,execfunc->mdonly); 
-	    
 	    dep_rss_admin_holder.lock();
+	  } 
+	  */
+	  //dep_rss_admin_holder.unlock();
+	  if ((mathstatus_ptr->mdonly && execfunc->metadata_executed) ||
+	      (!mathstatus_ptr->mdonly && execfunc->fully_complete)) {
+	    
+	    // execfunc is already complete so we may have to take care of notifications
+	    // Issue function completion notification
+	    dep_rss->mathstatus.notify_math_function_executed(recdb,dep_rss,execfunc->inst,execfunc->mdonly,true,prior_state); 
+	    
 	    
 	  }
+	  dep_rss_admin_holder.lock();
 	  
 	  return;
+	} else {
+	  // execution is demanded and we are ready to go... or at least set-up the execfunc
+	  
+	  mathstatus_ptr->execfunc = std::make_shared<math_function_execution>(dep_rss,dep_fcn,mathstatus_ptr->mdonly,dep_fcn->is_mutable);
+
 	}
 	
-	// Otherwise pass through end of (no execfunc) conditional, creating
-	// an execfunc and set ready_to_execute (below)
+	// set ready_to_execute (below)
 	// so that queue_computation() will be called by our
 	// caller
+	//
+
+	
       }
       
       mathstatus_ptr->ready_to_execute=true;
@@ -705,12 +782,15 @@ namespace snde {
     
   }
 
+  
+
   math_function_execution::math_function_execution(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,bool mdonly,bool is_mutable) :
     rss(rss),
     inst(inst),
     executing(false),
     is_mutable(is_mutable),
     mdonly(mdonly),
+    instantiated(false),
     metadata_executed(false),
     metadataonly_complete(false),
     fully_complete(false)
@@ -726,17 +806,19 @@ namespace snde {
     inst(inst),
     lockmgr(lockmgr)
   {
-    std::shared_ptr<recording_base> null_recording;
+    std::shared_ptr<recording_base> null_rec;
 
     
     // initialize self_dependent_recordings, if applicable
     if (inst && inst->self_dependent) {
+      std::shared_ptr<recording_set_state> prereq_state=rss->prerequisite_state();
+
       for (auto &&result_channel_path_ptr: inst->result_channel_paths) {
 	if (result_channel_path_ptr) {
-	  channel_state &chanstate = rss->recstatus.channel_map.at(*result_channel_path_ptr);
+	  channel_state &chanstate = prereq_state->recstatus.channel_map.at(*result_channel_path_ptr);
 	  self_dependent_recordings.push_back(chanstate.rec());
 	} else {
-	  self_dependent_recordings.push_back(null_recording);
+	  self_dependent_recordings.push_back(null_rec);
 	}
       }
     }

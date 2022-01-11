@@ -27,6 +27,8 @@ typedef unsigned long size_t;
 #endif
 #endif
 
+// Workaround for swig to understand what uint64_t aliases
+typedef unsigned long long uint64_t;
 
 /* warning suppression */
 //#pragma SWIG nowarn=509,454,341
@@ -321,6 +323,124 @@ template <typename T>
 //  $1 = *((std::shared_ptr<snde::math_function> *)rawptr);
 // }
 
+%shared_ptr(std::vector<std::string>);
+%template(StringVector) std::vector<std::string>;
+//%template(StringVectorPtr) std::shared_ptr<std::vector<std::string>>;
+
+%extend std::vector<std::string> {
+  std::string __str__()
+  {
+    std::string strval="[\n";
+    for (auto elem: *self) {
+      strval += "\"" + elem+"\",\n";
+    }
+    strval +="]";
+    return strval;
+  }
+  std::string __repr__()
+  {
+    std::string strval="[\n";
+    for (auto elem: *self) {
+      strval += "\""+elem+"\",\n";
+    }
+    strval +="]";
+
+    return strval;
+  }
+}
+
+
+%template(StringPair) std::pair<std::string,std::string>;
+%shared_ptr(std::vector<std::pair<std::string,std::string>>);
+%template(StringPairVector) std::vector<std::pair<std::string,std::string>>;
+
+%extend std::vector<std::pair<std::string,std::string>> {
+  std::string __str__()
+  {
+    std::string strval="[\n";
+    for (auto elem: *self) {
+      strval += "( \"" + elem.first + "\", \"" + elem.second + "\" ),\n";
+    }
+    strval +="]";
+
+    return strval;
+  }
+  std::string __repr__()
+  {
+    std::string strval="[\n";
+    for (auto elem: *self) {
+      strval += "( \"" + elem.first + "\", \"" + elem.second + "\" ),\n";
+    }
+    strval +="]";
+
+    return strval;
+  }
+}
+
+
+// These are really supposed to be uint64_t but at least g++
+// considers unsigned long and unsigned long long to be distinct
+// types of the same size, so if longs are 64 bit better for us
+// ust to use "unsigned long"
+#ifdef SIZEOF_LONG_IS_8
+%template(StringUnsignedPair) std::pair<std::string,unsigned long>;
+%shared_ptr(std::vector<std::pair<std::string,unsigned long>>);
+%template(StringUnsignedPairVector) std::vector<std::pair<std::string,unsigned long>>;
+%extend std::vector<std::pair<std::string,unsigned long>> {
+  std::string __str__()
+  {
+    std::string strval="[\n";
+    for (auto elem: *self) {
+      strval += "  \"" + elem.first + "\" " + std::to_string(elem.second) + "\n";
+    }
+    strval +="]";
+
+    return strval;
+  }
+  std::string __repr__()
+  {
+    std::string strval="[\n";
+    for (auto elem: *self) {
+      strval += "  \"" + elem.first + "\" " + std::to_string(elem.second) + "\n";
+    }
+    strval +="]";
+
+    return strval;
+  }
+}
+
+
+#else
+%template(StringUnsignedPair) std::pair<std::string,unsigned long long >;
+%shared_ptr(std::vector<std::pair<std::string,unsigned long long>>);
+%template(StringUnsignedPairVector) std::vector<std::pair<std::string,unsigned long long>>;
+%extend std::vector<std::pair<std::string,unsigned long long>> {
+  std::string __str__()
+  {
+    std::string strval="[\n";
+    for (auto elem: *self) {
+      strval += "  \"" + elem.first + "\" " + std::to_string(elem.second) + "\n";
+    }
+    strval +="]";
+
+    return strval;
+  }
+  std::string __repr__()
+  {
+    std::string strval="[\n";
+    for (auto elem: *self) {
+      strval += "  \"" + elem.first + "\" " + std::to_string(elem.second) + "\n";
+    }
+    strval +="]";
+
+    return strval;
+  }
+}
+#endif
+
+%template(shared_ptr_string) std::shared_ptr<std::string>;
+
+
 %include "geometry_types.i"
 %include "snde_error.i"
 %include "memallocator.i"
@@ -354,24 +474,10 @@ template <typename T>
  //%include "openclcachemanager.i"
 #endif
 
- //#ifdef SNDE_X3D
- //%include "x3d.i"
- //#endif
-
-%{
-//#include "memallocator.hpp"
-
-//#include "geometry_types_h.h"
-//#include "testkernel_c.h"
-%}
-
 
 
 // Instantiate templates for shared ptrs
 //%shared_ptr(snde::openclcachemanager);
-%template(StringVector) std::vector<std::string>;
-
-%template(shared_ptr_string) std::shared_ptr<std::string>;
 
 
 
@@ -429,11 +535,19 @@ template <typename T>
 
   // ***!!! Still need numpy dtypes for most graphics arrays!!!***
 #ifdef SNDE_DOUBLEPREC_COORDS
-  PyObject *coord3_dtype = PyRun_String("dtype([('coord', np.floa64, 3), ])",Py_eval_input,Globals,Globals);
+  PyObject *coord3_dtype = PyRun_String("dtype([('coord', np.float64, 3), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD3,(PyArray_Descr *)coord3_dtype);
+  PyObject *coord2_dtype = PyRun_String("dtype([('coord', np.float64, 2), ])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD2,(PyArray_Descr *)coord2_dtype);
+  PyObject *cmat23_dtype = PyRun_String("dtype([('row', dtype([('coord', np.float64, 3), ]) , 2), ])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_CMAT23,(PyArray_Descr *)cmat23_dtype);
 #else
   PyObject *coord3_dtype = PyRun_String("dtype([('coord', np.float32, 3), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD3,(PyArray_Descr *)coord3_dtype);
+  PyObject *coord2_dtype = PyRun_String("dtype([('coord', np.float32, 2), ])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD2,(PyArray_Descr *)coord2_dtype);
+  PyObject *cmat23_dtype = PyRun_String("dtype([('row', dtype([('coord', np.float32, 3), ]) , 2), ])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_CMAT23,(PyArray_Descr *)cmat23_dtype);
 #endif // SNDE_DOUBLEPREC_COORDS
 
 

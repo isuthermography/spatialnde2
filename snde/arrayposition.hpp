@@ -44,7 +44,21 @@ namespace snde {
     {
       
     }
-    
+
+    arraylayout(const arraylayout &) = default; // default copy constructor
+    arraylayout &operator=(const arraylayout &) = default; // default copy assignment
+    ~arraylayout() = default; // default destructor
+
+    bool operator==(const arraylayout &other)
+    {
+      return dimlen==other.dimlen && strides==other.strides;
+    }
+
+    bool operator!=(const arraylayout &other)
+    {
+      return !(*this == other);
+    }
+
     bool is_c_contiguous()
     {
       return (bool)snde_array_is_c_contiguous(dimlen.data(),strides.data(),dimlen.size());

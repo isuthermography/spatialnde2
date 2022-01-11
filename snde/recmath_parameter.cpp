@@ -298,7 +298,7 @@ namespace snde {
     std::shared_ptr<multi_ndarray_recording> rec=std::dynamic_pointer_cast<multi_ndarray_recording>(get_recording(rss,channel_path_context,fcn_def,parameter_index));
 
     if (!rec) {
-      throw math_parameter_mismatch("Recording parameter %s relative to %s is not convertible to a multi_ndarray_recording",channel_path_context.c_str(),channel_name.c_str());
+      throw math_parameter_mismatch("Recording parameter %s relative to %s is not convertible to a multi_ndarray_recording",channel_name.c_str(),channel_path_context.c_str());
     }
 
     size_t index = array_index;

@@ -235,6 +235,16 @@ namespace snde {
     }
   }
 
+  class recording_creator_data {
+  public:
+    recording_creator_data() = default;
+    // rule of 3
+    recording_creator_data & operator=(const recording_creator_data &) = delete; 
+    recording_creator_data(const recording_creator_data &orig) = delete;
+    virtual ~recording_creator_data()=default; // virtual destructor so we can be subclassed by different types of creators    
+  };
+  
+
   std::shared_ptr<recording_storage_manager> select_storage_manager_for_recording_during_transaction(std::shared_ptr<recdatabase> recdb,std::string chanpath);
 
   std::shared_ptr<recording_storage_manager> select_storage_manager_for_recording(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> rss);
@@ -266,6 +276,8 @@ namespace snde {
     
     std::weak_ptr<recording_set_state> _originating_rss; // locked by admin mutex; if expired than originating_rss has been freed. if nullptr then this was defined as part of a transaction that was may still be going on when the recording was defined. Use get_originating_rss() which handles locking and getting the originating_rss from the defining_transact
 
+
+    std::shared_ptr<recording_creator_data> creator_data; // responsibility of owner of channel who wrote the recording. The shared pointer itself is locked by the admin mutex. 
     
     // Some kind of notification that recording is done to support
     // e.g. finishing a synchronous process such as a render.
@@ -315,7 +327,7 @@ namespace snde {
 
     null_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize=0);
     
-    
+     
     // rule of 3
     null_recording & operator=(const null_recording &) = delete; 
     null_recording(const null_recording &orig) = delete;
@@ -381,6 +393,7 @@ namespace snde {
     void define_array(size_t index,unsigned typenum);   // should be called exactly once for each index < mndinfo()->num_arrays
     void define_array(size_t index,unsigned typenum,std::string name);   // should be called exactly once for each index < mndinfo()->num_arrays
 
+    std::shared_ptr<std::vector<std::string>> list_arrays();
     
     
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(size_t index=0);
@@ -632,7 +645,7 @@ namespace snde {
     std::unordered_set<channel_state *> *ready_channels, // references into the new_rss->recstatus.channel_map
 					     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> *ready_to_execute,
 					     bool *all_ready,
-					     bool enable_ondemand);
+					     bool ondemand_only);
 
   
   class active_transaction /* : public std::enable_shared_from_this<active_transaction> */ {
@@ -762,7 +775,7 @@ namespace snde {
     std::shared_ptr<recording_base> rec() const;
     std::shared_ptr<recording_base> recording_is_complete(bool mdonly); // uses only atomic members so safe to call in all circumstances. Set to mdonly if you only care that the metadata is complete. Normally call recording_is_complete(false). Returns recording pointer if recording is complete to the requested condition, otherwise nullptr. 
     void issue_nonmath_notifications(std::shared_ptr<recording_set_state> rss); // Must be called without anything locked. Issue notifications requested in _notify* and remove those notification requests
-    void issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,bool channel_modified); // Must be called without anything locked. Check for any math updates from the new status of this recording
+    void issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<recording_set_state> prerequisite_state); // Must be called without anything locked. Check for any math updates from the new status of this recording
     
     void end_atomic_rec_update(std::shared_ptr<recording_base> new_recording);
 
@@ -835,10 +848,16 @@ namespace snde {
     std::shared_ptr<ndarray_recording_ref> check_for_recording_ref(const std::string &fullpath,size_t array_index=0);
     std::shared_ptr<ndarray_recording_ref> check_for_recording_ref(const std::string &fullpath,std::string array_name);
 
+    std::shared_ptr<std::vector<std::string>> list_recordings();
+#ifdef SIZEOF_LONG_IS_8 // this is a SWIG workaround -- see spatialnde2.i
+    std::shared_ptr<std::vector<std::pair<std::string,unsigned long>>> list_recording_revisions();
+#else
+    std::shared_ptr<std::vector<std::pair<std::string,unsigned long long>>> list_recording_revisions();
+#endif    
+    std::shared_ptr<std::vector<std::pair<std::string,std::string>>> list_recording_refs();
     
-    // admin lock must be locked when calling this function. Returns
     std::shared_ptr<recording_set_state> prerequisite_state();
-    void atomic_prerequisite_state_clear(); // sets the prerequisite state to nullptr
+    void atomic_prerequisite_state_clear(); // sets the prerequisite state to nullptr (called after the rss becomes ready)
 
     long get_reference_count(); // get the shared_ptr reference count; useful for debugging memory leaks
 
@@ -851,6 +870,8 @@ namespace snde {
     
     void _update_recstatus__rss_admin_transaction_admin_locked(); // This is called during end_transaction() with the recdb admin lock, the rss admin lock, and the transaction admin lock held, to identify anything misplaced in the above unordered_maps. After the call and marking of the transaction's _resulting_globalrevision, placement responsibility shifts to mark_metadata_done() and mark_as_ready() methods of the recording. 
 
+    std::string get_math_status();
+    std::string get_math_function_status(std::string definition_command);
 
   };
 
@@ -984,9 +1005,12 @@ namespace snde {
 
     void globalrev_mutablenotneeded_code(); 
 
-
+    
     std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> math_functions();
 
+    std::shared_ptr<math_function> lookup_math_function(std::string name);
+    std::shared_ptr<std::vector<std::string>> list_math_functions();
+    
     std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> _begin_atomic_math_functions_update(); // should be called with admin lock held
     void _end_atomic_math_functions_update(std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> new_math_functions); // should be called with admin lock held
 
@@ -1320,9 +1344,10 @@ namespace snde {
       assert(!state.config->ondemand);
 
       // if the new_revision_optional flag is set, then we have to define the new revision now;
-      if (state.config->math_fcn->fcn->new_revision_optional) {
-	new_revision = ++state._channel->latest_revision; // latest_revision is atomic; correct ordering guaranteed by the implicit self-dependency that comes with new_revision_optional flag
-      } else{
+      if (/*state.config->math_fcn->fcn->new_revision_optional && */ !state.revision) {
+	new_revision = ++state._channel->latest_revision; // latest_revision is atomic; correct ordering guaranteed by the implicit self-dependency that comes with new_revision_optional flag -- this should even work transitively for recordings dependent on new-revision-optional recordings
+	state.revision = std::make_shared<uint64_t>(new_revision);
+      } else{ 
 	// new_revision_optional is clear: grab revision from channel_state
 	new_revision = *state.revision;
       }

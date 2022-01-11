@@ -2,6 +2,8 @@
 snde_rawaccessible(snde::recording_base);
 %shared_ptr(snde::recording_group);
 snde_rawaccessible(snde::recording_group);
+%shared_ptr(snde::null_recording);
+snde_rawaccessible(snde::null_recording);
 %shared_ptr(snde::multi_ndarray_recording);
 snde_rawaccessible(snde::multi_ndarray_recording);
 %shared_ptr(snde::ndarray_recording_ref);
@@ -135,6 +137,19 @@ namespace snde {
 
   };
 
+  class null_recording: public recording_base {
+  public:
+
+    null_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize=0);
+    
+    
+    // rule of 3
+    null_recording & operator=(const null_recording &) = delete; 
+    null_recording(const null_recording &orig) = delete;
+    virtual ~null_recording()=default;
+
+  };
+
   class recording_group : public recording_base {
   public:
     // Group elements are not stored here; they are found by searching
@@ -187,7 +202,7 @@ namespace snde {
     void define_array(size_t index,unsigned typenum);   // should be called exactly once for each index < mndinfo()->num_arrays
     void define_array(size_t index,unsigned typenum,std::string name);   // should be called exactly once for each index < mndinfo()->num_arrays
 
-    
+    std::shared_ptr<std::vector<std::string>> list_arrays();
     
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(size_t index=0);
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(std::string array_name);
@@ -507,7 +522,7 @@ namespace snde {
     std::shared_ptr<recording_base> rec() const;
     std::shared_ptr<recording_base> recording_is_complete(bool mdonly); // uses only atomic members so safe to call in all circumstances. Set to mdonly if you only care that the metadata is complete. Normally call recording_is_complete(false). Returns recording pointer if recording is complete to the requested condition, otherwise nullptr. 
     void issue_nonmath_notifications(std::shared_ptr<recording_set_state> rss); // Must be called without anything locked. Issue notifications requested in _notify* and remove those notification requests
-    void issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,bool channel_modified); // Must be called without anything locked. Check for any math updates from the new status of this recording
+    void issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<recording_set_state> prerequisite_rss); // Must be called without anything locked. Check for any math updates from the new status of this recording
     
     void end_atomic_rec_update(std::shared_ptr<recording_base> new_recording);
 
@@ -574,6 +589,18 @@ namespace snde {
     std::shared_ptr<ndarray_recording_ref> get_recording_ref(const std::string &fullpath,size_t array_index=0);
     std::shared_ptr<ndarray_recording_ref> get_recording_ref(const std::string &fullpath,std::string array_name);
 
+    std::shared_ptr<ndarray_recording_ref> check_for_recording_ref(const std::string &fullpath,size_t array_index=0);
+    std::shared_ptr<ndarray_recording_ref> check_for_recording_ref(const std::string &fullpath,std::string array_name);
+
+    std::shared_ptr<std::vector<std::string>> list_recordings();
+
+#ifdef SIZEOF_LONG_IS_8 // this is a SWIG workaround -- see spatialnde2.i
+    std::shared_ptr<std::vector<std::pair<std::string,unsigned long>>> list_recording_revisions();
+#else
+    std::shared_ptr<std::vector<std::pair<std::string,unsigned long long>>> list_recording_revisions();
+#endif    
+    std::shared_ptr<std::vector<std::pair<std::string,std::string>>> list_recording_refs();
+
     // admin lock must be locked when calling this function. Returns
     std::shared_ptr<recording_set_state> prerequisite_state();
     void atomic_prerequisite_state_clear(); // sets the prerequisite state to nullptr
@@ -581,6 +608,10 @@ namespace snde {
     long get_reference_count(); // get the shared_ptr reference count; useful for debugging memory leaks
 
     size_t num_complete_notifiers(); // size of recordingset_complete_notifiers; useful for debugging memory leaks
+    
+    std::string get_math_status();
+    std::string get_math_function_status(std::string definition_command);
+
   };
 
   class globalrev_mutable_lock {
@@ -679,7 +710,10 @@ namespace snde {
     void register_new_math_rec(void *owner_id,std::shared_ptr<recording_set_state> calc_rss,std::shared_ptr<recording_base> new_rec); // registers newly created math recording in the given rss (and extracts mutable flag for the given channel into the recording structure)). 
 
     std::shared_ptr<globalrevision> latest_globalrev();
+    
+    std::shared_ptr<globalrevision> latest_ready_globalrev(); // safe to call with or without recdb admin lock held. Returns latest globalrev which is ready and for which all prior globalrevs are ready
 
+    
     // Allocate channel with a specific name; returns nullptr if the name is inuse
     std::shared_ptr<channel> reserve_channel(std::shared_ptr<channelconfig> new_config);
 
@@ -695,6 +729,10 @@ namespace snde {
 
 
     std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> math_functions();
+
+    std::shared_ptr<math_function> lookup_math_function(std::string name);
+    std::shared_ptr<std::vector<std::string>> list_math_functions();
+
 
   };
 
