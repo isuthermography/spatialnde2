@@ -355,9 +355,9 @@ namespace snde {
   {
 
     
-    std::atomic_store(&_external_dependencies_on_function,std::make_shared<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>>());
+    std::atomic_store(&_external_dependencies_on_function,std::make_shared<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>>());
 
-    std::atomic_store(&_external_dependencies_on_channel,std::make_shared<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>>());
+    std::atomic_store(&_external_dependencies_on_channel,std::make_shared<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>>());
 
     std::atomic_store(&_extra_internal_dependencies_on_channel,std::make_shared<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>>());
     
@@ -400,36 +400,36 @@ namespace snde {
   }
 
   
-  std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::begin_atomic_external_dependencies_on_channel_update() // must be called with recording_set_state's admin lock held
+  std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::begin_atomic_external_dependencies_on_channel_update() // must be called with recording_set_state's admin lock held
   {
-    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> orig = external_dependencies_on_channel(); 
-    return std::make_shared<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>>(*orig);    
+    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> orig = external_dependencies_on_channel(); 
+    return std::make_shared<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>>(*orig);    
   }
   
-  void math_status::end_atomic_external_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep)
+  void math_status::end_atomic_external_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep)
 // must be called with recording_set_state's admin lock held
   {
     std::atomic_store(&_external_dependencies_on_channel,newextdep);
   }
   
-  std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::external_dependencies_on_channel()
+  std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::external_dependencies_on_channel()
   {
     return std::atomic_load(&_external_dependencies_on_channel);
   }
 
   
-  std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::begin_atomic_external_dependencies_on_function_update() // must be called with recording_set_state's admin lock held
+  std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::begin_atomic_external_dependencies_on_function_update() // must be called with recording_set_state's admin lock held
   {
-    return std::make_shared<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>>(*external_dependencies_on_function());
+    return std::make_shared<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>>(*external_dependencies_on_function());
   }
   
-  void math_status::end_atomic_external_dependencies_on_function_update(std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep)
+  void math_status::end_atomic_external_dependencies_on_function_update(std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep)
 // must be called with recording_set_state's admin lock held
   {
     std::atomic_store(&_external_dependencies_on_function,newextdep);
   }
   
-  std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::external_dependencies_on_function()
+  std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::external_dependencies_on_function()
   {
     return std::atomic_load(&_external_dependencies_on_function);
   }
@@ -458,7 +458,7 @@ namespace snde {
   // possibly_redundant is set when our notification is a result of
   // an exception or similar and hence might be redundant
   {
-    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_function;
+    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_function;
     
     {
       std::lock_guard<std::mutex> rss_admin(recstate->admin);
@@ -516,7 +516,7 @@ namespace snde {
 
     // Search for external dependencies on this function; accumulate in ready_to_execute
     
-    std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>::iterator ext_dep_it = external_dependencies_on_function->find(fcn);    
+    std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>::iterator ext_dep_it = external_dependencies_on_function->find(fcn);    
     assert(ext_dep_it != external_dependencies_on_function->end()); // should always have a vector, even if it's empty
 
 
@@ -530,31 +530,34 @@ namespace snde {
     }
     
     for (auto && rss_fcn: ext_dep_it->second) {
-      std::shared_ptr<recording_set_state> ext_dep_rss;
+      std::weak_ptr<recording_set_state> ext_dep_rss_weak;
       std::shared_ptr<instantiated_math_function> ext_dep_fcn;
 
-      std::tie(ext_dep_rss,ext_dep_fcn) = rss_fcn;
-      std::unique_lock<std::mutex> dep_rss_admin(ext_dep_rss->admin);
-      math_function_status &ext_dep_status = ext_dep_rss->mathstatus.function_status.at(ext_dep_fcn);
+      std::tie(ext_dep_rss_weak,ext_dep_fcn) = rss_fcn;
+      std::shared_ptr<recording_set_state> ext_dep_rss=ext_dep_rss_weak.lock();
 
-      std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>::iterator
-	dependent_prereq_it = ext_dep_status.missing_external_function_prerequisites.find(std::make_tuple((std::shared_ptr<recording_set_state>)recstate,(std::shared_ptr<instantiated_math_function>)fcn));
+      if (ext_dep_rss) {
+	std::unique_lock<std::mutex> dep_rss_admin(ext_dep_rss->admin);
+	math_function_status &ext_dep_status = ext_dep_rss->mathstatus.function_status.at(ext_dep_fcn);
 
-      std::shared_ptr<globalrevision> ext_dep_globalrev=std::dynamic_pointer_cast<globalrevision>(ext_dep_rss);
+	std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>::iterator
+	  dependent_prereq_it = ext_dep_status.missing_external_function_prerequisites.find(std::make_tuple((std::shared_ptr<recording_set_state>)recstate,(std::shared_ptr<instantiated_math_function>)fcn));
+	
+	std::shared_ptr<globalrevision> ext_dep_globalrev=std::dynamic_pointer_cast<globalrevision>(ext_dep_rss);
       
-      if (ext_dep_globalrev) {
-	snde_debug(SNDE_DC_RECMATH,"Checking if %s in globalrev %llu can now execute; rte size=%llu",ext_dep_fcn->definition->definition_command.c_str(),(unsigned long long)ext_dep_globalrev->globalrev,(unsigned long long)ready_to_execute.size());
+	if (ext_dep_globalrev) {
+	  snde_debug(SNDE_DC_RECMATH,"Checking if %s in globalrev %llu can now execute; rte size=%llu",ext_dep_fcn->definition->definition_command.c_str(),(unsigned long long)ext_dep_globalrev->globalrev,(unsigned long long)ready_to_execute.size());
+	}
+	
+	
+	if (dependent_prereq_it != ext_dep_status.missing_external_function_prerequisites.end()) {
+	  ext_dep_status.missing_external_function_prerequisites.erase(dependent_prereq_it);
+	}
+	ext_dep_rss->mathstatus.check_dep_fcn_ready(recdb,ext_dep_rss,ext_dep_fcn,&ext_dep_status,ready_to_execute,dep_rss_admin);
+	if (ext_dep_globalrev) {
+	  snde_debug(SNDE_DC_RECMATH,"After checking if %s in globalrev %llu can now execute, rte size=%llu",ext_dep_fcn->definition->definition_command.c_str(),(unsigned long long)ext_dep_globalrev->globalrev,(unsigned long long)ready_to_execute.size());
+	}
       }
-
-      
-      if (dependent_prereq_it != ext_dep_status.missing_external_function_prerequisites.end()) {
-	ext_dep_status.missing_external_function_prerequisites.erase(dependent_prereq_it);
-      }
-      ext_dep_rss->mathstatus.check_dep_fcn_ready(recdb,ext_dep_rss,ext_dep_fcn,&ext_dep_status,ready_to_execute,dep_rss_admin);
-      if (ext_dep_globalrev) {
-	snde_debug(SNDE_DC_RECMATH,"After checking if %s in globalrev %llu can now execute, rte size=%llu",ext_dep_fcn->definition->definition_command.c_str(),(unsigned long long)ext_dep_globalrev->globalrev,(unsigned long long)ready_to_execute.size());
-      }
-      
     }
 
     // Queue computations from dependent functions

@@ -2522,12 +2522,12 @@ namespace snde {
     if (previous_rss) { // (at least if there was a previous_rss to be dependent on) 
       std::lock_guard<std::mutex> previous_rss_admin(previous_rss->admin);
       
-      std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> new_previous_rss_external_dependencies_on_function = previous_rss->mathstatus.begin_atomic_external_dependencies_on_function_update();
+      std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> new_previous_rss_external_dependencies_on_function = previous_rss->mathstatus.begin_atomic_external_dependencies_on_function_update();
       for (auto && self_dep : self_dependencies) {
 	auto extdep_it = new_previous_rss_external_dependencies_on_function->find(self_dep);
 	if (extdep_it == new_previous_rss_external_dependencies_on_function->end()) {
 	  new_previous_rss_external_dependencies_on_function->emplace(self_dep,
-										  std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>());
+										  std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>());
 	}
 	std::shared_ptr<globalrevision> previous_globalrev = std::dynamic_pointer_cast<globalrevision>(previous_rss);
 	std::shared_ptr<globalrevision> new_globalrev = std::dynamic_pointer_cast<globalrevision>(new_rss);
@@ -2578,7 +2578,7 @@ namespace snde {
     if (previous_rss) {  
       std::lock_guard<std::mutex> previous_rss_admin(previous_rss->admin);
 
-      std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> new_prevglob_extdep = previous_rss->mathstatus.begin_atomic_external_dependencies_on_function_update();
+      std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> new_prevglob_extdep = previous_rss->mathstatus.begin_atomic_external_dependencies_on_function_update();
 
       std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> completed_self_deps_to_remove_from_missing_external_function_prequisites;
       
@@ -2610,15 +2610,18 @@ namespace snde {
 
       for (auto && prev_rss_completed_self_dep: completed_self_deps_to_remove_from_missing_external_function_prequisites) {
 
-	std::shared_ptr<recording_set_state> prev_rss = std::get<0>(prev_rss_completed_self_dep);
-	std::shared_ptr<instantiated_math_function> self_dep = std::get<1>(prev_rss_completed_self_dep);
-	std::lock_guard<std::mutex> new_rss_admin(new_rss->admin);
-	math_function_status &mf_status = new_rss->mathstatus.function_status.at(self_dep);
+	std::weak_ptr<recording_set_state> prev_rss_weak = std::get<0>(prev_rss_completed_self_dep);
+	std::shared_ptr<recording_set_state> prev_rss = prev_rss_weak.lock();
 
-	// erase it from missing_external_function_prerequisites since it
-	// isn't really a prerequisite if it doesn't exist
-	mf_status.missing_external_function_prerequisites.erase(std::make_tuple(previous_rss,self_dep));
-	
+	if (prev_rss) {
+	  std::shared_ptr<instantiated_math_function> self_dep = std::get<1>(prev_rss_completed_self_dep);
+	  std::lock_guard<std::mutex> new_rss_admin(new_rss->admin);
+	  math_function_status &mf_status = new_rss->mathstatus.function_status.at(self_dep);
+	  
+	  // erase it from missing_external_function_prerequisites since it
+	  // isn't really a prerequisite if it doesn't exist
+	  mf_status.missing_external_function_prerequisites.erase(std::make_tuple(prev_rss,self_dep));
+	}
       }
       
       
@@ -3277,25 +3280,27 @@ namespace snde {
 	}
       }
       
-      std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> ext_dep_on_channel = rss->mathstatus.external_dependencies_on_channel();
+      std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> ext_dep_on_channel = rss->mathstatus.external_dependencies_on_channel();
       auto extdep_it = ext_dep_on_channel->find(config);
 
       if (extdep_it != ext_dep_on_channel->end()) {
 	for (auto && rss_extdepfcn: extdep_it->second ) {
-	  std::shared_ptr<recording_set_state> &dependent_rss = std::get<0>(rss_extdepfcn);
+	  std::weak_ptr<recording_set_state> &dependent_rss_weak = std::get<0>(rss_extdepfcn);
+	  std::shared_ptr<recording_set_state> dependent_rss = dependent_rss_weak.lock();
 	  std::shared_ptr<instantiated_math_function> &dependent_func = std::get<1>(rss_extdepfcn);
-	  
-	  std::unique_lock<std::mutex> dependent_rss_admin(dependent_rss->admin);
-	  math_function_status &function_status = dependent_rss->mathstatus.function_status.at(dependent_func);
-	  std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<channelconfig>>>::iterator
-	    dependent_prereq_it = function_status.missing_external_channel_prerequisites.find(std::make_tuple(rss,config));
-	  
-	  if (dependent_prereq_it != function_status.missing_external_channel_prerequisites.end()) {
-	    function_status.missing_external_channel_prerequisites.erase(dependent_prereq_it);
-	  
+
+	  if (dependent_rss) {
+	    std::unique_lock<std::mutex> dependent_rss_admin(dependent_rss->admin);
+	    math_function_status &function_status = dependent_rss->mathstatus.function_status.at(dependent_func);
+	    std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<channelconfig>>>::iterator
+	      dependent_prereq_it = function_status.missing_external_channel_prerequisites.find(std::make_tuple(rss,config));
+	    
+	    if (dependent_prereq_it != function_status.missing_external_channel_prerequisites.end()) {
+	      function_status.missing_external_channel_prerequisites.erase(dependent_prereq_it);
+	      
+	    }
+	    dependent_rss->mathstatus.check_dep_fcn_ready(recdb,dependent_rss,dependent_func,&function_status,ready_to_execute,dependent_rss_admin);
 	  }
-	  dependent_rss->mathstatus.check_dep_fcn_ready(recdb,dependent_rss,dependent_func,&function_status,ready_to_execute,dependent_rss_admin);
-	
 	}
       }
     }

@@ -76,6 +76,7 @@ namespace snde {
       bool new_recording = false;
       std::shared_ptr<recording_base> previous_recording = this->self_dependent_recordings.at(0);
       std::shared_ptr<multi_ndarray_recording> previous_recording_ndarray;
+      std::shared_ptr<recording_creator_data> previous_recording_creator_data;
       std::shared_ptr<averaging_downsampler_creator_data<T>> creator_data;
       
       if (!previous_recording) {
@@ -94,11 +95,15 @@ namespace snde {
 	  //  previous_recording_array_index = previous_recording_ndarray.name_mapping.at(toavg_param->array_name);
 	  //  
 	  //}
-	if (!previous_recording->creator_data) {
+	{
+	  std::lock_guard<std::mutex> prevrec_admin(previous_recording->admin);
+	  previous_recording_creator_data = previous_recording->creator_data;
+	}
+	if (!previous_recording_creator_data) {
 	  //snde_warning("avg: no previous creator_data");
 	  just_starting = true; 
 	} else {
-	  creator_data = std::dynamic_pointer_cast<averaging_downsampler_creator_data<T>>(previous_recording->creator_data);
+	  creator_data = std::dynamic_pointer_cast<averaging_downsampler_creator_data<T>>(previous_recording_creator_data);
 	  if (!creator_data) {
 	    //snde_warning("avg: no previous compatible creator_data");
 	    just_starting = true;
@@ -256,8 +261,16 @@ namespace snde {
 		      accum += raw_input_pointers[inpnum][elnum];		      
 		    }
 		    raw_output_pointer[elnum] = accum/numavgs;
-		  }
+		  } 
 		  unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready()
+
+		  // clear out previous recording's creator data so that references within can go away		  
+		  {
+		    std::shared_ptr<recording_base> previous_recording = this->self_dependent_recordings.at(0);
+		    
+		    std::lock_guard<std::mutex> prevrec_admin(previous_recording->admin);
+		    previous_recording->creator_data = nullptr;
+		  }
 		  
 		  // Create new creator data for the next averaging. 
 		  std::shared_ptr<averaging_downsampler_creator_data<T>> new_creator_data = std::make_shared<averaging_downsampler_creator_data<T>>();

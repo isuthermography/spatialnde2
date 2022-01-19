@@ -327,9 +327,9 @@ namespace snde {
 
 
     // NOTE: an entry in either _external_dependencies_on_channel or _external_dependencies_on_function is sufficient to get you the needed callback. 
-    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> _external_dependencies_on_channel; // Lookup external math functions that are dependent on this channel -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your recording_set_state's admin lock. 
+    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> _external_dependencies_on_channel; // Lookup external math functions that are dependent on this channel -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your recording_set_state's admin lock. 
 
-    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> _external_dependencies_on_function; // Lookup external math functions that are dependent on this math function -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your recording_set_state's admin lock. 
+    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> _external_dependencies_on_function; // Lookup external math functions that are dependent on this math function -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your recording_set_state's admin lock. 
 
     std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> _extra_internal_dependencies_on_channel; // atomic shared pointer; use accessor and update functions. used for dynamically added dependencies of each function. 
 
@@ -342,13 +342,13 @@ namespace snde {
     
     math_status(std::shared_ptr<instantiated_math_database> math_functions,const std::map<std::string,channel_state> & channel_map);
 
-    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> begin_atomic_external_dependencies_on_channel_update(); // must be called with recording_set_state's admin lock held
-    void end_atomic_external_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep);
-    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_channel();
+    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> begin_atomic_external_dependencies_on_channel_update(); // must be called with recording_set_state's admin lock held
+    void end_atomic_external_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep);
+    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_channel();
     
-    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> begin_atomic_external_dependencies_on_function_update(); // must be called with recording_set_state's admin lock held
-    void end_atomic_external_dependencies_on_function_update(std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep);
-    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_function(); 
+    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> begin_atomic_external_dependencies_on_function_update(); // must be called with recording_set_state's admin lock held
+    void end_atomic_external_dependencies_on_function_update(std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep);
+    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_function(); 
 
     std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> begin_atomic_extra_internal_dependencies_on_channel_update(); // must be called with recording_set_state's admin lock held
     void end_atomic_extra_internal_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> newextdep);
@@ -436,7 +436,7 @@ namespace snde {
 
 
     // self_dependent_recordings is auto-created by the constructor
-    std::vector<std::shared_ptr<recording_base>> self_dependent_recordings; // only valid (size() > 0) with implicit/explict self dependency. entries will be nullptr first time through anyway. Entries may also be nullptr if the function output is being ignored rather than stored in the recording database. ***!!! Must be set to nullptr after execution to avoid keeping old recordings alive ***!!!
+    std::vector<std::shared_ptr<recording_base>> self_dependent_recordings; // only valid (size() > 0) with implicit/explict self dependency. entries will be nullptr first time through anyway. Entries may also be nullptr if the function output is being ignored rather than stored in the recording database. ***!!! Must be cleared to nullptr after execution to avoid keeping old recordings alive ***!!!  -- read access OK by the holder of the execution ticket; Otherwise accesses should be protected by the math_function_execution's admin lock
 
     // compute_resource is assigned post-creation and will be compatible with the selected_compute_option
     // These should be finalized and safe to read from any thread once we are in the define_recs function.
