@@ -83,7 +83,7 @@ namespace snde {
       }
     }
     // fallback
-    return (void *)(((char *)_basearray) + elementsize*base_index);
+    return (void *)(((char *)*_basearray) + elementsize*base_index);
     
   }
 
