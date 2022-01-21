@@ -189,7 +189,7 @@ namespace snde {
   
 
   
-  std::pair<std::shared_ptr<osg_rendercacheentry>,bool> osg_rendercache::GetEntry(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)  // mode from rendermode.hpp
+  std::pair<std::shared_ptr<osg_rendercacheentry>,bool> osg_rendercache::GetEntry(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)   // mode from rendermode.hpp
   // mode from rendermode.hpp
   {
     const std::string &channel_path = display_req->channelpath;

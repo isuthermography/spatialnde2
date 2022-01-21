@@ -52,6 +52,13 @@ typedef float snde_imagedata;
     } while (current.intval != expected.intval);
   }
   
+  static GEOTYPES_INLINE float atomicpixel_read(volatile __global snde_atomicimagedata *src)
+  {
+    snde_atomicimagedata copy;
+    copy.intval = atomic_load(&src.intval);
+    
+    return copy.floatval;
+  }
 #else
   //#if 0 && defined(SNDE_OPENCL)
 
@@ -72,9 +79,8 @@ typedef float snde_coord;
 typedef float snde_rendercoord;
 typedef float snde_imagedata;
 
-#if (defined(__STDC_VERSION__) && (__STDC_VERSION__>= 201112L) && !defined(__STDC_NO_ATOMICS__)) || (defined(__cplusplus) && defined(__clang__))
+#if (defined(__STDC_VERSION__) && (__STDC_VERSION__>= 201112L) && !defined(__STDC_NO_ATOMICS__)) || (defined(__cplusplus) && defined(__clang__)) 
   // Use C11 atomics when supported under C and also under C++ with clang
-  // (can add other compilers that support C11 atomics under C++ as well)
 #include <stdatomic.h>
   
 typedef _Atomic uint32_t snde_atomicimagedata;
@@ -82,12 +88,12 @@ typedef _Atomic uint32_t snde_atomicimagedata;
 
 static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata *var,float toadd)
 {
-  // Use of a union like this is legal in C11, even under the strictest
+  // Use of a union like this is legal in C11/C++11, even under the strictest
   // aliasing rules
   union {
     uint32_t intval;
     snde_float32 floatval;
-    char workbuf[4];
+    char workbuf[4];  // having the char[] in here too is what gives us the exception to the strict aliasing rules 
   } oldvalue,newvalue; // ,workvalue;
 
   //  pthread_mutex_lock(&accumulatemutex);
@@ -107,6 +113,23 @@ static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata
   //  pthread_mutex_unlock(&accumulatemutex);
 
 }
+
+
+static GEOTYPES_INLINE float atomicpixel_read(volatile  snde_atomicimagedata *src)
+{
+  // Use of a union like this is legal in C11, even under the strictest
+  // aliasing rules
+  union {
+    uint32_t intval;
+    snde_float32 floatval;
+    char workbuf[4];
+  } value; // ,workvalue;
+
+
+  value.intval = atomic_load(src);
+  return value.floatval;
+}
+
   
 #else
 #if defined(__GNUC__) || defined(__ATOMIC_ACQUIRE)
@@ -151,6 +174,26 @@ static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata
 
 }
 
+static GEOTYPES_INLINE float atomicpixel_read(volatile snde_atomicimagedata *src)
+{
+  union {
+    uint32_t intval;
+    char workbuf[4];
+  } intvalue; // ,workvalue;
+
+  union {
+    float floatval;
+    char workbuf[4];
+  } floatvalue; // ,workvalue;
+
+  intvalue.intval=__atomic_load_n(src,__ATOMIC_ACQUIRE);//,memory_order_consume);
+
+  memcpy(&floatvalue.workbuf[0],&intvalue.workbuf[0],sizeof(float));
+  
+  return floatvalue.floatval;
+}
+
+  
   
 #else
 #ifdef _WIN32
@@ -180,7 +223,10 @@ static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata
   // so we use compare exchange as a read by setting next and
   // expected to the same value, which is a no-op in all cases
   
-  current.intval = InterlockedCompareExchange(var,0,0);
+  //current.intval = InterlockedCompareExchange(var,0,0);
+
+  // Unecessary per https://stackoverflow.com/questions/779996/reading-interlocked-variables/19982243
+  current.intval = *var;
   
   do {
 
@@ -197,6 +243,33 @@ static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata
 
 }
 
+static GEOTYPES_INLINE float atomicpixel_read(volatile snde_atomicimagedata *src)
+{
+  union {
+    uint32_t intval;
+    char workbuf[4];
+  } intvalue; // ,workvalue;
+
+  union {
+    float floatval;
+    char workbuf[4];
+  } floatvalue; // ,workvalue;
+
+  //  pthread_mutex_lock(&accumulatemutex);
+
+  // the Interlocked functions don't seem to have a simple read,
+  // so we use compare exchange as a read by setting next and
+  // expected to the same value, which is a no-op in all cases
+  
+  //current.intval = InterlockedCompareExchange(var,0,0);
+
+  // Unecessary per https://stackoverflow.com/questions/779996/reading-interlocked-variables/19982243
+  intvalue.intval= *src;
+
+  memcpy(&floatvalue.workbuf[0],&intvalue.workbuf[0],sizeof(float));
+  
+  return floatvalue.floatval;
+}
   
 #else
   
@@ -220,7 +293,8 @@ static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata
   
   *var += toadd; 
 }
-  
+
+// Note no atomicpixel_read implemented yet
   
 #else
 #warning No atomic support available from compiler; projection pixel corruption is possible!

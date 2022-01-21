@@ -1993,9 +1993,9 @@ namespace snde {
       x3d_assign_allocated_storage(meshedcurpart,"edges",graphman->geom.edges,firstedge,num_edges);
       std::shared_ptr<graphics_storage> vertstorage = x3d_assign_allocated_storage(meshedcurpart,"vertices",graphman->geom.vertices,firstvertex,num_vertices);
 
-
       x3d_assign_follower_storage(meshedcurpart,vertstorage,"vertex_edgelist_indices",graphman->geom.vertex_edgelist_indices);
       x3d_assign_allocated_storage(meshedcurpart,"vertex_edgelist",graphman->geom.vertex_edgelist,first_vertex_edgelist,next_vertex_edgelist_pos);
+      snde_debug(SNDE_DC_X3D,"X3D: Got %llu topos, %llu triangles, %llu edges, %llu vertices, %llu vertex_edgelists",(unsigned long long)topos.size(),(unsigned long long)coordIndex.size(),(unsigned long long)num_edges,(unsigned long long)num_vertices,(unsigned long long)next_vertex_edgelist_pos);
       
       
       meshedcurpart->metadata = std::make_shared<immutable_metadata>(); 

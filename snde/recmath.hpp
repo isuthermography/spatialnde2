@@ -299,7 +299,7 @@ namespace snde {
     std::shared_ptr<math_function_execution> execfunc; // tracking of this particular execution. Later globalrevs that will use the result unchanged may also point to this. (Each pointing globalrev should be registered in the execfunc's referencing_rss set so that it can get callbacks on completion). Note that this may be nullptr in various scenarios:  These might be new_revision_optional with changed inputs, dynamic dependencies with unchanged inputs, or functions dependent on those sorts of functions   (!!!*** Note than an unassigned execfunc needs to create an implicit self-dependency)
     
     std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<channelconfig>>> missing_external_channel_prerequisites; // all missing (non-ready...or !!!*** nonmdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Will be used e.g. for dependencies of on-demand recordings calculated in their own rss context
-    std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_function_prerequisites; // all missing (non-ready... or !!!*** non-mdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Currently used solely for self-dependencies (which can't be mdonly)
+    std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_function_prerequisites; // all missing (non-ready... or !!!*** non-mdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Currently used solely for self-dependencies (which can't be mdonly)... Paired with external_dependencies_on_function
 
     bool mdonly; // if this execution is actually mdonly. Feeds into execfunc->mdonly
 
@@ -327,9 +327,9 @@ namespace snde {
 
 
     // NOTE: an entry in either _external_dependencies_on_channel or _external_dependencies_on_function is sufficient to get you the needed callback. 
-    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> _external_dependencies_on_channel; // Lookup external math functions that are dependent on this channel -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your recording_set_state's admin lock. 
+    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> _external_dependencies_on_channel; // Lookup external math functions that are dependent on this channel -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your recording_set_state's admin lock. 
 
-    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> _external_dependencies_on_function; // Lookup external math functions that are dependent on this math function -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your recording_set_state's admin lock. 
+    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> _external_dependencies_on_function; // Lookup external math functions that are dependent on this math function -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your recording_set_state's admin lock. 
 
     std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> _extra_internal_dependencies_on_channel; // atomic shared pointer; use accessor and update functions. used for dynamically added dependencies of each function. 
 
@@ -342,19 +342,19 @@ namespace snde {
     
     math_status(std::shared_ptr<instantiated_math_database> math_functions,const std::map<std::string,channel_state> & channel_map);
 
-    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> begin_atomic_external_dependencies_on_channel_update(); // must be called with recording_set_state's admin lock held
-    void end_atomic_external_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep);
-    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_channel();
+    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> begin_atomic_external_dependencies_on_channel_update(); // must be called with recording_set_state's admin lock held
+    void end_atomic_external_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep);
+    std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_channel();
     
-    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> begin_atomic_external_dependencies_on_function_update(); // must be called with recording_set_state's admin lock held
-    void end_atomic_external_dependencies_on_function_update(std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep);
-    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_function(); 
+    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> begin_atomic_external_dependencies_on_function_update(); // must be called with recording_set_state's admin lock held
+    void end_atomic_external_dependencies_on_function_update(std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep);
+    std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_function(); 
 
     std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> begin_atomic_extra_internal_dependencies_on_channel_update(); // must be called with recording_set_state's admin lock held
     void end_atomic_extra_internal_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> newextdep);
     std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> extra_internal_dependencies_on_channel();
 
-    void notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> fcn,bool mdonly);
+    void notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> fcn,bool mdonly,bool possibly_redundant,std::shared_ptr<recording_set_state> prerequisite_state);
     
     // check_dep_fcn_ready() assumes dep_rss admin lock is already held
     void check_dep_fcn_ready(std::shared_ptr<recdatabase> recdb,
@@ -390,6 +390,7 @@ namespace snde {
     std::atomic<bool> executing; // the execution ticket (see try_execution_ticket() method)
     std::atomic<bool> is_mutable; // if this execution does in-place mutation of one or more of its parameters.
     std::atomic<bool> mdonly; // if this execution is actually mdonly
+    std::atomic<bool> instantiated; // if recordings are defined
     std::atomic<bool> metadata_executed; // if execution has completed at least through metadata
     std::atomic<bool> metadataonly_complete; // if we are only executing to metadataonly, this is the complete flag.
     std::atomic<bool> fully_complete; // function has fully executed to ready state
@@ -435,7 +436,7 @@ namespace snde {
 
 
     // self_dependent_recordings is auto-created by the constructor
-    std::vector<std::shared_ptr<recording_base>> self_dependent_recordings; // only valid (size() > 0) with implicit/explict self dependency. entries will be nullptr first time through anyway. Entries may also be nullptr if the function output is being ignored rather than stored in the recording database. ***!!! Must be set to nullptr after execution to avoid keeping old recordings alive ***!!!
+    std::vector<std::shared_ptr<recording_base>> self_dependent_recordings; // only valid (size() > 0) with implicit/explict self dependency. entries will be nullptr first time through anyway. Entries may also be nullptr if the function output is being ignored rather than stored in the recording database. ***!!! Must be cleared to nullptr after execution to avoid keeping old recordings alive ***!!!  -- read access OK by the holder of the execution ticket; Otherwise accesses should be protected by the math_function_execution's admin lock
 
     // compute_resource is assigned post-creation and will be compatible with the selected_compute_option
     // These should be finalized and safe to read from any thread once we are in the define_recs function.
@@ -469,6 +470,17 @@ namespace snde {
 
   };
 
+
+  class math_parameter_mismatch: public snde_error {
+  public:
+    template<typename ... Args>
+    math_parameter_mismatch(std::string fmt, Args && ... args) :
+      snde_error(fmt,std::forward<Args>(args) ...)
+    {
+
+    }
+    virtual ~math_parameter_mismatch() = default;
+  };
 
 
   class registered_math_function {

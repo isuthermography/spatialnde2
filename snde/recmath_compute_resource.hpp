@@ -34,6 +34,7 @@ namespace snde {
   class compute_code; // defined in recstore.hpp
   class recording_set_state; // defined in recstore.hpp
   class recdatabase; // defined in recstore.hpp
+  class recording_base; // defined in recstore.hpp
   class instantiated_math_function; // defined in recmath.hpp
   class executing_math_function; // defined in recmath.hpp
   class math_function_execution; // defined in recmath.hpp
@@ -111,8 +112,14 @@ namespace snde {
     
   };
 
+  void join_rss_into_function_result_state(std::shared_ptr<math_function_execution> execfunc,std::shared_ptr<recording_set_state> source_rss,std::shared_ptr<recording_set_state> new_rss);
+
+  void execution_complete_notify_single_referencing_rss(std::shared_ptr<recdatabase> recdb,std::shared_ptr<math_function_execution> execfunc,bool mdonly,bool possibly_redundant,std::shared_ptr<recording_set_state> prerequisite_state,std::shared_ptr<recording_set_state> single_referencing_rss);
 
 
+  // ***!!!!! You must have the execution ticket -- "true" value from try_execution_ticket() in order to call this
+  void _wrap_up_execution(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> ready_rss,std::shared_ptr<instantiated_math_function> ready_fcn,std::vector<std::shared_ptr<recording_base>> result_channel_recs);
+  
   
   // available_compute_resource_database is the
   // database of available compute resources kept

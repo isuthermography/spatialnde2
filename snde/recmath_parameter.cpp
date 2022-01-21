@@ -14,44 +14,44 @@ namespace snde {
 
   std::string math_parameter::get_string(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   {
-    throw snde_error("Cannot get string value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
+    throw math_parameter_mismatch("Cannot get string value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
   }
   
   int64_t math_parameter::get_int(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   {
-    throw snde_error("Cannot get integer value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
+    throw math_parameter_mismatch("Cannot get integer value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
     
   }
 
   uint64_t math_parameter::get_unsigned(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   {
-    throw snde_error("Cannot get unsigned integer value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
+    throw math_parameter_mismatch("Cannot get unsigned integer value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
     
   }
 
   
   double math_parameter::get_double(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   {
-    throw snde_error("Cannot get double value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
+    throw math_parameter_mismatch("Cannot get double value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
 
   }
 
   std::vector<snde_index> math_parameter::get_indexvec(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   {
-    throw snde_error("Cannot get index vector value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
+    throw math_parameter_mismatch("Cannot get index vector value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
 
   }
 
   
   std::shared_ptr<recording_base> math_parameter::get_recording(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings
   {
-    throw snde_error("Cannot get recording value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
+    throw math_parameter_mismatch("Cannot get recording value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
 
   }
 
   std::shared_ptr<ndarray_recording_ref> math_parameter::get_ndarray_recording_ref(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings. parameter_index starting at 1, just for printing messages
   {
-    throw snde_error("Cannot get recording value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
+    throw math_parameter_mismatch("Cannot get recording value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
 
   }
   
@@ -298,7 +298,7 @@ namespace snde {
     std::shared_ptr<multi_ndarray_recording> rec=std::dynamic_pointer_cast<multi_ndarray_recording>(get_recording(rss,channel_path_context,fcn_def,parameter_index));
 
     if (!rec) {
-      throw snde_error("Recording parameter %s relative to %s is not convertible to a multi_ndarray_recording",channel_path_context.c_str(),channel_name.c_str());
+      throw math_parameter_mismatch("Recording parameter %s relative to %s is not convertible to a multi_ndarray_recording",channel_name.c_str(),channel_path_context.c_str());
     }
 
     size_t index = array_index;

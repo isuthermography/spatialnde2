@@ -139,13 +139,13 @@ namespace snde {
     }
     bool supports_nonmoving_reference() // returns true if this allocator can return a nonmoving reference rather than a copy. The nonmoving reference will stay coherent with the original.
     {
-      return false; 
+      return false;
     }
     
     std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id, void **basearray,void *ptr, std::size_t offset, std::size_t nbytes)
     {
-      void *copyptr = std::malloc(nbytes);
-      memcpy(copyptr,((char *)ptr)+offset,nbytes);
+      //void *copyptr = std::malloc(nbytes);
+      //memcpy(copyptr,((char *)ptr)+offset,nbytes);
       return std::make_shared<nonmoving_copy_or_reference_cmem>(offset,nbytes,basearray,ptr);
     }
 

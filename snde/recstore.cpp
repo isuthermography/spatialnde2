@@ -541,6 +541,7 @@ namespace snde {
     bool mdonly=false; // set to true if we are an mdonly channel and therefore should send out mdonly notifications
     
     std::shared_ptr<recording_set_state> rss; // originating rss
+    std::shared_ptr<recording_set_state> prerequisite_state; // prerequisite_state of originating rss
     
     std::shared_ptr<recdatabase> recdb = recdb_weak.lock();
     if (!recdb) return;
@@ -570,6 +571,7 @@ namespace snde {
       // with transaction complete, should be able to get an originating rss
       // (trying to make the state change atomically)
       rss = get_originating_rss();
+      prerequisite_state = rss->prerequisite_state();
       std::lock_guard<std::mutex> rss_admin(rss->admin);
       std::lock_guard<std::mutex> adminlock(admin);
       assert(metadata);
@@ -619,7 +621,7 @@ namespace snde {
     // Above replaced by chanstate.issue_nonmath_notifications
 
     //if (mdonly) {
-    chanstate->issue_math_notifications(recdb,rss,true);
+    chanstate->issue_math_notifications(recdb,rss,prerequisite_state);
     chanstate->issue_nonmath_notifications(rss);
     //}
     
@@ -629,6 +631,7 @@ namespace snde {
   {
     std::string channame;
     std::shared_ptr<recording_set_state> rss; // originating rss
+    std::shared_ptr<recording_set_state> prerequisite_state; // prerequisite_state of originating rss
     //std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_ready;
     //std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_metadataonly;
 
@@ -681,6 +684,7 @@ namespace snde {
       // with transaction complete, should be able to get an originating rss
       // (trying to make the state change atomically)
       rss = get_originating_rss();
+      prerequisite_state = rss->prerequisite_state();
       std::lock_guard<std::mutex> rss_admin(rss->admin);
       std::lock_guard<std::mutex> adminlock(admin);
 
@@ -739,7 +743,7 @@ namespace snde {
 
 
     //assert(chanstate.notify_about_this_channel_metadataonly());
-    chanstate->issue_math_notifications(recdb,rss,true);
+    chanstate->issue_math_notifications(recdb,rss,prerequisite_state);
     chanstate->issue_nonmath_notifications(rss);
   }
 
@@ -844,10 +848,15 @@ namespace snde {
   }
 
 
+  null_recording::null_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize/*=0*/) :
+    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,recording_default_info_structsize(info_structsize,sizeof(snde_recording_base)))
+  {
+    
+  }
   
 
   recording_group::recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,std::shared_ptr<std::string> path_to_primary,size_t info_structsize/*=0*/) :
-    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize),
+    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,recording_default_info_structsize(info_structsize,sizeof(snde_recording_base))),
     path_to_primary(path_to_primary)
   {
 
@@ -946,6 +955,35 @@ namespace snde {
     
   }
 
+  std::shared_ptr<std::vector<std::string>> multi_ndarray_recording::list_arrays()
+  {
+    std::shared_ptr<std::vector<std::string>> retval = std::make_shared<std::vector<std::string>>();
+
+    std::lock_guard<std::mutex> recadmin(admin);
+    size_t num_refs = layouts.size();
+    if (!num_refs) {
+      return retval;
+    }
+    
+    if (num_refs==1 && name_reverse_mapping.size()==0) {
+      if (name_mapping.size() < 0) {
+	snde_warning("ndarray %s does not provide a name mapping",info->name);
+	return retval;
+      }
+      retval->push_back(name_mapping.begin()->first);
+    } else {
+      size_t refnum;
+      for (refnum=0;refnum < num_refs;refnum++) {
+	retval->push_back(name_reverse_mapping.at(refnum));
+	
+      }
+    }
+    
+
+    return retval;
+  }
+
+  
   std::shared_ptr<ndarray_recording_ref> multi_ndarray_recording::reference_ndarray(size_t index)
   {
 
@@ -1223,7 +1261,7 @@ namespace snde {
     
     // NOTE: Graphics storage manager allocate_recording() will create a nonmoving shadow if possible
     // to eliminate the need for locking
-    stor = storman->allocate_recording(info->name,array_name,originating_rss_unique_id,array_index,info->revision,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem,!info->immutable);
+    stor = storman->allocate_recording(info->name,array_name,info->revision,originating_rss_unique_id,array_index,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem,!info->immutable);
     
     assign_storage(stor,array_index,dimlen,fortran_order);
 
@@ -1810,7 +1848,7 @@ namespace snde {
     std::unordered_set<channel_state *> *ready_channels, // references into the new_rss->recstatus.channel_map
 					     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> *ready_to_execute,
 					     bool *all_ready,
-					     bool enable_ondemand)
+					     bool ondemand_only) // ondemand_only enables the ondemand mode, not worrying about math calculations that have don't have the ondemand flag set, and yes worrying about math calculations that do have the ondemand flag set
   {
 
 
@@ -1848,7 +1886,7 @@ namespace snde {
     // or derive (perhaps indirectly) by non-new_revision_optional function(s) from a directly modified channel 
     std::unordered_set<std::shared_ptr<channelconfig>>::iterator channel_to_dispatch_it = changed_channels_need_dispatch->begin();
     while (channel_to_dispatch_it != changed_channels_need_dispatch->end()) {
-      _identify_changed_channels(all_channels_by_name,new_rss->mathstatus.math_functions, unknownchanged_math_functions,changed_math_functions,unknownchanged_channels,changed_channels_dispatched,changed_channels_need_dispatch,&possiblychanged_math_functions,channel_to_dispatch_it, enable_ondemand );
+      _identify_changed_channels(all_channels_by_name,new_rss->mathstatus.math_functions, unknownchanged_math_functions,changed_math_functions,unknownchanged_channels,changed_channels_dispatched,changed_channels_need_dispatch,&possiblychanged_math_functions,channel_to_dispatch_it, ondemand_only );
 
       channel_to_dispatch_it = changed_channels_need_dispatch->begin();
     }
@@ -1883,7 +1921,7 @@ namespace snde {
     // Now recursively seek out any other possiblychanged_channels 
     channel_to_dispatch_it = possiblychanged_channels_need_dispatch.begin();
     while (channel_to_dispatch_it != possiblychanged_channels_need_dispatch.end()) {
-      _identify_possiblychanged_channels(all_channels_by_name,new_rss->mathstatus.math_functions, unknownchanged_math_functions,changed_math_functions,unknownchanged_channels,changed_channels_dispatched,&possiblychanged_channels_dispatched,&possiblychanged_channels_need_dispatch,&possiblychanged_math_functions,channel_to_dispatch_it, enable_ondemand );
+      _identify_possiblychanged_channels(all_channels_by_name,new_rss->mathstatus.math_functions, unknownchanged_math_functions,changed_math_functions,unknownchanged_channels,changed_channels_dispatched,&possiblychanged_channels_dispatched,&possiblychanged_channels_need_dispatch,&possiblychanged_math_functions,channel_to_dispatch_it, ondemand_only );
 
       channel_to_dispatch_it = possiblychanged_channels_need_dispatch.begin();
     }
@@ -1962,8 +2000,9 @@ namespace snde {
 
       std::shared_ptr<instantiated_math_function> unchanged_channel_math_function;
       bool is_mdonly = false;
-      
-      if (unchanged_channel->math) {
+     
+      if (unchanged_channel->math && !(ondemand_only ^ unchanged_channel->ondemand)) {
+	// for math channels, ondemand math channels iff ondemand_only is set, non-ondemand channels iff ondemand_only is not set 
 	unchanged_channel_math_function = new_rss->mathstatus.math_functions->defined_math_functions.at(unchanged_channel->channelpath);
 	is_mdonly = unchanged_channel_math_function->mdonly; // new_rss->mathstatus.function_status.at(unchanged_channel_math_function).mdonly;
 	
@@ -1991,9 +2030,9 @@ namespace snde {
       //std::forward_as_tuple(unchanged_channel->channelpath),
       //						 std::forward_as_tuple(unchanged_channel,channel_rec,false)); // mark channel_state as not updated
       channel_map_it = new_rss->recstatus.channel_map.find(unchanged_channel->channelpath);
+      assert(channel_map_it != new_rss->recstatus.channel_map.end());
       channel_map_it->second._rec = channel_rec; // may be nullptr if recording hasn't been defined yet
       
-      assert(channel_map_it != new_rss->recstatus.channel_map.end());
 
       // check if added channel is complete
       if (channel_rec_is_complete) {
@@ -2003,7 +2042,8 @@ namespace snde {
 	
 	// if it is math, queue it to mark the function_status as complete, because if we are looking at it here, all
 	// direct or indirect prerequisites must also be unchanged
-	if (unchanged_channel->math) {
+	if (unchanged_channel->math && !(ondemand_only ^ unchanged_channel->ondemand)) {
+	  // for math channels, ondemand math channels iff ondemand_only is set, non-ondemand channels iff ondemand_only is not set
 	  std::shared_ptr<instantiated_math_function> channel_math_function = new_rss->mathstatus.math_functions->defined_math_functions.at(unchanged_channel->channelpath);
 	  if (is_mdonly) {
 	    unchanged_complete_math_functions_mdonly.emplace(channel_math_function);
@@ -2022,7 +2062,8 @@ namespace snde {
 							 std::forward_as_tuple((channel_state *)&channel_map_it->second));
       } else {
 	// in this case channel_rec may or may not exist and is NOT complete
-	if (unchanged_channel->math) {
+	if (unchanged_channel->math && !(ondemand_only ^ unchanged_channel->ondemand)) {
+	// for math channels, ondemand math channels iff ondemand_only is set, non-ondemand channels iff ondemand_only is not set
 	  
 	  unchanged_incomplete_math_functions.emplace(unchanged_channel_math_function);
 	  if (is_mdonly) {
@@ -2171,7 +2212,7 @@ namespace snde {
       cmf_status.mdonly = mdonly;
       cmf_status.execfunc = std::make_shared<math_function_execution>(new_rss,changed_math_function,mdonly,changed_math_function->is_mutable);
       
-      snde_debug(SNDE_DC_RECDB,"make execfunc=0x%llx; new_rss=0x%lx",(unsigned long long)cmf_status.execfunc.get(),(unsigned long long )new_rss.get());
+      snde_debug(SNDE_DC_RECDB,"make execfunc=0x%llx for %s; new_rss=0x%lx",(unsigned long long)cmf_status.execfunc.get(),changed_math_function->definition->definition_command.c_str(),(unsigned long long )new_rss.get());
 
       // since execution is mandatory we define the new
       // revision numbers for each of the channels now, so that
@@ -2365,7 +2406,7 @@ namespace snde {
     for (auto && mathfunction_alldeps: new_rss->mathstatus.math_functions->all_dependencies_of_function) {
       std::shared_ptr<instantiated_math_function> mathfunction = mathfunction_alldeps.first;
 
-      if (mathfunction->disabled || (mathfunction->ondemand && !enable_ondemand)) { // don't worry about disabled or on-demand functions unless we are in ondemand mode
+      if (mathfunction->disabled || (mathfunction->ondemand ^ ondemand_only)) { // don't worry about disabled or on-demand functions unless we are in ondemand mode
 	continue;
       }
       
@@ -2396,14 +2437,33 @@ namespace snde {
 	    //snde_debug(SNDE_DC_RECDB,"prereq_channel=\"%s\"",prereq_channel.c_str());
 	    //snde_debug(SNDE_DC_RECDB,"chan_map_begin()=\"%s\"",new_rss->recstatus.channel_map.begin()->first.c_str());
 	    //snde_debug(SNDE_DC_RECDB,"chan_map_2nd=\"%s\"",(++new_rss->recstatus.channel_map.begin())->first.c_str());
-	    channel_state &prereq_chanstate = new_rss->recstatus.channel_map.at(prereq_channel);
 
+
+	    auto prereq_chan_it = new_rss->recstatus.channel_map.find(prereq_channel);
+	    if (prereq_chan_it==new_rss->recstatus.channel_map.end()) {
+	      std::string result_name="(nullptr)";
+
+	      std::shared_ptr<std::string> result_name_ptr = mathfunction->result_channel_paths.at(0);
+	      if (result_name_ptr) {
+		result_name = *result_name_ptr;
+	      }
+	      throw snde_error("Prerequisite channel %s of math function %s does not exist",prereq_channel.c_str(),result_name.c_str());
+	      
+	    }
+	    
+	    channel_state &prereq_chanstate = prereq_chan_it->second;
+	     
 	    bool prereq_complete = false; 
 	    
 	    std::shared_ptr<recording_base> prereq_rec = prereq_chanstate.rec();
-	    int prereq_rec_state = prereq_rec->info_state;
+	    int prereq_rec_state = SNDE_RECS_INITIALIZING;
+
+	    if (prereq_rec) {
+	      prereq_rec_state = prereq_rec->info_state;
+	    }
 	    
-	    if (prereq_chanstate.config->math) {
+	    if (prereq_chanstate.config->math && !(ondemand_only ^ prereq_chanstate.config->ondemand)) {
+	      // for math channels, ondemand math channels iff ondemand_only is set, non-ondemand channels iff ondemand_only is not set
 	      std::shared_ptr<instantiated_math_function> math_prereq = new_rss->mathstatus.math_functions->defined_math_functions.at(prereq_channel);
 
 	      if (mathfunction_is_mdonly && math_prereq->mdonly && prereq_rec && (prereq_rec_state == SNDE_RECS_METADATAREADY || prereq_rec_state==SNDE_RECS_READY)) {
@@ -2446,17 +2506,46 @@ namespace snde {
     }
     
     // add self-dependencies to the missing_external_prerequisites of this new_rss
-    for (auto && self_dep : self_dependencies) {
-      new_rss->mathstatus.function_status.at(self_dep).missing_external_function_prerequisites.emplace(std::make_tuple(previous_rss,self_dep));
+    if (previous_rss) { // (at least if there was a previous_rss to be dependent on)
+      for (auto && self_dep : self_dependencies) {
+	new_rss->mathstatus.function_status.at(self_dep).missing_external_function_prerequisites.emplace(std::make_tuple(previous_rss,self_dep));
+	
+      }
     }
 
     
     // Note from hereon we have published our new new_rss so we have to be a bit more careful about
     // locking it because we might get notification callbacks or similar if one of those external recordings becomes ready
 
+    // Everything in missing_external_function_prerequisites also needs to be in the
+    // external rss's external_dependencies_on_function
+    if (previous_rss) { // (at least if there was a previous_rss to be dependent on) 
+      std::lock_guard<std::mutex> previous_rss_admin(previous_rss->admin);
+      
+      std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> new_previous_rss_external_dependencies_on_function = previous_rss->mathstatus.begin_atomic_external_dependencies_on_function_update();
+      for (auto && self_dep : self_dependencies) {
+	auto extdep_it = new_previous_rss_external_dependencies_on_function->find(self_dep);
+	if (extdep_it == new_previous_rss_external_dependencies_on_function->end()) {
+	  new_previous_rss_external_dependencies_on_function->emplace(self_dep,
+										  std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>());
+	}
+	std::shared_ptr<globalrevision> previous_globalrev = std::dynamic_pointer_cast<globalrevision>(previous_rss);
+	std::shared_ptr<globalrevision> new_globalrev = std::dynamic_pointer_cast<globalrevision>(new_rss);
+	if (previous_globalrev) {
+	  snde_debug(SNDE_DC_RECMATH,"globalrev %d adding %s (0x%llx) in rev %d as dependent",
+		     (unsigned long long)previous_globalrev->globalrev,
+		     self_dep->definition->definition_command.c_str(),
+		     (unsigned long long)self_dep.get(),
+		     new_globalrev->globalrev);
+	}
+	new_previous_rss_external_dependencies_on_function->at(self_dep).push_back(std::make_tuple(new_rss,self_dep));
+      }
+      previous_rss->mathstatus.end_atomic_external_dependencies_on_function_update(new_previous_rss_external_dependencies_on_function);
+    }
+    
     // Go through all our math functions and make sure we are
     // in the referencing_rss set of their execfunc's
-
+    
     // iterate through all math functions, putting us in their referencing_rss
     {
       std::lock_guard<std::mutex> new_rss_admin(new_rss->admin);
@@ -2471,6 +2560,7 @@ namespace snde {
 	}
       }
     }
+
 
 
     // !!!*** Should go through all functions again (maybe after rest of notifies set up?) and check status and use refactored code from math_status::notify_math_function_executed() to detect function completion. ***!!!
@@ -2488,8 +2578,10 @@ namespace snde {
     if (previous_rss) {  
       std::lock_guard<std::mutex> previous_rss_admin(previous_rss->admin);
 
-      std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> new_prevglob_extdep = previous_rss->mathstatus.begin_atomic_external_dependencies_on_function_update();
+      std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> new_prevglob_extdep = previous_rss->mathstatus.begin_atomic_external_dependencies_on_function_update();
 
+      std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> completed_self_deps_to_remove_from_missing_external_function_prequisites;
+      
       for (auto && self_dep : self_dependencies) {
 	// Check to make sure previous new_rss even has this exact math function.
 	// if so it should be a key in the in the mathstatus.math_functions->all_dependencies_of_function unordered_map
@@ -2499,18 +2591,42 @@ namespace snde {
 	  if (previous_rss->mathstatus.function_status.at(self_dep).complete) {
 	    
 	    // complete -- perform ready check on this recording
-	    need_to_check_if_ready.emplace(self_dep);
+	    need_to_check_if_ready.emplace(self_dep); // should already be there
+	    completed_self_deps_to_remove_from_missing_external_function_prequisites.emplace(std::make_tuple(previous_rss,self_dep));
 	  } else {
 	    //add to previous new_rss's _external_dependencies
 	    new_prevglob_extdep->at(self_dep).push_back(std::make_tuple(new_rss,self_dep));
 	  }
+	} else {
+	  // previous RSS doesn't have this function
+
+	  need_to_check_if_ready.emplace(self_dep); // should already be there
+	  completed_self_deps_to_remove_from_missing_external_function_prequisites.emplace(std::make_tuple(previous_rss,self_dep));
+	  
+	  
 	}
       }
       previous_rss->mathstatus.end_atomic_external_dependencies_on_function_update(new_prevglob_extdep);
-      
-      
-    }
 
+      for (auto && prev_rss_completed_self_dep: completed_self_deps_to_remove_from_missing_external_function_prequisites) {
+
+	std::weak_ptr<recording_set_state> prev_rss_weak = std::get<0>(prev_rss_completed_self_dep);
+	std::shared_ptr<recording_set_state> prev_rss = prev_rss_weak.lock();
+
+	if (prev_rss) {
+	  std::shared_ptr<instantiated_math_function> self_dep = std::get<1>(prev_rss_completed_self_dep);
+	  std::lock_guard<std::mutex> new_rss_admin(new_rss->admin);
+	  math_function_status &mf_status = new_rss->mathstatus.function_status.at(self_dep);
+	  
+	  // erase it from missing_external_function_prerequisites since it
+	  // isn't really a prerequisite if it doesn't exist
+	  mf_status.missing_external_function_prerequisites.erase(std::make_tuple(prev_rss,self_dep));
+	}
+      }
+      
+      
+    } 
+    
 
     for (auto && readycheck : need_to_check_if_ready) {
       std::unique_lock<std::mutex> new_rss_admin(new_rss->admin);
@@ -2524,11 +2640,12 @@ namespace snde {
     // Create a shadow pointer of new_rss if new_rss is actually a globalrev
     
     std::shared_ptr<globalrevision> new_globalrev = std::dynamic_pointer_cast<globalrevision>(new_rss);
+    std::shared_ptr<globalrevision> prev_globalrev = std::dynamic_pointer_cast<globalrevision>(previous_rss);
 
     if (new_globalrev) {
       for (auto && chanstate: unchanged_incomplete_channels) { // chanstate is a channel_state &
 	channel_state &previous_state = previous_rss->recstatus.channel_map.at(chanstate->config->channelpath);
-	std::shared_ptr<_unchanged_channel_notify> unchangednotify=std::make_shared<_unchanged_channel_notify>(recdb,new_globalrev,previous_state,*chanstate,false);
+	std::shared_ptr<_unchanged_channel_notify> unchangednotify=std::make_shared<_unchanged_channel_notify>(recdb,prev_globalrev,new_globalrev,previous_state,*chanstate,false);
 	unchangednotify->apply_to_rss(previous_rss); 
 	/*this code replaced by apply_to_rss()
 	std::unique_lock<std::mutex> previous_rss_admin(previous_rss->admin);
@@ -2544,7 +2661,7 @@ namespace snde {
 
       for (auto && chanstate: unchanged_incomplete_mdonly_channels) { // chanstate is a channel_state &
 	channel_state &previous_state = previous_rss->recstatus.channel_map.at(chanstate->config->channelpath);
-	std::shared_ptr<_unchanged_channel_notify> unchangednotify=std::make_shared<_unchanged_channel_notify>(recdb,new_globalrev,previous_state,*chanstate,true);
+	std::shared_ptr<_unchanged_channel_notify> unchangednotify=std::make_shared<_unchanged_channel_notify>(recdb,prev_globalrev,new_globalrev,previous_state,*chanstate,true);
 	unchangednotify->apply_to_rss(previous_rss); 
 
 	/* this code replaced by apply_to_rss()
@@ -2738,8 +2855,9 @@ namespace snde {
     // Second, make sure if a channel was created, it has a recording present and gets put in the channel_map
     for (auto && updated_chan: recdb_strong->current_transaction->updated_channels) {
       std::shared_ptr<channelconfig> config = updated_chan->config();
-      std::shared_ptr<multi_ndarray_recording> new_rec;
-      std::shared_ptr<ndarray_recording_ref> new_rec_ref;
+      //std::shared_ptr<multi_ndarray_recording> new_rec;
+      //std::shared_ptr<ndarray_recording_ref> new_rec_ref;
+      std::shared_ptr<null_recording> new_rec;
 
       if (config->math) {
 	continue; // math channels get their recordings defined automatically
@@ -2755,8 +2873,8 @@ namespace snde {
       // new recording should be required but not present; create one
       assert(recdb_strong->current_transaction->new_recording_required.at(config->channelpath) && new_recording_it==recdb_strong->current_transaction->new_recordings.end());
       //new_rec = std::make_shared<recording_base>(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32); // constructor adds itself to current transaction
-      new_rec_ref = create_recording_ref(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32);
-      new_rec = new_rec_ref->rec;
+      //new_rec_ref = create_recording_ref(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32);
+      new_rec = std::make_shared<null_recording>(recdb_strong,select_storage_manager_for_recording_during_transaction(recdb_strong,config->channelpath.c_str()),recdb_strong->current_transaction,config->channelpath,globalrev,++updated_chan->latest_revision);
       //recordings_needing_finalization.emplace(new_rec); // Since we provided this, we need to make it ready, below
       
       // insert new recording into channel_map
@@ -2773,7 +2891,7 @@ namespace snde {
       // assign blank waveform content
       new_rec->metadata = std::make_shared<immutable_metadata>();
       new_rec->mark_metadata_done();
-      new_rec->allocate_storage(0,std::vector<snde_index>());
+      //new_rec->allocate_storage(0,std::vector<snde_index>());
       new_rec->mark_as_ready();
       
       // mark it as completed
@@ -2813,7 +2931,7 @@ namespace snde {
 					  &explicitly_updated_channels,
 					  &ready_channels,
 					  &ready_to_execute,&all_ready,
-					  false); // enable_ondemand
+					  false); // ondemand_only
 
     
     // ***!!! Need to got through unchanged_incomplete_math_functions and get notifies when these become complete, if necessary (?)
@@ -3087,19 +3205,29 @@ namespace snde {
 
 
 
-  static void issue_math_notifications_check_dependent_channel(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> dep_fcn,std::shared_ptr<channelconfig> config,bool channel_modified, bool got_mdonly, bool got_fullyready,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute)
+  static void issue_math_notifications_check_dependent_channel(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> dep_fcn,std::shared_ptr<channelconfig> config,std::shared_ptr<recording_base> new_rec, bool got_mdonly, bool got_fullyready,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute,std::shared_ptr<recording_set_state> prerequisite_state)
   {
     // dep_fcn is a shared_ptr to an instantiated_math_function
     std::unique_lock<std::mutex> rss_admin(rss->admin);
     
     std::set<std::shared_ptr<channelconfig>>::iterator missing_prereq_it;
     math_function_status &dep_fcn_status = rss->mathstatus.function_status.at(dep_fcn);
-    if (!dep_fcn_status.execution_demanded) {
-      return;  // ignore unless we are about execution
-    }
     
     // If the dependent function is mdonly then we only have to be mdonly. Otherwise we have to be fullyready
     if (got_fullyready || (got_mdonly && dep_fcn_status.mdonly)) {
+
+      const recording_status &prior_rss_status = prerequisite_state->recstatus;
+      
+      bool channel_modified = false;
+      auto prior_cm_it = prior_rss_status.channel_map.find(config->channelpath);
+      if (prior_cm_it == prior_rss_status.channel_map.end()) {
+	channel_modified=true;
+      } else {
+	std::shared_ptr<recording_base> prior_recording=prior_cm_it->second.rec();
+	if (new_rec != prior_recording) {
+	  channel_modified=true;
+	}
+      }
       
       // Remove us as a missing prerequisite
       missing_prereq_it = dep_fcn_status.missing_prerequisites.find(config);
@@ -3109,19 +3237,23 @@ namespace snde {
 	  dep_fcn_status.num_modified_prerequisites++;
 	}
       }
-      
+
+
+	
       rss->mathstatus.check_dep_fcn_ready(recdb,rss,dep_fcn,&dep_fcn_status,ready_to_execute,rss_admin);
+      
+
     }
     
   }
   
-  void channel_state::issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,bool channel_modified) // rss is used to lock this channel_state object
+  void channel_state::issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<recording_set_state> prerequisite_state) // rss is used to lock this channel_state object
   // Must be called without anything locked. Issue notifications requested in _notify* and remove those notification requests,
   // based on the channel_state's current status
   {
 
     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> ready_to_execute;
-    
+    std::shared_ptr<recording_base> new_rec = rec();
     // Issue metadataonly notifications
     bool got_mdonly = (bool)recording_is_complete(true);
     bool got_fullyready = (bool)recording_is_complete(false);
@@ -3132,7 +3264,7 @@ namespace snde {
       if (dep_it != rss->mathstatus.math_functions->all_dependencies_of_channel.end()) {
 	for (auto && dep_fcn: dep_it->second) {
     	  // dep_fcn is a shared_ptr to an instantiated_math_function
-	  issue_math_notifications_check_dependent_channel(recdb,rss,dep_fcn,config,channel_modified,got_mdonly,got_fullyready,ready_to_execute);
+	  issue_math_notifications_check_dependent_channel(recdb,rss,dep_fcn,config,new_rec,got_mdonly,got_fullyready,ready_to_execute,prerequisite_state);
 	}
       }
 
@@ -3144,29 +3276,31 @@ namespace snde {
       if (ext_internal_dep_it != ext_internal_dep->end()) {
 	// found extra internal dependencies
 	for (auto && rss_extintdepfcn: ext_internal_dep_it->second ) {
-	  issue_math_notifications_check_dependent_channel(recdb,rss,rss_extintdepfcn,config,channel_modified,got_mdonly,got_fullyready,ready_to_execute);
+	  issue_math_notifications_check_dependent_channel(recdb,rss,rss_extintdepfcn,config,new_rec,got_mdonly,got_fullyready,ready_to_execute,prerequisite_state);
 	}
       }
       
-      std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> ext_dep_on_channel = rss->mathstatus.external_dependencies_on_channel();
+      std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> ext_dep_on_channel = rss->mathstatus.external_dependencies_on_channel();
       auto extdep_it = ext_dep_on_channel->find(config);
 
       if (extdep_it != ext_dep_on_channel->end()) {
 	for (auto && rss_extdepfcn: extdep_it->second ) {
-	  std::shared_ptr<recording_set_state> &dependent_rss = std::get<0>(rss_extdepfcn);
+	  std::weak_ptr<recording_set_state> &dependent_rss_weak = std::get<0>(rss_extdepfcn);
+	  std::shared_ptr<recording_set_state> dependent_rss = dependent_rss_weak.lock();
 	  std::shared_ptr<instantiated_math_function> &dependent_func = std::get<1>(rss_extdepfcn);
-	  
-	  std::unique_lock<std::mutex> dependent_rss_admin(dependent_rss->admin);
-	  math_function_status &function_status = dependent_rss->mathstatus.function_status.at(dependent_func);
-	  std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<channelconfig>>>::iterator
-	    dependent_prereq_it = function_status.missing_external_channel_prerequisites.find(std::make_tuple(rss,config));
-	  
-	  if (dependent_prereq_it != function_status.missing_external_channel_prerequisites.end()) {
-	    function_status.missing_external_channel_prerequisites.erase(dependent_prereq_it);
-	  
+
+	  if (dependent_rss) {
+	    std::unique_lock<std::mutex> dependent_rss_admin(dependent_rss->admin);
+	    math_function_status &function_status = dependent_rss->mathstatus.function_status.at(dependent_func);
+	    std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<channelconfig>>>::iterator
+	      dependent_prereq_it = function_status.missing_external_channel_prerequisites.find(std::make_tuple(rss,config));
+	    
+	    if (dependent_prereq_it != function_status.missing_external_channel_prerequisites.end()) {
+	      function_status.missing_external_channel_prerequisites.erase(dependent_prereq_it);
+	      
+	    }
+	    dependent_rss->mathstatus.check_dep_fcn_ready(recdb,dependent_rss,dependent_func,&function_status,ready_to_execute,dependent_rss_admin);
 	  }
-	  dependent_rss->mathstatus.check_dep_fcn_ready(recdb,dependent_rss,dependent_func,&function_status,ready_to_execute,dependent_rss_admin);
-	
 	}
       }
     }
@@ -3373,6 +3507,76 @@ namespace snde {
     }
   }
 
+
+  std::string recording_set_state::get_math_status()
+  {
+    std::lock_guard<std::mutex> rss_admin(admin);
+    std::string retval="[\n";
+
+    retval += "pending:\n";
+    for (auto && inst: mathstatus.pending_functions) {
+      retval += "  \"" + inst->definition->definition_command + "\"\n";
+    }
+    
+    retval += "mdonly_pending:\n";
+    for (auto && inst: mathstatus.mdonly_pending_functions) {
+      retval += "  \"" + inst->definition->definition_command + "\"\n";
+    }
+
+    retval += "completed:\n";
+    for (auto && inst: mathstatus.completed_functions) {
+      retval += "  \"" + inst->definition->definition_command + "\"\n";
+    }
+    retval += "completed_mdonly:\n";
+    for (auto && inst: mathstatus.completed_mdonly_functions) {
+      retval += "  \"" + inst->definition->definition_command + "\"\n";
+    }
+    retval += "]\n";
+
+    return retval;
+  }
+
+  std::string recording_set_state::get_math_function_status(std::string definition_command)
+  {
+    std::lock_guard<std::mutex> rss_admin(admin);
+    
+    std::string retval;
+    bool gotmatch = false;
+    
+    for (auto && inst_funcstat: mathstatus.function_status) {
+      if (inst_funcstat.first->definition->definition_command==definition_command) {
+	gotmatch = true;
+	retval += definition_command + " [\n";
+	const math_function_status &funcstat = inst_funcstat.second;
+	retval += "missing_prerequisites:\n";
+	for (auto channelconf_ptr: funcstat.missing_prerequisites) {
+	  retval+="  \""+channelconf_ptr->channelpath + "\"\n";
+	}
+	retval += ssprintf("num_modified_prerequisites: %d\n",funcstat.num_modified_prerequisites);
+	retval += ssprintf("execfunc=0x%llx\n",(unsigned long long)funcstat.execfunc.get());
+	retval += "missing_external_channel_prerequisites:\n";
+	for (auto rss_channelconf: funcstat.missing_external_channel_prerequisites) {
+	  retval+= ssprintf("  rss: 0x%llx; \"%s\"\n",(unsigned long long)std::get<0>(rss_channelconf).get(),std::get<1>(rss_channelconf)->channelpath.c_str());
+	}
+	retval += "missing_external_function_prerequisites:\n";
+	for (auto rss_inst: funcstat.missing_external_function_prerequisites) {
+	  retval+= ssprintf("  rss: 0x%llx; \"%s\"\n",(unsigned long long)std::get<0>(rss_inst).get(),std::get<1>(rss_inst)->definition->definition_command.c_str());
+	}
+	retval += "mdonly: " + std::to_string(funcstat.mdonly) + "\n";
+	retval += "self_dependent: " + std::to_string(funcstat.self_dependent) + "\n";
+	retval += "execution_demanded: " + std::to_string(funcstat.execution_demanded) + "\n";
+	retval += "ready_to_execute: " + std::to_string(funcstat.ready_to_execute) + "\n";
+	retval += "complete: " + std::to_string(funcstat.complete) + "\n";
+	
+	retval += "]\n";
+      }
+    }
+    if (!gotmatch) {
+      retval += "(function not found)\n";
+    }
+    return retval;
+  }
+  
   uint64_t rss_get_unique()
   {
     // return a process-wide unique (incrementing) identifier. Process wide
@@ -3520,6 +3724,74 @@ namespace snde {
   }
 
 
+  std::shared_ptr<std::vector<std::string>> recording_set_state::list_recordings()
+  {
+    std::shared_ptr<std::vector<std::string>> retval=std::make_shared<std::vector<std::string>>();
+
+    for (auto && channel_map_it: recstatus.channel_map) {
+      retval->push_back(channel_map_it.first);
+    }
+
+    return retval;
+  }
+
+#ifdef SIZEOF_LONG_IS_8 // this is a SWIG workaround -- see spatialnde2.i
+  std::shared_ptr<std::vector<std::pair<std::string,unsigned long>>> recording_set_state::list_recording_revisions()
+#else
+  std::shared_ptr<std::vector<std::pair<std::string,unsigned long long>>> recording_set_state::list_recording_revisions()
+#endif    
+  {
+    std::shared_ptr<std::vector<std::pair<std::string,uint64_t>>> retval = std::make_shared<std::vector<std::pair<std::string,uint64_t>>>();
+    
+    for (auto && channel_map_it: recstatus.channel_map) {
+      uint64_t revision=0;
+      if (channel_map_it.second.revision) {
+	revision = *channel_map_it.second.revision;
+      }
+      retval->push_back(std::make_pair(channel_map_it.first,revision));
+    }
+    return retval;
+  }
+
+  std::shared_ptr<std::vector<std::pair<std::string,std::string>>> recording_set_state::list_recording_refs()
+    {
+      std::shared_ptr<std::vector<std::pair<std::string,std::string>>> retval = std::make_shared<std::vector<std::pair<std::string,std::string>>>();
+
+      for (auto && channel_map_it: recstatus.channel_map) {
+	const std::string &name = channel_map_it.first;
+	const channel_state & state = channel_map_it.second;
+	std::shared_ptr<recording_base> rec = state.rec();
+
+	if (rec) {
+	  std::shared_ptr<multi_ndarray_recording> ndrec=std::dynamic_pointer_cast<multi_ndarray_recording>(rec);
+	  if (ndrec) {
+	    std::lock_guard<std::mutex> recadmin(ndrec->admin);
+	    size_t num_refs = ndrec->layouts.size();
+	    if (!num_refs) {
+	      continue;
+	    }
+
+	    if (num_refs==1 && ndrec->name_reverse_mapping.size()==0) {
+	      if (ndrec->name_mapping.size() < 1) {
+		snde_warning("ndarray %s does not provide a name mapping",channel_map_it.first.c_str());
+		continue;
+	      }
+	      retval->push_back(std::make_pair(channel_map_it.first,ndrec->name_mapping.begin()->first));
+	    } else {
+	      size_t refnum;
+	      for (refnum=0;refnum < num_refs;refnum++) {
+		retval->push_back(std::make_pair(channel_map_it.first,ndrec->name_reverse_mapping.at(refnum)));
+		
+	      }
+	    }
+	    
+	  }
+
+	}
+      }
+      
+      return retval;
+    }
 
 
   
@@ -3583,7 +3855,7 @@ namespace snde {
     globalrev(globalrev),
     mutable_recordings_still_needed(true)
   {
-    
+    assert(globalrev<=1 || prereq_state); // prereq_state must be defined unless we are starting out at the very beginning
   }
 
 
@@ -3960,7 +4232,24 @@ namespace snde {
     return std::atomic_load(&_math_functions);
   }
 
-  
+  std::shared_ptr<math_function> recdatabase::lookup_math_function(std::string name)
+  {
+    auto functions=math_functions();
+    return functions->at(name);
+  }
+
+  std::shared_ptr<std::vector<std::string>> recdatabase::list_math_functions()
+  {
+    std::shared_ptr<std::vector<std::string>> retval = std::make_shared<std::vector<std::string>>();
+
+    auto functions=math_functions();
+
+    for (auto && funcname_function: *functions) {
+      retval->push_back(funcname_function.first);
+    }
+    return retval;
+  }
+
   std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> recdatabase::_begin_atomic_math_functions_update() // should be called with admin lock held
   {
     std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> new_math_functions = std::make_shared<std::map<std::string,std::shared_ptr<math_function>>>(*math_functions());

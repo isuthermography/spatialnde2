@@ -163,7 +163,7 @@ namespace snde {
   }
   
   
-  static std::shared_ptr<std::string> recdb_relative_path_to(const std::string &from,const std::string &to)
+  static std::string recdb_relative_path_to(const std::string &from,const std::string &to)
   {
     if (from.size() < 1) {
       throw snde_error("recdb_relative_path_to(): from path is empty!");
@@ -217,7 +217,7 @@ namespace snde {
       from_tok_deq.pop_front();
       to_tok_deq.emplace_front("..");
     }
-    return detokenize(std::vector<std::string>(to_tok_deq.begin(),to_tok_deq.end()),'/');
+    return *detokenize(std::vector<std::string>(to_tok_deq.begin(),to_tok_deq.end()),'/');
   }
 }
 #endif // SNDE_RECDB_PATHS_HPP

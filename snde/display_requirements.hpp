@@ -174,6 +174,24 @@ namespace snde {
     }
     
   };
+
+
+  class null_recording_recording_display_handler: public recording_display_handler_base {
+  public:
+    // From recording_display_handler_base
+    //std::shared_ptr<display_info> display;
+    //std::shared_ptr<display_channel> displaychan;
+    //std::shared_ptr<recording_set_state> base_rss;
+    
+    null_recording_recording_display_handler(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss);
+    
+    virtual ~null_recording_recording_display_handler()=default; // polymorphic
+
+    virtual std::shared_ptr<display_requirement> get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent);
+
+    
+  };
+
   
   class multi_ndarray_recording_display_handler: public recording_display_handler_base {
   public:

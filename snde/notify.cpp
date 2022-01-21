@@ -370,8 +370,9 @@ namespace snde {
     }
   }
   
-  _unchanged_channel_notify::_unchanged_channel_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> subsequent_globalrev,channel_state &current_channelstate,channel_state & sg_channelstate,bool mdonly) :
+  _unchanged_channel_notify::_unchanged_channel_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> current_globalrev,std::shared_ptr<globalrevision> subsequent_globalrev,channel_state &current_channelstate,channel_state & sg_channelstate,bool mdonly) :
     recdb(recdb),
+    current_globalrev(current_globalrev),
     subsequent_globalrev(subsequent_globalrev),
     current_channelstate(current_channelstate),
     sg_channelstate(sg_channelstate),
@@ -413,7 +414,7 @@ namespace snde {
 
     std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
     if (recdb_strong) {
-      sg_channelstate.issue_math_notifications(recdb_strong,subsequent_globalrev,false);
+      sg_channelstate.issue_math_notifications(recdb_strong,subsequent_globalrev,current_globalrev);
     }
   }
 
@@ -457,6 +458,7 @@ namespace snde {
 
     snde_debug(SNDE_DC_RECDB,"_globalrev_complete_notify::perform_notify(); globalrev=%llu; notify_globalrev=%llu",(unsigned long long)globalrev->globalrev,(unsigned long long)recdb_strong->monitoring_notify_globalrev);
 
+    //assert(globalrev->ready);
     globalrev->atomic_prerequisite_state_clear(); // once we are ready, we no longer care about any prerequisite state, so that can be free'd as needed. 
 
 

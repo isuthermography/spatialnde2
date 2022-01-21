@@ -181,12 +181,14 @@ namespace snde {
   public:
     // used internally to get notifications for subsequent globalrev that needs to have a reference to the version (that is not ready yet) in this recording.
     std::weak_ptr<recdatabase> recdb;
+    
+    std::shared_ptr<globalrevision> current_globalrev;
     std::shared_ptr<globalrevision> subsequent_globalrev;
     channel_state &current_channelstate; 
     channel_state &sg_channelstate; 
     bool mdonly;
 
-    _unchanged_channel_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> subsequent_globalrev,channel_state & current_channelstate,channel_state & sg_channelstate,bool mdonly); // After construction, need to call .apply_to_rss() method!!!
+    _unchanged_channel_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> current_globalrev,std::shared_ptr<globalrevision> subsequent_globalrev,channel_state & current_channelstate,channel_state & sg_channelstate,bool mdonly); // After construction, need to call .apply_to_rss() method!!!
 
     virtual ~_unchanged_channel_notify()=default;
     

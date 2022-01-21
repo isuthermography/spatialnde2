@@ -584,6 +584,35 @@ static std::string _assembly_join_assem_and_compnames(const std::string &assempa
   return match_begin->second;
 }
 
+
+
+
+
+null_recording_recording_display_handler::null_recording_recording_display_handler(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) :
+  recording_display_handler_base(display,displaychan,base_rss)
+{
+  
+}
+
+
+
+// Register this handler for SNDE_SRG_RENDERING on null_recordings
+static int register_nr_display_handler_rendering = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(null_recording)),std::make_shared<registered_recording_display_handler>( [] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+      return std::make_shared<null_recording_recording_display_handler>(display,displaychan,base_rss);
+      }));
+
+
+
+std::shared_ptr<display_requirement> null_recording_recording_display_handler::get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent)
+{
+  return nullptr;
+}
+
+
+
+
+
+
 multi_ndarray_recording_display_handler::multi_ndarray_recording_display_handler(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) :
   recording_display_handler_base(display,displaychan,base_rss)
 {

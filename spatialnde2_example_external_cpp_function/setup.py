@@ -36,9 +36,10 @@ ext_modules=cythonize(
               include_dirs=[os.path.dirname(snde.__file__)] + spatialnde2_compile_include_dirs,
               
               library_dirs=[os.path.dirname(snde.__file__)] + spatialnde2_compile_library_dirs,
-              extra_compile_args = spatialnde2_compile_definitions,
+              extra_compile_args = ["-O0"] + spatialnde2_compile_definitions,
               extra_link_args = spatialnde2_compile_explicit_libraries,
-              libraries=["spatialnde2"]  + spatialnde2_compile_libraries
+              libraries=["spatialnde2"]  + spatialnde2_compile_libraries,
+              undef_macros = ["NDEBUG"]
               ))
 
 setup(name="spatialnde2_example_external_cpp_function",
