@@ -316,6 +316,7 @@ namespace snde {
     virtual void _mark_metadata_done_internal(/*std::shared_ptr<recording_set_state> rss,const std::string &channame*/);
     virtual void mark_metadata_done();  // call WITHOUT admin lock (or other locks?) held. 
     virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held.
+    virtual void _mark_storage_as_finalized_internal();
 
     virtual std::shared_ptr<recording_storage_manager> assign_storage_manager(std::shared_ptr<recording_storage_manager> storman);
     virtual std::shared_ptr<recording_storage_manager> assign_storage_manager();
@@ -385,6 +386,7 @@ namespace snde {
 
 
     virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held. Passes on ready_notifications to storage
+    virtual void _mark_storage_as_finalized_internal();
 
     
     inline snde_multi_ndarray_recording *mndinfo() {return (snde_multi_ndarray_recording *)info;}

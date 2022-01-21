@@ -902,12 +902,14 @@ namespace snde {
       
       std::vector<std::shared_ptr<recording_base>> result_channel_recs;
       bool mdonly = false;
+      bool failed = false;
       
       // Set the build-time variable SNDE_RCR_DISABLE_EXCEPTION_HANDLING to disable the try {} ... catch{} block in math execution so that you can capture the offending scenario in the debugger
       //#define SNDE_RCR_DISABLE_EXCEPTION_HANDLING
 #ifndef SNDE_RCR_DISABLE_EXCEPTION_HANDLING
       try {
 #endif
+	
 	// Need also our assigned_compute_resource (func->compute_resource)
 	admin_lock.unlock();
 	
@@ -1100,12 +1102,13 @@ namespace snde {
 	  // clear out self_dependent_recordings to eliminate infinite historical references
 	  
 	  func->execution_tracker->self_dependent_recordings.clear();
-	  func->execution_tracker = nullptr; 
+	  //func->execution_tracker = nullptr;  cleared below
 	  
 	  // clear out references to the rss to allow releasing memory
-	  func->rss = nullptr;
+	  //func->rss = nullptr; (now done below)
 	  
 	}
+	failed = true; 
       }
 #endif // SNDE_RCR_DISABLE_EXCEPTION_HANDLING
       func->executing = false; // release the execution ticket
@@ -1130,11 +1133,12 @@ namespace snde {
       func->execution_tracker->compute_resource->release_assigned_resources(admin_lock);
       
       admin_lock.unlock();
-      if (!func->metadataonly_complete) {
+      if (failed || !func->metadataonly_complete) {
 	
-	// This function isn't going to execute again -- clear its execution tracker
+	// This function isn't going to execute again -- clear its execution tracker and prevent it from keeping its rss in memory
 	std::lock_guard<std::mutex> func_admin(func->admin);
-	func->execution_tracker = nullptr; 
+	func->execution_tracker = nullptr;
+	func->rss = nullptr; 
       }
 	
       

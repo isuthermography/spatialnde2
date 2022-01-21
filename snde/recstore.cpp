@@ -647,7 +647,7 @@ namespace snde {
     if (!recdb) return;
     
     {
-      std::lock_guard<std::mutex> rec_admin(admin);
+      std::unique_lock<std::mutex> rec_admin(admin);
       if (_transactionrec_transaction_still_in_progress_admin_prelocked()) {
 	
 	// this transaction is still in progress; notifications will be handled by end_transaction()
@@ -671,6 +671,11 @@ namespace snde {
 	
 	info->state = SNDE_RECS_READY;
 	info_state = SNDE_RECS_READY;
+
+	if (info->immutable) {
+	  rec_admin.unlock();
+	  _mark_storage_as_finalized_internal();
+	}
 	
 	// These next few lines replaced by chanstate.issue_nonmath_notifications, below
 	//channel_state &chanstate = rss->recstatus.channel_map.at(channame);
@@ -688,8 +693,8 @@ namespace snde {
       // (trying to make the state change atomically)
       rss = get_originating_rss();
       prerequisite_state = rss->prerequisite_state();
-      std::lock_guard<std::mutex> rss_admin(rss->admin);
-      std::lock_guard<std::mutex> adminlock(admin);
+      std::unique_lock<std::mutex> rss_admin(rss->admin);
+      std::unique_lock<std::mutex> adminlock(admin);
 
       assert(metadata);
       if (!info->metadata) {
@@ -733,7 +738,14 @@ namespace snde {
       info_state = SNDE_RECS_READY;
       rss->recstatus.completed_recordings.emplace(chanstate->config,chanstate);
 
-
+      if (info->immutable) {
+	adminlock.unlock();
+	rss_admin.unlock();
+	
+	_mark_storage_as_finalized_internal();
+      }
+      
+      
     // perform notifications (replaced by issue_nonmath_notifications())
     //for (auto && notify_ptr: *notify_about_this_channel_metadataonly) {
     //  notify_ptr->notify_metadataonly(channame);
@@ -750,6 +762,10 @@ namespace snde {
     chanstate->issue_nonmath_notifications(rss);
   }
 
+  void recording_base::_mark_storage_as_finalized_internal()
+  {
+    // subclasses with storage should override this
+  }
 
 
   std::shared_ptr<recording_storage_manager> recording_base::assign_storage_manager(std::shared_ptr<recording_storage_manager> storman)
@@ -914,6 +930,19 @@ namespace snde {
     
     // call superclass, which does the rest of the management
     recording_base::mark_as_ready();
+    // (including a _mark_storage_as_finalized_internal() call at the end if we are supposed to be immutable)
+  }
+  
+  void multi_ndarray_recording::_mark_storage_as_finalized_internal()
+  {
+    for (auto && recstorage: storage) {
+      if (recstorage) {
+	// recstorage might be nullptr if this recording
+	// has legitimately no data for a particular array
+	recstorage->mark_as_finalized();
+      }
+    }
+  
   }
 
   void multi_ndarray_recording::define_array(size_t index,unsigned typenum)

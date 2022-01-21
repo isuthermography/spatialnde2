@@ -17,7 +17,7 @@ namespace snde {
   // of the particular array zone, so it is automatically free'd.
   // ***!!! But what about follower arrays?
   graphics_storage::graphics_storage(std::shared_ptr<graphics_storage_manager> graphman,std::shared_ptr<arraymanager> manager,std::shared_ptr<memallocator> memalloc,std::shared_ptr<graphics_storage> leader_storage,std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,bool requires_locking_read,bool requires_locking_write,bool finalized) :
-    recording_storage(recording_path,recrevision,originating_rss_unique_id,id,basearray,elementsize,base_index,typenum,nelem,manager->locker,requires_locking_read,requires_locking_write,finalized),
+    recording_storage(recording_path,recrevision,originating_rss_unique_id,id,basearray,elementsize,base_index,typenum,nelem,manager->locker,requires_locking_read,requires_locking_write,true,true,finalized), // requires_locking_read_gpu and requires_locking_write_gpu are both always true for the graphics storage manager for the reasons described in recstore_storage.hpp right above their definitions in the main recording_storage class.
     manager(manager),
     memalloc(memalloc),
     graphman(graphman),
@@ -123,9 +123,19 @@ namespace snde {
 
       // locks released as context expires. 
     }
-    
-    std::shared_ptr<recording_storage_reference> reference = std::make_shared<recording_storage_reference>(recording_path,recrevision,originating_rss_unique_id,id,nelem,shared_from_this(),ref_ptr);
 
+    std::lock_guard<std::mutex> cache_holder(cache_lock);
+    std::shared_ptr<recording_storage_reference> reference = weak_nonmoving_copy_or_reference.lock();
+    if (!reference) {
+      
+      
+      reference = std::make_shared<recording_storage_reference>(recording_path,recrevision,originating_rss_unique_id,id,nelem,shared_from_this(),ref_ptr,finalized);
+      weak_nonmoving_copy_or_reference = reference; 
+      if (finalized) {
+	reference->finalized=true; // work around potential race conditions
+      } 
+
+    }
     return reference;
   }
 
@@ -133,7 +143,8 @@ namespace snde {
   void graphics_storage::mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)
   // pos and numelem are relative to __this_recording__
   {
-
+    assert(!finalized);
+    
     if (numelem==SNDE_INDEX_INVALID) {
       numelem=nelem-pos; // actual number of elements
     }
@@ -163,6 +174,17 @@ namespace snde {
     }
   }
 
+  void graphics_storage::mark_as_finalized()
+  {
+    std::lock_guard<std::mutex> cache_holder(cache_lock);
+    finalized=true;
+    
+    std::shared_ptr<recording_storage_reference> reference = weak_nonmoving_copy_or_reference.lock();
+    if (reference) {
+      reference->finalized=true;
+    }
+    
+  }
   
   void graphics_storage::add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr)
   {
@@ -491,7 +513,7 @@ namespace snde {
     if (!retval->requires_locking_write) {
       assert(!retval->requires_locking_read);
       if (manager->_memalloc->supports_nonmoving_reference()) {
-	// switch pointer to a nonmoving copy or reference
+	// switch pointer to a nonmoving copy or reference that is potentially mutable. 
 	
 	// assign _ref: 
 	retval->assign_ref(manager->_memalloc->obtain_nonmoving_copy_or_reference(graphics_recgroup_path/*recording_path*/,0 /* our recrevisions are always 0 because we just keep reusing the same array */,base_rss_unique_id,retval->id,retval->_basearray,*retval->_basearray,elementsize*base_index,elementsize*nelem));

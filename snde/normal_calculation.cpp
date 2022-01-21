@@ -136,7 +136,13 @@ namespace snde {
 	    { recording, {"edges", false }},
 	    { recording, {"vertices", false}},
 	    { result_rec,{"trinormals", true }}
-	  });
+	  },
+#ifdef SNDE_OPENCL
+	    true
+#else
+	    false
+#endif
+	  );
 	
 	return std::make_shared<exec_function_override_type>([ this,locktokens, result_rec,recording ]() {
 	  // exec code
@@ -337,7 +343,13 @@ namespace snde {
 	    { recording, {"edges", false }},
 	    { recording, {"vertices", false}},
 	    { result_rec,{"vertnormals", true }}
-	  });
+	  },
+#ifdef SNDE_OPENCL
+	  true
+#else
+	  false
+#endif
+	  );
 	
 	return std::make_shared<exec_function_override_type>([ this,locktokens, result_rec,recording ]() {
 	  // exec code

@@ -4,6 +4,9 @@
 
 #include "snde/qtrecviewer.hpp"
 #include "snde/recstore_setup.hpp"
+#ifdef SNDE_OPENCL
+#include "snde/recstore_setup_opencl.hpp"
+#endif
 
 #include "snde/x3d.hpp"
 
@@ -44,8 +47,10 @@ int main(int argc, char **argv)
   std::shared_ptr<recdatabase> recdb; 
   recdb=std::make_shared<snde::recdatabase>();
   setup_cpu(recdb,std::thread::hardware_concurrency());
-  #warning "GPU acceleration temporarily disabled for viewer."
-  //setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
+#ifdef SNDE_OPENCL
+  setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
+  //#warning "GPU acceleration temporarily disabled for viewer."
+#endif
   setup_storage_manager(recdb);
   std::shared_ptr<graphics_storage_manager> graphman=std::make_shared<graphics_storage_manager>("/",recdb->lowlevel_alloc,recdb->alignment_requirements,recdb->lockmgr,1e-8);
   recdb->default_storage_manager = graphman;

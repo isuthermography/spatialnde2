@@ -9,7 +9,7 @@
 
 namespace snde {
 
-  recording_storage::recording_storage(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized) :
+  recording_storage::recording_storage(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool requires_locking_read_gpu,bool requires_locking_write_gpu,bool finalized) :
     recording_path(recording_path),
     recrevision(recrevision),
     originating_rss_unique_id(originating_rss_unique_id),
@@ -23,6 +23,8 @@ namespace snde {
     lockmgr(lockmgr),
     requires_locking_read(requires_locking_read),
     requires_locking_write(requires_locking_write),
+    requires_locking_read_gpu(requires_locking_read_gpu),
+    requires_locking_write_gpu(requires_locking_write_gpu),
     finalized(finalized)
     // Note: Called with array locks held
 
@@ -30,8 +32,14 @@ namespace snde {
 
   }
 
+  std::shared_ptr<recording_storage> recording_storage::get_original_storage()
+  {
+    return shared_from_this();
+  }
+
+  
   recording_storage_simple::recording_storage_simple(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,size_t elementsize,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr) :
-    recording_storage(recording_path,recrevision,originating_rss_unique_id,id,nullptr,elementsize,0,typenum,nelem,lockmgr,requires_locking_read,requires_locking_write,finalized),
+    recording_storage(recording_path,recrevision,originating_rss_unique_id,id,nullptr,elementsize,0,typenum,nelem,lockmgr,requires_locking_read,requires_locking_write,requires_locking_read,requires_locking_write,finalized),
     lowlevel_alloc(lowlevel_alloc),
     _baseptr(baseptr)
   {
@@ -80,15 +88,26 @@ namespace snde {
 
   std::shared_ptr<recording_storage> recording_storage_simple::obtain_nonmoving_copy_or_reference()
   {
-    std::shared_ptr<nonmoving_copy_or_reference> ref = lowlevel_alloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,originating_rss_unique_id,id,_basearray,_baseptr,base_index*elementsize,nelem*elementsize);
-    std::shared_ptr<recording_storage_reference> reference = std::make_shared<recording_storage_reference>(recording_path,recrevision,originating_rss_unique_id,id,nelem,shared_from_this(),ref);
 
+    std::lock_guard<std::mutex> cache_holder(cache_lock);
+    std::shared_ptr<recording_storage_reference> reference = weak_nonmoving_copy_or_reference.lock();
+
+    if (!reference) {
+      std::shared_ptr<nonmoving_copy_or_reference> ref = lowlevel_alloc->obtain_nonmoving_copy_or_reference(recording_path,recrevision,originating_rss_unique_id,id,_basearray,_baseptr,base_index*elementsize,nelem*elementsize);
+      reference = std::make_shared<recording_storage_reference>(recording_path,recrevision,originating_rss_unique_id,id,nelem,shared_from_this(),ref,finalized);
+      weak_nonmoving_copy_or_reference = reference; 
+      if (finalized) {
+	reference->finalized=true; // work around potential race conditions
+      }
+    }
     return reference;
   }
 
   void recording_storage_simple::mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)
   // pos and numelem are relative to __this_recording__
   {
+    assert(!finalized);
+    
     std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>> fc_copy;
     {
       std::lock_guard<std::mutex> cmgr_lock(follower_cachemanagers_lock);
@@ -110,6 +129,17 @@ namespace snde {
     // and you should write data in with the CPU BEFORE caching (why wouldn't you???)
   }
 
+  void recording_storage_simple::mark_as_finalized()
+  {
+    std::lock_guard<std::mutex> cache_holder(cache_lock);
+    finalized=true;
+    
+    std::shared_ptr<recording_storage_reference> reference = weak_nonmoving_copy_or_reference.lock();
+    if (reference) {
+      reference->finalized=true;
+    }
+  }
+
   void recording_storage_simple::add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr)
   {
     std::lock_guard<std::mutex> cmgr_lock(follower_cachemanagers_lock);
@@ -117,8 +147,19 @@ namespace snde {
   }
 
 
-  recording_storage_reference::recording_storage_reference(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,snde_index nelem,std::shared_ptr<recording_storage> orig,std::shared_ptr<nonmoving_copy_or_reference> ref) :
-    recording_storage(recording_path,recrevision,originating_rss_unique_id,id,nullptr,orig->elementsize,orig->base_index,orig->typenum,nelem,orig->lockmgr,orig->requires_locking_read,orig->requires_locking_write,true), // always finalized because it is immutable
+  recording_storage_reference::recording_storage_reference(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,snde_index nelem,std::shared_ptr<recording_storage> orig,std::shared_ptr<nonmoving_copy_or_reference> ref,bool finalized) :
+    recording_storage(recording_path,
+		      recrevision,
+		      originating_rss_unique_id,
+		      id,nullptr,
+		      orig->elementsize,
+		      orig->base_index,orig->typenum,nelem,
+		      orig->lockmgr,
+		      ref->requires_locking_read, //  requires_locking_read: Derives from reference because it is the memallocator that knows if locking is required to access the underlying reference
+		      ref->requires_locking_write, // requires_locking_write: : Derives from reference because it is the memallocator that knows if locking is required to write the underlying reference. Note that the underlying reference is NOT necessarily immutable: If the memallocator supports_nonmoving_reference() returns true, then the the reference may be created BEFORE the data is finalized
+		      ref->requires_locking_read, // these are the _gpu values which for now aren't actually used because the OpenCL code always uses the original not the reference anyway (via get_original_storage())
+		      ref->requires_locking_write,		      
+		      finalized), // always finalized because it is immutable
     orig(orig),
     ref(ref)
   {
@@ -146,19 +187,33 @@ namespace snde {
   std::shared_ptr<recording_storage> recording_storage_reference::obtain_nonmoving_copy_or_reference()
   {
     // delegate to original storage, adding in our own offset
-    assert(ref->shift % elementsize == 0);
-    return orig->obtain_nonmoving_copy_or_reference(/*ref->offset/elementsize + offset_elements,*/);
+    //assert(ref->shift % elementsize == 0);
+    //return orig->obtain_nonmoving_copy_or_reference(/*ref->offset/elementsize + offset_elements,*/);
+    return shared_from_this();
   }
 
   void recording_storage_reference::mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)
   {
-    throw snde_error("Cannot mark an immutable reference as modified");
+    orig->mark_as_modified(already_knows,pos,numelem);
   }
   
   void recording_storage_reference::ready_notification()
   {
-    throw snde_error("Ready notification on immutable reference (should already be ready).");    
+    orig->ready_notification();
   }
+
+  void recording_storage_reference::mark_as_finalized()
+  {
+    orig->mark_as_finalized(); // delegate to original, which should mark us as finalized too
+    
+  }
+
+  std::shared_ptr<recording_storage> recording_storage_reference::get_original_storage()
+  {
+    return orig;
+  }
+
+  
   void recording_storage_reference::add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr)
   {
     orig->add_follower_cachemanager(cachemgr);

@@ -12,15 +12,6 @@
  * Need to implement file i/o as well as socket/shared memory linkage to a remote recording database
  * Need to implement Python math functions. 
  * Need to add numpy dtypes for geometry_types to end of spatialnde2.i
- * openclcachemanager: _GetOpenCLSubBuffer gets locks without checking
-   for requires_locking_read or requires_locking_write but _GetOpenCLBuffer
-   does check requires_locking_read and requires_locking_write.
-    *** In reality OpenCL requires locking in both cases, at least with
-    the graphics_storage_manager. Need a protocol from the storage manager
-    and cache manager and execution mechanism to determine whether
-    to actually lock *** ... I think the answer to this is probably to have
-    a separate requires_locking_read_gpu and requires_locking_write_gpu 
-    
  * In recmath_compute_resource.cpp make the exception handler for math
    functions return an empty recording rather than causing a hang
 

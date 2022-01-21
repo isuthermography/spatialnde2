@@ -96,7 +96,7 @@ void snde_rec_display_texvertexarray_onetri(OCL_GLOBAL_ADDR const struct snde_pa
 
 #ifdef __OPENCL_VERSION__
 
-__kernel void snde_rec_display_texvertexarray(__global const struct snde_parameterization *uv,
+__kernel void rec_display_texvertexarray(__global const struct snde_parameterization *uv,
 				 __global const snde_triangle *uv_triangles,
 				 __global const snde_edge *uv_edges,
 				 __global const snde_coord2 *uv_vertices,
@@ -115,5 +115,5 @@ __kernel void snde_rec_display_texvertexarray(__global const struct snde_paramet
 					 texvertex_arrays,
 					 trianglenum);
 
-  
+}  
 #endif // __OPENCL_VERSION__

@@ -50,11 +50,11 @@ static inline void polycentroid3(snde_coord3 *verts, uint32_t numvertices, snde_
 {
   size_t vertcnt,axcnt;
 
-  snde_coord max_sq=0.0;
+  snde_coord max_sq=0.0f;
   snde_coord val;
   
   for (vertcnt=0; vertcnt < numvertices; vertcnt++) {
-    val=0.0;
+    val=0.0f;
     for (axcnt=0; axcnt < 3; axcnt++) {
       val += (snde_coord)pow(verts[vertcnt].coord[axcnt] - refpoint.coord[axcnt],(snde_coord)2.0f);
     }
@@ -256,7 +256,7 @@ static inline int point_in_polygon_2d_c(snde_coord2 *vertices_rel_point,snde_ind
       cosparam=-1.0f;
     }
         
-    if (cosparam > 1.0) {
+    if (cosparam > 1.0f) {
       // Shouldn't be possible...just in case of weird roundoff
       cosparam=1.0f;
     }
@@ -266,7 +266,7 @@ static inline int point_in_polygon_2d_c(snde_coord2 *vertices_rel_point,snde_ind
     } else if (det < 0) {
       windingnum -= (snde_coord)acos(cosparam);
     } else {
-      // det==0.0 
+      // det==0.0f 
       
       // Vectors parallel or anti-parallel 
       
@@ -288,7 +288,7 @@ static inline int point_in_polygon_2d_c(snde_coord2 *vertices_rel_point,snde_ind
   }
   
   
-  windingnum=(snde_coord)fabs(windingnum)*(1.0f/(2.0f*((float)M_PI))); // divide out radians to number of winds; don't care about clockwise vs. ccw
+  windingnum=(snde_coord)fabs(windingnum)*(1.0f/(2.0f*(M_PI_SNDE_COORD))); // divide out radians to number of winds; don't care about clockwise vs. ccw
   if (windingnum > .999f && windingnum < 1.001f) {
     // Almost exactly one loop... got it! 
     return TRUE;
@@ -397,12 +397,12 @@ static inline int segment_intersects_box_c(snde_coord3 box_v0,snde_coord3 box_v1
 
   for (cnt=0;cnt < 3;cnt++) {
     //Surfaces at v0 end of the slide
-    if (seg_v0.coord[cnt]*seg_axisdirections.coord[cnt]-box_width.coord[cnt]/2.0 > original_center.coord[cnt]*seg_axisdirections.coord[cnt]) {
+    if (seg_v0.coord[cnt]*seg_axisdirections.coord[cnt]-box_width.coord[cnt]/2.0f > original_center.coord[cnt]*seg_axisdirections.coord[cnt]) {
       return FALSE;
     }
     
     // Surfaces at v1 end of the slide
-    if (seg_v1.coord[cnt]*seg_axisdirections.coord[cnt] + box_width.coord[cnt]/2.0 < original_center.coord[cnt]*seg_axisdirections.coord[cnt]) {
+    if (seg_v1.coord[cnt]*seg_axisdirections.coord[cnt] + box_width.coord[cnt]/2.0f < original_center.coord[cnt]*seg_axisdirections.coord[cnt]) {
       return FALSE;
     }
 
@@ -424,7 +424,7 @@ static inline int segment_intersects_box_c(snde_coord3 box_v0,snde_coord3 box_v1
 
     subcoordcoord3(seg_v0,original_center,&vert0_minus_center);
     multcoordcoord3(box_width,sn_sign,&directed_box_width);
-    if (fabs(dotcoordcoord3(vert0_minus_center,surf_normal)) > 0.5*dotcoordcoord3(directed_box_width,surf_normal)) {
+    if (fabs(dotcoordcoord3(vert0_minus_center,surf_normal)) > 0.5f*dotcoordcoord3(directed_box_width,surf_normal)) {
       return FALSE;
     }
     
@@ -480,7 +480,7 @@ static inline int polygon_intersects_box_3d_c(snde_coord3 box_v0, snde_coord3 bo
 
   t=dotcoordcoord3(firstvertex_rel_corner,facetnormal)/dotcoordcoord3(diagonalvec,facetnormal);
   
-  if (t > 1.0 || t < 0.0) {
+  if (t > 1.0f || t < 0.0f) {
     return FALSE;
   }
   
@@ -500,7 +500,7 @@ static inline int CCW(snde_coord2 a,snde_coord2 b,snde_coord2 c)
   subcoordcoord2(b,a,&b_minus_a);
   subcoordcoord2(c,a,&c_minus_a);
   
-  return (crosscoordcoord2(b_minus_a,c_minus_a) > 0.0);
+  return (crosscoordcoord2(b_minus_a,c_minus_a) > 0.0f);
 }
 
 static inline int check_lineseg_intersection(snde_coord2 a,snde_coord2 b,snde_coord2 c,snde_coord2 d)

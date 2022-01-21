@@ -104,8 +104,9 @@ namespace snde {
     //cl::Device device;
     /* could insert some flag to indicate use of zero-copy memory (maybe not; this is the map key) */
     void **arrayptr;
+    size_t numelem;
     
-    openclarrayinfo(cl::Context context, void **arrayptr);
+    openclarrayinfo(cl::Context context, void **arrayptr,size_t numelem);
     
     openclarrayinfo(const openclarrayinfo &orig)=default; /* copy constructor */    
     openclarrayinfo& operator=(const openclarrayinfo &orig)=default; /* copy assignment operator */
@@ -139,6 +140,12 @@ namespace snde {
     // access serialization managed by our parent openclcachemanager's
     // admin mutex, which should be locked when these methods
     // (except realloc callback) are called.
+
+    // Note that we can briefly have two openclcacheentries for the same
+    // memory, as the index includes numelem and numelem may increase if
+    // the storage is reallocated. This is not a problem because
+    // they will have separate invalidity and dirtyregions. The older
+    // cache entry will expire once it is no longer referenced. 
   public:
     cl::Buffer buffer; /* cl reference count owned by this object */
     std::weak_ptr<allocator> alloc; /* weak pointer to the allocator (if any) because we don't want to inhibit freeing of this (all we need it for is our reallocation callback) */

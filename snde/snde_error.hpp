@@ -274,7 +274,8 @@ namespace snde {
 #define SNDE_DC_EVENT (1<<8)
 #define SNDE_DC_VIEWER (1<<9)
 #define SNDE_DC_X3D (1<<10)
-#define SNDE_DC_ALL ((1<<11)-1)
+#define SNDE_DC_OPENCL (1<<11)
+#define SNDE_DC_ALL ((1<<12)-1)
 
    
 }
