@@ -75,6 +75,7 @@ namespace snde {
       {typeid(snde_indexrange),SNDE_RTN_SNDE_INDEXRANGE},
       {typeid(snde_partinstance),SNDE_RTN_SNDE_PARTINSTANCE},
       {typeid(snde_image),SNDE_RTN_SNDE_IMAGE},
+      {typeid(snde_kdnode),SNDE_RTN_SNDE_KDNODE},
 
 
   });
@@ -135,6 +136,7 @@ namespace snde {
       {SNDE_RTN_SNDE_INDEXRANGE,sizeof(snde_indexrange)},
       {SNDE_RTN_SNDE_PARTINSTANCE,sizeof(snde_partinstance)},
       {SNDE_RTN_SNDE_IMAGE,sizeof(snde_image)},
+      {SNDE_RTN_SNDE_KDNODE,sizeof(snde_kdnode)},
     });
   
   SNDE_API const std::unordered_map<unsigned,std::string> rtn_typenamemap({ // Look up type name based on typenum
@@ -200,6 +202,7 @@ namespace snde {
       {SNDE_RTN_SNDE_INDEXRANGE,"SNDE_RTN_SNDE_INDEXRANGE"},
       {SNDE_RTN_SNDE_PARTINSTANCE,"SNDE_RTN_SNDE_PARTINSTANCE"},
       {SNDE_RTN_SNDE_IMAGE,"SNDE_RTN_SNDE_IMAGE"},
+      {SNDE_RTN_SNDE_KDNODE,"SNDE_RTN_SNDE_KDNODE"},
     });
   
 
@@ -1173,6 +1176,10 @@ namespace snde {
 
     case SNDE_RTN_SNDE_IMAGE:
       ref = std::make_shared<ndtyped_recording_ref<snde_image>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_KDNODE:
+      ref = std::make_shared<ndtyped_recording_ref<snde_kdnode>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
       break;
 
       

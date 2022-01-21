@@ -371,6 +371,8 @@ namespace snde {
 
     add_grouped_arrays(&next_region_id,&geom.vertex_edgelist,"vertex_edgelist");
 
+    add_grouped_arrays(&next_region_id,&geom.vertex_kdtree,"vertex_kdtree");
+
     add_grouped_arrays(&next_region_id,&geom.boxes,"boxes",
 		       &geom.boxcoord,"boxcoord");
 

@@ -789,6 +789,13 @@ struct snde_image  {
   //snde_index nextimage; // index of alternate image to be used if data in this image shows as NaN, fully transparent, or is outside the image boundary... set to SNDE_INDEX_INVALID if there should be no nextimage.
 };
 
+
+  struct snde_kdnode {
+    snde_index cutting_vertex;
+    snde_index left_subtree;
+    snde_index right_subtree; 
+  };
+
   
 #ifdef __cplusplus
 }
