@@ -5,9 +5,9 @@
 
 #include "snde/graphics_recording.hpp"
 
-#ifndef _WIN32
-#include "shared_memory_allocator_posix.hpp"
-#endif // !_WIN32
+//#ifndef _WIN32
+//#include "shared_memory_allocator_posix.hpp"
+//#endif // !_WIN32
 
 namespace snde {
 

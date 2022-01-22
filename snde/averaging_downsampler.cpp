@@ -296,7 +296,17 @@ namespace snde {
   std::shared_ptr<math_function> define_averaging_downsampler_function()
   {
     std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
-      return make_cppfuncexec_floating_and_vector_types<averaging_temporal_downsampler>(rss,inst);
+      std::shared_ptr<executing_math_function> executing;
+      
+      executing = make_cppfuncexec_floatingtypes<averaging_temporal_downsampler>(rss,inst);
+      if (!executing) {
+	executing = make_cppfuncexec_vectortypes<averaging_temporal_downsampler>(rss,inst);
+      }
+      
+      if (!executing) {
+	throw snde_error("In attempting to call math function %s, first parameter has unsupported data type.",inst->definition->definition_command.c_str());
+      }
+      return executing;
     });
     //newfunc->self_dependent=true;
     newfunc->new_revision_optional=true;

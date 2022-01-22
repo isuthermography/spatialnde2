@@ -540,10 +540,38 @@ namespace snde {
 
 	try {
 	  execfunc->execution_tracker = ready_fcn->fcn->initiate_execution(ready_rss,ready_fcn);
+
+	  if (!execfunc->execution_tracker) {
+	    // initiate_execution failed
+	    snde_warning("initiate_execution() failed and returned nullptr in function %s. This usually means a waveform parameter had an unsupported data type.",ready_fcn->definition->definition_command.c_str());
+
+	    // This code here is identical to the math parameter mismatch catch below
+	    // and should probably be refactored
+	    std::vector<std::shared_ptr<recording_base>> result_channel_recs;
+	    while (result_channel_recs.size() < execfunc->inst->result_channel_paths.size()) {
+	      // Create a null recording for any undefined results
+	      std::shared_ptr<std::string> path_ptr = execfunc->inst->result_channel_paths.at(result_channel_recs.size());
+	      if (path_ptr) {
+		result_channel_recs.push_back(create_recording_math<null_recording>(recdb_path_join(execfunc->inst->channel_path_context,*path_ptr),ready_rss));
+	      } else {
+		result_channel_recs.push_back(nullptr);
+	      }
+	      
+	    }
+	    _transfer_function_result_state(execfunc,nullptr,SNDE_FRS_ANY,SNDE_FRS_INSTANTIATED,result_channel_recs);
+	    
+	    _wrap_up_execution(recdb,ready_rss,ready_fcn,result_channel_recs,true,prerequisite_state); // true is possibly_redundant
+	    return;
+
+	    
+	  }
+	  
 	} catch (const math_parameter_mismatch &exc) {
 	  snde_warning("Math parameter mismatch in initiate_execution(): %s (function %s)",exc.shortwhat(),execfunc->inst->definition->definition_command.c_str());
 	  snde_debug(SNDE_DC_RECMATH,"Full backtrace: %s",exc.what());
-
+	  
+	  // This code here is identical to the initiate_execution() null return case above
+	  // and should probably be refactored
 	  std::vector<std::shared_ptr<recording_base>> result_channel_recs;
 	  while (result_channel_recs.size() < execfunc->inst->result_channel_paths.size()) {
 	    // Create a null recording for any undefined results
