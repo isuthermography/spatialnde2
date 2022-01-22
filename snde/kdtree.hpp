@@ -79,10 +79,14 @@ namespace snde {
   int kce_compare(const void *kce_1,const void *kce_2);
 
     template <typename T>
-  snde_index build_subkdtree(kdtree_vertex<T> *baseptr, kdtree_construction_entry *tree,snde_index *tree_nextpos,snde_index left, snde_index rightplusone,unsigned ndims,unsigned depth)
+    snde_index build_subkdtree(kdtree_vertex<T> *baseptr, kdtree_construction_entry *tree,snde_index *tree_nextpos,snde_index left, snde_index rightplusone,unsigned ndims,unsigned depth,unsigned *max_depth_out)
   {
     if (rightplusone-left == 0) {
       return SNDE_INDEX_INVALID;
+    }
+
+    if (depth > *max_depth_out) {
+      *max_depth_out = depth;
     }
     
     unsigned axis = depth % ndims; // which axis working on in this tree step
@@ -102,8 +106,8 @@ namespace snde {
     tree[tree_thispos].cutting_vertex = baseptr[median_idx].original_index;
     tree[tree_thispos].depth = depth;
     tree[tree_thispos].entry_index = tree_thispos; 
-    tree[tree_thispos].left_subtree = build_subkdtree<T>(baseptr,tree,tree_nextpos,left,median_idx,ndims,new_depth);
-    tree[tree_thispos].right_subtree = build_subkdtree<T>(baseptr,tree,tree_nextpos,median_idx+1,rightplusone,ndims,new_depth);
+    tree[tree_thispos].left_subtree = build_subkdtree<T>(baseptr,tree,tree_nextpos,left,median_idx,ndims,new_depth,max_depth_out);
+    tree[tree_thispos].right_subtree = build_subkdtree<T>(baseptr,tree,tree_nextpos,median_idx+1,rightplusone,ndims,new_depth,max_depth_out);
 
     return tree_thispos;
   }

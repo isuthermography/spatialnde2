@@ -20,6 +20,9 @@
 #ifdef __OPENCL_VERSION__
 /* if this is an opencl kernel */
 
+#define VECOPS_GLOBAL __global
+#define VECOPS_LOCAL __local
+
 #ifdef __ENDIAN_LITTLE__
 #define MY_INFNAN_LITTLE_ENDIAN
 #endif 
@@ -30,6 +33,9 @@ typedef __constant unsigned char my_infnan_constchar_t;
 typedef __constant float *my_infnan_float32_ptr_t;
 
 #else
+
+#define VECOPS_GLOBAL // no meaning in regular c
+#define VECOPS_LOCAL // no meaning in regular c
 
 #if !(defined(__BYTE_ORDER) && __BYTE_ORDER == __BIG_ENDIAN) && !defined(__BIG_ENDIAN__)
 #define MY_INFNAN_LITTLE_ENDIAN
@@ -250,6 +256,35 @@ static VECOPS_INLINE void scalecoord2(snde_coord coeff,snde_coord2 vec1,snde_coo
 
 
 
+static VECOPS_INLINE snde_coord distsqglobalvecn(VECOPS_GLOBAL snde_coord *vec1,VECOPS_GLOBAL snde_coord *vec2,snde_index n)
+{
+  snde_coord curval;
+  snde_coord accum=0.0;
+  snde_index idx;
+  
+  for (idx=0;idx < n; idx++) {
+    curval = vec1[idx] - vec2[idx];
+    accum += curval*curval;
+  }
+  return curval; 
+}
+
+
+// not actually used yet:
+static VECOPS_INLINE snde_coord distsqgloballocalvecn(VECOPS_GLOBAL snde_coord *vec1,VECOPS_LOCAL snde_coord *vec2,snde_index n)
+{
+  snde_coord curval;
+  snde_coord accum=0.0;
+  snde_index idx;
+  
+  for (idx=0;idx < n; idx++) {
+    curval = vec1[idx] - vec2[idx];
+    accum += curval*curval;
+  }
+  return curval; 
+}
+
+
 static VECOPS_INLINE void subvecvec3(snde_coord *vec1,snde_coord *vec2,snde_coord *out)
 // NOTE: if vec1 and vec2 are 2D coordinates in a 3D projective space,
 // then vec2 must be a vector, not a position
@@ -322,6 +357,20 @@ static VECOPS_INLINE void subvecvec2(snde_coord *vec1,snde_coord *vec2,snde_coor
     
   }
 }
+
+static VECOPS_INLINE void subvecvecn(snde_coord *vec1,snde_coord *vec2,snde_coord *out,snde_index n)
+{
+  snde_index outidx;
+
+  for (outidx=0;outidx < n; outidx++) {
+    out[outidx] = vec1[outidx] - vec2[outidx];
+    
+  }
+}
+
+
+
+
 
 static VECOPS_INLINE void subcoordcoord2(snde_coord2 vec1,snde_coord2 vec2,snde_coord2 *out)
 {
