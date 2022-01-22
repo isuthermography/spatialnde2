@@ -49,13 +49,21 @@ void x3d_viewer_display()
   if (renderer) {
 
     rendercache->mark_obsolete();
+
+    std::shared_ptr<osg_rendercacheentry> cacheentry;
+    std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> locks_required;
+    bool modified;
     
-    // !!!*** Should consider locking of data to be rendered !!!*** 
+    std::tie(cacheentry,locks_required,modified) = renderer->prepare_render(display_transforms->with_display_transforms,rendercache,
+									    display_reqs,
+									    winwidth,winheight);
+
+    {
+      rwlock_token_set frame_locks = recdb->lockmgr->lock_recording_refs(locks_required,false /*bool gpu_access */); // gpu_access is false because that is only needed for gpgpu calculations like OpenCL where we might be trying to map the entire scene data in one large all-encompassing array
     
-    renderer->prepare_render(display_transforms->with_display_transforms,rendercache,
-			     display_reqs,
-			     winwidth,winheight);
-    renderer->frame();
+      
+      renderer->frame();
+    }
     //osgDB::writeNodeFile(*renderer->Viewer->getSceneData(),"/tmp/x3dviewer.osg");
 
     rendercache->erase_obsolete(); // remove everything unused from the cache

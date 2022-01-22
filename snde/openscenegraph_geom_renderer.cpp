@@ -40,7 +40,7 @@ namespace snde {
 
   
   
-  std::tuple<std::shared_ptr<osg_rendercacheentry>,bool>
+  std::tuple<std::shared_ptr<osg_rendercacheentry>,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>>,bool>
   osg_geom_renderer::prepare_render(//std::shared_ptr<recdatabase> recdb,
 				  std::shared_ptr<recording_set_state> with_display_transforms,
 				  //std::shared_ptr<display_info> display,
@@ -67,6 +67,7 @@ namespace snde {
 
     std::shared_ptr<osg_rendercacheentry> renderentry;
     bool modified=false;
+    std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> locks_required; 
     
 
 
@@ -81,8 +82,8 @@ namespace snde {
 
       modified = true; 
     } else { // Positive display area 
-
-      std::tie(renderentry,modified) = RenderCache->GetEntry(params,display_req);
+      
+      std::tie(renderentry,modified) = RenderCache->GetEntry(params,display_req,&locks_required);
       
       if (display_req->spatial_position->width != Camera->getViewport()->width() || display_req->spatial_position->height != Camera->getViewport()->height()) {
 	GraphicsWindow->getEventQueue()->windowResize(0,0,display_req->spatial_position->width,display_req->spatial_position->height);
@@ -166,7 +167,7 @@ namespace snde {
       }*/
     }
 
-    return std::make_tuple(renderentry,modified);
+    return std::make_tuple(renderentry,locks_required,modified);
     
   }
   

@@ -501,7 +501,7 @@ namespace snde {
     }
 
     if (typenum_from_name.at(array_name) != typenum && !(rtn_compatible_types.count(typenum_from_name.at(array_name)) > 0 &&  rtn_compatible_types.at(typenum_from_name.at(array_name)).count(typenum) > 0 )) {
-      snde_warning("Mismatch between graphics array field %s element type with allocation: %s vs. %s",rtn_typenamemap.at(typenum_from_name.at(array_name)).c_str(),rtn_typenamemap.at(typenum).c_str());
+      snde_warning("Mismatch between graphics array field %s element type with allocation: %s vs. %s",array_name.c_str(),rtn_typenamemap.at(typenum_from_name.at(array_name)).c_str(),rtn_typenamemap.at(typenum).c_str());
       
     }
     

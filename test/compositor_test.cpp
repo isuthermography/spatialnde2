@@ -217,6 +217,7 @@ int main(int argc, char **argv)
   osg::ref_ptr<osgViewer::Viewer> Viewer(new osgViewerCompat34());
 
   GraphicsWindow = new osg_ParanoidGraphicsWindowEmbedded(0,0,winwidth,winheight);
+  GraphicsWindow->getState()->initializeExtensionProcs();
   Viewer->getCamera()->setViewport(new osg::Viewport(0,0,winwidth,winheight));
   Viewer->getCamera()->setGraphicsContext(GraphicsWindow);
   

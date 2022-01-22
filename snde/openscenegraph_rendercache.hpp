@@ -44,7 +44,7 @@ namespace snde {
 
     // GetEntry returns (entry, modified_flag). if not modified flag, then everything came out of the
     // cache unmodified so you may not need to rerender at all. 
-    std::pair<std::shared_ptr<osg_rendercacheentry>,bool> GetEntry(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);  // mode from rendermode.hpp
+    std::pair<std::shared_ptr<osg_rendercacheentry>,bool> GetEntry(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *locks_required);  // mode from rendermode.hpp
 
 
     void mark_obsolete(); // mark the potentially_obsolete flag of all cache entries
@@ -86,6 +86,8 @@ namespace snde {
     
 
     bool potentially_obsolete; // set by mark_obsolete()
+    std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> locks_required;
+
     
     osg_rendercacheentry();
     osg_rendercacheentry & operator=(const osg_rendercacheentry &) = delete; // shouldn't need copy assignment

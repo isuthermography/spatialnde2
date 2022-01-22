@@ -189,7 +189,7 @@ namespace snde {
   
 
   
-  std::pair<std::shared_ptr<osg_rendercacheentry>,bool> osg_rendercache::GetEntry(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)   // mode from rendermode.hpp
+  std::pair<std::shared_ptr<osg_rendercacheentry>,bool> osg_rendercache::GetEntry(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *locks_required)   // mode from rendermode.hpp
   // mode from rendermode.hpp
   {
     const std::string &channel_path = display_req->channelpath;
@@ -205,6 +205,10 @@ namespace snde {
       bool reusable,modified;
       std::tie(reusable,modified) = cache_it->second->attempt_reuse(params,display_req);
       if (reusable) {
+
+	for (auto && required_lock: cache_it->second->locks_required) {
+	  locks_required->push_back(required_lock);
+	}
 	
 	cache_it->second->clear_potentially_obsolete(); // not an obsolete entry
 	return std::make_pair(cache_it->second,modified);	
@@ -233,7 +237,13 @@ namespace snde {
     std::shared_ptr<osg_rendercacheentry> retval = renderer_it->second(params,display_req);
     cache.erase(std::make_pair(channel_path,mode));
     cache.emplace(std::make_pair(channel_path,mode),retval);
-      
+
+
+    
+    for (auto && required_lock: retval->locks_required) {
+      locks_required->push_back(required_lock);
+    }
+    
     return std::make_pair(retval,true);
     
     //std::shared_ptr<osg_cachedimage> imgentry = std::make_shared<osg_cachedimage>(new_recording,texture);
@@ -504,7 +514,7 @@ namespace snde {
     // Get texture correpsonding to this same channel
     bool modified;
     std::shared_ptr<osg_rendercacheentry> raw_entry;
-    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(0));
+    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(0),&locks_required);
 
     texture = std::dynamic_pointer_cast<osg_rendercachetextureentry>(raw_entry);
 
@@ -685,8 +695,10 @@ namespace snde {
     if (!cached_recording) {
       throw snde_error("osg_cachedpointcloudvertices: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
+    std::shared_ptr<ndarray_recording_ref> point_cloud_vertices_array = cached_recording->reference_ndarray();
     
-    osg_array = new OSGFPArray(cached_recording->reference_ndarray(),3,3); // 3 for 3d point coordinates    
+    locks_required.push_back( { point_cloud_vertices_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
+    osg_array = new OSGFPArray(point_cloud_vertices_array,3,3); // 3 for 3d point coordinates    
   }
 
 
@@ -711,8 +723,11 @@ namespace snde {
     if (!cached_recording) {
       throw snde_error("osg_cachedpointcloudcolormap: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
-    
-    osg_array = new OSGFPArray(cached_recording->reference_ndarray(),1,4); // 4 for RGB&A components    
+
+    std::shared_ptr<ndarray_recording_ref> point_cloud_colormap_array = cached_recording->reference_ndarray();
+
+    locks_required.push_back( { point_cloud_colormap_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
+    osg_array = new OSGFPArray(point_cloud_colormap_array,1,4); // 4 for RGB&A components    
   }
 
 
@@ -743,7 +758,7 @@ namespace snde {
 
     // get sub-requirement #0: SNDE_SRM_POINTCLOUDCOLORMAP
     std::shared_ptr<osg_rendercacheentry> raw_entry;
-    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(0));
+    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(0),&locks_required);
     
     // std::shared_ptr<osg_cachedpointcloudcolormap> colormap; (included in class definition)
     colormap = std::dynamic_pointer_cast<osg_cachedpointcloudcolormap>(raw_entry);
@@ -754,7 +769,7 @@ namespace snde {
     
     
     // get sub-requirement #1: SNDE_SRM_POINTCLOUDVERTICES
-    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(1));
+    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(1),&locks_required);
     //std::shared_ptr<osg_cachedpointcloudvertices> vertices; (included in class definition)
     vertices = std::dynamic_pointer_cast<osg_cachedpointcloudvertices>(raw_entry);
     if (!vertices) {
@@ -848,8 +863,11 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       throw snde_error("osg_cachedparameterizationdata: Could not get recording for %s",display_req->renderable_channelpath->c_str()); 
       
     }
+    std::shared_ptr<ndarray_recording_ref> parameterization_texvertices_array = cached_recording->reference_ndarray("texvertex_arrays");
 
-    osg_array = new OSGFPArray(cached_recording->reference_ndarray("texvertex_arrays"),1,2); // 2 for 2d texture coordinates
+    locks_required.push_back( { parameterization_texvertices_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
+
+    osg_array = new OSGFPArray(parameterization_texvertices_array,1,2); // 2 for 2d texture coordinates
     
   }
 
@@ -876,7 +894,10 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     }
 
     
-    osg_array = new OSGFPArray(cached_recording->reference_ndarray("vertex_arrays"),1,3); // 3 for 3d coordinates
+    std::shared_ptr<ndarray_recording_ref> meshed_vertices_array = cached_recording->reference_ndarray("vertex_arrays");
+    
+    locks_required.push_back( { meshed_vertices_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
+    osg_array = new OSGFPArray(meshed_vertices_array,1,3); // 3 for 3d coordinates
     
   }
 
@@ -902,9 +923,12 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       throw snde_error("osg_cachedmeshednormals: Could not get recording for %s",display_req->renderable_channelpath->c_str()); 
       
     }
-
     
-    osg_array = new OSGFPArray(cached_recording->reference_ndarray("vertnormals"),9,3); // SNDE groups them by 9 (per triangle), OSG by 3 (per vertex)for 3d coordinates
+    std::shared_ptr<ndarray_recording_ref> vertnormals_array = cached_recording->reference_ndarray("vertnormals");
+    
+    locks_required.push_back( { vertnormals_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
+
+    osg_array = new OSGFPArray(vertnormals_array,9,3); // SNDE groups them by 9 (per triangle), OSG by 3 (per vertex)for 3d coordinates
     
   }
 
@@ -935,7 +959,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     std::shared_ptr<osg_rendercacheentry> vertexarrays_entry;
     bool modified;
     
-    std::tie(vertexarrays_entry,modified) = params.rendercache->GetEntry(params,vertexarrays_requirement);
+    std::tie(vertexarrays_entry,modified) = params.rendercache->GetEntry(params,vertexarrays_requirement,&locks_required);
     if (!vertexarrays_entry) {
       throw snde_error("osg_cachedmeshedpart(): Could not get cache entry for vertex arrays channel %s",vertexarrays_requirement->renderable_channelpath->c_str());
     }
@@ -948,7 +972,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     
     std::shared_ptr<osg_rendercacheentry> normals_entry;
 
-    std::tie(normals_entry,modified) = params.rendercache->GetEntry(params,normals_requirement);
+    std::tie(normals_entry,modified) = params.rendercache->GetEntry(params,normals_requirement,&locks_required);
     if (!normals_entry) {
       throw snde_error("osg_cachedmeshedpart(): Could not get cache entry for normals channel %s",normals_requirement->renderable_channelpath->c_str());
     }
@@ -1029,7 +1053,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     std::shared_ptr<osg_rendercacheentry> vertexarrays_entry;
     bool modified;
 
-    std::tie(vertexarrays_entry,modified) = params.rendercache->GetEntry(params,vertexarrays_requirement);
+    std::tie(vertexarrays_entry,modified) = params.rendercache->GetEntry(params,vertexarrays_requirement,&locks_required);
     if (!vertexarrays_entry) {
       throw snde_error("osg_cachedtexedmeshedgeom(): Could not get cache entry for vertex arrays channel %s",vertexarrays_requirement->renderable_channelpath->c_str());
     }
@@ -1042,7 +1066,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 
     std::shared_ptr<osg_rendercacheentry> normals_entry;
 
-    std::tie(normals_entry,modified) = params.rendercache->GetEntry(params,normals_requirement);
+    std::tie(normals_entry,modified) = params.rendercache->GetEntry(params,normals_requirement,&locks_required);
     if (!normals_entry) {
       throw snde_error("osg_cachedtexedmeshedgeom(): Could not get cache entry for normals channel %s",normals_requirement->renderable_channelpath->c_str());
     }
@@ -1055,7 +1079,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     std::shared_ptr<display_requirement> parameterization_requirement=display_req->sub_requirements.at(2);
     std::shared_ptr<osg_rendercacheentry> parameterization_entry;
     
-    std::tie(parameterization_entry,modified) = params.rendercache->GetEntry(params,parameterization_requirement);
+    std::tie(parameterization_entry,modified) = params.rendercache->GetEntry(params,parameterization_requirement,&locks_required);
     if (!parameterization_entry) {
       throw snde_error("osg_cachedtexedmeshedgeom(): Could not get cache entry for parameterization channel %s",parameterization_requirement->renderable_channelpath->c_str());
     }
@@ -1133,7 +1157,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     std::shared_ptr<osg_rendercacheentry> geometry_entry;
     bool modified;
 
-    std::tie(geometry_entry,modified) = params.rendercache->GetEntry(params,geometry_requirement);
+    std::tie(geometry_entry,modified) = params.rendercache->GetEntry(params,geometry_requirement,&locks_required);
     if (!geometry_entry) {
       throw snde_error("osg_cachedtexedmeshedpart(): Could not get cache entry for geometry channel %s",geometry_requirement->renderable_channelpath->c_str());
     }
@@ -1149,7 +1173,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       std::shared_ptr<osg_rendercacheentry> texture_entry;
       bool modified;
 
-      std::tie(texture_entry,modified) = params.rendercache->GetEntry(params,texture_requirement);
+      std::tie(texture_entry,modified) = params.rendercache->GetEntry(params,texture_requirement,&locks_required);
       if (!texture_entry) {
 	throw snde_error("osg_cachedtexedmeshedpart(): Could not get cache entry for texture channel %s",texture_requirement->renderable_channelpath->c_str());
       }
@@ -1228,7 +1252,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       std::shared_ptr<osg_rendercacheentry> component_entry;
       bool modified;
 
-      std::tie(component_entry,modified) = params.rendercache->GetEntry(params,component_requirement);
+      std::tie(component_entry,modified) = params.rendercache->GetEntry(params,component_requirement,&locks_required);
       if (!component_entry) {
 	throw snde_error("osg_cachedassembly(): Could not get cache entry for sub-component %s",component_requirement->renderable_channelpath->c_str());
       }

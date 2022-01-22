@@ -37,7 +37,7 @@ namespace snde {
 
   // actually rendering is done by osg_image_renderer::frame() which just calls Viewer->frame()
   
-  std::tuple<std::shared_ptr<osg_rendercacheentry>,bool>
+  std::tuple<std::shared_ptr<osg_rendercacheentry>,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>>,bool>
   osg_image_renderer::prepare_render(//std::shared_ptr<recdatabase> recdb,
 				     std::shared_ptr<recording_set_state> with_display_transforms,
 				     //std::shared_ptr<display_info> display,
@@ -49,11 +49,12 @@ namespace snde {
   {
     // look up render cache.
     std::map<std::string,std::shared_ptr<display_requirement>>::const_iterator got_req;
-
+    std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> locks_required;
+    
     got_req=display_reqs.find(channel_path);
     if (got_req==display_reqs.end()) {
       snde_warning("openscenegraph_image_renderer: Was not possible to transform channel \"%s\" into something renderable",channel_path.c_str());
-      return std::make_pair(nullptr,true);
+      return std::make_tuple(nullptr,locks_required,true);
     }
     
     std::shared_ptr<display_requirement> display_req =got_req->second;
@@ -93,7 +94,7 @@ namespace snde {
 
       modified = true; 
     } else { // Positive display area 
-      std::tie(imageentry,modified) = RenderCache->GetEntry(params,display_req);
+      std::tie(imageentry,modified) = RenderCache->GetEntry(params,display_req,&locks_required);
     
       /// NOTE: to adjust size, first send event, then 
       //   change viewport:
@@ -154,7 +155,7 @@ namespace snde {
 	
     }
     
-    return std::make_pair(imageentry,modified);
+    return std::make_tuple(imageentry,locks_required,modified);
     
   }
   
