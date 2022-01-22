@@ -3905,7 +3905,7 @@ namespace snde {
     std::atomic_store(&_latest_globalrev,null_globalrev);
     std::atomic_store(&_latest_ready_globalrev,null_globalrev);
 
-    std::atomic_store(&_math_functions,std::make_shared<std::map<std::string,std::shared_ptr<math_function>>>());
+    std::atomic_store(&_math_functions,std::make_shared<math_function_registry_map>());
     
     if (!this->lockmgr) {
       this->lockmgr = std::make_shared<lockmanager>();
@@ -4258,36 +4258,75 @@ namespace snde {
 
   }
 
-  std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> recdatabase::math_functions()
+  std::shared_ptr<math_function_registry_map> recdatabase::math_functions()
   {
     return std::atomic_load(&_math_functions);
   }
 
   std::shared_ptr<math_function> recdatabase::lookup_math_function(std::string name)
   {
-    auto functions=math_functions();
-    return functions->at(name);
+    std::shared_ptr<math_function_registry_map> builtin_functions=math_function_registry();    
+    std::shared_ptr<math_function_registry_map> addon_functions=math_functions();
+
+    math_function_registry_map::iterator builtin_function = builtin_functions->find(name);
+    math_function_registry_map::iterator addon_function = addon_functions->find(name);
+
+    if (builtin_function != builtin_functions->end() && addon_function != addon_functions->end()) {
+      snde_warning("recdb addon math function %s overrides c++ builtin function of same name",name.c_str());
+      return addon_function->second;
+    }
+
+    if (builtin_function == builtin_functions->end() && addon_function == addon_functions->end()) {
+      throw snde_error("Math function %s not found",name.c_str());
+      
+    }
+    if (addon_function != addon_functions->end()) {
+      return addon_function->second;
+    }
+    if (builtin_function != builtin_functions->end()) {
+      return builtin_function->second;
+    }
+    assert(0); // should not be possible -- all cases handled above
+    return nullptr;
   }
 
   std::shared_ptr<std::vector<std::string>> recdatabase::list_math_functions()
   {
+    std::set<std::string> sorter; 
+    
     std::shared_ptr<std::vector<std::string>> retval = std::make_shared<std::vector<std::string>>();
 
-    auto functions=math_functions();
+    
+    std::shared_ptr<math_function_registry_map> builtin_functions=math_function_registry();
+    
+    std::shared_ptr<math_function_registry_map> addon_functions=math_functions();
 
-    for (auto && funcname_function: *functions) {
-      retval->push_back(funcname_function.first);
+    for (auto && funcname_function: *builtin_functions) {
+      sorter.emplace(funcname_function.first);
+    }
+
+    for (auto && funcname_function: *builtin_functions) {
+      std::set<std::string>::iterator old_function = sorter.find(funcname_function.first);
+      if (old_function != sorter.end()) {
+	snde_warning("recdb addon math function %s overrides c++ builtin function of same name",funcname_function.first.c_str());
+      }
+      sorter.emplace(funcname_function.first);
+    }
+
+    for (auto && funcname: sorter) {
+    
+      retval->push_back(funcname);
     }
     return retval;
   }
 
-  std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> recdatabase::_begin_atomic_math_functions_update() // should be called with admin lock held
+  std::shared_ptr<math_function_registry_map> recdatabase::_begin_atomic_math_functions_update() // should be called with admin lock held
   {
-    std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> new_math_functions = std::make_shared<std::map<std::string,std::shared_ptr<math_function>>>(*math_functions());
+    std::shared_ptr<math_function_registry_map> new_math_functions = std::make_shared<math_function_registry_map>(*math_functions());
     return new_math_functions;
   }
   
-  void recdatabase::_end_atomic_math_functions_update(std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> new_math_functions) // should be called with admin lock held
+  void recdatabase::_end_atomic_math_functions_update(std::shared_ptr<math_function_registry_map> new_math_functions) // should be called with admin lock held
   {
     std::atomic_store(&_math_functions,new_math_functions);
   }

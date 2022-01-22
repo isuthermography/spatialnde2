@@ -240,7 +240,7 @@ template <typename T>
   };
 %}
 
-%define snde_rawaccessible(rawaccessible_class)
+%define snde_rawaccessible(rawaccessible_class...) // the ... enables it to accept templates that have commas in int
 
 // This typemap takes allows passing an integer which is the address
 // of a C++ shared_ptr structure to a raw_shared_ptr parameter.

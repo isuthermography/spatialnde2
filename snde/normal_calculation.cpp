@@ -225,7 +225,7 @@ namespace snde {
     }); 
   }
   
-  static int registered_trinormals_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.trinormals",define_spatialnde2_trinormals_function));
+  static int registered_trinormals_function = register_math_function("spatialnde2.trinormals",define_spatialnde2_trinormals_function());
   
   
 
@@ -432,7 +432,7 @@ namespace snde {
 
 
   
-  static int registered_vertnormals_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.vertnormals",define_vertnormals_recording_function));
+  static int registered_vertnormals_function = register_math_function("spatialnde2.vertnormals",define_vertnormals_recording_function());
   
   
   

@@ -221,7 +221,7 @@ namespace snde {
     
   }
   
-  static int registered_vertexarray_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.meshedpart_vertexarray",define_meshedpart_vertexarray_function));
+  static int registered_vertexarray_function = register_math_function("spatialnde2.meshedpart_vertexarray",define_meshedpart_vertexarray_function());
   
 
 
@@ -428,7 +428,7 @@ namespace snde {
     });
   }
   
-  static int registered_texvertexarray_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.meshedparameterization_texvertexarray",define_meshedparameterization_texvertexarray_function));
+  static int registered_texvertexarray_function = register_math_function("spatialnde2.meshedparameterization_texvertexarray",define_meshedparameterization_texvertexarray_function());
 
 
 

@@ -270,7 +270,7 @@ namespace snde {
   }
 
 
-  static int registered_colormap_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.colormap",define_colormap_function));
+  static int registered_colormap_function = register_math_function("spatialnde2.colormap",define_colormap_function());
   
 
 
@@ -455,7 +455,7 @@ namespace snde {
   }
 
 
-  static int registered_pointcloud_colormap_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.pointcloud_colormap",define_pointcloud_colormap_function));
+  static int registered_pointcloud_colormap_function = register_math_function("spatialnde2.pointcloud_colormap",define_pointcloud_colormap_function());
   
 };
 

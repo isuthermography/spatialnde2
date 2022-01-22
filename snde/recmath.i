@@ -28,6 +28,11 @@ snde_rawaccessible(snde::int_math_instance_parameter);
 %shared_ptr(snde::double_math_instance_parameter);
 snde_rawaccessible(snde::double_math_instance_parameter);
 
+
+%shared_ptr(std::unordered_map<std::string,std::shared_ptr<snde::math_function>>);
+%template(math_function_registry_map) std::unordered_map<std::string,std::shared_ptr<snde::math_function>>;
+snde_rawaccessible(std::unordered_map<std::string,std::shared_ptr<snde::math_function>>);
+
 // named_math_function/named_math_functions used for setup_math_functions (recstore_setup.cpp) 
 %template(named_math_function) std::pair<std::string,std::shared_ptr<snde::math_function>>;
 %template(named_math_functions) std::vector<std::pair<std::string,std::shared_ptr<snde::math_function> > >;
@@ -485,20 +490,11 @@ namespace snde {
 
   };
 
-  class registered_math_function {
-  public:
-    std::string name; // Suggest python-style package.module.function, etc.
-    std::function<std::shared_ptr<math_function>(/*std::shared_ptr<recdatabase> recdb*/)> builder_function;
-    
-    registered_math_function(std::string name,std::function<std::shared_ptr<math_function>(/*std::shared_ptr<recdatabase> recdb*/)> builder_function);
-    virtual ~registered_math_function()=default; // may be subclassed
-    
-  };
   
-  typedef std::unordered_map<std::string,std::shared_ptr<registered_math_function>> function_registry_map;
+  typedef std::unordered_map<std::string,std::shared_ptr<math_function>> math_function_registry_map;
   
-  std::shared_ptr<function_registry_map> math_function_registry();
-  int register_math_function(std::shared_ptr<registered_math_function> builder_function);
+  std::shared_ptr<math_function_registry_map> math_function_registry();
+  int register_math_function(std::string registered_name,std::shared_ptr<math_function> fcn);
 
 }
 

@@ -728,7 +728,7 @@ namespace snde {
     void globalrev_mutablenotneeded_code(); 
 
 
-    std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> math_functions();
+    std::shared_ptr<math_function_registry_map> math_functions();
 
     std::shared_ptr<math_function> lookup_math_function(std::string name);
     std::shared_ptr<std::vector<std::string>> list_math_functions();

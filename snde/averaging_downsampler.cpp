@@ -314,7 +314,7 @@ namespace snde {
     
   }
   
-  static int registered_averaging_downsampler_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.averaging_downsampler",define_averaging_downsampler_function));
+  static int registered_averaging_downsampler_function = register_math_function("spatialnde2.averaging_downsampler",define_averaging_downsampler_function());
   
   
   
