@@ -191,11 +191,11 @@ namespace snde {
       nullptr,
       0.0,
     }),
-    vertnormals_function(recdb->math_functions()->at("spatialnde2.vertnormals")),
-    colormapping_function(recdb->math_functions()->at("spatialnde2.colormap")),
-    pointcloud_colormapping_function(recdb->math_functions()->at("spatialnde2.pointcloud_colormap")),
-    vertexarray_function(recdb->math_functions()->at("spatialnde2.meshedpart_vertexarray")),
-    texvertexarray_function(recdb->math_functions()->at("spatialnde2.meshedparameterization_texvertexarray"))
+    vertnormals_function(recdb->lookup_math_function("spatialnde2.vertnormals")),
+    colormapping_function(recdb->lookup_math_function("spatialnde2.colormap")),
+    pointcloud_colormapping_function(recdb->lookup_math_function("spatialnde2.pointcloud_colormap")),
+    vertexarray_function(recdb->lookup_math_function("spatialnde2.meshedpart_vertexarray")),
+    texvertexarray_function(recdb->lookup_math_function("spatialnde2.meshedparameterization_texvertexarray"))
 
   {
     static std::mutex di_index_mutex; // created atomically on first access per c++ spec

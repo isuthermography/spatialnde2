@@ -551,6 +551,12 @@ template <typename T>
 #endif // SNDE_DOUBLEPREC_COORDS
 
 
+  PyObject *kdnode_dtype = PyRun_String("dtype([('cutting_vertex',np.uint64),('left_subtree',np.uint64),('right_subtree',np.uint64)])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_KDNODE,(PyArray_Descr *)kdnode_dtype);
+  
+
+  
+
   Py_DECREF(NumpyModule);
   Py_DECREF(np_dtype);
   Py_DECREF(Globals);

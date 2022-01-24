@@ -85,8 +85,8 @@ namespace snde {
       return SNDE_INDEX_INVALID;
     }
 
-    if (depth > *max_depth_out) {
-      *max_depth_out = depth;
+    if (depth+1 > *max_depth_out) {
+      *max_depth_out = depth+1;
     }
     
     unsigned axis = depth % ndims; // which axis working on in this tree step

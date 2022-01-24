@@ -29,8 +29,9 @@ extern "C" {
 				 KDTREE_LOCAL uint8_t *statestack, // (max_depth+1)*sizeof(uint8_t)
 				 KDTREE_LOCAL snde_coord *bboxstack, // (max_depth+1)*sizeof(snde_coord)*2
 				 KDTREE_GLOBAL snde_coord *to_find,
-				 KDTREE_GLOBAL snde_coord *dist_squared_out,
-				 uint32_t ndim);
+				 //KDTREE_GLOBAL snde_coord *dist_squared_out,
+				 uint32_t ndim,
+				 uint32_t max_depth);
   
   
 #ifdef __cplusplus

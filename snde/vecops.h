@@ -259,14 +259,14 @@ static VECOPS_INLINE void scalecoord2(snde_coord coeff,snde_coord2 vec1,snde_coo
 static VECOPS_INLINE snde_coord distsqglobalvecn(VECOPS_GLOBAL snde_coord *vec1,VECOPS_GLOBAL snde_coord *vec2,snde_index n)
 {
   snde_coord curval;
-  snde_coord accum=0.0;
+  snde_coord accum=0.0f;
   snde_index idx;
   
   for (idx=0;idx < n; idx++) {
     curval = vec1[idx] - vec2[idx];
     accum += curval*curval;
   }
-  return curval; 
+  return accum; 
 }
 
 
@@ -274,14 +274,14 @@ static VECOPS_INLINE snde_coord distsqglobalvecn(VECOPS_GLOBAL snde_coord *vec1,
 static VECOPS_INLINE snde_coord distsqgloballocalvecn(VECOPS_GLOBAL snde_coord *vec1,VECOPS_LOCAL snde_coord *vec2,snde_index n)
 {
   snde_coord curval;
-  snde_coord accum=0.0;
+  snde_coord accum=0.0f;
   snde_index idx;
   
   for (idx=0;idx < n; idx++) {
     curval = vec1[idx] - vec2[idx];
     accum += curval*curval;
   }
-  return curval; 
+  return accum; 
 }
 
 

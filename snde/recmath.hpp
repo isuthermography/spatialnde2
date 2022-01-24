@@ -500,7 +500,16 @@ namespace snde {
   // registered name is usually a python-style package/module path
   // register_math_function() returns a value so it can be used an an initializer
   int register_math_function(std::string registered_name,std::shared_ptr<math_function> fcn);
+
+
+  // Idea: we could make a function to run math manually.
+  // But we would first have to create the ability to define
+  // untethered recordings outside of a transaction...
+  // e.g.
+  // std::shared_ptr<recording_set_state> execute_math(std::vector<std::shared_ptr<instantiated_math_function>> math_functions,std::vector<std::shared_ptr<recording_base>>);
   
 };
+
+
 
 #endif // SNDE_RECMATH_HPP
