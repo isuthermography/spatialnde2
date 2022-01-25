@@ -130,7 +130,13 @@ namespace snde {
 	      { recording, { "edges",false }}, 
 	      { recording, { "vertices",false }}, 
 	      { result_rec, { "vertex_arrays", true }},
-	    });
+	    },
+#ifdef SNDE_OPENCL
+	    true
+#else
+	    false
+#endif
+	    );
 	  
 	  
 	  return std::make_shared<exec_function_override_type>([ this,locktokens,result_rec,recording ]() {
@@ -215,7 +221,7 @@ namespace snde {
     
   }
   
-  static int registered_vertexarray_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.meshedpart_vertexarray",define_meshedpart_vertexarray_function));
+  static int registered_vertexarray_function = register_math_function("spatialnde2.meshedpart_vertexarray",define_meshedpart_vertexarray_function());
   
 
 
@@ -225,7 +231,7 @@ namespace snde {
   // texvertexarray
 
 #ifdef SNDE_OPENCL
-  static opencl_program texvertexarray_function_opencl("snde_texvertexarray", { snde_types_h, geometry_types_h, vecops_h, geometry_ops_h, rec_display_texvertexarray_c  });
+  static opencl_program texvertexarray_function_opencl("rec_display_texvertexarray", { snde_types_h, geometry_types_h, vecops_h, geometry_ops_h, rec_display_texvertexarray_c  });
 #endif // SNDE_OPENCL
 
   
@@ -331,7 +337,13 @@ namespace snde {
 	      { recording, { "uv_edges",false }}, 
 	      { recording, { "uv_vertices",false }}, 
 	      { result_rec, { "texvertex_arrays", true }},
-	    });
+	    },
+#ifdef SNDE_OPENCL
+	    true
+#else
+	    false
+#endif
+	    );
 	  
 	  
 	  return std::make_shared<exec_function_override_type>([ this,locktokens,result_rec,recording ]() {
@@ -416,7 +428,7 @@ namespace snde {
     });
   }
   
-  static int registered_texvertexarray_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.meshedparameterization_texvertexarray",define_meshedparameterization_texvertexarray_function));
+  static int registered_texvertexarray_function = register_math_function("spatialnde2.meshedparameterization_texvertexarray",define_meshedparameterization_texvertexarray_function());
 
 
 

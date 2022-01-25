@@ -115,8 +115,13 @@ int main(int argc, char *argv[])
 
 
   std::shared_ptr<math_function> multiply_by_scalar_function = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
-												     return make_cppfuncexec_floatingtypes<multiply_by_scalar>(rss,inst);
-												   });
+    std::shared_ptr<executing_math_function> executing;
+    executing = make_cppfuncexec_floatingtypes<multiply_by_scalar>(rss,inst);
+    if (!executing) {
+      throw snde_error("In attempting to call math function %s, first parameter has unsupported data type.",inst->definition->definition_command.c_str());
+    }
+    return executing;
+  });
   
   std::shared_ptr<instantiated_math_function> scaled_channel_function = multiply_by_scalar_function->instantiate({
       std::make_shared<math_parameter_recording>("/test_channel"),

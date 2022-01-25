@@ -19,6 +19,7 @@ namespace snde {
   class cachemanager; // cached_recording.hpp
   class allocator_alignment; // from allocator.hpp
   class lockmanager;  // lockmanager.hpp
+  class recording_storage_reference;
   
   class recording_storage: public std::enable_shared_from_this<recording_storage> {
     // recording storage locked through lockmanager, except
@@ -49,19 +50,37 @@ namespace snde {
     std::atomic<snde_index> nelem;  // immutable once constructed for immutable arrays. Might change for mutable arrays. 
 
 
-    std::mutex cache_lock;
+    std::mutex cache_lock; // locks cache and possibly other items delegated by the implementation class such as nonmoving_pointer_or_reference.
     std::unordered_map<std::string,std::shared_ptr<cached_recording>> cache; // cache map, indexed by name of module doing caching (unique by get_cache_name()), to an abstract base class. Access to the unordered_map protected by cache_lock.
 
 
     
-    std::shared_ptr<lockmanager> lockmgr; // may be nullptr if requires_locking_read and requires_locking_write are both false. 
-    snde_bool requires_locking_read;
-    snde_bool requires_locking_write;
+    std::shared_ptr<lockmanager> lockmgr; // may be nullptr if requires_locking_read and requires_locking_write are both false permanently. 
+    std::atomic<bool> requires_locking_read;
+    std::atomic<bool> requires_locking_write;
 
+    // GPU semantics for locking may be different. This is motivated by OpenCL
+    // and the graphics storage manager, where the specification says
+    //  "Concurrent reading from, writing to and copying between both a buffer
+    //   object and its sub-buffer object(s) is undefined. Concurrent reading
+    //   from, writing to and copying between overlapping sub-buffer objects
+    //   created with the same buffer object is undefined. Only reading from
+    //   both a buffer object and its sub-buffer objects or reading from
+    //   multiple overlapping sub-buffer objects is defined."
+    // Thus we may not modify a parent buffer as a parent buffer ANYWHERE
+    // if something is reading a sub-buffer that parent buffer. i.e.
+    // we have to prevent writing to the parent buffer (a different non-
+    // overlapping sub-buffer is probably OK) while the sub-buffer is in
+    // use. The way we do this is by imposing a read lock requirement
+    // on the sub-buffer which will prevent a write lock from being obtained
+    // on the parent buffer until the reader is done with the sub-buffer. 
+    std::atomic<bool> requires_locking_read_gpu;
+    std::atomic<bool> requires_locking_write_gpu;
+    
     std::atomic<bool> finalized; // if set, this is an immutable recording and its values have been set. Does NOT mean the data is valid indefinitely, as this could be a reference that loses validity at some point.
     
     // constructor
-    recording_storage(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized);
+    recording_storage(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void **basearray,size_t elementsize,snde_index base_index,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool requires_locking_read_gpu,bool requires_locking_write_gpu,bool finalized);
     
     // Rule of 3
     recording_storage(const recording_storage &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
@@ -81,6 +100,8 @@ namespace snde {
     // ***!!! It would be nice to be able to mark a "rectangle" as invalid too !!!***
     virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)=0; // pos and numelem are relative to __this_recording__
     virtual void ready_notification()=0; // Sent by the recording when it is marked as ready. Used by some recording_storage_managers (e.g. graphics_storage) as an indicator that pending_modified data has probably been modified by the CPU and thus needs to be flushed out to cache managers. Note that multiple ready_ontifications on the same recording_storage are possible (but should be rare) if the storage is reused such as for a mutable recording or a later version with no data change uses the same underlying data store
+    virtual void mark_as_finalized()=0;
+    virtual std::shared_ptr<recording_storage> get_original_storage();
     
     virtual void add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr)=0; // gets mark_as_modified() and notify_storage_expiration() notifications
   };
@@ -100,7 +121,10 @@ namespace snde {
     void *_baseptr; // this is what _basearray points at; access through superclass addr() method
 
 
-    std::mutex follower_cachemanagers_lock; 
+    
+    std::weak_ptr<recording_storage_reference> weak_nonmoving_copy_or_reference; // locked using recording_storage's cache lock
+
+    std::mutex follower_cachemanagers_lock; // locks follower_cachemanagers
     std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>> follower_cachemanagers;
 
     
@@ -117,18 +141,23 @@ namespace snde {
 
     virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
     virtual void ready_notification();
+    virtual void mark_as_finalized();
+    
     virtual void add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr);
     
   };
 
   class recording_storage_reference: public recording_storage {
-    // warning: referenced recordings are always immutable and therefore cannot be explicitly locked.
+    // warning: referenced recordings are often, but not always, immutable.
+    // if the memallocator supports_nomoving_reference() is true, then we can have nonmoving
+    // references that refer to the same underlying data (implemented via the MMU so it is the
+    // same memory pages mapped twice into the address space). These do not require immutability
     // orig shared_ptr is immutable once published; ref shared_ptr is immutable once published
   public:
     std::shared_ptr<recording_storage> orig; // low-level allocator
     std::shared_ptr<nonmoving_copy_or_reference> ref; 
 
-    recording_storage_reference(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,snde_index nelem,std::shared_ptr<recording_storage> orig,std::shared_ptr<nonmoving_copy_or_reference> ref);
+    recording_storage_reference(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,snde_index nelem,std::shared_ptr<recording_storage> orig,std::shared_ptr<nonmoving_copy_or_reference> ref,bool finalized);
     virtual ~recording_storage_reference() = default; 
     virtual void *dataaddr_or_null();
     virtual void *cur_dataaddr();
@@ -137,6 +166,8 @@ namespace snde {
     virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference();
     virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
     virtual void ready_notification();
+    virtual void mark_as_finalized();
+    virtual std::shared_ptr<recording_storage> get_original_storage();
     virtual void add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr);
 
   };

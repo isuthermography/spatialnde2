@@ -136,7 +136,13 @@ namespace snde {
 	    { recording, {"edges", false }},
 	    { recording, {"vertices", false}},
 	    { result_rec,{"trinormals", true }}
-	  });
+	  },
+#ifdef SNDE_OPENCL
+	    true
+#else
+	    false
+#endif
+	  );
 	
 	return std::make_shared<exec_function_override_type>([ this,locktokens, result_rec,recording ]() {
 	  // exec code
@@ -219,7 +225,7 @@ namespace snde {
     }); 
   }
   
-  static int registered_trinormals_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.trinormals",define_spatialnde2_trinormals_function));
+  static int registered_trinormals_function = register_math_function("spatialnde2.trinormals",define_spatialnde2_trinormals_function());
   
   
 
@@ -337,7 +343,13 @@ namespace snde {
 	    { recording, {"edges", false }},
 	    { recording, {"vertices", false}},
 	    { result_rec,{"vertnormals", true }}
-	  });
+	  },
+#ifdef SNDE_OPENCL
+	  true
+#else
+	  false
+#endif
+	  );
 	
 	return std::make_shared<exec_function_override_type>([ this,locktokens, result_rec,recording ]() {
 	  // exec code
@@ -420,7 +432,7 @@ namespace snde {
 
 
   
-  static int registered_vertnormals_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.vertnormals",define_vertnormals_recording_function));
+  static int registered_vertnormals_function = register_math_function("spatialnde2.vertnormals",define_vertnormals_recording_function());
   
   
   

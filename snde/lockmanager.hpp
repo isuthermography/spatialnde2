@@ -387,7 +387,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
        method. This downgrades an entire rwlock_token_set from
        write access to read access. Note that no other references
        to the underlying locks should exist, or an
-       std::invalid_argument exception will be thrown.
+       snde_error exception will be thrown.
        a single downgrade_to_read() call downgrades all references
        to the referenced rwlock_token_set.
 
@@ -866,14 +866,18 @@ typedef uint64_t snde_infostore_lock_mask_t;
     //  mylock = lock_recording_refs({ {inputrec1,false},
     //                                 {inputrec2,false},
     //                                 {outputrec1,true} });
-    rwlock_token_set lock_recording_refs(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> recrefs);
+    // GPU access flag causes it to make the locking decision based on the original recording storage
+    // and the requires_locking_read_gpu/requires_locking_write_gpu storage flags instead of requires_locking_read and requires_locking_write
+    rwlock_token_set lock_recording_refs(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> recrefs,bool gpu_access=false);
     
     // use lock_recording_arrays() to lock a bunch of multi_ndarray_recording elements 
     // use brace initialization; the 2nd half of the pair is true for write locking:
     //  mylock = lock_recording_arrays({ {inputrec1, {"parts", false} },
     //                                   {inputrec2, {"triangles", false} },
     //                                   {outputrec1, {"edges", true} } });
-    rwlock_token_set lock_recording_arrays(std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<std::string,bool>>> recrefs);
+    // GPU access flag causes it to make the locking decision based on the original recording storage
+    // and the requires_locking_read_gpu/requires_locking_write_gpu storage flags instead of requires_locking_read and requires_locking_write
+    rwlock_token_set lock_recording_arrays(std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<std::string,bool>>> recrefs,bool gpu_access=false);
 
 
     rwlock_token  _get_preexisting_lock_read_lockobj(rwlock_token_set all_locks,std::shared_ptr<rwlock> rwlockobj)
@@ -1014,7 +1018,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
       // First, get whole lock      
       rwlock_token whole_token = _get_preexisting_lock_read_lockobj(all_locks,lockable->lock);
       if (whole_token==nullptr) {
-	throw std::invalid_argument("Must have valid preexisting lockable lock (this may be a locking order violation)");
+	throw snde_error("Must have valid preexisting lockable lock (this may be a locking order violation)");
       }
 
       (*token_set)[&lockable->lock->reader]=whole_token;
@@ -1034,7 +1038,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
       // First, get wholearray lock      
       rwlock_token wholearray_token = _get_preexisting_lock_read_lockobj(all_locks,alock->whole);
       if (wholearray_token==nullptr) {
-	throw std::invalid_argument("Must have valid preexisting whole lock (this may be a locking order violation)");
+	throw snde_error("Must have valid preexisting whole lock (this may be a locking order violation)");
       }
 
       (*token_set)[&alock->whole->reader]=wholearray_token;
@@ -1049,7 +1053,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
 	std::tie(lockableptr,preexisting_lock)=_get_preexisting_lock_read_array_region(all_locks,idx,markedregion_rwlock.first.regionstart,markedregion_rwlock.first.regionend-markedregion_rwlock.first.regionstart);
 	
 	if (preexisting_lock==nullptr) {
-	  throw std::invalid_argument("Must have valid preexisting lock (this may be a locking order violation)");
+	  throw snde_error("Must have valid preexisting lock (this may be a locking order violation)");
 	}
 	//(*token_set)[&markedregion_rwlock.second.reader]=preexisting_lock;
 	(*token_set)[lockableptr]=preexisting_lock;
@@ -1076,7 +1080,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
       std::tie(lockobj,retval) =  _get_preexisting_lock_read_array_region(all_locks, arrayidx,indexstart,numelems);
 
       if (retval==nullptr) {
-	throw std::invalid_argument("Must have valid preexisting lock (this may be a locking order violation)");
+	throw snde_error("Must have valid preexisting lock (this may be a locking order violation)");
       }
       (*token_set)[lockobj]=retval;
 	
@@ -1263,7 +1267,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
       // First, get whole lock      
       rwlock_token whole_token = _get_preexisting_lock_write_lockobj(all_locks,lockable->lock);
       if (whole_token==nullptr) {
-	throw std::invalid_argument("Must have valid preexisting locakble lock (this may be a locking order violation)");
+	throw snde_error("Must have valid preexisting locakble lock (this may be a locking order violation)");
       }
 
       (*token_set)[&lockable->lock->writer]=whole_token;
@@ -1281,7 +1285,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
       // First, get wholearray lock      
       rwlock_token wholearray_token = _get_preexisting_lock_write_lockobj(all_locks,alock->whole);
       if (wholearray_token==nullptr) {
-	throw std::invalid_argument("Must have valid preexisting whole lock (this may be a locking order violation)");
+	throw snde_error("Must have valid preexisting whole lock (this may be a locking order violation)");
       }
 
       (*token_set)[&alock->whole->writer]=wholearray_token;
@@ -1296,7 +1300,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
 	std::tie(lockableptr,preexisting_lock)=_get_preexisting_lock_write_array_region(all_locks,idx,markedregion_rwlock.first.regionstart,markedregion_rwlock.first.regionend-markedregion_rwlock.first.regionstart);
 	
 	if (preexisting_lock==nullptr) {
-	  throw std::invalid_argument("Must have valid preexisting lock (this may be a locking order violation)");
+	  throw snde_error("Must have valid preexisting lock (this may be a locking order violation)");
 	}
 	(*token_set)[&markedregion_rwlock.second->writer]=preexisting_lock;
       }
@@ -1318,7 +1322,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
       std::tie(lockobj,retval) =  _get_preexisting_lock_write_array_region(all_locks, arrayidx,indexstart,numelems);
 
       if (retval==nullptr) {
-	throw std::invalid_argument("Must have valid preexisting lock (this may be a locking order violation)");
+	throw snde_error("Must have valid preexisting lock (this may be a locking order violation)");
       }
       (*token_set)[lockobj]=retval;
 	
@@ -1397,7 +1401,7 @@ typedef uint64_t snde_infostore_lock_mask_t;
 	// lockable_token.first is reference to the lockable
 	// lockable_token.second is reference to the token
 	if (lockable_token->second.use_count() != 1) {
-	  throw std::invalid_argument("Locks referenced by more than one token_set may not be downgraded");
+	  throw snde_error("Locks referenced by more than one token_set may not be downgraded");
 	  lockable_token->first->_rwlock_obj->downgrade();
 	}
       }

@@ -73,7 +73,7 @@ namespace snde {
     osg_renderer & operator=(const osg_renderer &) = delete;
     virtual ~osg_renderer() = default; 
     
-    virtual std::tuple<std::shared_ptr<osg_rendercacheentry>,bool>
+    virtual std::tuple<std::shared_ptr<osg_rendercacheentry>,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>>,bool>  // returns cacheentry,locks_required,modified
     prepare_render(//std::shared_ptr<recdatabase> recdb,
 		   std::shared_ptr<recording_set_state> with_display_transforms,
 		   //std::shared_ptr<display_info> display,

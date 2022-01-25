@@ -33,7 +33,7 @@ namespace snde {
   }
 
   
-  nonmoving_copy_or_reference_posix::nonmoving_copy_or_reference_posix(void **basearray,snde_index shift, snde_index length,void *mmapaddr, size_t mmaplength, size_t ptrshift) : nonmoving_copy_or_reference(shift,length),basearray(basearray),mmapaddr(mmapaddr),mmaplength(mmaplength),ptrshift(ptrshift)
+  nonmoving_copy_or_reference_posix::nonmoving_copy_or_reference_posix(void **basearray,snde_index shift, snde_index length,void *mmapaddr, size_t mmaplength, size_t ptrshift) : nonmoving_copy_or_reference(shift,length,false,false),basearray(basearray),mmapaddr(mmapaddr),mmaplength(mmaplength),ptrshift(ptrshift)
   {
     set_shiftedarray();
 

@@ -796,10 +796,113 @@ namespace snde {
 #endif
       
     default:
-      throw snde_error("In attempting to call math function %s, first parameter %s has non-floating point type %s",inst->definition->definition_command.c_str(),firstparam_rec->channel_name.c_str(),rtn_typenamemap.at(firstparam_rec_val->ndinfo()->typenum).c_str());
+      //throw snde_error("In attempting to call math function %s, first parameter %s has non-floating point type %s",inst->definition->definition_command.c_str(),firstparam_rec->channel_name.c_str(),rtn_typenamemap.at(firstparam_rec_val->ndinfo()->typenum).c_str());
+      return nullptr;
     }
   }
 
+
+
+  // This template allows you to write a math function once
+  // that auto-detects whether its first input is int32_t or
+  // int64_t and runs the correct version automatically
+  template <template<class> class CppFuncClass>
+  std::shared_ptr<executing_math_function> make_cppfuncexec_integertypes(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst)
+  {
+    if (!inst) {
+      // initial call with no instantiation to probe parameters; just use int32 case
+      return std::make_shared<CppFuncClass<int32_t>>(rss,inst);
+
+    }
+    
+    std::shared_ptr<math_parameter> firstparam = inst->parameters.at(0);
+
+    assert(firstparam->paramtype==SNDE_MFPT_RECORDING);
+
+    std::shared_ptr<math_parameter_recording> firstparam_rec = std::dynamic_pointer_cast<math_parameter_recording>(firstparam);
+
+    assert(firstparam_rec);
+    
+    std::shared_ptr<ndarray_recording_ref> firstparam_rec_val = firstparam_rec->get_ndarray_recording_ref(rss,inst->channel_path_context,inst->definition,1);
+
+    if (!firstparam_rec_val) { // Won't ever happen because get_ndarray_recording_ref() now throws the exception itself
+      throw snde_error("In attempting to call math function %s, first parameter %s is not an ndarray recording",inst->definition->definition_command.c_str(),firstparam_rec->channel_name.c_str());
+    }
+
+    switch (firstparam_rec_val->ndinfo()->typenum) {
+    case SNDE_RTN_UINT64:
+      return std::make_shared<CppFuncClass<uint64_t>>(rss,inst);
+
+    case SNDE_RTN_INT64:
+      return std::make_shared<CppFuncClass<int64_t>>(rss,inst);
+
+    case SNDE_RTN_UINT32:
+      return std::make_shared<CppFuncClass<uint32_t>>(rss,inst);    
+
+    case SNDE_RTN_INT32:
+      return std::make_shared<CppFuncClass<int32_t>>(rss,inst);    
+
+    case SNDE_RTN_UINT16:
+      return std::make_shared<CppFuncClass<uint16_t>>(rss,inst);    
+      
+    case SNDE_RTN_INT16:
+      return std::make_shared<CppFuncClass<int16_t>>(rss,inst);    
+
+    case SNDE_RTN_UINT8:
+      return std::make_shared<CppFuncClass<uint8_t>>(rss,inst);    
+
+    case SNDE_RTN_INT8:
+      return std::make_shared<CppFuncClass<int8_t>>(rss,inst);    
+
+    default:
+      //throw snde_error("In attempting to call math function %s, first parameter %s has non-floating point type %s",inst->definition->definition_command.c_str(),firstparam_rec->channel_name.c_str(),rtn_typenamemap.at(firstparam_rec_val->ndinfo()->typenum).c_str());
+      return nullptr;
+    }
+  }
+
+
+  // This template allows you to write a math function once
+  // that auto-detects whether its first input is complex float32 or
+  // complex float64 and runs the correct version automatically
+  template <template<class> class CppFuncClass>
+  std::shared_ptr<executing_math_function> make_cppfuncexec_complextypes(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst)
+  {
+    if (!inst) {
+      // initial call with no instantiation to probe parameters; just use int32 case
+      return std::make_shared<CppFuncClass<std::complex<snde_float32>>>(rss,inst);
+
+    }
+    
+    std::shared_ptr<math_parameter> firstparam = inst->parameters.at(0);
+
+    assert(firstparam->paramtype==SNDE_MFPT_RECORDING);
+
+    std::shared_ptr<math_parameter_recording> firstparam_rec = std::dynamic_pointer_cast<math_parameter_recording>(firstparam);
+
+    assert(firstparam_rec);
+    
+    std::shared_ptr<ndarray_recording_ref> firstparam_rec_val = firstparam_rec->get_ndarray_recording_ref(rss,inst->channel_path_context,inst->definition,1);
+
+    if (!firstparam_rec_val) { // Won't ever happen because get_ndarray_recording_ref() now throws the exception itself
+      throw snde_error("In attempting to call math function %s, first parameter %s is not an ndarray recording",inst->definition->definition_command.c_str(),firstparam_rec->channel_name.c_str());
+    }
+
+    switch (firstparam_rec_val->ndinfo()->typenum) {
+    case SNDE_RTN_COMPLEXFLOAT32:
+      return std::make_shared<CppFuncClass<std::complex<snde_float32>>>(rss,inst);
+
+    case SNDE_RTN_COMPLEXFLOAT64:
+      return std::make_shared<CppFuncClass<std::complex<snde_float64>>>(rss,inst);
+
+
+    default:
+      //throw snde_error("In attempting to call math function %s, first parameter %s has non-floating point type %s",inst->definition->definition_command.c_str(),firstparam_rec->channel_name.c_str(),rtn_typenamemap.at(firstparam_rec_val->ndinfo()->typenum).c_str());
+      return nullptr;
+    }
+  }
+
+  
+  
 
   template <typename T>
   inline size_t cppfunc_vector_multiplicity()
@@ -846,7 +949,7 @@ namespace snde {
   // see also the vector evaluation templates immediately above as they may be convenient
   // (see averaging_downsampler.cpp for an example)
   template <template<class> class CppFuncClass>
-  std::shared_ptr<executing_math_function> make_cppfuncexec_floating_and_vector_types(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst)
+  std::shared_ptr<executing_math_function> make_cppfuncexec_vectortypes(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst)
   {
     if (!inst) {
       // initial call with no instantiation to probe parameters; just use float32 case
@@ -869,16 +972,6 @@ namespace snde {
     }
 
     switch (firstparam_rec_val->ndinfo()->typenum) {
-    case SNDE_RTN_FLOAT32:
-      return std::make_shared<CppFuncClass<snde_float32>>(rss,inst);
-
-    case SNDE_RTN_FLOAT64:
-      return std::make_shared<CppFuncClass<snde_float64>>(rss,inst);
-
-#ifdef SNDE_HAVE_FLOAT16
-    case SNDE_RTN_FLOAT16:
-      return std::make_shared<CppFuncClass<snde_float16>>(rss,inst);    
-#endif
     case SNDE_RTN_SNDE_COORD2:
       return std::make_shared<CppFuncClass<snde_coord2>>(rss,inst);
 
@@ -887,7 +980,7 @@ namespace snde {
 
       
     default:
-      throw snde_error("In attempting to call math function %s, first parameter %s has non-floating point type %s",inst->definition->definition_command.c_str(),firstparam_rec->channel_name.c_str(),rtn_typenamemap.at(firstparam_rec_val->ndinfo()->typenum).c_str());
+      return nullptr;
     }
   }
 

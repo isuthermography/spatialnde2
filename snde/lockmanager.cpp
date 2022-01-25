@@ -37,25 +37,31 @@ namespace snde {
   
   
   
-  rwlock_token_set lockmanager::lock_recording_refs(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> recrefs)
+  rwlock_token_set lockmanager::lock_recording_refs(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> recrefs,bool gpu_access /* = false */)
   // lock the given ndarray_recording_refs, according to whether they need
   // to be locked for read or write and following the locking order.
   // (ideally some flag could be set in the recording_ref indicating
   // it has been locked so as to diagnose failures to perform locking)
   {
-    std::map<lockingposition,std::shared_ptr<ndarray_recording_ref>> ordered_locking;
+    std::map<lockingposition,std::pair<arraylayout,std::shared_ptr<recording_storage>>> ordered_locking;
 
     // sort the various things that need locked
     // into the locking order
     for (auto && recref_writebool: recrefs) {
       std::shared_ptr<ndarray_recording_ref> &rec=recref_writebool.first;
       bool is_write=recref_writebool.second;
-      
 
-      if ((rec->ndinfo()->requires_locking_read && !is_write) ||
-	  (rec->ndinfo()->requires_locking_write && is_write)) {
+      std::shared_ptr<recording_storage> storage=rec->storage;
+      if (gpu_access)  {
+	storage=storage->get_original_storage();
+      }
+
+      if ( ( !gpu_access && ((storage->requires_locking_read && !is_write) ||
+			     (storage->requires_locking_write && is_write))) ||
+	   (gpu_access && ((storage->requires_locking_read_gpu  && !is_write) ||
+			   (storage->requires_locking_write_gpu && is_write)))) {
 	
-	ordered_locking.emplace(std::make_pair(lockingposition(get_array_idx(rec->ndinfo()->basearray),rec->ndinfo()->base_index,is_write),rec));
+	ordered_locking.emplace(std::make_pair(lockingposition(get_array_idx(storage->lockableaddr()),storage->base_index,is_write),std::make_pair(rec->layout,storage)));
       } 
       
     }
@@ -64,24 +70,25 @@ namespace snde {
     
     rwlock_token_set retval=empty_rwlock_token_set();
     
-    for (auto && lockpos_recref: ordered_locking) {
+    for (auto && lockpos_layoutstorage: ordered_locking) {
 
-      const lockingposition &lockpos = lockpos_recref.first;
-      std::shared_ptr<ndarray_recording_ref> &rec=lockpos_recref.second;
+      const lockingposition &lockpos = lockpos_layoutstorage.first;
+      arraylayout &layout = lockpos_layoutstorage.second.first;
+      std::shared_ptr<recording_storage> storage=lockpos_layoutstorage.second.second;
       
       bool is_write=lockpos.write;
 
       snde_index total_size = 1;
       snde_index dimnum;
       
-      for (dimnum=0;dimnum < rec->ndinfo()->ndim;dimnum++) {
-	total_size *= rec->ndinfo()->dimlen[dimnum] * rec->ndinfo()->strides[dimnum];
+      for (dimnum=0;dimnum < layout.dimlen.size();dimnum++) {
+	total_size *= layout.dimlen.at(dimnum) * layout.strides.at(dimnum);
       }
 
       if (is_write) {
-	get_locks_write_array_region(retval,rec->ndinfo()->basearray,rec->ndinfo()->base_index,total_size);
+	get_locks_write_array_region(retval,storage->lockableaddr(),storage->base_index,total_size);
       } else {
-	get_locks_read_array_region(retval,rec->ndinfo()->basearray,rec->ndinfo()->base_index,total_size);
+	get_locks_read_array_region(retval,storage->lockableaddr(),storage->base_index,total_size);
 	
       }
     }
@@ -89,9 +96,9 @@ namespace snde {
     return retval;
   }
   
-  rwlock_token_set lockmanager::lock_recording_arrays(std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<std::string,bool>>> recrefs)
+  rwlock_token_set lockmanager::lock_recording_arrays(std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<std::string,bool>>> recrefs,bool gpu_access /* = false */)
   {
-    std::map<lockingposition,std::pair<std::shared_ptr<multi_ndarray_recording>,std::string>> ordered_locking;
+    std::map<lockingposition,std::pair<arraylayout,std::shared_ptr<recording_storage>>> ordered_locking;
 
     // sort the various things that need locked
     // into the locking order
@@ -103,10 +110,19 @@ namespace snde {
       
       size_t index = rec->name_mapping.at(name);
       
-      if ((rec->ndinfo(index)->requires_locking_read && !is_write) ||
-	  (rec->ndinfo(index)->requires_locking_write && is_write)) {
+      std::shared_ptr<recording_storage> storage=rec->storage.at(index);
+      if (gpu_access)  {
+	storage=storage->get_original_storage();
+      }
+      
+      
+      
+      if ( ( !gpu_access && ((storage->requires_locking_read && !is_write) ||
+			     (storage->requires_locking_write && is_write))) ||
+	   (gpu_access && ((storage->requires_locking_read_gpu  && !is_write) ||
+			   (storage->requires_locking_write_gpu && is_write)))) {
 	
-	ordered_locking.emplace(std::make_pair(lockingposition(get_array_idx(rec->ndinfo(index)->basearray),rec->ndinfo(index)->base_index,is_write),std::make_pair(rec,name)));
+	ordered_locking.emplace(std::make_pair(lockingposition(get_array_idx(storage->lockableaddr()),rec->ndinfo(index)->base_index,is_write),std::make_pair(rec->layouts.at(index),storage)));
       } 
       
     }
@@ -115,27 +131,27 @@ namespace snde {
     
     rwlock_token_set retval=empty_rwlock_token_set();
     
-    for (auto && lockpos_recrefname: ordered_locking) {
+    for (auto && lockpos_layoutstorage: ordered_locking) {
 
-      const lockingposition &lockpos = lockpos_recrefname.first;
-      std::shared_ptr<multi_ndarray_recording> rec;
-      std::string name;
-      std::tie(rec,name)=lockpos_recrefname.second;
+      const lockingposition &lockpos = lockpos_layoutstorage.first;
+      arraylayout layout;
+      std::shared_ptr<recording_storage> storage;
+      std::tie(layout,storage)=lockpos_layoutstorage.second;
       
       bool is_write=lockpos.write;
 
       snde_index total_size = 1;
       snde_index dimnum;
-      size_t index = rec->name_mapping.at(name);
+      //size_t index = rec->name_mapping.at(name);
       
-      for (dimnum=0;dimnum < rec->ndinfo(index)->ndim;dimnum++) {
-	total_size *= rec->ndinfo(index)->dimlen[dimnum] * rec->ndinfo(index)->strides[dimnum];
+      for (dimnum=0;dimnum < layout.dimlen.size();dimnum++) {
+	total_size *= layout.dimlen.at(dimnum) * layout.strides.at(dimnum);
       }
       
       if (is_write) {
-	get_locks_write_array_region(retval,rec->ndinfo(index)->basearray,rec->ndinfo(index)->base_index,total_size);
+	get_locks_write_array_region(retval,storage->lockableaddr(),storage->base_index,total_size);
       } else {
-	get_locks_read_array_region(retval,rec->ndinfo(index)->basearray,rec->ndinfo(index)->base_index,total_size);
+	get_locks_read_array_region(retval,storage->lockableaddr(),storage->base_index,total_size);
 	
       }
     }

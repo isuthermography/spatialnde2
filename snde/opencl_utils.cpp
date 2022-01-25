@@ -277,10 +277,12 @@ namespace snde {
 
 
   
-  std::tuple<cl::Program, std::string> get_opencl_program(cl::Context context, cl::Device device, cl::Program::Sources program_source /* This is actual std::vector<std::string> */,bool build_with_doubleprec)
+  std::tuple<cl::Program, bool, std::string> get_opencl_program(cl::Context context, cl::Device device, cl::Program::Sources program_source /* This is actual std::vector<std::string> */,bool build_with_doubleprec)
+  // returns program, success flag, build log
   {
     
     cl_int clerror=0;
+    bool success = true; 
     
     cl::Program program(context,program_source);
     //clCreateProgramWithSource(context,
@@ -310,7 +312,8 @@ namespace snde {
       program.build(devices,buildoptions.c_str());
     } catch (const cl::BuildError &e) {
       cl::BuildLogType buildlogs = e.getBuildLog();
-      fprintf(stderr,"OpenCL Program build error!: size=%u\n",(unsigned)buildlogs.size());
+      success=false;
+      snde_warning("OpenCL Program build error!: size=%u\n",(unsigned)buildlogs.size());
       for (size_t cnt=0; cnt < buildlogs.size(); cnt++) {
 	build_log_str += buildlogs.at(cnt).second;
 	build_log_str += "\n\n";
@@ -343,7 +346,7 @@ namespace snde {
       //   throw openclerror(clerror,"Error building OpenCL program: %s\n",build_log_str.c_str());
       //}
     
-    return std::make_tuple(program,build_log_str);
+    return std::make_tuple(program,success,build_log_str);
   }
   /*
   std::tuple<cl::Program, std::string> get_opencl_program(cl::Context context, cl::Device device, std::vector<std::string> program_source)

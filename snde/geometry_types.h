@@ -27,6 +27,13 @@ typedef double snde_coord;
 #else // SNDE_DOUBLEPREC_COORDS
 typedef float snde_coord;
 #endif // SNDE_DOUBLEPREC_COORDS
+
+#ifdef SNDE_DOUBLEPREC_COORDS
+#define M_PI_SNDE_COORD M_PI  // or CL_M_PI?
+#else
+#define M_PI_SNDE_COORD M_PI_F // or CL_M_PI_F?
+#endif
+
   
 typedef float snde_rendercoord;
 typedef float snde_imagedata;
@@ -51,14 +58,18 @@ typedef float snde_imagedata;
       
     } while (current.intval != expected.intval);
   }
-  
-  static GEOTYPES_INLINE float atomicpixel_read(volatile __global snde_atomicimagedata *src)
-  {
-    snde_atomicimagedata copy;
-    copy.intval = atomic_load(&src.intval);
-    
-    return copy.floatval;
-  }
+
+  // remove atomicpixel_ready in OpenCL because
+  // we can't legitimately implement it without
+  // attempting a write, which is not really what is intended.
+  // in almost all cases, a regular read will be fine
+  //static GEOTYPES_INLINE float atomicpixel_read(volatile __global snde_atomicimagedata *src)
+  //{
+  //  snde_atomicimagedata copy;
+  //  copy.intval = atomic_load((volatile __global atomic_uint *)&src->intval);
+  //  
+  //  return copy.floatval;
+  //}
 #else
   //#if 0 && defined(SNDE_OPENCL)
 
@@ -310,7 +321,7 @@ static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata
 #endif
   
 
-#define M_PI_SNDE_COORD M_PI // change to M_PI_F if you change snde_coord to float
+#define M_PI_SNDE_COORD M_PI 
 
   
   //#endif /* 0 && SNDE_OPENCL*/
@@ -788,6 +799,13 @@ struct snde_image  {
   snde_coord2 step; /* step size per texel, in meaningful units. For the moment, at least, both should be positive */
   //snde_index nextimage; // index of alternate image to be used if data in this image shows as NaN, fully transparent, or is outside the image boundary... set to SNDE_INDEX_INVALID if there should be no nextimage.
 };
+
+
+  struct snde_kdnode {
+    snde_index cutting_vertex;
+    snde_index left_subtree;
+    snde_index right_subtree; 
+  };
 
   
 #ifdef __cplusplus

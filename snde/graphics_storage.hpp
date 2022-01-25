@@ -35,7 +35,10 @@ namespace snde {
     std::shared_ptr<arraymanager> manager; // array manager for the graphics arrays within. Pointer is immutable once constructed
     std::shared_ptr<memallocator> memalloc; // pointer is immutable once constructed
     
-    std::shared_ptr<nonmoving_copy_or_reference> _ref; // atomic shared pointer. Access with ref(). once ref is assigned we return the pointers from the reference instead of the main array. Immutable once assigned. This is used for immutable data arrays within the graphics storage, where once they are fully written we create a nonmoving copy or reference (by a separate mapping of the shared memory object) that will survive and keep its location even if the main array is reallocated and gets a new address. Theoretically could be used for mutable data as well, except for the potential for mutable data to change size. 
+    std::shared_ptr<nonmoving_copy_or_reference> _ref; // atomic shared pointer. Access with ref(). once ref is assigned we return the pointers from the reference instead of the main array. Immutable once assigned. This is used for immutable data arrays within the graphics storage, where once they are fully written we create a nonmoving copy or reference (by a separate mapping of the shared memory object) that will survive and keep its location even if the main array is reallocated and gets a new address. Theoretically could be used for mutable data as well, except for the potential for mutable data to change size.
+
+    std::weak_ptr<recording_storage_reference> weak_nonmoving_copy_or_reference; // really points indirectly at _ref but we need the separate structure ponter here so we can mark it as finalized when appropriate. Locked by the recording_storage base class's cache_lock
+
 
     std::weak_ptr<graphics_storage_manager> graphman; 
 
@@ -66,6 +69,7 @@ namespace snde {
 
     virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
     virtual void ready_notification();
+    virtual void mark_as_finalized();
     virtual void add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr);
     
 

@@ -19,7 +19,7 @@ recdb.startup()
 
 
 scaled_channel_function = scalar_multiply_function.instantiate([ snde.math_parameter_recording("/test_channel"), snde.math_parameter_double_const(scalefactor) ],
-                                                               [ snde.shared_string("scaled_channel") ],
+                                                               [ snde.shared_string("scaled_channel") ], # Note that this is relative to the context given below, which is "/"
                                                                "/",
                                                                False,
                                                                False,

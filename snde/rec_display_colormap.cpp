@@ -253,14 +253,24 @@ namespace snde {
   std::shared_ptr<math_function> define_colormap_function()
   {
     return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
-      // ***!!!! Should extend beyond just floating point types ***!!!
-      return make_cppfuncexec_floatingtypes<colormap_recording>(rss,inst);
+      std::shared_ptr<executing_math_function> executing;
+
+      executing = make_cppfuncexec_floatingtypes<colormap_recording>(rss,inst);
+      if (!executing) {
+	executing = make_cppfuncexec_integertypes<colormap_recording>(rss,inst);
+      }
+      if (!executing) {
+	throw snde_error("In attempting to call math function %s, first parameter has unsupported data type.",inst->definition->definition_command.c_str());
+      }
+      return executing;
+      
+      
       
     }); 
   }
 
 
-  static int registered_colormap_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.colormap",define_colormap_function));
+  static int registered_colormap_function = register_math_function("spatialnde2.colormap",define_colormap_function());
   
 
 
@@ -445,7 +455,7 @@ namespace snde {
   }
 
 
-  static int registered_pointcloud_colormap_function = register_math_function(std::make_shared<registered_math_function>("spatialnde2.pointcloud_colormap",define_pointcloud_colormap_function));
+  static int registered_pointcloud_colormap_function = register_math_function("spatialnde2.pointcloud_colormap",define_pointcloud_colormap_function());
   
 };
 

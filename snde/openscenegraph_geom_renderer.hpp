@@ -34,7 +34,7 @@ namespace snde {
     virtual ~osg_geom_renderer() = default; 
     
     
-    std::tuple<std::shared_ptr<osg_rendercacheentry>,bool>
+    std::tuple<std::shared_ptr<osg_rendercacheentry>,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>>,bool>
     prepare_render(//std::shared_ptr<recdatabase> recdb,
 		   std::shared_ptr<recording_set_state> with_display_transforms,
 		   //std::shared_ptr<display_info> display,

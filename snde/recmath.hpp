@@ -483,21 +483,33 @@ namespace snde {
   };
 
 
-  class registered_math_function {
-  public:
-    std::string name; // Suggest python-style package.module.function, etc.
-    std::function<std::shared_ptr<math_function>(/*std::shared_ptr<recdatabase> recdb*/)> builder_function;
-    
-    registered_math_function(std::string name,std::function<std::shared_ptr<math_function>(/*std::shared_ptr<recdatabase> recdb*/)> builder_function);
-    virtual ~registered_math_function()=default; // may be subclassed
-    
-  };
+  //class registered_math_function {
+  //public:
+  //  std::string name; // Suggest python-style package.module.function, etc.
+  //  std::function<std::shared_ptr<math_function>(/*std::shared_ptr<recdatabase> recdb*/)> builder_function;
+  //  
+  //  registered_math_function(std::string name,std::function<std::shared_ptr<math_function>(/*std::shared_ptr<recdatabase> recdb*/)> builder_function);
+  //  virtual ~registered_math_function()=default; // may be subclassed
+  //  
+  //};
   
-  typedef std::unordered_map<std::string,std::shared_ptr<registered_math_function>> function_registry_map;
+  typedef std::unordered_map<std::string,std::shared_ptr<math_function>> math_function_registry_map;
   
-  std::shared_ptr<function_registry_map> math_function_registry();
-  int register_math_function(std::shared_ptr<registered_math_function> builder_function);
+  std::shared_ptr<math_function_registry_map> math_function_registry();
+ 
+  // registered name is usually a python-style package/module path
+  // register_math_function() returns a value so it can be used an an initializer
+  int register_math_function(std::string registered_name,std::shared_ptr<math_function> fcn);
+
+
+  // Idea: we could make a function to run math manually.
+  // But we would first have to create the ability to define
+  // untethered recordings outside of a transaction...
+  // e.g.
+  // std::shared_ptr<recording_set_state> execute_math(std::vector<std::shared_ptr<instantiated_math_function>> math_functions,std::vector<std::shared_ptr<recording_base>>);
   
 };
+
+
 
 #endif // SNDE_RECMATH_HPP

@@ -82,10 +82,11 @@ namespace snde {
     return newregion;
   }
 
-  openclarrayinfo::openclarrayinfo(cl::Context context, void **arrayptr) :
+  openclarrayinfo::openclarrayinfo(cl::Context context, void **arrayptr,size_t numelem) :
     context(context),
     //device(device),
-    arrayptr(arrayptr)
+    arrayptr(arrayptr),
+    numelem(numelem)
   {
     //clRetainContext(this->context); /* increase refcnt */
     //clRetainDevice(this->device);
@@ -94,12 +95,12 @@ namespace snde {
   // equality operator for std::unordered_map
   bool openclarrayinfo::operator==(const openclarrayinfo &b) const
   {
-    return b.context==context && b.arrayptr==arrayptr; // && b.device==device;
+    return b.context==context && b.arrayptr==arrayptr && b.numelem==numelem; // && b.device==device;
   }
 
   size_t openclarrayinfo_hash::operator()(const snde::openclarrayinfo & x) const
   {
-    return std::hash<void *>{}((void *)x.context.get()) /* + std::hash<void *>{}((void *)x.device.get())*/ + std::hash<void *>{}((void *)x.arrayptr);
+    return std::hash<void *>{}((void *)x.context.get()) ^ std::hash<size_t>{}(x.numelem) /* + std::hash<void *>{}((void *)x.device.get())*/ ^ std::hash<void *>{}((void *)x.arrayptr);
   }
 
 
@@ -249,7 +250,7 @@ namespace snde {
   void openclcachemanager::mark_as_gpu_modified(cl::Context context, std::shared_ptr<recording_storage> storage)
   {
     void **arrayptr = storage->lockableaddr();
-    openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr);
+    openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr,storage->lockablenelem());
     
     std::unique_lock<std::mutex> adminlock(admin);
     
@@ -366,7 +367,7 @@ namespace snde {
     std::shared_ptr<openclcacheentry> oclbuffer;
 
     std::shared_ptr<allocator> alloc;
-    openclarrayinfo arrayinfo=openclarrayinfo(context,storage->lockableaddr());
+    openclarrayinfo arrayinfo=openclarrayinfo(context,storage->lockableaddr(),storage->lockablenelem());
     //allocationinfo thisalloc = (*manager->allocators()).at(arrayptr);
     //std::shared_ptr<allocator> alloc=thisalloc.alloc;
     
@@ -412,7 +413,7 @@ namespace snde {
     
     std::unique_lock<std::mutex> adminlock(admin);
       
-    openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr);
+    openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr,nelem);
     
     std::vector<cl::Event> ev;
     
@@ -432,9 +433,9 @@ namespace snde {
     rwlock_token_set regionlocks;
 
     if (alllocks) {
-      if (write) {
+      if (write && storage->requires_locking_write_gpu) {
 	regionlocks=storage->lockmgr->get_preexisting_locks_write_array_region(alllocks,arrayptr,substartelem,subnumelem);
-      } else {
+      } else if (!write && storage->requires_locking_read_gpu) {
 	regionlocks=storage->lockmgr->get_preexisting_locks_read_array_region(alllocks,arrayptr,substartelem,subnumelem);	
       }
     }
@@ -650,10 +651,10 @@ namespace snde {
       
       rwlock_token_set regionlocks;
       if (alllocks) {
-	if (write && storage->requires_locking_write) {
+	if (write && storage->requires_locking_write_gpu) {
 	  regionlocks=storage->lockmgr->get_preexisting_locks_read_array_region(alllocks,arrayptr,0,SNDE_INDEX_INVALID);
 	  
-	} else if (!write && storage->requires_locking_read) {	  
+	} else if (!write && storage->requires_locking_read_gpu) {	  
 	  regionlocks=storage->lockmgr->get_preexisting_locks_read_array_region(alllocks,arrayptr,0,SNDE_INDEX_INVALID);
 	}
       }
@@ -705,6 +706,8 @@ namespace snde {
     std::vector<cl::Event> new_fill_events;
     std::shared_ptr<openclcacheentry> cacheentry;
 
+    storage = storage->get_original_storage(); // operate only on the original storage, not a non-moving reference so that we don't have duplicate cache entries
+    
     std::tie(retlocks,buf,new_fill_events,cacheentry) = _GetOpenCLBuffer(storage,alllocks,context,device,write,write_only);
 
     return std::make_tuple(retlocks,buf,new_fill_events);
@@ -726,14 +729,14 @@ namespace snde {
       rangetracker<openclregion>::iterator invalidregion;
 
       void **arrayptr = storage->lockableaddr();
-      
+      snde_index nelem = storage->lockablenelem();
 
       //size_t arrayidx=manager_strong->locker->get_array_idx(arrayptr);
 
       //std::shared_ptr<allocator> alloc=(*manager_strong->allocators())[arrayptr].alloc;
 
       /* create arrayinfo key */
-      openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr);
+      openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr,nelem);
      
       std::unique_lock<std::mutex> adminlock(admin);
 
@@ -921,7 +924,7 @@ namespace snde {
       std::shared_ptr<std::thread> unlock_thread;
 
       void **arrayptr = storage->lockableaddr();
-
+      snde_index nelem = storage->lockablenelem();
       
       /* make copy of locks to delegate to threads... create pointers so it is definitely safe to delegate */
       rwlock_token_set *locks_copy1;
@@ -974,7 +977,7 @@ namespace snde {
       std::shared_ptr<openclcacheentry> oclbuffer_strong;
       
       /* create arrayinfo key */
-      openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr);
+      openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr,nelem);
       
       oclbuffer=buffer_map.at(arrayinfo); /* buffer should exist because should have been created in GetOpenCLBuffer() */
 
@@ -1211,7 +1214,9 @@ namespace snde {
       //void **allocatedptr;
 
       //allocatedptr=manager->allocation_arrays.at(arrayptr);
+      storage = storage->get_original_storage(); // operate only on the original storage, not a non-moving reference so that we don't have duplicate cache entries
 
+      
       std::tie(locks,mem,new_fill_events,cacheentry) = cachemgr->_GetOpenCLBuffer(storage,all_locks,context,device,write,write_only); // (alternatively gets a sub-buffer if need be)
       
       /* move fill events into our master list */

@@ -36,7 +36,7 @@ namespace snde {
   bool opencl_check_doubleprec(const std::vector<cl::Device> &devices);
 
 
-  std::tuple<cl::Program, std::string> get_opencl_program(cl::Context context, cl::Device device, cl::Program::Sources program_source /* This is actual std::vector<std::string> */,bool build_with_doubleprec);
+  std::tuple<cl::Program, bool, std::string> get_opencl_program(cl::Context context, cl::Device device, cl::Program::Sources program_source /* This is actual std::vector<std::string> */,bool build_with_doubleprec);
 
 
   
@@ -213,6 +213,7 @@ namespace snde {
 	cl::Program program;
       
 	std::string build_log;
+	bool build_success;
 
 	// check for double precision support
 	std::string DevExt=device.getInfo<CL_DEVICE_EXTENSIONS>();
@@ -220,11 +221,16 @@ namespace snde {
 
 	
 	// Create the OpenCL program object from the source code (convenience routine). 
-	std::tie(program,build_log) = get_opencl_program(context,device,program_source,has_doubleprec);
+	std::tie(program,build_success,build_log) = get_opencl_program(context,device,program_source,has_doubleprec);
+	
+	if (!build_success || (build_log.size() > 0 && (SNDE_DC_OPENCL & current_debugflags()))) {
+	  snde_warning("OpenCL build log:\n%s\n",build_log.c_str());
+	} else if (build_log.size() > 0) {
 
-	if (build_log.size() > 0) {
-	  fprintf(stderr,"OpenCL build log:\n%s\n",build_log.c_str());
-	}
+	  snde_warning("OpenCL build of kernel %s() has warnings. Set SNDE_DC_OPENCL environment variable to troubleshoot",kern_fcn_name.c_str());
+	  
+	} 
+	
 
 	program_dict.emplace(cd,program);
 	//program_dict[cd]=program;

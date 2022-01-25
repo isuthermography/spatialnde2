@@ -32,10 +32,14 @@ namespace snde {
   public:
     size_t shift;
     size_t length; // bytes
-
-    nonmoving_copy_or_reference(size_t shift,size_t length) :
+    bool requires_locking_read;
+    bool requires_locking_write;
+    
+    nonmoving_copy_or_reference(size_t shift,size_t length,bool requires_locking_read,bool requires_locking_write) :
       shift(shift),
-      length(length)
+      length(length),
+      requires_locking_read(requires_locking_read),
+      requires_locking_write(requires_locking_write)
     {
 
     }
@@ -54,7 +58,7 @@ namespace snde {
     void *shifted_ptr; // will never move
     void **basearray; // for locking, etc. 
     nonmoving_copy_or_reference_cmem(size_t shift,size_t length,void **basearray,void *orig_ptr) :
-      nonmoving_copy_or_reference(shift,length),
+      nonmoving_copy_or_reference(shift,length,false,false),
       shiftedarray(&shifted_ptr),
       shifted_ptr(malloc(length)),
       basearray(basearray)

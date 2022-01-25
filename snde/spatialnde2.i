@@ -240,7 +240,7 @@ template <typename T>
   };
 %}
 
-%define snde_rawaccessible(rawaccessible_class)
+%define snde_rawaccessible(rawaccessible_class...) // the ... enables it to accept templates that have commas in int
 
 // This typemap takes allows passing an integer which is the address
 // of a C++ shared_ptr structure to a raw_shared_ptr parameter.
@@ -550,6 +550,12 @@ template <typename T>
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_CMAT23,(PyArray_Descr *)cmat23_dtype);
 #endif // SNDE_DOUBLEPREC_COORDS
 
+
+  PyObject *kdnode_dtype = PyRun_String("dtype([('cutting_vertex',np.uint64),('left_subtree',np.uint64),('right_subtree',np.uint64)])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_KDNODE,(PyArray_Descr *)kdnode_dtype);
+  
+
+  
 
   Py_DECREF(NumpyModule);
   Py_DECREF(np_dtype);

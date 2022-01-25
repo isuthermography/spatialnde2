@@ -20,6 +20,9 @@
 #ifdef __OPENCL_VERSION__
 /* if this is an opencl kernel */
 
+#define VECOPS_GLOBAL __global
+#define VECOPS_LOCAL __local
+
 #ifdef __ENDIAN_LITTLE__
 #define MY_INFNAN_LITTLE_ENDIAN
 #endif 
@@ -30,6 +33,9 @@ typedef __constant unsigned char my_infnan_constchar_t;
 typedef __constant float *my_infnan_float32_ptr_t;
 
 #else
+
+#define VECOPS_GLOBAL // no meaning in regular c
+#define VECOPS_LOCAL // no meaning in regular c
 
 #if !(defined(__BYTE_ORDER) && __BYTE_ORDER == __BIG_ENDIAN) && !defined(__BIG_ENDIAN__)
 #define MY_INFNAN_LITTLE_ENDIAN
@@ -68,7 +74,7 @@ static VECOPS_INLINE void multcmat23coord(snde_cmat23 cmat,snde_coord3 vec,snde_
   int outel,sumidx;
 
   for (outel=0;outel < 2; outel++) {
-    out->coord[outel]=0.0;
+    out->coord[outel]=0.0f;
     for (sumidx=0;sumidx < 3; sumidx++) {
       out->coord[outel] = out->coord[outel] + cmat.row[outel].coord[sumidx]*vec.coord[sumidx];
     }
@@ -82,7 +88,7 @@ static VECOPS_INLINE void multcmat23transposecoord(snde_cmat23 cmat,snde_coord2 
   int outel,sumidx;
 
   for (outel=0;outel < 3; outel++) {
-    out->coord[outel]=0.0;
+    out->coord[outel]=0.0f;
     for (sumidx=0;sumidx < 2; sumidx++) {
       out->coord[outel] = out->coord[outel] + cmat.row[sumidx].coord[outel]*vec.coord[sumidx];
     }
@@ -96,7 +102,7 @@ static VECOPS_INLINE void multcmat23vec(snde_coord *mat,snde_coord *vec,snde_coo
   int outel,sumidx;
 
   for (outel=0;outel < 2; outel++) {
-    out[outel]=0.0;
+    out[outel]=0.0f;
     for (sumidx=0;sumidx < 3; sumidx++) {
       out[outel] = out[outel] + mat[ outel*3 + sumidx]*vec[sumidx];
     }
@@ -124,7 +130,7 @@ static VECOPS_INLINE void multcmatvec4(snde_coord *mat,snde_coord *vec,snde_coor
   int outel,sumidx;
 
   for (outel=0;outel < 4; outel++) {
-    out[outel]=0.0;
+    out[outel]=0.0f;
     for (sumidx=0;sumidx < 4; sumidx++) {
       out[outel] = out[outel] + mat[ outel*4 + sumidx]*vec[sumidx];
     }
@@ -137,7 +143,7 @@ static VECOPS_INLINE void multcmatvec3(snde_coord *mat,snde_coord *vec,snde_coor
   int outel,sumidx;
 
   for (outel=0;outel < 3; outel++) {
-    out[outel]=0.0;
+    out[outel]=0.0f;
     for (sumidx=0;sumidx < 3; sumidx++) {
       out[outel] = out[outel] + mat[ outel*3 + sumidx]*vec[sumidx];
     }
@@ -150,7 +156,7 @@ static VECOPS_INLINE void multcmatvec2(snde_coord *mat,snde_coord *vec,snde_coor
   int outel,sumidx;
 
   for (outel=0;outel < 2; outel++) {
-    out[outel]=0.0;
+    out[outel]=0.0f;
     for (sumidx=0;sumidx < 2; sumidx++) {
       out[outel] = out[outel] + mat[ outel*2 + sumidx]*vec[sumidx];
     }
@@ -161,7 +167,7 @@ static VECOPS_INLINE void multcmatvec2(snde_coord *mat,snde_coord *vec,snde_coor
 static VECOPS_INLINE snde_coord dotvecvec3(snde_coord *vec1,snde_coord *vec2)
 {
   int sumidx;
-  snde_coord val=0.0;
+  snde_coord val=0.0f;
   for (sumidx=0;sumidx < 3; sumidx++) {
     val = val + vec1[sumidx]*vec2[sumidx];
     
@@ -172,7 +178,7 @@ static VECOPS_INLINE snde_coord dotvecvec3(snde_coord *vec1,snde_coord *vec2)
 static VECOPS_INLINE snde_coord dotcoordcoord3(snde_coord3 vec1,snde_coord3 vec2)
 {
   int sumidx;
-  snde_coord val=0.0;
+  snde_coord val=0.0f;
   for (sumidx=0;sumidx < 3; sumidx++) {
     val = val + vec1.coord[sumidx]*vec2.coord[sumidx];
     
@@ -184,7 +190,7 @@ static VECOPS_INLINE snde_coord dotcoordcoord3(snde_coord3 vec1,snde_coord3 vec2
 static VECOPS_INLINE snde_coord dotvecvec2(snde_coord *vec1,snde_coord *vec2)
 {
   int sumidx;
-  snde_coord val=0.0;
+  snde_coord val=0.0f;
   for (sumidx=0;sumidx < 2; sumidx++) {
     val = val + vec1[sumidx]*vec2[sumidx];
     
@@ -196,7 +202,7 @@ static VECOPS_INLINE snde_coord dotvecvec2(snde_coord *vec1,snde_coord *vec2)
 static VECOPS_INLINE snde_coord dotcoordcoord2(snde_coord2 vec1,snde_coord2 vec2)
 {
   int sumidx;
-  snde_coord val=0.0;
+  snde_coord val=0.0f;
   for (sumidx=0;sumidx < 2; sumidx++) {
     val = val + vec1.coord[sumidx]*vec2.coord[sumidx];
     
@@ -248,6 +254,35 @@ static VECOPS_INLINE void scalecoord2(snde_coord coeff,snde_coord2 vec1,snde_coo
   }
 }
 
+
+
+static VECOPS_INLINE snde_coord distsqglobalvecn(VECOPS_GLOBAL snde_coord *vec1,VECOPS_GLOBAL snde_coord *vec2,snde_index n)
+{
+  snde_coord curval;
+  snde_coord accum=0.0f;
+  snde_index idx;
+  
+  for (idx=0;idx < n; idx++) {
+    curval = vec1[idx] - vec2[idx];
+    accum += curval*curval;
+  }
+  return accum; 
+}
+
+
+// not actually used yet:
+static VECOPS_INLINE snde_coord distsqgloballocalvecn(VECOPS_GLOBAL snde_coord *vec1,VECOPS_LOCAL snde_coord *vec2,snde_index n)
+{
+  snde_coord curval;
+  snde_coord accum=0.0f;
+  snde_index idx;
+  
+  for (idx=0;idx < n; idx++) {
+    curval = vec1[idx] - vec2[idx];
+    accum += curval*curval;
+  }
+  return accum; 
+}
 
 
 static VECOPS_INLINE void subvecvec3(snde_coord *vec1,snde_coord *vec2,snde_coord *out)
@@ -323,6 +358,20 @@ static VECOPS_INLINE void subvecvec2(snde_coord *vec1,snde_coord *vec2,snde_coor
   }
 }
 
+static VECOPS_INLINE void subvecvecn(snde_coord *vec1,snde_coord *vec2,snde_coord *out,snde_index n)
+{
+  snde_index outidx;
+
+  for (outidx=0;outidx < n; outidx++) {
+    out[outidx] = vec1[outidx] - vec2[outidx];
+    
+  }
+}
+
+
+
+
+
 static VECOPS_INLINE void subcoordcoord2(snde_coord2 vec1,snde_coord2 vec2,snde_coord2 *out)
 {
   int outidx;
@@ -363,7 +412,7 @@ static VECOPS_INLINE void normalize_wcoord4(snde_coord *vec)
   vec[0] /= vec[3];
   vec[1] /= vec[3];
   vec[2] /= vec[3];
-  vec[3] = 1.0;
+  vec[3] = 1.0f;
   
 }
 
@@ -381,7 +430,7 @@ static VECOPS_INLINE snde_coord to_unit_vector4(snde_coord *vec)
     factor = my_infnan(0); // NaN factor
   }
 #else
-  assert(vec[3]==0.0); /* vectors should have no 'w' component */
+  assert(vec[3]==0.0f); /* vectors should have no 'w' component */
 #endif
   vec[0] *= factor;
   vec[1] *= factor;
@@ -518,8 +567,8 @@ static VECOPS_INLINE void sign_nonzero3(snde_coord *input,snde_coord *output)
 {
   int cnt;
   for (cnt=0;cnt < 3;cnt++) {
-    if (input[cnt] < 0.0) output[cnt]=-1.0;
-    else output[cnt]=1.0;
+    if (input[cnt] < 0.0f) output[cnt]=-1.0f;
+    else output[cnt]=1.0f;
   }
 }
 
@@ -527,8 +576,8 @@ static VECOPS_INLINE void sign_nonzerocoord3(snde_coord3 input,snde_coord3 *outp
 {
   int cnt;
   for (cnt=0;cnt < 3;cnt++) {
-    if (input.coord[cnt] < 0.0) output->coord[cnt]=-1.0;
-    else output->coord[cnt]=1.0;
+    if (input.coord[cnt] < 0.0f) output->coord[cnt]=-1.0f;
+    else output->coord[cnt]=1.0f;
   }
 }
 
@@ -627,14 +676,14 @@ static VECOPS_INLINE void fmatrixsolve_print(snde_coord *A, snde_coord *b, size_
   printf("A:\n");
   for (printrow=0; printrow < n; printrow++) {
     for (printcol=0;printcol < n; printcol++) {
-      printf("%10f  ",A[pivots[printrow] + printcol*n]);
+      printf("%10f  ",(A[pivots[printrow] + printcol*n]));
     }
     printf("\n");
   }
   printf("b:\n");
   for (printrow=0; printrow < n; printrow++) {
     for (printcol=0;printcol < nsolve; printcol++) {
-      printf("%10f  ",b[pivots[printrow] + printcol*n]);
+      printf("%10f  ",(b[pivots[printrow] + printcol*n]));
     }
     printf("\n");
   }

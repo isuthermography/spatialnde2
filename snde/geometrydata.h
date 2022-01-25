@@ -38,6 +38,9 @@ extern "C" {
     snde_vertex_edgelist_index *vertex_edgelist_indices; // allocated with vertices
     snde_index *vertex_edgelist; // allocated separately
     
+
+    snde_kdnode *vertex_kdtree; // allocated separately
+
     
     // polygon vertexidx... representing vertices in a particular polygon. It is an integer array of vertex ids.... Each triangle specifies three vertices
     //snde_triangleindices *vertexidx;

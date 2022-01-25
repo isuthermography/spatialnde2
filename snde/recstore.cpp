@@ -5,9 +5,9 @@
 
 #include "snde/graphics_recording.hpp"
 
-#ifndef _WIN32
-#include "shared_memory_allocator_posix.hpp"
-#endif // !_WIN32
+//#ifndef _WIN32
+//#include "shared_memory_allocator_posix.hpp"
+//#endif // !_WIN32
 
 namespace snde {
 
@@ -75,6 +75,7 @@ namespace snde {
       {typeid(snde_indexrange),SNDE_RTN_SNDE_INDEXRANGE},
       {typeid(snde_partinstance),SNDE_RTN_SNDE_PARTINSTANCE},
       {typeid(snde_image),SNDE_RTN_SNDE_IMAGE},
+      {typeid(snde_kdnode),SNDE_RTN_SNDE_KDNODE},
 
 
   });
@@ -135,6 +136,7 @@ namespace snde {
       {SNDE_RTN_SNDE_INDEXRANGE,sizeof(snde_indexrange)},
       {SNDE_RTN_SNDE_PARTINSTANCE,sizeof(snde_partinstance)},
       {SNDE_RTN_SNDE_IMAGE,sizeof(snde_image)},
+      {SNDE_RTN_SNDE_KDNODE,sizeof(snde_kdnode)},
     });
   
   SNDE_API const std::unordered_map<unsigned,std::string> rtn_typenamemap({ // Look up type name based on typenum
@@ -200,6 +202,7 @@ namespace snde {
       {SNDE_RTN_SNDE_INDEXRANGE,"SNDE_RTN_SNDE_INDEXRANGE"},
       {SNDE_RTN_SNDE_PARTINSTANCE,"SNDE_RTN_SNDE_PARTINSTANCE"},
       {SNDE_RTN_SNDE_IMAGE,"SNDE_RTN_SNDE_IMAGE"},
+      {SNDE_RTN_SNDE_KDNODE,"SNDE_RTN_SNDE_KDNODE"},
     });
   
 
@@ -644,7 +647,7 @@ namespace snde {
     if (!recdb) return;
     
     {
-      std::lock_guard<std::mutex> rec_admin(admin);
+      std::unique_lock<std::mutex> rec_admin(admin);
       if (_transactionrec_transaction_still_in_progress_admin_prelocked()) {
 	
 	// this transaction is still in progress; notifications will be handled by end_transaction()
@@ -668,6 +671,11 @@ namespace snde {
 	
 	info->state = SNDE_RECS_READY;
 	info_state = SNDE_RECS_READY;
+
+	if (info->immutable) {
+	  rec_admin.unlock();
+	  _mark_storage_as_finalized_internal();
+	}
 	
 	// These next few lines replaced by chanstate.issue_nonmath_notifications, below
 	//channel_state &chanstate = rss->recstatus.channel_map.at(channame);
@@ -685,8 +693,8 @@ namespace snde {
       // (trying to make the state change atomically)
       rss = get_originating_rss();
       prerequisite_state = rss->prerequisite_state();
-      std::lock_guard<std::mutex> rss_admin(rss->admin);
-      std::lock_guard<std::mutex> adminlock(admin);
+      std::unique_lock<std::mutex> rss_admin(rss->admin);
+      std::unique_lock<std::mutex> adminlock(admin);
 
       assert(metadata);
       if (!info->metadata) {
@@ -730,7 +738,14 @@ namespace snde {
       info_state = SNDE_RECS_READY;
       rss->recstatus.completed_recordings.emplace(chanstate->config,chanstate);
 
-
+      if (info->immutable) {
+	adminlock.unlock();
+	rss_admin.unlock();
+	
+	_mark_storage_as_finalized_internal();
+      }
+      
+      
     // perform notifications (replaced by issue_nonmath_notifications())
     //for (auto && notify_ptr: *notify_about_this_channel_metadataonly) {
     //  notify_ptr->notify_metadataonly(channame);
@@ -747,6 +762,10 @@ namespace snde {
     chanstate->issue_nonmath_notifications(rss);
   }
 
+  void recording_base::_mark_storage_as_finalized_internal()
+  {
+    // subclasses with storage should override this
+  }
 
 
   std::shared_ptr<recording_storage_manager> recording_base::assign_storage_manager(std::shared_ptr<recording_storage_manager> storman)
@@ -911,6 +930,19 @@ namespace snde {
     
     // call superclass, which does the rest of the management
     recording_base::mark_as_ready();
+    // (including a _mark_storage_as_finalized_internal() call at the end if we are supposed to be immutable)
+  }
+  
+  void multi_ndarray_recording::_mark_storage_as_finalized_internal()
+  {
+    for (auto && recstorage: storage) {
+      if (recstorage) {
+	// recstorage might be nullptr if this recording
+	// has legitimately no data for a particular array
+	recstorage->mark_as_finalized();
+      }
+    }
+  
   }
 
   void multi_ndarray_recording::define_array(size_t index,unsigned typenum)
@@ -1173,6 +1205,10 @@ namespace snde {
 
     case SNDE_RTN_SNDE_IMAGE:
       ref = std::make_shared<ndtyped_recording_ref<snde_image>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_KDNODE:
+      ref = std::make_shared<ndtyped_recording_ref<snde_kdnode>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
       break;
 
       
@@ -3874,7 +3910,7 @@ namespace snde {
     std::atomic_store(&_latest_globalrev,null_globalrev);
     std::atomic_store(&_latest_ready_globalrev,null_globalrev);
 
-    std::atomic_store(&_math_functions,std::make_shared<std::map<std::string,std::shared_ptr<math_function>>>());
+    std::atomic_store(&_math_functions,std::make_shared<math_function_registry_map>());
     
     if (!this->lockmgr) {
       this->lockmgr = std::make_shared<lockmanager>();
@@ -4227,36 +4263,75 @@ namespace snde {
 
   }
 
-  std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> recdatabase::math_functions()
+  std::shared_ptr<math_function_registry_map> recdatabase::math_functions()
   {
     return std::atomic_load(&_math_functions);
   }
 
   std::shared_ptr<math_function> recdatabase::lookup_math_function(std::string name)
   {
-    auto functions=math_functions();
-    return functions->at(name);
+    std::shared_ptr<math_function_registry_map> builtin_functions=math_function_registry();    
+    std::shared_ptr<math_function_registry_map> addon_functions=math_functions();
+
+    math_function_registry_map::iterator builtin_function = builtin_functions->find(name);
+    math_function_registry_map::iterator addon_function = addon_functions->find(name);
+
+    if (builtin_function != builtin_functions->end() && addon_function != addon_functions->end()) {
+      snde_warning("recdb addon math function %s overrides c++ builtin function of same name",name.c_str());
+      return addon_function->second;
+    }
+
+    if (builtin_function == builtin_functions->end() && addon_function == addon_functions->end()) {
+      throw snde_error("Math function %s not found",name.c_str());
+      
+    }
+    if (addon_function != addon_functions->end()) {
+      return addon_function->second;
+    }
+    if (builtin_function != builtin_functions->end()) {
+      return builtin_function->second;
+    }
+    assert(0); // should not be possible -- all cases handled above
+    return nullptr;
   }
 
   std::shared_ptr<std::vector<std::string>> recdatabase::list_math_functions()
   {
+    std::set<std::string> sorter; 
+    
     std::shared_ptr<std::vector<std::string>> retval = std::make_shared<std::vector<std::string>>();
 
-    auto functions=math_functions();
+    
+    std::shared_ptr<math_function_registry_map> builtin_functions=math_function_registry();
+    
+    std::shared_ptr<math_function_registry_map> addon_functions=math_functions();
 
-    for (auto && funcname_function: *functions) {
-      retval->push_back(funcname_function.first);
+    for (auto && funcname_function: *builtin_functions) {
+      sorter.emplace(funcname_function.first);
+    }
+
+    for (auto && funcname_function: *builtin_functions) {
+      std::set<std::string>::iterator old_function = sorter.find(funcname_function.first);
+      if (old_function != sorter.end()) {
+	snde_warning("recdb addon math function %s overrides c++ builtin function of same name",funcname_function.first.c_str());
+      }
+      sorter.emplace(funcname_function.first);
+    }
+
+    for (auto && funcname: sorter) {
+    
+      retval->push_back(funcname);
     }
     return retval;
   }
 
-  std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> recdatabase::_begin_atomic_math_functions_update() // should be called with admin lock held
+  std::shared_ptr<math_function_registry_map> recdatabase::_begin_atomic_math_functions_update() // should be called with admin lock held
   {
-    std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> new_math_functions = std::make_shared<std::map<std::string,std::shared_ptr<math_function>>>(*math_functions());
+    std::shared_ptr<math_function_registry_map> new_math_functions = std::make_shared<math_function_registry_map>(*math_functions());
     return new_math_functions;
   }
   
-  void recdatabase::_end_atomic_math_functions_update(std::shared_ptr<std::map<std::string,std::shared_ptr<math_function>>> new_math_functions) // should be called with admin lock held
+  void recdatabase::_end_atomic_math_functions_update(std::shared_ptr<math_function_registry_map> new_math_functions) // should be called with admin lock held
   {
     std::atomic_store(&_math_functions,new_math_functions);
   }

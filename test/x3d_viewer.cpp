@@ -22,7 +22,9 @@
 #include "snde/display_requirements.hpp"
 #include "snde/recstore_display_transforms.hpp"
 #include "snde/recstore_setup.hpp"
+#ifdef SNDE_OPENCL
 #include "snde/recstore_setup_opencl.hpp"
+#endif // SNDE_OPENCL
 
 using namespace snde;
 
@@ -49,13 +51,21 @@ void x3d_viewer_display()
   if (renderer) {
 
     rendercache->mark_obsolete();
+
+    std::shared_ptr<osg_rendercacheentry> cacheentry;
+    std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> locks_required;
+    bool modified;
     
-    // !!!*** Should consider locking of data to be rendered !!!*** 
+    std::tie(cacheentry,locks_required,modified) = renderer->prepare_render(display_transforms->with_display_transforms,rendercache,
+									    display_reqs,
+									    winwidth,winheight);
+
+    {
+      rwlock_token_set frame_locks = recdb->lockmgr->lock_recording_refs(locks_required,false /*bool gpu_access */); // gpu_access is false because that is only needed for gpgpu calculations like OpenCL where we might be trying to map the entire scene data in one large all-encompassing array
     
-    renderer->prepare_render(display_transforms->with_display_transforms,rendercache,
-			     display_reqs,
-			     winwidth,winheight);
-    renderer->frame();
+      
+      renderer->frame();
+    }
     //osgDB::writeNodeFile(*renderer->Viewer->getSceneData(),"/tmp/x3dviewer.osg");
 
     rendercache->erase_obsolete(); // remove everything unused from the cache
@@ -151,12 +161,10 @@ int main(int argc, char **argv)
 
   recdb=std::make_shared<snde::recdatabase>();
   setup_cpu(recdb,std::thread::hardware_concurrency());
-  #ifndef _MSC_VER
-    #warning "GPU acceleration temporarily disabled for viewer."
-  #else
-    #pragma message("GPU acceleration temporarily disabled for viewer.")
-  #endif   
-  //setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
+  //#warning "GPU acceleration temporarily disabled for viewer."
+#ifdef SNDE_OPENCL
+  setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
+#endif // SNDE_OPENCL
   setup_storage_manager(recdb);
   std::shared_ptr<graphics_storage_manager> graphman=std::make_shared<graphics_storage_manager>("/",recdb->lowlevel_alloc,recdb->alignment_requirements,recdb->lockmgr,1e-8);
   recdb->default_storage_manager = graphman;

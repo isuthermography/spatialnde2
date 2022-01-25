@@ -531,15 +531,22 @@ namespace snde {
 	
 	// perform rendering
 	std::shared_ptr<osg_rendercacheentry> cacheentry;
+	std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> locks_required;
 	bool modified;
 	
-	std::tie(cacheentry,modified) = renderer->prepare_render(display_transforms->with_display_transforms,RenderCache,display_reqs,compositor_width,compositor_height);
+	std::tie(cacheentry,locks_required,modified) = renderer->prepare_render(display_transforms->with_display_transforms,RenderCache,display_reqs,compositor_width,compositor_height);
 	
 	// rerender either if there is a modification to the tree, or if we have OSG events (such as rotating, etc)
 	snde_debug(SNDE_DC_RENDERING,"compositor about to render %s: 0x%lx modified=%d; empty=%d",display_req.second->channelpath.c_str(),(unsigned long)renderer->EventQueue.get(),(int)modified,renderer->EventQueue->empty());
 	if (cacheentry && (modified || !renderer->EventQueue->empty())) {
-	  renderer->frame();
-	  
+	  {
+	    std::shared_ptr<recdatabase> recdb_strong(recdb);
+	    if (recdb_strong) {
+	      rwlock_token_set frame_locks = recdb_strong->lockmgr->lock_recording_refs(locks_required,false /*bool gpu_access */); // gpu_access is false because that is only needed for gpgpu calculations like OpenCL where we might be trying to map the entire scene data in one large all-encompassing array
+
+	      renderer->frame();
+	    }
+	  }
 	  // Push a dummy event prior to the frame on the queue
 	  // without this we can't process events on our pseudo-GraphicsWindow because
 	  // osgGA::EventQueue::takeEvents() looks for an event prior to the cutoffTime
@@ -828,7 +835,7 @@ namespace snde {
   
   void osg_compositor::wake_up_renderer_locked(std::unique_lock<std::mutex> *adminlock)
   {
-    if (threaded && enable_threaded_opengl) {
+    if (threaded || enable_threaded_opengl) {
       execution_notify.notify_all();
     }
 

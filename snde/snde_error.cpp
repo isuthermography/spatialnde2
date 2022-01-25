@@ -38,6 +38,7 @@ namespace snde {
     debugflags |= check_debugflag(SNDE_DC_EVENT,"SNDE_DC_EVENT");
     debugflags |= check_debugflag(SNDE_DC_VIEWER,"SNDE_DC_VIEWER");
     debugflags |= check_debugflag(SNDE_DC_X3D,"SNDE_DC_X3D");
+    debugflags |= check_debugflag(SNDE_DC_OPENCL,"SNDE_DC_OPENCL");
     debugflags |= check_debugflag(SNDE_DC_ALL,"SNDE_DC_ALL");
 
     return debugflags;
