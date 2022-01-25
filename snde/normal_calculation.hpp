@@ -15,6 +15,5 @@ namespace snde {
 
   std::shared_ptr<math_function> define_vertnormals_recording_function();
 
-
 };
 #endif // SNDE_NORMAL_CALCULATION_HPP

@@ -345,15 +345,17 @@ namespace snde {
     //assert(info_structsize >= sizeof(snde_recording_base));
     
     info = (snde_recording_base *)calloc(1,info_structsize);
-        
-    snde_recording_base info_prototype;
-    info_prototype.name = strdup(chanpath.c_str());
-    info_prototype.revision = new_revision;
-    info_prototype.state = info_state;
-    info_prototype.metadata = nullptr;
-    info_prototype.metadata_valid = false;
-    info_prototype.deletable = false;
-    info_prototype.immutable = true; // overridden below from data_mutable flag of the channelconfig 
+
+
+    snde_recording_base info_prototype{
+        .name = strdup(chanpath.c_str()),
+        .revision = new_revision,
+        .state = info_state,
+        .metadata = nullptr,
+        .metadata_valid = false,
+        .deletable = false,
+        .immutable = true,
+    };
     *info = info_prototype;
     
   }

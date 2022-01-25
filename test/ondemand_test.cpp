@@ -190,9 +190,6 @@ int main(int argc, char **argv)
 {
   
   glutInit(&argc,argv);
-
-
-  
   
   recdb=std::make_shared<snde::recdatabase>();
   setup_cpu(recdb,std::thread::hardware_concurrency());

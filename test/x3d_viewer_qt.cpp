@@ -42,7 +42,6 @@ int main(int argc, char **argv)
     fprintf(stderr,"USAGE: %s <x3d_file.x3d>\n", argv[0]);
     exit(1);
   }
-
        
   std::shared_ptr<recdatabase> recdb; 
   recdb=std::make_shared<snde::recdatabase>();

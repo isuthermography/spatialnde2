@@ -35,12 +35,10 @@
 /* This is based on the assumption that the osg::Vec3 and osg::Vec3d
    classes are trivially copyable and standard layout */
 
-#ifndef _MSC_VER
 static_assert(std::is_standard_layout<osg::Vec3>::value);
 static_assert(std::is_trivially_copyable<osg::Vec3>::value);
 static_assert(std::is_standard_layout<osg::Vec3d>::value);
 static_assert(std::is_trivially_copyable<osg::Vec3d>::value);
-#endif
 
 /* ***!!! This should probably be moved somewhere more central */
 
