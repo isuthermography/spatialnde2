@@ -1,4 +1,4 @@
-#ifndef WIN32
+#ifndef _WIN32
 #include <unistd.h>
 
 #endif
@@ -350,8 +350,11 @@ plt.imshow(rb[0,:,:])
   //glutMainLoop();
 
 
+#ifdef _WIN32
   _sleep(4);
-
+#else // _WIN32
+  sleep(4);
+#endif // _WIN32
   exit(0);
 
   return 1;

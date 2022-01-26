@@ -352,7 +352,6 @@ namespace snde {
     osg::ref_ptr<osg::DrawArrays> drawarrays;
     osg::ref_ptr<osg::StateSet> stateset;
     
-    osg::ref_ptr<snde::OSGFPArray> DataArray;
     osg::ref_ptr<snde::OSGFPArray> NormalArray;
 
     std::shared_ptr<osg_cachedmeshedvertexarray> vertexarrays_cache;

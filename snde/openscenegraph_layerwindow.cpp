@@ -3,6 +3,7 @@
 
 
 #include "snde/openscenegraph_layerwindow.hpp"
+#include "snde/openscenegraph_renderer.hpp"
 
 
 namespace snde {
@@ -77,6 +78,10 @@ namespace snde {
     // this next call would make sense (except that we should really
     // use the GraphicsContext's default FBO, not #0
     //Info.getState()->get<osg::GLExtensions>()->glBindFramebuffer( GL_FRAMEBUFFER_EXT, 0 );
+    
+    // switch drawing back to the OSG-intended buffer
+    //glDrawBuffer(*DrawBufferSave); // ... except this causes errors, I think because of asymmetries in OpenSceneGraph
+    
   }
   
 
@@ -93,7 +98,11 @@ namespace snde {
   void osg_layerwindow_predraw_callback::operator()(osg::RenderInfo &Info) const
   {
     //OSG_INFO << "preDraw()\n";
+
     
+    //GLint drawbuf;
+    //glGetIntegerv(GL_DRAW_BUFFER,&drawbuf);
+    //*DrawBufferSave = (GLenum)drawbuf;
     
     osg::ref_ptr<osg::FrameBufferObject> FBO;
     
@@ -379,7 +388,7 @@ namespace snde {
     if (valid()) {
       
       
-      osg::ref_ptr<osg::State> ourstate=new osg::State();
+      osg::ref_ptr<osg::State> ourstate=new osg_SyncableState();
       ourstate->setGraphicsContext(this);
 
       // for debugging only -- good for tracking down any opengl errors
@@ -432,8 +441,9 @@ namespace snde {
       
       // Create callbacks for use in setup_camera();
       predraw = new osg_layerwindow_predraw_callback(Viewer,outputbuf,readback);
+      //predraw->DrawBufferSave=std::make_shared<GLenum>(GL_FRONT);
       postdraw = new osg_layerwindow_postdraw_callback(Viewer,(readback/*=true*/ /* ***!!!! */ )  ? outputbuf : nullptr); 
-      
+      //postdraw->DrawBufferSave=predraw->DrawBufferSave;
 
     }
   }
@@ -458,13 +468,43 @@ namespace snde {
   bool osg_layerwindow::makeCurrentImplementation()
   {
     OSG_INFO << "makeCurrent()\n";
+
+
+    GLint drawbuf;
+    glGetIntegerv(GL_DRAW_BUFFER,&drawbuf);
+    snde_debug(SNDE_DC_RENDERING,"osg_layerwindow makecurrent glDrawBuffer is %x",(unsigned)drawbuf);
+    GLint drawframebuf;
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&drawframebuf);
+    snde_debug(SNDE_DC_RENDERING,"osg_layerwindow makecurrent glDrawFrameBuffer is %d compared to defaultFBO %d",(int)drawframebuf,(int)getState()->getGraphicsContext()->getDefaultFboId());
+
+    
+    // Just in case our operations make changes to the
+    // otherwise default state, we push this state onto
+    // the OpenGL state stack so we can pop it off at the end. 
+    glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    assert(!getState()->getStateSetStackSize());
+
     
     getState()->reset(); // the OSG-expected state for THIS WINDOW may have been messed up (e.g. by another window). So we need to reset the assumptions about the OpenGL state
 
-    // !!!*** reset() above may be unnecessarily pessimistic, dirtying all array buffers, etc. (why???)
     
+    osg::ref_ptr<osg_SyncableState> window_state = dynamic_cast<osg_SyncableState *>(getState());
+    window_state->SyncModeBits();
+
     getState()->apply();
+
+
+    // Make sure our debug message callback in in place
+    void (*ext_glDebugMessageCallback)(GLDEBUGPROC callback​, void* userParam​) = (void (*)(GLDEBUGPROC callback, void *userParam))osg::getGLExtensionFuncPtr("glDebugMessageCallback");
+    if (ext_glDebugMessageCallback) {
+      glEnable(GL_DEBUG_OUTPUT);
+      ext_glDebugMessageCallback(&OGLMessageCallback,0);
+    }
     
+
+    getState()->pushStateSet(new osg::StateSet());
+
     //FBO->setAttachment(osg::Camera::COLOR_BUFFER0, osg::FrameBufferAttachment(outputbuf.get()));
     //FBO->setAttachment(osg::Camera::DEPTH_BUFFER, osg::FrameBufferAttachment(depthbuf.get()));
     
@@ -509,10 +549,34 @@ namespace snde {
 
   bool osg_layerwindow::releaseContextImplementation()
   {
+
+    //assert(getState()->getStateSetStackSize()==1);
+    //getState()->popStateSet();
+    assert(getState()->getStateSetStackSize() <= 1); // -- can be 1 because viewer->frame() pops all statesets; can be 0 on deletion
+
+    // return OpenGL to default state
+    getState()->popAllStateSets();
+    getState()->apply();
+
     //OSG_INFO << "releaseContext()\n";
     //outputbuf->getTextureObject(getState()->getContextID())->bind();
     
     //getState()->get<osg::GLExtensions>()->glBindFramebuffer( GL_FRAMEBUFFER_EXT, 0 );
+
+    // OSG leaves the drawbuffer set to the attachment (?), which can be problematic
+    //glDrawBuffer(GL_FRONT);
+    
+    GLint drawbuf;
+    glGetIntegerv(GL_DRAW_BUFFER,&drawbuf);
+    snde_debug(SNDE_DC_RENDERING,"osg_layerwindow releasecontext glDrawBuffer is %x",(unsigned)drawbuf);
+    GLint drawframebuf;
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&drawframebuf);
+    snde_debug(SNDE_DC_RENDERING,"osg_layerwindow releasecontext glDrawFrameBuffer is %d compared to defaultFBO %d",(int)drawframebuf,(int)getState()->getGraphicsContext()->getDefaultFboId());
+    
+    
+    
+    glPopAttrib();
+    glPopClientAttrib();
     
     return true;
   }

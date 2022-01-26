@@ -156,7 +156,9 @@ namespace snde {
     
     // set background color to blueish
     Camera->setClearColor(osg::Vec4(.1,.1,.3,1.0));
-    
+    //Camera->setClearColor(osg::Vec4(.3,.1,.1,1.0));
+    Camera->setClearMask(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     // need to enable culling so that linesegmentintersector (openscenegraph_picker)
     // behavior matches camera behavior
     // (is this efficient?)
@@ -462,6 +464,10 @@ namespace snde {
 	    // use pre-existing renderer
 	    renderer=renderer_it->second;
 
+	    osg::ref_ptr<osg_layerwindow> LW = dynamic_cast<osg_layerwindow *>(renderer->GraphicsWindow.get());
+
+	    assert(LW);
+	    LW->setDefaultFboId(LayerDefaultFramebufferObject); // fixup the default FBO as it might have changed e.g. if the window was resized. 
 
 	    // Force re-setup on camera
 	    // Not sure why this is necessary but without it, when you enlarge the window
@@ -470,6 +476,7 @@ namespace snde {
 	    
 	    dynamic_cast<osgViewer::Renderer *>(renderer->Viewer->getCamera()->getRenderer())->setCameraRequiresSetUp(true);
 	    
+
 	    
 	    // old debugging stuff
 	    /*
@@ -586,6 +593,23 @@ namespace snde {
       
     }
 
+
+    
+    GLsync (*ext_glFenceSync)(GLenum condition,GLbitfield flags​) = (GLsync (*)(GLenum condition, GLbitfield flags))osg::getGLExtensionFuncPtr("glFenceSync");
+
+    GLenum (*ext_glClientWaitSync)(GLsync sync, GLbitfield Flags, GLuint64 timeout) = (GLenum (*)(GLsync sync, GLbitfield Flags, GLuint64 timeout))osg::getGLExtensionFuncPtr("glClientWaitSync");
+    
+    if (ext_glFenceSync && ext_glClientWaitSync) {
+      
+      // Wait for all layers to finish rendering
+      // This means that we wait here in the rendering thread.
+      // otherwise the compositor will have to wait, eating up the
+      // main GUI thread
+      GLsync syncobj = ext_glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE,0);
+
+      ext_glClientWaitSync(syncobj,0,5000000000); // wait up to 5 seconds
+    }
+    
     adminlock->lock();
   }
 
@@ -595,6 +619,7 @@ namespace snde {
     assert(this_thread_ok_for_locked(SNDE_OSGRCS_COMPOSITING));
 
     adminlock->unlock();
+
     
     if (compositor_width != Camera->getViewport()->width() || compositor_height != Camera->getViewport()->height()) {
       GraphicsWindow->getEventQueue()->windowResize(0,0,compositor_width,compositor_height);
@@ -788,7 +813,7 @@ namespace snde {
     //snde_warning("perform_compositing2: Empty=%d",(int)GraphicsWindow->getEventQueue()->empty());
 
     //Viewer->setSceneData(group); setSceneData() seems to clear our event queue, so instead we swap out the contents of a persistent group (RootGroup) that was set as the scene data in the constructor
-
+    
     
     if (RootGroup->getNumChildren()) {
       RootGroup->removeChildren(0,1);
@@ -796,8 +821,9 @@ namespace snde {
     RootGroup->addChild(group);
     
     
-    //snde_warning("drawing frame: Empty=%d",(int)GraphicsWindow->getEventQueue()->empty());
+    snde_debug(SNDE_DC_RENDERING,"Compositor drawing frame: numlayers = %d, Empty=%d",(int)group->getNumChildren(),(int)GraphicsWindow->getEventQueue()->empty());
     Viewer->frame();
+    //snde_debug(SNDE_DC_RENDERING,"Compositor frame draw completed: Empty=%d",(int)GraphicsWindow->getEventQueue()->empty());
 
     for (auto && texobj: temporary_texture_references) {
       // undo the tex->setTextureObject() from perform_compositing(). This eliminates the nasty message about releaseTextureObject() being unimplemented
@@ -807,6 +833,12 @@ namespace snde {
     
     adminlock->lock();
     snde_debug(SNDE_DC_RENDERING,"Compositing complete; need_recomposite=%d",(int)need_recomposite);
+
+
+    
+    
+
+    
   }
 
   bool osg_compositor::this_thread_ok_for_locked(int action)

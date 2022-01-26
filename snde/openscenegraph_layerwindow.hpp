@@ -23,6 +23,7 @@ namespace snde {
     osg::ref_ptr<osgViewer::Viewer> Viewer;
     osg::ref_ptr<osg::Texture2D> outputbuf_tex;
     std::shared_ptr<std::shared_ptr<std::vector<unsigned char>>> readback_pixels; // double pointer to work around const callbacks
+    //std::shared_ptr<GLenum> DrawBufferSave; // spot where the pre-draw callback saved the current value of glDrawBuffer
     osg_layerwindow_postdraw_callback(osg::ref_ptr<osgViewer::Viewer> Viewer, osg::ref_ptr<osg::Texture2D> outputbuf_tex);
     
     virtual void operator()(osg::RenderInfo &Info) const;
@@ -33,6 +34,7 @@ namespace snde {
     osg::ref_ptr<osgViewer::Viewer> Viewer;
     osg::ref_ptr<osg::Texture2D> outputbuf;
     //osg::ref_ptr<osg::RenderBuffer> depthbuf;
+    //std::shared_ptr<GLenum> DrawBufferSave; // spot to save the current value of glDrawBuffer for the postdraw callback
     bool readback;
     
     osg_layerwindow_predraw_callback(osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osg::Texture2D> outputbuf,bool readback);

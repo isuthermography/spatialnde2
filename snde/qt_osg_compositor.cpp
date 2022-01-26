@@ -48,7 +48,7 @@ namespace snde {
 				       QPointer<QTRecViewer> Parent_QTRViewer,QWidget *parent/*=nullptr*/) :
     QOpenGLWidget(parent),
     osg_compositor(recdb,display,Viewer,new osg_ParanoidGraphicsWindowEmbedded(0,0,width(),height()),
-		   threaded,confirm_threaded_opengl(enable_threaded_opengl),defaultFramebufferObject() /* probably 0 as QT OGL hasn't started... we'll assign an updated value in initializeGL() below */ ),
+		   threaded,confirm_threaded_opengl(enable_threaded_opengl),defaultFramebufferObject() /* probably 0 as QT OGL hasn't started... we'll assign an updated value in initializeGL() and paintGL() below */ ),
     RenderContext(nullptr),
     qt_worker_thread(nullptr),
     Parent_QTRViewer(Parent_QTRViewer)
@@ -112,7 +112,7 @@ namespace snde {
       
       LayerDefaultFramebufferObject = RenderContext->defaultFramebufferObject();
     } else {
-      LayerDefaultFramebufferObject = context()->defaultFramebufferObject();
+      LayerDefaultFramebufferObject = context()->defaultFramebufferObject(); // doesn't seem to be valid yet, but we reassign every call to paintGL() as well
     }
     
     start(); // make sure threads are going
@@ -339,10 +339,10 @@ namespace snde {
     adminlock->unlock();
 
     // Need GUI update
-    if (std::this_thread::get_id() == *worker_thread_id) {
+    if (std::this_thread::get_id() == *worker_thread_id && qt_worker_thread) {
       qt_worker_thread->emit_need_update();
     } else {
-      // emit update(); // (commented out because if we are the GUI thread then we are already awake!)
+      //emit update(); // (commented out because if we are the GUI thread then we are already awake!)
     }
     adminlock->lock();
   }
@@ -367,9 +367,15 @@ namespace snde {
       std::lock_guard<std::mutex> adminlock(admin);
       need_recomposite=true;
     }
-    GraphicsWindow->setDefaultFboId(defaultFramebufferObject()); // nobody should be messing with the graphicswindow but this thread 
+    GraphicsWindow->setDefaultFboId(defaultFramebufferObject()); // nobody should be messing with the graphicswindow but this thread
+    if (threaded && enable_threaded_opengl) {
+      LayerDefaultFramebufferObject = RenderContext->defaultFramebufferObject();
+    } else {
+      LayerDefaultFramebufferObject = defaultFramebufferObject();
+    }
     // execute up to one full rendering pass but don't allow waiting in the QT main thread main loop
     dispatch(true,false,false);
+    snde_debug(SNDE_DC_RENDERING,"paintGL() returning.");
   }
 
   void qt_osg_compositor::resizeGL(int width, int height)

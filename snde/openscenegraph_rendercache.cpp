@@ -536,6 +536,9 @@ namespace snde {
     osg_group = new osg::Group();
     osg_group->addChild(imagegeode);
     imagegeom->setUseVertexBufferObjects(true);
+    // At least on Linux/Intel graphics we get nasty messages
+    // from the driver if we dont set the VBO in DYNAMIC_DRAW mode
+    imagegeom->getOrCreateVertexBufferObject()->setUsage(GL_DYNAMIC_DRAW);
     imagegeom->addPrimitiveSet(imagetris);
     imagestateset=imagegeode->getOrCreateStateSet();
     imagestateset->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
@@ -811,6 +814,9 @@ namespace snde {
     osg_group = new osg::Group();
     osg_group->addChild(pc_geode);
     pc_geom->setUseVertexBufferObjects(true);
+    // At least on Linux/Intel graphics we get nasty messages
+    // from the driver if we dont set the VBO in DYNAMIC_DRAW mode
+    pc_geom->getOrCreateVertexBufferObject()->setUsage(GL_DYNAMIC_DRAW);
     pc_geom->addPrimitiveSet(pc_points);
     
     pc_stateset = pc_geode->getOrCreateStateSet();
@@ -996,6 +1002,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     geom = new osg::Geometry();
     geode->addDrawable(geom);
     drawarrays = new osg::DrawArrays(osg::PrimitiveSet::TRIANGLES,0,0);
+
     // Not entirely sure if ColorArray is necessary (?)
     osg::ref_ptr<osg::Vec4Array> ColorArray=new osg::Vec4Array();
     ColorArray->push_back(osg::Vec4(1.0,1.0,1.0,1.0)); // Setting the first 3 to less than 1.0 will dim the output. Setting the last one would probably add alpha transparency (?)
@@ -1005,10 +1012,15 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     geom->addPrimitiveSet(drawarrays);
     if (!cached_recording->info->immutable) {
       geom->setDataVariance(osg::Object::DYNAMIC);
+      drawarrays->setDataVariance(osg::Object::DYNAMIC);
     } else {
       geom->setDataVariance(osg::Object::STATIC);
+      drawarrays->setDataVariance(osg::Object::STATIC);
     }
     geom->setUseVertexBufferObjects(true);
+    // At least on Linux/Intel graphics we get nasty messages
+    // from the driver if we dont set the VBO in DYNAMIC_DRAW mode
+    geom->getOrCreateVertexBufferObject()->setUsage(GL_DYNAMIC_DRAW);
     drawarrays->setCount(vertexarrays_cache->osg_array->nvec); // add factor of two here to get an image !!!***
     geom->setVertexArray(vertexarrays_cache->osg_array); // (vertex coordinates)
     geom->setNormalArray(normals_cache->osg_array,osg::Array::BIND_PER_VERTEX);
@@ -1100,11 +1112,18 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     drawarrays = new osg::DrawArrays(osg::PrimitiveSet::TRIANGLES,0,0);
     geom->addPrimitiveSet(drawarrays);
     if (!cached_recording->info->immutable || !vertexarrays_cache->cached_recording->info->immutable || !parameterization_cache->cached_recording->info->immutable) {  
+      drawarrays->setDataVariance(osg::Object::DYNAMIC);
       geom->setDataVariance(osg::Object::DYNAMIC);
     } else {
+      drawarrays->setDataVariance(osg::Object::STATIC);
       geom->setDataVariance(osg::Object::STATIC);
+
     }
     geom->setUseVertexBufferObjects(true);
+
+    // At least on Linux/Intel graphics we get nasty messages
+    // from the driver if we dont set the VBO in DYNAMIC_DRAW mode
+    geom->getOrCreateVertexBufferObject()->setUsage(GL_DYNAMIC_DRAW);
 
     DataArray = vertexarrays_cache->osg_array;
     drawarrays->setCount(DataArray->nvec);

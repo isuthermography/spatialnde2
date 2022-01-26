@@ -7,6 +7,9 @@
 #define GL_RGB8UI 0x8D7D
 #endif
 
+#include <GL/gl.h>
+#include <GL/glext.h>
+
 #include <osgViewer/Renderer>
 #include <osgViewer/Viewer>
 #include <osg/Group>
@@ -87,6 +90,52 @@ namespace snde {
   };
 
 
+  class osg_SyncableState: public osg::State {
+    // State class that can be synchronized to a corrupted state
+    // (because we keep switching the state between our various
+    // osg_layerwindows and (in the non-threaded-opengl case)
+    // our rendering window.
+    //
+    // The problem is that osg::State::reset() doesn't mark the state
+    // bits as invalid and needing to be rewritten in all cases --
+    // it just flip the state bits and marks them as dirty -- so
+    // that if the next desired state is flipped from our current
+    // state it will fail to be rewritten. The solution, per
+    // https://osg-users.openscenegraph.narkive.com/zHUDa1nx/state-reset
+    // is this derived class with a method that can be called after
+    // osg::State::reset() to make sure the programmed mode bits
+    // match the actual state
+
+    // It is possible (maybe not very likely, but possible)
+    // that something similar will have to be done with the texture
+    // state....
+    
+  public:
+    void SyncModeBits()
+    {
+      // call this after calling reset()
+      for (auto && ModeEntry: _modeMap) {
+	const osg::StateAttribute::GLMode & MEMode = ModeEntry.first;
+	ModeStack & MEStack = ModeEntry.second;
+	if (MEStack.last_applied_value) {
+	  glEnable(MEMode);
+	} else {
+	  glDisable(MEMode);	  
+	}
+	// Now this mode is synchronized with what OSG thinks
+	// is the last applied value
+      }
+    }
+  };
+
+  void GLAPIENTRY OGLMessageCallback( GLenum source,
+				      GLenum type,
+				      GLuint id,
+				      GLenum severity,
+				      GLsizei length,
+				      const GLchar* message,
+				      const void* userParam);
+  
   class osg_ParanoidGraphicsWindowEmbedded: public osgViewer::GraphicsWindowEmbedded {
   public:
     std::atomic<bool> gl_initialized;
@@ -95,9 +144,31 @@ namespace snde {
       osgViewer::GraphicsWindowEmbedded(x,y,width,height),
       gl_initialized(false)
     {
+      osg::ref_ptr<osg_SyncableState> window_state;
+      window_state = new osg_SyncableState() ;
+      setState(window_state);
 
+      assert(!window_state->getStateSetStackSize());
+      
+      window_state->setGraphicsContext(this);
+
+      if (_traits->sharedContext.valid()) {
+	window_state->setContextID(_traits->sharedContext->getState()->getContextID());
+	  
+      } else {
+	window_state->setContextID(osg::GraphicsContext::createNewContextID());
+      }
     }
-
+    
+    // this prevents osg::GraphicsWindowEmbedded::init() from being called in the superclass constructor
+    // so we can create the osg::State ourselves in our constructor. Also prevents access until
+    // QT has initialized OpenGL for us. 
+    //virtual bool valid() const
+    //{
+    //  return gl_initialized; 
+    //}
+    
+    
     void gl_is_available()
     {
       gl_initialized=true;
@@ -124,21 +195,81 @@ namespace snde {
       if (!gl_initialized) {
 	return false;
       }
+
+
+      GLint drawbuf;
+      glGetIntegerv(GL_DRAW_BUFFER,&drawbuf);
+      snde_debug(SNDE_DC_RENDERING,"paranoidgraphicswindowembedded makecurrent glDrawBuffer is %x",(unsigned)drawbuf);
+      GLint drawframebuf;
+      glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&drawframebuf);
+      snde_debug(SNDE_DC_RENDERING,"paranoidgraphicswindowembedded makecurrent glDrawFrameBuffer is %d compared to defaultFBO %d",(int)drawframebuf,(int)getState()->getGraphicsContext()->getDefaultFboId());
+
+      
+      assert(!getState()->getStateSetStackSize());
+      
+      // Just in case our operations make changes to the
+      // otherwise default state, we push this state onto
+      // the OpenGL state stack so we can pop it off at the end. 
+      glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
+      glPushAttrib(GL_ALL_ATTRIB_BITS);
+
       
       getState()->reset(); // the OSG-expected state for THIS WINDOW may have been messed up (e.g. by another window). So we need to reset the assumptions about the OpenGL state
-
+      osg::ref_ptr<osg_SyncableState> window_state = dynamic_cast<osg_SyncableState *>(getState());
+      window_state->SyncModeBits();
+      
       // !!!*** reset() above may be unnecessarily pessimistic, dirtying all array buffers, etc. (why???)
-
       getState()->apply();
 
       getState()->initializeExtensionProcs();
+
+
+      void (*ext_glDebugMessageCallback)(GLDEBUGPROC callback​, void* userParam​) = (void (*)(GLDEBUGPROC callback, void *userParam))osg::getGLExtensionFuncPtr("glDebugMessageCallback");
+      if (ext_glDebugMessageCallback) {
+	glEnable(GL_DEBUG_OUTPUT);
+	ext_glDebugMessageCallback(&OGLMessageCallback,0);
+      }
+      
       
       // make sure the correct framebuffer is bound... but only if we actually have extensions
       if (getState()->_extensionMap.size() > 0) {
 	getState()->get<osg::GLExtensions>()->glBindFramebuffer(GL_FRAMEBUFFER_EXT, getDefaultFboId());
       }
+
+
+      getState()->pushStateSet(new osg::StateSet());
+      
+
+      
       return true;
     }
+
+
+    virtual bool releaseContextImplementation()
+    {
+      //assert(getState()->getStateSetStackSize()==1);
+      //getState()->popStateSet();
+      assert(getState()->getStateSetStackSize() <= 1); // -- can be 1 because viewer->frame() pops all statesets; can be 0 on deletion
+      
+      
+      // return OpenGL to default state
+      getState()->popAllStateSets();
+      getState()->apply();
+
+
+      GLint drawbuf;
+      glGetIntegerv(GL_DRAW_BUFFER,&drawbuf);
+      snde_debug(SNDE_DC_RENDERING,"paranoidgraphicswindowembedded releasecontext glDrawBuffer is %x",(unsigned)drawbuf);
+      GLint drawframebuf;
+      glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&drawframebuf);
+      snde_debug(SNDE_DC_RENDERING,"paranoidgraphicswindowembedded releasecontext glDrawFrameBuffer is %d compared to defaultFBO %d",(int)drawframebuf,(int)getState()->getGraphicsContext()->getDefaultFboId());
+
+      
+      glPopAttrib();
+      glPopClientAttrib();
+      return true;
+    }
+
     
   };
 
