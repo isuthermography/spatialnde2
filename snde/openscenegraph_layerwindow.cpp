@@ -496,11 +496,7 @@ namespace snde {
 
 
     // Make sure our debug message callback in in place
-    void (*ext_glDebugMessageCallback)(GLDEBUGPROC callback​, void* userParam​) = (void (*)(GLDEBUGPROC callback, void *userParam))osg::getGLExtensionFuncPtr("glDebugMessageCallback");
-    if (ext_glDebugMessageCallback) {
-      glEnable(GL_DEBUG_OUTPUT);
-      ext_glDebugMessageCallback(&OGLMessageCallback,0);
-    }
+    SetupOGLMessageCallback();
     
 
     getState()->pushStateSet(new osg::StateSet());
@@ -572,6 +568,8 @@ namespace snde {
     GLint drawframebuf;
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&drawframebuf);
     snde_debug(SNDE_DC_RENDERING,"osg_layerwindow releasecontext glDrawFrameBuffer is %d compared to defaultFBO %d",(int)drawframebuf,(int)getState()->getGraphicsContext()->getDefaultFboId());
+
+    // it would be cleaner to explicitly remove our OGLMessageCallback here
     
     
     
