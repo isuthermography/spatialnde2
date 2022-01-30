@@ -155,6 +155,7 @@ public:
   /** What type of object would clone return? */
   virtual Object* cloneType() const {
     //std::shared_ptr<geometry> snde_geom_strong(snde_geom);
+    assert(0); // not properly implemented
     return new OSGFPArray(/*snde_geom_strong*/);
   }
   

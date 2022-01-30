@@ -11,7 +11,7 @@ if not "recdb" in globals():
     recdb=snde.recdatabase()
     snde.setup_cpu(recdb,multiprocessing.cpu_count())
     if enable_opencl:
-        snde.setup_opencl()
+        snde.setup_opencl(recdb,False,4,None)
         pass
    
     snde.setup_storage_manager(recdb)

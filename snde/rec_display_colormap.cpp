@@ -87,7 +87,7 @@ namespace snde {
     }
   }
   
-  static opencl_program pointcloud_colormap_function_opencl("scale_pointcloud_colormap", { snde_types_h, geometry_types_h, colormap_h, /* "\ntypedef " + rtn_ocltypemap.at(SNDE_RTN_SNDE_COORD) + " sc_intype;\n", */  scale_colormap_c });
+  static opencl_program pointcloud_colormap_function_opencl("scale_pointcloud_colormap", { snde_types_h, geometry_types_h, colormap_h, "\ntypedef " + rtn_ocltypemap.at(SNDE_RTN_SNDE_COORD) + " sc_intype;\n",  scale_colormap_c });
 #endif // SNDE_OPENCL
 
   
@@ -348,6 +348,9 @@ namespace snde {
 	  std::vector<snde_index> result_dimlen=recording->layout.dimlen;
 
 	  //result_dimlen[0] = 4; // OSG expects a floating point RGBA array (e.g. osg::Vec4Array) for color
+
+	  // But shouldn't we just to RGBA in uchar format???
+	  // right now we just do floating point
 	  result_dimlen.insert(result_dimlen.begin(),4);
 	  result_rec->allocate_storage(result_dimlen,true); // Note fortran order flag -- required by renderer
 	  
@@ -421,16 +424,20 @@ namespace snde {
 	      
 	    } else {	    
 #endif // SNDE_OPENCL
-	      //snde_warning("Performing colormapping on CPU. This will be slow.");
+	      snde_warning("Performing colormapping on CPU. This will be slow.");
 	      snde_index pos=0;// (base_position);
 	      for (pos=0;pos < numdatapoints*4;pos+=4){
-		snde_colormap_float(colormap_type,(recording->element(pos,true).coord[2]-offset)/unitsperintensity,1.0,&result_rec->element(pos*4,true)); // currently hardwired to colormap coord[2] (z position)
+		//result_rec->element(pos,true)=0.0;
+		//result_rec->element(pos+1,true)=1.0;
+		//result_rec->element(pos+2,true)=1.0;
+		//result_rec->element(pos+3,true)=1.0;
+		snde_colormap_float(colormap_type,(recording->element(pos,true).coord[2]-offset)/unitsperintensity,1.0,&result_rec->element(pos,true)); // currently hardwired to colormap coord[2] (z position)
 		//snde_warning("val: %f element color: %.2f %.2f %.2f %.2f",(recording->element(pos,true).coord[2]-offset)/unitsperintensity,result_rec->element(pos*4,true),result_rec->element(pos*4+1,true),result_rec->element(pos*4+2,true),result_rec->element(pos*4+3,true));
 	      
 	      }
-	    }
-#ifdef SNDE_OPENCL
 	    
+#ifdef SNDE_OPENCL
+	    }
 #endif // SNDE_OPENCL
 	    
 	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 

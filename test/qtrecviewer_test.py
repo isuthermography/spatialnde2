@@ -1,6 +1,7 @@
 import sys
 import multiprocessing 
 import math
+import numpy as np
 import spatialnde2 as snde
 from PySide2.QtWidgets import QApplication,QWidget,QMainWindow
 from PySide2.QtCore import QCoreApplication,QObject,Qt
@@ -10,6 +11,7 @@ rec_len=100;
 recdb=snde.recdatabase();
 snde.setup_cpu(recdb,multiprocessing.cpu_count())
 snde.setup_storage_manager(recdb)
+snde.setup_opencl(recdb,False,2,None)
 snde.setup_math_functions(recdb,[])
 recdb.startup()
 
@@ -17,16 +19,36 @@ recdb.startup()
 transact = snde.active_transaction(recdb); # Transaction RAII holder
 
 testchan_config=snde.channelconfig("/test channel", "main", recdb,False)
+pointcloudchan_config=snde.channelconfig("/pointcloud channel", "main", recdb,False)
   
 testchan = recdb.reserve_channel(testchan_config);
+pointcloudchan = recdb.reserve_channel(pointcloudchan_config);
 
 test_rec = snde.create_recording_ref(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT32)
+pointcloud_rec = snde.create_recording_ref(recdb,pointcloudchan,recdb,snde.SNDE_RTN_SNDE_COORD3)
 
 globalrev = transact.end_transaction()
 
 test_rec.rec.metadata=snde.constructible_metadata()
 test_rec.rec.mark_metadata_done()
 test_rec.allocate_storage([ rec_len ]);
+
+
+nx = 12
+ny = 10
+x=np.linspace(-6,6,nx)
+y=np.linspace(-5,5,ny)
+(x_2d,y_2d)=np.meshgrid(x,y,indexing="ij")
+r=9.0
+# x^2 + y^2 + z^2 = r^2
+# z^2 = r^2 - x^2 - y^2
+z_2d = np.sqrt(r**2 - x_2d**2 - y_2d**2)
+
+pc_metadata = snde.constructible_metadata()
+pc_metadata.AddMetaDatum(snde.metadatum("snde_render_goal","SNDE_SRG_POINTCLOUD"))
+pointcloud_rec.rec.metadata = pc_metadata
+pointcloud_rec.rec.mark_metadata_done()
+pointcloud_rec.allocate_storage([ nx,ny ],True);
 
 # locking is only required for certain recordings
 # with special storage under certain conditions,
@@ -38,15 +60,21 @@ test_rec.allocate_storage([ rec_len ]);
 # for write is relatively common. 
 
 locktokens = recdb.lockmgr.lock_recording_refs([
-    (test_rec, True), # first element is recording_ref, 2nd parameter is false for read, true for write 
+    (test_rec, True), # first element is recording_ref, 2nd parameter is false for read, true for write
+    (pointcloud_rec,True)
 ])
 for cnt in range(rec_len):
     test_rec.assign_double([cnt],100.0*math.sin(cnt))
     pass
+
+pointcloud_rec.data()["coord"][:,:,0]=x_2d
+pointcloud_rec.data()["coord"][:,:,1]=y_2d
+pointcloud_rec.data()["coord"][:,:,2]=z_2d
 # must unlock prior to mark_as_ready
 snde.unlock_rwlock_token_set(locktokens)
 
 test_rec.rec.mark_as_ready()
+pointcloud_rec.rec.mark_as_ready()
 
 globalrev.wait_complete();
 

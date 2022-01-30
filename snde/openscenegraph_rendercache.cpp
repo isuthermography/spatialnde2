@@ -730,7 +730,8 @@ namespace snde {
     std::shared_ptr<ndarray_recording_ref> point_cloud_colormap_array = cached_recording->reference_ndarray();
 
     locks_required.push_back( { point_cloud_colormap_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
-    osg_array = new OSGFPArray(point_cloud_colormap_array,1,4); // 4 for RGB&A components    
+    osg_array = new OSGFPArray(point_cloud_colormap_array,1,4); // 4 for RGB&A components
+    osg_array->setBinding(osg::Array::BIND_PER_VERTEX);
   }
 
 
@@ -821,6 +822,8 @@ namespace snde {
     
     pc_stateset = pc_geode->getOrCreateStateSet();
     pc_stateset->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
+    
+    //pc_geom->setColorArray(testarray,osg::Array::BIND_PER_VERTEX);
     pc_geom->setColorArray(colormap->osg_array,osg::Array::BIND_PER_VERTEX);
     pc_geom->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
 
