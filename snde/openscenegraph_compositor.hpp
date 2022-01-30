@@ -336,6 +336,8 @@ namespace snde {
     virtual void _start_worker_thread(std::unique_lock<std::mutex> *adminlock);
     virtual void _join_worker_thread();
     virtual void resize_compositor(int width, int height);
+
+    virtual snde_orientation3 get_camera_pose(std::string channel_path); // get the camera pose (or a null orientation) for the given channel
     
     
 
@@ -364,7 +366,6 @@ namespace snde {
     
     
   };
-
 
   
 };

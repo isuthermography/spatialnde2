@@ -454,6 +454,31 @@ namespace snde {
 
 
 
+  class osg_cachedtransformedcomponent: public osg_rendercachegroupentry {
+  public:
+    // inherited from osg_rendercacheentry:
+    //std::weak_ptr<display_info> display; // (or should these be passed every time?)
+    //std::weak_ptr<display_channel> displaychan;
+    // osg::ref_ptr<osg::Group> osg_group;    
+    
+    std::shared_ptr<recording_base> cached_recording;
+
+    std::shared_ptr<osg_rendercachegroupentry> sub_component;
+    
+    osg_cachedtransformedcomponent(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    ~osg_cachedtransformedcomponent() = default;
+    
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    
+    //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
+    
+    virtual void clear_potentially_obsolete();
+    
+  };
+  
+
+  
+
 };
 
 #endif // SNDE_OPENSCENEGRAPH_RENDERCACHE_HPP

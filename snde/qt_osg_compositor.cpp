@@ -7,6 +7,7 @@
 #include "snde/openscenegraph_renderer.hpp"
 #include "snde/colormap.h"
 #include "snde/rec_display.hpp"
+#include "snde/display_requirements.hpp"
 
 namespace snde {
 
@@ -51,7 +52,7 @@ namespace snde {
 		   threaded,confirm_threaded_opengl(enable_threaded_opengl),defaultFramebufferObject() /* probably 0 as QT OGL hasn't started... we'll assign an updated value in initializeGL() and paintGL() below */ ),
     RenderContext(nullptr),
     qt_worker_thread(nullptr),
-    Parent_QTRViewer(Parent_QTRViewer)
+    Parent_QTRViewer(QPointer<QTRecViewer>(Parent_QTRViewer))
   {
     Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded);
     Viewer->getCamera()->setViewport(new osg::Viewport(0,0,width(),height()));
@@ -553,6 +554,54 @@ namespace snde {
     snde_debug(SNDE_DC_RENDERING,"qt_osg_compositor::update()");
     QOpenGLWidget::update(); // re-composite done inside paintGL();
   }
+
+
+
+
+  // Register the pre-existing tracking_pose_recording_display_handler in display_requirement.cpp/hpp as the display handler for osg_compositor_view_tracking_pose_recording
+  static int register_qtocvtpr_display_handler = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(qt_osg_compositor_view_tracking_pose_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+	return std::make_shared<tracking_pose_recording_display_handler>(display,displaychan,base_rss);
+      }));
+  
+  
+  qt_osg_compositor_view_tracking_pose_recording::qt_osg_compositor_view_tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string component_name,QSharedPointer<qt_osg_compositor> compositor,std::string channel_to_track) :
+    tracking_pose_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,component_name),
+    compositor(compositor),
+    channel_to_track(channel_to_track)
+  {
+
+  }
+  
+  snde_orientation3 qt_osg_compositor_view_tracking_pose_recording::get_pose() const
+  // NOTE: This function can be called from other threads (in the display_requirement evaluation, for example)
+  // and it DOES access a QWidget class (qt_osg_compositor). This is safe because the QWidget is protected
+  // by QSharedPointer with deleteLater() as its deleter and we are only calling a custom method that
+  // is thread-safe. 
+  {
+    snde_orientation3 retval;
+
+    snde_null_orientation3(&retval);
+    QSharedPointer<qt_osg_compositor> compositor_strong = compositor.toStrongRef();
+    
+    
+    if (compositor_strong.isNull()) {
+      return retval;
+    }
+
+    std::string chanpath(info->name);
+    assert(chanpath.size() > 0);
+    assert(chanpath.at(chanpath.size()-1) != '/'); // chanpath should not have a trailing '/'
+    
+    //std::string component_fullpath = recdb_path_join(recdb_path_as_group(chanpath),component_name);
+    
+    std::string channel_to_track_fullpath = recdb_path_join(recdb_path_as_group(chanpath),channel_to_track);
+
+    retval = compositor_strong->get_camera_pose(chanpath);
+    
+    return retval; 
+
+  }
+
 
   
 }

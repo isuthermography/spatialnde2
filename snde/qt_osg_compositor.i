@@ -1,40 +1,20 @@
-#ifndef SNDE_QT_OSG_COMPOSITOR_HPP
-#define SNDE_QT_OSG_COMPOSITOR_HPP
+%{
+#include "snde/qt_osg_compositor.hpp"
+%}
 
-#include <QOpenGLWidget>
-#include <QOpenGLContext>
-#include <QThread>
-#include <QPointer>
-#include <QOffscreenSurface>
-#include <QOpenGLWidget>
-#include <QOpenGLContext>
-
-#include "snde/openscenegraph_compositor.hpp"
+%shared_ptr(snde::qt_osg_compositor_view_tracking_pose_recording);
+snde_rawaccessible(snde::qt_osg_compositor_view_tracking_pose_recording);
 
 namespace snde {
 
   class qt_osg_compositor;
   class QTRecViewer; // qtrecviewer.hpp
   
-  class qt_osg_worker_thread: public QThread {
-    Q_OBJECT
-  public:
-    
-    qt_osg_compositor *comp; 
-    
-    qt_osg_worker_thread(qt_osg_compositor *comp,QObject *parent);
-    virtual ~qt_osg_worker_thread()=default;
-    
-    virtual void run();
-    
-    virtual void emit_need_update();
-    
-  signals:
-    void compositor_need_update();
-  };
+  class qt_osg_worker_thread;
+ 
 
   class qt_osg_compositor: public QOpenGLWidget, public osg_compositor  {
-    Q_OBJECT
+    //Q_OBJECT
   public:
 
     // This class should be instantiated from the QT main loop thread
@@ -52,7 +32,7 @@ namespace snde {
     
 
     // Weak QObject references
-    QPointer<QTRecViewer> Parent_QTRViewer; // weak pointer connection used for event forwarding; nullptr OK
+    //QPointer<QTRecViewer> Parent_QTRViewer; // weak pointer connection used for event forwarding; nullptr OK
 
     // non QObject-managed owned objects -- must be manually freed via destructor etc.
     // (these cannot be owned because they have to be moved to another thread) 
@@ -63,7 +43,7 @@ namespace snde {
     qt_osg_compositor(std::shared_ptr<recdatabase> recdb,
 		      std::shared_ptr<display_info> display,
 		      osg::ref_ptr<osgViewer::Viewer> Viewer,
-		      bool threaded,bool enable_threaded_opengl,QPointer<QTRecViewer> Parent_QTRViewer,QWidget *parent=nullptr);
+		      bool threaded,bool enable_threaded_opengl,QTRecViewer *Parent_QTRViewer,QWidget *parent=nullptr);
     
     qt_osg_compositor(const qt_osg_compositor &) = delete;
     qt_osg_compositor & operator=(const qt_osg_compositor &) = delete;
@@ -97,17 +77,16 @@ namespace snde {
 
     //virtual void ClearPickedOrientation(); 
   
-  public slots:
+    //public slots:
     void rerender();
     void update();
 
   };
 
 
-  
   class qt_osg_compositor_view_tracking_pose_recording: public tracking_pose_recording {
   public:
-    QWeakPointer<qt_osg_compositor> compositor;
+    //QWeakPointer<qt_osg_compositor> compositor;
     std::string channel_to_track; // string is a path name, absolute or relative, treating the path of the tracking_pose_recording with a trailing slash as a group context
     virtual snde_orientation3 get_pose() const;
     
@@ -116,8 +95,17 @@ namespace snde {
   };
   
 
+  // template for qoc_view_tracking_pose_recording arguments
+  template <class T>
+    std::shared_ptr<T> create_recording_qoc_view_tracking_pose_info(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string component_name,QSharedPointer<qt_osg_compositor> compositor,std::string channel_to_track);
+  %{
+#define create_recording_qoc_view_tracking_pose_info create_recording
+   %}
+
+  %template(create_qt_osg_compositor_view_tracking_pose_recording) create_recording_qoc_view_tracking_pose_info<qt_osg_compositor_view_tracking_pose_recording>;
+
+  
 
 };
 
 
-#endif // SNDE_QT_OSG_COMPOSITOR_HPP

@@ -40,7 +40,7 @@ namespace snde {
       {typeid(snde_coord3_int16),SNDE_RTN_SNDE_COORD3_INT16},
       {typeid(std::vector<snde_index>),SNDE_RTN_INDEXVEC},
       {typeid(std::shared_ptr<recording_group>),SNDE_RTN_RECORDING_GROUP},
-      {typeid(std::shared_ptr<pointcloud_recording>),SNDE_RTN_POINTCLOUD_RECORDING},
+      //{typeid(std::shared_ptr<pointcloud_recording>),SNDE_RTN_POINTCLOUD_RECORDING},
       {typeid(std::shared_ptr<meshed_part_recording>),SNDE_RTN_MESHED_PART_RECORDING},
       {typeid(std::shared_ptr<meshed_vertexarray_recording>),SNDE_RTN_MESHED_VERTEXARRAY_RECORDING},
       {typeid(std::shared_ptr<meshed_texvertex_recording>),SNDE_RTN_MESHED_TEXVERTEX_RECORDING},
@@ -165,7 +165,7 @@ namespace snde {
       {SNDE_RTN_INDEXVEC,"SNDE_RTN_INDEXVEC"},
 
       {SNDE_RTN_RECORDING_GROUP,"SNDE_RTN_RECORDING_GROUP"},
-      {SNDE_RTN_POINTCLOUD_RECORDING,"SNDE_RTN_POINTCLOUD_RECORDING"},
+      //{SNDE_RTN_POINTCLOUD_RECORDING,"SNDE_RTN_POINTCLOUD_RECORDING"},
       {SNDE_RTN_MESHED_PART_RECORDING,"SNDE_RTN_MESHED_PART_RECORDING"},
       {SNDE_RTN_MESHED_VERTEXARRAY_RECORDING, "SNDE_RTN_MESHED_VERTEXARRAY_RECORDING"},
       {SNDE_RTN_MESHED_TEXVERTEX_RECORDING,"SNDE_RTN_MESHED_TEXVERTEX_RECORDING"},
@@ -876,7 +876,7 @@ namespace snde {
   }
   
 
-  recording_group::recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,std::shared_ptr<std::string> path_to_primary,size_t info_structsize/*=0*/) :
+  recording_group::recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::shared_ptr<std::string> path_to_primary) :
     recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,recording_default_info_structsize(info_structsize,sizeof(snde_recording_base))),
     path_to_primary(path_to_primary)
   {

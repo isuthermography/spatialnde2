@@ -4,6 +4,7 @@ import spatialnde2 as snde
 global snde_recdb_windows
 global snde_RecViewerWindow
 global viewer
+global main_viewer
 
 if not "snde_recdb_windows" in globals():
    
@@ -33,7 +34,7 @@ def viewer():
     # Give the window a place to live where
     # it won't lose its reference count
     snde_recdb_windows.append(new_window)
-    pass
+    return new_window
 
 # Create an initial viewer
-viewer()
+main_viewer = viewer()

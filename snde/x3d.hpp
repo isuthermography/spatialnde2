@@ -1341,6 +1341,7 @@ namespace snde {
 	    //rec->define_array(0,rtn_typemap.at(typeid(*graphman->geom.texbuffer)));
 	    
 	    texture_rec = create_recording<texture_recording>(recdb,texturechan,(void *)owner);
+	    texture_rec->assign_storage_manager(graphman);
 
 	    texture_ref = texture_rec->reference_ndarray("texbuffer");
 	    
@@ -2016,6 +2017,7 @@ namespace snde {
 
 
       std::shared_ptr<textured_part_recording> texedcurpart = create_recording<textured_part_recording>(recdb,texedcurpart_chan,(void *)owner,meshedfullname,nullptr,std::map<snde_index,std::shared_ptr<image_reference>>());
+      texedcurpart->assign_storage_manager(graphman);
       texedcurpart->metadata = std::make_shared<immutable_metadata>(metadata); 
       texedcurpart->mark_metadata_done();
 
@@ -2477,6 +2479,7 @@ namespace snde {
 	std::shared_ptr<snde::channel> uvparam_chan = recdb->reserve_channel(uvparam_config);
       
 	uvparam = create_recording<meshed_parameterization_recording>(recdb,uvparam_chan,(void *)owner);  // currently only implement numuvimages==1
+	uvparam->assign_storage_manager(graphman);
 	x3d_assign_allocated_storage(uvparam,"uvs",graphman->geom.uvs,firstuv,1);
 	x3d_assign_allocated_storage(uvparam,"uv_patches",graphman->geom.uv_patches,graphman->geom.uvs[firstuv].firstuvpatch,1);
 

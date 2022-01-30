@@ -9,6 +9,7 @@
 #include "snde/openscenegraph_image_renderer.hpp"
 #include "snde/openscenegraph_geom_renderer.hpp"
 #include "snde/display_requirements.hpp"
+#include "snde/quaternion.h"
 
 namespace snde {
 
@@ -1071,6 +1072,46 @@ namespace snde {
     resize_width=width;
     resize_height=height;
   }
+
+  snde_orientation3 osg_compositor::get_camera_pose(std::string channel_path)
+  // get the camera pose (or a null orientation) for the given channel
+  {
+
+    osg::Matrixd CamPose;
+    {
+      std::lock_guard<std::mutex> compositor_admin(admin); // required for access to renderers
+      
+      auto renderer_it = renderers->find(channel_path);
+      if (renderer_it == renderers->end()) {
+	// channel not found -- return null orientation
+	snde_orientation3 null;
+	snde_null_orientation3(&null);
+	return null;
+      }
+      
+      CamPose = renderer_it->second->Camera->getInverseViewMatrix(); // camera pose is the inverse of the view matrix
+    }
+    
+    osg::Vec3d translation;
+    osg::Quat rotation;
+    osg::Vec3d scale;
+    osg::Quat scale_orientation;
+
+    CamPose.decompose(translation,rotation,scale,scale_orientation);
+
+    snde_orientation3 retval;
+    retval.offset.coord[0]=translation.x();
+    retval.offset.coord[1]=translation.y();
+    retval.offset.coord[2]=translation.z();
+    retval.offset.coord[3]=0.0;
+
+    retval.quat.coord[0]=rotation.x();
+    retval.quat.coord[1]=rotation.y();
+    retval.quat.coord[2]=rotation.z();
+    retval.quat.coord[3]=rotation.w();
+
+    return retval;
+  }
   
   void osg_compositor::start()
   {
@@ -1165,8 +1206,5 @@ namespace snde {
     
   }
 
-
-
-
-
+  
 };

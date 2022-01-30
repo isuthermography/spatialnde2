@@ -1,0 +1,36 @@
+# This is a simple example of using dataguzzler-python
+# with the spatialnde2 recording database. 
+
+# To use: pass the name of an .x3d file as the first command-line parameter 
+
+from dataguzzler_python import dgpy
+import spatialnde2 as snde
+
+include(dgpy,"dgpy_startup.dpi") # If you get a NameError here, be sure you are executing this file with dataguzzler-python
+
+include(dgpy,"Qt.dpi",prefer_pyqt=False) 
+
+include(snde,"recdb.dpi",enable_opencl=True)
+include(snde,"recdb_gui.dpi")
+
+graphman=snde.graphics_storage_manager("/graphics/",recdb.lowlevel_alloc,recdb.alignment_requirements,recdb.lockmgr,1e-8);
+
+
+transact = snde.active_transaction(recdb)	
+
+graphicsgroup_config=snde.channelconfig("/graphics", "main", recdb,False,graphman)
+graphicsgroup = recdb.reserve_channel(graphicsgroup_config); 
+
+part_recordings = snde.x3d_load_geometry(recdb,graphman,args[1],"main",recdb,"/graphics/",False,True)
+
+
+followerchan_config=snde.channelconfig("/graphics/follower channel", "main", recdb,False)
+followerchan = recdb.reserve_channel(followerchan_config); 
+
+followerrec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,followerchan,"main","/graphics/x3d0",main_viewer.viewer.OSGWidget,"..")
+followerrec
+followerrec.metadata=snde.constructible_metadata()
+followerrec.mark_metadata_done()
+followerrec.mark_as_ready()
+
+globalrev = transact.end_transaction()

@@ -451,6 +451,15 @@ static VECOPS_INLINE snde_coord normvec3(snde_coord *vec)
   return factor;
 }
 
+static VECOPS_INLINE snde_coord normsqvec3(const snde_coord *vec)
+/* returns vector norm */
+{
+  snde_coord factor;
+
+  factor=(snde_coord)vec[0]*vec[0]+vec[1]*vec[1]+vec[2]*vec[2];
+  return factor;
+}
+
 
 
 static VECOPS_INLINE snde_coord normcoord3(snde_coord3 vec)
@@ -660,7 +669,7 @@ static VECOPS_INLINE void mean2vec3(snde_coord *vec1,snde_coord *vec2,snde_coord
   }
 }
 
-static VECOPS_INLINE void mean2coord3(snde_coord3 vec1,snde_coord3 vec2,snde_coord3 *out)
+static VECOPS_INLINE void mean2coord3(const snde_coord3 vec1,const snde_coord3 vec2,snde_coord3 *out)
 {
   int cnt;
   
@@ -668,6 +677,17 @@ static VECOPS_INLINE void mean2coord3(snde_coord3 vec1,snde_coord3 vec2,snde_coo
     out->coord[cnt]=(vec1.coord[cnt]+vec2.coord[cnt])/2.0f;
   }
 }
+
+static VECOPS_INLINE snde_bool equalcoord3(const snde_coord3 vec1,const snde_coord3 vec2)
+{
+  return vec1.coord[0]==vec2.coord[0] && vec1.coord[1]==vec2.coord[1] && vec1.coord[2]==vec2.coord[2];
+}
+
+static VECOPS_INLINE snde_bool equalcoord4(const snde_coord4 vec1,const snde_coord4 vec2)
+{
+  return vec1.coord[0]==vec2.coord[0] && vec1.coord[1]==vec2.coord[1] && vec1.coord[2]==vec2.coord[2] && vec1.coord[3]==vec2.coord[3];
+}
+
 
 static VECOPS_INLINE void fmatrixsolve_print(snde_coord *A, snde_coord *b, size_t n, size_t nsolve,size_t *pivots)
 {

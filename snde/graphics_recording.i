@@ -1,7 +1,46 @@
-#ifndef SNDE_GRAPHICS_RECORDING_HPP
-#define SNDE_GRAPHICS_RECORDING_HPP
+//%shared_ptr(snde::pointcloud_recording);
+//snde_rawaccessible(snde::pointcloud_recording);
 
-#include "snde/recstore.hpp"
+%shared_ptr(snde::meshed_part_recording);
+snde_rawaccessible(snde::meshed_part_recording);
+
+
+%shared_ptr(snde::meshed_vertexarray_recording);
+snde_rawaccessible(snde::meshed_vertexarray_recording);
+
+%shared_ptr(snde::meshed_texvertex_recording);
+snde_rawaccessible(snde::meshed_texvertex_recording);
+
+%shared_ptr(snde::meshed_vertnormals_recording);
+snde_rawaccessible(snde::meshed_vertnormals_recording);
+
+%shared_ptr(snde::meshed_trinormals_recording);
+snde_rawaccessible(snde::meshed_trinormals_recording);
+
+%shared_ptr(snde::meshed_parameterization_recording);
+snde_rawaccessible(snde::meshed_parameterization_recording);
+
+%shared_ptr(snde::texture_recording);
+snde_rawaccessible(snde::texture_recording);
+
+%shared_ptr(snde::image_reference);
+snde_rawaccessible(snde::image_reference);
+
+%shared_ptr(snde::textured_part_recording);
+snde_rawaccessible(snde::textured_part_recording);
+
+%shared_ptr(snde::assembly_recording);
+snde_rawaccessible(snde::assembly_recording);
+
+%shared_ptr(snde::tracking_pose_recording);
+snde_rawaccessible(snde::tracking_pose_recording);
+
+
+%{
+#include "snde/graphics_recording.hpp"
+
+%}
+
 
 namespace snde {
 
@@ -107,7 +146,19 @@ namespace snde {
   };
 
   
+  // create_recording templates
+  %template(create_meshed_part_recording) create_recording_noargs<meshed_part_recording>;
+  %template(create_meshed_vertexarray_recording) create_recording_noargs<meshed_vertexarray_recording>;
+  %template(create_meshed_texvertex_recording) create_recording_noargs<meshed_texvertex_recording>;
+  %template(create_meshed_vertnormals_recording) create_recording_noargs<meshed_vertnormals_recording>;
+  %template(create_meshed_trinormals_recording) create_recording_noargs<meshed_trinormals_recording>;
+  %template(create_meshed_parameterization_recording) create_recording_noargs<meshed_parameterization_recording>;
+  %template(create_texture_recording) create_recording_noargs<texture_recording>;
+
+  // Note customized pseudo-templates for extra create_recording arguments are defined at the
+  // bottom of recstore.i
+  %template(create_textured_part_recording) create_recording_textured_part_info<textured_part_recording>;  
+  %template(create_assembly_recording) create_recording_const_vector_of_string_orientation_pairs<assembly_recording>;
+  // can't create a tracking_pose_recording because it is an abstract class
+  
 };
-
-
-#endif // SNDE_GRAPHICS_RECORDING_HPP

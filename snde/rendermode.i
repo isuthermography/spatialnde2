@@ -4,6 +4,8 @@ snde_rawaccessible(snde::renderparams_base);
 snde_rawaccessible(snde::rgbacolormapparams);
 %shared_ptr(snde::assemblyparams);
 snde_rawaccessible(snde::assemblyparams);
+%shared_ptr(snde::poseparams);
+snde_rawaccessible(snde::poseparams);
 
 %{
 #include "snde/rendermode.hpp"
@@ -171,5 +173,24 @@ namespace snde {
     virtual void push_back(std::shared_ptr<renderparams_base> value);
     
   };
+
+
+  class poseparams: public renderparams_base { // used for tracking_pose_recording and subclasses
+  public:
+    std::shared_ptr<renderparams_base> component_params; // embedded part or sub assembly
+    snde_orientation3 component_orientation;
+    
+    poseparams() = default;
+    virtual ~poseparams() = default;
+    
+    virtual size_t hash();
+    
+    virtual bool operator==(const renderparams_base &b);
+
+    
+  };
+
+
+
 };
 

@@ -3,6 +3,8 @@
 
 #include <functional>
 
+#include "snde/quaternion.h"
+
 namespace snde {
   class renderparams_base;
   class rendergoal;
@@ -123,15 +125,19 @@ namespace snde {
 #define SNDE_SRM_RGBAIMAGE "SNDE_SRM_RGBAIMAGE" // render as an RGBA image
 #define SNDE_SRM_MESHEDNORMALS "SNDE_SRM_MESHEDNORMALS" // collect array of meshed normals
 #define SNDE_SRM_VERTEXARRAYS "SNDE_SRM_VERTEXARRAYS" // collect array of triangle vertices
+  
+#define SNDE_SRM_POINTCLOUD "SNDE_SRM_POINTCLOUD" // render a point cloud in 3D space
+#define SNDE_SRM_POINTCLOUDCOLORMAP "SNDE_SRM_POINTCLOUDCOLORMAP" // colormapping for a point cloud in 3D space
+#define SNDE_SRM_POINTCLOUDVERTICES "SNDE_SRM_POINTCLOUDVERTICES" // vertices for a point cloud in 3D space
+
 #define SNDE_SRM_MESHED2DPARAMETERIZATION "SNDE_SRM_MESHED2DPARAMETERIZATION" // collect array of texture triangle vertices (parameterization
 #define SNDE_SRM_MESHEDPARAMLESS3DPART "SNDE_SRM_MESHEDPARAMELESS3DPART" // render meshed 3D geometry part with no 2D parameterization or texture
 #define SNDE_SRM_TEXEDMESHED3DGEOM "SNDE_SRM_TEXEDMESHED3DGEOM" // render meshed 3D geometry with texture
 #define SNDE_SRM_TEXEDMESHEDPART "SNDE_SRM_TEXEDMESHEDPART" // render textured meshed 3D geometry part
 #define SNDE_SRM_ASSEMBLY "SNDE_SRM_ASSEMBLY" // render a collection of objects (group) representing an assembly
-#define SNDE_SRM_POINTCLOUD "SNDE_SRM_POINTCLOUD" // render a point cloud in 3D space
-#define SNDE_SRM_POINTCLOUDCOLORMAP "SNDE_SRM_POINTCLOUDCOLORMAP" // colormapping for a point cloud in 3D space
-#define SNDE_SRM_POINTCLOUDVERTICES "SNDE_SRM_POINTCLOUDVERTICES" // vertices for a point cloud in 3D space
-  
+
+#define SNDE_SRM_TRANSFORMEDCOMPONENT "SNDE_SRM_TRANSFORMEDCOMPONENT" // render a component with the pose transform defined in the rendermode_ext
+
   //#define SNDE_SRM_CLASSSPECIFIC 11 // render in a way that is specific to the particular recording_type indexed in the rendermode
 
   struct rendermode_hash {
@@ -367,6 +373,58 @@ namespace snde {
     
     
   };
+
+
+
+  class poseparams: public renderparams_base { // used for tracking_pose_recording and subclasses
+  public:
+    std::shared_ptr<renderparams_base> component_params; // embedded part or sub assembly
+    snde_orientation3 component_orientation;
+    
+    poseparams() = default;
+    virtual ~poseparams() = default;
+    
+    virtual size_t hash()
+    {
+      size_t hashv = 0;
+      
+      hashv =
+	component_params->hash() ^
+	std::hash<snde_coord>{}(component_orientation.offset.coord[0]) ^
+				 std::hash<snde_coord>{}(component_orientation.offset.coord[1]) ^ 
+				 std::hash<snde_coord>{}(component_orientation.offset.coord[2]) ^ 
+				 std::hash<snde_coord>{}(component_orientation.offset.coord[3]) ^ 
+				 std::hash<snde_coord>{}(component_orientation.quat.coord[0]) ^ 
+				 std::hash<snde_coord>{}(component_orientation.quat.coord[1]) ^ 
+				 std::hash<snde_coord>{}(component_orientation.quat.coord[2]) ^ 
+				 std::hash<snde_coord>{}(component_orientation.quat.coord[3]); 
+							 
+      return hashv;
+    }
+
+    
+    virtual bool operator==(const renderparams_base &b)
+    {
+      const poseparams *bptr = dynamic_cast<const poseparams *>(&b);
+      if (!bptr) return false;
+
+      if (!(*component_params == *bptr->component_params)) {
+	return false;
+      }
+
+      if (!orientation3_equal(component_orientation,bptr->component_orientation)) {
+	return false;
+      }
+      
+      return true;
+      
+    }
+
+    
+  };
+
+
+
 };
 
 #endif // SNDE_RENDERMODE_HPP

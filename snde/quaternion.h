@@ -17,6 +17,17 @@ static QUATERNION_INLINE void snde_null_orientation3(snde_orientation3 *out)
   *out=null_orientation;
 }
 
+static QUATERNION_INLINE snde_bool quaternion_equal(const snde_coord4 a, const snde_coord4 b)
+{
+  return a.coord[0]==b.coord[0] && a.coord[1]==b.coord[1] && a.coord[2]==b.coord[2] && a.coord[3]==b.coord[3];
+}
+
+static QUATERNION_INLINE snde_bool orientation3_equal(const snde_orientation3 a, const snde_orientation3 b)
+{
+  return quaternion_equal(a.quat,b.quat) && equalcoord4(a.offset,b.offset);
+}
+
+
 static QUATERNION_INLINE void quaternion_normalize(const snde_coord4 unnormalized,snde_coord4 *normalized)
   /* returns the components of a normalized quaternion */
   {
@@ -98,13 +109,16 @@ static QUATERNION_INLINE void quaternion_apply_vector(const snde_coord4 quat,con
   snde_coord4 q1_times_v;
   snde_coord4 q1_inverse;
 
+
   assert(vec.coord[3]==0.0);
+  
+  snde_coord vnormsq = normsqvec3(&vec.coord[0]);
   
   quaternion_product(quat,vec,&q1_times_v);
   quaternion_inverse(quat,&q1_inverse);
   quaternion_product(q1_times_v,q1_inverse,product);
 
-  assert(product->coord[3]==0.0);
+  assert(product->coord[3]*product->coord[3] < 1e-15f*vnormsq);
 }
 
 

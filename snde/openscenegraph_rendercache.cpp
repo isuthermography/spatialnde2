@@ -56,7 +56,16 @@ namespace snde {
       return std::make_shared<osg_cachedtexedmeshedpart>(params,display_req);
     });
   
+
+  static int osg_registered_assembly = osg_register_renderer(rendermode(SNDE_SRM_ASSEMBLY,typeid(assembly_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedassembly>(params,display_req);
+    });
   
+
+  // register our cachedtransformedcomponent as accommodating the tracking_pose_recording_display_handler
+  static int osg_registered_transformedcomponent = osg_register_renderer(rendermode(SNDE_SRM_TRANSFORMEDCOMPONENT,typeid(tracking_pose_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedtransformedcomponent>(params,display_req);
+    });
 
   
   
@@ -1322,7 +1331,72 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     }
   }
 
+
+
+
+
+
   
+
+  osg_cachedtransformedcomponent::osg_cachedtransformedcomponent(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachegroupentry()
+  {
+    
+    cached_recording = params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath);
+    if (!cached_recording) {
+      throw snde_error("osg_cachedtransformedcomponent: Could not get recording for %s",display_req->renderable_channelpath->c_str()); 
+      
+    }
+    
+    std::shared_ptr<display_requirement> subcomponent_requirement=display_req->sub_requirements.at(0);
+    std::shared_ptr<osg_rendercacheentry> subcomponent_entry;
+    
+    bool modified;
+
+    std::tie(subcomponent_entry,modified) = params.rendercache->GetEntry(params,subcomponent_requirement,&locks_required);
+    if (!subcomponent_entry) {
+      throw snde_error("osg_cachedtransformedcomponent(): Could not get cache entry for sub-component %s",subcomponent_requirement->renderable_channelpath->c_str());
+    }
+    sub_component = std::dynamic_pointer_cast<osg_rendercachegroupentry>(subcomponent_entry);
+    if (!sub_component) {
+      throw snde_error("osg:cachedtransformedcomponent(): Cache entry for sub-component %s not convertible to a group",subcomponent_requirement->renderable_channelpath->c_str());	
+    }   
+    
+    osg_group = new osg::Group();
+
+    std::shared_ptr<poseparams> pose_params = std::dynamic_pointer_cast<poseparams>(display_req->mode.constraint);
+    assert(pose_params);
+    
+    snde_coord4 rotmtx[4]; // index identifies which column (data stored column-major)
+    orientation_build_rotmtx(pose_params->component_orientation,rotmtx);
+    
+    osg::ref_ptr<osg::MatrixTransform> xform  = new osg::MatrixTransform(osg::Matrixd(&rotmtx[0].coord[0])); // remember osg::MatrixTransform also wants the matrix column-major (as we interpret it; osg interprets it as row major, with left multiplication rather than right multiplication)
+    xform->addChild(sub_component->osg_group);
+    osg_group->addChild(xform);
+    
+  }
+  
+  
+  std::pair<bool,bool> osg_cachedtransformedcomponent::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  {
+    std::shared_ptr<recording_base> new_recording = params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath);
+    if (!new_recording) {
+      throw snde_error("osg_cachedtransformedcomponent::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
+    }
+    
+    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+  }
+  
+
+  void osg_cachedtransformedcomponent::clear_potentially_obsolete()
+  {
+    potentially_obsolete=false;
+    
+    sub_component->clear_potentially_obsolete();
+    
+  }
+  
+
   
 #if 0 // obsolste code, at least for now
   

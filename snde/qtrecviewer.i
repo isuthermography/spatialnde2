@@ -4,10 +4,6 @@
 
 // info on shiboken wrapping:
 
-// Dummy QWidget so we can call setParent method
-class QWidget {
-  void setParent(QWidget *Parent);
-};
 
 class QHboxLayout;
 class QVBoxLayout;
@@ -175,7 +171,7 @@ namespace snde {
   class QTRecViewer: public QWidget {
     // Q_OBJECT
   public:
-    qt_osg_compositor *OSGWidget;
+    QSharedPointer<qt_osg_compositor> OSGWidget; // OSGWidget is NOT parented; instead it is a QSharedPointer with the QObject::deleteLater deleter. This is so we can reference it from other threads, e.g. to pull out the pose e.g. for qt_osg_compositor_view_tracking_pose_recording. See https://stackoverflow.com/questions/12623690/qsharedpointer-and-qobjectdeletelater
     std::weak_ptr<recdatabase> recdb;
     std::shared_ptr<display_info> display;
     std::string selected; // name of selected channel

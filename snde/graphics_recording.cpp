@@ -4,6 +4,7 @@
 
 namespace snde {
 
+  /*
   // pointcloud_recording is only compatible with the
   // graphics_storage_manager that defines special storage for
   // certain arrays, including "vertices"
@@ -17,7 +18,9 @@ namespace snde {
     define_array(0,rtn_typemap.at(typeid(*dummy.vertices)));
 
   }
+  */
 
+  
   meshed_part_recording::meshed_part_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
     multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,8)
   {
@@ -170,7 +173,7 @@ namespace snde {
   }
 
   textured_part_recording::textured_part_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string part_name, std::shared_ptr<std::string> parameterization_name, const std::map<snde_index,std::shared_ptr<image_reference>> &texture_refs) :
-    recording_group(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,nullptr,info_structsize),
+    recording_group(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,nullptr),
     part_name(part_name),
     parameterization_name(parameterization_name),
     texture_refs(texture_refs)
@@ -178,11 +181,20 @@ namespace snde {
 
   }
 
-  assembly_recording::assembly_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,const std::vector<std::tuple<std::string,snde_orientation3>> &pieces,size_t info_structsize) :
-    recording_group(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,nullptr,info_structsize),
+  assembly_recording::assembly_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::vector<std::pair<std::string,snde_orientation3>> &pieces) :
+    recording_group(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,nullptr),
     pieces(pieces)
   {
     
   }
+
+  
+  tracking_pose_recording::tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string component_name):
+    recording_group(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,nullptr),
+    component_name(component_name)
+  {
+    
+  }
+
 
 };

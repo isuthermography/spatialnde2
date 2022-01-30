@@ -13,6 +13,10 @@
 %shared_ptr(snde::x3d_loader);
 
 %shared_ptr(x3d_shapelist)
+
+%shared_ptr(std::vector<std::shared_ptr<snde::textured_part_recording>>);
+
+	    
  //%shared_ptr(std::vector<std::shared_ptr<snde::x3d_shape>,std::allocator<std::shared_ptr<snde::x3d_shape> > >)
 
 
@@ -24,6 +28,8 @@
 
 %template(x3d_shapelist) std::vector<std::shared_ptr<snde::x3d_shape>>;
 %template(x3d_nodedata_map) std::unordered_map<std::string,std::shared_ptr<snde::x3d_node>>;
+
+%template(textured_part_recording_list) std::vector<std::shared_ptr<snde::textured_part_recording>>;
 
 namespace snde {
 
@@ -246,8 +252,10 @@ namespace snde {
     x3d_texturecoordinate(void);
   };
 
-  // ***!!! Need to add this back in once the trm API is stabilized
-  //std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> x3d_load_geometry(std::shared_ptr<geometry> geom,std::vector<std::shared_ptr<x3d_shape>> shapes,std::shared_ptr<std::vector<trm_arrayregion>> modified_region_accum,bool reindex_vertices,bool reindex_tex_vertices)
-  //std::shared_ptr<std::vector<std::shared_ptr<meshedpart>>> x3d_load_geometry(std::shared_ptr<geometry> geom,const char *filename,std::shared_ptr<std::vector<trm_arrayregion>> modified_region_accum,bool reindex_vertices,bool reindex_tex_vertices);
-  
+
+  std::vector<std::shared_ptr<textured_part_recording>> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::vector<std::shared_ptr<x3d_shape>> shapes,std::string ownername,void *owner_id,std::string recdb_context,std::string context_fname,bool reindex_vertices,bool reindex_tex_vertices);
+
+  std::vector<std::shared_ptr<textured_part_recording>> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::string filename,std::string ownername,void *owner_id,std::string recdb_context,bool reindex_vertices,bool reindex_tex_vertices);
+
+
 };

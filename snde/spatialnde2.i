@@ -458,6 +458,8 @@ template <typename T>
 %include "recdb_paths.i"
 %include "recstore_storage.i"
 %include "recstore.i"
+%include "graphics_recording.i"
+%include "graphics_storage.i"
 %include "recmath_parameter.i"
 %include "recmath_compute_resource.i"
 %include "recmath.i"
@@ -465,8 +467,11 @@ template <typename T>
 %include "notify.i"
 %include "rendermode.i"
 %include "display_requirements.i"
+%include "qt_core.i"
+%include "qt_osg_compositor.i"
 %include "qtrecviewer.i"
 %include "recstore_setup.i"
+%include "x3d.i"
 
 #ifdef SNDE_OPENCL
 %include "opencl_utils.i"

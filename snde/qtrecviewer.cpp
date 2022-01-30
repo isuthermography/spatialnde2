@@ -37,12 +37,15 @@ namespace snde {
     
     display = std::make_shared<display_info>(recdb);
     
-    OSGWidget=new qt_osg_compositor(recdb,display,new osgViewer::Viewer(),
-				    true, // threaded; try true
-				    true, // enable_threaded_opengl
-				    this,this);
-    viewerGridLayout->addWidget(OSGWidget,1,0);
+    OSGWidget=QSharedPointer<qt_osg_compositor>(new qt_osg_compositor(recdb,display,new osgViewer::Viewer(),
+								      true, // threaded; try true
+								      true, // enable_threaded_opengl
+								      this,this),&QObject::deleteLater); // Note that we have a parent widget set on an object we are reference counting with QSharedPointer for ownership instead so it can be safely referenced from other threads. This is inherently dangerous. Our escape is that we explicitly deparent OSGWidget in our destructor, so the parenting is irrelevant. 
     
+    viewerGridLayout->addWidget(OSGWidget.get(),1,0);
+    // Even if we didn't parent OSGWidget above, addWidget() will have automatically parented OSGWidget, which we don't want, so we explicitly set the parent back to nullptr
+    // in our destructor so that deletion is really managed by the qsharedpointer
+  
     RecListScrollAreaContent=DesignerTree->findChild<QWidget *>("recListScrollAreaContent");
     RecListScrollAreaLayout=new QVBoxLayout();
     RecListScrollAreaContent->setLayout(RecListScrollAreaLayout);
@@ -216,26 +219,26 @@ namespace snde {
     
     
     success = QObject::connect(posmgr,SIGNAL(NewPosition()),
-		       OSGWidget,SLOT(rerender()));
+			       OSGWidget.get(),SLOT(rerender()));
     assert(success);
     
     success = QObject::connect(this,SIGNAL(NeedRedraw()),
-		     OSGWidget,SLOT(rerender()));
+			       OSGWidget.get(),SLOT(rerender()));
     assert(success);
     
     
     success = QObject::connect(posmgr,SIGNAL(NewPosition()),
-		     this,SLOT(UpdateViewerStatus()));
+			       this,SLOT(UpdateViewerStatus()));
     assert(success);
     
     success = QObject::connect(this,SIGNAL(NewGlobalRev()),
-				    OSGWidget,SLOT(rerender()));
+			       OSGWidget.get(),SLOT(rerender()));
     assert(success);
-
+    
     success = QObject::connect(this,SIGNAL(NewGlobalRev()),
-		     this,SLOT(UpdateViewerStatus()));    
+			       this,SLOT(UpdateViewerStatus()));    
     assert(success);
-
+    
     // eventfilter monitors for keypresses
     //      installEventFilter(this);
 
@@ -252,6 +255,12 @@ namespace snde {
   
   QTRecViewer::~QTRecViewer()
   {
+
+    // Explicitly deparent OSGWidget so that its lifetime
+    // is actually controlled by the QSharedPointer, which
+    // will call deleteLater() once it goes out of scope. 
+    OSGWidget->setParent(nullptr); 
+
 
     std::shared_ptr<recdatabase> recdb_strong = recdb.lock();
 

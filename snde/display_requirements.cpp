@@ -1478,6 +1478,101 @@ std::shared_ptr<display_requirement> assembly_recording_display_handler::get_dis
   return retval; 
 }
 
+
+
+tracking_pose_recording_display_handler::tracking_pose_recording_display_handler(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) :
+  recording_display_handler_base(display,displaychan,base_rss)
+{
+  
+}
+
+// Since tracking_pose_recording is an abstract class there's no
+// point in registering the handler directly. When you implement
+// a sub-class of tracking_pose_recording, you need to register
+// a tracking_pose_recording_display_handler to do the rendering,
+// and the display handler with call the get_pose() method on
+// every render.
+
+//// Example where register this handler for mode SNDE_SRG_RENDERING
+//static int register_tpr_display_handler = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(tracking_pose_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+//    return std::make_shared<tracking_pose_recording_display_handler>(display,displaychan,base_rss);
+//    }));
+
+std::shared_ptr<display_requirement> tracking_pose_recording_display_handler::get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent)
+// assembly_recording:SNDE_SRG_RENDERING
+//  -> MAIN assembly_recording_display_handler:SNDE_SRM_ASSEMBLY -> osg_cachedassembly
+//     SUB... textured_part_recording:SNDE_SRG_RENDERING or meshed_part_recording:SNDE_SRG_RENDERING 
+//  Need to include sub params with our own. 
+{
+  assert(simple_goal == SNDE_SRG_RENDERING);
+
+  const std::string &chanpath = displaychan->FullName;
+
+  {
+    
+    std::lock_guard<std::mutex> displaychan_admin(displaychan->admin);
+    // !!!*** displaychan updates should be more formally passed around,
+    // and perhaps this update should not occur unless this was actually a render goal (?)
+    displaychan->render_mode = SNDE_DCRM_GEOMETRY;
+  }
+  
+  
+  std::shared_ptr<recording_base> rec = base_rss->get_recording(chanpath);
+  
+  std::shared_ptr<tracking_pose_recording> trackingpose_rec=std::dynamic_pointer_cast<tracking_pose_recording>(rec);
+  assert(trackingpose_rec);
+
+
+
+
+  std::shared_ptr<display_spatial_position> posn;
+  std::shared_ptr<display_spatial_transform> xform;
+  std::shared_ptr<display_channel_rendering_bounds> bounds;
+  
+  
+  {
+    std::lock_guard<std::mutex> di_lock(display->admin);
+    std::lock_guard<std::mutex> dc_lock(displaychan->admin);
+    
+    // !!!*** displaychan updates should be more formally passed around,
+    // and perhaps this update should not occur unless this was actually a render goal (?)
+    displaychan->render_mode = SNDE_DCRM_GEOMETRY;
+    std::tie(posn,xform,bounds) = spatial_transforms_for_3d_channel(display->drawareawidth,display->drawareaheight,
+								    displaychan->HorizPosition,displaychan->Position,
+								    1.0/displaychan->RenderScale,display->pixelsperdiv);	  // magnification comes from the scale
+    
+  } // release displaychan lock
+
+  
+  // From the low-level rendering perspective we just treat this as an assembly
+  // with one element and the given pose
+  std::shared_ptr<poseparams> pose_params=std::make_shared<poseparams>(); // will be filled in below
+  
+  
+  std::shared_ptr<display_requirement> retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_TRANSFORMEDCOMPONENT,typeid(*this),pose_params),rec,shared_from_this());
+  retval->renderer_type = SNDE_DRRT_GEOMETRY;
+  retval->spatial_position = posn;
+  retval->spatial_transform = xform;
+  retval->spatial_bounds = bounds;
+
+  retval->renderable_channelpath = std::make_shared<std::string>(chanpath);
+
+  
+  // reuse assembly code to determine absolute path to component
+  std::string abspath = _assembly_join_assem_and_compnames(chanpath,trackingpose_rec->component_name);
+
+  // sub-requirement is our component in rendering mode
+  std::shared_ptr<display_requirement> sub_requirement = traverse_display_requirement(display,base_rss,display->lookup_channel(abspath),SNDE_SRG_RENDERING,nullptr);
+  retval->sub_requirements.push_back(sub_requirement);
+
+  std::shared_ptr<renderparams_base> sub_params = sub_requirement->mode.constraint;
+  pose_params->component_params=sub_params;
+  pose_params->component_orientation = trackingpose_rec->get_pose();
+
+  return retval; 
+}
+
+
 std::shared_ptr<display_requirement> traverse_display_requirement(std::shared_ptr<display_info> display,std::shared_ptr<recording_set_state> base_rss,std::shared_ptr<display_channel> displaychan, std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent) // simple_goal such as SNDE_SRG_RENDERING
 {
   const std::string &chanpath = displaychan->FullName;

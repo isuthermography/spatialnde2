@@ -45,6 +45,7 @@ namespace snde {
   class instantiated_math_database;
   class instantiated_math_function;
   class math_definition;
+  class image_reference;
 
   class channel_notify; // from notify.hpp
   class repetitive_channel_notify; // from notify.hpp
@@ -162,7 +163,7 @@ namespace snde {
     std::shared_ptr<std::string> path_to_primary; // nullptr or the path (generally relative to this group) to the primary content of the group, which should be displayed when the user asks to view the content represented by the group. 
 
 
-    recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,std::shared_ptr<std::string> path_to_primary,size_t info_structsize=0);
+    recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::shared_ptr<std::string> path_to_primary);
     
     
     // rule of 3
@@ -660,6 +661,7 @@ namespace snde {
     std::shared_ptr<globalrevision> _latest_globalrev; // atomic shared pointer -- access with latest_globalrev() method;
     std::vector<std::shared_ptr<repetitive_channel_notify>> repetitive_notifies; 
 
+    std::shared_ptr<allocator_alignment> alignment_requirements; // Pointer is immutable; pointed structure has its own locking
     std::shared_ptr<available_compute_resource_database> compute_resources; // has its own admin lock.
     
 
@@ -738,8 +740,8 @@ namespace snde {
 
   size_t recording_default_info_structsize(size_t param,size_t min);
 
-  template <typename T,typename ... Args>
-  std::shared_ptr<T> create_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,Args && ... args);
+  //template <typename T,typename ... Args>
+  //std::shared_ptr<T> create_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,Args && ... args);
   
   template <typename T,typename ... Args>
   std::shared_ptr<T> create_recording_math(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,Args && ... args);
@@ -755,5 +757,54 @@ namespace snde {
   std::shared_ptr<ndarray_recording_ref> create_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
 
   std::shared_ptr<ndarray_recording_ref> create_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
+
+
+  // create recording templates
+  // Work around SWIG not supporting variadic templates
+  // by creating multiple non-variadic templates that
+  // swig thinks exist, that are then mapped onto the
+  // original by #define
+
+  // first, template for no extra recording arguments
+  template <class T>
+    std::shared_ptr<T> create_recording_noargs(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id);
+  %{
+#define create_recording_noargs create_recording
+   %}
+
+  // template for one extra recording argument that is a shared_ptr to a std::string
+  template <class T>
+    std::shared_ptr<T> create_recording_ptr_to_string(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::shared_ptr<std::string> path_to_primary);
+  %{
+#define create_recording_ptr_to_string create_recording
+   %}
+
+  // template for one extra recording argument that is a size_t
+  template <class T>
+    std::shared_ptr<T> create_recording_size_t(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,size_t);
+  %{
+#define create_recording_size_t create_recording
+   %}
+
+    // template for one extra recording argument that is a const vector of string-orientation pairs
+  template <class T>
+    std::shared_ptr<T> create_recording_const_vector_of_string_orientation_pairs(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,const std::vector<std::pair<std::string,snde_orientation3>> &pieces);
+  %{
+#define create_recording_const_vector_of_string_orientation_pairs create_recording
+   %}
+
+
+  // template for textured_part info arguments
+  template <class T>
+    std::shared_ptr<T> create_recording_textured_part_info(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string part_name, std::shared_ptr<std::string> parameterization_name, const std::map<snde_index,std::shared_ptr<image_reference>> &texture_refs);
+  %{
+#define create_recording_textured_part_info create_recording
+   %}
+
+  
+  
+  %template(create_null_recording) snde::create_recording_noargs<null_recording>;
+  %template(create_recording_group) create_recording_ptr_to_string<recording_group>;
+  %template(create_multi_ndarray_recording) create_recording_size_t<multi_ndarray_recording>;
   
 };
