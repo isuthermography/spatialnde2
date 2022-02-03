@@ -1,3 +1,16 @@
+#ifdef _MSC_VER
+  #define GLAPI WINGDIAPI
+  #define GLAPIENTRY APIENTRY
+  #define NOMINMAX
+  #include <Windows.h>
+  #include <GL/glew.h>
+#endif
+
+
+#include <osg/GL>
+#include <osg/GLExtensions>
+
+
 
 #include "snde/openscenegraph_renderer.hpp"
 
@@ -21,7 +34,7 @@ namespace snde {
   
   void SetupOGLMessageCallback()
   {
-    void (*ext_glDebugMessageCallback)(GLDEBUGPROC callback​, void* userParam​) = (void (*)(GLDEBUGPROC callback, void *userParam))osg::getGLExtensionFuncPtr("glDebugMessageCallback");
+    void (*ext_glDebugMessageCallback)(GLDEBUGPROC callback, void* userParam) = (void (*)(GLDEBUGPROC callback, void *userParam))osg::getGLExtensionFuncPtr("glDebugMessageCallback");
     if (ext_glDebugMessageCallback) {
       glEnable(GL_DEBUG_OUTPUT);
       ext_glDebugMessageCallback(&OGLMessageCallback,0);

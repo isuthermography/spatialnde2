@@ -38,8 +38,8 @@ namespace snde {
     display = std::make_shared<display_info>(recdb);
     
     OSGWidget=QSharedPointer<qt_osg_compositor>(new qt_osg_compositor(recdb,display,new osgViewer::Viewer(),
-								      true, // threaded; try true
-								      true, // enable_threaded_opengl
+								      false, // threaded; try true
+								      false, // enable_threaded_opengl
 								      this,this),&QObject::deleteLater); // Note that we have a parent widget set on an object we are reference counting with QSharedPointer for ownership instead so it can be safely referenced from other threads. This is inherently dangerous. Our escape is that we explicitly deparent OSGWidget in our destructor, so the parenting is irrelevant. 
     
     viewerGridLayout->addWidget(OSGWidget.get(),1,0);

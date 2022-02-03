@@ -11,6 +11,15 @@
 #include "snde/display_requirements.hpp"
 #include "snde/quaternion.h"
 
+#ifndef GL_VERSION_3_2
+typedef struct __GLsync* GLsync;
+typedef uint64_t GLuint64;  // may need #include <stdint.h>
+#endif
+
+#ifndef GL_VERSION_4_3
+typedef void (APIENTRY* GLDEBUGPROC)(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam);
+#endif
+
 namespace snde {
 
   static const std::unordered_map<int,int> osg_special_keymappings({
@@ -596,7 +605,7 @@ namespace snde {
 
 
     
-    GLsync (*ext_glFenceSync)(GLenum condition,GLbitfield flags​) = (GLsync (*)(GLenum condition, GLbitfield flags))osg::getGLExtensionFuncPtr("glFenceSync");
+    GLsync (*ext_glFenceSync)(GLenum condition,GLbitfield flags) = (GLsync (*)(GLenum condition, GLbitfield flags))osg::getGLExtensionFuncPtr("glFenceSync");
 
     GLenum (*ext_glClientWaitSync)(GLsync sync, GLbitfield Flags, GLuint64 timeout) = (GLenum (*)(GLsync sync, GLbitfield Flags, GLuint64 timeout))osg::getGLExtensionFuncPtr("glClientWaitSync");
     
@@ -608,9 +617,9 @@ namespace snde {
       // main GUI thread
       GLsync syncobj = ext_glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE,0);
 
-      ext_glClientWaitSync(syncobj,0,5000000000); // wait up to 5 seconds
+      ext_glClientWaitSync(syncobj,0,5000000000*0.01); // wait up to 5 seconds
     }
-    
+
     adminlock->lock();
   }
 
