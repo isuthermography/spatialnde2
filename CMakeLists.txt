@@ -97,6 +97,19 @@ if (CMAKE_C_COMPILER_ID MATCHES "MSVC")
   string( REPLACE "/DNDEBUG" "" CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
 endif()
 
+# Enable parallel build in MSVC -- currently hardwired to 8 jobs
+if (CMAKE_C_COMPILER_ID MATCHES "MSVC")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP8")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP8")
+endif()
+
+# Silence certain irrelevant warnings in MSVC
+if (CMAKE_C_COMPILER_ID MATCHES "MSVC")
+  set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS})
+endif()
+
+
 # Add bigobj flag for msbuild compiler (enabling compiling completely from the Anaconda prompt on Windows)
 IF(MSVC)
     add_compile_options(-bigobj)

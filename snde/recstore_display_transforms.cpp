@@ -243,7 +243,7 @@ namespace snde {
 	if (existing_channel != rdt_channels.end()) {
 	  rdt_channel = existing_channel->second;
 	  {
-	    std::lock_guard<std::mutex>(rdt_channel->admin);
+	    std::lock_guard<std::mutex> rdt_admin(rdt_channel->admin);
 	    rdt_channel->begin_atomic_config_update<channelconfig>();
 	    rdt_channel->end_atomic_config_update(renderableconfig);
 	  }

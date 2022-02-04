@@ -62,7 +62,7 @@ namespace snde {
     size_t totlength=0;
     
     for (size_t tokidx=0; tokidx < tokens.size(); tokidx++) {
-      totlength += tokens.at(tokidx).size()+1;
+      totlength += tokens.at(tokidx).size()+ ((size_t)1);
     }
     
     char *combined=(char *)malloc(totlength);
