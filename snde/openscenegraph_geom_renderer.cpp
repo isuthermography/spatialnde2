@@ -7,8 +7,8 @@
 
 // access default shaders from OpenSceneGraph
 // (WARNING: These might go into a namespace sometime!!!)
-extern char shadergen_frag[];
-extern char shadergen_vert[];
+//extern char shadergen_frag[];
+//extern char shadergen_vert[];
 
 namespace snde {
 
@@ -46,21 +46,21 @@ namespace snde {
 
     if (enable_shaders) {
       // Start with OSG 3.6 built-in shaders
-      ShaderProgram = new osg::Program();
-      ShaderProgram->addShader(new osg::Shader(osg::Shader::VERTEX, shadergen_vert));
-      ShaderProgram->addShader(new osg::Shader(osg::Shader::FRAGMENT, shadergen_frag));
+      //ShaderProgram = new osg::Program();
+      //ShaderProgram->addShader(new osg::Shader(osg::Shader::VERTEX, shadergen_vert));
+      //ShaderProgram->addShader(new osg::Shader(osg::Shader::FRAGMENT, shadergen_frag));
       
       // Apply ShaderProgram to our camera
       // and add the required diffuseMap uniform
       osg::ref_ptr<osg::StateSet> CameraStateSet = Camera->getOrCreateStateSet();
-      CameraStateSet->setAttribute(ShaderProgram);
-      CameraStateSet->addUniform(new osg::Uniform("diffuseMap",0));
+      //CameraStateSet->setAttribute(ShaderProgram);
+      //CameraStateSet->addUniform(new osg::Uniform("diffuseMap",0));
 
       // Apply ShaderGen stateset transformation to the camera
       // This transforms basic lighting, fog, and texture
       // to shader defines.
       osgUtil::ShaderGenVisitor ShaderGen;
-
+      ShaderGen.assignUberProgram(CameraStateSet);
       // (Alternatively I think this would be equivalent to
       // Camera->accept(ShaderGen);
       ShaderGen.apply(*Camera);

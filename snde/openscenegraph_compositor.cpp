@@ -651,21 +651,21 @@ namespace snde {
 
     if (enable_shaders) {
       // Start with OSG 3.6 built-in shaders
-      CompositingShaderProgram = new osg::Program();
-      CompositingShaderProgram->addShader(new osg::Shader(osg::Shader::VERTEX, shadergen_vert));
-      CompositingShaderProgram->addShader(new osg::Shader(osg::Shader::FRAGMENT, shadergen_frag));
+      //CompositingShaderProgram = new osg::Program();
+      //CompositingShaderProgram->addShader(new osg::Shader(osg::Shader::VERTEX, shadergen_vert));
+      //CompositingShaderProgram->addShader(new osg::Shader(osg::Shader::FRAGMENT, shadergen_frag));
       
       // Apply ShaderProgram to our camera
       // and add the required diffuseMap uniform
       osg::ref_ptr<osg::StateSet> CameraStateSet = Camera->getOrCreateStateSet();
-      CameraStateSet->setAttribute(CompositingShaderProgram);
-      CameraStateSet->addUniform(new osg::Uniform("diffuseMap",0));
+      //CameraStateSet->setAttribute(CompositingShaderProgram);
+      //CameraStateSet->addUniform(new osg::Uniform("diffuseMap",0));
 
       // Apply ShaderGen stateset transformation to the camera
       // This transforms basic lighting, fog, and texture
       // to shader defines.
       osgUtil::ShaderGenVisitor ShaderGen;
-
+      ShaderGen.assignUberProgram(CameraStateSet);
       // (Alternatively I think this would be equivalent to
       // Camera->accept(ShaderGen);
       ShaderGen.apply(*Camera);

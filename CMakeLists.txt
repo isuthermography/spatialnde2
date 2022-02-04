@@ -98,15 +98,15 @@ if (CMAKE_C_COMPILER_ID MATCHES "MSVC")
 endif()
 
 # Enable parallel build in MSVC -- currently hardwired to 8 jobs
-if (CMAKE_C_COMPILER_ID MATCHES "MSVC")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP8")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP8")
+if (CMAKE_C_COMPILER_ID MATCHES "MSVC" )
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP8" )
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP8" )
 endif()
 
 # Silence certain irrelevant warnings in MSVC
 if (CMAKE_C_COMPILER_ID MATCHES "MSVC")
   set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS})
+  #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 endif()
 
 
@@ -121,14 +121,14 @@ ENDIF(MSVC)
 # (used in geometry_types.h/geometry_types.i)
 include(CheckTypeSize)
 CHECK_TYPE_SIZE(long SIZEOF_LONG LANGUAGE CXX)
-if (SIZEOF_LONG MATCHES "8")
+if ( SIZEOF_LONG MATCHES "8" )
   set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSIZEOF_LONG_IS_8 ) 
 endif()
 
 
 # Workaround for swig to understand what size_t aliases
-CHECK_TYPE_SIZE(size_t SIZEOF_SIZE_T LANGUAGE CXX)
-if (SIZEOF_SIZE_T MATCHES "8")
+CHECK_TYPE_SIZE(size_t SIZEOF_SIZE_T LANGUAGE CXX )
+if (SIZEOF_SIZE_T MATCHES "8" )
   set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSIZEOF_SIZE_T_IS_8 ) 
 endif()
 
@@ -175,10 +175,10 @@ find_program(PYTHON_EXECUTABLE
   NAMES python python3
   PATHS ENV PATH
   DOC "Python executable, defining version and ABI to use for build"
-  NO_DEFAULT_PATH)
-set(PYTHON_MANUAL_COMPONENT_SELECTION FALSE CACHE BOOL "Manually select python installation components")
+  NO_DEFAULT_PATH )
+set(PYTHON_MANUAL_COMPONENT_SELECTION FALSE CACHE BOOL "Manually select python installation components" )
 if(PYTHON_MANUAL_COMPONENT_SELECTION)
-  set(Python3_ARTIFACTS_INTERACTIVE TRUE)
+  set(Python3_ARTIFACTS_INTERACTIVE TRUE )
 endif()
 
 set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
@@ -220,8 +220,8 @@ IF (OpenThreads_FOUND AND OpenSceneGraph_FOUND)
 ENDIF()
 
 
-include_directories(BEFORE . )  # So that #include "snde/..." works during the build
-include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/include )  # So that #include "snde/..." works during the build for python generated headers
+include_directories( BEFORE . )  # So that #include "snde/..." works during the build
+include_directories( BEFORE ${CMAKE_CURRENT_BINARY_DIR}/include )  # So that #include "snde/..." works during the build for python generated headers
 
 IF (Python3_FOUND)
     message(STATUS "Python3: " ${Python3_VERSION})
@@ -673,7 +673,7 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	set_property(SOURCE snde/spatialnde2.i PROPERTY SWIG_MODULE_NAME spatialnde2_python)
 
 	
-	set(SWIG_SPATIALNDE2_LINK_TARGETS Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools ) # Libraries needed by swig_spatialnde2 that are swig targets
+	set(SWIG_SPATIALNDE2_LINK_TARGETS Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools PNG::PNG) # Libraries needed by swig_spatialnde2 that are swig targets
 	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${Python3_LIBRARIES} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${SPATIALNDE2_QT_LIBS} )
 
 	#IF(NOT WIN32)
@@ -904,3 +904,4 @@ if(MSVC)
          "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
   set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} /ZI")
 endif()
+

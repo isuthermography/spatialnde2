@@ -22,7 +22,7 @@ Steps:
    strongly encouraged.  The following command will establish a new environment
    named SNDE with all of the required libraries and packages:
 
-     conda create -n SNDE python=3.8 numpy scipy matplotlib cython ipython pip opencv clhpp pyopencl pint hdf5 h5py lxml setuptools netcdf4 cmake openscenegraph pyopengl glfw freeglut glew mesa eigen swig -c conda-forge
+     conda create -n SNDE -c conda-forge python=3.8 numpy scipy matplotlib cython ipython pip opencv clhpp pyopencl pint hdf5 h5py lxml setuptools netcdf4 cmake openscenegraph pyopengl glfw freeglut glew mesa eigen swig 
 
    Note:  not all of these packaages may be needed.  There may be other 
           packages required for certain situations.

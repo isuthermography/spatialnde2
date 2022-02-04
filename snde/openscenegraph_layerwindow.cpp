@@ -5,6 +5,9 @@
 #include "snde/openscenegraph_layerwindow.hpp"
 #include "snde/openscenegraph_renderer.hpp"
 
+#ifndef GL_DRAW_FRAMEBUFFER_BINDING
+#define GL_DRAW_FRAMEBUFFER_BINDING 0x8CA6   // in case GL headers are missing this
+#endif 
 
 namespace snde {
   
@@ -122,11 +125,11 @@ namespace snde {
       // and this is unnecessary)
       OutputBufTexObj->bind();
       snde_debug(SNDE_DC_RENDERING,"osg_layerwindow: Calling glTexImage2D (id %d) with width=%d, height=%d",(int)OutputBufTexObj->id(),outputbuf->getTextureWidth(), outputbuf->getTextureHeight());
-      glTexImage2D( GL_TEXTURE_2D, 0, outputbuf->getInternalFormat(),
-		    outputbuf->getTextureWidth(), outputbuf->getTextureHeight(),
-		    outputbuf->getBorderWidth(),
-		    outputbuf->getInternalFormat(),
-		    outputbuf->getSourceType(),nullptr);
+        glTexImage2D( GL_TEXTURE_2D, 0, outputbuf->getInternalFormat(),
+	    	    outputbuf->getTextureWidth(), outputbuf->getTextureHeight(),
+	    	    outputbuf->getBorderWidth(),
+	    	    outputbuf->getInternalFormat(),
+	    	    outputbuf->getSourceType(),nullptr);
 
     }
     FBO = Stage->getFrameBufferObject();
