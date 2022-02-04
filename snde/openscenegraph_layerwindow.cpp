@@ -1,15 +1,3 @@
-#ifdef _MSC_VER
-
-#define NOMINMAX
-#include <Windows.h>
-
-// This likely needs to be adjusted
-#include <GL/glew.h>
-#endif
-
-
-#include <osg/GL>
-#include <osg/GLExtensions>
 #include <osg/Texture>
 #include <osg/FrameBufferObject>
 

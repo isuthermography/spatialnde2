@@ -252,7 +252,8 @@ int main(int argc, char **argv)
 
   osg::ref_ptr<osgViewer::Viewer> Viewer(new osgViewerCompat34());
   renderer = std::make_shared<osg_image_renderer>(Viewer,Viewer->setUpViewerAsEmbeddedInWindow(100,100,800,600),
-						  testchan_config->channelpath);
+						  testchan_config->channelpath,
+						  true); // enable_shaders
   
   display=std::make_shared<display_info>(recdb);
   display->set_current_globalrev(globalrev);

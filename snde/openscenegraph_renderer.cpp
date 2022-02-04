@@ -44,15 +44,18 @@ namespace snde {
   
   osg_renderer::osg_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
 			     osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
-			     std::string channel_path,int type) :
+			     std::string channel_path,int type,bool enable_shaders) :
     Viewer(Viewer),
     RootTransform(new osg::MatrixTransform()),
     Camera(Viewer->getCamera()),
     GraphicsWindow(GraphicsWindow),
     channel_path(channel_path),
-    type(type)
+    type(type),
+    enable_shaders(enable_shaders)
   {
-    
+    if (enable_shaders) {
+      ShaderProgram = new osg::Program();
+    }
   }
   
   void osg_renderer::frame()

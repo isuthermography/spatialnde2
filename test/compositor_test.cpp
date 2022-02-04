@@ -242,7 +242,11 @@ int main(int argc, char **argv)
 
 
 
-  compositor = std::make_shared<osg_compositor>(recdb,display,Viewer,GraphicsWindow, true /* try true */, false);
+  compositor = std::make_shared<osg_compositor>(recdb,display,Viewer,GraphicsWindow,
+						true /* threading... try true */,
+						false, // enable_threaded_opengl -- Not supported by this test code!
+						true // enable_shaders
+						);
 
   compositor->set_selected_channel("/x3d0");  // uncomment this line to test mouse forwarding
   //compositor->set_selected_channel("/png channel");  // uncomment this line to test keyboard forwarding (cursor left)

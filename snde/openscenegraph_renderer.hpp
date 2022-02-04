@@ -65,11 +65,13 @@ namespace snde {
     std::string channel_path;
 
     int type; // see SNDE_DRRT_XXXXX in rec_display.hpp
-
+    bool enable_shaders;
+    osg::ref_ptr<osg::Program> ShaderProgram;
+    
 
     osg_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
 		 osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
-		 std::string channel_path,int type);
+		 std::string channel_path,int type,bool enable_shaders);
     osg_renderer(const osg_renderer &) = delete;
     osg_renderer & operator=(const osg_renderer &) = delete;
     virtual ~osg_renderer() = default; 

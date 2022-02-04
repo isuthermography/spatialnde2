@@ -65,6 +65,7 @@ int main(int argc, char **argv)
   std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
   
 
+  QCoreApplication::setAttribute(Qt::AA_UseDesktopOpenGL); // OpenSceneGraph requires UseDesktopOpenGL, I think
   QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts); // Eliminate annoying QT warning message
   QApplication qapp(argc,argv);  
   QMainWindow window;
