@@ -210,7 +210,7 @@ namespace snde {
     // numbers of divisions should be even!
     vertical_divisions=8;
     horizontal_divisions=10;
-    borderwidthpixels=1.0; // width of the border line, in pixels
+    borderwidthpixels=1.0; // width of the border line, in pixels -- nothing other than 1.0 here is supported by opengl any more
     
     // Insert some basic common units
     
