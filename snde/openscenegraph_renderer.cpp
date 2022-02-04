@@ -1,3 +1,16 @@
+#ifdef _MSC_VER
+  #define GLAPI WINGDIAPI
+  #define GLAPIENTRY APIENTRY
+  #define NOMINMAX
+  #include <Windows.h>
+  #include <GL/glew.h>
+#endif
+
+
+#include <osg/GL>
+#include <osg/GLExtensions>
+
+
 
 #include "snde/openscenegraph_renderer.hpp"
 
@@ -21,7 +34,7 @@ namespace snde {
   
   void SetupOGLMessageCallback()
   {
-    void (*ext_glDebugMessageCallback)(GLDEBUGPROC callback​, void* userParam​) = (void (*)(GLDEBUGPROC callback, void *userParam))osg::getGLExtensionFuncPtr("glDebugMessageCallback");
+    void (*ext_glDebugMessageCallback)(GLDEBUGPROC callback, void* userParam) = (void (*)(GLDEBUGPROC callback, void *userParam))osg::getGLExtensionFuncPtr("glDebugMessageCallback");
     if (ext_glDebugMessageCallback) {
       glEnable(GL_DEBUG_OUTPUT);
       ext_glDebugMessageCallback(&OGLMessageCallback,0);
@@ -31,15 +44,18 @@ namespace snde {
   
   osg_renderer::osg_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
 			     osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
-			     std::string channel_path,int type) :
+			     std::string channel_path,int type,bool enable_shaders) :
     Viewer(Viewer),
     RootTransform(new osg::MatrixTransform()),
     Camera(Viewer->getCamera()),
     GraphicsWindow(GraphicsWindow),
     channel_path(channel_path),
-    type(type)
+    type(type),
+    enable_shaders(enable_shaders)
   {
-    
+    if (enable_shaders) {
+      ShaderProgram = new osg::Program();
+    }
   }
   
   void osg_renderer::frame()

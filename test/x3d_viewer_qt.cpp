@@ -47,7 +47,7 @@ int main(int argc, char **argv)
   recdb=std::make_shared<snde::recdatabase>();
   setup_cpu(recdb,std::thread::hardware_concurrency());
 #ifdef SNDE_OPENCL
-  setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
+      setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
   //#warning "GPU acceleration temporarily disabled for viewer."
 #endif
   setup_storage_manager(recdb);
@@ -65,6 +65,7 @@ int main(int argc, char **argv)
   std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
   
 
+  QCoreApplication::setAttribute(Qt::AA_UseDesktopOpenGL); // OpenSceneGraph requires UseDesktopOpenGL, I think
   QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts); // Eliminate annoying QT warning message
   QApplication qapp(argc,argv);  
   QMainWindow window;

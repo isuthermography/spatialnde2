@@ -63,7 +63,7 @@ namespace snde {
     qt_osg_compositor(std::shared_ptr<recdatabase> recdb,
 		      std::shared_ptr<display_info> display,
 		      osg::ref_ptr<osgViewer::Viewer> Viewer,
-		      bool threaded,bool enable_threaded_opengl,QPointer<QTRecViewer> Parent_QTRViewer,QWidget *parent=nullptr);
+		      bool threaded,bool enable_threaded_opengl,bool enable_shaders,QPointer<QTRecViewer> Parent_QTRViewer,QWidget *parent=nullptr);
     
     qt_osg_compositor(const qt_osg_compositor &) = delete;
     qt_osg_compositor & operator=(const qt_osg_compositor &) = delete;

@@ -192,7 +192,7 @@ find_package(PNG)
 
 # OpenSceneGraph (osg) dependencies
 find_package(OpenThreads)
-find_package(OpenSceneGraph REQUIRED osg osgViewer osgGA osgDB osgUtil)
+find_package(OpenSceneGraph 3.6.0 REQUIRED osg osgViewer osgGA osgDB osgUtil) # Shader stuff requires OSG 3.6.0 or newer. Could also disable this with a configuration (search for enable_shaders) to support older OSG versions
 find_package(OpenGL REQUIRED COMPONENTS OpenGL) # (If this becomes a problem somehow we only make direct OpenGL calls in openscenegraph_renderer.hpp/osg_layerwindow; everything else is via OpenSceneGraph)
 
 

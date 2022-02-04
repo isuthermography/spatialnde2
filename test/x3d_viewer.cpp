@@ -220,7 +220,8 @@ int main(int argc, char **argv)
   Viewer->getCamera()->setGraphicsContext(GW);
   
   renderer = std::make_shared<osg_geom_renderer>(Viewer,GW,
-						 x3dchan_config->channelpath);
+						 x3dchan_config->channelpath,
+						 true); // enable_shaders
 
   display=std::make_shared<display_info>(recdb);
   display->set_current_globalrev(globalrev);

@@ -1,5 +1,6 @@
 #include <osgGA/GUIEventAdapter>
 #include <osgViewer/Renderer>
+#include <osgUtil/ShaderGen>
 
 #include "snde/openscenegraph_renderer.hpp"
 #include "snde/openscenegraph_compositor.hpp"
@@ -10,6 +11,21 @@
 #include "snde/openscenegraph_geom_renderer.hpp"
 #include "snde/display_requirements.hpp"
 #include "snde/quaternion.h"
+
+#ifndef GL_VERSION_3_2
+typedef struct __GLsync* GLsync;
+typedef uint64_t GLuint64;  // may need #include <stdint.h>
+#endif
+
+#ifndef GL_VERSION_4_3
+typedef void (APIENTRY* GLDEBUGPROC)(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam);
+#endif
+
+// access default shaders from OpenSceneGraph
+// (WARNING: These might go into a namespace sometime!!!)
+extern char shadergen_frag[];
+extern char shadergen_vert[];
+
 
 namespace snde {
 
@@ -123,6 +139,7 @@ namespace snde {
 				 osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
 				 bool threaded,
 				 bool enable_threaded_opengl,
+				 bool enable_shaders,
 				 GLuint LayerDefaultFramebufferObject/*=0*/) : // ***!!! NOTE: don't set enabled_threaded_opengl unless you have arranged some means for the worker thread to operate in a different OpenGL context that shares textures with the main context. This would probably have to be done by a context !!!***
     recdb(recdb),
     display(display),
@@ -131,6 +148,7 @@ namespace snde {
     RootGroup(new osg::Group()),
     threaded(threaded),
     enable_threaded_opengl(enable_threaded_opengl),
+    enable_shaders(enable_shaders),
     LayerDefaultFramebufferObject(LayerDefaultFramebufferObject),
     next_state(SNDE_OSGRCS_WAITING),
     threads_started(false),
@@ -448,9 +466,9 @@ namespace snde {
 	    LW->setup_camera(LayerViewer->getCamera());
 	    
 	    if (display_req.second->renderer_type == SNDE_DRRT_IMAGE) {
-	      renderer=std::make_shared<osg_image_renderer>(LayerViewer,LW,display_req.second->channelpath);
+	      renderer=std::make_shared<osg_image_renderer>(LayerViewer,LW,display_req.second->channelpath,enable_shaders);
 	    } else if (display_req.second->renderer_type == SNDE_DRRT_GEOMETRY) {
-	      renderer=std::make_shared<osg_geom_renderer>(LayerViewer,LW,display_req.second->channelpath);
+	      renderer=std::make_shared<osg_geom_renderer>(LayerViewer,LW,display_req.second->channelpath,enable_shaders);
 	      
 	    } else {
 	      snde_warning("osg_compositor: invalid render type SNDE_DRRT_#%d",display_req.second->renderer_type);
@@ -596,7 +614,7 @@ namespace snde {
 
 
     
-    GLsync (*ext_glFenceSync)(GLenum condition,GLbitfield flags​) = (GLsync (*)(GLenum condition, GLbitfield flags))osg::getGLExtensionFuncPtr("glFenceSync");
+    GLsync (*ext_glFenceSync)(GLenum condition,GLbitfield flags) = (GLsync (*)(GLenum condition, GLbitfield flags))osg::getGLExtensionFuncPtr("glFenceSync");
 
     GLenum (*ext_glClientWaitSync)(GLsync sync, GLbitfield Flags, GLuint64 timeout) = (GLenum (*)(GLsync sync, GLbitfield Flags, GLuint64 timeout))osg::getGLExtensionFuncPtr("glClientWaitSync");
     
@@ -608,9 +626,9 @@ namespace snde {
       // main GUI thread
       GLsync syncobj = ext_glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE,0);
 
-      ext_glClientWaitSync(syncobj,0,5000000000); // wait up to 5 seconds
+      ext_glClientWaitSync(syncobj,0,5000000000*0.01); // wait up to 5 seconds
     }
-    
+
     adminlock->lock();
   }
 
@@ -631,6 +649,29 @@ namespace snde {
 
     //snde_warning("perform_compositing: Empty=%d",(int)GraphicsWindow->getEventQueue()->empty());
 
+    if (enable_shaders) {
+      // Start with OSG 3.6 built-in shaders
+      CompositingShaderProgram = new osg::Program();
+      CompositingShaderProgram->addShader(new osg::Shader(osg::Shader::VERTEX, shadergen_vert));
+      CompositingShaderProgram->addShader(new osg::Shader(osg::Shader::FRAGMENT, shadergen_frag));
+      
+      // Apply ShaderProgram to our camera
+      // and add the required diffuseMap uniform
+      osg::ref_ptr<osg::StateSet> CameraStateSet = Camera->getOrCreateStateSet();
+      CameraStateSet->setAttribute(CompositingShaderProgram);
+      CameraStateSet->addUniform(new osg::Uniform("diffuseMap",0));
+
+      // Apply ShaderGen stateset transformation to the camera
+      // This transforms basic lighting, fog, and texture
+      // to shader defines.
+      osgUtil::ShaderGenVisitor ShaderGen;
+
+      // (Alternatively I think this would be equivalent to
+      // Camera->accept(ShaderGen);
+      ShaderGen.apply(*Camera);
+      
+      
+    }
     
     Camera->setProjectionMatrixAsOrtho(0,compositor_width,0,compositor_height,0.0,10000.0); // check last two parameters 
 
@@ -821,6 +862,22 @@ namespace snde {
     }
     RootGroup->addChild(group);
     
+
+    if (enable_shaders) {
+
+      // Apply use of shaders instead of old-style lighting and texture to the modified tree
+      osgUtil::ShaderGenVisitor ShaderGen;
+      // This transforms basic lighting, fog, and texture
+      // to shader defines.
+
+      // The shader stateset was already applied to
+      // the camera in the constructor. 
+
+      // (Alternatively I think this would be equivalent to
+      /// ShaderGen.apply(RootTransform);
+      RootGroup->accept(ShaderGen);
+
+    }
     
     snde_debug(SNDE_DC_RENDERING,"Compositor drawing frame: numlayers = %d, Empty=%d",(int)group->getNumChildren(),(int)GraphicsWindow->getEventQueue()->empty());
     Viewer->frame();

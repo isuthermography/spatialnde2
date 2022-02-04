@@ -189,6 +189,7 @@ namespace snde {
     
     bool threaded;
     bool enable_threaded_opengl;
+    bool enable_shaders;
     GLuint LayerDefaultFramebufferObject; // default FBO # for layer renderers 
 
     // PickerCrossHairs and GraticuleTransform for 2D image and 1D waveform rendering
@@ -209,12 +210,17 @@ namespace snde {
 
     // Renderers maintained by the rendering step which runs in the rendering thread
     std::shared_ptr<std::map<std::string,std::shared_ptr<osg_renderer>>> renderers; // Should be freed (set to nullptr) ONLY by layer rendering thread with the proper OpenGL context loaded. This is locked by the admin lock because it may be accessed by event handling threads to pass events on to the viewer
+    
 
     // Renderers created by rendering step which runs in the rendering thread, but
     // the integer texture ID numbers are used in the compositing step
     std::shared_ptr<std::map<std::string,std::pair<osg::ref_ptr<osg::Texture2D>,GLuint>>> layer_rendering_rendered_textures; // should be freed ONLY by layer rendering thread. Indexed by channel name; texture pointer valid in layer rendering thread and opengl texture ID number.
 
     //std::shared_ptr<std::map<std::string,std::pair<osg::ref_ptr<osg::Texture2D>,GLuint>>> compositing_textures; // should be freed ONLY by compositing thread. Indexed by channel name. Texture pointer valid in compositing thread
+
+    // CompositingShaderProgram is owned by the compositing step.
+    osg::ref_ptr<osg::Program> CompositingShaderProgram;
+
     
     // Rendering consists of four phases, which may be in different threads,
     // but must proceed sequentially with one thread handing off to the next
@@ -309,7 +315,9 @@ namespace snde {
     osg_compositor(std::shared_ptr<recdatabase> recdb,
 		   std::shared_ptr<display_info> display,
 		   osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
-		   bool threaded,bool enable_threaded_opengl,GLuint LayerDefaultFramebufferObject=0);
+		   bool threaded,bool enable_threaded_opengl,
+		   bool enable_shaders,
+		   GLuint LayerDefaultFramebufferObject=0);
 
     osg_compositor(const osg_compositor &) = delete;
     osg_compositor & operator=(const osg_compositor &) = delete;

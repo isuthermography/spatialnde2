@@ -28,7 +28,7 @@ namespace snde {
     //    bool firstrun;
     
     osg_geom_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
-		    std::string channel_path);
+		      std::string channel_path,bool enable_shaders);
     osg_geom_renderer(const osg_geom_renderer &) = delete;
     osg_geom_renderer & operator=(const osg_geom_renderer &) = delete;
     virtual ~osg_geom_renderer() = default; 

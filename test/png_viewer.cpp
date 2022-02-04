@@ -237,7 +237,8 @@ int main(int argc, char **argv)
   Viewer->getCamera()->setGraphicsContext(GW);
   
   renderer = std::make_shared<osg_image_renderer>(Viewer,GW,
-						  pngchan_config->channelpath);
+						  pngchan_config->channelpath,
+						  true); // enable_shaders
   
   display=std::make_shared<display_info>(recdb);
   display->set_current_globalrev(globalrev);

@@ -46,10 +46,12 @@ namespace snde {
 				       std::shared_ptr<display_info> display,
 				       osg::ref_ptr<osgViewer::Viewer> Viewer,
 				       bool threaded,bool enable_threaded_opengl,
+				       bool enable_shaders,
 				       QPointer<QTRecViewer> Parent_QTRViewer,QWidget *parent/*=nullptr*/) :
     QOpenGLWidget(parent),
     osg_compositor(recdb,display,Viewer,new osg_ParanoidGraphicsWindowEmbedded(0,0,width(),height()),
-		   threaded,confirm_threaded_opengl(enable_threaded_opengl),defaultFramebufferObject() /* probably 0 as QT OGL hasn't started... we'll assign an updated value in initializeGL() and paintGL() below */ ),
+		   threaded,confirm_threaded_opengl(enable_threaded_opengl),
+		   enable_shaders,defaultFramebufferObject() /* probably 0 as QT OGL hasn't started... we'll assign an updated value in initializeGL() and paintGL() below */ ),
     RenderContext(nullptr),
     qt_worker_thread(nullptr),
     Parent_QTRViewer(QPointer<QTRecViewer>(Parent_QTRViewer))
