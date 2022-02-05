@@ -6,11 +6,13 @@
   #include <GL/glew.h>
 #endif
 
-
+#include <osg/Version>
 #include <osg/GL>
 #include <osg/GLExtensions>
 
-
+#if OPENSCENEGRAPH_MAJOR_VERSION >= 3 && OPENSCENEGRAPH_MINOR_VERSION >= 6
+#include <osg/VertexArrayState>
+#endif
 
 #include "snde/openscenegraph_renderer.hpp"
 
@@ -145,6 +147,16 @@ namespace snde {
     
     
     getState()->reset(); // the OSG-expected state for THIS WINDOW may have been messed up (e.g. by another window). So we need to reset the assumptions about the OpenGL state
+#if OPENSCENEGRAPH_MAJOR_VERSION >= 3 && OPENSCENEGRAPH_MINOR_VERSION >= 6
+    // OSG 3.6.0 and above use a new VertexArrayState object that doesn't get
+    // properly dirty()'d by reset()
+    osg::ref_ptr<osg::VertexArrayState> VAS = getState()->getCurrentVertexArrayState();
+    if (VAS) {
+      VAS->dirty(); // doesn't actually do anything
+      getState()->disableAllVertexArrays();
+    }
+#endif
+    
     osg::ref_ptr<osg_SyncableState> window_state = dynamic_cast<osg_SyncableState *>(getState());
     window_state->SyncModeBits();
     

@@ -1006,8 +1006,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 
     geode = new osg::Geode();
     stateset=geode->getOrCreateStateSet();
-    //stateset->setMode(GL_LIGHTING,osg::StateAttribute::ON);
-    stateset->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
+    stateset->setMode(GL_LIGHTING,osg::StateAttribute::ON);
     stateset->setMode(GL_DEPTH_TEST,osg::StateAttribute::ON);
     //stateset->setMode(GL_DEPTH_TEST,osg::StateAttribute::OFF);
 

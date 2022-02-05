@@ -259,7 +259,7 @@ int main(int argc, char **argv)
   
   renderer = std::make_shared<osg_image_renderer>(Viewer,LW,
 						  pngchan_config->channelpath,
-						  true); // enable_shaders
+						  false); // enable_shaders
   
   display=std::make_shared<display_info>(recdb);
   display->set_current_globalrev(globalrev);

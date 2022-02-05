@@ -1,6 +1,10 @@
+#include <osg/Version>
 #include <osg/Texture>
 #include <osg/FrameBufferObject>
 
+#if OPENSCENEGRAPH_MAJOR_VERSION >= 3 && OPENSCENEGRAPH_MINOR_VERSION >= 6
+#include <osg/VertexArrayState>
+#endif
 
 #include "snde/openscenegraph_layerwindow.hpp"
 #include "snde/openscenegraph_renderer.hpp"
@@ -125,7 +129,10 @@ namespace snde {
       // and this is unnecessary)
       OutputBufTexObj->bind();
       snde_debug(SNDE_DC_RENDERING,"osg_layerwindow: Calling glTexImage2D (id %d) with width=%d, height=%d",(int)OutputBufTexObj->id(),outputbuf->getTextureWidth(), outputbuf->getTextureHeight());
-        glTexImage2D( GL_TEXTURE_2D, 0, outputbuf->getInternalFormat(),
+      // NOTE: If we start getting an OpenGL error from this next line
+      // it means that the hack to prevent osg/Texture2D.cpp from creating
+      // an unresizable texture with glTexStorage2D() has failed (see init() function below) 
+      glTexImage2D( GL_TEXTURE_2D, 0, outputbuf->getInternalFormat(),
 	    	    outputbuf->getTextureWidth(), outputbuf->getTextureHeight(),
 	    	    outputbuf->getBorderWidth(),
 	    	    outputbuf->getInternalFormat(),
@@ -409,6 +416,9 @@ namespace snde {
       setState(ourstate);
       
       ourstate->initializeExtensionProcs();
+
+      // Hack to prevent osg/Texture2D.cpp from creating an unresizable texture with glTexStorage2D by disable use of TextureStorage entirely
+      ourstate->get<osg::GLExtensions>()->isTextureStorageEnabled=false; 
       
       
       outputbuf = new osg::Texture2D(); // !!!*** See also resizedImplementation() where outputbuf is re-created
@@ -491,6 +501,15 @@ namespace snde {
     
     getState()->reset(); // the OSG-expected state for THIS WINDOW may have been messed up (e.g. by another window). So we need to reset the assumptions about the OpenGL state
 
+#if OPENSCENEGRAPH_MAJOR_VERSION >= 3 && OPENSCENEGRAPH_MINOR_VERSION >= 6
+    // OSG 3.6.0 and above use a new VertexArrayState object that doesn't get
+    // properly dirty()'d by reset()
+    osg::ref_ptr<osg::VertexArrayState> VAS = getState()->getCurrentVertexArrayState();
+    if (VAS) {
+      VAS->dirty(); // doesn't actually do anything
+      getState()->disableAllVertexArrays();
+    }
+#endif
     
     osg::ref_ptr<osg_SyncableState> window_state = dynamic_cast<osg_SyncableState *>(getState());
     window_state->SyncModeBits();

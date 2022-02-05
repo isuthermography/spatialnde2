@@ -701,6 +701,7 @@ namespace snde {
 	// Create the texture based on the shared ID.
  
 	osg::ref_ptr<osg::Texture2D> tex = new osg::Texture2D();
+	snde_debug(SNDE_DC_RENDERING,"Compositor: using layer texture object ID #%u",(unsigned)tex_it->second.second);
 	osg::ref_ptr<osg::Texture::TextureObject> texobj = new osg::Texture::TextureObject(tex, tex_it->second.second, GL_TEXTURE_2D);
 	
 	texobj->setAllocated();

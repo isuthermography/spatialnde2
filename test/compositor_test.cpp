@@ -245,7 +245,7 @@ int main(int argc, char **argv)
   compositor = std::make_shared<osg_compositor>(recdb,display,Viewer,GraphicsWindow,
 						true /* threading... try true */,
 						false, // enable_threaded_opengl -- Not supported by this test code!
-						true // enable_shaders
+						false // enable_shaders
 						);
 
   compositor->set_selected_channel("/x3d0");  // uncomment this line to test mouse forwarding
