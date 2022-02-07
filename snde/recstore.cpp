@@ -4369,6 +4369,23 @@ namespace snde {
     ref=rec->reference_ndarray(0);
     return ref;
   }
+
+  std::shared_ptr<ndarray_recording_ref> create_anonymous_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum)
+  {
+    std::shared_ptr<multi_ndarray_recording> rec;
+    std::shared_ptr<ndarray_recording_ref> ref;
+    
+    // ***!!! Should look up maker method in a runtime-addable database ***!!!
+    
+    rec=create_anonymous_recording<multi_ndarray_recording>(recdb,purpose,1);
+    rec->define_array(0,typenum);
+    
+    ref=rec->reference_ndarray(0);
+    return ref;
+
+  }
+
+  
   std::shared_ptr<ndarray_recording_ref> create_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum)
   {
     std::shared_ptr<multi_ndarray_recording> rec;

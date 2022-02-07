@@ -24,6 +24,7 @@
 #include "snde/pngimage.hpp"
 #include "snde/path.hpp"
 #include "snde/topology.hpp"
+#include "snde/vecops.h"
 
 
 #ifndef SNDE_X3D_HPP
@@ -2530,6 +2531,32 @@ namespace snde {
       graphman->geom.parts[firstpart].numboxpolys=SNDE_INDEX_INVALID;
       //geom->geom.parts[firstpart].firstboxcoord=SNDE_INDEX_INVALID;
       //geom->geom.parts[firstpart].numboxcoord=SNDE_INDEX_INVALID;
+
+      // Calculate pivot point -- location in 3D space around which the object will naturally tend to rotate
+      {
+	snde_coord3 pivot = { { 0.0,0.0,0.0 } };
+
+	for (snde_index vertcnt=0;vertcnt < num_vertices;vertcnt++) {
+	  accumcoordcoord3(graphman->geom.vertices[firstvertex+vertcnt],&pivot);
+	}
+
+	// divide by num_vertices to get average position and store in structure
+	scalecoord3(1.0/num_vertices,pivot,&graphman->geom.parts[firstpart].pivot_point);
+	
+      }
+
+
+      // calculate length scale from sqrt(mean-squared distance from pivot point)
+      {
+	snde_coord length_scale_sq=0.0;
+	snde_coord3 pivot_to_vertex;
+	for (snde_index vertcnt=0;vertcnt < num_vertices;vertcnt++) {
+	  subcoordcoord3(graphman->geom.vertices[firstvertex+vertcnt],graphman->geom.parts[firstpart].pivot_point,&pivot_to_vertex);
+	  length_scale_sq += normsqcoord3(pivot_to_vertex);
+	}
+	graphman->geom.parts[firstpart].length_scale = sqrt(length_scale_sq/num_vertices);
+
+      }
       
       graphman->geom.parts[firstpart].solid=indexedset->solid;
       graphman->geom.parts[firstpart].has_triangledata=false;

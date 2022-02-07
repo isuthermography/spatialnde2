@@ -154,6 +154,7 @@ namespace snde {
   class instantiated_math_database;
   class instantiated_math_function;
   class math_definition;
+  template <typename T> class ndtyped_recording_ref;
 
   class channel_notify; // from notify.hpp
   class repetitive_channel_notify; // from notify.hpp
@@ -847,6 +848,31 @@ namespace snde {
     std::shared_ptr<ndarray_recording_ref> get_recording_ref(const std::string &fullpath,size_t array_index=0);
     std::shared_ptr<ndarray_recording_ref> get_recording_ref(const std::string &fullpath,std::string array_name);
 
+    template <typename T>
+    std::shared_ptr<ndarray_recording_ref> get_typed_recording_ref(const std::string &fullpath,size_t array_index=0)
+    {
+      std::shared_ptr<ndarray_recording_ref> rawref = get_recording_ref(fullpath,array_index);
+      std::shared_ptr<ndtyped_recording_ref<T>> retval = std::dynamic_pointer_cast<ndtyped_recording_ref<T>>(rawref);
+      if (!retval) {
+	throw snde_error("Recording channel %s array index %llu has type %s which appears not to match %s",fullpath.c_str(),(unsigned long long)array_index,rtn_typenamemap.at(rawref->typenum).c_str(),rtn_typenamemap.at(rtn_typemap.at(typeid(T))).c_str());
+      }
+      return retval;
+    }
+    
+    template <typename T>
+    std::shared_ptr<ndarray_recording_ref> get_typed_recording_ref(const std::string &fullpath,std::string array_name)
+    {
+      std::shared_ptr<ndarray_recording_ref> rawref = get_recording_ref(fullpath,array_name);
+      std::shared_ptr<ndtyped_recording_ref<T>> retval = std::dynamic_pointer_cast<ndtyped_recording_ref<T>>(rawref);
+      if (!retval) {
+	throw snde_error("Recording channel %s array name %s has type %s which appears not to match %s",fullpath.c_str(),array_name.c_str(),rtn_typenamemap.at(rawref->typenum).c_str(),rtn_typenamemap.at(rtn_typemap.at(typeid(T))).c_str());
+      }
+      return retval;
+      
+    }
+
+    
+
     std::shared_ptr<ndarray_recording_ref> check_for_recording_ref(const std::string &fullpath,size_t array_index=0);
     std::shared_ptr<ndarray_recording_ref> check_for_recording_ref(const std::string &fullpath,std::string array_name);
 
@@ -1328,7 +1354,25 @@ namespace snde {
     recdb->register_new_rec(new_rec);
     return new_rec;
   }
+
+
+  // create_anonymous_recording() creates a recording that is not attached to a channel and cannot be used for automated math calculations
+  // Note that because it is not connected to a channel, it will always use the default storage manager. That said, it is OK
+  // to override the storage manager by reassigning it. 
+  template <typename T,typename ... Args>
+  std::shared_ptr<T> create_anonymous_recording(std::shared_ptr<recdatabase> recdb,std::string purpose,Args && ... args)
+  {
+    std::shared_ptr<recording_storage_manager> storage_manager = recdb->default_storage_manager;
+
     
+    
+    std::shared_ptr<T> new_rec = std::make_shared<T>(recdb,storage_manager,nullptr,std::string("//anonymous/")+purpose,nullptr,0,0,args...);
+    new_rec->originating_rss_unique_id = rss_get_unique();
+    
+    return new_rec;
+  }
+  
+  
   template <typename T,typename ... Args>
   std::shared_ptr<T> create_recording_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,Args && ... args) // math use only... 
   {
@@ -1379,8 +1423,21 @@ namespace snde {
     
     return std::make_shared<ndtyped_recording_ref<T>>(new_rec,0);
   }
-  
 
+
+
+  template <typename T>
+  std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose)
+  {
+    //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
+    
+    std::shared_ptr<multi_ndarray_recording> new_rec = create_anonymous_recording<multi_ndarray_recording>(recdb,purpose,1);
+    new_rec->define_array(0,rtn_typemap.at(typeid(T)));
+    
+    return std::make_shared<ndtyped_recording_ref<T>>(new_rec,0);
+  }
+
+  
   
   // for math_recordings_only (no transaction)
   template <typename T>
@@ -1399,6 +1456,9 @@ namespace snde {
   // for regular (non-math) use. Automatically registers the new recording
   // ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
   std::shared_ptr<ndarray_recording_ref> create_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
+  
+  std::shared_ptr<ndarray_recording_ref> create_anonymous_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum);
+
   std::shared_ptr<ndarray_recording_ref> create_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
 
 

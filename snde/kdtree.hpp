@@ -113,6 +113,10 @@ namespace snde {
   }
 
 
+  void perform_knn_calculation(std::shared_ptr<assigned_compute_resource> compute_resource,rwlock_token_set locktokens, std::shared_ptr<ndtyped_recording_ref<snde_kdnode>> kdtree, std::shared_ptr<ndtyped_recording_ref<snde_coord3>> kdtree_vertices, std::shared_ptr<ndtyped_recording_ref<snde_coord3>> search_points,std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref);
+
+
+  
 };
 
 #endif // SNDE_KDTREE_HPP

@@ -694,6 +694,10 @@ struct snde_part {
   snde_index firstbox,numboxes;  /* also applies to boxcoord */
   snde_index firstboxpoly,numboxpolys; /* NOTE: Boxes are in part coordinates, not world coordinates */
   snde_index firstboxnurbssurface,numboxnurbssurfaces; /* nurbs equivalent of boxpolys */
+
+  snde_coord3 pivot_point; // rough (at least) center. Ideally could be center of mass
+
+  snde_coord length_scale; // rough lengthscale around pivot_point
   
   snde_bool solid;
   snde_bool has_triangledata; // Have we stored/updated refpoints, maxradius, normal, inplanemat

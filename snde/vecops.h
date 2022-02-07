@@ -37,6 +37,8 @@ typedef __constant float *my_infnan_float32_ptr_t;
 #define VECOPS_GLOBAL // no meaning in regular c
 #define VECOPS_LOCAL // no meaning in regular c
 
+#define VECOPS_DOUBLEPREC 1 // always include double precision functions on a real CPU
+
 #if !(defined(__BYTE_ORDER) && __BYTE_ORDER == __BIG_ENDIAN) && !defined(__BIG_ENDIAN__)
 #define MY_INFNAN_LITTLE_ENDIAN
 #endif
@@ -163,6 +165,13 @@ static VECOPS_INLINE void multcmatvec2(snde_coord *mat,snde_coord *vec,snde_coor
   }
 }
 
+
+static VECOPS_INLINE void copyvecn(snde_coord *in, snde_coord *out, snde_index n)
+{
+  for (snde_index posn=0; posn < n; posn++) {
+    out[posn]=in[posn];
+  }
+}
 
 static VECOPS_INLINE snde_coord dotvecvec3(snde_coord *vec1,snde_coord *vec2)
 {
@@ -318,6 +327,18 @@ static VECOPS_INLINE void accumcoordcoord3(snde_coord3 vec1,snde_coord3 *out)
 
   for (outidx=0;outidx < 3; outidx++) {
     out->coord[outidx] += vec1.coord[outidx];    
+  }
+}
+
+
+static VECOPS_INLINE void accumvecvec3(snde_coord* vec1,snde_coord *out)
+// NOTE: if vec1 is 2D coordinates in a 3D projective space,
+// then it must be a vector, not a position
+{
+  int outidx;
+
+  for (outidx=0;outidx < 3; outidx++) {
+    out[outidx] += vec1[outidx];    
   }
 }
 
@@ -871,5 +892,130 @@ static VECOPS_INLINE void fmatrixsolve(snde_coord *A,snde_coord *b,size_t n,size
   
 }
 
+
+#ifdef VECOPS_DOUBLEPREC
+
+static VECOPS_INLINE void fmatrixsolve_dp(double *A,double *b,size_t n,size_t nsolve,size_t *pivots,int printflag)
+// solves A*x=b, where A is n*n, b is n*nsolve, and x is n*1
+// must provide a n-length vector of size_t "pivots" that this routine uses for intermediate storage.
+// *** NOTE: *** This routine will overwrite the contents of A and b... stores the
+// result in b. 
+// NOTE: A and b should be stored column major (Fortran style)
+{
+  size_t row,rsrch,col,succ_row,pred_row,rowcnt;
+  double bestpivot,leading_val;
+  size_t old_pivots_row;
+  size_t solvecnt;
+  double first_el,pred_val;
+  int swapped;
+  size_t swappedentry;
+  
+  // initialize blank pivots
+  for (row=0; row < n; row++) {
+    pivots[row]=row; // pivots[row] is the index of which physical row we should go to for conceptual row #row
+                     // in the L, U triangular decomposition.
+  }
+
+  if (printflag) {
+    //fmatrixsolve_print(A, b, n, nsolve,pivots);
+  }
+  
+  for (row=0; row < n; row++) {
+    // find largest magnitude row
+    old_pivots_row=pivots[row];
+    bestpivot=(double)fabs(A[pivots[row] + row*n]);  // pull out this diagonal etnry to start
+    swapped=FALSE;
+    for (rsrch=row+1; rsrch < n; rsrch++) {
+      if (fabs(A[pivots[rsrch] + row*n]) > bestpivot) {
+	bestpivot=(double)fabs(A[pivots[rsrch] + row*n]);
+	pivots[row]=pivots[rsrch];
+	swappedentry=rsrch;
+	swapped=TRUE;
+      }
+    }
+    if (swapped) {
+      pivots[swappedentry]=old_pivots_row; // complete swap
+    }
+    // Divide this row by its first element
+    first_el = A[pivots[row] + row*n];
+    A[pivots[row] + row*n]=1.0f;
+    for (col=row+1;col < n; col++) {
+      A[pivots[row] + col*n] /= first_el; 
+    }
+    for (solvecnt=0; solvecnt < nsolve; solvecnt++) {
+      b[pivots[row]  + solvecnt*n] /= first_el;
+    }
+    
+    // subtract a multiple of this row from all succeeding rows
+    for (succ_row = row+1; succ_row < n; succ_row++) {
+
+      
+      leading_val = A[pivots[succ_row] + row*n];
+      A[pivots[succ_row] + row*n]=0.0f;
+      for (col=row+1; col < n; col++) {
+	A[pivots[succ_row] + col*n] -= leading_val*A[pivots[row] + col*n];
+      }
+      for (solvecnt=0; solvecnt < nsolve; solvecnt++) {
+	b[pivots[succ_row] + solvecnt*n] -= leading_val*b[pivots[row] + solvecnt*n];
+      }
+    }
+    
+    if (printflag) {
+      //fmatrixsolve_print(A, b, n, nsolve,pivots);
+    }
+  }
+
+  
+
+  // OK; now A should be upper-triangular
+  // Now iterate through the back-substitution. 
+  for (rowcnt=0; rowcnt < n; rowcnt++) { // 
+    row=n-1-rowcnt;
+
+    // subtract a multiple of this row
+    // from all preceding rows
+
+    for (pred_row=0; pred_row < row; pred_row++) {
+      pred_val = A[pivots[pred_row] + row*n];
+      A[pivots[pred_row] + row*n]=0.0f;
+
+      // this loop is unnecessary because the row must be zero in the remaining columns
+      //for (col=row+1; col < n; col++) {
+      //  A[pivots[pred_row] + col*n] -= pred_val * A[pivots[row] + col*n];
+      //}
+      for (solvecnt=0; solvecnt < nsolve; solvecnt++) {
+	b[pivots[pred_row] + solvecnt*n] -= pred_val * b[pivots[row] + solvecnt*n];
+      }
+    }
+
+    if (printflag) {
+      //fmatrixsolve_print(A, b, n, nsolve,pivots);
+      //printf("Not printing the matrix!\n");
+    }
+
+  }
+
+  
+  
+  // ... solved! A should be the identity matrix and Answer should be stored in b...
+  // But we need to reorder the rows to undo the pivot
+
+  // go through each column of the answer,
+  // moving it to the first column of A,
+  // then copying it back in the correct order
+  for (col=0; col < nsolve; col++) {
+    for (row=0; row < n; row++) {
+      A[row]=b[row + col*n];
+    }
+
+    for (row=0; row < n; row++) {
+      b[row + col*n]=A[pivots[row]];
+    }
+    
+  }
+  
+}
+
+#endif // VECOPS_DOUBLEPREC
 
 #endif // SNDE_VECOPS_H
