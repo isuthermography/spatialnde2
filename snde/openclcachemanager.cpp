@@ -1,11 +1,22 @@
 
 #include "snde/openclcachemanager.hpp"
+#include "snde/snde_error.hpp"
 
 extern "C" void snde_opencl_callback(cl_event c_event, cl_int event_command_exec_status, void *user_data)
 {
+  // NOTE: Should pass the cl::Event (object, NOT a reference) as a lambda capture to ensure it 
+  // stays valid through the call. The cl::Event object created below will hold it in place
+  // until this function returns even after the delete below. 
   std::function<void(cl::Event,cl_int)> *function_ptr=(std::function<void(cl::Event,cl_int)> *)user_data;
 
-  (*function_ptr)(cl::Event(c_event,true),event_command_exec_status);
+  cl::Event CppEvent;
+  try {
+      CppEvent=cl::Event(c_event, true);
+  } catch (const cl::Error &e) {
+      snde::snde_warning("OpenCL error: %s (%d)", e.what(),e.err());
+      assert(0);
+  }
+  (*function_ptr)(CppEvent,event_command_exec_status);
   
   delete function_ptr;
 }
@@ -822,7 +833,7 @@ namespace snde {
 	  if (dirtystorage) {
 	    std::shared_ptr<openclcachemanager> shared_this=std::dynamic_pointer_cast<openclcachemanager>(shared_from_this());
 	    
-	    callback_requests.emplace_back(std::make_pair(newevent,new std::function<void(cl::Event,cl_int)>([ shared_this, dirtystorage, arrayptr, dirtyregionptr, oclbuffer ](cl::Event event, cl_int event_command_exec_status) { // matching delete is in snde_opencl_callback()
+	    callback_requests.emplace_back(std::make_pair(newevent,new std::function<void(cl::Event,cl_int)>([ shared_this, dirtystorage, arrayptr, dirtyregionptr, oclbuffer, newevent ](cl::Event event, cl_int event_command_exec_status) { // matching delete is in snde_opencl_callback()
 	      /* NOTE: This callback may occur in a separate thread */
 	      /* it indicates that the data transfer is complete */
 	      if (event_command_exec_status != CL_COMPLETE) {
@@ -1091,7 +1102,7 @@ namespace snde {
       if (input_data_not_needed.get()) {
 	
 	/* in this case locks_copy2 delegated on to callback */	
-	input_data_not_needed.setCallback(CL_COMPLETE,snde_opencl_callback,(void *)new std::function<void(cl::Event,cl_int)>([ locks_copy2 ](cl::Event event, cl_int event_command_exec_status) { // matching delete is in snde_opencl_callback()
+	input_data_not_needed.setCallback(CL_COMPLETE,snde_opencl_callback,(void *)new std::function<void(cl::Event,cl_int)>([ locks_copy2, input_data_not_needed ](cl::Event event, cl_int event_command_exec_status) { // matching delete is in snde_opencl_callback()
 	      /* NOTE: This callback may occur in a separate thread */
 	      /* it indicates that the input data is no longer needed */
 	  if (event_command_exec_status != CL_COMPLETE) {
