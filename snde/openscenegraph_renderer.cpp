@@ -27,10 +27,18 @@ namespace snde {
 				      const GLchar* message,
 				      const void* userParam)
   {
-    // could change this to snde_debug(SNDE_DC_RENDERING,...
-    snde_warning("OPENGL MESSAGE: %s type = 0x%x, severity = 0x%x, message = %s\n",
+    
+    if (type==GL_DEBUG_TYPE_ERROR) {
+      snde_warning("OPENGL MESSAGE: %s type = 0x%x, severity = 0x%x, message = %s\n",
 		 ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
 		 type, severity, message );
+      
+    } else {
+      
+      snde_debug(SNDE_DC_RENDERING,"OPENGL MESSAGE: %s type = 0x%x, severity = 0x%x, message = %s\n",
+		 ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
+		 type, severity, message );
+    }
   }
   
   

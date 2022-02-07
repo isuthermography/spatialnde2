@@ -13,6 +13,19 @@ namespace snde {
     : QWidget(parent),
       recdb(recdb)
   {
+
+    // unless OSG_NOTIFY_LEVEL or OSGNOTIFYLEVEL is set
+    // raise the OpenSceneGraph notify level to WARN
+    // to avoid the annoying State::reset() messages coming at
+    // NOTICE level
+    char *OSG_NOTIFY_LEVEL_value = std::getenv("OSG_NOTIFY_LEVEL");
+    char *OSGNOTIFYLEVEL_value = std::getenv("OSGNOTIFYLEVEL");
+
+    if ((!OSG_NOTIFY_LEVEL_value || !strlen(OSG_NOTIFY_LEVEL_value)) &&
+	(!OSGNOTIFYLEVEL_value || !strlen(OSGNOTIFYLEVEL_value))) {
+      // environment variable not set
+      osg::setNotifyLevel(osg::NotifySeverity::WARN);
+    }
     
     QFile file(":/qtrecviewer.ui");
     file.open(QFile::ReadOnly);
