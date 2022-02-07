@@ -46,6 +46,10 @@ Steps:
 
      cmake --build . -- -p:Configuration=RelWithDebInfo
 
+   Alternatively you can load the generated .sln file into Visual Studio and
+   build it from there. If you do so you may need to manually select RelWithDebInfo
+   as the configuration to build (upper toolbar, left center).
+   
 8) Build and install python wrapper
 
      python setup.py build
@@ -63,3 +67,12 @@ Steps:
      cd ..
      cd test
      python recmath_test2.py
+	 
+11) Known issues: 
+   C++ programs that use the QT library do not load correctly because for some reason QT
+   can't find its plugins from the Anaconda installation. 
+     Workaround #1: Initialize QT from Python (e.g. use dataguzzler-python)
+	 Workaround #2: Set the QT_PLUGIN_PATH environment variable to point at the QT plugins
+	                from your anaconda environment, e.g. 
+					command prompt: set QT_PLUGIN_PATH='c:\users\username\.conda\envs\SNDE\Library\plugins'
+					PowerShell: $env:QT_PLUGIN_PATH='c:\users\username\.conda\envs\SNDE\Library\plugins'

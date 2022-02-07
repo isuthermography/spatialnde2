@@ -426,12 +426,12 @@ namespace snde {
 #endif // SNDE_OPENCL
 	      snde_warning("Performing colormapping on CPU. This will be slow.");
 	      snde_index pos=0;// (base_position);
-	      for (pos=0;pos < numdatapoints*4;pos+=4){
-		//result_rec->element(pos,true)=0.0;
-		//result_rec->element(pos+1,true)=1.0;
-		//result_rec->element(pos+2,true)=1.0;
-		//result_rec->element(pos+3,true)=1.0;
-		snde_colormap_float(colormap_type,(recording->element(pos,true).coord[2]-offset)/unitsperintensity,1.0,&result_rec->element(pos,true)); // currently hardwired to colormap coord[2] (z position)
+	      for (pos=0;pos < numdatapoints;pos++){
+		//result_rec->element(pos*4,true)=0.0;
+		//result_rec->element(pos*4+1,true)=1.0;
+		//result_rec->element(pos*4+2,true)=1.0;
+		//result_rec->element(pos*4+3,true)=1.0;
+		snde_colormap_float(colormap_type,(recording->element(pos,true).coord[2]-offset)/unitsperintensity,1.0,&result_rec->element(pos*4,true)); // currently hardwired to colormap coord[2] (z position)
 		//snde_warning("val: %f element color: %.2f %.2f %.2f %.2f",(recording->element(pos,true).coord[2]-offset)/unitsperintensity,result_rec->element(pos*4,true),result_rec->element(pos*4+1,true),result_rec->element(pos*4+2,true),result_rec->element(pos*4+3,true));
 	      
 	      }
