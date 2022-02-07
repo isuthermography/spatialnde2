@@ -2,6 +2,7 @@
 #include <osgViewer/Renderer>
 #include <osgUtil/ShaderGen>
 
+#include "snde/recstore.hpp"
 #include "snde/openscenegraph_renderer.hpp"
 #include "snde/openscenegraph_compositor.hpp"
 #include "snde/rec_display.hpp"
