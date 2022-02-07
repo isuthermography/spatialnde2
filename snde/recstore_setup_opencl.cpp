@@ -5,7 +5,7 @@
 #include "snde/recstore_setup_opencl.hpp"
 
 namespace snde {
-  std::pair<cl::Context,std::vector<cl::Device>> setup_opencl(std::shared_ptr<recdatabase> recdb,bool primary_doubleprec, size_t max_parallel, char *primary_platform_prefix_or_null)
+  std::pair<cl::Context,std::vector<cl::Device>> setup_opencl(std::shared_ptr<recdatabase> recdb,bool primary_doubleprec, size_t max_parallel, const char *primary_platform_prefix_or_null)
   {
     cl::Context context,context_dbl;
     std::vector<cl::Device> devices,devices_dbl;
@@ -26,6 +26,12 @@ namespace snde {
     }
     std::tie(context,devices,clmsgs) = get_opencl_context(ocl_query_string,primary_doubleprec,nullptr,nullptr);
 
+    if (!context.get() && primary_platform_prefix_or_null) {
+      // remove GPU requirement
+      ocl_query_string = ssprintf("%s::",primary_platform_prefix_or_null);
+      std::tie(context,devices,clmsgs) = get_opencl_context(ocl_query_string,primary_doubleprec,nullptr,nullptr);
+    }
+    
     if (!context.get()) {
       snde_warning("setup_opencl(): No matching primary GPU found");
     } else {
@@ -36,7 +42,7 @@ namespace snde {
       // https://github.com/intel/compute-runtime/blob/master/opencl/doc/FAQ.md#feature-double-precision-emulation-fp64
       fprintf(stderr,"OpenCL Primary:\n%s\n\n",clmsgs.c_str());
       
-  
+      
       // Each OpenCL device can impose an alignment requirement...
       add_opencl_alignment_requirements(recdb,devices);
       

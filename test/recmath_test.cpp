@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
   std::shared_ptr<snde::recdatabase> recdb=std::make_shared<snde::recdatabase>();
   setup_cpu(recdb,std::thread::hardware_concurrency());
 #ifdef SNDE_OPENCL
-  setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform nameo
+  setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
 #endif // SNDE_OPENCL
   setup_storage_manager(recdb);
   setup_math_functions(recdb,{});

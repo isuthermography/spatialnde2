@@ -78,7 +78,7 @@ namespace snde {
     void *_baseptr; // this is what _basearray points at; access through superclass addr() method
 
     // don't create this yourself, get it from recording_storage_manager_simple
-    recording_storage_simple(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,size_t elementsize,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr);
+    recording_storage_simple(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,size_t elementsize,unsigned typenum,snde_index nelem,std::shared_ptr<lockmanager> lockmgr,bool requires_locking_read,bool requires_locking_write,bool finalized,std::shared_ptr<memallocator> lowlevel_alloc,void *baseptr,void *allocated_baseptr);
     recording_storage_simple(const recording_storage_simple &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
     recording_storage_simple& operator=(const recording_storage_simple &) = delete; 
     virtual ~recording_storage_simple(); // frees  _baseptr 
