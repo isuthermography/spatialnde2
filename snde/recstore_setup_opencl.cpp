@@ -20,6 +20,16 @@ namespace snde {
       throw snde_error("setup_opencl(): CPU compute resource must be setup first (see setup_cpu())");
     }
 
+    if (!primary_platform_prefix_or_null) {
+      // if platform prefix not specified, allow it to be specified via
+      // SNDE_OPENCL_PLATFORM environment variable
+      const char *snde_opencl_platform_env = std::getenv("SNDE_OPENCL_PLATFORM");
+
+      if (snde_opencl_platform_env) {
+	primary_platform_prefix_or_null = snde_opencl_platform_env;
+      }
+    }
+
     std::string ocl_query_string(":GPU:");
     if (primary_platform_prefix_or_null) {
       ocl_query_string = ssprintf("%s:GPU:",primary_platform_prefix_or_null);
@@ -27,7 +37,7 @@ namespace snde {
     std::tie(context,devices,clmsgs) = get_opencl_context(ocl_query_string,primary_doubleprec,nullptr,nullptr);
 
     if (!context.get() && primary_platform_prefix_or_null) {
-      // remove GPU requirement
+      // remove GPU requirement if the user explicitly specified something and we didn't find it yet.
       ocl_query_string = ssprintf("%s::",primary_platform_prefix_or_null);
       std::tie(context,devices,clmsgs) = get_opencl_context(ocl_query_string,primary_doubleprec,nullptr,nullptr);
     }

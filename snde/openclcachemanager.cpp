@@ -224,9 +224,10 @@ namespace snde {
     std::unordered_map<openclarrayinfo,std::weak_ptr<openclcacheentry>,openclarrayinfo_hash/*,openclarrayinfo_equal*/>::iterator buffer;
     
     /* Mark all of our buffers with this region as invalid */
-    for (auto & arrayinfo : buffers_by_array[arrayptr]) {
+    for (auto & arrayinfo : buffers_by_array.at(arrayptr)) {
       
       buffer=buffer_map.find(arrayinfo);
+      assert(buffer != buffer_map.end()); // If this fails then we're not cleaning up buffers_by_array properly
       std::shared_ptr<openclcacheentry> buffer_strong = buffer->second.lock();
       
       if (buffer_strong) {
@@ -297,7 +298,9 @@ namespace snde {
 	    buffer_map.erase(buffer_it); // remove expiring/expired pointer
 	  }
 	}
+	buffers_by_array.erase(bba_it);
       }
+      
     }
   }
 
@@ -376,7 +379,13 @@ namespace snde {
     if (buffer == buffer_map.end() || (!buffer->second.lock())) {
       /* need to create buffer */
       oclbuffer=std::make_shared<openclcacheentry>(context,alloc,nelem,elemsize,arrayptr,&admin);
-      buffer_map.emplace(arrayinfo,oclbuffer);
+      if (buffer != buffer_map.end()) {
+	// entry in buffer_map already exists but must be expired; replace it
+	buffer->second = oclbuffer;
+      } else {
+	// new entry in buffer_map
+	buffer_map.emplace(arrayinfo,oclbuffer);
+      }
       
       //fprintf(stderr,"_GetBufferObject(0x%lx,0x%lx,0x%lx) created buffer_map entry. buffer_map.size()=%u, tid=0x%lx admin->__owner=0x%lx\n",(unsigned long)context,(unsigned long)device,(unsigned long)arrayptr,(unsigned)buffer_map.size(),(unsigned long)((pid_t)syscall(SYS_gettid)),(unsigned long) admin._M_mutex.__data.__owner);
       
