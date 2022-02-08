@@ -66,7 +66,7 @@ void x3d_viewer_display()
       
       renderer->frame();
     }
-    //osgDB::writeNodeFile(*renderer->Viewer->getSceneData(),"/tmp/x3dviewer.osg");
+    //osgDB::writeNodeFile(*renderer->Viewer->getSceneData(),"x3dviewer.osg");
 
     rendercache->erase_obsolete(); // remove everything unused from the cache
   }
