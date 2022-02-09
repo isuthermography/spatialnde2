@@ -40,10 +40,10 @@ int main(int argc, char *argv[])
     printf("%10f %10f %10f %10f\n",(float)b4[0 + col*4],(float)b4[1 + col*4],(float)b4[2 + col*4],(float)b4[3 + col*4]);
   }
   
-  assert(fabs(b4[0]-1.0907e1) < .001);
-  assert(fabs(b4[3]-1.5926) < .001);
-  assert(fabs(b4[4]+2.4815e1) < .001);
-  assert(fabs(b4[15]+1.00) < .001);
+  assert(fabs(b4[0]-1.0907e1) < .002);
+  assert(fabs(b4[3]-1.5926) < .002);
+  assert(fabs(b4[4]+2.4815e1) < .002);
+  assert(fabs(b4[15]+1.00) < .002);
   
 
 
@@ -76,12 +76,12 @@ int main(int argc, char *argv[])
     printf("%10f %10f %10f %10f %10f %10f\n",(float)b6[0 + col*6],(float)b6[1 + col*6],(float)b6[2 + col*6],(float)b6[3 + col*6],(float)b6[4 + col*6],(float)b6[5 + col*6]);
   }
 
-  assert(fabs(b6[0]+656.026) < .001);
-  assert(fabs(b6[1]+899.612) < .001);
-  assert(fabs(b6[2]-30.561) < .001);
-  assert(fabs(b6[3]-891.675) < .001);
-  assert(fabs(b6[4]+651.376) < .001);
-  assert(fabs(b6[5]+26.465) < .001);
+  assert(fabs(b6[0]+656.026) < .002);
+  assert(fabs(b6[1]+899.612) < .002);
+  assert(fabs(b6[2]-30.561) < .002);
+  assert(fabs(b6[3]-891.675) < .002);
+  assert(fabs(b6[4]+651.376) < .002);
+  assert(fabs(b6[5]+26.465) < .002);
 
   
   
