@@ -6,20 +6,37 @@ from libc.stdint cimport uintptr_t
 
 import spatialnde2 as snde
 
-cdef extern from "snde/recmath.hpp" namespace "snde" nogil:
-    cdef cppclass math_function:
-        pass
-    pass
 
 
-cdef extern from "scalar_multiply_cpp.hpp" namespace "snde2_fn_ex" nogil:
-    cdef shared_ptr[math_function] define_scalar_multiply()
-    pass
+from scalar_multiply_cpp cimport scalar_multiply_function as scalar_multiply_function_cpp
 
-# Create the Cython shared pointer
-cdef shared_ptr[math_function] snde2_example_scalar_multiply_function = define_scalar_multiply()
+# scalar_multiply_function_cpp is a shared_ptr to an
+# snde::math_function To make it accessible to general python, we need
+# to get a SWIG-wrapped pointer. This SWIG-wrapped version will be
+# externally accessible, facilitated by
+# the import in __init__.py,
 
-# Create the swig-wrapped object by wrapping the Cython shared pointer
-scalar_multiply_function = snde.math_function.from_raw_shared_ptr(<uintptr_t>&snde2_example_scalar_multiply_function)
+scalar_multiply_function = snde.math_function.from_raw_shared_ptr(<uintptr_t>&scalar_multiply_function_cpp)
 
+
+
+### As an alternative to defining/registering the math function
+### in C++ code, we could alternatively do it here in Cython.
+### This commented code below illustrates how:
+
+## Create the Cython shared pointer
+#cdef shared_ptr[math_function] snde2_example_scalar_multiply_function = define_scalar_multiply()
+
+
+## Create the swig-wrapped object by wrapping the Cython shared pointer
+## As a Python object this is externally accessible, facilitated by
+## the import in __init__.py, as:
+##   spatialnde2_example_cpp_function.scalar_multiply_function()
+#scalar_multiply_function = snde.math_function.from_raw_shared_ptr(<uintptr_t>&snde2_example_scalar_multiply_function)
+
+## Register the math function into the C++ database
+## This should use the same python-accessible name for
+## maximum interoperability
+
+#snde.register_math_function("spatialnde2_example_cpp_function.scalar_multiply_function",scalar_multiply_function) 
 
