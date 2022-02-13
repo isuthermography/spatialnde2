@@ -4,6 +4,7 @@ spatialnde2_example_external_cpp_function/dist
 spatialnde2_example_external_cpp_function/build
 spatialnde2_example_external_cpp_function/spatialnde2_example_external_cpp_function/scalar_multiply.cpp
 *.egg-info
+*.bak
 .vs
 .vscode
 
