@@ -354,6 +354,7 @@ namespace snde {
 
     image->setImage(dimlenx,dimleny,1,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE,(unsigned char *)cached_ndarray_rec->void_shifted_arrayptr(0),osg::Image::AllocationMode::NO_DELETE);
     imagetexture->setInternalFormat(GL_RGBA);
+    imagetexture->setInternalFormatMode(osg::Texture::USE_IMAGE_DATA_FORMAT);
     imagetexture->setImage(image);    
 
 
