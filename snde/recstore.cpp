@@ -2986,8 +2986,8 @@ namespace snde {
 
 
 	
-	// atomic update of _latest_globalrev
-	std::atomic_store(&recdb_strong->_latest_globalrev,globalrev);
+	// atomic update of _latest_defined_globalrev
+	std::atomic_store(&recdb_strong->_latest_defined_globalrev,globalrev);
 	
 	{
 	  // mark transaction's resulting_globalrev 
@@ -3909,7 +3909,7 @@ namespace snde {
     // !!!*** Please note alternate constructor below
   {
     std::shared_ptr<globalrevision> null_globalrev;
-    std::atomic_store(&_latest_globalrev,null_globalrev);
+    std::atomic_store(&_latest_defined_globalrev,null_globalrev);
     std::atomic_store(&_latest_ready_globalrev,null_globalrev);
 
     std::atomic_store(&_math_functions,std::make_shared<math_function_registry_map>());
@@ -4066,12 +4066,12 @@ namespace snde {
     std::atomic_store(&rss_chan._rec,new_rec);
   }
 
-  std::shared_ptr<globalrevision> recdatabase::latest_globalrev() // safe to call with or without recdb admin lock held
+  std::shared_ptr<globalrevision> recdatabase::latest_defined_globalrev() // safe to call with or without recdb admin lock held
   {
-    return std::atomic_load(&_latest_globalrev);
+    return std::atomic_load(&_latest_defined_globalrev);
   }
 
-  std::shared_ptr<globalrevision> recdatabase::latest_ready_globalrev() // safe to call with or without recdb admin lock held
+  std::shared_ptr<globalrevision> recdatabase::latest_globalrev() // safe to call with or without recdb admin lock held
   {
     return std::atomic_load(&_latest_ready_globalrev);
   }
@@ -4127,6 +4127,21 @@ namespace snde {
     return new_chan;
   }
 
+
+  // Define a new channel; throws an error if the channel is already in use
+  std::shared_ptr<channel> recdatabase::define_channel(std::string channelpath, std::string owner_name, void *owner_id, bool hidden/*=false*/, std::shared_ptr<recording_storage_manager> storage_manager/* =nullptr */)
+  {
+    std::shared_ptr<channelconfig> new_config=std::make_shared<channelconfig>(channelpath,owner_name,owner_id,hidden,storage_manager);
+    
+    std::shared_ptr<channel> new_channel=reserve_channel(new_config);
+
+    if (!new_channel) {
+      throw snde_error("Channel %s is not available",channelpath.c_str());
+    }
+    return new_channel;
+  }
+
+  
   //  void recdatabase::wait_recordings(std::share_ptr<recording_set_state> rss, const std::vector<std::shared_ptr<recording_base>> &metadataonly,const std::vector<std::shared_ptr<recording_base>> &ready)
   //// NOTE: python wrapper needs to drop thread context during wait and poll to check for connection drop
   // {
@@ -4150,7 +4165,7 @@ namespace snde {
   }
 
   std::shared_ptr<monitor_globalrevs> recdatabase::start_monitoring_globalrevs(std::shared_ptr<globalrevision> first/* = nullptr*/,bool inhibit_mutable/* = false */)
-  // first is the first globalrev to return (nullptr means latest_globalrev()).
+  // first is the first globalrev to return (nullptr means latest_defined_globalrev()).
   // inhibit_mutable means that this will prevent writing to mutable waveforms
   // of new globalrevs until you have handled them. To use this
   // functionality call the wait_next_inhibit_mutable() method instead of
@@ -4164,7 +4179,7 @@ namespace snde {
     std::lock_guard<std::mutex> recdb_admin(admin);
 
     if (!first) {
-      first = latest_globalrev();
+      first = latest_defined_globalrev();
     }
 
     std::shared_ptr<monitor_globalrevs> monitor=std::make_shared<monitor_globalrevs>(first,inhibit_mutable);

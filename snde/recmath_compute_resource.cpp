@@ -422,7 +422,7 @@ namespace snde {
     if (!globalrev_ptr) {
       //throw snde_error("recording_set_state does not appear to be associated with any global revision");
 
-      // In this case, we are not a globalrev. We are probably a recstore_display_transform. So we use the latest_globalrev() so we queue with
+      // In this case, we are not a globalrev. We are probably a recstore_display_transform. So we use the latest_defined_globalrev() so we queue with
       // stuff currently being computed, rather than taking priority
       // by using our actual originating globalrev (which
       // might well be a lower number)...
@@ -438,7 +438,7 @@ namespace snde {
       // background compute wouldn't completely block out the display.
       //
 
-      globalrev_index = recdb->latest_globalrev()->globalrev;
+      globalrev_index = recdb->latest_defined_globalrev()->globalrev;
     } else {
       ready_rss_is_globalrev=true;
       globalrev_index = globalrev_ptr->globalrev;

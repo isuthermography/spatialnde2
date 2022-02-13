@@ -329,12 +329,12 @@ namespace snde {
     osg_texture = imagetexture;
     
     image=new osg::Image();
-    imagepbo=new osg::PixelBufferObject();
+    //imagepbo=new osg::PixelBufferObject();
     
 
     // Set up scene graph
-    imagepbo->setImage(image);
-    image->setPixelBufferObject(imagepbo);
+    //imagepbo->setImage(image);
+    //image->setPixelBufferObject(imagepbo);
     imagetexture->setResizeNonPowerOfTwoHint(false);
     
     if (cached_recording->info->immutable) {
@@ -1216,8 +1216,8 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 
     geode = new osg::Geode();
     stateset=geode->getOrCreateStateSet();
-    //stateset->setMode(GL_LIGHTING,osg::StateAttribute::ON);
-    stateset->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
+    stateset->setMode(GL_LIGHTING,osg::StateAttribute::ON);
+    //stateset->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
     stateset->setMode(GL_DEPTH_TEST,osg::StateAttribute::ON);
 
     geode->addDrawable(geometry_cache->osg_drawable);

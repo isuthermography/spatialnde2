@@ -17,19 +17,20 @@ int main(int argc, char *argv[])
   setup_math_functions(recdb, {});
   recdb->startup();
     
-  std::shared_ptr<snde::ndarray_recording_ref> test_rec;
 
 
-  snde::active_transaction transact(recdb); // Transaction RAII holder
-  std::shared_ptr<snde::channelconfig> testchan_config=std::make_shared<snde::channelconfig>("test channel", "main", (void *)&main,false);
+  std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); 
   
-  std::shared_ptr<snde::channel> testchan = recdb->reserve_channel(testchan_config);
-  test_rec = create_recording_ref(recdb,testchan,(void *)&main,SNDE_RTN_FLOAT32);
-  std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
+  std::shared_ptr<snde::channel> testchan = recdb->define_channel("/test channel", "main", (void *)recdb.get());
+  std::shared_ptr<snde::ndarray_recording_ref> test_ref = snde::create_recording_ref(recdb,testchan,(void *)recdb.get(),SNDE_RTN_FLOAT32);
+  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
 
-  test_rec->rec->metadata=std::make_shared<snde::immutable_metadata>();
-  test_rec->rec->mark_metadata_done();
-  test_rec->allocate_storage(std::vector<snde_index>{len});
+  std::shared_ptr<snde::constructible_metadata> test_rec_metadata = std::make_shared<snde::constructible_metadata>();
+  test_rec_metadata->AddMetaDatum(snde::metadatum_dbl("nde_array-axis0_inival",0.0));
+    
+  test_ref->rec->metadata = test_rec_metadata;
+  test_ref->rec->mark_metadata_done();
+  test_ref->allocate_storage(std::vector<snde_index>{len},false);
 
   // locking is only required for certain recordings
   // with special storage under certain conditions,
@@ -41,17 +42,17 @@ int main(int argc, char *argv[])
   // for write is relatively common. 
   {
     rwlock_token_set locktokens = recdb->lockmgr->lock_recording_refs({
-	{ test_rec, true }, // first element is recording_ref, 2nd parameter is false for read, true for write 
+	{ test_ref, true }, // first element is recording_ref, 2nd parameter is false for read, true for write 
       });
 
     for (size_t cnt=0;cnt < len; cnt++) {
-      test_rec->assign_double({cnt},100.0*sin(cnt));
+      test_ref->assign_double({cnt},100.0*sin(cnt));
       
     }
     // locktokens automatically dropped as it goes out of scope
     // (must drop before mark_as_ready())
   }
-  test_rec->rec->mark_as_ready();
+  test_ref->rec->mark_as_ready();
   
   globalrev->wait_complete();
   return 0;

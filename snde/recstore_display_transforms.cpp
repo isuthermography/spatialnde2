@@ -108,7 +108,7 @@ namespace snde {
   // the globalrev is presumed to be fullyready.
   // Likewise the previous rss in with_display_transforms is also presumed to be fullyready
   {
-    std::shared_ptr<globalrevision> previous_globalrev = latest_globalrev;
+    std::shared_ptr<globalrevision> previous_globalrev = latest_ready_globalrev;
     std::shared_ptr<recording_set_state> previous_with_transforms = with_display_transforms;
     std::map<std::string,std::shared_ptr<channelconfig>> all_channels_by_name;
 
@@ -118,7 +118,7 @@ namespace snde {
     // while doing so should verify that renderable_channelpaths match and renderable_function definition and parameters match. 
     std::unordered_map<std::pair<std::string,rendermode_ext>,std::shared_ptr<display_requirement>,chanpathmodeext_hash> merged_requirements = merge_requirements(flattened_requirements);
     
-    latest_globalrev = globalrev;
+    latest_ready_globalrev = globalrev;
 
     if (!previous_globalrev) {
       // dummy previous globalrev

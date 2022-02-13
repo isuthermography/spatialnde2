@@ -14,7 +14,7 @@ namespace snde {
   public:
     // ***!!! NOTE: This class is NOT thread-safe. It should be owned by a thread
     // that manages the display transformations, and not messed with or accessed from other threads !!!***
-    std::shared_ptr<globalrevision> latest_globalrev;
+    std::shared_ptr<globalrevision> latest_ready_globalrev;
     std::shared_ptr<recording_set_state> with_display_transforms;
 
     std::unordered_map<std::string,std::shared_ptr<channel>> rdt_channels;

@@ -79,6 +79,7 @@ pointcloud_rec.rec.mark_as_ready()
 globalrev.wait_complete();
 
 
+QCoreApplication.setAttribute(Qt.QtCore.Qt.AA_UseDesktopOpenGL)
 QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
 
 app = QApplication(sys.argv)

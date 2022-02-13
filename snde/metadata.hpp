@@ -116,18 +116,24 @@ public:
   
   int64_t Int(int64_t defaultval) const
   {
-    if (md_type != MWS_MDT_INT) {
-      return defaultval;
-    }
-    return intval;
-  }
 
+    if (md_type == MWS_MDT_INT) {
+      return intval;
+
+    } else if (md_type==MWS_MDT_UNSIGNED && unsignedval < (1ull<<63)) {
+      return (int64_t)unsignedval;
+    }
+    return defaultval;
+  }
+  
   uint64_t Unsigned(uint64_t defaultval) const
   {
-    if (md_type != MWS_MDT_UNSIGNED) {
-      return defaultval;
+    if (md_type == MWS_MDT_UNSIGNED) {
+      return unsignedval;
+    } else if (md_type == MWS_MDT_INT && intval >= 0) {
+      return (uint64_t)intval;
     }
-    return unsignedval;
+    return defaultval;
   }
 
   std::string Str(std::string defaultval) const
@@ -175,6 +181,15 @@ public:
   
 };
 
+  metadatum metadatum_int(std::string Name,int64_t intval);
+
+  metadatum metadatum_str(std::string Name,std::string strval);
+
+  metadatum metadatum_dbl(std::string Name,double doubleval);
+
+  metadatum metadatum_unsigned(std::string Name,uint64_t unsignedval);
+
+  metadatum metadatum_index(std::string Name,snde_index indexval);
   
   
   class constructible_metadata {

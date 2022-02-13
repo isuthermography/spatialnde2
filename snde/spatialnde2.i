@@ -182,6 +182,9 @@ namespace snde {
   
 %}
 
+  %typemap(out) void * {
+    $result = PyLong_FromVoidPtr($1);
+  }
 
 // The macro snde_rawaccessible()  marks a C++ class
 // (that must also be marked with %shared_ptr()) as
@@ -306,6 +309,12 @@ template <typename T>
       return uint_raw_shared_ptr< rawaccessible_class >{0}; // actual work done by the uint_raw_shared_ptr_t out typemap, above
     }
 
+    // get raw pointer
+    void *raw()
+    {
+      return self;
+    }
+    
   };
 
 %enddef
@@ -467,7 +476,7 @@ template <typename T>
 %include "notify.i"
 %include "rendermode.i"
 %include "display_requirements.i"
-%include "qt_core.i"
+%include "snde_qt.i"
 %include "qt_osg_compositor.i"
 %include "qtrecviewer.i"
 %include "recstore_setup.i"

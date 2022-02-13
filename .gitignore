@@ -6,3 +6,9 @@ spatialnde2_example_external_cpp_function/spatialnde2_example_external_cpp_funct
 *.egg-info
 .vs
 .vscode
+
+doc/ProgramRef/spatialnde2_referenceHTML
+doc/ProgramRef/spatialnde2_reference.pdf
+doc/UsersGuide/build
+
+old_obsolete

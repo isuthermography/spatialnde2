@@ -97,6 +97,11 @@ namespace snde {
 
 
   class tracking_pose_recording: public recording_group {
+    // the tracking_pose_recording is like a single-component
+    // assembly with a particular orientation that, when
+    // rendered, tracks the pose of something else, as
+    // determined by the behavior of the get_pose() virtual method
+    
     // abstract class: Must subclass! ... Then register your class to use the tracking_pose_recording_display_handler (see display_requirements.cpp)
   public:
     std::string component_name; // string is a path name, absolute or relative, treating the path of the tracking_pose_recording with a trailing slash as a group context

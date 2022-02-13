@@ -58,7 +58,13 @@ namespace snde {
   extern const std::unordered_map<unsigned,std::string> rtn_ocltypemap; // Look up opencl type string based on typenum
 
   %typemap(in) void *owner_id {
-    $1 = (void *)$input; // stores address of the PyObject
+
+    if (PyLong_Check($input)) {
+      // use value of long
+      $1 = PyLong_AsVoidPtr($input);
+    } else {
+      $1 = (void *)$input; // stores address of the PyObject
+    }
   }
   %typecheck(SWIG_TYPECHECK_POINTER) (void *) {
     $1 = 1; // always satisifed
@@ -69,9 +75,6 @@ namespace snde {
   //  $1 = SWIG_CheckState(SWIG_ConvertPtr($input, 0, SWIGTYPE_p_std__shared_ptrT_snde__lockmanager_t, 0));
   //}
   
-  %typemap(out) void * {
-    $result = PyLong_FromVoidPtr($1);
-  }
 
   std::shared_ptr<recording_storage_manager> select_storage_manager_for_recording_during_transaction(std::shared_ptr<recdatabase> recdb,std::string chanpath);
 
@@ -658,7 +661,8 @@ namespace snde {
     instantiated_math_database _instantiated_functions; 
     
     std::map<uint64_t,std::shared_ptr<globalrevision>> _globalrevs; // Index is global revision counter. The first element in this is the latest globalrev with all mandatory immutable channels ready. The last element in this is the most recently defined globalrev.
-    std::shared_ptr<globalrevision> _latest_globalrev; // atomic shared pointer -- access with latest_globalrev() method;
+    //std::shared_ptr<globalrevision> _latest_defined_globalrev; // atomic shared pointer -- access with latest_defined_globalrev() method;
+    //std::shared_ptr<globalrevision> _latest_ready_globalrev; // atomic shared pointer -- access with latest_globalrev() method;
     std::vector<std::shared_ptr<repetitive_channel_notify>> repetitive_notifies; 
 
     std::shared_ptr<allocator_alignment> alignment_requirements; // Pointer is immutable; pointed structure has its own locking
@@ -709,15 +713,26 @@ namespace snde {
     void add_math_function_storage_manager(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager);
 
     void register_new_rec(std::shared_ptr<recording_base> new_rec);
-    void register_new_math_rec(void *owner_id,std::shared_ptr<recording_set_state> calc_rss,std::shared_ptr<recording_base> new_rec); // registers newly created math recording in the given rss (and extracts mutable flag for the given channel into the recording structure)). 
-
-    std::shared_ptr<globalrevision> latest_globalrev();
+    void register_new_math_rec(void *owner_id,std::shared_ptr<recording_set_state> calc_rss,std::shared_ptr<recording_base> new_rec); // registers newly created math recording in the given rss (and extracts mutable flag for the given channel into the recording structure)).
     
-    std::shared_ptr<globalrevision> latest_ready_globalrev(); // safe to call with or without recdb admin lock held. Returns latest globalrev which is ready and for which all prior globalrevs are ready
+    std::shared_ptr<globalrevision> latest_defined_globalrev(); // safe to call with or without recdb admin lock held
+
+    std::shared_ptr<globalrevision> latest_globalrev(); // safe to call with or without recdb admin lock held. Returns latest globalrev which is ready and for which all prior globalrevs are ready
 
     
     // Allocate channel with a specific name; returns nullptr if the name is inuse
     std::shared_ptr<channel> reserve_channel(std::shared_ptr<channelconfig> new_config);
+
+    // Define a new channel; throws an error if the channel is already in use
+    //std::shared_ptr<channel> define_channel(std::string channelpath, std::string owner_name, void *owner_id, bool hidden=false, std::shared_ptr<recording_storage_manager> storage_manager=nullptr);
+
+    std::shared_ptr<channel> define_channel(std::string channelpath, std::string owner_name, void *owner_id);
+
+    std::shared_ptr<channel> define_channel(std::string channelpath, std::string owner_name, void *owner_id, bool hidden);
+    
+
+    std::shared_ptr<channel> define_channel(std::string channelpath, std::string owner_name, void *owner_id, bool hidden, std::shared_ptr<recording_storage_manager> storage_manager);
+    
 
     //std::shared_ptr<channel> lookup_channel_live(std::string channelpath);
 

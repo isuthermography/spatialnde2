@@ -950,8 +950,8 @@ namespace snde {
     instantiated_math_database _instantiated_functions; 
     
     std::map<uint64_t,std::shared_ptr<globalrevision>> _globalrevs; // Index is global revision counter. Includes at least one globalrev that is fully ready plus any that are still udndergoing computation. The last element in this is the most recently defined globalrev.
-    std::shared_ptr<globalrevision> _latest_globalrev; // atomic shared pointer -- access with latest_globalrev() method;
-    std::shared_ptr<globalrevision> _latest_ready_globalrev; // atomic shared pointer -- access with latest_ready_globalrev() method;
+    std::shared_ptr<globalrevision> _latest_defined_globalrev; // atomic shared pointer -- access with latest_defined_globalrev() method;
+    std::shared_ptr<globalrevision> _latest_ready_globalrev; // atomic shared pointer to latest ready globalrev -- access with latest_globalrev() method;
     std::vector<std::shared_ptr<repetitive_channel_notify>> repetitive_notifies; 
 
     std::shared_ptr<allocator_alignment> alignment_requirements; // Pointer is immutable; pointed structure has its own locking
@@ -993,8 +993,6 @@ namespace snde {
 
     void startup(); // gets the math engine running, etc. 
 
-    // avoid using start_transaction() and end_transaction() from C++; instantiate the RAII wrapper class active_transaction instead
-    // (start_transaction() and end_transaction() are intended for C and perhaps Python)
 
     // a transaction update can be multi-threaded but you shouldn't call end_transaction()  (or the end_transaction method on the
     // active_transaction or delete the active_transaction) until all other threads are finished with transaction actions
@@ -1007,13 +1005,17 @@ namespace snde {
     void register_new_rec(std::shared_ptr<recording_base> new_rec);
     void register_new_math_rec(void *owner_id,std::shared_ptr<recording_set_state> calc_rss,std::shared_ptr<recording_base> new_rec); // registers newly created math recording in the given rss (and extracts mutable flag for the given channel into the recording structure)). 
 
-    std::shared_ptr<globalrevision> latest_globalrev(); // safe to call with or without recdb admin lock held
+    std::shared_ptr<globalrevision> latest_defined_globalrev(); // safe to call with or without recdb admin lock held
 
-    std::shared_ptr<globalrevision> latest_ready_globalrev(); // safe to call with or without recdb admin lock held. Returns latest globalrev which is ready and for which all prior globalrevs are ready
+    std::shared_ptr<globalrevision> latest_globalrev(); // safe to call with or without recdb admin lock held. Returns latest globalrev which is ready and for which all prior globalrevs are ready
 
     // Allocate channel with a specific name; returns nullptr if the name is inuse
     std::shared_ptr<channel> reserve_channel(std::shared_ptr<channelconfig> new_config);
 
+    // Define a new channel; throws an error if the channel is already in use.
+    // Must be called within a transaction
+    std::shared_ptr<channel> define_channel(std::string channelpath, std::string owner_name, void *owner_id, bool hidden=false, std::shared_ptr<recording_storage_manager> storage_manager=nullptr);
+    
     //std::shared_ptr<channel> lookup_channel_live(std::string channelpath);
 
 
@@ -1021,7 +1023,7 @@ namespace snde {
     //void wait_recordings(std::vector<std::shared_ptr<recording>> &);
     void wait_recording_names(std::shared_ptr<recording_set_state> rss,const std::vector<std::string> &metadataonly, const std::vector<std::string> fullyready);
 
-    std::shared_ptr<monitor_globalrevs> start_monitoring_globalrevs(std::shared_ptr<globalrevision> first = nullptr,bool inhibit_multiple = false);
+    std::shared_ptr<monitor_globalrevs> start_monitoring_globalrevs(std::shared_ptr<globalrevision> first = nullptr,bool inhibit_mutable = false);
 
     // These functions can be used to manage quicknotifies that are called when a new globalrev
     // becomes ready. They are called with the recdb locked (be aware of locking order!!!)
@@ -1340,15 +1342,23 @@ namespace snde {
     if (!recdb->current_transaction) {
       throw snde_error("create_recording() outside of a transaction!");
     }
-    std::shared_ptr<recording_storage_manager> storage_manager = select_storage_manager_for_recording_during_transaction(recdb,chan->config()->channelpath.c_str());
+
+    std::shared_ptr<channelconfig> chanconfig = chan->config();
+    std::shared_ptr<recording_storage_manager> storage_manager = select_storage_manager_for_recording_during_transaction(recdb,chanconfig->channelpath.c_str());
     
     uint64_t new_revision = ++chan->latest_revision; // atomic variable so it is safe to pre-increment
 
+    
+    
+    if (owner_id != chanconfig->owner_id) {
+      throw snde_error("create_recording() on %s with mismatched owner id (%llx vs %llx) on recording owned by %s",chanconfig->channelpath.c_str(),(unsigned long long)(uintptr_t)owner_id,(unsigned long long)(uintptr_t)chanconfig->owner_id,chanconfig->owner_name.c_str());
+    }
+    
     // It is safe to use recdb->current_transaction here even with out locking because
     // the caller is responsible for making sure we are in a transaction
     // i.e. appropriate synchronization must happen before and after. 
     
-    std::shared_ptr<T> new_rec = std::make_shared<T>(recdb,storage_manager,recdb->current_transaction,chan->config()->channelpath,nullptr,new_revision,0,args...);
+    std::shared_ptr<T> new_rec = std::make_shared<T>(recdb,storage_manager,recdb->current_transaction,chanconfig->channelpath,nullptr,new_revision,0,args...);
     new_rec->originating_rss_unique_id = recdb->current_transaction->rss_unique_index;
     
     recdb->register_new_rec(new_rec);

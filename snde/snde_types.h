@@ -70,6 +70,10 @@ typedef unsigned char snde_bool;
 
 #endif // __OPENCL_VERSION__
 
+#define SIZEOF_SNDE_INDEX 8 // must be kept consistent with typedefs!
+  
+#define SNDE_INDEX_INVALID (~((snde_index)0))
+
 
   // interoperability between opencl and C/C++ code
 #ifdef __OPENCL_VERSION__

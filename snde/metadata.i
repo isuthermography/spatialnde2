@@ -44,7 +44,15 @@ public:
   double Numeric(double defaultval);
   snde_index Index(snde_index defaultval);
 };
+ 
+  metadatum metadatum_int(std::string Name,int64_t intval);
+  metadatum metadatum_str(std::string Name,std::string strval);
+  metadatum metadatum_dbl(std::string Name,double doubleval);
+  metadatum metadatum_unsigned(std::string Name,uint64_t unsignedval);
+  metadatum metadatum_index(std::string Name,snde_index indexval);
+   
 
+ 
   class constructible_metadata {
   public:
     std::unordered_map<std::string,metadatum> metadata;

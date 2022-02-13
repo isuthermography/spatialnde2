@@ -343,7 +343,7 @@ namespace snde {
 	return;
       }
       
-      std::shared_ptr<globalrevision> globalrev = recdb_strong->latest_ready_globalrev();
+      std::shared_ptr<globalrevision> globalrev = recdb_strong->latest_globalrev(); // obtain latest ready globalrev
       
       //display->set_current_globalrev(globalrev); (redundant with display->update)
       

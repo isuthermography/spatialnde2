@@ -327,9 +327,6 @@ static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata
   //#endif /* 0 && SNDE_OPENCL*/
 #endif /* __OPENCL_VERSION__ */
 
-#define SIZEOF_SNDE_INDEX 8 // must be kept consistent with typedefs!
-  
-#define SNDE_INDEX_INVALID (~((snde_index)0))
 #define SNDE_DIRECTION_CCW 0 // counterclockwise
 #define SNDE_DIRECTION_CW 1 // clockwise
   
