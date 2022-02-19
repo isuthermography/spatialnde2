@@ -53,6 +53,13 @@ namespace snde {
   public:
     std::string nodetype;
     std::unordered_map<std::string,std::shared_ptr<x3d_node>> nodedata;
+    std::string default_containerField;
+
+    x3d_node(std::string default_containerField) :
+      default_containerField(default_containerField)
+    {
+
+    }
 
     virtual ~x3d_node() {}; /* declare a virtual function to make this class polymorphic
 			       so we can use dynamic_cast<> */
@@ -294,9 +301,9 @@ namespace snde {
     if (attrstring) {
       // Per http://www.web3d.org/documents/specifications/19776-1/V3.3/Part01/EncodingOfFields.html#SFBool
       // acceptible values are "true" and "false". Throw an exception if it gets something else.
-      if (!strcmp((char *)attrstring,"true")) {
+      if (!strcmp((char *)attrstring,"true") || !strcmp((char *)attrstring,"TRUE") || !strcmp((char *)attrstring,"True")) {
 	*b=true;
-      } else if (!strcmp((char *)attrstring,"false")) {
+      } else if (!strcmp((char *)attrstring,"false") || !strcmp((char *)attrstring,"FALSE") || !strcmp((char *)attrstring,"False")) {
 	*b=false;
       } else {
 	throw x3derror("Invalid boolean value %s for attribute %s",(char *)attrstring,attrname.c_str());
@@ -455,6 +462,20 @@ namespace snde {
       USE=xmlTextReaderGetAttribute(reader,(const xmlChar *)"USE");
       if (USE) {
 	result=defindex[(const char *)USE];
+
+	xmlChar *use_containerField = containerField;
+	if (parentnode) {
+	  if (!use_containerField) {
+	    use_containerField=(xmlChar *)result->default_containerField.c_str();
+	  }
+	  
+	  if (!parentnode->hasattr((char *)use_containerField)) {
+	    throw x3derror("Invalid container field for %s: %s",(char *)LocalName,(char *)use_containerField);
+	  }
+	  parentnode->nodedata[(char *)use_containerField]=result;
+
+	}
+	
 	ignorecontent();
 	xmlFree(USE);
       } else if (IsX3DNamespaceUri((char *)NamespaceUri) && !strcasecmp((const char *)LocalName,"material")) {
@@ -555,7 +576,8 @@ namespace snde {
     Eigen::Vector3d specularColor;
     double transparency;
 
-    x3d_material(void)
+    x3d_material(void) :
+      x3d_node("material")
     {
       nodetype="material";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
@@ -587,9 +609,9 @@ namespace snde {
 
   std::shared_ptr<x3d_node> x3d_loader::parse_material(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField)
   {
-    if (!containerField) containerField=(xmlChar *)"material";
 
     std::shared_ptr<x3d_node> mat_data=x3d_material::fromcurrentelement(this);
+    if (!containerField) containerField=(xmlChar *)mat_data->default_containerField.c_str();
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
@@ -607,7 +629,9 @@ namespace snde {
     Eigen::Vector3d bboxCenter;
     Eigen::Vector3d bboxSize;
 
-    x3d_shape(void) {
+    x3d_shape(void) :
+      x3d_node("shape")
+    {
       nodetype="shape";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
       nodedata["geometry"]=std::shared_ptr<x3d_node>();
@@ -637,8 +661,9 @@ namespace snde {
 
   std::shared_ptr<x3d_node> x3d_loader::parse_shape(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
   {
-    if (!containerField) containerField=(xmlChar *)"shape";
+    
     std::shared_ptr<x3d_shape> shape=x3d_shape::fromcurrentelement(this);
+    if (!containerField) containerField=(xmlChar *)shape->default_containerField.c_str();
 
     shapes.push_back(shape);
     
@@ -655,7 +680,9 @@ namespace snde {
     Eigen::Vector3d bboxCenter;
     Eigen::Vector3d bboxSize;
 
-    x3d_transform(void) {
+    x3d_transform(void) :
+      x3d_node("transform")
+    {
       nodetype="transform";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
 
@@ -766,9 +793,10 @@ namespace snde {
   };
 
   std::shared_ptr<x3d_node> x3d_loader::parse_transform(std::shared_ptr<x3d_node> parentnode, xmlChar *containerField) {
-    if (!containerField) containerField=(xmlChar *)"transform";
+    
 
     std::shared_ptr<x3d_node> trans_data=x3d_transform::fromcurrentelement(this);
+    if (!containerField) containerField=(xmlChar *)trans_data->default_containerField.c_str();
 
 
     /* because transform applies itself to the underlying objects,
@@ -786,7 +814,8 @@ namespace snde {
     bool solid;
     Eigen::Matrix<double,4,4> transform; /* Apply this transform to all coordinates when interpreting contents */
 
-    x3d_indexedset() :
+    x3d_indexedset(std::string default_containerField) :
+      x3d_node(default_containerField),
       normalPerVertex(true),
       ccw(true),
       solid(true)
@@ -802,7 +831,9 @@ namespace snde {
     std::vector<snde_index> normalIndex;
     std::vector<snde_index> texCoordIndex;
 
-    x3d_indexedfaceset(void) {
+    x3d_indexedfaceset() :
+      x3d_indexedset("geometry")
+    {
       nodetype="indexedfaceset";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
       nodedata["color"]=std::shared_ptr<x3d_node>();
@@ -841,9 +872,10 @@ namespace snde {
 
   std::shared_ptr<x3d_node> x3d_loader::parse_indexedfaceset(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
   {
-    if (!containerField) containerField=(xmlChar *)"geometry";
+    
 
     std::shared_ptr<x3d_node> ifs_data=x3d_indexedfaceset::fromcurrentelement(this);
+    if (!containerField) containerField=(xmlChar *)ifs_data->default_containerField.c_str();
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
@@ -864,7 +896,9 @@ namespace snde {
     std::vector<snde_index> index;
     //Eigen::Matrix<double,4,4> transform;  (now inherited from x3d_indexedset)  /* Apply this transform to all coordinates when interpreting contents */
 
-    x3d_indexedtriangleset(void) {
+    x3d_indexedtriangleset() :
+      x3d_indexedset("material")
+    {
       nodetype="indexedtriangleset";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
       nodedata["color"]=std::shared_ptr<x3d_node>();
@@ -901,9 +935,9 @@ namespace snde {
   
   std::shared_ptr<x3d_node> x3d_loader::parse_indexedtriangleset(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
   {
-    if (!containerField) containerField=(xmlChar *)"geometry";
     
     std::shared_ptr<x3d_node> its_data=x3d_indexedtriangleset::fromcurrentelement(this);
+    if (!containerField) containerField=(xmlChar *)its_data->default_containerField.c_str();
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
@@ -922,7 +956,9 @@ namespace snde {
     bool repeatS;
     bool repeatT;
 
-    x3d_imagetexture(void) {
+    x3d_imagetexture() :
+      x3d_node("texture")
+    {
       nodetype="imagetexture";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
       // ignoring textureProperties
@@ -960,9 +996,9 @@ namespace snde {
 
   std::shared_ptr<x3d_node> x3d_loader::parse_imagetexture(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
   {
-    if (!containerField) containerField=(xmlChar *)"texture";
 
     std::shared_ptr<x3d_node> mat_data=x3d_imagetexture::fromcurrentelement(this);
+    if (!containerField) containerField=(xmlChar *)mat_data->default_containerField.c_str();
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
@@ -978,7 +1014,9 @@ namespace snde {
 
   public:
 
-    x3d_appearance(void) {
+    x3d_appearance() :
+      x3d_node("appearance")
+    {
       nodetype="appearance";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
       nodedata["material"]=std::shared_ptr<x3d_node>();
@@ -1001,9 +1039,9 @@ namespace snde {
   
   std::shared_ptr<x3d_node> x3d_loader::parse_appearance(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
   {
-    if (!containerField) containerField=(xmlChar *)"appearance";
 
     std::shared_ptr<x3d_node> app_data=x3d_appearance::fromcurrentelement(this);
+    if (!containerField) containerField=(xmlChar *)app_data->default_containerField.c_str();
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
@@ -1021,7 +1059,9 @@ namespace snde {
   public:
     std::vector<snde_coord3> point;
 
-    x3d_coordinate(void) {
+    x3d_coordinate() :
+      x3d_node("coord")
+    {
       nodetype="coordinate";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
 
@@ -1041,9 +1081,10 @@ namespace snde {
 
   std::shared_ptr<x3d_node> x3d_loader::parse_coordinate(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
   {
-    if (!containerField) containerField=(xmlChar *)"coord";
+    
 
     std::shared_ptr<x3d_node> coord_data=x3d_coordinate::fromcurrentelement(this);
+    if (!containerField) containerField=(xmlChar *)coord_data->default_containerField.c_str();
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
@@ -1059,7 +1100,9 @@ namespace snde {
   public:
     std::vector<snde_coord3> vector;
 
-    x3d_normal(void) {
+    x3d_normal() :
+      x3d_node("normal")
+    {
       nodetype="normal";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
 
@@ -1079,9 +1122,9 @@ namespace snde {
 
   std::shared_ptr<x3d_node> x3d_loader::parse_normal(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
   {
-    if (!containerField) containerField=(xmlChar *)"normal";
 
     std::shared_ptr<x3d_node> normal_data=x3d_normal::fromcurrentelement(this);
+    if (!containerField) containerField=(xmlChar *)normal_data->default_containerField.c_str();
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
@@ -1098,7 +1141,9 @@ namespace snde {
   public:
     std::vector<snde_coord2> point;
 
-    x3d_texturecoordinate(void) {
+    x3d_texturecoordinate() :
+      x3d_node("texCoord")
+    {
       nodetype="texturecoordinate";
       nodedata["metadata"]=std::shared_ptr<x3d_node>();
 
@@ -1118,9 +1163,9 @@ namespace snde {
 
   std::shared_ptr<x3d_node> x3d_loader::parse_texturecoordinate(std::shared_ptr<x3d_node> parentnode,xmlChar *containerField)
   {
-    if (!containerField) containerField=(xmlChar *)"texCoord";
 
     std::shared_ptr<x3d_node> texcoord_data=x3d_texturecoordinate::fromcurrentelement(this);
+    if (!containerField) containerField=(xmlChar *)texcoord_data->default_containerField.c_str();
 
     if (parentnode) {
       if (!parentnode->hasattr((char *)containerField)) {
@@ -1439,8 +1484,8 @@ namespace snde {
       // we don't have any topo_indices here, but we allocate anyway for compatibility
       holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.topo_indices,1,""));
 
-      holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.triangles,coordIndex.size(),""));
-      holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.edges,3*coordIndex.size(),""));
+      holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.triangles,coordIndex.size()/4,"")); //  coordIndex has 4 elements per triangle: three vertex indices plus -1 terminator
+      holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.edges,3*coordIndex.size()/4,""));
       holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.vertices,coords->point.size(),""));
       // Edgelist may need to be big enough to store # of edges*2 +  # of vertices
       snde_index vertex_edgelist_maxsize=coords->point.size()*7;
@@ -1460,8 +1505,8 @@ namespace snde {
 	holder->store(lockprocess->get_locks_write_array((void **)&graphman->geom.uv_topos));
 	holder->store(lockprocess->get_locks_write_array((void **)&graphman->geom.uv_topo_indices));
 	
-	holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.uv_triangles,texCoordIndex.size(),""));
-	holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.uv_edges,3*texCoordIndex.size(),""));
+	holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.uv_triangles,texCoordIndex.size()/4,"")); // texCoordIndex has 4 elements per triangle: three vertex indices plus -1 terminator
+	holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.uv_edges,3*texCoordIndex.size()/4,""));
 	holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.uv_vertices,texCoords->point.size(),""));
 	// Edgelist may need to be big enough to store # of edges*2 +  # of vertices
 	uv_vertex_edgelist_maxsize=texCoords->point.size()*7;
@@ -1846,7 +1891,7 @@ namespace snde {
       }
       num_edges = next_edgenum;
       // realloc and shrink graphman->geom.edges allocation to num_edges
-      graphman->manager->realloc_down((void **)&graphman->geom.edges,firstedge,3*coordIndex.size(),num_edges);
+      graphman->manager->realloc_down((void **)&graphman->geom.edges,firstedge,3*coordIndex.size()/4,num_edges);
 
       // mark edges as modified by the CPU
       graphman->mark_as_modified(nullptr,(void **)&graphman->geom.edges,firstedge,num_edges);     
@@ -1944,7 +1989,7 @@ namespace snde {
       snde_index vertexcnt;
       snde_index next_vertex_edgelist_pos=0;
       for (vertexcnt=0; vertexcnt < num_vertices; vertexcnt++) {
-	std::vector<snde_index> & edges = edges_by_vertex.at(vertexcnt);
+	std::vector<snde_index> & edges = edges_by_vertex[vertexcnt];
 	
 	/* Copy edgelist */
 	memcpy(graphman->geom.vertex_edgelist + first_vertex_edgelist + next_vertex_edgelist_pos,edges.data(),edges.size() * sizeof(snde_index));
@@ -1990,7 +2035,7 @@ namespace snde {
       x3d_assign_allocated_storage(meshedcurpart,"topos",graphman->geom.topos,firsttopo,topos.size());
       // don't have any topo_indices, (except for the one empty one we allocate) but still assign our contents
       x3d_assign_allocated_storage(meshedcurpart,"topo_indices",graphman->geom.topo_indices,firsttopo_index,1);
-      std::shared_ptr<graphics_storage> tristorage = x3d_assign_allocated_storage(meshedcurpart,"triangles",graphman->geom.triangles,firsttri,coordIndex.size());
+      std::shared_ptr<graphics_storage> tristorage = x3d_assign_allocated_storage(meshedcurpart,"triangles",graphman->geom.triangles,firsttri,coordIndex.size()/4); //  coordIndex has 4 elements per triangle: three vertex indices plus -1 terminator
       //x3d_assign_follower_storage(meshedcurpart,tristorage,"vertnormals",graphman->geom.vertnormals);
       x3d_assign_allocated_storage(meshedcurpart,"edges",graphman->geom.edges,firstedge,num_edges);
       std::shared_ptr<graphics_storage> vertstorage = x3d_assign_allocated_storage(meshedcurpart,"vertices",graphman->geom.vertices,firstvertex,num_vertices);
@@ -2276,7 +2321,7 @@ namespace snde {
 
 	num_uv_edges = next_uv_edgenum;
 	// realloc and shrink geom->geom.uv_edges allocation to num_edges
-	graphman->manager->realloc_down((void **)&graphman->geom.uv_edges,firstuvedge,3*texCoordIndex.size(),num_uv_edges);
+	graphman->manager->realloc_down((void **)&graphman->geom.uv_edges,firstuvedge,3*texCoordIndex.size()/4,num_uv_edges);
 
 	// Mark that we have made changes using the CPU to uv_edges
 	graphman->mark_as_modified(nullptr,(void **)&graphman->geom.uv_edges,firstuvedge,num_uv_edges);
@@ -2488,7 +2533,7 @@ namespace snde {
 	x3d_assign_allocated_storage(uvparam,"uv_topo_indices",graphman->geom.uv_topo_indices,first_uv_topoidx,num_uv_topoidxs);
 	
 	
-	x3d_assign_allocated_storage(uvparam,"uv_triangles",graphman->geom.uv_triangles,firstuvtri,texCoordIndex.size());
+	x3d_assign_allocated_storage(uvparam,"uv_triangles",graphman->geom.uv_triangles,firstuvtri,texCoordIndex.size()/4); //  texCoordIndex has 4 elements per triangle: three vertex indices plus -1 terminator
 	x3d_assign_allocated_storage(uvparam,"uv_edges",graphman->geom.uv_edges,firstuvedge,num_uv_edges);
 	std::shared_ptr<graphics_storage> uvvertstore = x3d_assign_allocated_storage(uvparam,"uv_vertices",graphman->geom.uv_vertices,firstuvvertex,num_uv_vertices);
 

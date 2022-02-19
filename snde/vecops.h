@@ -24,13 +24,13 @@
 #define VECOPS_LOCAL __local
 
 #ifdef __ENDIAN_LITTLE__
-#define MY_INFNAN_LITTLE_ENDIAN
+#define SNDE_INFNAN_LITTLE_ENDIAN
 #endif 
 
 #define ERANGE 34
 
-typedef __constant unsigned char my_infnan_constchar_t;
-typedef __constant float *my_infnan_float32_ptr_t;
+typedef __constant unsigned char snde_infnan_constchar_t;
+typedef __constant float *snde_infnan_float32_ptr_t;
 
 #else
 
@@ -40,31 +40,31 @@ typedef __constant float *my_infnan_float32_ptr_t;
 #define VECOPS_DOUBLEPREC 1 // always include double precision functions on a real CPU
 
 #if !(defined(__BYTE_ORDER) && __BYTE_ORDER == __BIG_ENDIAN) && !defined(__BIG_ENDIAN__)
-#define MY_INFNAN_LITTLE_ENDIAN
+#define SNDE_INFNAN_LITTLE_ENDIAN
 #endif
 
 
-typedef uint8_t my_infnan_constchar_t;
-typedef snde_float32 *my_infnan_float32_ptr_t;
+typedef uint8_t snde_infnan_constchar_t;
+typedef snde_float32 *snde_infnan_float32_ptr_t;
 
 #endif /* __OPENCL_VERSION__ */
 
-#ifdef MY_INFNAN_LITTLE_ENDIAN
-static const my_infnan_constchar_t NaNconst[4]={ 0x00, 0x00, 0xc0, 0x7f };
-static const my_infnan_constchar_t Infconst[4]={ 0x00, 0x00, 0x80, 0x7f };
-static const my_infnan_constchar_t NegInfconst[4]={ 0x00, 0x00, 0x80, 0xff };
+#ifdef SNDE_INFNAN_LITTLE_ENDIAN
+static const snde_infnan_constchar_t NaNconst[4]={ 0x00, 0x00, 0xc0, 0x7f };
+static const snde_infnan_constchar_t Infconst[4]={ 0x00, 0x00, 0x80, 0x7f };
+static const snde_infnan_constchar_t NegInfconst[4]={ 0x00, 0x00, 0x80, 0xff };
 #else
-static const my_infnan_constchar_t NaNconst[4]={ 0x7f,0xc0,0x00,0x00 };
-static const my_infnan_constchar_t Infconst[4]={ 0x7f,0x80,0x00,0x00 };
-static const my_infnan_constchar_t NegInfconst[4]={ 0xff,0x80,0x00,0x00 };
+static const snde_infnan_constchar_t NaNconst[4]={ 0x7f,0xc0,0x00,0x00 };
+static const snde_infnan_constchar_t Infconst[4]={ 0x7f,0x80,0x00,0x00 };
+static const snde_infnan_constchar_t NegInfconst[4]={ 0xff,0x80,0x00,0x00 };
 #endif
 
-static VECOPS_INLINE snde_coord my_infnan(int error) /* be sure to disable SIGFPE */
+static VECOPS_INLINE snde_coord snde_infnan(int error) /* be sure to disable SIGFPE */
 {
   
-  if (error==ERANGE) return *((my_infnan_float32_ptr_t)&Infconst);
-  else if (error==-ERANGE) return *((my_infnan_float32_ptr_t)&NegInfconst);
-  else return *((my_infnan_float32_ptr_t)&NaNconst);
+  if (error==ERANGE) return *((snde_infnan_float32_ptr_t)&Infconst);
+  else if (error==-ERANGE) return *((snde_infnan_float32_ptr_t)&NegInfconst);
+  else return *((snde_infnan_float32_ptr_t)&NaNconst);
 }
 
 
@@ -138,6 +138,24 @@ static VECOPS_INLINE void multcmatvec4(snde_coord *mat,snde_coord *vec,snde_coor
     }
   }
 }
+
+
+static VECOPS_INLINE void multcmat44(snde_coord *mat1,snde_coord *mat2,snde_coord *out)
+// mat1, mat2, out stored row-major (C-style)
+{
+  int outrow,outcol,sumidx;
+
+  for (outcol=0;outcol < 4; outcol++) {
+    for (outrow=0;outrow < 4; outrow++) {
+      out[outrow*4 + outcol]=0.0f;
+      for (sumidx=0;sumidx < 4; sumidx++) {
+	out[outrow*4 + outcol] += mat1[ outrow*4 + sumidx]*mat2[sumidx*4 + outcol];
+      }
+    }
+  }
+}
+
+
 
 static VECOPS_INLINE void multcmatvec3(snde_coord *mat,snde_coord *vec,snde_coord *out)
 // cmat stored row-major (C-style)
@@ -448,7 +466,7 @@ static VECOPS_INLINE snde_coord to_unit_vector4(snde_coord *vec)
 #ifdef __OPENCL_VERSION__
   /* if this is an opencl kernel, a W component makes the result invalid */
   if (vec[3] != 0.0f) {
-    factor = my_infnan(0); // NaN factor
+    factor = snde_infnan(0); // NaN factor
   }
 #else
   assert(vec[3]==0.0f); /* vectors should have no 'w' component */
@@ -744,7 +762,7 @@ static VECOPS_INLINE void fmatrixmul(snde_coord *A1,snde_index A1_dimlen[2],snde
     // Can't do assert() in OpenCL, so we just set the output to all NaN's.
     for (Aout_i1=0;Aout_i1 < Aout_dimlen[0];Aout_i1++) {
       for (Aout_i2=0;Aout_i2 < Aout_dimlen[1];Aout_i2++) {
-	Aout[Aout_i1 * Aout_strides[0] + Aout_i2 * Aout_strides[1]] = my_infnan(0); // NaN
+	Aout[Aout_i1 * Aout_strides[0] + Aout_i2 * Aout_strides[1]] = snde_infnan(0); // NaN
       }
     }
     return;

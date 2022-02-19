@@ -18,7 +18,8 @@ namespace snde {
     
     snde_index flattened_length();
     bool cachefriendly_indexing();
-    
+
+    /* nested classes not supported by swig...
     class arrayposition {
     public:
       // WARNING: Mutable
@@ -30,28 +31,96 @@ namespace snde {
       arrayposition(const arraylayout &layout,snde_index intpos,bool fortran_indexing=false);
       arrayposition(const arraylayout &layout,std::vector<snde_index> pos,bool fortran_indexing=false);
       
-      arrayposition &operator++();
-      arrayposition &operator--();
+      //arrayposition &operator++();
+      //arrayposition &operator--();
     
-      arrayposition operator++(int dummy);
-      arrayposition operator--(int dummy);
+      //arrayposition operator++(int dummy);
+      //arrayposition operator--(int dummy);
       
       bool operator==(const arrayposition &other);
       bool operator!=(const arrayposition &other);
     };
+    */
     
-    typedef arrayposition iterator;
+    //typedef arrayposition iterator;
     
     
-    iterator begin();
+    //iterator begin();
     
-    iterator end();    
+    //iterator end();    
     
     snde_index begin_flattened();
     snde_index end_flattened();
     
   };
-  
+  %extend arraylayout {
+    std::string __str__()
+    {
+      std::string ret;
+      size_t dimnum;
+      
+      ret+=snde::ssprintf("%d dimensional array: (",self->dimlen.size());
+      
+      for (dimnum=0;dimnum < self->dimlen.size(); dimnum++) {
+	ret += snde::ssprintf("%llu",(unsigned long long)self->dimlen.at(dimnum));
+	if (self->dimlen.size() >= 1 && dimnum < self->dimlen.size()-1) {
+	  ret += " x ";
+	}
+      }
+      ret += "); strides = (";
+      for (dimnum=0;dimnum < self->dimlen.size(); dimnum++) {
+	ret += snde::ssprintf("%llu",(unsigned long long)self->strides.at(dimnum));
+	if (self->dimlen.size() >= 1 && dimnum < self->dimlen.size()-1) {
+	  ret += ", ";
+	}
+      }
+      ret += ")";
+ 
+      if (self->is_c_contiguous()) {
+	ret += "; c_contiguous";
+      } else if (self->is_f_contiguous()) {
+	ret += "; f_contiguous";
+      } else if (self->is_contiguous()) {
+	ret += "; contiguous";
+      }
+      ret += ".";
+      return ret;
+    }
+  };
+
+  %extend arraylayout {
+    std::string __repr__()
+    {
+      std::string ret;
+      size_t dimnum;
+      
+      ret+=snde::ssprintf("%d dimensional array: (",self->dimlen.size());
+      
+      for (dimnum=0;dimnum < self->dimlen.size(); dimnum++) {
+	ret += snde::ssprintf("%llu",(unsigned long long)self->dimlen.at(dimnum));
+	if (self->dimlen.size() >= 1 && dimnum < self->dimlen.size()-1) {
+	  ret += " x ";
+	}
+      }
+      ret += "); strides = (";
+      for (dimnum=0;dimnum < self->dimlen.size(); dimnum++) {
+	ret += snde::ssprintf("%llu",(unsigned long long)self->strides.at(dimnum));
+	if (self->dimlen.size() >= 1 && dimnum < self->dimlen.size()-1) {
+	  ret += ", ";
+	}
+      }
+      ret += ")";
+ 
+      if (self->is_c_contiguous()) {
+	ret += "; c_contiguous";
+      } else if (self->is_f_contiguous()) {
+	ret += "; f_contiguous";
+      } else if (self->is_contiguous()) {
+	ret += "; contiguous";
+      }
+      ret += ".";
+      return ret;
+    }
+  };
 };
 
-#endif // SNDE_ARRAYPOSITION_HPP

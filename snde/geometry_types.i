@@ -112,6 +112,83 @@ typedef char snde_bool;
 } 
 
 
+%typemap(in) snde_orientation3 (std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it, PyArray_Descr *ArrayDescr,PyArrayObject *castedarrayobj) {
+  numpytypemap_it = snde::rtn_numpytypemap.find(SNDE_RTN_SNDE_ORIENTATION3);
+
+  if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
+    throw snde::snde_error("No corresponding numpy datatype found for snde_orientation3");
+  }
+  ArrayDescr = numpytypemap_it->second;
+  Py_IncRef((PyObject *)ArrayDescr); // because PyArray_NewFromDescr steals a reference to its descr parameter
+
+  // Cast to our desired type
+  castedarrayobj = (PyArrayObject *)PyArray_CheckFromAny($input,ArrayDescr,0,0,NPY_ARRAY_C_CONTIGUOUS|NPY_ARRAY_NOTSWAPPED|NPY_ARRAY_ELEMENTSTRIDES,nullptr);
+
+  if (PyArray_SIZE(castedarrayobj) != 1) {
+    throw snde::snde_error("snde_orientation3 input typemap: Only single input orienation is allowed");
+  }
+
+  // now we can interpret the data as an snde_orientation3
+  
+  $1 = *(snde_orientation3 *)PyArray_DATA(castedarrayobj);
+
+  // free castedarrayobj
+  Py_DecRef((PyObject *)castedarrayobj);
+}
+
+// input typemap for snde_orientation3 const references
+%typemap(in) const snde_orientation3 &(std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it, PyArray_Descr *ArrayDescr,PyArrayObject *castedarrayobj) {
+  numpytypemap_it = snde::rtn_numpytypemap.find(SNDE_RTN_SNDE_ORIENTATION3);
+
+  if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
+    throw snde::snde_error("No corresponding numpy datatype found for snde_orientation3");
+  }
+  ArrayDescr = numpytypemap_it->second;
+  Py_IncRef((PyObject *)ArrayDescr); // because PyArray_NewFromDescr steals a reference to its descr parameter
+
+  // Cast to our desired type
+  castedarrayobj = (PyArrayObject *)PyArray_CheckFromAny($input,ArrayDescr,0,0,NPY_ARRAY_C_CONTIGUOUS|NPY_ARRAY_NOTSWAPPED|NPY_ARRAY_ELEMENTSTRIDES,nullptr);
+
+  if (PyArray_SIZE(castedarrayobj) != 1) {
+    throw snde::snde_error("snde_orientation3 input typemap: Only single input orienation is allowed");
+  }
+
+  // now we can interpret the data as an snde_orientation3
+  
+  $1 = (snde_orientation3 *)malloc(sizeof(snde_orientation3)); // freed by freearg typemap, below
+  *$1 = *(snde_orientation3 *)PyArray_DATA(castedarrayobj);
+
+  // free castedarrayobj
+  Py_DecRef((PyObject *)castedarrayobj);
+}
+
+%typemap(freearg) const snde_orientation3 &// free orientation from const snde_orientation3 & input typemap, above
+{
+  free($1);
+}
+
+
+
+%typemap(out) snde_orientation3 (std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it, PyArray_Descr *ArrayDescr,PyArrayObject *arrayobj) {
+  numpytypemap_it = snde::rtn_numpytypemap.find(SNDE_RTN_SNDE_ORIENTATION3);
+  if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
+    throw snde::snde_error("No corresponding numpy datatype found for snde_orientation3");
+  }
+  ArrayDescr = numpytypemap_it->second;
+
+  Py_IncRef((PyObject *)ArrayDescr); // because PyArray_CheckFromAny steals a reference to its descr parameter
+
+  // create new 0D array 
+  arrayobj = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type,ArrayDescr,0,nullptr,nullptr,nullptr,0,nullptr);
+
+  assert(PyArray_SIZE(arrayobj) == 1);
+  memcpy(PyArray_DATA(arrayobj),&$1,sizeof($1));
+
+  $result = (PyObject *)arrayobj;
+}
+
+
+
 // ArrayType should be np.ndarray,
 PyObject *Pointer_To_Numpy_Array(PyObject *ArrayType, PyObject *DType,PyObject *Base,bool write,size_t n,void **ptraddress,size_t elemsize,size_t startidx);
 %{
@@ -152,10 +229,9 @@ nt_snde_shortindex = np.dtype(np.uint32)
 nt_snde_ioffset = np.dtype(np.int64)
 nt_snde_bool = np.dtype(np.int8)
 
-nt_snde_orientation3=np.dtype([("offset",nt_snde_coord,3),
-                               ("pad1",nt_snde_coord),
+nt_snde_orientation3=np.dtype([("offset",nt_snde_coord,4), # fourth coordinate always zero
 			       ("quat",nt_snde_coord,4)])
-
+  
 nt_snde_coord3=np.dtype((nt_snde_coord,3))
 nt_snde_coord2=np.dtype((nt_snde_coord,2))
 
@@ -194,7 +270,7 @@ nt_snde_meshedpart=np.dtype([  # ('orientation', nt_snde_orientation3),
 		    ('solid', nt_snde_bool),
 		    ('pad1', nt_snde_bool,7)])
 		    
-def build_geometrystruct_class(arraymgr):
+def build_geometrystruct_class(arraymgr):  # Don't think this is used anymore!!!
   class snde_geometrystruct(ctypes.Structure):
     manager=arraymgr;
     

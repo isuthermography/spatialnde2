@@ -110,7 +110,7 @@ static QUATERNION_INLINE void quaternion_apply_vector(const snde_coord4 quat,con
   snde_coord4 q1_inverse;
 
 
-  assert(vec.coord[3]==0.0);
+  assert(vec.coord[3]==0.0f);
   
   snde_coord vnormsq = normsqvec3(&vec.coord[0]);
   
@@ -118,7 +118,11 @@ static QUATERNION_INLINE void quaternion_apply_vector(const snde_coord4 quat,con
   quaternion_inverse(quat,&q1_inverse);
   quaternion_product(q1_times_v,q1_inverse,product);
 
-  assert(product->coord[3]*product->coord[3] < 1e-15f*vnormsq);
+  // last coordinate of output should calculate to roughly 0
+  assert(product->coord[3]*product->coord[3] <= 1e-13f*vnormsq);
+
+  // ... and be written as exactly 0.
+  product->coord[3]=0.0f;
 }
 
 
@@ -143,7 +147,7 @@ static QUATERNION_INLINE void orientation_build_rotmtx(const snde_orientation3 o
   quaternion_build_rotmtx(orient.quat,rotmtx); // still need to do fourth column
 
   rotmtx[3] = orient.offset;
-  
+  rotmtx[3].coord[3]=1.0; // lower right element of 4x4 always 1.0
 }
 
 

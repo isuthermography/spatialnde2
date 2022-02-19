@@ -2,6 +2,9 @@
 #include <osgViewer/Renderer>
 #include <osgUtil/ShaderGen>
 
+#include <Eigen/Dense>
+#include <osgDB/WriteFile>
+
 #include "snde/recstore.hpp"
 #include "snde/openscenegraph_renderer.hpp"
 #include "snde/openscenegraph_compositor.hpp"
@@ -571,6 +574,12 @@ namespace snde {
 	    if (recdb_strong) {
 	      rwlock_token_set frame_locks = recdb_strong->lockmgr->lock_recording_refs(locks_required,false /*bool gpu_access */); // gpu_access is false because that is only needed for gpgpu calculations like OpenCL where we might be trying to map the entire scene data in one large all-encompassing array
 
+	      //if (display_req.second->channelpath=="/graphics/follower channel") {
+		//osgDB::writeNodeFile(*renderer->Viewer->getSceneData(),"/tmp/follower_channel.osg");
+		//std::cout << "ViewMatrix:\n " << Eigen::Map<Eigen::Matrix4d>(renderer->Camera->getViewMatrix().ptr()) << "\n";
+		//std::cout << "InverseViewMatrix:\n " << Eigen::Map<Eigen::Matrix4d>(renderer->Camera->getInverseViewMatrix().ptr()) << "\n";
+	      //}
+	      
 	      renderer->frame();
 	    }
 	  }
@@ -1148,7 +1157,8 @@ namespace snde {
 	return null;
       }
       
-      CamPose = renderer_it->second->Camera->getInverseViewMatrix(); // camera pose is the inverse of the view matrix
+      //CamPose = renderer_it->second->Camera->getInverseViewMatrix(); // camera pose is the inverse of the view matrix
+      CamPose = renderer_it->second->GetLastCameraPose();
     }
     
     osg::Vec3d translation;
@@ -1170,6 +1180,26 @@ namespace snde {
     retval.quat.coord[3]=rotation.w();
 
     return retval;
+  }
+
+
+  void osg_compositor::set_camera_pose(std::string channel_path,const snde_orientation3 &newpose)
+  // set the camera pose for the given channel
+  {
+    {
+      std::lock_guard<std::mutex> compositor_admin(admin); // required for access to renderers
+      
+      auto renderer_it = renderers->find(channel_path);
+      if (renderer_it == renderers->end()) {
+	// channel not found -- return null orientation
+	throw snde_error("set_camera_pose: channel %s not found",channel_path.c_str());
+      }
+
+      snde_coord4 rotmtx[4];
+      orientation_build_rotmtx(newpose,rotmtx);
+      osg::Matrixd OSGCamPose(&rotmtx[0].coord[0]);
+      renderer_it->second->AssignNewCameraPose(OSGCamPose);
+    }
   }
   
   void osg_compositor::start()

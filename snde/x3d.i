@@ -50,6 +50,7 @@ namespace snde {
     std::string nodetype;
     std::unordered_map<std::string,std::shared_ptr<x3d_node>> nodedata;
 
+    x3d_node(std::string default_containerField);
     virtual ~x3d_node(); /* declare a virtual function to make this class polymorphic
 			       so we can use dynamic_cast<> */
     virtual bool hasattr(std::string name);
@@ -142,7 +143,7 @@ namespace snde {
     //Eigen::Vector3d specularColor;
     double transparency;
 
-    x3d_material(void);
+    x3d_material();
 
   };
 
@@ -178,6 +179,8 @@ namespace snde {
     /* This class should never be instantiated... just 
        subclasses x3d_indexedfaceset and x3d_indexedtriangleset */
   public:
+    x3d_indexedset(std::string default_containerField);
+    
     bool normalPerVertex;
     bool ccw;
     bool solid;

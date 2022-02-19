@@ -431,6 +431,20 @@ namespace snde {
   }
 
 
+  snde_orientation3 QTRecViewer::get_camera_pose(std::string channelpath)
+  {
+    return OSGWidget->get_camera_pose(channelpath);
+  }
+
+  void QTRecViewer::set_camera_pose(std::string channelpath,const snde_orientation3 &newpose)
+  {
+    OSGWidget->set_camera_pose(channelpath,newpose);
+
+
+    emit NeedRedraw();
+  }
+
+  
   void QTRecViewer::UpdateViewerStatus()
   {
     double horizscale;

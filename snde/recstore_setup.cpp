@@ -28,6 +28,8 @@ namespace snde {
     recdb->lowlevel_alloc=std::make_shared<shared_memory_allocator_posix>();
 #endif
     recdb->default_storage_manager=std::make_shared<recording_storage_manager_simple>(recdb->lowlevel_alloc,recdb->lockmgr,recdb->alignment_requirements);
+
+    recdb->nonlocking_storage_manager = recdb->default_storage_manager; // default storage manager from previous line is nonlocking so we can use it safely
     
   }
  

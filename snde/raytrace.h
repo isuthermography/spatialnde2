@@ -145,8 +145,8 @@ static RAYTRACE_INLINE int ray_box_intersection(snde_boxcoord3 boxcoord, snde_co
      Also special cases if the ray is parallel to an axis */
   /* See http://www.siggraph.org/education/materials/HyperGraph/raytrace/rtinter3.htm */
 
-  tnear = my_infnan(-ERANGE);
-  tfar = my_infnan(ERANGE);
+  tnear = snde_infnan(-ERANGE);
+  tfar = snde_infnan(ERANGE);
 
   double curnear,curfar,temp;
     
@@ -548,7 +548,7 @@ static RAYTRACE_INLINE void raytrace_find_first_intersection(snde_coord4 raystar
   snde_orientation orient_inv;
   snde_coord zdist;
 
-  *zdist_out=my_infnan(ERANGE);
+  *zdist_out=snde_infnan(ERANGE);
   *instnum_out=SNDE_INDEX_INVALID;
   *boundarynum_out=SNDE_INDEX_INVALID;
   *facenum_out=SNDE_INDEX_INVALID;
@@ -1139,7 +1139,7 @@ void raytrace_camera_evaluate_zdist(
 {
 
   float32_t NaNval;
-  NaNval=my_infnan(0);
+  NaNval=snde_infnan(0);
 
   snde_coord4 rayvecwrl; // rayvec in object coordinates (projective)
 
@@ -1419,7 +1419,7 @@ void raytrace_camera_evaluate_zbuffer(
   snde_orientation3 wrlcoords_to_camcoords;
 
   float32_t NaNval;
-  NaNval=my_infnan(0);
+  NaNval=snde_infnan(0);
     
 
   raytrace_evaluate_focalpointwrl(camcoords_to_wrlcoords,&focalpointwrl);

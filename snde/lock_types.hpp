@@ -2,6 +2,10 @@
 #define SNDE_LOCK_TYPES_HPP
 
 #include <memory>
+#include <deque>
+#include <mutex>
+#include <condition_variable>
+#include <unordered_map>
 
 namespace snde {
 

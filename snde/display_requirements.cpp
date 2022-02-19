@@ -1,7 +1,10 @@
+#include <iostream>
+
 #include "snde/display_requirements.hpp"
 #include "snde/rec_display.hpp"
 #include "snde/graphics_recording.hpp"
 #include "snde/rendermode.hpp"
+
 
 namespace snde {
 
@@ -596,8 +599,11 @@ null_recording_recording_display_handler::null_recording_recording_display_handl
 
 
 
-// Register this handler for SNDE_SRG_RENDERING on null_recordings
-static int register_nr_display_handler_rendering = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(null_recording)),std::make_shared<registered_recording_display_handler>( [] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+// Register this handler for SNDE_SRG_RENDERING_3D and SNDE_SRG_RENDERING_2D on null_recordings
+static int register_nr_display_handler_rendering_2d = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING_2D,typeid(null_recording)),std::make_shared<registered_recording_display_handler>( [] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+      return std::make_shared<null_recording_recording_display_handler>(display,displaychan,base_rss);
+      }));
+static int register_nr_display_handler_rendering_3d = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING_3D,typeid(null_recording)),std::make_shared<registered_recording_display_handler>( [] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
       return std::make_shared<null_recording_recording_display_handler>(display,displaychan,base_rss);
       }));
 
@@ -619,15 +625,23 @@ multi_ndarray_recording_display_handler::multi_ndarray_recording_display_handler
 
 }
 
-// register this handler for mode SNDE_SRG_RENDERING
+// register this handler for mode SNDE_SRG_RENDERING and SNDE_SRG_RENDERING_2D
   static int register_mnr_display_handler_rendering = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(multi_ndarray_recording)),std::make_shared<registered_recording_display_handler>( [] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+	return std::make_shared<multi_ndarray_recording_display_handler>(display,displaychan,base_rss);
+      }));
+  static int register_mnr_display_handler_rendering_2d = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING_2D,typeid(multi_ndarray_recording)),std::make_shared<registered_recording_display_handler>( [] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
 	return std::make_shared<multi_ndarray_recording_display_handler>(display,displaychan,base_rss);
       }));
     // ... and also for texture_recordings, which are a subclass
 static int register_mnr_display_handler_rendering_texture_recording = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(texture_recording)),std::make_shared<registered_recording_display_handler>( [] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
 	return std::make_shared<multi_ndarray_recording_display_handler>(display,displaychan,base_rss);
       }));
-  
+static int register_mnr_display_handler_rendering_texture_recording_2d = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING_2D,typeid(texture_recording)),std::make_shared<registered_recording_display_handler>( [] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+	return std::make_shared<multi_ndarray_recording_display_handler>(display,displaychan,base_rss);
+      }));
+
+
+
   // register this handler for mode SNDE_SRG_TEXTURE for multi_ndarray_recordings...
   static int register_mnr_display_handler_texture = register_recording_display_handler(rendergoal(SNDE_SRG_TEXTURE,typeid(multi_ndarray_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
     return std::make_shared<multi_ndarray_recording_display_handler>(display,displaychan,base_rss);
@@ -673,7 +687,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
   assert(array_rec);
 
 
-  if (simple_goal == SNDE_SRG_RENDERING) {
+  if (simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D ) {
 
     // goal is to render this channel
     if (array_rec->layouts.size()==1) {
@@ -1033,8 +1047,11 @@ meshed_part_recording_display_handler::meshed_part_recording_display_handler(std
 
 }
 
-// register this handler for mode SNDE_SRG_RENDERING
+// register this handler for mode SNDE_SRG_RENDERING and SNDE_SRG_RENDERING_3D
 static int register_mpr_display_handler_rendering = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(meshed_part_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+    return std::make_shared<meshed_part_recording_display_handler>(display,displaychan,base_rss);
+    }));
+static int register_mpr_display_handler_rendering_3d = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING_3D,typeid(meshed_part_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
     return std::make_shared<meshed_part_recording_display_handler>(display,displaychan,base_rss);
     }));
 
@@ -1049,7 +1066,7 @@ static int register_mpr_display_handler_vertnormals = register_recording_display
     }));
 
 std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent)
-// meshed_part_recording:SNDE_SRG_RENDERING
+// meshed_part_recording:SNDE_SRG_RENDERING_3D
 //  -> MAIN meshed_part_recording_display_handler:SNDE_SRM_MESHEDPARAMLESS3DGEOM:meshed_part_recording -> osg_cachedmeshedpart
 //     SUB meshed_part_recording:SNDE_SRG_VERTEXARRAYS
 //       -> MAIN meshed_part_recording_display_handler:SNDE_SRM_VERTEXARRAYS:meshed_vertexarray_recording -> osg_cachedmeshedvertexarray
@@ -1058,7 +1075,7 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
 // 
 {
 
-  if (simple_goal == SNDE_SRG_RENDERING) {  
+  if (simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_3D) {  
     std::shared_ptr<display_requirement> retval=nullptr;
     
     const std::string &chanpath = displaychan->FullName;
@@ -1194,16 +1211,16 @@ meshed_parameterization_recording_display_handler::meshed_parameterization_recor
 
 }
 
-// register this handler for mode SNDE_SRG_RENDERING
-static int register_mpmr_display_handler = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(meshed_parameterization_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+// register this handler for mode SNDE_SRG_RENDERING_3D
+static int register_mpmr_display_handler_3d = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING_3D,typeid(meshed_parameterization_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
     return std::make_shared<meshed_parameterization_recording_display_handler>(display,displaychan,base_rss);
     }));
 
 std::shared_ptr<display_requirement> meshed_parameterization_recording_display_handler::get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent)
-// meshed_parameterization_recording:SNDE_SRG_RENDERING
+// meshed_parameterization_recording:SNDE_SRG_RENDERING_3D
 //  -> MAIN meshed_parameterization_recording_display_handler:SNDE_SRM_MESHED2DPARAMETERIZATION:meshed_texvertex_recording -> osg_cachedparameterizationdata
 {
-  if (simple_goal != SNDE_SRG_RENDERING) {
+  if (simple_goal != SNDE_SRG_RENDERING_3D) {
     throw snde_error("meshed_part_recording_display_handler::get_display_requirement(): Unknown simple_goal");
   }
 
@@ -1247,8 +1264,11 @@ textured_part_recording_display_handler::textured_part_recording_display_handler
 
 }
 
-// register this handler for mode SNDE_SRG_RENDERING
+// register this handler for mode SNDE_SRG_RENDERING and SNDE_SRG_RENDERING_3D
 static int register_tpr_display_handler_rendering = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(textured_part_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+    return std::make_shared<textured_part_recording_display_handler>(display,displaychan,base_rss);
+    }));
+static int register_tpr_display_handler_rendering_3d = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING_3D,typeid(textured_part_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
     return std::make_shared<textured_part_recording_display_handler>(display,displaychan,base_rss);
     }));
 
@@ -1257,7 +1277,7 @@ static int register_tpr_display_handler_geometry = register_recording_display_ha
     }));
 
 std::shared_ptr<display_requirement> textured_part_recording_display_handler::get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent)
-// textured_part_recording:SNDE_SRG_RENDERING
+// textured_part_recording:SNDE_SRG_RENDERING or SNDE_SRG_RENDERING_3D
 //  -> MAIN textured_part_recording_display_handler:SNDE_SRM_TEXEDMESHEDPART -> osg_cachedtexedmeshedpart
 //     SUB textured_part_recording:SNDE_SRG_GEOMETRY
 //      -> MAIN textured_part_recording_display_handler:SNDE_SRM_TEXEDMESHED3DGEOM:textured_part_recording -> osg_cachedtexedmeshedgeom
@@ -1272,7 +1292,7 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
 //     SUB (more textures)
 {
   // ***!!! Need to unify error handling model!
-  if (simple_goal == SNDE_SRG_RENDERING) {
+  if (simple_goal == SNDE_SRG_RENDERING || simple_goal == SNDE_SRG_RENDERING_3D) {
   
     std::shared_ptr<display_requirement> retval=nullptr;
     
@@ -1373,6 +1393,11 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
     
     std::shared_ptr<textured_part_recording> texedpart_rec=std::dynamic_pointer_cast<textured_part_recording>(rec);
     assert(texedpart_rec);
+
+    if (!texedpart_rec->parameterization_name) {
+      throw snde_error("textured_part_recording_display_handler: Displaying %s: no parameterization_name given",chanpath.c_str());
+    }
+
     
     retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_TEXEDMESHED3DGEOM,typeid(*this),nullptr),rec,shared_from_this());
     retval->renderable_channelpath = std::make_shared<std::string>(chanpath);
@@ -1412,7 +1437,7 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
     
     // We add a third sub-requirement for the parameterization,
     std::string parameterization_name = recdb_path_join(recdb_path_as_group(chanpath),*texedpart_rec->parameterization_name);
-    retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,display->lookup_channel(parameterization_name),SNDE_SRG_RENDERING,nullptr));
+    retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,display->lookup_channel(parameterization_name),SNDE_SRG_RENDERING_3D,nullptr));
     
 
     return retval;
@@ -1430,18 +1455,21 @@ assembly_recording_display_handler::assembly_recording_display_handler(std::shar
   
 }
 
-// register this handler for mode SNDE_SRG_RENDERING
+// register this handler for mode SNDE_SRG_RENDERING and SNDE_SRG_RENDERING_3D
 static int register_apr_display_handler = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(assembly_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+    return std::make_shared<assembly_recording_display_handler>(display,displaychan,base_rss);
+    }));
+static int register_apr_display_handler_3d = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING_3D,typeid(assembly_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
     return std::make_shared<assembly_recording_display_handler>(display,displaychan,base_rss);
     }));
 
 std::shared_ptr<display_requirement> assembly_recording_display_handler::get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent)
-// assembly_recording:SNDE_SRG_RENDERING
+// assembly_recording:SNDE_SRG_RENDERING or SNDE_SRG_RENDERING_3D
 //  -> MAIN assembly_recording_display_handler:SNDE_SRM_ASSEMBLY -> osg_cachedassembly
-//     SUB... textured_part_recording:SNDE_SRG_RENDERING or meshed_part_recording:SNDE_SRG_RENDERING 
+//     SUB... textured_part_recording:SNDE_SRG_RENDERING_3D or meshed_part_recording:SNDE_SRG_RENDERING_3D
 //  Need to include sub params with our own. 
 {
-  assert(simple_goal == SNDE_SRG_RENDERING);
+  assert(simple_goal == SNDE_SRG_RENDERING || simple_goal == SNDE_SRG_RENDERING_3D);
 
   const std::string &chanpath = displaychan->FullName;
 
@@ -1468,7 +1496,7 @@ std::shared_ptr<display_requirement> assembly_recording_display_handler::get_dis
 
     std::string abspath = _assembly_join_assem_and_compnames(chanpath,std::get<0>(relpath_orientation));
     
-    std::shared_ptr<display_requirement> sub_requirement = traverse_display_requirement(display,base_rss,display->lookup_channel(abspath),SNDE_SRG_RENDERING,nullptr);
+    std::shared_ptr<display_requirement> sub_requirement = traverse_display_requirement(display,base_rss,display->lookup_channel(abspath),SNDE_SRG_DEFAULT_3D,nullptr);
     retval->sub_requirements.push_back(sub_requirement);
 
     std::shared_ptr<renderparams_base> sub_params = sub_requirement->mode.constraint;
@@ -1493,8 +1521,11 @@ tracking_pose_recording_display_handler::tracking_pose_recording_display_handler
 // and the display handler with call the get_pose() method on
 // every render.
 
-//// Example where register this handler for mode SNDE_SRG_RENDERING
+//// Example where register this handler for mode SNDE_SRG_RENDERING and SNDE_SRG_RENDERING_3D
 //static int register_tpr_display_handler = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(tracking_pose_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+//    return std::make_shared<tracking_pose_recording_display_handler>(display,displaychan,base_rss);
+//    }));
+//static int register_tpr_display_handler_3d = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING_3D,typeid(tracking_pose_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
 //    return std::make_shared<tracking_pose_recording_display_handler>(display,displaychan,base_rss);
 //    }));
 
@@ -1504,7 +1535,7 @@ std::shared_ptr<display_requirement> tracking_pose_recording_display_handler::ge
 //     SUB... textured_part_recording:SNDE_SRG_RENDERING or meshed_part_recording:SNDE_SRG_RENDERING 
 //  Need to include sub params with our own. 
 {
-  assert(simple_goal == SNDE_SRG_RENDERING);
+  assert(simple_goal == SNDE_SRG_RENDERING || simple_goal == SNDE_SRG_RENDERING_3D);
 
   const std::string &chanpath = displaychan->FullName;
 
@@ -1558,35 +1589,78 @@ std::shared_ptr<display_requirement> tracking_pose_recording_display_handler::ge
   retval->renderable_channelpath = std::make_shared<std::string>(chanpath);
 
   
-  // reuse assembly code to determine absolute path to component
-  std::string abspath = _assembly_join_assem_and_compnames(chanpath,trackingpose_rec->component_name);
+  // reuse assembly code to determine absolute path to channel_to_track and component
+  std::string channel_to_track_abspath = _assembly_join_assem_and_compnames(chanpath,trackingpose_rec->channel_to_track);
+  std::string component_abspath = _assembly_join_assem_and_compnames(chanpath,trackingpose_rec->component_name);
 
-  // sub-requirement is our component in rendering mode
-  std::shared_ptr<display_requirement> sub_requirement = traverse_display_requirement(display,base_rss,display->lookup_channel(abspath),SNDE_SRG_RENDERING,nullptr);
-  retval->sub_requirements.push_back(sub_requirement);
+  std::shared_ptr<recording_base> channel_to_track_rec = base_rss->get_recording(channel_to_track_abspath);
+  
+  // sub-requirement 1 is our channel_to_track in rendering mode
+  std::shared_ptr<display_requirement> sub_requirement1 = traverse_display_requirement(display,base_rss,display->lookup_channel(channel_to_track_abspath),SNDE_SRG_DEFAULT_3D,nullptr);
+  retval->sub_requirements.push_back(sub_requirement1);
 
-  std::shared_ptr<renderparams_base> sub_params = sub_requirement->mode.constraint;
-  pose_params->component_params=sub_params;
-  pose_params->component_orientation = trackingpose_rec->get_pose();
+  std::shared_ptr<renderparams_base> channel_to_track_params = sub_requirement1->mode.constraint;
+  pose_params->channel_to_track_params=channel_to_track_params;
+  pose_params->channel_to_track_orientation = trackingpose_rec->get_channel_to_track_pose();
 
+  //{
+  //  snde_coord4 rotmtx[4];
+  //  orientation_build_rotmtx(pose_params->channel_to_track_orientation,rotmtx);
+  //  std::cout << "ChannelToTrackOrientation:\n ";
+  //  std::cout << "ChannelToTrack: " << channel_to_track_abspath << "\n";
+  //  for (int row=0;row < 4;row++) {
+  //    for (int col=0;col < 4;col++) {
+  //	std::cout << std::to_string(rotmtx[col].coord[row]) << " ";
+  //	
+  //    }
+  //    std::cout << "\n";
+  //  }
+  //}
+  
+  
+  // sub-requirement 2 is our component in rendering mode
+  std::shared_ptr<display_requirement> sub_requirement2 = traverse_display_requirement(display,base_rss,display->lookup_channel(component_abspath),SNDE_SRG_DEFAULT_3D,nullptr);
+  retval->sub_requirements.push_back(sub_requirement2);
+
+  std::shared_ptr<renderparams_base> component_params = sub_requirement2->mode.constraint;
+  pose_params->component_params=component_params;
+  //pose_params->component_orientation = null_orientation
+
+  
   return retval; 
 }
 
 
-std::shared_ptr<display_requirement> traverse_display_requirement(std::shared_ptr<display_info> display,std::shared_ptr<recording_set_state> base_rss,std::shared_ptr<display_channel> displaychan, std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent) // simple_goal such as SNDE_SRG_RENDERING
+std::shared_ptr<display_requirement> traverse_display_requirement(std::shared_ptr<display_info> display,std::shared_ptr<recording_set_state> base_rss,std::shared_ptr<display_channel> displaychan, std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent) // simple_goal such as SNDE_SRG_DEFAULT or SNDE_SRG_RENDERING
 {
   const std::string &chanpath = displaychan->FullName;
   std::shared_ptr<recording_base> rec = base_rss->get_recording(chanpath);
 
-  std::shared_ptr<registered_recording_display_handler> handler = lookup_recording_display_handler(rendergoal(simple_goal,typeid(*rec)));
+
+  
+  std::string render_goal=simple_goal;
+
+  // map goal defaults to metadata entries, if given
+  if (render_goal == SNDE_SRG_DEFAULT) {
+    // SNDE_SRG_DEFAULT means snde_render_goal from metadata first;
+    // failing that default to SNDE_SRG_RENDERING
+    render_goal = rec->metadata->GetMetaDatumStr("snde_render_goal",SNDE_SRG_RENDERING);
+  } else if (render_goal == SNDE_SRG_DEFAULT_3D) {
+    // SNDE_SRG_DEFAULT_3D means snde_render_goal_3d from metadata first;
+    // failing that default to SNDE_SRG_RENDERING_3D
+    render_goal = rec->metadata->GetMetaDatumStr("snde_render_goal_3d",SNDE_SRG_RENDERING_3D);
+  } 
+
+  
+  std::shared_ptr<registered_recording_display_handler> handler = lookup_recording_display_handler(rendergoal(render_goal,typeid(*rec)));
   if (handler) {
     std::shared_ptr<recording_display_handler_base> handler_instance=handler->display_handler_factory(display,displaychan,base_rss);
     
-    std::shared_ptr<display_requirement> dispreq = handler_instance->get_display_requirement(simple_goal,params_from_parent);
+    std::shared_ptr<display_requirement> dispreq = handler_instance->get_display_requirement(render_goal,params_from_parent);
     
     return dispreq;
   }
-  throw snde_error("Failed to find recording_display handler for channel %s (goal %s)",chanpath.c_str(),rendergoal(simple_goal,typeid(*rec)).str().c_str());
+  throw snde_error("Failed to find recording_display handler for channel %s (goal %s)",chanpath.c_str(),rendergoal(render_goal,typeid(*rec)).str().c_str());
   //return nullptr; 
 }
 
@@ -1611,12 +1685,12 @@ std::map<std::string,std::shared_ptr<display_requirement>> traverse_display_requ
     const std::string &chanpath = displaychan->FullName;
     std::shared_ptr<recording_base> rec = base_rss->get_recording(chanpath);
 
-    // default to SNDE_SRG_RENDERING  but allow metadata to provide an alternate goal 
-    std::string rendergoal = rec->metadata->GetMetaDatumStr("snde_render_goal",SNDE_SRG_RENDERING);
+    
+    
 
     std::shared_ptr<display_requirement> dispreq;
     try {
-      dispreq = traverse_display_requirement(display,base_rss,displaychan,rendergoal,nullptr);
+      dispreq = traverse_display_requirement(display,base_rss,displaychan,SNDE_SRG_DEFAULT,nullptr);
     }
     catch (const snde_error &e) {
       snde_warning("Exception determining display requirements for %s: %s",chanpath.c_str(),e.what());
@@ -1627,7 +1701,7 @@ std::map<std::string,std::shared_ptr<display_requirement>> traverse_display_requ
 
     }
     
-
+    
     
   }
   

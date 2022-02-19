@@ -66,13 +66,53 @@ namespace snde {
     if (enable_shaders) {
       ShaderProgram = new osg::Program();
     }
+
+    
+    _LastCameraPose = Camera->getInverseViewMatrix(); // camera pose is the inverse of the view matrix
   }
   
   void osg_renderer::frame()
   {
+    osg::ref_ptr<osg::RefMatrixd> NewCameraPose;
+    {
+      std::lock_guard<std::mutex> LCP_NCP_lock(LCP_NCP_mutex);
+      
+      NewCameraPose = _NewCameraPose;
+      _NewCameraPose = nullptr;
+    }
+
+    if (NewCameraPose) {
+      Viewer->getCameraManipulator()->setByMatrix(*NewCameraPose);
+    }
+    
     Viewer->frame();
+
+    {
+      std::lock_guard<std::mutex> LCP_NCP_lock(LCP_NCP_mutex);
+      _LastCameraPose = Camera->getInverseViewMatrix(); // camera pose is the inverse of the view matrix
+    }
+  }
+  
+  osg::Matrixd osg_renderer::GetLastCameraPose()
+  {
+    {
+      std::lock_guard<std::mutex> LCP_NCP_lock(LCP_NCP_mutex);
+      return _LastCameraPose;
+    }
+    
   }
 
+  void osg_renderer::AssignNewCameraPose(const osg::Matrixd &newpose)
+  {
+    {
+      std::lock_guard<std::mutex> LCP_NCP_lock(LCP_NCP_mutex);
+      _NewCameraPose = new osg::RefMatrixd(newpose);
+      _LastCameraPose = newpose; 
+    }
+    
+  }
+
+  
   void osg_SyncableState::SyncModeBits()
   {
     // (see header for explanation)

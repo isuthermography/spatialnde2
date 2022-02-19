@@ -62,7 +62,11 @@ namespace snde {
   };
 
 #define SNDE_SRG_INVALID "SNDE_SRG_INVALID" // undetermined/invalid display mode
+#define SNDE_SRG_DEFAULT "SNDE_SRG_DEFAULT" // Use default, which is to look up metadata entry "snde_render_goal" or use SNDE_SRG_RENDERING if not set. 
+#define SNDE_SRG_DEFAULT_3D "SNDE_SRG_DEFAULT_3D" // Use 3D default, which is to look up metadata entry "snde_render_goal_3d" or use SNDE_SRG_RENDERING_3D if not set. 
 #define SNDE_SRG_RENDERING "SNDE_SRG_RENDERING" // goal is to perform rendering of the underlying data in this recording
+#define SNDE_SRG_RENDERING_3D "SNDE_SRG_RENDERING_3D" // goal is to perform 3D rendering of the underlying data in this recording
+#define SNDE_SRG_RENDERING_2D "SNDE_SRG_RENDERING_2D" // goal is to perform 2D rendering of the underlying data in this recording
 #define SNDE_SRG_TEXTURE "SNDE_SRG_TEXTURE" // goal is to create a texture representing the underlying data in this recording
 #define SNDE_SRG_VERTEXARRAYS "SNDE_SRG_VERTEXARRAYS"  // goal is to create triangle vertex arrays
 #define SNDE_SRG_VERTNORMALS "SNDE_SRG_VERTNORMALS" // goal is to create otriangle vertex arrays
@@ -378,8 +382,12 @@ namespace snde {
 
   class poseparams: public renderparams_base { // used for tracking_pose_recording and subclasses
   public:
-    std::shared_ptr<renderparams_base> component_params; // embedded part or sub assembly
-    snde_orientation3 component_orientation;
+    std::shared_ptr<renderparams_base> channel_to_track_params; // channel we are tracking, with constant view regardless of our viewer orientation
+    snde_orientation3 channel_to_track_orientation;
+    
+    
+    std::shared_ptr<renderparams_base> component_params; // channel we are observing 
+    //snde_orientation3 component_orientation;  // always the identity  
     
     poseparams() = default;
     virtual ~poseparams() = default;
@@ -389,15 +397,22 @@ namespace snde {
       size_t hashv = 0;
       
       hashv =
-	component_params->hash() ^
-	std::hash<snde_coord>{}(component_orientation.offset.coord[0]) ^
-				 std::hash<snde_coord>{}(component_orientation.offset.coord[1]) ^ 
-				 std::hash<snde_coord>{}(component_orientation.offset.coord[2]) ^ 
-				 std::hash<snde_coord>{}(component_orientation.offset.coord[3]) ^ 
-				 std::hash<snde_coord>{}(component_orientation.quat.coord[0]) ^ 
-				 std::hash<snde_coord>{}(component_orientation.quat.coord[1]) ^ 
-				 std::hash<snde_coord>{}(component_orientation.quat.coord[2]) ^ 
-				 std::hash<snde_coord>{}(component_orientation.quat.coord[3]); 
+	std::hash<snde_coord>{}(channel_to_track_orientation.offset.coord[0]) ^
+				 std::hash<snde_coord>{}(channel_to_track_orientation.offset.coord[1]) ^ 
+				 std::hash<snde_coord>{}(channel_to_track_orientation.offset.coord[2]) ^ 
+				 std::hash<snde_coord>{}(channel_to_track_orientation.offset.coord[3]) ^ 
+				 std::hash<snde_coord>{}(channel_to_track_orientation.quat.coord[0]) ^ 
+				 std::hash<snde_coord>{}(channel_to_track_orientation.quat.coord[1]) ^ 
+				 std::hash<snde_coord>{}(channel_to_track_orientation.quat.coord[2]) ^ 
+				 std::hash<snde_coord>{}(channel_to_track_orientation.quat.coord[3]);
+      if (channel_to_track_params) {
+	hashv = hashv ^ channel_to_track_params->hash();
+
+      }
+      if (component_params) {
+	hashv = hashv ^ component_params->hash();
+
+      }
 							 
       return hashv;
     }
@@ -406,13 +421,40 @@ namespace snde {
     virtual bool operator==(const renderparams_base &b)
     {
       const poseparams *bptr = dynamic_cast<const poseparams *>(&b);
-      if (!bptr) return false;
+      if (!bptr) return false; 
 
-      if (!(*component_params == *bptr->component_params)) {
-	return false;
+      if (component_params && !bptr->component_params) {
+	return false;	  
       }
 
-      if (!orientation3_equal(component_orientation,bptr->component_orientation)) {
+      if (!component_params && bptr->component_params) {
+	return false;	  
+      }
+
+      
+      if (component_params && bptr->component_params) {      
+	if (!(*component_params == *bptr->component_params)) {
+	  return false;
+	}
+      }
+
+      if (channel_to_track_params && !bptr->channel_to_track_params) {
+	return false;	  
+      }
+
+      if (!channel_to_track_params && bptr->channel_to_track_params) {
+	return false;	  
+      }
+
+      
+      if (channel_to_track_params && bptr->channel_to_track_params) {      
+	if (!(*channel_to_track_params == *bptr->channel_to_track_params)) {
+	  return false;
+	}
+      }
+
+      
+      if (!orientation3_equal(channel_to_track_orientation,bptr->channel_to_track_orientation)) {
 	return false;
       }
       

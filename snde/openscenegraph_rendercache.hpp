@@ -190,7 +190,7 @@ namespace snde {
     snde_index dimleny;
     
     osg::ref_ptr<osg::Image> image;
-    osg::ref_ptr<osg::PixelBufferObject> imagepbo;
+    //osg::ref_ptr<osg::PixelBufferObject> imagepbo;
     
 
     osg_cachedimagedata(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
@@ -463,6 +463,7 @@ namespace snde {
     
     std::shared_ptr<recording_base> cached_recording;
 
+    std::shared_ptr<osg_rendercachegroupentry> channel_to_track;
     std::shared_ptr<osg_rendercachegroupentry> sub_component;
     
     osg_cachedtransformedcomponent(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);

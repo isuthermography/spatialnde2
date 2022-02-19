@@ -2,6 +2,7 @@
 # with the spatialnde2 recording database. 
 
 # To use: pass the name of an .x3d file as the first command-line parameter 
+# and the name of a k4a recording as the second command line parameter
 
 from dataguzzler_python import dgpy
 import spatialnde2 as snde
@@ -16,21 +17,37 @@ include(snde,"recdb_gui.dpi")
 graphman=snde.graphics_storage_manager("/graphics/",recdb.lowlevel_alloc,recdb.alignment_requirements,recdb.lockmgr,1e-8);
 
 
+
+import dgpython_azurekinect as ak
+
+k4a = ak.K4AFile("k4a",recdb, args[2], "/pointcloud recording" )
+k4a.depth_data_mode = "POINTCLOUD"
+
+
 transact = snde.active_transaction(recdb)	
 
-graphicsgroup_config=snde.channelconfig("/graphics", "main", recdb,False,graphman)
+graphicsgroup_config=snde.channelconfig("/graphics", "main", recdb.raw(),False,graphman)
 graphicsgroup = recdb.reserve_channel(graphicsgroup_config); 
 
 part_recordings = snde.x3d_load_geometry(recdb,graphman,args[1],"main",recdb,"/graphics/",False,True)
 
 
-followerchan_config=snde.channelconfig("/graphics/follower channel", "main", recdb,False)
+
+followerchan_config=snde.channelconfig("/graphics/follower channel", "main", recdb.raw(),False)
 followerchan = recdb.reserve_channel(followerchan_config); 
 
-followerrec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,followerchan,"main","/graphics/x3d0",main_viewer.viewer.OSGWidget,"..")
+followerrec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,followerchan,recdb.raw(),"/graphics/x3d_meshed0","/pointcloud recording",main_viewer.viewer.OSGWidget)
+
+
 followerrec
 followerrec.metadata=snde.constructible_metadata()
 followerrec.mark_metadata_done()
 followerrec.mark_as_ready()
 
 globalrev = transact.end_transaction()
+
+
+k4a.running=True
+
+# can call main_viewer.viewer.get_camera_pose("/graphics/x3d_meshed0")
+# to get pose manually. 

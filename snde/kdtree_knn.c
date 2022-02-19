@@ -42,7 +42,7 @@ snde_index snde_kdtree_knn_one(KDTREE_GLOBAL struct snde_kdnode *tree,
   uint32_t dimnum=0;
   uint32_t previous_dimnum=0;
 
-  snde_coord closest_dist_sq=my_infnan(ERANGE); // inf
+  snde_coord closest_dist_sq=snde_infnan(ERANGE); // inf
   snde_index closest_index=SNDE_INDEX_INVALID;
 
   
@@ -52,8 +52,8 @@ snde_index snde_kdtree_knn_one(KDTREE_GLOBAL struct snde_kdnode *tree,
   
   // https://gopalcdas.com/2017/05/24/construction-of-k-d-tree-and-using-it-for-nearest-neighbour-search/
   
-  bboxstack[0] = my_infnan(-ERANGE); // -inf
-  bboxstack[1] = my_infnan(ERANGE); // inf
+  bboxstack[0] = snde_infnan(-ERANGE); // -inf
+  bboxstack[1] = snde_infnan(ERANGE); // inf
   
   statestack[0] = SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT|SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT;
   while (1) {
@@ -95,8 +95,8 @@ snde_index snde_kdtree_knn_one(KDTREE_GLOBAL struct snde_kdnode *tree,
       // equivalent to going down one notch then renormalizing
       snde_coord bbox_left,bbox_right;
       if (depth < ndim-1) {
-	bbox_left = my_infnan(-ERANGE); // -inf
-	bbox_right = my_infnan(ERANGE); // +inf
+	bbox_left = snde_infnan(-ERANGE); // -inf
+	bbox_right = snde_infnan(ERANGE); // +inf
       } else {
        
 	bbox_left = bboxstack[(depth-(ndim-1))*2];
@@ -247,7 +247,7 @@ snde_index snde_kdtree_knn_one(KDTREE_GLOBAL struct snde_kdnode *tree,
       if (depth >= ndim) {
 	bboxstack[depth*2] = bboxstack[(depth-ndim)*2]; // keep previous left bound -- note depth has already been incremented so the index here is equivalent to (pre_increment_depth-(ndim-1))*2
       } else {
-	bboxstack[depth*2] = my_infnan(-ERANGE); // left bound of -infinity to start
+	bboxstack[depth*2] = snde_infnan(-ERANGE); // left bound of -infinity to start
       }
       
       bboxstack[depth*2+1] = nodepos; // current node position becomes the right bound
@@ -268,7 +268,7 @@ snde_index snde_kdtree_knn_one(KDTREE_GLOBAL struct snde_kdnode *tree,
       if (depth >= ndim) {
 	bboxstack[depth*2+1] = bboxstack[(depth-ndim)*2+1]; // keep previous right bound -- note depth has already been incremented so the index here is equivalent to (pre_increment_depth-(ndim-1))*2
       } else {
-	bboxstack[depth*2+1] = my_infnan(ERANGE); // right bound of +infinity to start
+	bboxstack[depth*2+1] = snde_infnan(ERANGE); // right bound of +infinity to start
       }
       continue; // loop back into depth traversal
       

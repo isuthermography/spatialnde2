@@ -1,5 +1,6 @@
 #include <osg/Group>
 #include <osg/MatrixTransform>
+#include <iostream>
 
 #include "snde/snde_types.h"
 #include "snde/quaternion.h"
@@ -1348,12 +1349,27 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       
     }
     
-    std::shared_ptr<display_requirement> subcomponent_requirement=display_req->sub_requirements.at(0);
+    // sub-requirement 1 is our channel_to_track in rendering mode
+    std::shared_ptr<display_requirement> channeltotrack_requirement=display_req->sub_requirements.at(0);
+    std::shared_ptr<osg_rendercacheentry> channeltotrack_entry;
+    
+    bool ctt_modified;
+
+    std::tie(channeltotrack_entry,ctt_modified) = params.rendercache->GetEntry(params,channeltotrack_requirement,&locks_required);
+    if (!channeltotrack_entry) {
+      throw snde_error("osg_cachedtransformedcomponent(): Could not get cache entry for channeltotrack %s",channeltotrack_requirement->renderable_channelpath->c_str());
+    }
+    channel_to_track = std::dynamic_pointer_cast<osg_rendercachegroupentry>(channeltotrack_entry);
+    if (!channel_to_track) {
+      throw snde_error("osg:cachedtransformedcomponent(): Cache entry for channeltotrack %s not convertible to a group",channeltotrack_requirement->renderable_channelpath->c_str());	
+    }   
+    // sub-requirement 2 is our component in rendering mode
+    std::shared_ptr<display_requirement> subcomponent_requirement=display_req->sub_requirements.at(1);
     std::shared_ptr<osg_rendercacheentry> subcomponent_entry;
     
-    bool modified;
+    bool sc_modified;
 
-    std::tie(subcomponent_entry,modified) = params.rendercache->GetEntry(params,subcomponent_requirement,&locks_required);
+    std::tie(subcomponent_entry,sc_modified) = params.rendercache->GetEntry(params,subcomponent_requirement,&locks_required);
     if (!subcomponent_entry) {
       throw snde_error("osg_cachedtransformedcomponent(): Could not get cache entry for sub-component %s",subcomponent_requirement->renderable_channelpath->c_str());
     }
@@ -1368,11 +1384,13 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     assert(pose_params);
     
     snde_coord4 rotmtx[4]; // index identifies which column (data stored column-major)
-    orientation_build_rotmtx(pose_params->component_orientation,rotmtx);
+    orientation_build_rotmtx(pose_params->channel_to_track_orientation,rotmtx);
     
     osg::ref_ptr<osg::MatrixTransform> xform  = new osg::MatrixTransform(osg::Matrixd(&rotmtx[0].coord[0])); // remember osg::MatrixTransform also wants the matrix column-major (as we interpret it; osg interprets it as row major, with left multiplication rather than right multiplication)
-    xform->addChild(sub_component->osg_group);
+    //std::cout << "ChannelToTrackTransform:\n " << Eigen::Map<const Eigen::Matrix4d>(xform->getMatrix().ptr()) << "\n";
+    xform->addChild(channel_to_track->osg_group);
     osg_group->addChild(xform);
+    osg_group->addChild(sub_component->osg_group);
     
   }
   

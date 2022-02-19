@@ -402,6 +402,11 @@ namespace snde {
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(size_t index=0);
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(const std::string &array_name);
 
+    template <typename T>
+    std::shared_ptr<ndtyped_recording_ref<T>> reference_typed_ndarray(size_t index=0);
+
+    template <typename T>
+    std::shared_ptr<ndtyped_recording_ref<T>> reference_typed_ndarray(const std::string &array_name);
 
     void assign_storage(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &dimlen, bool fortran_order=false);
     void assign_storage(std::shared_ptr<recording_storage> stor,std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
@@ -960,6 +965,7 @@ namespace snde {
 
     std::shared_ptr<memallocator> lowlevel_alloc; // pointer is immutable once created during startup; contents not necessarily immutable; see memallocator.hpp
     std::shared_ptr<recording_storage_manager> default_storage_manager; // pointer is immutable once created during startup; contents not necessarily immutable; see recstore_storage.hpp
+    std::shared_ptr<recording_storage_manager> nonlocking_storage_manager; // storage manager that never imposes its own locking requirements. GPU use may still impose locking requirements, though
 
     std::shared_ptr<lockmanager> lockmgr; // pointer immutable after initialization; contents have their own admin lock, which is used strictly internally by them
 
@@ -1472,6 +1478,34 @@ namespace snde {
   std::shared_ptr<ndarray_recording_ref> create_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
 
 
+
+    template <typename T>
+    std::shared_ptr<ndtyped_recording_ref<T>> multi_ndarray_recording::reference_typed_ndarray(size_t index/*=0*/)
+    {
+      std::shared_ptr<ndarray_recording_ref> untyped_ref = reference_ndarray(index);
+      std::shared_ptr<ndtyped_recording_ref<T>> typed_ref = std::dynamic_pointer_cast<ndtyped_recording_ref<T>>(untyped_ref);
+
+      if (!typed_ref) {
+	throw snde_error("reference_typed_ndarray(): Cannot cast ndarray with type %s to type %s",rtn_typenamemap.at(untyped_ref->typenum).c_str(),rtn_typenamemap.at(rtn_typemap.at(typeid(T))).c_str());
+      }
+      return typed_ref; 
+    }
+
+    template <typename T>
+    std::shared_ptr<ndtyped_recording_ref<T>> multi_ndarray_recording::reference_typed_ndarray(const std::string &array_name)
+    {
+      std::shared_ptr<ndarray_recording_ref> untyped_ref = reference_ndarray(array_name);
+      std::shared_ptr<ndtyped_recording_ref<T>> typed_ref = std::dynamic_pointer_cast<ndtyped_recording_ref<T>>(untyped_ref);
+
+      if (!typed_ref) {
+	throw snde_error("reference_typed_ndarray(): Cannot cast ndarray with type %s to type %s",rtn_typenamemap.at(untyped_ref->typenum).c_str(),rtn_typenamemap.at(rtn_typemap.at(typeid(T))).c_str());
+      }
+      return typed_ref; 
+      
+    }
+
+
+  
 };
 
 #endif // SNDE_RECSTORE_HPP

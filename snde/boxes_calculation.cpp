@@ -208,8 +208,8 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
     }
 
     // find minx,maxx, etc.
-    snde_coord inf = my_infnan(ERANGE);
-    snde_coord neginf = my_infnan(-ERANGE);
+    snde_coord inf = snde_infnan(ERANGE);
+    snde_coord neginf = snde_infnan(-ERANGE);
     
     snde_coord minx=inf; 
     snde_coord maxx=neginf; 
@@ -613,8 +613,8 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
     }
 
     // find minx,maxx, etc.
-    snde_coord inf = my_infnan(ERANGE);
-    snde_coord neginf = my_infnan(-ERANGE);
+    snde_coord inf = snde_infnan(ERANGE);
+    snde_coord neginf = snde_infnan(-ERANGE);
     
     snde_coord minu=inf; 
     snde_coord maxu=neginf; 

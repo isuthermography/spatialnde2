@@ -474,6 +474,7 @@ template <typename T>
 %include "recmath.i"
 %include "recmath_cppfunction.i"
 %include "notify.i"
+%include "arrayposition.i"
 %include "rendermode.i"
 %include "display_requirements.i"
 %include "snde_qt.i"
@@ -511,6 +512,9 @@ template <typename T>
   PyDict_SetItemString(Globals,"np",NumpyModule);
   PyDict_SetItemString(Globals,"dtype",np_dtype);
 
+  // ***!!!***!!! Need to regularize these dtypes with the ones defined in geometry_types.i that
+  // end up as nt_snde_xxxxx in the generated Python. 
+  
   // SNDE_RTN_UNASSIGNED: Not valid for Numpy  
   snde::rtn_numpytypemap.emplace(SNDE_RTN_FLOAT32,PyArray_DescrFromType(NPY_FLOAT32));
   snde::rtn_numpytypemap.emplace(SNDE_RTN_FLOAT64,PyArray_DescrFromType(NPY_FLOAT64));
@@ -555,6 +559,8 @@ template <typename T>
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD2,(PyArray_Descr *)coord2_dtype);
   PyObject *cmat23_dtype = PyRun_String("dtype([('row', dtype([('coord', np.float64, 3), ]) , 2), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_CMAT23,(PyArray_Descr *)cmat23_dtype);
+  PyObject *orientation3_dtype = PyRun_String("dtype([('offset', np.float64, 4), ('quat', np.float64,4) ])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_ORIENTATION3,(PyArray_Descr *)orientation3_dtype);
 #else
   PyObject *coord3_dtype = PyRun_String("dtype([('coord', np.float32, 3), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD3,(PyArray_Descr *)coord3_dtype);
@@ -562,6 +568,8 @@ template <typename T>
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD2,(PyArray_Descr *)coord2_dtype);
   PyObject *cmat23_dtype = PyRun_String("dtype([('row', dtype([('coord', np.float32, 3), ]) , 2), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_CMAT23,(PyArray_Descr *)cmat23_dtype);
+  PyObject *orientation3_dtype = PyRun_String("dtype([('offset', np.float32, 4), ('quat', np.float32,4) ])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_ORIENTATION3,(PyArray_Descr *)orientation3_dtype);
 #endif // SNDE_DOUBLEPREC_COORDS
 
 

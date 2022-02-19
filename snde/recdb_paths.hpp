@@ -93,7 +93,11 @@ namespace snde {
     // or NO leading slash), either the empty string or WITH trailing slash,
     // if "tojoin" is absolute (WITH leading slash), return it unchanged. 
     // otherwise, join context and tojoin, resolving '..''s.
-    
+
+    if (tojoin.size() < 1) {
+      throw snde_error("recdb_path_join(): tojoin() is empty!");
+      
+    }
     if (tojoin.at(0)=='/') {
       return tojoin; 
     }

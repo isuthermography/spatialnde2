@@ -189,8 +189,9 @@ namespace snde {
   }
 
   
-  tracking_pose_recording::tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string component_name):
+  tracking_pose_recording::tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_track,std::string component_name):
     recording_group(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,nullptr),
+    channel_to_track(channel_to_track),
     component_name(component_name)
   {
     

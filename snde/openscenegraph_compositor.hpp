@@ -346,6 +346,7 @@ namespace snde {
     virtual void resize_compositor(int width, int height);
 
     virtual snde_orientation3 get_camera_pose(std::string channel_path); // get the camera pose (or a null orientation) for the given channel
+    virtual void set_camera_pose(std::string channel_path,const snde_orientation3 &newpose);
     
     
 

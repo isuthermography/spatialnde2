@@ -177,8 +177,13 @@ namespace snde {
 
   class poseparams: public renderparams_base { // used for tracking_pose_recording and subclasses
   public:
-    std::shared_ptr<renderparams_base> component_params; // embedded part or sub assembly
-    snde_orientation3 component_orientation;
+    std::shared_ptr<renderparams_base> channel_to_track_params; // channel we are tracking, with constant view regardless of our viewer orientation
+    snde_orientation3 channel_to_track_orientation;
+    
+    
+    std::shared_ptr<renderparams_base> component_params; // channel we are observing 
+    //snde_orientation3 component_orientation;  // always the identity  
+    
     
     poseparams() = default;
     virtual ~poseparams() = default;

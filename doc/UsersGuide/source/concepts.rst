@@ -639,7 +639,10 @@ texture, geometry, and parameterization of a ``textured_part_recording``.
 Every step of the traversal has a goal, which defaults to ``SNDE_SRG_RENDERING``.
 A recording can set an alternative initial goal with the string metadata entry
 ``snde_render_goal``, which can be used to activate an alternative
-visualization.
+visualization. If the alternative goal is relevant to 3D rendering, the
+string metadata entry ``snde_render_goal_3d``, which can activates an
+alternative visualization in cases where a 3d rendering process is
+explicitly required by the containing step. 
 
 The traversal is performed by looking up a
 ``registered_recording_display_handler`` based on the given goal and

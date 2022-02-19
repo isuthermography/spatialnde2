@@ -55,7 +55,11 @@ namespace snde {
     
     void set_selected(QTRecSelector *Selector);
     void deselect_other_selectors(QTRecSelector *Selected);
-							  
+
+
+    snde_orientation3 get_camera_pose(std::string channelpath);			    void set_camera_pose(std::string channelpath,const snde_orientation3 &newpose);
+				  
+
     //public slots:
     void update_rec_list();
     

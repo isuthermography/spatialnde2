@@ -344,23 +344,23 @@ static GEOTYPES_INLINE int snde_direction_flip(int direction)
   return SNDE_DIRECTION_CCW;
 }
 
-typedef struct {
+typedef struct _snde_coord3_int16 {
   int16_t coord[3];
 } snde_coord3_int16;
 
-typedef struct {
+typedef struct _snde_coord4 {
   snde_coord coord[4];
 } snde_coord4;
 
-typedef struct {
+typedef struct _snde_coord3 {
   snde_coord coord[3];
 } snde_coord3;
 
-typedef struct {
+typedef struct _snde_coord2 {
   snde_coord coord[2];
 } snde_coord2;
 
-typedef struct {
+typedef struct _snde_orientation3 {
   /* for point p, orientation represents q p q' + o  */
   snde_coord4 offset; // 4th coordinate of offset always zero
   snde_coord4 quat; // normalized quaternion ... represented as , i (x) component, j (y) component, k (z) component, real (w) component
@@ -421,7 +421,7 @@ typedef struct _snde_rgbd {
 } snde_rgbd;
 
   
-typedef struct {
+typedef struct _snde_orientation2 {
   // i.e. rotate point coordinates (rhs) by angle,
   // then add offset
   snde_coord offset[2];
@@ -430,14 +430,14 @@ typedef struct {
 
 
 
-typedef struct {
+typedef struct _snde_axis3 {
   snde_coord coord[3];
 } snde_axis3;
 
 
   /* Note: mesh edges (snde_edge) connect between triangles, 
      see struct snde_faceedge for connection between faces */ 
-typedef struct {
+typedef struct _snde_edge {
   snde_index vertex[2];
   snde_index tri_a,tri_b;
   snde_index tri_a_prev_edge, tri_a_next_edge; /* counter-clockwise ordering */
@@ -445,48 +445,48 @@ typedef struct {
 } snde_edge;
 
 
-typedef struct {
+typedef struct _snde_vertex_edgelist_index {
   snde_index edgelist_index;
   snde_index edgelist_numentries;
 } snde_vertex_edgelist_index;
 
-typedef struct {
+typedef struct _snde_triangle {
   snde_index edges[3];
   snde_index face; // topological face (3D or 2D depending on whether this is part of triangles or uv_triangles) this triangle is part of (index, relative to first_topo for a 3D face; relative to 0 for a 2D face) 
 } snde_triangle; // NOTE if this triangle does not exist, is invalid, etc, then face should be set to SNDE_INDEX_INVALID
   
-typedef struct {
+typedef struct _snde_indexrange {
   snde_index start;
   snde_index len;
 } snde_indexrange;
   
-typedef struct {
+typedef struct _snde_trivertnormals {
   snde_coord3 vertnorms[3]; // vertex follow the order of vertices, counterclockwise as seen from the outside. The first vertex is the vertex from edges[0] that is NOT shared by the next_edge
 } snde_trivertnormals;
 
-typedef struct {
+typedef struct _snde_box3 {
   snde_index subbox[8];
   snde_index boxpolysidx;
   snde_index numboxpolys; 
 } snde_box3;
 
-typedef struct {
+typedef struct _snde_boxcoord3 {
   snde_coord3 min,max;
 } snde_boxcoord3;
 
-typedef struct {
+typedef struct _snde_box2 {
   snde_index subbox[4];
   snde_index boxpolysidx;
   snde_index numboxpolys; 
 } snde_box2;
 
-typedef struct {
+typedef struct _snde_boxcoord2 {
   snde_coord2 min,max;
 } snde_boxcoord2;
 
 
   
-typedef struct {
+typedef struct _snde_axis32 {
   snde_axis3 axis[2];
 } snde_axis32;
 
@@ -495,7 +495,7 @@ typedef struct {
   //snde_coord cols[3];
   //} snde_row3;
 
-typedef struct {
+typedef struct _snde_cmat23 {
   snde_coord3 row[2];
 } snde_cmat23;
 

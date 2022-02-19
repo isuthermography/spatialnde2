@@ -100,14 +100,18 @@ namespace snde {
     // the tracking_pose_recording is like a single-component
     // assembly with a particular orientation that, when
     // rendered, tracks the pose of something else, as
-    // determined by the behavior of the get_pose() virtual method
+    // determined by the behavior of the get_channel_to_track_pose() virtual method
     
     // abstract class: Must subclass! ... Then register your class to use the tracking_pose_recording_display_handler (see display_requirements.cpp)
   public:
+    // channel to track is the channel that should appear fixed in this
+    // view, with the same view as in the channel to track
+    std::string channel_to_track; // string is a path name, absolute or relative, treating the path of the tracking_pose_recording with a trailing slash as a group context
+    // component name is the component that we can manipulate, etc. 
     std::string component_name; // string is a path name, absolute or relative, treating the path of the tracking_pose_recording with a trailing slash as a group context
-    virtual snde_orientation3 get_pose() const = 0;
+    virtual snde_orientation3 get_channel_to_track_pose() const = 0;
     
-    tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string component_name);
+    tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_track,std::string component_name);
     
   };
 

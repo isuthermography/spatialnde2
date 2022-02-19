@@ -55,7 +55,8 @@ namespace snde {
 
   class osg_renderer {
   public:
-    // base class for renderers
+    // base class for renderers.... Not generally thread safe, like OpenSceneGraph
+    // except for GetLastCameraPose() method and AssignNewCameraPose()
 
     osg::ref_ptr<osgViewer::Viewer> Viewer;
     osg::ref_ptr<osg::MatrixTransform> RootTransform; // Need Root group because swapping out SceneData clears event queue
@@ -63,6 +64,10 @@ namespace snde {
     osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow;
     osg::ref_ptr<osgGA::EventQueue> EventQueue; // we keep a separate pointer to the event queue because getEventQueue() may not e thread safe but the EventQueue itself seems to be. 
     std::string channel_path;
+
+    std::mutex LCP_NCP_mutex; // protects _LastCameraPose and _NewCameraPose; last in the locking order; definitely after the compositor admin lock
+    osg::Matrixd _LastCameraPose;
+    osg::ref_ptr<osg::RefMatrixd> _NewCameraPose; // if not nullptr, use this new camera pose on next render.
 
     int type; // see SNDE_DRRT_XXXXX in rec_display.hpp
     bool enable_shaders;
@@ -85,8 +90,12 @@ namespace snde {
 		   size_t width,
 		   size_t height)=0;
 
+    
+    
     virtual void frame();
-
+    virtual osg::Matrixd GetLastCameraPose();
+    virtual void AssignNewCameraPose(const osg::Matrixd &newpose);
+    
   };
 
 
