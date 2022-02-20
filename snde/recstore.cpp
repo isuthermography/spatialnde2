@@ -647,6 +647,10 @@ namespace snde {
     
     std::shared_ptr<recdatabase> recdb = recdb_weak.lock();
     if (!recdb) return;
+
+    if (!metadata) {
+      metadata=std::make_shared<immutable_metadata>();
+    }
     
     {
       std::unique_lock<std::mutex> rec_admin(admin);
@@ -655,7 +659,8 @@ namespace snde {
 	// this transaction is still in progress; notifications will be handled by end_transaction()
 	
 	
-	assert(metadata);
+	//assert(metadata);
+	
 	if (!info->metadata) {
 	  info->metadata = metadata.get();
 	}
@@ -3722,7 +3727,11 @@ namespace snde {
       throw snde_error("Recording channel %s is not a multi_ndarray",fullpath.c_str());
     }
 
-    size_t array_index = rec_ndarray->name_mapping.at(array_name);
+    auto name_mapping_it = rec_ndarray->name_mapping.find(array_name);
+    if (name_mapping_it == rec_ndarray->name_mapping.end()) {
+      throw snde_error("Recording multi_ndarray %s does not have an array %s",fullpath.c_str(),array_name.c_str());
+    }
+    size_t array_index = name_mapping_it->second;
     
     return rec_ndarray->reference_ndarray(array_index);
   }

@@ -1,6 +1,9 @@
 %shared_ptr(snde::rwlock);
+snde_rawaccessible(snde::rwlock);
 %shared_ptr(snde::rwlock_token_content);
+snde_rawaccessible(snde::rwlock_token_content);
 %shared_ptr(snde::rwlock_token_set_content);
+snde_rawaccessible(snde::rwlock_token_set_content);
 
 %{
   
@@ -89,7 +92,9 @@ namespace snde {
   };
   typedef std::shared_ptr<rwlock_token_content> rwlock_token;
 
-  typedef std::unordered_map<rwlock_lockable *,rwlock_token> rwlock_token_set_content;
+  //typedef std::unordered_map<rwlock_lockable *,rwlock_token> rwlock_token_set_content;
+  class rwlock_token_set_content {}; // rwlock_token_set_content is fully abstract from the SWIG perspective
+  
   //typedef std::shared_ptr<rwlock_token_set_content> rwlock_token_set;
   // Persistent token of lock ownership
   //typedef std::shared_ptr<std::unique_lock<rwlock_lockable>> rwlock_token;
@@ -97,6 +102,10 @@ namespace snde {
   typedef std::shared_ptr<rwlock_token_set_content> rwlock_token_set;
 };
 
+// On the python side, no distinction between the class and shared_ptr
+%pythoncode %{
+  rwlock_token_set = rwlock_token_set_content
+%}
 
 /*
 %typemap(out) snde::rwlock_token_set {
@@ -150,7 +159,7 @@ namespace snde{
 
 
 //%template(rwlock_token_content) std::unique_lock<rwlock_lockable>;
-%template(rwlock_token) std::shared_ptr<snde::rwlock_token_content>;  
-%template(rwlock_token_set) std::shared_ptr<snde::rwlock_token_set_content>;  
+//%template(rwlock_token) std::shared_ptr<snde::rwlock_token_content>;  
+//%template(rwlock_token_set) std::shared_ptr<snde::rwlock_token_set_content>;  
 
 

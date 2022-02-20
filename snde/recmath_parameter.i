@@ -130,9 +130,16 @@ namespace snde {
   class math_parameter_recording: public math_parameter {
   public:
     std::string channel_name;
+    size_t array_index;
+    std::string array_name; // overrides array_index if size(array_name) > 0
 
     math_parameter_recording(std::string channel_name);
+    math_parameter_recording(std::string channel_name,size_t array_index);
+    math_parameter_recording(std::string channel_name,std::string array_name);
+    
     virtual std::shared_ptr<recording_base> get_recording(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings. parameter_index starting at 1, just for printing messages
+    virtual std::shared_ptr<ndarray_recording_ref> get_ndarray_recording_ref(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings. parameter_index starting at 1, just for printing messages
+    
     virtual std::set<std::string> get_prerequisites(/*std::shared_ptr<recording_set_state> rss,*/ const std::string &channel_path_context); // obtain immediate prerequisites of this parameter (absolute path channel names); typically only the recording
 
     virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions

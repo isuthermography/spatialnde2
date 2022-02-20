@@ -112,6 +112,201 @@ typedef char snde_bool;
 } 
 
 
+
+%define numpy_rtm_typemaps(snde_cpptype,snde_cpptype_string,SNDE_RTN_SNDE_CPPTYPE)
+ // implements input, const & input, output, and argout typemaps for the specified type,
+ // which must have an entry in snd::rtn_numpytypemap
+
+%typemap(typecheck,precedence=SWIG_TYPECHECK_FLOAT_ARRAY) snde_cpptype {
+  std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it;
+  PyArray_Descr *ArrayDescr;
+  PyArrayObject *castedarrayobj;
+  numpytypemap_it = snde::rtn_numpytypemap.find( SNDE_RTN_SNDE_CPPTYPE );
+
+  if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
+    //throw snde::snde_error("No corresponding numpy datatype found for " snde_cpptype_string );
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			  "$argnum"" No corresponding numpy datatype found for " snde_cpptype_string);
+
+  }
+  ArrayDescr = numpytypemap_it->second;
+  Py_IncRef((PyObject *)ArrayDescr); // because PyArray_NewFromDescr steals a reference to its descr parameter
+
+  // Cast to our desired type
+  castedarrayobj = (PyArrayObject *)PyArray_CheckFromAny($input,ArrayDescr,0,0,NPY_ARRAY_C_CONTIGUOUS|NPY_ARRAY_NOTSWAPPED|NPY_ARRAY_ELEMENTSTRIDES,nullptr);
+  if (castedarrayobj) {
+    Py_DecRef((PyObject *)castedarrayobj);
+    $1 = 1;
+  } else {
+    $1 = 0;
+  }
+  
+}
+
+
+
+%typemap(in) snde_cpptype (std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it, PyArray_Descr *ArrayDescr,PyArrayObject *castedarrayobj) {
+  numpytypemap_it = snde::rtn_numpytypemap.find( SNDE_RTN_SNDE_CPPTYPE );
+
+  if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
+    //throw snde::snde_error("No corresponding numpy datatype found for " snde_cpptype_string );
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			  "$argnum"" No corresponding numpy datatype found for " snde_cpptype_string);
+
+  }
+  ArrayDescr = numpytypemap_it->second;
+  Py_IncRef((PyObject *)ArrayDescr); // because PyArray_NewFromDescr steals a reference to its descr parameter
+
+  // Cast to our desired type
+  castedarrayobj = (PyArrayObject *)PyArray_CheckFromAny($input,ArrayDescr,0,0,NPY_ARRAY_C_CONTIGUOUS|NPY_ARRAY_NOTSWAPPED|NPY_ARRAY_ELEMENTSTRIDES,nullptr);
+  if (!castedarrayobj) {
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			  "$argnum"" input typemap: Input data is not compatible with  " snde_cpptype_string);
+    
+  }
+  
+  if (PyArray_SIZE(castedarrayobj) != 1) {
+    //throw snde::snde_error(snde_cpptype_string " input typemap: Only single input orientation is allowed");
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			  "$argnum"" input typemap: Only single input orientation is allowed for " snde_cpptype_string);
+
+  }
+
+  // now we can interpret the data as an snde_orientation3
+  
+  $1 = *(snde_cpptype *)PyArray_DATA(castedarrayobj);
+
+  // free castedarrayobj
+  Py_DecRef((PyObject *)castedarrayobj);
+}
+
+// input typemap for snde_cpptype const references
+%typemap(in) const snde_cpptype &(std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it, PyArray_Descr *ArrayDescr,PyArrayObject *castedarrayobj) {
+  numpytypemap_it = snde::rtn_numpytypemap.find(SNDE_RTN_SNDE_CPPTYPE);
+
+  if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
+    //throw snde::snde_error("No corresponding numpy datatype found for " snde_cpptype_string );
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			"$argnum"" No corresponding numpy datatype found for " snde_cpptype_string);
+    
+  }
+  ArrayDescr = numpytypemap_it->second;
+  Py_IncRef((PyObject *)ArrayDescr); // because PyArray_NewFromDescr steals a reference to its descr parameter
+
+  // Cast to our desired type
+  castedarrayobj = (PyArrayObject *)PyArray_CheckFromAny($input,ArrayDescr,0,0,NPY_ARRAY_C_CONTIGUOUS|NPY_ARRAY_NOTSWAPPED|NPY_ARRAY_ELEMENTSTRIDES,nullptr);
+  if (!castedarrayobj) {
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			  "$argnum"" input typemap: Input data is not compatible with  " snde_cpptype_string);
+    
+  }
+
+  if (PyArray_SIZE(castedarrayobj) != 1) {
+    //throw snde::snde_error(snde_cpptype_string " input typemap: Only single input orientation is allowed");
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			  "$argnum"" input typemap: Only single input orientation is allowed for " snde_cpptype_string);
+  }
+
+  // now we can interpret the data as an snde_orientation3
+  
+  $1 = (snde_cpptype *)malloc(sizeof(snde_cpptype)); // freed by freearg typemap, below
+  *$1 = *(snde_cpptype *)PyArray_DATA(castedarrayobj);
+
+  // free castedarrayobj
+  Py_DecRef((PyObject *)castedarrayobj);
+}
+
+%typemap(freearg) const snde_cpptype &// free orientation from const snde_cpptype & input typemap, above
+{
+  free($1);
+}
+
+
+
+
+
+%typemap(out) snde_cpptype (std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it, PyArray_Descr *ArrayDescr,PyArrayObject *arrayobj) {
+  numpytypemap_it = snde::rtn_numpytypemap.find(SNDE_RTN_SNDE_CPPTYPE);
+  if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
+    //throw snde::snde_error("No corresponding numpy datatype found for " snde_cpptype_string );
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			"$argnum"" No corresponding numpy datatype found for " snde_cpptype_string);
+
+  }
+  ArrayDescr = numpytypemap_it->second;
+
+  Py_IncRef((PyObject *)ArrayDescr); // because PyArray_CheckFromAny steals a reference to its descr parameter
+
+  // create new 0D array 
+  arrayobj = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type,ArrayDescr,0,nullptr,nullptr,nullptr,0,nullptr);
+
+  assert(PyArray_SIZE(arrayobj) == 1);
+  memcpy(PyArray_DATA(arrayobj),&$1,sizeof($1));
+
+  $result = (PyObject *)arrayobj;
+}
+
+
+// this typemap allows the input to not be present for a strict output argument
+%typemap(in, numinputs=0) snde_cpptype *OUTPUT(snde_cpptype temp) {
+  $1 = &temp;
+}
+
+%typemap(argout) snde_cpptype *OUTPUT (std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it, PyArray_Descr *ArrayDescr,PyArrayObject *arrayobj) {
+  numpytypemap_it = snde::rtn_numpytypemap.find(SNDE_RTN_SNDE_CPPTYPE);
+  if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
+    //throw snde::snde_error("No corresponding numpy datatype found for " snde_cpptype_string );
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			"$argnum"" No corresponding numpy datatype found for " snde_cpptype_string);
+    
+  }
+  ArrayDescr = numpytypemap_it->second;
+
+  Py_IncRef((PyObject *)ArrayDescr); // because PyArray_CheckFromAny steals a reference to its descr parameter
+
+  // create new 0D array 
+  arrayobj = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type,ArrayDescr,0,nullptr,nullptr,nullptr,0,nullptr);
+
+  assert(PyArray_SIZE(arrayobj) == 1);
+  memcpy(PyArray_DATA(arrayobj),$1,sizeof(*$1));
+
+  $result = (PyObject *)arrayobj;
+}
+
+
+
+%enddef
+
+
+numpy_rtm_typemaps(snde_orientation3,"snde_orientation3",SNDE_RTN_SNDE_ORIENTATION3);
+numpy_rtm_typemaps(snde_coord4,"snde_coord4",SNDE_RTN_SNDE_COORD4);
+
+
+typedef struct _snde_orientation3 {
+  /* for point p, orientation represents q p q' + o  */
+  snde_coord4 offset; // 4th coordinate of offset always zero
+  snde_coord4 quat; // normalized quaternion ... represented as , i (x) component, j (y) component, k (z) component, real (w) component
+} snde_orientation3;
+
+// give structure a constructor per
+// https://stackoverflow.com/questions/33564645/how-to-add-an-alternative-constructor-to-the-target-language-specifically-pytho
+
+%ignore snde_orientation3::snde_orientation3();
+
+%extend _snde_orientation3 {
+  _snde_orientation3(const snde_orientation3 &orig)
+  {
+    snde_orientation3 *neworient = new snde_orientation3();
+    neworient->offset=orig.offset;
+    neworient->quat=orig.quat;
+    return neworient;
+  }
+};
+
+
+
+/* This commented section has old manual implementations of the new numpy_rtm_typemaps() macro
+
 %typemap(in) snde_orientation3 (std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it, PyArray_Descr *ArrayDescr,PyArrayObject *castedarrayobj) {
   numpytypemap_it = snde::rtn_numpytypemap.find(SNDE_RTN_SNDE_ORIENTATION3);
 
@@ -189,6 +384,56 @@ typedef char snde_bool;
 
 
 
+%typemap(in, numinputs=0) snde_orientation3 *OUTPUT(snde_orientation3 temp) {
+  $1 = &temp;
+}
+
+%typemap(argout) snde_orientation3 *OUTPUT (std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it, PyArray_Descr *ArrayDescr,PyArrayObject *arrayobj) {
+  numpytypemap_it = snde::rtn_numpytypemap.find(SNDE_RTN_SNDE_ORIENTATION3);
+  if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
+    throw snde::snde_error("No corresponding numpy datatype found for snde_orientation3");
+  }
+  ArrayDescr = numpytypemap_it->second;
+
+  Py_IncRef((PyObject *)ArrayDescr); // because PyArray_CheckFromAny steals a reference to its descr parameter
+
+  // create new 0D array 
+  arrayobj = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type,ArrayDescr,0,nullptr,nullptr,nullptr,0,nullptr);
+
+  assert(PyArray_SIZE(arrayobj) == 1);
+  memcpy(PyArray_DATA(arrayobj),&$1,sizeof($1));
+
+  $result = (PyObject *)arrayobj;
+}
+
+
+
+
+%typemap(in, numinputs=0) snde_coord4 *OUTPUT(snde_coord4 temp) {
+  $1 = &temp;
+}
+
+%typemap(argout) snde_coord4 *OUTPUT (std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it, PyArray_Descr *ArrayDescr,PyArrayObject *arrayobj) {
+  numpytypemap_it = snde::rtn_numpytypemap.find(SNDE_RTN_SNDE_COORD4);
+  if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
+    throw snde::snde_error("No corresponding numpy datatype found for snde_orientation3");
+  }
+  ArrayDescr = numpytypemap_it->second;
+
+  Py_IncRef((PyObject *)ArrayDescr); // because PyArray_CheckFromAny steals a reference to its descr parameter
+
+  // create new 0D array 
+  arrayobj = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type,ArrayDescr,0,nullptr,nullptr,nullptr,0,nullptr);
+
+  assert(PyArray_SIZE(arrayobj) == 1);
+  memcpy(PyArray_DATA(arrayobj),&$1,sizeof($1));
+
+  $result = (PyObject *)arrayobj;
+}
+
+
+*/
+
 // ArrayType should be np.ndarray,
 PyObject *Pointer_To_Numpy_Array(PyObject *ArrayType, PyObject *DType,PyObject *Base,bool write,size_t n,void **ptraddress,size_t elemsize,size_t startidx);
 %{
@@ -222,8 +467,8 @@ ct_snde_shortindex=ctypes.c_uint32
 ct_snde_ioffset=ctypes.c_int64
 ct_snde_bool=ctypes.c_char
 
-nt_snde_coord = np.dtype(np.double)
-nt_snde_imagedata = np.dtype(np.float)
+nt_snde_coord = np.dtype(np.float32)
+nt_snde_imagedata = np.dtype(np.float32)
 nt_snde_index = np.dtype(np.uint64)
 nt_snde_shortindex = np.dtype(np.uint32)
 nt_snde_ioffset = np.dtype(np.int64)

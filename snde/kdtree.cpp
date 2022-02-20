@@ -203,8 +203,9 @@ namespace snde {
   }
 
 
+  std::shared_ptr<math_function> kdtree_calculation_function = define_kdtree_calculation_function();
   
-  static int registered_kdtree_calculation_function = register_math_function("spatialnde2.kdtree_calculation",define_kdtree_calculation_function());
+  static int registered_kdtree_calculation_function = register_math_function("spatialnde2.kdtree_calculation",kdtree_calculation_function);
 
 
 
@@ -457,10 +458,12 @@ namespace snde {
     });
     
   }
+  
+  std::shared_ptr<math_function> knn_calculation_function = define_knn_calculation_function();
 
 
   
-  static int registered_knn_calculation_function = register_math_function("spatialnde2.knn_calculation",define_knn_calculation_function());
+  static int registered_knn_calculation_function = register_math_function("spatialnde2.knn_calculation",knn_calculation_function);
 
   
   

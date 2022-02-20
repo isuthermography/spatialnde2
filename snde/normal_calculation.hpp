@@ -12,8 +12,10 @@ namespace snde {
   
 
   std::shared_ptr<math_function> define_spatialnde2_trinormals_function();
-
+  extern std::shared_ptr<math_function> trinormals_function;
+  
   std::shared_ptr<math_function> define_vertnormals_recording_function();
-
+  extern std::shared_ptr<math_function> vertnormals_recording_function;
+  
 };
 #endif // SNDE_NORMAL_CALCULATION_HPP

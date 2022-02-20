@@ -753,6 +753,31 @@ namespace snde {
 
   };
 
+  template <typename T>
+  class ndtyped_recording_ref : public ndarray_recording_ref {
+    // internals not swig-wrapped; we use typemaps below instead 
+  };
+
+
+  // implement input typemaps to give ndtyped_recording_ref<>...
+  %typemap(input) ndtyped_recording_ref<snde_kdnode> (int res=0,void *argp,std::shared_ptr<ndtyped_recording_ref<snde_kdnode>> templated) {
+    res = SWIG_ConvertPtr($input,&argp,$descriptor(ndarray_recording_ref), $disown | 0);
+    if (!SWIG_IsOK(res)) {
+      SWIG_exception_fail(SWIG_ArgError(res), "in method '" "$symname" "', argument "
+			  "$argnum"" is not convertable to a snde::ndarray_recording_ref");
+      
+    }
+    templated=std::dynamic_pointer_cast<ndtyped_recording_ref<snde_kdnode>>(*(std::shared_ptr<ndarray_recording_ref> *)argp);
+
+    if (!templated) {
+      SWIG_exception_fail(SWIG_ArgError(res), "in method '" "$symname" "', argument "
+			  "$argnum"" is not convertable to a snde::ndtyped_recording_ref<" "snde_kdnode" ">");
+      
+    }
+    $1 = templated; 
+  };
+  
+
   size_t recording_default_info_structsize(size_t param,size_t min);
 
   //template <typename T,typename ... Args>
@@ -770,6 +795,8 @@ namespace snde {
   std::shared_ptr<ndtyped_recording_ref<T>> create_typed_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss);
 
   std::shared_ptr<ndarray_recording_ref> create_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
+
+  std::shared_ptr<ndarray_recording_ref> create_anonymous_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum); // purpose is used for naming shared memory objects
 
   std::shared_ptr<ndarray_recording_ref> create_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
 
@@ -801,9 +828,10 @@ namespace snde {
 #define create_recording_size_t create_recording
    %}
 
+  
     // template for one extra recording argument that is a const vector of string-orientation pairs
-  template <class T>
-    std::shared_ptr<T> create_recording_const_vector_of_string_orientation_pairs(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,const std::vector<std::pair<std::string,snde_orientation3>> &pieces);
+  template <class T> 
+    std::shared_ptr<T> create_recording_const_vector_of_string_orientation_pairs(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,/* const */std::vector<std::pair<std::string,snde_orientation3>> /*&*/ pieces);
   %{
 #define create_recording_const_vector_of_string_orientation_pairs create_recording
    %}

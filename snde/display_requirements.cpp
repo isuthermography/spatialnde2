@@ -1487,10 +1487,44 @@ std::shared_ptr<display_requirement> assembly_recording_display_handler::get_dis
   std::shared_ptr<assembly_recording> assempart_rec=std::dynamic_pointer_cast<assembly_recording>(rec);
   assert(assempart_rec);
 
+
+
+
+  std::shared_ptr<display_spatial_position> posn;
+  std::shared_ptr<display_spatial_transform> xform;
+  std::shared_ptr<display_channel_rendering_bounds> bounds;
+  
+  {
+    std::lock_guard<std::mutex> di_lock(display->admin);
+    std::lock_guard<std::mutex> dc_lock(displaychan->admin);
+    
+    // !!!*** displaychan updates should be more formally passed around,
+    // and perhaps this update should not occur unless this was actually a render goal (?)
+    displaychan->render_mode = SNDE_DCRM_GEOMETRY;
+    
+    snde_debug(SNDE_DC_DISPLAY,"3d_channel HorizPosition: %f Position: %f pixelsperdiv=%f",displaychan->HorizPosition,displaychan->Position,display->pixelsperdiv);
+    
+    std::tie(posn,xform,bounds) = spatial_transforms_for_3d_channel(display->drawareawidth,display->drawareaheight,
+								    displaychan->HorizPosition,displaychan->Position,
+								    1.0/displaychan->RenderScale,display->pixelsperdiv);	  // magnification comes from the channel scale
+    
+    
+  } // release displaychan lock
+  
+	
+  
+  
   std::shared_ptr<assemblyparams> assembly_params=std::make_shared<assemblyparams>(); // will be filled in below
   
   std::shared_ptr<display_requirement> retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_ASSEMBLY,typeid(*this),assembly_params),rec,shared_from_this());
   retval->renderable_channelpath = std::make_shared<std::string>(chanpath);
+  retval->renderer_type = SNDE_DRRT_GEOMETRY; // this selects the lowlevel renderer
+  
+  
+  retval->spatial_position = posn;
+  retval->spatial_transform = xform;
+  retval->spatial_bounds = bounds;
+  
   
   for (auto && relpath_orientation: assempart_rec->pieces) {
 

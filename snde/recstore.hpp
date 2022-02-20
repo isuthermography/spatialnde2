@@ -1376,7 +1376,7 @@ namespace snde {
   // Note that because it is not connected to a channel, it will always use the default storage manager. That said, it is OK
   // to override the storage manager by reassigning it. 
   template <typename T,typename ... Args>
-  std::shared_ptr<T> create_anonymous_recording(std::shared_ptr<recdatabase> recdb,std::string purpose,Args && ... args)
+  std::shared_ptr<T> create_anonymous_recording(std::shared_ptr<recdatabase> recdb,std::string purpose,Args && ... args) // purpose is used for naming shared memory objects
   {
     std::shared_ptr<recording_storage_manager> storage_manager = recdb->default_storage_manager;
 
@@ -1443,7 +1443,7 @@ namespace snde {
 
 
   template <typename T>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose)
+  std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose) // purpose is used for naming shared memory objects
   {
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
@@ -1473,7 +1473,7 @@ namespace snde {
   // ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
   std::shared_ptr<ndarray_recording_ref> create_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
   
-  std::shared_ptr<ndarray_recording_ref> create_anonymous_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum);
+  std::shared_ptr<ndarray_recording_ref> create_anonymous_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum); // purpose is used for naming shared memory objects
 
   std::shared_ptr<ndarray_recording_ref> create_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
 

@@ -1,6 +1,6 @@
 /* SWIG interface for spatialnde2 */
 // swig -c++ -python spatialnde2.i
-
+ 
 %module spatialnde2
 
 %pythonbegin %{
@@ -450,6 +450,9 @@ template <typename T>
 %template(shared_ptr_string) std::shared_ptr<std::string>;
 
 
+
+
+
 %include "geometry_types.i"
 %include "snde_error.i"
 %include "memallocator.i"
@@ -475,6 +478,9 @@ template <typename T>
 %include "recmath_cppfunction.i"
 %include "notify.i"
 %include "arrayposition.i"
+%include "normal_calculation.i"
+%include "quaternion.i"
+%include "kdtree.i"
 %include "rendermode.i"
 %include "display_requirements.i"
 %include "snde_qt.i"
@@ -489,6 +495,22 @@ template <typename T>
  //%include "openclcachemanager.i"
 #endif
 
+ /*
+ // additional support needed for VectorOfStringOrientationPairs
+ // template below to avoid the problem listed at
+ // https://stackoverflow.com/questions/38404806/error-c2039-type-name-is-not-a-member-of-of-swigtraitsbar
+%{
+  namespace swig {
+    template <> struct traits<_snde_orientation3> {
+      typedef pointer_category category;
+      static const char *type_name() { return "_snde_orientation3"; }
+    };
+  };
+%}
+*/
+%template(StringOrientationPair) std::pair<std::string,snde_orientation3>;
+
+%template(VectorOfStringOrientationPairs) std::vector<std::pair<std::string,snde_orientation3>>;
 
 
 // Instantiate templates for shared ptrs
@@ -555,6 +577,8 @@ template <typename T>
 #ifdef SNDE_DOUBLEPREC_COORDS
   PyObject *coord3_dtype = PyRun_String("dtype([('coord', np.float64, 3), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD3,(PyArray_Descr *)coord3_dtype);
+  PyObject *coord4_dtype = PyRun_String("dtype([('coord', np.float64, 4), ])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD4,(PyArray_Descr *)coord4_dtype);
   PyObject *coord2_dtype = PyRun_String("dtype([('coord', np.float64, 2), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD2,(PyArray_Descr *)coord2_dtype);
   PyObject *cmat23_dtype = PyRun_String("dtype([('row', dtype([('coord', np.float64, 3), ]) , 2), ])",Py_eval_input,Globals,Globals);
@@ -564,12 +588,19 @@ template <typename T>
 #else
   PyObject *coord3_dtype = PyRun_String("dtype([('coord', np.float32, 3), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD3,(PyArray_Descr *)coord3_dtype);
+  PyObject *coord4_dtype = PyRun_String("dtype([('coord', np.float32, 4), ])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD4,(PyArray_Descr *)coord4_dtype);
   PyObject *coord2_dtype = PyRun_String("dtype([('coord', np.float32, 2), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD2,(PyArray_Descr *)coord2_dtype);
   PyObject *cmat23_dtype = PyRun_String("dtype([('row', dtype([('coord', np.float32, 3), ]) , 2), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_CMAT23,(PyArray_Descr *)cmat23_dtype);
   PyObject *orientation3_dtype = PyRun_String("dtype([('offset', np.float32, 4), ('quat', np.float32,4) ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_ORIENTATION3,(PyArray_Descr *)orientation3_dtype);
+
+  // !!!!!***** This needs to be adjusted to consider the various possible sizes for snde_index and snde_coord
+  PyObject *snde_part_dtype = PyRun_String("dtype([('firstboundary',np.uint64),('numboundaries',np.uint64),('first_topo',np.uint64),('num_topo',np.uint64),('first_topoidx',np.uint64),('num_topoidxs',np.uint64),('firsttri',np.uint64),('numtris',np.uint64),('firstedge',np.uint64),('numedges',np.uint64),('firstvertex',np.uint64),('numvertices',np.uint64),('first_vertex_edgelist',np.uint64),('num_vertex_edgelist',np.uint64),('firstbox',np.uint64),('numboxes',np.uint64),('firstboxpoly',np.uint64),('numboxpolys',np.uint64),('firstboxnurbssurface',np.uint64),('numboxnurbssurfaces',np.uint64),('pivot_point',np.float32,3),('length_scale',np.float32),('solid',np.bool),('has_triangledata',np.bool),('has_curvatures',np.bool),('pad1',np.uint8),('pad2',np.uint8,4)])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_PART,(PyArray_Descr *)snde_part_dtype);
+  
 #endif // SNDE_DOUBLEPREC_COORDS
 
 

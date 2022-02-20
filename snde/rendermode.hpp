@@ -347,7 +347,9 @@ namespace snde {
       size_t hashv = 0;
       
       for (auto && component_param: component_params) {
-	hashv ^= component_param->hash();
+	if (component_param) {
+	  hashv ^= component_param->hash();
+	}
       }
       return hashv;
     }
@@ -364,7 +366,9 @@ namespace snde {
       bool retval = true;
 
       for (size_t cnt=0; cnt < component_params.size(); cnt++) {
-	retval = retval && (*component_params.at(cnt) == *bptr->component_params.at(cnt));
+	std::shared_ptr<renderparams_base> component_param = component_params.at(cnt);
+	std::shared_ptr<renderparams_base> b_component_param = bptr->component_params.at(cnt);
+	retval = retval && ( (!component_param && !b_component_param) || (*component_param == *b_component_param));
       }
       return retval;
       
