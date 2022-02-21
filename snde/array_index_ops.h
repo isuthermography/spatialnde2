@@ -262,6 +262,20 @@ SNDE_AIO_STATIC_INLINE int snde_aic_stride_compare(const void *stride1_vp,const 
   return 1;
 }
 
+SNDE_AIO_STATIC_INLINE int snde_aic_stride_compare_reverse(const void *stride1_vp,const void *stride2_vp)
+{
+  snde_index *stride1;
+  snde_index *stride2;
+
+  stride1 = (snde_index *)stride1_vp;
+  stride2 = (snde_index *)stride2_vp;
+  if (*stride1==*stride2) return 0;
+  if (*stride1 > *stride2) return -1;
+  return 1;
+}
+
+
+
 snde_bool SNDE_AIO_STATIC_INLINE
 snde_array_is_contiguous(SNDE_AIO_GLOBAL snde_index *dimlen,
 			 SNDE_AIO_GLOBAL snde_index *strides,
@@ -270,14 +284,22 @@ snde_array_is_contiguous(SNDE_AIO_GLOBAL snde_index *dimlen,
 {
   snde_index dimnum;
   snde_index exp_stride=1; // expected stride
-
+  snde_bool f_contiguous,c_contiguous;
+  
   // after strides sorted, array
-  // should appear fortran-contiguous
+  // should appear fortran-contiguous or c-contiguous (does this actually capture all possible contiguous cases???)
   for (dimnum=0;dimnum < ndim;dimnum++) {
     workbuf[dimnum]=strides[dimnum];
   }
   qsort(workbuf,ndim,sizeof(snde_index),&snde_aic_stride_compare);
-  return snde_array_is_f_contiguous(dimlen,workbuf,ndim);
+  f_contiguous = snde_array_is_f_contiguous(dimlen,workbuf,ndim);
+
+  // need to reverse-sort to test for c contiguity
+  qsort(workbuf,ndim,sizeof(snde_index),&snde_aic_stride_compare_reverse);
+
+  c_contiguous = snde_array_is_c_contiguous(dimlen,workbuf,ndim);
+
+  return f_contiguous || c_contiguous;
   
 
 }

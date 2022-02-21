@@ -1253,7 +1253,7 @@ namespace snde {
       // c order
       for (dimnum=0;dimnum < dimlen.size();dimnum++) {
 	strides.insert(strides.begin(),stride);
-	stride *= dimlen.at(dimnum);
+	stride *= dimlen.at(dimlen.size()-dimnum-1);
       }
       
     }

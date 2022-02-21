@@ -490,7 +490,9 @@ namespace snde {
 	  // this is here in the interim to troubleshoot excessive duplicate notifications
 	  // (they should be extremely rare)
 	  snde_debug(SNDE_DC_RECMATH,"mathstatus for error 0x%llx",(unsigned long long)&recstate->mathstatus);
-	  throw snde_error("Math function %s executed without being in pending_functions queue",fcn->definition->definition_command.c_str());
+	  //throw snde_error("Math function %s executed without being in pending_functions queue",fcn->definition->definition_command.c_str());
+	  snde_debug(SNDE_DC_RECMATH,"Got math function execution notification for math function %s not in pending_functions queue. Probably a redundant notification.",fcn->definition->definition_command.c_str());
+	  assert(recstate->mathstatus.completed_functions.find(fcn) != recstate->mathstatus.completed_functions.end());
 	} else if (pending_it!=recstate->mathstatus.pending_functions.end()) {
 	  recstate->mathstatus.pending_functions.erase(pending_it);
 	  recstate->mathstatus.completed_functions.emplace(fcn);
