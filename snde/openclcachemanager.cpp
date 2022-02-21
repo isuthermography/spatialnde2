@@ -235,25 +235,28 @@ namespace snde {
     std::unordered_map<openclarrayinfo,std::weak_ptr<openclcacheentry>,openclarrayinfo_hash/*,openclarrayinfo_equal*/>::iterator buffer;
     
     /* Mark all of our buffers with this region as invalid */
-    for (auto & arrayinfo : buffers_by_array.at(arrayptr)) {
-      
-      buffer=buffer_map.find(arrayinfo);
-      assert(buffer != buffer_map.end()); // If this fails then we're not cleaning up buffers_by_array properly
-      std::shared_ptr<openclcacheentry> buffer_strong = buffer->second.lock();
-      
-      if (buffer_strong) {
-	if (exceptbuffer == nullptr || exceptbuffer.get() != buffer_strong.get()) {
+    std::unordered_map<void **,std::vector<openclarrayinfo>>::iterator buffers_by_array_it = buffers_by_array.find(arrayptr);
 
-	  if (numelem==SNDE_INDEX_INVALID) {
-	    buffer_strong->invalidity.mark_region(pos,SNDE_INDEX_INVALID);
-
-	  } else {
-	    buffer_strong->invalidity.mark_region(pos,pos+numelem);
+    if (buffers_by_array_it != buffers_by_array.end()) {
+      for (auto & arrayinfo : buffers_by_array_it->second) {
+      
+	buffer=buffer_map.find(arrayinfo);
+	assert(buffer != buffer_map.end()); // If this fails then we're not cleaning up buffers_by_array properly
+	std::shared_ptr<openclcacheentry> buffer_strong = buffer->second.lock();
+	
+	if (buffer_strong) {
+	  if (exceptbuffer == nullptr || exceptbuffer.get() != buffer_strong.get()) {
+	    
+	    if (numelem==SNDE_INDEX_INVALID) {
+	      buffer_strong->invalidity.mark_region(pos,SNDE_INDEX_INVALID);
+	      
+	    } else {
+	      buffer_strong->invalidity.mark_region(pos,pos+numelem);
+	    }
 	  }
 	}
       }
     }
-    
     
     // buffer.second is a shared_ptr to an openclcacheentry
     
