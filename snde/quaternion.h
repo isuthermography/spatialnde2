@@ -13,7 +13,7 @@
 
 static QUATERNION_INLINE void snde_null_orientation3(snde_orientation3 *out)
 {
-  snde_orientation3 null_orientation = { { 0.0, 0.0, 0.0, 0.0 }, {0.0, 0.0, 0.0, 1.0} }; /* null offset vector and unit (null) quaternion */
+  snde_orientation3 null_orientation = { { { 0.0, 0.0, 0.0, 0.0 } }, { {0.0, 0.0, 0.0, 1.0} } }; /* null offset vector and unit (null) quaternion */
   *out=null_orientation;
 }
 
@@ -130,13 +130,13 @@ static QUATERNION_INLINE void quaternion_build_rotmtx(const snde_coord4 quat,snd
 /* assumes quat is normalized, stored as 'i,j,k,w' components */
 {
   // This could definitely be optimized
-  snde_coord4 vec1 = { 1.0, 0.0, 0.0, 0.0};
+  snde_coord4 vec1 = { { 1.0, 0.0, 0.0, 0.0 } };
   quaternion_apply_vector(quat,vec1,&rotmtx[0]); // first column represents applying (1,0,0,0) vector
 
-  snde_coord4 vec2 = { 0.0, 1.0, 0.0, 0.0};
+  snde_coord4 vec2 = { { 0.0, 1.0, 0.0, 0.0 } };
   quaternion_apply_vector(quat,vec2,&rotmtx[1]); // second column represents applying (0,1,0,0) vector
 
-  snde_coord4 vec3 = { 0.0, 0.0, 1.0, 0.0};
+  snde_coord4 vec3 = { { 0.0, 0.0, 1.0, 0.0 } };
   quaternion_apply_vector(quat,vec3,&rotmtx[2]); // second column represents applying (0,0,1,0) vector
 
 }

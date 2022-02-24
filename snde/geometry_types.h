@@ -695,6 +695,8 @@ struct snde_part {
   snde_coord3 pivot_point; // rough (at least) center. Ideally could be center of mass
 
   snde_coord length_scale; // rough lengthscale around pivot_point
+
+  snde_boxcoord3 bounding_box; 
   
   snde_bool solid;
   snde_bool has_triangledata; // Have we stored/updated refpoints, maxradius, normal, inplanemat

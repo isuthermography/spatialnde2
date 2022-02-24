@@ -312,7 +312,7 @@ static VECOPS_INLINE snde_coord distsqgloballocalvecn(VECOPS_GLOBAL snde_coord *
 }
 
 
-static VECOPS_INLINE void subvecvec3(snde_coord *vec1,snde_coord *vec2,snde_coord *out)
+static VECOPS_INLINE void subvecvec3(const snde_coord *vec1,const snde_coord *vec2,snde_coord *out)
 // NOTE: if vec1 and vec2 are 2D coordinates in a 3D projective space,
 // then vec2 must be a vector, not a position
 {
@@ -373,6 +373,19 @@ static VECOPS_INLINE void addcoordcoord4proj(snde_coord4 vec1,snde_coord4 vec2,s
 }
 
 
+static VECOPS_INLINE void subcoordcoord4(snde_coord4 vec1,snde_coord4 vec2,snde_coord4 *out)
+// NOTE: if vec1 and vec2 are 2D coordinates in a 3D projective space,
+// then at least one of them must be a vector, not a position
+{
+  int outidx;
+
+  for (outidx=0;outidx < 4; outidx++) {
+    out->coord[outidx] = vec1.coord[outidx] - vec2.coord[outidx];
+    
+  }
+}
+
+
 static VECOPS_INLINE void subcoordcoord3(snde_coord3 vec1,snde_coord3 vec2,snde_coord3 *out)
 // NOTE: if vec1 and vec2 are 2D coordinates in a 3D projective space,
 // then at least one of them must be a vector, not a position
@@ -384,6 +397,8 @@ static VECOPS_INLINE void subcoordcoord3(snde_coord3 vec1,snde_coord3 vec2,snde_
     
   }
 }
+
+
 
 
 

@@ -175,7 +175,7 @@ static inline void snde_colormap_float(snde_index ColorMap,float val,float alpha
     out[0] = scaledval;
     out[1] = scaledval;
     out[2] = scaledval;
-    out[3] = scaledval;
+    out[3] = alpha;
   }
 }
 

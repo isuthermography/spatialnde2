@@ -2580,14 +2580,32 @@ namespace snde {
       // Calculate pivot point -- location in 3D space around which the object will naturally tend to rotate
       {
 	snde_coord3 pivot = { { 0.0,0.0,0.0 } };
+	graphman->geom.parts[firstpart].bounding_box.min.coord[0]=snde_infnan(ERANGE);
+	graphman->geom.parts[firstpart].bounding_box.max.coord[0]=snde_infnan(-ERANGE);
+	graphman->geom.parts[firstpart].bounding_box.min.coord[1]=snde_infnan(ERANGE);
+	graphman->geom.parts[firstpart].bounding_box.max.coord[1]=snde_infnan(-ERANGE);
+	graphman->geom.parts[firstpart].bounding_box.min.coord[2]=snde_infnan(ERANGE);
+	graphman->geom.parts[firstpart].bounding_box.max.coord[2]=snde_infnan(-ERANGE);
 
 	for (snde_index vertcnt=0;vertcnt < num_vertices;vertcnt++) {
 	  accumcoordcoord3(graphman->geom.vertices[firstvertex+vertcnt],&pivot);
+	  for (unsigned coord_idx=0; coord_idx < 3; coord_idx++) {
+	    if (graphman->geom.vertices[firstvertex+vertcnt].coord[coord_idx] < graphman->geom.parts[firstpart].bounding_box.min.coord[coord_idx]) {
+	      graphman->geom.parts[firstpart].bounding_box.min.coord[coord_idx] = graphman->geom.vertices[firstvertex+vertcnt].coord[coord_idx];
+	    }
+	    if (graphman->geom.vertices[firstvertex+vertcnt].coord[coord_idx] > graphman->geom.parts[firstpart].bounding_box.max.coord[coord_idx]) {
+	      graphman->geom.parts[firstpart].bounding_box.max.coord[coord_idx] = graphman->geom.vertices[firstvertex+vertcnt].coord[coord_idx];
+	    }
+	    
+	  }
 	}
-
+ 
 	// divide by num_vertices to get average position and store in structure
+	//#warning pivot_point calculation temporarily eliminated
+	//graphman->geom.parts[firstpart].pivot_point.coord[0]=0;
+	//graphman->geom.parts[firstpart].pivot_point.coord[1]=0;
+	//graphman->geom.parts[firstpart].pivot_point.coord[2]=0;
 	scalecoord3(1.0/num_vertices,pivot,&graphman->geom.parts[firstpart].pivot_point);
-	
       }
 
 

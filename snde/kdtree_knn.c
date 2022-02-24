@@ -54,244 +54,246 @@ snde_index snde_kdtree_knn_one(KDTREE_GLOBAL struct snde_kdnode *tree,
   
   bboxstack[0] = snde_infnan(-ERANGE); // -inf
   bboxstack[1] = snde_infnan(ERANGE); // inf
-  
-  statestack[0] = SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT|SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT;
-  while (1) {
-    
-    dimnum = depth % ndim; 
 
-    /*
-#ifdef __OPENCL_VERSION__
-    if (get_global_id(0) < 2) {
-      printf("global id: %d  depth = %d, node@0x%lx = %d\n",(int)get_global_id(0),(int)depth,(unsigned long)&nodestack[depth],(int)nodestack[depth]);
+  if (!isnan(to_find[0])) {
+    statestack[0] = SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT|SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT;
+    while (1) {
+      
+      dimnum = depth % ndim; 
+      
+      /*
+	#ifdef __OPENCL_VERSION__
+	if (get_global_id(0) < 2) {
+	printf("global id: %d  depth = %d, node@0x%lx = %d\n",(int)get_global_id(0),(int)depth,(unsigned long)&nodestack[depth],(int)nodestack[depth]);
       if (depth >= 1) {
 	printf("gid %d previous node@0x%lx= %d\n",(int)get_global_id(0),(unsigned long)&nodestack[depth-1],(int)nodestack[depth-1]);
       }
       printf("gid %d bboxstack@0x%lx; statestacks@0x%lx\n",(int)get_global_id(0),(unsigned long)&bboxstack[0],(unsigned long)&statestack[0]);
       
-    }
-#endif
-    */    
-    if (nodestack[depth]==SNDE_INDEX_INVALID) {
-      // pop up
-      depth--;
-      continue;
-    }
-
-    snde_coord coordpos = to_find[dimnum];
-    KDTREE_GLOBAL struct snde_kdnode *working_node = &tree[nodestack[depth]];
-    snde_coord nodepos = vertices[working_node->cutting_vertex*ndim + dimnum];
-
-    if ((statestack[depth] & (SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT|SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT)) == (SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT|SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT)) {
-      // just starting to work on this node. Haven't seen it before.
-      
-      // check if this subtree has any possibility
-      // of being closer than our current best.
-
-    
-      // (just check along current axis, for now)
-      // NOTE: Current bounding box corresponds to __previous__ dimnum.
-      // so we need to go up ndim-1 places on the stack --
-      // equivalent to going down one notch then renormalizing
-      snde_coord bbox_left,bbox_right;
-      if (depth < ndim-1) {
-	bbox_left = snde_infnan(-ERANGE); // -inf
-	bbox_right = snde_infnan(ERANGE); // +inf
-      } else {
-       
-	bbox_left = bboxstack[(depth-(ndim-1))*2];
-	bbox_right = bboxstack[(depth-(ndim-1))*2+1];
       }
-      snde_coord dist_to_left  = coordpos - bbox_left;
-      snde_coord dist_to_right  = bbox_right - coordpos;
-
-      char possibly_closer = FALSE;
-    
-      if (dist_to_left >= 0.f && dist_to_right >= 0.f) {
-	// point inside box on this axis. So definitely possibly closer
-	possibly_closer = TRUE; 
-      } else {
-	if (dist_to_left < 0.f) {
-	  // within the given distance of the bounding box edge?
-	  // square it for comparison with closest_dist_sq
-	  dist_to_left = dist_to_left*dist_to_left;
-	  
-	  if (dist_to_left <= closest_dist_sq) {
-	    possibly_closer = TRUE;
-	  }
-	} else if (dist_to_right < 0.f) {
-	  dist_to_right = dist_to_right*dist_to_right;
-	  if (dist_to_right <= closest_dist_sq) {
-	    possibly_closer = TRUE;
-	  }
-	}
-      }
-      
-      if (!possibly_closer) {
-	/*
-#ifdef __OPENCL_VERSION__
-	if (get_global_id(0)==0 && depth==2 && nodestack[depth]==5) {
-	  printf("global id: 0  depth = %d, node = %d NOT POSSIBLY CLOSER\n",(int)depth,(int)nodestack[depth]);
-	}
-#endif
-*/
-
-	// don't need to go further: pop up
-	if (!depth) {
-	  break;
-	}
+      #endif
+      */    
+      if (nodestack[depth]==SNDE_INDEX_INVALID) {
+	// pop up
 	depth--;
 	continue;
       }
       
-      // Let's check if this node is closest so-far
-      snde_coord node_dist_sq = distsqglobalvecn(&vertices[working_node->cutting_vertex*ndim],to_find,ndim);
-      if (node_dist_sq < closest_dist_sq) {
-	// this one is closest
-	closest_dist_sq = node_dist_sq;
-	closest_index = working_node->cutting_vertex;
-      }
+      snde_coord coordpos = to_find[dimnum];
+      KDTREE_GLOBAL struct snde_kdnode *working_node = &tree[nodestack[depth]];
+      snde_coord nodepos = vertices[working_node->cutting_vertex*ndim + dimnum];
       
-      // need to pick whether to traverse down on the left or right
-      // or neither
-      // since we haven't done either yet
-      if (working_node->left_subtree==SNDE_INDEX_INVALID && working_node->right_subtree==SNDE_INDEX_INVALID) {
-	/*
-#ifdef __OPENCL_VERSION__
-	if (get_global_id(0)==0 && depth==2 && nodestack[depth]==5) {
-	  printf("global id: 0  depth = %d, node = %d BOTH_SUBNODES_INVALID\n",(int)depth,(int)nodestack[depth]);
+      if ((statestack[depth] & (SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT|SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT)) == (SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT|SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT)) {
+	// just starting to work on this node. Haven't seen it before.
+	
+	// check if this subtree has any possibility
+	// of being closer than our current best.
+	
+	
+	// (just check along current axis, for now)
+	// NOTE: Current bounding box corresponds to __previous__ dimnum.
+	// so we need to go up ndim-1 places on the stack --
+	// equivalent to going down one notch then renormalizing
+	snde_coord bbox_left,bbox_right;
+	if (depth < ndim-1) {
+	  bbox_left = snde_infnan(-ERANGE); // -inf
+	  bbox_right = snde_infnan(ERANGE); // +inf
+	} else {
+	  
+	  bbox_left = bboxstack[(depth-(ndim-1))*2];
+	  bbox_right = bboxstack[(depth-(ndim-1))*2+1];
 	}
+	snde_coord dist_to_left  = coordpos - bbox_left;
+	snde_coord dist_to_right  = bbox_right - coordpos;
+	
+	char possibly_closer = FALSE;
+	
+	if (dist_to_left >= 0.f && dist_to_right >= 0.f) {
+	  // point inside box on this axis. So definitely possibly closer
+	  possibly_closer = TRUE; 
+	} else {
+	  if (dist_to_left < 0.f) {
+	    // within the given distance of the bounding box edge?
+	    // square it for comparison with closest_dist_sq
+	    dist_to_left = dist_to_left*dist_to_left;
+	    
+	    if (dist_to_left <= closest_dist_sq) {
+	      possibly_closer = TRUE;
+	    }
+	  } else if (dist_to_right < 0.f) {
+	    dist_to_right = dist_to_right*dist_to_right;
+	    if (dist_to_right <= closest_dist_sq) {
+	      possibly_closer = TRUE;
+	    }
+	  }
+	}
+	
+	if (!possibly_closer) {
+	  /*
+	    #ifdef __OPENCL_VERSION__
+	    if (get_global_id(0)==0 && depth==2 && nodestack[depth]==5) {
+	    printf("global id: 0  depth = %d, node = %d NOT POSSIBLY CLOSER\n",(int)depth,(int)nodestack[depth]);
+	}
+	#endif
+	  */
+	  
+	  // don't need to go further: pop up
+	  if (!depth) {
+	    break;
+	  }
+	  depth--;
+	  continue;
+	}
+	
+	// Let's check if this node is closest so-far
+	snde_coord node_dist_sq = distsqglobalvecn(&vertices[working_node->cutting_vertex*ndim],to_find,ndim);
+	if (node_dist_sq < closest_dist_sq) {
+	  // this one is closest
+	  closest_dist_sq = node_dist_sq;
+	  closest_index = working_node->cutting_vertex;
+	}
+	
+	// need to pick whether to traverse down on the left or right
+	// or neither
+	// since we haven't done either yet
+	if (working_node->left_subtree==SNDE_INDEX_INVALID && working_node->right_subtree==SNDE_INDEX_INVALID) {
+	  /*
+	    #ifdef __OPENCL_VERSION__
+	    if (get_global_id(0)==0 && depth==2 && nodestack[depth]==5) {
+	    printf("global id: 0  depth = %d, node = %d BOTH_SUBNODES_INVALID\n",(int)depth,(int)nodestack[depth]);
+	    }
+	    #endif
+	  */
+	  // nowhere to go
+	  // time to pop back up.
+	  if (!depth) {
+	    break;
+	  }
+	  depth--;
+	  continue;
+	}
+	
+	// check for exceeding depth limit.
+	// this should NEVER trigger unless
+	// max_depth is set incorrectly
+	if (depth==max_depth-1) {
+	  // reached depth limit
+#ifdef __OPENCL_VERSION__
+	  // pop up
+	  //if (get_global_id(0)==0 && depth==2 && nodestack[depth]==5) {
+	  printf("kdtree oveflow: global id: %d  depth = %d, node = %d DEPTH_LIMIT\n",(int)get_global_id(0),(int)depth,(int)nodestack[depth]);
+	  //}
+	  depth--;
+	  continue;
+#else // __OPENCL_VERSION__
+	  assert(0);
+#endif // __OPENCL_VERSION__
+	  
+	}
+	if (coordpos < nodepos) {
+	  // left-subtree
+	  
+	  // mark us as already going down the left path
+	  statestack[depth] &= ~SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT;
+	  
+	  // push onto the stack
+	  depth++;
+	  nodestack[depth]=working_node->left_subtree;
+	  statestack[depth] = SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT|SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT;
+	  bboxstack[depth*2] = bbox_left; // keep previous left bound
+	  bboxstack[depth*2+1] = nodepos; // current node position becomes the right bound
+	  continue; // loop back into depth traversal
+	  
+	  
+	} else { // (coordpos >= nodepos) 
+	  // right-subtree
+	  
+	  // mark us as already going down the RIGHT path
+	  statestack[depth] &= ~SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT;
+	  
+	  depth++;
+	  nodestack[depth]=working_node->right_subtree;
+	  statestack[depth] = SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT|SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT;
+	  
+	  bboxstack[depth*2] = nodepos; // current node position becomes the left bound 
+	  bboxstack[depth*2+1] = bbox_right; // keep previous right bound
+	  continue; // loop back into depth traversal
+	}
+	
+      } else if (statestack[depth] & SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT) {
+	
+	/*
+	  #ifdef __OPENCL_VERSION__
+	  if (get_global_id(0)==0 && depth==2 && nodestack[depth]==5) {
+	  printf("global id: 0  depth = %d, node@0x%lx = %d TRAVERSING_LEFT; previous node=%d\n",(int)depth,(unsigned long)&nodestack[depth],(int)nodestack[depth],(int)nodestack[depth-1]);
+	  }
 #endif
 	*/
-	// nowhere to go
+	// already traversed right here, let's traverse left this time
+	// mark us as already going down the left path
+	statestack[depth] &= ~SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT;
+	
+	// push onto the stack
+	depth++;
+	nodestack[depth]=working_node->left_subtree;
+	statestack[depth] = SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT|SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT;
+	
+	/*
+	  #ifdef __OPENCL_VERSION__
+	  if (get_global_id(0)==0 && depth==3 && nodestack[depth]==5) {
+	  printf("global id: 0  depth = %d, previous_node@0x%lx = %d PROCESS_OF_TRAVERSING_LEFT ndim=%u\n",(int)depth,(unsigned long)&nodestack[depth-1],(int)nodestack[depth-1],(unsigned)ndim);
+	  }
+	  #endif
+	*/
+	if (depth >= ndim) {
+	  bboxstack[depth*2] = bboxstack[(depth-ndim)*2]; // keep previous left bound -- note depth has already been incremented so the index here is equivalent to (pre_increment_depth-(ndim-1))*2
+	} else {
+	  bboxstack[depth*2] = snde_infnan(-ERANGE); // left bound of -infinity to start
+	}
+	
+	bboxstack[depth*2+1] = nodepos; // current node position becomes the right bound
+	
+	continue; // loop back into depth traversal
+	
+      } else if (statestack[depth] & SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT) {
+	
+	
+	// mark us as already going down the RIGHT path
+	statestack[depth] &= ~SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT;
+	
+	depth++;
+	nodestack[depth]=working_node->right_subtree;
+	statestack[depth] = SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT|SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT;
+	
+	bboxstack[depth*2] = nodepos; // current node position becomes the left bound
+	if (depth >= ndim) {
+	  bboxstack[depth*2+1] = bboxstack[(depth-ndim)*2+1]; // keep previous right bound -- note depth has already been incremented so the index here is equivalent to (pre_increment_depth-(ndim-1))*2
+	} else {
+	  bboxstack[depth*2+1] = snde_infnan(ERANGE); // right bound of +infinity to start
+	}
+	continue; // loop back into depth traversal
+	
+      } else {
+	
+	/*
+	  #ifdef __OPENCL_VERSION__
+	  if (get_global_id(0)==0 && depth==2 && nodestack[depth]==5) {
+	  printf("global id: 0  depth = %d, node = %d LEVEL_DONE; previous node=%d\n",(int)depth,(int)nodestack[depth],(int)nodestack[depth-1]);
+	  }
+	  #endif
+	*/
+	
+	// already traversed left and right at this level;
 	// time to pop back up.
 	if (!depth) {
 	  break;
 	}
 	depth--;
 	continue;
-      }
-
-      // check for exceeding depth limit.
-      // this should NEVER trigger unless
-      // max_depth is set incorrectly
-      if (depth==max_depth-1) {
-	// reached depth limit
-#ifdef __OPENCL_VERSION__
-	// pop up
-	//if (get_global_id(0)==0 && depth==2 && nodestack[depth]==5) {
-	printf("kdtree oveflow: global id: %d  depth = %d, node = %d DEPTH_LIMIT\n",(int)get_global_id(0),(int)depth,(int)nodestack[depth]);
-	  //}
-	depth--;
-	continue;
-#else // __OPENCL_VERSION__
-	assert(0);
-#endif // __OPENCL_VERSION__
 	
       }
-      if (coordpos < nodepos) {
-	// left-subtree
-
-	// mark us as already going down the left path
-	statestack[depth] &= ~SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT;
-
-	// push onto the stack
-	depth++;
-	nodestack[depth]=working_node->left_subtree;
-	statestack[depth] = SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT|SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT;
-	bboxstack[depth*2] = bbox_left; // keep previous left bound
-	bboxstack[depth*2+1] = nodepos; // current node position becomes the right bound
-	continue; // loop back into depth traversal
-	
-	
-      } else { // (coordpos >= nodepos) 
-	// right-subtree
-	
-	// mark us as already going down the RIGHT path
-	statestack[depth] &= ~SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT;
-
-	depth++;
-	nodestack[depth]=working_node->right_subtree;
-	statestack[depth] = SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT|SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT;
-	
-	bboxstack[depth*2] = nodepos; // current node position becomes the left bound 
-	bboxstack[depth*2+1] = bbox_right; // keep previous right bound
-	continue; // loop back into depth traversal
-      }
       
-    } else if (statestack[depth] & SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT) {
-      
-      /*
-#ifdef __OPENCL_VERSION__
-      if (get_global_id(0)==0 && depth==2 && nodestack[depth]==5) {
-        printf("global id: 0  depth = %d, node@0x%lx = %d TRAVERSING_LEFT; previous node=%d\n",(int)depth,(unsigned long)&nodestack[depth],(int)nodestack[depth],(int)nodestack[depth-1]);
-      }
-#endif
-    */
-      // already traversed right here, let's traverse left this time
-      // mark us as already going down the left path
-      statestack[depth] &= ~SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT;
-      
-      // push onto the stack
-      depth++;
-      nodestack[depth]=working_node->left_subtree;
-      statestack[depth] = SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT|SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT;
-
-      /*
-#ifdef __OPENCL_VERSION__
-      if (get_global_id(0)==0 && depth==3 && nodestack[depth]==5) {
-        printf("global id: 0  depth = %d, previous_node@0x%lx = %d PROCESS_OF_TRAVERSING_LEFT ndim=%u\n",(int)depth,(unsigned long)&nodestack[depth-1],(int)nodestack[depth-1],(unsigned)ndim);
-      }
-#endif
-*/
-      if (depth >= ndim) {
-	bboxstack[depth*2] = bboxstack[(depth-ndim)*2]; // keep previous left bound -- note depth has already been incremented so the index here is equivalent to (pre_increment_depth-(ndim-1))*2
-      } else {
-	bboxstack[depth*2] = snde_infnan(-ERANGE); // left bound of -infinity to start
-      }
-      
-      bboxstack[depth*2+1] = nodepos; // current node position becomes the right bound
-
-      continue; // loop back into depth traversal
-      
-    } else if (statestack[depth] & SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT) {
-
-
-      // mark us as already going down the RIGHT path
-      statestack[depth] &= ~SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT;
-      
-      depth++;
-      nodestack[depth]=working_node->right_subtree;
-      statestack[depth] = SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_LEFT|SNDE_KDTREE_KNN_STATE_CAN_TRAVERSE_RIGHT;
-      
-      bboxstack[depth*2] = nodepos; // current node position becomes the left bound
-      if (depth >= ndim) {
-	bboxstack[depth*2+1] = bboxstack[(depth-ndim)*2+1]; // keep previous right bound -- note depth has already been incremented so the index here is equivalent to (pre_increment_depth-(ndim-1))*2
-      } else {
-	bboxstack[depth*2+1] = snde_infnan(ERANGE); // right bound of +infinity to start
-      }
-      continue; // loop back into depth traversal
-      
-    } else {
-
-  /*
-#ifdef __OPENCL_VERSION__
-      if (get_global_id(0)==0 && depth==2 && nodestack[depth]==5) {
-        printf("global id: 0  depth = %d, node = %d LEVEL_DONE; previous node=%d\n",(int)depth,(int)nodestack[depth],(int)nodestack[depth-1]);
-      }
-#endif
-  */
-  
-      // already traversed left and right at this level;
-      // time to pop back up.
-      if (!depth) {
-	break;
-      }
-      depth--;
-      continue;
-
     }
-    
   }
   
   //if (dist_squared_out) {

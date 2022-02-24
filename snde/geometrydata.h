@@ -36,7 +36,7 @@ extern "C" {
     snde_axis32 *curvature_tangent_axes; // allocated with vertices
 
     snde_vertex_edgelist_index *vertex_edgelist_indices; // allocated with vertices
-    snde_index *vertex_edgelist; // allocated separately
+    snde_index *vertex_edgelist; // allocated separately; vertex edges are listed in in CCW order 
     
 
     snde_kdnode *vertex_kdtree; // allocated separately
