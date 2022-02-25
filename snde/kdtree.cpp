@@ -216,9 +216,86 @@ namespace snde {
     
 #endif // SNDE_OPENCL
 
+#ifdef SNDE_OPENCL
+  cl::Event perform_inline_ocl_knn_calculation(std::shared_ptr<assigned_compute_resource_opencl> opencl_resource,rwlock_token_set locktokens, std::shared_ptr<ndtyped_recording_ref<snde_kdnode>> kdtree, std::shared_ptr<ndtyped_recording_ref<snde_coord3>> kdtree_vertices, OpenCLBuffers &Buffers,std::shared_ptr<ndtyped_recording_ref<snde_coord3>> search_points,cl::Event search_points_ready,std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref) // returns event that indicates result is ready (on GPU)
+  {
+    // NOTE: Must keep code parallel with perform_knn_calculation(), below!!!***
+    snde_index num_search_points = search_points->layout.flattened_length();
+    
+    if (!kdtree_vertices->layout.is_contiguous()) {
+      throw snde_error("vertices array must be contiguous");
+    }
+    if (!kdtree->layout.is_contiguous()) {
+      throw snde_error("kdtree array must be contiguous");
+    }
+    if (!search_points->layout.is_contiguous()) {
+      throw snde_error("search_points array must be contiguous");
+    }
+    
+    uint64_t max_depth=kdtree->rec->metadata->GetMetaDatumUnsigned("kdtree_max_depth",200);
+
+    cl::Device knn_dev = opencl_resource->devices.at(0);
+    cl::Kernel knn_kern = knn_calculation_opencl.get_kernel(opencl_resource->context,knn_dev);
+
+
+    uint32_t stacksize_per_workitem = max_depth+1; // uint32_t because this is passed as a kernel arg, below
+    size_t nodestacks_octwords_per_workitem = (stacksize_per_workitem*sizeof(snde_index) + 7)/8;
+    size_t statestacks_octwords_per_workitem = (stacksize_per_workitem*sizeof(uint8_t) + 7)/8;
+    size_t bboxstacks_octwords_per_workitem = (stacksize_per_workitem*(sizeof(snde_coord)*2) + 7)/8;
+    size_t local_memory_octwords_per_workitem = nodestacks_octwords_per_workitem + statestacks_octwords_per_workitem + bboxstacks_octwords_per_workitem;
+    
+    opencl_layout_workgroups_for_localmemory_1D(knn_dev,knn_kern,local_memory_octwords_per_workitem,num_search_points);
+    
+    size_t kern_work_group_size,kernel_global_work_items;
+    
+    std::tie(kern_work_group_size,kernel_global_work_items) = opencl_layout_workgroups_for_localmemory_1D(knn_dev,
+													  knn_kern,
+													  local_memory_octwords_per_workitem,
+													  num_search_points);
+    
+      
+    Buffers.AddBufferAsKernelArg(kdtree,knn_kern,0,false,false);
+    Buffers.AddBufferAsKernelArg(kdtree_vertices,knn_kern,1,false,false);
+    // add local memory arrays 
+    knn_kern.setArg(2,nodestacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
+    knn_kern.setArg(3,statestacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
+    knn_kern.setArg(4,bboxstacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
+      
+    knn_kern.setArg(5,sizeof(stacksize_per_workitem),&stacksize_per_workitem);
+    Buffers.AddBufferAsKernelArg(search_points,knn_kern,6,false,false);
+    Buffers.AddBufferAsKernelArg(result_ref,knn_kern,7,true,true);
+    uint32_t opencl_ndim=3;
+    knn_kern.setArg(8,sizeof(opencl_ndim),&opencl_ndim);
+    uint32_t opencl_max_depth=max_depth;
+    knn_kern.setArg(9,sizeof(opencl_max_depth),&opencl_max_depth);
+    snde_index max_index_plus_one = num_search_points;
+    knn_kern.setArg(10,sizeof(max_index_plus_one),&max_index_plus_one);
+      
+    
+      
+    cl::Event kerndone;
+    std::vector<cl::Event> FillEvents=Buffers.FillEvents();
+
+    if (search_points_ready.get()) {
+      FillEvents.push_back(search_points_ready);
+    }
+    
+    cl_int err = opencl_resource->queues.at(0).enqueueNDRangeKernel(knn_kern,{},{ kernel_global_work_items },{ kern_work_group_size },&FillEvents,&kerndone);
+    if (err != CL_SUCCESS) {
+      throw openclerror(err,"Error enqueueing kernel");
+    }
+    opencl_resource->queues.at(0).flush(); /* trigger execution */
+    // mark that the kernel has modified result_rec
+    Buffers.BufferDirty(result_ref);
+    
+    return kerndone;
+  }
+  
+#endif // SNDE_OPENCL
 
   void perform_knn_calculation(std::shared_ptr<assigned_compute_resource> compute_resource,rwlock_token_set locktokens, std::shared_ptr<ndtyped_recording_ref<snde_kdnode>> kdtree, std::shared_ptr<ndtyped_recording_ref<snde_coord3>> kdtree_vertices, std::shared_ptr<ndtyped_recording_ref<snde_coord3>> search_points,std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref)
   {
+    // NOTE: Must keep code parallel with perform_inline_ocl_knn_calculation(), above!!!***
     snde_index num_search_points = search_points->layout.flattened_length();
     
     if (!kdtree_vertices->layout.is_contiguous()) {
@@ -236,91 +313,21 @@ namespace snde {
 #ifdef SNDE_OPENCL
     std::shared_ptr<assigned_compute_resource_opencl> opencl_resource=std::dynamic_pointer_cast<assigned_compute_resource_opencl>(compute_resource);
     if (opencl_resource) {
-      
-      //snde_warning("knn executing in OpenCL!");
       cl::Device knn_dev = opencl_resource->devices.at(0);
-      cl::Kernel knn_kern = knn_calculation_opencl.get_kernel(opencl_resource->context,knn_dev);
-      //cl::Kernel knn_kern = testcase_opencl.get_kernel(opencl_resource->context,knn_dev);
+
       OpenCLBuffers Buffers(opencl_resource->oclcache,opencl_resource->context,knn_dev,locktokens);
-      
-      size_t kern_work_group_size=0;
-      knn_kern.getWorkGroupInfo(knn_dev,CL_KERNEL_WORK_GROUP_SIZE,&kern_work_group_size);
-      
-      uint32_t stacksize_per_workitem = max_depth+1; // uint32_t because this is passed as a kernel arg, below
-      size_t nodestacks_octwords_per_workitem = (stacksize_per_workitem*sizeof(snde_index) + 7)/8;
-      size_t statestacks_octwords_per_workitem = (stacksize_per_workitem*sizeof(uint8_t) + 7)/8;
-      size_t bboxstacks_octwords_per_workitem = (stacksize_per_workitem*(sizeof(snde_coord)*2) + 7)/8;
-      size_t local_memory_octwords_per_workitem = nodestacks_octwords_per_workitem + statestacks_octwords_per_workitem + bboxstacks_octwords_per_workitem;
-      
-      // limit workgroup size by local memory availability
-      cl_ulong local_mem_size=0;
-      knn_dev.getInfo(CL_DEVICE_LOCAL_MEM_SIZE,&local_mem_size);
-      size_t memory_workgroup_size_limit = local_mem_size/(8*local_memory_octwords_per_workitem);
-      if (memory_workgroup_size_limit < kern_work_group_size) {
-	kern_work_group_size = memory_workgroup_size_limit;
-      }
-      
-      
-      
-      
-      size_t kernel_global_work_items = num_search_points;
-      
-      // limit the number of work items by the global size
-      if (kernel_global_work_items < kern_work_group_size) {
-	kern_work_group_size = kernel_global_work_items; 	
-      }
-      
-      
-      size_t kern_preferred_size_multiple=0;
-      knn_kern.getWorkGroupInfo(knn_dev,CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,&kern_preferred_size_multiple);
-      
-      if (kern_work_group_size > kern_preferred_size_multiple) {
-	// Round work group size down to a multiple of of kern_preferred_size_multiple
-	kern_work_group_size = kern_preferred_size_multiple * (kern_work_group_size/kern_preferred_size_multiple);
-      }
-      
-      
-      //kern_work_group_size = 1;
-      
-      // for OpenCL 1.2 compatibility we make sure the number of global work items
-      // is a multiple of the work group size. i.e. we round the number of
-      // global work items up to the nearest multiple of kern_work_group_size
-      // (there is code in the kernel itself to ignore the excess work items) 
-      kernel_global_work_items = kern_work_group_size * ((kernel_global_work_items+kern_work_group_size-1)/kern_work_group_size);
-      
-      
-      
-      Buffers.AddBufferAsKernelArg(kdtree,knn_kern,0,false,false);
-      Buffers.AddBufferAsKernelArg(kdtree_vertices,knn_kern,1,false,false);
-      // add local memory arrays 
-      knn_kern.setArg(2,nodestacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
-      knn_kern.setArg(3,statestacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
-      knn_kern.setArg(4,bboxstacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
-      
-      knn_kern.setArg(5,sizeof(stacksize_per_workitem),&stacksize_per_workitem);
-      Buffers.AddBufferAsKernelArg(search_points,knn_kern,6,false,false);
-      Buffers.AddBufferAsKernelArg(result_ref,knn_kern,7,true,true);
-      uint32_t opencl_ndim=3;
-      knn_kern.setArg(8,sizeof(opencl_ndim),&opencl_ndim);
-      uint32_t opencl_max_depth=max_depth;
-      knn_kern.setArg(9,sizeof(opencl_max_depth),&opencl_max_depth);
-      snde_index max_index_plus_one = kernel_global_work_items;
-      knn_kern.setArg(10,sizeof(max_index_plus_one),&max_index_plus_one);
-      
-      
-      
-      cl::Event kerndone;
-      std::vector<cl::Event> FillEvents=Buffers.FillEvents();
-      
-      cl_int err = opencl_resource->queues.at(0).enqueueNDRangeKernel(knn_kern,{},{ kernel_global_work_items },{ kern_work_group_size },&FillEvents,&kerndone);
-      if (err != CL_SUCCESS) {
-	throw openclerror(err,"Error enqueueing kernel");
-      }
-      opencl_resource->queues.at(0).flush(); /* trigger execution */
-      // mark that the kernel has modified result_rec
-      Buffers.BufferDirty(result_ref);
+
+      cl::Event knn_calculation_done = perform_inline_ocl_knn_calculation(opencl_resource,
+									  locktokens,
+									  kdtree,
+									  kdtree_vertices,
+									  Buffers,
+									  search_points,
+									  cl::Event(), // pass empty event because the normal buffer load will cover it
+									  result_ref);
+									        
       // wait for kernel execution and transfers to complete
-      Buffers.RemBuffers(kerndone,kerndone,true);
+      Buffers.RemBuffers(knn_calculation_done,knn_calculation_done,true);
       
     } else {	    
 #endif // SNDE_OPENCL
@@ -338,7 +345,8 @@ namespace snde {
 							       &search_points->element(searchidx,false).coord[0],
 							       //nullptr,
 							       3,
-							       max_depth);
+							       max_depth,
+							       searchidx);
       }
       
       free(bboxstack);

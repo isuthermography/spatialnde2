@@ -305,7 +305,7 @@ namespace snde {
       //for (auto && follower_elemsize: follower_elemsizes) {
       //our_alignment.add_requirement(follower_elemsize);
       //}
-      
+
       size_t initial_allocchunksize = our_alignment.get_alignment()/elemsize;
 
       // identify prime factors of preexisting alignment requirements
@@ -338,27 +338,36 @@ namespace snde {
       }
       
       // now add in follower element size requirements, likewise
-      // with elemsize factors divided out
+      // with address alignment factors divided out
       for (auto && follower_elemsize: follower_elemsizes) {
-	std::map<size_t,size_t> followerprimefactors = prime_factorization(follower_elemsize);
+	std::map<size_t,size_t> follower_elemsize_primefactors = prime_factorization(follower_elemsize);
 	//fprintf(stderr,"follower elemsize: %d\n",(int)follower_elemsize);
 
-	// now remove elemsize factors from followerprimefactors
-	for (auto && primefactor_power: elemsizeprimefactors) {
-	  auto followerfactorref = followerprimefactors.find(primefactor_power.first);
-	  if (followerfactorref != followerprimefactors.end()) {
-	    // found this factor; reduce it appropriately.
-	    if (followerfactorref->second <= primefactor_power.second) {
-	      followerfactorref->second=0;
-	    } else {
-	      followerfactorref->second -= primefactor_power.second;
+	for (auto alignreq: alignment->address_alignment) {
+	  // for each address alignment requirement
+	  
+	  // alignreq is a size_t
+	  std::map<size_t,size_t> alignreqprimefactors = prime_factorization(alignreq);
+	  // for this follower, any common prime factors in the element size
+	  // and the alignment requirement reduce the alignment requirement
+	  
+	  for (auto && primefactor_power: alignreqprimefactors) {
+	    auto followerfactor = follower_elemsize_primefactors.find(primefactor_power.first);
+	    if (followerfactor != follower_elemsize_primefactors.end()) {
+	      if (followerfactor->second <= primefactor_power.second) {
+		primefactor_power.second -= followerfactor->second;
+	      } else {
+		primefactor_power.second=0;
+	      }
 	    }
 	  }
+	  sub_alignment.add_requirement(multiply_factors(alignreqprimefactors));
+
+	  
 	}
-	
-	sub_alignment.add_requirement(multiply_factors(followerprimefactors));
-	
       }
+	
+    
       
       _allocchunksize = ((size_t)initial_allocchunksize)*sub_alignment.get_alignment();
             

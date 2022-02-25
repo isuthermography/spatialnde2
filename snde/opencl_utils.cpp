@@ -390,6 +390,53 @@ namespace snde {
     }
     
   }
+
+
+  std::pair<size_t,size_t> opencl_layout_workgroups_for_localmemory_1D(const cl::Device &dev,
+								       const cl::Kernel &kern,
+								       const size_t local_memory_octwords_per_workitem,
+								       const snde_index global_size)
+  // !!!*** WARNING: This may return a total compute size that is larger than the given
+  // global_size. Your kernel must explicitly do nothing if it gets a get_global_id(0) >= global size !!!***
+  // returns (kern_work_group_size,kernel_global_work_items)
+  {
+    size_t kern_work_group_size=0;
+    kern.getWorkGroupInfo(dev,CL_KERNEL_WORK_GROUP_SIZE,&kern_work_group_size);
+
+
+    // limit workgroup size by local memory availability
+    cl_ulong local_mem_size=0;
+    dev.getInfo(CL_DEVICE_LOCAL_MEM_SIZE,&local_mem_size);
+    size_t memory_workgroup_size_limit = local_mem_size/(8*local_memory_octwords_per_workitem);
+    if (memory_workgroup_size_limit < kern_work_group_size) {
+      kern_work_group_size = memory_workgroup_size_limit;
+    }
+
+          
+    size_t kernel_global_work_items = global_size;
+      
+    // limit the number of work items in the work group by the global size in case global size is smaller than potential work group size
+    if (kernel_global_work_items < kern_work_group_size) {
+      kern_work_group_size = kernel_global_work_items; 	
+    }
+
+    size_t kern_preferred_size_multiple=0;
+    kern.getWorkGroupInfo(dev,CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,&kern_preferred_size_multiple);
+
+    if (kern_work_group_size > kern_preferred_size_multiple) {
+      // Round work group size down to a multiple of of kern_preferred_size_multiple
+      kern_work_group_size = kern_preferred_size_multiple * (kern_work_group_size/kern_preferred_size_multiple);
+    }
+
+    
+    // for OpenCL 1.2 compatibility we make sure the number of global work items
+    // is a multiple of the work group size. i.e. we round the number of
+    // global work items up to the nearest multiple of kern_work_group_size
+    // (there MUST BE CODE IN THE KERNEL ITSELF to ignore the excess work items) 
+    kernel_global_work_items = kern_work_group_size * ((kernel_global_work_items+kern_work_group_size-1)/kern_work_group_size);
+    
+    return std::make_pair(kern_work_group_size,kernel_global_work_items);
+  }  
   
 }
 

@@ -132,6 +132,19 @@ typedef struct _cl_mem *          cl_mem;
 
 }
 
+%typemap(typecheck,precedence=SWIG_TYPECHECK_POINTER) cl::Context {
+  $1=false;
+  { // NOTE: Not a rigorous check
+    PyObject *clContext_int_ptr=NULL;
+    clContext_int_ptr=PyObject_GetAttrString($input,"int_ptr");
+    if (clContext_int_ptr) {
+      Py_XDECREF(clContext_int_ptr);
+      $1=true;
+    }
+  }
+  
+ }
+
 %typemap(in) cl::Context (PyObject *clContext_int_ptr=NULL) {
   
   clContext_int_ptr=PyObject_GetAttrString($input,"int_ptr");
@@ -144,6 +157,20 @@ typedef struct _cl_mem *          cl_mem;
 
   Py_XDECREF(clContext_int_ptr);
 }
+
+
+%typemap(typecheck,precedence=SWIG_TYPECHECK_POINTER) cl::Device {
+  $1=false;
+  { // NOTE: Not a rigorous check
+    PyObject *clDevice_int_ptr=NULL;
+    clDevice_int_ptr=PyObject_GetAttrString($input,"int_ptr");
+    if (clDevice_int_ptr) {
+      Py_XDECREF(clDevice_int_ptr);
+      $1=true;
+    }
+  }
+  
+ }
 
 %typemap(in) cl::Device (PyObject *clDevice_int_ptr=NULL) {
   
@@ -311,6 +338,7 @@ typedef struct _cl_mem *          cl_mem;
   Py_XDECREF(pyopencl);
 }
 
+%template(CommandQueueVector) std::vector<cl::CommandQueue>;
 
 namespace snde {
 

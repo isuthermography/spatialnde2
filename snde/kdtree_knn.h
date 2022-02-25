@@ -31,7 +31,8 @@ extern "C" {
 				 KDTREE_GLOBAL snde_coord *to_find,
 				 //KDTREE_GLOBAL snde_coord *dist_squared_out,
 				 uint32_t ndim,
-				 uint32_t max_depth);
+				 uint32_t max_depth,
+				 snde_index find_index);
   
   
 #ifdef __cplusplus

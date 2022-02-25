@@ -6,12 +6,22 @@ import spatialnde2 as snde
 
 enable_opencl=False
 
+global opencl_context
+global opencl_devices
+
 
 if not "recdb" in globals():
+
     recdb=snde.recdatabase()
     snde.setup_cpu(recdb,multiprocessing.cpu_count())
     if enable_opencl:
-        snde.setup_opencl(recdb,False,4,None)
+        (opencl_context,opencl_devices_vec) = snde.setup_opencl(recdb,False,4,None)
+        if opencl_devices_vec is None:
+            snde.snde_warning("snde.setup_opencl() did not find pyopencl: Python access to OpenCL context and devices will not be available")
+            pass
+        else: 
+            opencl_devices = list(opencl_devices_vec)
+            pass
         pass
    
     snde.setup_storage_manager(recdb)

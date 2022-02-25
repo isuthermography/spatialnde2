@@ -1,8 +1,13 @@
 #ifndef SNDE_QUATERNION_H
 #define SNDE_QUATERNION_H
 
+
+#ifndef __OPENCL_VERSION__
+
 #include "snde/geometry_types.h"
 #include "snde/vecops.h"
+
+#endif // __OPENCL_VERSION__
 
 #ifdef _MSC_VER
 #define QUATERNION_INLINE  __inline
@@ -13,7 +18,7 @@
 
 static QUATERNION_INLINE void snde_null_orientation3(snde_orientation3 *out)
 {
-  snde_orientation3 null_orientation = { { { 0.0, 0.0, 0.0, 0.0 } }, { {0.0, 0.0, 0.0, 1.0} } }; /* null offset vector and unit (null) quaternion */
+  snde_orientation3 null_orientation = { { { 0.0f, 0.0f, 0.0f, 0.0f } }, { {0.0f, 0.0f, 0.0f, 1.0f} } }; /* null offset vector and unit (null) quaternion */
   *out=null_orientation;
 }
 
@@ -30,17 +35,17 @@ static QUATERNION_INLINE snde_bool orientation3_equal(const snde_orientation3 a,
 
 static QUATERNION_INLINE void quaternion_normalize(const snde_coord4 unnormalized,snde_coord4 *normalized)
   /* returns the components of a normalized quaternion */
-  {
-    double norm;
-    
-    norm=sqrt(pow(unnormalized.coord[0],2) + pow(unnormalized.coord[1],2) + pow(unnormalized.coord[2],2)+pow(unnormalized.coord[3],2));
-
-    normalized->coord[0]=unnormalized.coord[0]/norm;
-    normalized->coord[1]=unnormalized.coord[1]/norm;
-    normalized->coord[2]=unnormalized.coord[2]/norm;
-    normalized->coord[3]=unnormalized.coord[3]/norm;
-
-  }
+{
+  snde_coord norm;
+  
+  norm=sqrt(pow(unnormalized.coord[0],2) + pow(unnormalized.coord[1],2) + pow(unnormalized.coord[2],2)+pow(unnormalized.coord[3],2));
+  
+  normalized->coord[0]=unnormalized.coord[0]/norm;
+  normalized->coord[1]=unnormalized.coord[1]/norm;
+  normalized->coord[2]=unnormalized.coord[2]/norm;
+  normalized->coord[3]=unnormalized.coord[3]/norm;
+  
+}
   
 static QUATERNION_INLINE void quaternion_product(const snde_coord4 quat1, const snde_coord4 quat2,snde_coord4 *product)
 {
@@ -110,7 +115,9 @@ static QUATERNION_INLINE void quaternion_apply_vector(const snde_coord4 quat,con
   snde_coord4 q1_inverse;
 
 
+#ifndef __OPENCL_VERSION__
   assert(vec.coord[3]==0.0f);
+#endif // __OPENCL_VERSION__
   
   snde_coord vnormsq = normsqvec3(&vec.coord[0]);
   
@@ -119,8 +126,10 @@ static QUATERNION_INLINE void quaternion_apply_vector(const snde_coord4 quat,con
   quaternion_product(q1_times_v,q1_inverse,product);
 
   // last coordinate of output should calculate to roughly 0
+#ifndef __OPENCL_VERSION__
   assert(product->coord[3]*product->coord[3] <= 1e-13f*vnormsq);
-
+#endif
+  
   // ... and be written as exactly 0.
   product->coord[3]=0.0f;
 }
@@ -130,13 +139,13 @@ static QUATERNION_INLINE void quaternion_build_rotmtx(const snde_coord4 quat,snd
 /* assumes quat is normalized, stored as 'i,j,k,w' components */
 {
   // This could definitely be optimized
-  snde_coord4 vec1 = { { 1.0, 0.0, 0.0, 0.0 } };
+  snde_coord4 vec1 = { { 1.0f, 0.0f, 0.0f, 0.0f } };
   quaternion_apply_vector(quat,vec1,&rotmtx[0]); // first column represents applying (1,0,0,0) vector
 
-  snde_coord4 vec2 = { { 0.0, 1.0, 0.0, 0.0 } };
+  snde_coord4 vec2 = { { 0.0f, 1.0f, 0.0f, 0.0f } };
   quaternion_apply_vector(quat,vec2,&rotmtx[1]); // second column represents applying (0,1,0,0) vector
 
-  snde_coord4 vec3 = { { 0.0, 0.0, 1.0, 0.0 } };
+  snde_coord4 vec3 = { { 0.0f, 0.0f, 1.0f, 0.0f } };
   quaternion_apply_vector(quat,vec3,&rotmtx[2]); // second column represents applying (0,0,1,0) vector
 
 }
@@ -147,7 +156,7 @@ static QUATERNION_INLINE void orientation_build_rotmtx(const snde_orientation3 o
   quaternion_build_rotmtx(orient.quat,rotmtx); // still need to do fourth column
 
   rotmtx[3] = orient.offset;
-  rotmtx[3].coord[3]=1.0; // lower right element of 4x4 always 1.0
+  rotmtx[3].coord[3]=1.0f; // lower right element of 4x4 always 1.0
 }
 
 
@@ -171,7 +180,10 @@ static QUATERNION_INLINE void orientation_inverse(const snde_orientation3 orient
 
 static QUATERNION_INLINE void orientation_apply_vector(const snde_orientation3 orient,const snde_coord4 vec,snde_coord4 *out)
 {
-  assert(vec.coord[3] == 0.0);
+#ifndef __OPENCL_VERSION__
+  assert(vec.coord[3] == 0.0f);
+#endif
+  
   quaternion_apply_vector(orient.quat,vec,out);
 }
 
@@ -181,17 +193,19 @@ static QUATERNION_INLINE void orientation_apply_position(const snde_orientation3
   snde_coord4 posvec;
   snde_coord4 rotated_point;
 
-  assert(pos.coord[3]==1.0); // should be a position
+#ifndef __OPENCL_VERSION__
+  assert(pos.coord[3]==1.0f); // should be a position
+#endif
   
   posvec=pos;
-  posvec.coord[3]=0.0;
+  posvec.coord[3]=0.0f;
   
   // rotate point
   quaternion_apply_vector(orient.quat,posvec,&rotated_point);
 
   // add offset
   addcoordcoord4proj(rotated_point,orient.offset,out);
-  out->coord[3]=1.0; // a position
+  out->coord[3]=1.0f; // a position
 }
 
 static QUATERNION_INLINE void orientation_orientation_multiply(const snde_orientation3 left,const snde_orientation3 right,snde_orientation3 *product)

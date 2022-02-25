@@ -1,6 +1,12 @@
 #ifndef SNDE_KDTREE_HPP
 #define SNDE_KDTREE_HPP
 
+#ifdef SNDE_OPENCL
+#include "snde/opencl_utils.hpp" // provides cl.hpp
+#include "snde/openclcachemanager.hpp"
+#include "snde/recmath_compute_resource_opencl.hpp"
+
+#endif // SNDE_OPENCL
 namespace snde {
   
   template <typename T>
@@ -117,6 +123,9 @@ namespace snde {
   extern std::shared_ptr<math_function> kdtree_calculation_function;
 
 
+#ifdef SNDE_OPENCL
+  cl::Event perform_inline_ocl_knn_calculation(std::shared_ptr<assigned_compute_resource_opencl> opencl_resource,rwlock_token_set locktokens, std::shared_ptr<ndtyped_recording_ref<snde_kdnode>> kdtree, std::shared_ptr<ndtyped_recording_ref<snde_coord3>> kdtree_vertices, OpenCLBuffers &Buffers,std::shared_ptr<ndtyped_recording_ref<snde_coord3>> search_points,cl::Event search_points_ready,std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref); // returns event that indicates result is ready (on GPU)
+#endif // SNDE_OPENCL  
   
   void perform_knn_calculation(std::shared_ptr<assigned_compute_resource> compute_resource,rwlock_token_set locktokens, std::shared_ptr<ndtyped_recording_ref<snde_kdnode>> kdtree, std::shared_ptr<ndtyped_recording_ref<snde_coord3>> kdtree_vertices, std::shared_ptr<ndtyped_recording_ref<snde_coord3>> search_points,std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref);
 

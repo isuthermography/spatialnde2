@@ -302,63 +302,60 @@ struct arrayregion {
 
     // input typemap for list of (arrayref,bool) parameters to lockmanager::lock_recording_refs
     
-%typemap(in) std::vector<std::pair<std::shared_ptr<snde::ndarray_recording_ref>,bool>> (PyObject *Iter,PyObject *Element,PyObject *Iter2,PyObject *Element_Ref, PyObject *Element_Bool,PyObject *Element_Overrun,void *ref_void_ptr,std::shared_ptr<ndarray_recording_ref> *ref_ptr,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> retval) {
-    Iter = PyObject_GetIter($input);
-    if (Iter) {
-      while ((Element = PyIter_Next(Iter))) {
-	Iter2 = PyObject_GetIter(Element);
-	if (Iter2) {
-	  Element_Ref = PyIter_Next(Iter2);
-	  if (Element_Ref) {
-	    int res0 = SWIG_ConvertPtr(Element_Ref, &ref_void_ptr,$descriptor(std::shared_ptr<ndarray_recording_ref>*),0);
-	    if (SWIG_IsOK(res0)) {
-	      ref_ptr = reinterpret_cast<std::shared_ptr<snde::ndarray_recording_ref> *>(ref_void_ptr);
-	      Element_Bool = PyIter_Next(Iter2);
-	      if (Element_Bool) {
-		bool boolval = PyObject_IsTrue(Element_Bool);
-
-		Element_Overrun = PyIter_Next(Iter2);
-		if (!Element_Overrun) {
-		  retval.push_back(std::make_pair(*ref_ptr,boolval));
-		} else {
-		  Py_DECREF(Element_Overrun);
-		  
-		  SWIG_exception_fail(SWIG_ArgError(res0), "Converting parameter to std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> (inner element overrun)");
-		  
-		}
-		
-		  
-		Py_DECREF(Element_Bool);
-	      } else {
-		SWIG_exception_fail(SWIG_ArgError(SWIG_TypeError), "Converting parameter to std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> (inner bool)");
-	      }
-	      
-	      
-	    } else {
-	      SWIG_exception_fail(SWIG_ArgError(res0), "Converting parameter to std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> (inner element to lockmanager)");
-	    }	    
-
-	    
-	    Py_DECREF(Element_Ref);
-	  } else {
-	    SWIG_exception_fail(SWIG_ArgError(SWIG_TypeError), "Converting parameter to std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> (inner element)");
-	  }
-	  
-	  Py_DECREF(Iter2);
-	} else {
-	  SWIG_exception_fail(SWIG_ArgError(SWIG_TypeError), "Converting parameter to std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> (inner)");
-	  
-	} 
-	
-	Py_DECREF(Element);
+    %typemap(in) std::vector<std::pair<std::shared_ptr<snde::ndarray_recording_ref>,bool>> (PyObject *Tup,PyObject *Ref,PyObject *Bol,Py_ssize_t elemnum,Py_ssize_t num_elem,int res,void *argp,int boolval) {
+      $1 = std::vector<std::pair<std::shared_ptr<snde::ndarray_recording_ref>,bool>>();
+      if (!PySequence_Check($input)) {
+	SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			    "$argnum"" is not a sequence.");
       }
-      Py_DECREF(Iter);
-    } else {
-	SWIG_exception_fail(SWIG_ArgError(SWIG_TypeError), "Converting parameter to std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>>");
+      num_elem = PySequence_Size($input);
+      $1.reserve(num_elem);
+      
+      for (elemnum=0;elemnum < num_elem;elemnum++) {
+	Tup=nullptr;
+	Ref=nullptr;
+	Bol=nullptr;
+	Tup=PySequence_GetItem($input,elemnum);
+	if (!Tup) {
+	  SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			      "$argnum"" Cannot get sequence item.");
+	}
+	if (!PySequence_Check(Tup)) {
+	  SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			      "$argnum"" sequence item is not a tuple or short sequence.");
+	}
+	if (PySequence_Size(Tup) != 2) {
+	  SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			      "$argnum"" sequence item sequence length is not 2.");
+	}
+	Ref=PySequence_GetItem(Tup,0);
+	if (!Ref) {
+	  SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			      "$argnum"" sequence item failed to get first element.");
+	}
+	res=SWIG_ConvertPtr(Ref,&argp,$descriptor(std::shared_ptr<snde::ndarray_recording_ref> *),0);
+	if (!SWIG_IsOK(res)) {
+	  SWIG_exception_fail(SWIG_ArgError(res), "in method '" "$symname" "', argument "
+			      "$argnum"" sequence item element is not convertable to a snde::ndarray_recording_ref");	  
+	}
+	Bol=PySequence_GetItem(Tup,1);
+	if (!Bol) {
+	  SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			      "$argnum"" sequence item failed to get second element.");
+	}
+	boolval = PyObject_IsTrue(Bol);
+	if (boolval < 0) {
+	  SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			      "$argnum"" sequence item second element not interpretable as boolean.");
+	}
+	$1.push_back(std::make_pair(std::shared_ptr<snde::ndarray_recording_ref>(*(std::shared_ptr<snde::ndarray_recording_ref> *)argp),boolval));
+	
+	Py_XDECREF(Bol);
+	Py_XDECREF(Ref);
+	Py_XDECREF(Tup);
+      }
     }
-    $1 = retval;
-}
-
+    
 
   class lockmanager {
   public:
@@ -397,7 +394,7 @@ struct arrayregion {
     //  mylock = lock_recording_refs({ {inputrec1,false},
     //                                 {inputrec2,false},
     //                                 {outputrec1,true} });
-    rwlock_token_set lock_recording_refs(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> recrefs);
+    rwlock_token_set lock_recording_refs(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> recrefs,bool gpu_access);
 
 
     rwlock_token  _get_preexisting_lock_read_lockobj(rwlock_token_set all_locks,std::shared_ptr<rwlock> rwlockobj);

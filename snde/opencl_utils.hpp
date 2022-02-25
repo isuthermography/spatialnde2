@@ -44,6 +44,15 @@ namespace snde {
   void add_opencl_alignment_requirements(std::shared_ptr<recdatabase> recdb,const std::vector<cl::Device> &devices);
 
 
+  // !!!*** WARNING: This may return a total compute size that is larger than the given
+  // global_size. Your kernel must explicitly do nothing if it gets a get_global_id(0) >= global size !!!***
+  // returns (kern_work_group_size,kernel_global_work_items)
+  std::pair<size_t,size_t> opencl_layout_workgroups_for_localmemory_1D(const cl::Device &dev,
+								       const cl::Kernel &kern,
+								       const size_t local_memory_octwords_per_workitem,
+								       const snde_index global_size);
+
+
 #if 0 // this stuff is obsolste
   struct _snde_cl_retain_command_queue {
     static void retain(cl_command_queue queue)
@@ -223,11 +232,11 @@ namespace snde {
 	// Create the OpenCL program object from the source code (convenience routine). 
 	std::tie(program,build_success,build_log) = get_opencl_program(context,device,program_source,has_doubleprec);
 	
-	if (!build_success || (build_log.size() > 0 && (SNDE_DC_OPENCL & current_debugflags()))) {
+	if (!build_success || (build_log.size() > 0 && (SNDE_DC_OPENCL_COMPILATION & current_debugflags()))) {
 	  snde_warning("OpenCL build log:\n%s\n",build_log.c_str());
 	} else if (build_log.size() > 0) {
 
-	  snde_warning("OpenCL build of kernel %s() has warnings. Set SNDE_DC_OPENCL environment variable to troubleshoot",kern_fcn_name.c_str());
+	  snde_warning("OpenCL build of kernel %s() has warnings. Set SNDE_DC_OPENCL_COMPILATION environment variable to troubleshoot",kern_fcn_name.c_str());
 	  
 	} 
 	

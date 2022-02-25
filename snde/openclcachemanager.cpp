@@ -193,6 +193,7 @@ namespace snde {
     /* ***!!!!! Should really check here to make sure that we're not modifying
        any dirtyregions elements that are marked as done or have a FlushDoneEvent */
     _dirtyregions.mark_region(pos,nelem,storage);
+    invalidity.clear_region(pos,nelem);  // if the GPU wrote it, then the GPU copy is no longer invalid
   }
 
   openclcachemanager::openclcachemanager() 
@@ -309,7 +310,7 @@ namespace snde {
 	  // arrayinfo is an openclarrayinfo
 	  std::unordered_map<openclarrayinfo,std::weak_ptr<openclcacheentry>,openclarrayinfo_hash/* ,openclarrayinfo_equal*/>::iterator buffer_it = buffer_map.find(arrayinfo);
 	  if (buffer_it != buffer_map.end()) {
-	    buffer_map.erase(buffer_it); // remove expiring/expired pointer
+	    buffer_map.erase(buffer_it); // remove expiring/expired pointer -- note that the buffer might actually stay in memory if there are other references to it 
 	  }
 	}
 	buffers_by_array.erase(bba_it);
@@ -351,6 +352,8 @@ namespace snde {
 	//  evptr=&ev[0];
 	//}
 	
+	snde_debug(SNDE_DC_OPENCL,"enqueueWriteBuffer(queue %llx, buffer %llx, offset=%llu (%llu elem) nbytes=%llu (%llu elem), array %llx)",(unsigned long long)_get_queue(context,device).get(),(unsigned long long)oclbuffer->buffer.get(),(unsigned long long)(offset),(unsigned long long)(offset/oclbuffer->elemsize),(unsigned long long)((invalidregion.second->regionend-invalidregion.second->regionstart)*oclbuffer->elemsize),(unsigned long long)(invalidregion.second->regionend-invalidregion.second->regionstart),(unsigned long long)arrayptr);
+	  
 	_get_queue(context,device).enqueueWriteBuffer(oclbuffer->buffer,CL_FALSE,offset,(invalidregion.second->regionend-invalidregion.second->regionstart)*oclbuffer->elemsize,(char *)*arrayptr + offset,&ev,&newevent);
 	
 	/* now that it is enqueued we can replace our event list 
@@ -807,6 +810,8 @@ namespace snde {
 	  
 	  cl::Event newevent; //=NULL;
 
+	  snde_debug(SNDE_DC_OPENCL,"enqueueReadBuffer(queue %llx, buffer %llx, offset=%llu (%llu elem) nbytes=%llu (%llu elem), array %llx)",(unsigned long long)_get_queue(context,device).get(),(unsigned long long)oclbuffer->buffer.get(),(unsigned long long)(offset*oclbuffer->elemsize),(unsigned long long)offset,(unsigned long long)(numelem*oclbuffer->elemsize),(unsigned long long)numelem,(unsigned long long)arrayptr);
+	  
 	  _get_queue(context,device).enqueueReadBuffer(oclbuffer->buffer,CL_FALSE,offset*oclbuffer->elemsize,(numelem)*oclbuffer->elemsize,((char *)(*arrayptr)) + (offset*oclbuffer->elemsize),&wait_events,&newevent);
 	  dirtyregion.second->FlushDoneEvent=newevent;
 	  //fprintf(stderr,"Setting FlushDoneEvent...\n");
@@ -927,6 +932,59 @@ namespace snde {
     }
 
 
+
+  void openclcachemanager::ForgetOpenCLBuffer(rwlock_token_set locks,cl::Context context, cl::Device device, cl::Buffer mem,std::shared_ptr<recording_storage> storage, cl::Event data_not_needed)
+  {
+    /* Call this when you are done using the buffer. It will forget any transfers 
+       and allow the cache entry to expire (freeing the underlying buffers) after
+       the data_not_needed event. 
+       
+       Note that all copies of buffertoks will 
+       no longer represent anything after this call (whatever that means)
+       
+    */ 
+    
+    void **arrayptr = storage->lockableaddr();
+    snde_index nelem = storage->lockablenelem();
+    
+    
+    /* create arrayinfo key */
+    openclarrayinfo arrayinfo=openclarrayinfo(context,arrayptr,nelem);
+    
+    std::shared_ptr<openclcacheentry> cacheentry;
+    {
+      std::lock_guard<std::mutex> adminlock(admin);      
+      auto buffer_map_it = buffer_map.find(arrayinfo);
+      assert(buffer_map_it != buffer_map.end()); /* buffer should exist because should have been created in GetOpenCLBuffer()... Otherwise we shouldn't be calling this! */
+      
+      cacheentry=buffer_map_it->second.lock(); /* buffer should exist because should have been created in GetOpenCLBuffer()... Otherwise we shouldn't be calling this! */
+    }
+    assert(cacheentry);
+    
+    if (data_not_needed.get()) {
+      
+      // need to hold cacheentry alive until the data is no longer needed. So we pass it
+      // as a lamdba parameter. This holds it as part of the std::function<> object until after the callback is finished
+      // and the std::function is deleted inside snde_opencl_callback().
+      
+      data_not_needed.setCallback(CL_COMPLETE,snde_opencl_callback,(void *)new std::function<void(cl::Event,cl_int)>([ data_not_needed, cacheentry ](cl::Event event, cl_int event_command_exec_status) { // matching delete is in snde_opencl_callback()
+	/* NOTE: This callback may occur in a separate thread */
+	/* it indicates that the input data is no longer needed */
+	if (event_command_exec_status != CL_COMPLETE) {
+	  throw openclerror(event_command_exec_status,"Error from data_not_needed prerequisite ");
+	  
+	}	      
+
+	// Note: buffer_map entry will go away (or may have already gone away) when the recording_storage expires. 
+	
+      } ));
+    }
+    
+  }
+  
+  
+  
+  
   std::pair<std::vector<cl::Event>,std::shared_ptr<std::thread>> openclcachemanager::ReleaseOpenCLBuffer(rwlock_token_set locks,cl::Context context, cl::Device device, cl::Buffer mem,std::shared_ptr<recording_storage> storage, cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete)
     {
       /* Call this when you are done using the buffer. If you had 
@@ -1174,11 +1232,37 @@ namespace snde {
     cachemgr(cachemgr),
     context(context),
     device(device),
-    all_locks(all_locks)
+    all_locks(all_locks),
+    empty_invalid(false)
   {
     
   }
 
+  OpenCLBuffers::OpenCLBuffers() :
+    empty_invalid(true)
+  {
+    
+  }
+  
+  // move assignment operator... so we can assign into a default-initialized variable
+  OpenCLBuffers & OpenCLBuffers::operator=(OpenCLBuffers &&orig) noexcept
+  {
+    cachemgr=orig.cachemgr;
+    orig.cachemgr=nullptr;
+    context=orig.context;
+    device=orig.device;
+    all_locks=orig.all_locks;
+    orig.all_locks=nullptr;
+    buffers=orig.buffers;
+    orig.buffers.clear();
+    fill_events=orig.fill_events;
+    orig.fill_events.clear();
+    empty_invalid=false;
+    orig.empty_invalid=true;
+
+    return *this;
+  }
+  
   OpenCLBuffers::~OpenCLBuffers()
   {
     std::unordered_map<OpenCLBufferKey,OpenCLBuffer_info,OpenCLBufferKeyHash>::iterator nextbuffer = buffers.begin();
@@ -1212,8 +1296,9 @@ namespace snde {
   cl_int OpenCLBuffers::SetBufferAsKernelArg(cl::Kernel kernel, cl_uint arg_index, void **arrayptr,snde_index firstelem,snde_index numelem)
   {
     cl::Buffer mem;
-    
+
     mem=Mem(arrayptr,firstelem,numelem);
+    snde_debug(SNDE_DC_OPENCL,"SetBufferAsKernelArg(kernel %llx,arg %u, array %llx,memobj %llx,firstelem %llu, numelem %llu",(unsigned long long)kernel.get(),(unsigned)arg_index,(unsigned long long)(uintptr_t)arrayptr,(unsigned long long)mem.get(),(unsigned long long)firstelem,(unsigned long long)numelem);
     return kernel.setArg(arg_index,sizeof(mem),&mem);
     
   }
@@ -1376,6 +1461,40 @@ namespace snde {
 
 
 
+  void OpenCLBuffers::ForgetBuffer(std::shared_ptr<recording_storage> storage,cl::Event data_not_needed)
+  // Forget (and queue the deletion of) a buffer so that we don't waste our time
+  // transferring its contents anymore -- presumably because our caller has
+  // determined that it will never be needed again.
+  // This is usually used for temporary anonymous recordings
+  // that don't need to be kept in the cache. 
+  {
+    /* Remove and unlock buffer */
+    
+    
+    
+    OpenCLBufferKey Key(storage->lockableaddr(),storage->base_index,storage->nelem);
+    auto buffers_it = buffers.find(Key);
+
+    assert(buffers_it != buffers.end()); // Shouldn't be calling this unless you have already gotten access to the buffer. 
+
+
+    OpenCLBuffer_info &info=buffers_it->second;
+    
+    // ForgetOpenCLBuffer allows a buffer to be freed once data_not_needed has passed if all shared_pointers expire 
+    cachemgr->ForgetOpenCLBuffer(info.locks,context,device,info.mem,storage,data_not_needed);
+          
+    /* remove from hash table so as to expire the shared pointer kept in this OpenCLBuffers object*/
+    buffers.erase(Key);
+
+    
+    // Once this is done the buffer will disappear once data_not_needed fires
+    // (unless it is referenced elsewhere)
+    
+  }
+
+
+
+  
   void OpenCLBuffers::RemBuffer(std::shared_ptr<recording_storage> storage,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait)
     /* Either specify wait=true, then you can explicitly unlock_rwlock_token_set() your locks because you know they're done, 
        or specify wait=false in which case things may finish later. The only way to make sure they are finished is 
@@ -1414,9 +1533,21 @@ namespace snde {
     }
 
 
+  void OpenCLBuffers::ForgetBuffer(std::shared_ptr<ndarray_recording_ref> ref,cl::Event data_not_needed)
+  {
+    ForgetBuffer(ref->storage,data_not_needed);
+  }
+
+  
   void OpenCLBuffers::RemBuffer(std::shared_ptr<ndarray_recording_ref> ref,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait)
   {
     RemBuffer(ref->storage,input_data_not_needed,output_data_complete,wait);
+  }
+
+  void OpenCLBuffers::ForgetBuffer(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Event data_not_needed)
+  {
+    ForgetBuffer(rec->storage.at(rec->name_mapping.at(arrayname)),data_not_needed);
+
   }
 
   void OpenCLBuffers::RemBuffer(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait)

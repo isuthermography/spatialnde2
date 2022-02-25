@@ -355,11 +355,13 @@ The non-GUI configuration ``recdb.dpi`` has a single parameter
 recommended you set to ``True`` if you have OpenCL compatible graphics
 drivers or an add-on GPGPU.
 
-The non-GUI configuration ``recdb.dpi`` defines two globals:
+The non-GUI configuration ``recdb.dpi`` defines four globals:
 
   * ``snde``, the spatialnde2 import, and
   * ``recdb``, the recording database object.
-
+  * ``opencl_context``, the OpenCL context object, if available
+  * ``opencl_devices``, A list of OpenCL devices, if available
+    
 The GUI configuration ``recdb_gui.dpi`` defines four more globals:
   * ``snde_RecViewerWindow`` A class derived from QT ``QMainWindow``
     that contains a ``QTRecViewer``.

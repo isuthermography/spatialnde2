@@ -239,7 +239,9 @@ namespace snde {
     std::tuple<rwlock_token_set,cl::Buffer,std::vector<cl::Event>> GetOpenCLBuffer(std::shared_ptr<recording_storage> storage,rwlock_token_set alllocks,cl::Context context, cl::Device device, bool write,bool write_only=false);
     std::pair<std::vector<cl::Event>,std::vector<cl::Event>> FlushWrittenOpenCLBuffer(cl::Context context,cl::Device device,std::shared_ptr<recording_storage> storage,std::vector<cl::Event> explicit_prerequisites);
       
-    std::pair<std::vector<cl::Event>,std::shared_ptr<std::thread>> ReleaseOpenCLBuffer(rwlock_token_set locks,cl::Context context, cl::Device device, cl::Buffer mem, std::shared_ptr<recording_storage> storage, cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete);
+    void ForgetOpenCLBuffer(rwlock_token_set locks,cl::Context context, cl::Device device, cl::Buffer mem,std::shared_ptr<recording_storage> storage, cl::Event data_not_needed);
+    
+   std::pair<std::vector<cl::Event>,std::shared_ptr<std::thread>> ReleaseOpenCLBuffer(rwlock_token_set locks,cl::Context context, cl::Device device, cl::Buffer mem, std::shared_ptr<recording_storage> storage, cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete);
     
     /* ***!!! Need a method to throw away all cached buffers with a particular context !!!*** */
     
@@ -264,9 +266,14 @@ namespace snde {
 		      //rwlock_token_set readlocks,
 		      rwlock_token_set locks,
 		      std::shared_ptr<openclcacheentry> cacheentry);
+
+    // Copy constructor and copy assignment should be OK
+    // because we are using default destructor
+    OpenCLBuffer_info(const OpenCLBuffer_info &orig)=default;    
+    OpenCLBuffer_info& operator=(const OpenCLBuffer_info &)=default; 
     
-    OpenCLBuffer_info(const OpenCLBuffer_info &orig)=delete;    
-    OpenCLBuffer_info& operator=(const OpenCLBuffer_info &)=delete; /* copy assignment disabled (for now) */
+    //OpenCLBuffer_info(const OpenCLBuffer_info &orig)=delete;    
+    //OpenCLBuffer_info& operator=(const OpenCLBuffer_info &)=delete; /* copy assignment disabled (for now) */
     ~OpenCLBuffer_info()=default;
 
     
@@ -316,12 +323,18 @@ namespace snde {
     std::unordered_map<OpenCLBufferKey,OpenCLBuffer_info,OpenCLBufferKeyHash> buffers; /* indexed by arrayidx */
     
     std::vector<cl::Event> fill_events; /* each counted by clRetainEvent() */
-     
+
+    bool empty_invalid; // set for default constructed object. We allow move assignment into an empty_invalid object but nothing else
+    
     OpenCLBuffers(std::shared_ptr<openclcachemanager> cachemgr,cl::Context context,cl::Device device,rwlock_token_set all_locks);
+    OpenCLBuffers();
 
     /* no copying */
     OpenCLBuffers(const OpenCLBuffers &) = delete;
     OpenCLBuffers & operator=(const OpenCLBuffers &) = delete;
+    // We have move assignment so that you can initialize into a default-constructed object.
+    OpenCLBuffers & operator=(OpenCLBuffers &&orig) noexcept;
+    OpenCLBuffers(OpenCLBuffers &&) noexcept = delete; // no move constructor
   
     ~OpenCLBuffers();
     
@@ -336,7 +349,7 @@ namespace snde {
     
     cl_int SetBufferAsKernelArg(cl::Kernel kernel, cl_uint arg_index, void **arrayptr,snde_index firstelem,snde_index numelem);
   
-    void AddSubBuffer(std::shared_ptr<arraymanager> manager, void **arrayptr,snde_index indexstart,snde_index numelem,bool write,bool write_only=false);
+    //void AddSubBuffer(std::shared_ptr<arraymanager> manager, void **arrayptr,snde_index indexstart,snde_index numelem,bool write,bool write_only=false);
 
     void AddBuffer(std::shared_ptr<recording_storage> storage,bool write,bool write_only=false);
     
@@ -378,8 +391,12 @@ namespace snde {
        to obtain a new lock on the same items */
     //void RemSubBuffer(void **arrayptr,snde_index startidx,snde_index numelem,cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait);
     //void RemBuffer(void **arrayptr,cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait);
+    void ForgetBuffer(std::shared_ptr<recording_storage> storage,cl::Event data_not_needed);
     void RemBuffer(std::shared_ptr<recording_storage> storage,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait);
+    void ForgetBuffer(std::shared_ptr<ndarray_recording_ref> ref,cl::Event data_not_needed);
     void RemBuffer(std::shared_ptr<ndarray_recording_ref> ref,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait);
+    void ForgetBuffer(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Event data_not_needed);
+
     void RemBuffer(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait);
 
     void RemBuffers(cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait);

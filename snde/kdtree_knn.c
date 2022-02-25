@@ -35,7 +35,8 @@ snde_index snde_kdtree_knn_one(KDTREE_GLOBAL struct snde_kdnode *tree,
 			       KDTREE_GLOBAL snde_coord *to_find,
 			       //KDTREE_GLOBAL snde_coord *dist_squared_out,
 			       uint32_t ndim,
-			       uint32_t max_depth)
+			       uint32_t max_depth,
+			       snde_index find_index)
 {
   
   uint32_t depth=0;
@@ -296,6 +297,12 @@ snde_index snde_kdtree_knn_one(KDTREE_GLOBAL struct snde_kdnode *tree,
     }
   }
   
+
+  //if (find_index==16) {
+  //  printf("snde_kdtree_knn_opencl: to_find at { %f, %f, %f }; closest vertex at { %f, %f, %f }\n",to_find[0],to_find[1],to_find[2],vertices[closest_index*ndim],vertices[closest_index*ndim+1],vertices[closest_index*ndim+2]);
+  //  
+  //}
+
   //if (dist_squared_out) {
   //  *dist_squared_out = closest_dist_sq;
   //}
@@ -360,8 +367,9 @@ __kernel void snde_kdtree_knn_opencl(KDTREE_GLOBAL struct snde_kdnode *tree,
 						 &to_find[find_index*ndim],
 						 //&dist_squared_out[find_index],
 						 ndim,
-						 max_depth);
-    
+						 max_depth,
+						 find_index);
+
   }
 }
 

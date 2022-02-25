@@ -191,6 +191,13 @@ static VECOPS_INLINE void copyvecn(snde_coord *in, snde_coord *out, snde_index n
   }
 }
 
+static VECOPS_INLINE void copyvecnglobal(snde_coord *in, OCL_GLOBAL_ADDR snde_coord *out, snde_index n)
+{
+  for (snde_index posn=0; posn < n; posn++) {
+    out[posn]=in[posn];
+  }
+}
+
 static VECOPS_INLINE snde_coord dotvecvec3(snde_coord *vec1,snde_coord *vec2)
 {
   int sumidx;
@@ -324,6 +331,18 @@ static VECOPS_INLINE void subvecvec3(const snde_coord *vec1,const snde_coord *ve
   }
 }
 
+static VECOPS_INLINE void subglobalvecvec3(OCL_GLOBAL_ADDR const snde_coord *vec1,const snde_coord *vec2,snde_coord *out)
+// NOTE: if vec1 and vec2 are 2D coordinates in a 3D projective space,
+// then vec2 must be a vector, not a position
+{
+  int outidx;
+
+  for (outidx=0;outidx < 3; outidx++) {
+    out[outidx] = vec1[outidx] - vec2[outidx];
+    
+  }
+}
+
 static VECOPS_INLINE void addcoordcoord3(snde_coord3 vec1,snde_coord3 vec2,snde_coord3 *out)
 // NOTE: if vec1 and vec2 are 2D coordinates in a 3D projective space,
 // then at least one of them must be a vector, not a position
@@ -349,7 +368,7 @@ static VECOPS_INLINE void accumcoordcoord3(snde_coord3 vec1,snde_coord3 *out)
 }
 
 
-static VECOPS_INLINE void accumvecvec3(snde_coord* vec1,snde_coord *out)
+static VECOPS_INLINE void accumvecvec3(const snde_coord* vec1,snde_coord *out)
 // NOTE: if vec1 is 2D coordinates in a 3D projective space,
 // then it must be a vector, not a position
 {

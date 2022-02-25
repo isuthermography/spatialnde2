@@ -1,6 +1,10 @@
  * Add pendingWriteLock to lockmanager so that the read locks cannot starve out the write locks.
     * Write locks must wait for all the read locks to finish but if the user keeps adding read locks that never happens
-    * ***!!! NEED TO CHECK IF THIS IS ACTUALLY NECESSARY 
+    * ***!!! NEED TO CHECK IF THIS IS ACTUALLY NECESSARY
+    
+ * Should modify opencl cachemanager to use a thread pool for cleaning up
+   buffers rather than recreating threads each time, as thread creation
+   is pretty heavy-weight on Windows
 
  *** Document semantics for array change notification, definition of changed rectangles, etc. See notifications in x3d.hpp that are probably extraneous.
    Basically upon allocation the region is marked as "pending modification". Then any explicit modification (such as opencl write with dirty marking or

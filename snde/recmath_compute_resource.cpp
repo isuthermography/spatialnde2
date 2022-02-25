@@ -594,6 +594,7 @@ namespace snde {
 	// Check new_revision_optional
 	if (ready_fcn->fcn->new_revision_optional) {
 	  // Need to check if it s OK to execute
+	  //#define SNDE_RCR_DISABLE_EXCEPTION_HANDLING 
 #ifndef SNDE_RCR_DISABLE_EXCEPTION_HANDLING
 	  try {
 #endif
@@ -604,8 +605,8 @@ namespace snde {
 	    // func is our math_function_execution
 	    snde_warning("Exception class %s caught in perform_decide_execution(): %s (function %s)",typeid(exc).name(),exc.what(),execfunc->inst->definition->definition_command.c_str());
 	    actually_execute=false;
-#endif
 	  }
+#endif
 	  
 	}
 	

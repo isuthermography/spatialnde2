@@ -320,6 +320,9 @@ template <typename T>
 %enddef
 
 
+%template(BoolVector) std::vector<bool>;
+
+
 // (Old specifc implementation of the above general implementation)
 //%typemap(in) std::shared_ptr<snde::math_function> raw_shared_ptr {
 //  void *rawptr = PyLong_AsVoidPtr($input);
@@ -476,6 +479,7 @@ template <typename T>
 %include "recmath_compute_resource.i"
 %include "recmath.i"
 %include "recmath_cppfunction.i"
+%include "cached_recording.i"
 %include "notify.i"
 %include "arrayposition.i"
 %include "normal_calculation.i"
@@ -492,7 +496,8 @@ template <typename T>
 #ifdef SNDE_OPENCL
 %include "opencl_utils.i"
 %include "recstore_setup_opencl.i"
- //%include "openclcachemanager.i"
+%include "openclcachemanager.i"
+%include "recmath_compute_resource_opencl.i"
 #endif
 
  /*
