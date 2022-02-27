@@ -223,5 +223,17 @@ namespace snde {
     }
     return *detokenize(std::vector<std::string>(to_tok_deq.begin(),to_tok_deq.end()),'/');
   }
+
+  static std::string recdb_join_assembly_and_component_names(const std::string &assempath, const std::string &compname)
+// compname may be relative to our assembly, interpreted as a group
+{
+  assert(assempath.size() > 0);
+  assert(assempath.at(assempath.size()-1) != '/'); // chanpath should not have a trailing '/'
+  
+  return recdb_path_join(recdb_path_as_group(assempath),compname);
+}
+
+
+  
 }
 #endif // SNDE_RECDB_PATHS_HPP

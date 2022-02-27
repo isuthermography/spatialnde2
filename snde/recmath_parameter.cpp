@@ -3,6 +3,7 @@
 #include "snde/recmath_parameter.hpp"
 #include "snde/recmath.hpp"
 #include "snde/recstore.hpp"
+#include "snde/quaternion.h"
 
 namespace snde {
 
@@ -33,6 +34,18 @@ namespace snde {
   double math_parameter::get_double(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   {
     throw math_parameter_mismatch("Cannot get double value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
+
+  }
+
+  snde_coord3 math_parameter::get_vector(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  {
+    throw math_parameter_mismatch("Cannot get vector value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
+
+  }
+
+  snde_orientation3 math_parameter::get_orientation(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  {
+    throw math_parameter_mismatch("Cannot get vector value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
 
   }
 
@@ -195,6 +208,70 @@ namespace snde {
     return !(*this==ref);
   }
 
+
+  math_parameter_vector_const::math_parameter_vector_const(snde_coord3 vector_constant) :
+    math_parameter(SNDE_MFPT_VECTOR),
+    vector_constant(vector_constant)
+  {
+
+  }
+
+  snde_coord3 math_parameter_vector_const::get_vector(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  // parameter_index human interpreted parameter number, starting at 1, for error messages only
+  {
+    return vector_constant;
+  }
+
+
+  bool math_parameter_vector_const::operator==(const math_parameter &ref) // used for comparing parameters to instantiated_math_functions
+  {
+    const math_parameter_vector_const *vref = dynamic_cast<const math_parameter_vector_const *>(&ref);
+
+    if (!vref) {
+      return false;
+    }
+    
+    return equalcoord3(vector_constant,vref->vector_constant);
+
+  }
+  
+  bool math_parameter_vector_const::operator!=(const math_parameter &ref)
+  {
+    return !(*this==ref);
+  }
+
+  math_parameter_orientation_const::math_parameter_orientation_const(snde_orientation3 orientation_constant) :
+    math_parameter(SNDE_MFPT_ORIENTATION),
+    orientation_constant(orientation_constant)
+  {
+
+  }
+
+  snde_orientation3 math_parameter_orientation_const::get_orientation(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  // parameter_index human interpreted parameter number, starting at 1, for error messages only
+  {
+    return orientation_constant;
+  }
+
+
+  bool math_parameter_orientation_const::operator==(const math_parameter &ref) // used for comparing parameters to instantiated_math_functions
+  {
+    const math_parameter_orientation_const *oref = dynamic_cast<const math_parameter_orientation_const *>(&ref);
+
+    if (!oref) {
+      return false;
+    }
+    
+    return orientation3_equal(orientation_constant,oref->orientation_constant);
+
+  }
+  
+  bool math_parameter_orientation_const::operator!=(const math_parameter &ref)
+  {
+    return !(*this==ref);
+  }
+
+  
   
   math_parameter_indexvec_const::math_parameter_indexvec_const(const std::vector<snde_index> & indexvec) :
     math_parameter(SNDE_MFPT_INDEXVEC),

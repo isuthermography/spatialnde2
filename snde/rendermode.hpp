@@ -386,8 +386,8 @@ namespace snde {
 
   class poseparams: public renderparams_base { // used for tracking_pose_recording and subclasses
   public:
-    std::shared_ptr<renderparams_base> channel_to_track_params; // channel we are tracking, with constant view regardless of our viewer orientation
-    snde_orientation3 channel_to_track_orientation;
+    std::shared_ptr<renderparams_base> channel_to_reorient_params; // channel we are tracking, with constant view regardless of our viewer orientation
+    snde_orientation3 channel_to_reorient_orientation;
     
     
     std::shared_ptr<renderparams_base> component_params; // channel we are observing 
@@ -401,16 +401,16 @@ namespace snde {
       size_t hashv = 0;
       
       hashv =
-	std::hash<snde_coord>{}(channel_to_track_orientation.offset.coord[0]) ^
-				 std::hash<snde_coord>{}(channel_to_track_orientation.offset.coord[1]) ^ 
-				 std::hash<snde_coord>{}(channel_to_track_orientation.offset.coord[2]) ^ 
-				 std::hash<snde_coord>{}(channel_to_track_orientation.offset.coord[3]) ^ 
-				 std::hash<snde_coord>{}(channel_to_track_orientation.quat.coord[0]) ^ 
-				 std::hash<snde_coord>{}(channel_to_track_orientation.quat.coord[1]) ^ 
-				 std::hash<snde_coord>{}(channel_to_track_orientation.quat.coord[2]) ^ 
-				 std::hash<snde_coord>{}(channel_to_track_orientation.quat.coord[3]);
-      if (channel_to_track_params) {
-	hashv = hashv ^ channel_to_track_params->hash();
+	std::hash<snde_coord>{}(channel_to_reorient_orientation.offset.coord[0]) ^
+				 std::hash<snde_coord>{}(channel_to_reorient_orientation.offset.coord[1]) ^ 
+				 std::hash<snde_coord>{}(channel_to_reorient_orientation.offset.coord[2]) ^ 
+				 std::hash<snde_coord>{}(channel_to_reorient_orientation.offset.coord[3]) ^ 
+				 std::hash<snde_coord>{}(channel_to_reorient_orientation.quat.coord[0]) ^ 
+				 std::hash<snde_coord>{}(channel_to_reorient_orientation.quat.coord[1]) ^ 
+				 std::hash<snde_coord>{}(channel_to_reorient_orientation.quat.coord[2]) ^ 
+				 std::hash<snde_coord>{}(channel_to_reorient_orientation.quat.coord[3]);
+      if (channel_to_reorient_params) {
+	hashv = hashv ^ channel_to_reorient_params->hash();
 
       }
       if (component_params) {
@@ -442,23 +442,23 @@ namespace snde {
 	}
       }
 
-      if (channel_to_track_params && !bptr->channel_to_track_params) {
+      if (channel_to_reorient_params && !bptr->channel_to_reorient_params) {
 	return false;	  
       }
 
-      if (!channel_to_track_params && bptr->channel_to_track_params) {
+      if (!channel_to_reorient_params && bptr->channel_to_reorient_params) {
 	return false;	  
       }
 
       
-      if (channel_to_track_params && bptr->channel_to_track_params) {      
-	if (!(*channel_to_track_params == *bptr->channel_to_track_params)) {
+      if (channel_to_reorient_params && bptr->channel_to_reorient_params) {      
+	if (!(*channel_to_reorient_params == *bptr->channel_to_reorient_params)) {
 	  return false;
 	}
       }
 
       
-      if (!orientation3_equal(channel_to_track_orientation,bptr->channel_to_track_orientation)) {
+      if (!orientation3_equal(channel_to_reorient_orientation,bptr->channel_to_reorient_orientation)) {
 	return false;
       }
       

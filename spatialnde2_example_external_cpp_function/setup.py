@@ -32,7 +32,7 @@ spatialnde2_compile_libraries_cmake = open(os.path.join(os.path.dirname(snde.__f
 
 ext_modules=cythonize(
     Extension("spatialnde2_example_external_cpp_function.scalar_multiply",
-              sources=["spatialnde2_example_external_cpp_function/scalar_multiply.pyx","spatialnde2_example_external_cpp_function/scalar_multiply_cpp.cpp"],
+              sources=["spatialnde2_example_external_cpp_function/scalar_multiply.pyx" ],
               include_dirs=[os.path.dirname(snde.__file__)] + spatialnde2_compile_include_dirs,
               
               library_dirs=[os.path.dirname(snde.__file__)] + spatialnde2_compile_library_dirs,

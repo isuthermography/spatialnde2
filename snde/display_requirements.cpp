@@ -508,16 +508,6 @@ namespace snde {
 
 
   
-static std::string _assembly_join_assem_and_compnames(const std::string &assempath, const std::string &compname)
-// compname may be relative to our assembly, interpreted as a group
-{
-  assert(assempath.size() > 0);
-  assert(assempath.at(assempath.size()-1) != '/'); // chanpath should not have a trailing '/'
-  
-  return recdb_path_join(recdb_path_as_group(assempath),compname);
-}
-
-
 
 
 /*  Ideas:
@@ -1528,7 +1518,7 @@ std::shared_ptr<display_requirement> assembly_recording_display_handler::get_dis
   
   for (auto && relpath_orientation: assempart_rec->pieces) {
 
-    std::string abspath = _assembly_join_assem_and_compnames(chanpath,std::get<0>(relpath_orientation));
+    std::string abspath = recdb_join_assembly_and_component_names(chanpath,std::get<0>(relpath_orientation));
     
     std::shared_ptr<display_requirement> sub_requirement = traverse_display_requirement(display,base_rss,display->lookup_channel(abspath),SNDE_SRG_DEFAULT_3D,nullptr);
     retval->sub_requirements.push_back(sub_requirement);
@@ -1623,25 +1613,25 @@ std::shared_ptr<display_requirement> tracking_pose_recording_display_handler::ge
   retval->renderable_channelpath = std::make_shared<std::string>(chanpath);
 
   
-  // reuse assembly code to determine absolute path to channel_to_track and component
-  std::string channel_to_track_abspath = _assembly_join_assem_and_compnames(chanpath,trackingpose_rec->channel_to_track);
-  std::string component_abspath = _assembly_join_assem_and_compnames(chanpath,trackingpose_rec->component_name);
+  // reuse assembly code to determine absolute path to channel_to_reorient and component
+  std::string channel_to_reorient_abspath = recdb_join_assembly_and_component_names(chanpath,trackingpose_rec->channel_to_reorient);
+  std::string component_abspath = recdb_join_assembly_and_component_names(chanpath,trackingpose_rec->component_name);
 
-  std::shared_ptr<recording_base> channel_to_track_rec = base_rss->get_recording(channel_to_track_abspath);
+  std::shared_ptr<recording_base> channel_to_reorient_rec = base_rss->get_recording(channel_to_reorient_abspath);
   
-  // sub-requirement 1 is our channel_to_track in rendering mode
-  std::shared_ptr<display_requirement> sub_requirement1 = traverse_display_requirement(display,base_rss,display->lookup_channel(channel_to_track_abspath),SNDE_SRG_DEFAULT_3D,nullptr);
+  // sub-requirement 1 is our channel_to_reorient in rendering mode
+  std::shared_ptr<display_requirement> sub_requirement1 = traverse_display_requirement(display,base_rss,display->lookup_channel(channel_to_reorient_abspath),SNDE_SRG_DEFAULT_3D,nullptr);
   retval->sub_requirements.push_back(sub_requirement1);
 
-  std::shared_ptr<renderparams_base> channel_to_track_params = sub_requirement1->mode.constraint;
-  pose_params->channel_to_track_params=channel_to_track_params;
-  pose_params->channel_to_track_orientation = trackingpose_rec->get_channel_to_track_pose();
+  std::shared_ptr<renderparams_base> channel_to_reorient_params = sub_requirement1->mode.constraint;
+  pose_params->channel_to_reorient_params=channel_to_reorient_params;
+  pose_params->channel_to_reorient_orientation = trackingpose_rec->get_channel_to_reorient_pose(base_rss);
 
   //{
   //  snde_coord4 rotmtx[4];
-  //  orientation_build_rotmtx(pose_params->channel_to_track_orientation,rotmtx);
+  //  orientation_build_rotmtx(pose_params->channel_to_reorient_orientation,rotmtx);
   //  std::cout << "ChannelToTrackOrientation:\n ";
-  //  std::cout << "ChannelToTrack: " << channel_to_track_abspath << "\n";
+  //  std::cout << "ChannelToTrack: " << channel_to_reorient_abspath << "\n";
   //  for (int row=0;row < 4;row++) {
   //    for (int col=0;col < 4;col++) {
   //	std::cout << std::to_string(rotmtx[col].coord[row]) << " ";

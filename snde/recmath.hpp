@@ -37,7 +37,9 @@ namespace snde {
 #define SNDE_MFPT_DBL 2
   // 3 is for an ancillary string
 #define SNDE_MFPT_RECORDING 4
-#define SNDE_MFPT_INDEXVEC 5 // vector of indices
+#define SNDE_MFPT_VECTOR 5
+#define SNDE_MFPT_ORIENTATION 6
+#define SNDE_MFPT_INDEXVEC 7 // vector of indices
 
   // forward declarations
   class channelconfig; // defined in recstore.hpp

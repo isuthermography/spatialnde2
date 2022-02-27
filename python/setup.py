@@ -86,6 +86,7 @@ package_data = {
         "compile_libraries.txt",
         "snde/*", # All headers, installed into this location by cmake build process
         "*.dpi", # .dpi files for dataguzzler-python
+        "*.pxd", # .pxd files for Cython
     ] + spatialnde2_dlls
 }
 

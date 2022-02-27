@@ -836,6 +836,13 @@ namespace snde {
 #define create_recording_const_vector_of_string_orientation_pairs create_recording
    %}
 
+  // template for three extra string recording arguments
+  template <class T> 
+    std::shared_ptr<T> create_recording_three_strings(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string param1,std::string param2,std::string param3);
+  %{
+#define create_recording_three_strings create_recording
+   %}
+
 
   // template for textured_part info arguments
   template <class T>

@@ -35,6 +35,9 @@ snde_rawaccessible(snde::assembly_recording);
 %shared_ptr(snde::tracking_pose_recording);
 snde_rawaccessible(snde::tracking_pose_recording);
 
+%shared_ptr(snde::pose_channel_tracking_pose_recording);
+snde_rawaccessible(snde::pose_channel_tracking_pose_recording);
+
 
 %{
 #include "snde/graphics_recording.hpp"
@@ -139,12 +142,22 @@ namespace snde {
     // abstract class: Must subclass! ... Then register your class to use the tracking_pose_recording_display_handler (see display_requirements.cpp)
   public:
     std::string component_name; // string is a path name, absolute or relative, treating the path of the tracking_pose_recording with a trailing slash as a group context
-    virtual snde_orientation3 get_channel_to_track_pose() const = 0;
+    virtual snde_orientation3 get_channel_to_reorient_pose(std::shared_ptr<recording_set_state> rss) const = 0;
     
     tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string component_name);
     
   };
 
+  class pose_channel_tracking_pose_recording: public tracking_pose_recording {
+  public:
+    // Get the orientation of the 
+    std::string pose_channel_name;
+
+    pose_channel_tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient,std::string component_name,std::string pose_channel_name);
+    
+    virtual snde_orientation3 get_channel_to_reorient_pose(std::shared_ptr<recording_set_state> rss) const;
+
+  };
   
   // create_recording templates
   %template(create_meshed_part_recording) create_recording_noargs<meshed_part_recording>;
@@ -159,6 +172,8 @@ namespace snde {
   // bottom of recstore.i
   %template(create_textured_part_recording) create_recording_textured_part_info<textured_part_recording>;  
   %template(create_assembly_recording) create_recording_const_vector_of_string_orientation_pairs<assembly_recording>;
+  
   // can't create a tracking_pose_recording because it is an abstract class
+  %template(create_pose_channel_tracking_pose_recording) create_recording_three_strings<pose_channel_tracking_pose_recording>;
   
 };

@@ -439,7 +439,7 @@ namespace snde {
 	  {
 	    iterator secondpiecenext=secondpieceiterator;
 	    secondpiecenext++;
-	    if (secondpiecenext != trackedregions.end()) {
+	    if (secondpiecenext != trackedregions.end() && secondpiecenext->first == secondpieceiterator->second->regionend) { // if there is a next region and it is contiguous
 	      if (secondpieceiterator->second->attempt_merge(*secondpiecenext->second)) {
 		/* if merge succeeded, remove second piecenext */
 		trackedregions.erase(secondpiecenext->first);

@@ -1,9 +1,6 @@
 from libcpp.memory cimport shared_ptr
 
-cdef extern from "snde/recmath.hpp" namespace "snde" nogil:
-    cdef cppclass math_function:
-        pass
-    pass
+from spatialnde2.recmath cimport math_function
 
 
 cdef extern from "scalar_multiply_cpp.hpp" namespace "snde2_fn_ex" nogil:

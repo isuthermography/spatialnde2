@@ -16,6 +16,11 @@ from scalar_multiply_cpp cimport scalar_multiply_function as scalar_multiply_fun
 # externally accessible, facilitated by
 # the import in __init__.py,
 
+# Note that for this to be reliably accessible scalar_multiply_function_cpp
+# must be assigned in the .hpp file and therefore defined in this module
+# and not linked in (otherwise we run afowl of the c++ static initialization
+# ordering issues!)
+
 scalar_multiply_function = snde.math_function.from_raw_shared_ptr(<uintptr_t>&scalar_multiply_function_cpp)
 
 

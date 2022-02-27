@@ -566,14 +566,14 @@ namespace snde {
       }));
   
   
-  qt_osg_compositor_view_tracking_pose_recording::qt_osg_compositor_view_tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_track, std::string component_name,QSharedPointer<qt_osg_compositor> compositor) :
-    tracking_pose_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,channel_to_track,component_name),
+  qt_osg_compositor_view_tracking_pose_recording::qt_osg_compositor_view_tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient, std::string component_name,QSharedPointer<qt_osg_compositor> compositor) :
+    tracking_pose_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,channel_to_reorient,component_name),
     compositor(compositor)
   {
 
   }
   
-  snde_orientation3 qt_osg_compositor_view_tracking_pose_recording::get_channel_to_track_pose() const
+  snde_orientation3 qt_osg_compositor_view_tracking_pose_recording::get_channel_to_reorient_pose(std::shared_ptr<recording_set_state> rss) const
   // NOTE: This function can be called from other threads (in the display_requirement evaluation, for example)
   // and it DOES access a QWidget class (qt_osg_compositor). This is safe because the QWidget is protected
   // by QSharedPointer with deleteLater() as its deleter and we are only calling a custom method that
@@ -590,16 +590,12 @@ namespace snde {
     }
 
     std::string chanpath(info->name);
-    assert(chanpath.size() > 0);
-    assert(chanpath.at(chanpath.size()-1) != '/'); // chanpath should not have a trailing '/'
-    
-    //std::string component_fullpath = recdb_path_join(recdb_path_as_group(chanpath),component_name);
-    
-    std::string channel_to_track_fullpath = recdb_path_join(recdb_path_as_group(chanpath),channel_to_track);
 
-    snde_orientation3 channel_to_track_campose = compositor_strong->get_camera_pose(channel_to_track_fullpath);
-    // channel_to_track_campose represents the orientation of the camera
-    // for the channel_to_track channel relative to the channel_to_track object.
+    std::string channel_to_reorient_fullpath = recdb_join_assembly_and_component_names(chanpath,channel_to_reorient);
+
+    snde_orientation3 channel_to_reorient_campose = compositor_strong->get_camera_pose(channel_to_reorient_fullpath);
+    // channel_to_reorient_campose represents the orientation of the camera
+    // for the channel_to_reorient channel relative to the channel_to_reorient object.
     // i.e. you give it coordinates relative to the ctt camera and it gives
     // you coordinates relative to the ctt object.
     // i.e. it has units (ctt channel object coords)/(ctt channel camera coords)
@@ -618,7 +614,7 @@ namespace snde {
     //  * i.e. represents (world coordinates)/(ctt object coords)
     //  * Our channel-to-track channel is thought of as rotated into some position in the "world"
     //    but we just get camera position relative to the channel to track object.
-    //    Thus channel_to_track_campose has units (ctt object coords)/(ctt channel camera coords)
+    //    Thus channel_to_reorient_campose has units (ctt object coords)/(ctt channel camera coords)
     //  * follower_channel_campose has units (world coords)/(follower channel camera coords)
     //  * Our constraint is that the ctt object should appear in the same position relative to the
     //    follower camera as it appears relative to the channel to track camera. Since
@@ -627,20 +623,20 @@ namespace snde {
     //
     //  follower_channel_campose = (world coords/camera coords)
     //  retval = (world coords)/(ctt object coords)
-    //  channel_to_track_campose = (ctt object coords)/((ctt channel)? camera coords)
+    //  channel_to_reorient_campose = (ctt object coords)/((ctt channel)? camera coords)
     //
-    //  retval = follower_channel_campos / channel_to_track_campose  = world coords/ctt object coords
+    //  retval = follower_channel_campos / channel_to_reorient_campose  = world coords/ctt object coords
 
 
-    // retval = follower_channel_campose * inv(channel_to_track_campose)
+    // retval = follower_channel_campose * inv(channel_to_reorient_campose)
     if (0) {
       // This code builds retval by converting
       // our orientations into 4x4 matrices 
       snde_coord4 follower_channel_campose_rotmtx[4]; // index identifies which column (data stored column-major)
       orientation_build_rotmtx(follower_channel_campose,follower_channel_campose_rotmtx);
       
-      snde_coord4 channel_to_track_campose_rotmtx[4]; // index identifies which column (data stored column-major)
-      orientation_build_rotmtx(channel_to_track_campose,channel_to_track_campose_rotmtx);
+      snde_coord4 channel_to_reorient_campose_rotmtx[4]; // index identifies which column (data stored column-major)
+      orientation_build_rotmtx(channel_to_reorient_campose,channel_to_reorient_campose_rotmtx);
       
       
       
@@ -649,32 +645,32 @@ namespace snde {
       if (0) {
 	
 	// Build OpenSceneGraph matrices and use OSG
-	// to calculate follower_channel_campose * inv(channel_to_track_campose)
+	// to calculate follower_channel_campose * inv(channel_to_reorient_campose)
 	
 	// ...following backwards OSG operator ordering convention:
-	// retval = inv(channel_to_track_campose) * follower_channel_campose
+	// retval = inv(channel_to_reorient_campose) * follower_channel_campose
 	
 	osg::Matrixd follower_channel_campose_osgmtx(&follower_channel_campose_rotmtx[0].coord[0]);
-	osg::Matrixd channel_to_track_campose_osgmtx(&channel_to_track_campose_rotmtx[0].coord[0]);
+	osg::Matrixd channel_to_reorient_campose_osgmtx(&channel_to_reorient_campose_rotmtx[0].coord[0]);
 	
-	osg::Matrixd channel_to_track_campose_inverse_osgmtx=osg::Matrixd::inverse(channel_to_track_campose_osgmtx);
+	osg::Matrixd channel_to_reorient_campose_inverse_osgmtx=osg::Matrixd::inverse(channel_to_reorient_campose_osgmtx);
 	
 	
 	osg::Matrixd osg_product(follower_channel_campose_osgmtx);
-	osg_product.preMult(channel_to_track_campose_inverse_osgmtx);
+	osg_product.preMult(channel_to_reorient_campose_inverse_osgmtx);
 	retval_osgmtx = osg_product;
       }
 
-      // calculate follower_channel_campose * inv(channel_to_track_campose)
-      // invert channel_to_track_campose
-      snde_coord4 channel_to_track_campose_rotmtx_inverse[4] = { { 1,0,0,0},{0,1,0,0},{0,0,1,0},{0,0,0,1}}; // when we solve for this in Ax=b it will turn into the inverse matrix
+      // calculate follower_channel_campose * inv(channel_to_reorient_campose)
+      // invert channel_to_reorient_campose
+      snde_coord4 channel_to_reorient_campose_rotmtx_inverse[4] = { { 1,0,0,0},{0,1,0,0},{0,0,1,0},{0,0,0,1}}; // when we solve for this in Ax=b it will turn into the inverse matrix
       size_t pivots[4];
-      // note: fmatrixsolve destroys channel_to_track_campose_rotmtx
-      fmatrixsolve(&channel_to_track_campose_rotmtx[0].coord[0],&channel_to_track_campose_rotmtx_inverse[0].coord[0],4,4,pivots,false);
+      // note: fmatrixsolve destroys channel_to_reorient_campose_rotmtx
+      fmatrixsolve(&channel_to_reorient_campose_rotmtx[0].coord[0],&channel_to_reorient_campose_rotmtx_inverse[0].coord[0],4,4,pivots,false);
       
       // multcmat44 is row major so like OSG we have to do it backwards
       snde_coord4 retval_cmat[4];
-      multcmat44(&channel_to_track_campose_rotmtx_inverse[0].coord[0],&follower_channel_campose_rotmtx[0].coord[0],&retval_cmat[0].coord[0]);
+      multcmat44(&channel_to_reorient_campose_rotmtx_inverse[0].coord[0],&follower_channel_campose_rotmtx[0].coord[0],&retval_cmat[0].coord[0]);
       retval_osgmtx = osg::Matrixd(&retval_cmat[0].coord[0]);
       
       
@@ -697,11 +693,11 @@ namespace snde {
       retval.quat.coord[3]=rotation.w();
     }
 
-    // retval = follower_channel_campose * inv(channel_to_track_campose)
-    snde_orientation3 channel_to_track_campose_inverse;
-    orientation_inverse(channel_to_track_campose,&channel_to_track_campose_inverse);
+    // retval = follower_channel_campose * inv(channel_to_reorient_campose)
+    snde_orientation3 channel_to_reorient_campose_inverse;
+    orientation_inverse(channel_to_reorient_campose,&channel_to_reorient_campose_inverse);
 
-    orientation_orientation_multiply(follower_channel_campose,channel_to_track_campose_inverse,&retval);
+    orientation_orientation_multiply(follower_channel_campose,channel_to_reorient_campose_inverse,&retval);
     
     
     return retval; 
@@ -715,26 +711,26 @@ namespace snde {
     // the ctt object appears in the same orientation in the follower channel
     //
 
-    // This gives us an equation: (follower channel ctt object coords)/(follower channel camera coords) = (ctt channel object coords)/(ctt channel camera coords) = channel_to_track_campose
+    // This gives us an equation: (follower channel ctt object coords)/(follower channel camera coords) = (ctt channel object coords)/(ctt channel camera coords) = channel_to_reorient_campose
     //
     // and we have follower_channel_campose = (follower channel object coords)/(follower channel camera coords)
     // and we have retval = (follower channel ctt object coords)/(ctt channel object coords)
     // So (follower channel ctt object coords) = retval * (ctt channel object coords)
     //
-    // From the eq. (follower channel ctt object coords)/(follower channel camera coords) = channel_to_track_campose
+    // From the eq. (follower channel ctt object coords)/(follower channel camera coords) = channel_to_reorient_campose
     //
-    // so  retval * (ctt channel object coords)/(follower channel camera coords) = channel_to_track_campose
+    // so  retval * (ctt channel object coords)/(follower channel camera coords) = channel_to_reorient_campose
     
     // from above, follower_channel_campose = (follower channel object coords)/(follower channel camera coords)
     // therefore  (follower channel camera coords) = (follower channel object coords)/follower_channel_campose  
 
 
-    // therefore retval * (ctt channel object coords)*follower_channel_campose/(follower channel object coords) = channel_to_track_campose
-    // Therefore retval = channel_to_track_campose/follower_channel_campose * (follower channel object coords)/(ctt channel object coords)?
+    // therefore retval * (ctt channel object coords)*follower_channel_campose/(follower channel object coords) = channel_to_reorient_campose
+    // Therefore retval = channel_to_reorient_campose/follower_channel_campose * (follower channel object coords)/(ctt channel object coords)?
     
-    // Therefore retval = channel_to_track_campose * follower_channel_campose * (follower channel object coords)/(ctt channel object coords)?
+    // Therefore retval = channel_to_reorient_campose * follower_channel_campose * (follower channel object coords)/(ctt channel object coords)?
 
-    // channel_to_track_campose / follower_channel_campose = (ctt channel object coords)/(ctt channel camera coords) * (follower channel camera coords) / (follower channel object coords) = (ctt channel object coords)/(follower channel object coords) * (follower channel camera coords)/(ctt channel camera coords)
+    // channel_to_reorient_campose / follower_channel_campose = (ctt channel object coords)/(ctt channel camera coords) * (follower channel camera coords) / (follower channel object coords) = (ctt channel object coords)/(follower channel object coords) * (follower channel camera coords)/(ctt channel camera coords)
     
 
   }

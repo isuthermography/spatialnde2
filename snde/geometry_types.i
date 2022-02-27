@@ -117,6 +117,8 @@ typedef char snde_bool;
  // implements input, const & input, output, and argout typemaps for the specified type,
  // which must have an entry in snd::rtn_numpytypemap
 
+ //%feature("novaluewrapper") snde_cpptype; // because valuewrapper screws up our output typemap and it shouldn't be necessary becaue we only use numpy_rtm_typemaps on plain-old-data types  (but disabling it doesn't seem to work)
+
 %typemap(typecheck,precedence=SWIG_TYPECHECK_FLOAT_ARRAY) snde_cpptype {
   std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it;
   PyArray_Descr *ArrayDescr;
@@ -225,7 +227,7 @@ typedef char snde_bool;
 
 
 
-%typemap(out) snde_cpptype (std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it, PyArray_Descr *ArrayDescr,PyArrayObject *arrayobj) {
+%typemap(out) snde_cpptype (std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it, PyArray_Descr *ArrayDescr,PyArrayObject *arrayobj,snde_cpptype resvalue) {
   numpytypemap_it = snde::rtn_numpytypemap.find(SNDE_RTN_SNDE_CPPTYPE);
   if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
     //throw snde::snde_error("No corresponding numpy datatype found for " snde_cpptype_string );
@@ -241,7 +243,8 @@ typedef char snde_bool;
   arrayobj = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type,ArrayDescr,0,nullptr,nullptr,nullptr,0,nullptr);
 
   assert(PyArray_SIZE(arrayobj) == 1);
-  memcpy(PyArray_DATA(arrayobj),&$1,sizeof($1));
+  resvalue = (snde_cpptype)($1);
+  memcpy(PyArray_DATA(arrayobj),&resvalue,sizeof(resvalue));
 
   $result = (PyObject *)arrayobj;
 }
@@ -278,9 +281,17 @@ typedef char snde_bool;
 %enddef
 
 
-numpy_rtm_typemaps(snde_orientation3,"snde_orientation3",SNDE_RTN_SNDE_ORIENTATION3);
+numpy_rtm_typemaps(snde_coord3,"snde_coord3",SNDE_RTN_SNDE_COORD3);
 numpy_rtm_typemaps(snde_coord4,"snde_coord4",SNDE_RTN_SNDE_COORD4);
+numpy_rtm_typemaps(snde_orientation3,"snde_orientation3",SNDE_RTN_SNDE_ORIENTATION3);
 
+typedef struct _snde_coord3 {
+  snde_coord coord[3];
+} snde_coord3;
+
+typedef struct _snde_coord4 {
+  snde_coord coord[4];
+} snde_coord4;
 
 typedef struct _snde_orientation3 {
   /* for point p, orientation represents q p q' + o  */

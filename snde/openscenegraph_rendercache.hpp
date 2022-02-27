@@ -463,7 +463,7 @@ namespace snde {
     
     std::shared_ptr<recording_base> cached_recording;
 
-    std::shared_ptr<osg_rendercachegroupentry> channel_to_track;
+    std::shared_ptr<osg_rendercachegroupentry> channel_to_reorient;
     std::shared_ptr<osg_rendercachegroupentry> sub_component;
     
     osg_cachedtransformedcomponent(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);

@@ -1349,7 +1349,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       
     }
     
-    // sub-requirement 1 is our channel_to_track in rendering mode
+    // sub-requirement 1 is our channel_to_reorient in rendering mode
     std::shared_ptr<display_requirement> channeltotrack_requirement=display_req->sub_requirements.at(0);
     std::shared_ptr<osg_rendercacheentry> channeltotrack_entry;
     
@@ -1359,8 +1359,8 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     if (!channeltotrack_entry) {
       throw snde_error("osg_cachedtransformedcomponent(): Could not get cache entry for channeltotrack %s",channeltotrack_requirement->renderable_channelpath->c_str());
     }
-    channel_to_track = std::dynamic_pointer_cast<osg_rendercachegroupentry>(channeltotrack_entry);
-    if (!channel_to_track) {
+    channel_to_reorient = std::dynamic_pointer_cast<osg_rendercachegroupentry>(channeltotrack_entry);
+    if (!channel_to_reorient) {
       throw snde_error("osg:cachedtransformedcomponent(): Cache entry for channeltotrack %s not convertible to a group",channeltotrack_requirement->renderable_channelpath->c_str());	
     }   
     // sub-requirement 2 is our component in rendering mode
@@ -1384,11 +1384,11 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     assert(pose_params);
     
     snde_coord4 rotmtx[4]; // index identifies which column (data stored column-major)
-    orientation_build_rotmtx(pose_params->channel_to_track_orientation,rotmtx);
+    orientation_build_rotmtx(pose_params->channel_to_reorient_orientation,rotmtx);
     
     osg::ref_ptr<osg::MatrixTransform> xform  = new osg::MatrixTransform(osg::Matrixd(&rotmtx[0].coord[0])); // remember osg::MatrixTransform also wants the matrix column-major (as we interpret it; osg interprets it as row major, with left multiplication rather than right multiplication)
     //std::cout << "ChannelToTrackTransform:\n " << Eigen::Map<const Eigen::Matrix4d>(xform->getMatrix().ptr()) << "\n";
-    xform->addChild(channel_to_track->osg_group);
+    xform->addChild(channel_to_reorient->osg_group);
     osg_group->addChild(xform);
     osg_group->addChild(sub_component->osg_group);
     

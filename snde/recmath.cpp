@@ -818,12 +818,20 @@ namespace snde {
     if (inst && inst->self_dependent) {
       std::shared_ptr<recording_set_state> prereq_state=rss->prerequisite_state();
 
-      for (auto &&result_channel_path_ptr: inst->result_channel_paths) {
-	if (result_channel_path_ptr) {
-	  channel_state &chanstate = prereq_state->recstatus.channel_map.at(*result_channel_path_ptr);
-	  self_dependent_recordings.push_back(chanstate.rec());
-	} else {
+      auto prereq_state_function_status_it = prereq_state->mathstatus.function_status.find(inst);
+      if (prereq_state_function_status_it == prereq_state->mathstatus.function_status.end()) {
+	// math function definition has changed. Don't try to pull in self-dependent recordings
+	for (auto &&result_channel_path_ptr: inst->result_channel_paths) {
 	  self_dependent_recordings.push_back(null_rec);
+	}
+      } else {
+	for (auto &&result_channel_path_ptr: inst->result_channel_paths) {
+	  if (result_channel_path_ptr) {
+	    channel_state &chanstate = prereq_state->recstatus.channel_map.at(*result_channel_path_ptr);
+	    self_dependent_recordings.push_back(chanstate.rec());
+	  } else {
+	    self_dependent_recordings.push_back(null_rec);
+	  }
 	}
       }
     }

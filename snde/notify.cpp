@@ -393,10 +393,18 @@ namespace snde {
       // Pass completed recording from this channel_state to subsequent_globalrev's channelstate
       sg_channelstate.end_atomic_rec_update(current_channelstate.rec());
 
-      std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator def_recs_it = subsequent_globalrev->recstatus.defined_recordings.find(current_channelstate.config);
-      assert(def_recs_it != subsequent_globalrev->recstatus.defined_recordings.end()); // should be in defined_recordings prior to the notifications
+      std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator recs_it = subsequent_globalrev->recstatus.defined_recordings.find(current_channelstate.config);
+      bool in_defined_recordings = true;
+      bool in_instantiated_recordings = false;
+      if (recs_it == subsequent_globalrev->recstatus.defined_recordings.end()) {
+	in_defined_recordings = false;
+	// not in defined recordings... should be in instantiated_recordings
+	recs_it = subsequent_globalrev->recstatus.instantiated_recordings.find(current_channelstate.config);
+	assert(recs_it != subsequent_globalrev->recstatus.instantiated_recordings.end()); // should be in either defined_recordings or instantiated_recordings prior to the notifications
+	in_instantiated_recordings = true;
+      }
 
-      assert(def_recs_it->second == &sg_channelstate);
+      assert(recs_it->second == &sg_channelstate);
       
       if (mdonly  && !sg_channelstate.recording_is_complete(false)) {
 	// if we are mdonly and recording is only complete through mdonly
@@ -407,8 +415,13 @@ namespace snde {
 	assert(sg_channelstate.recording_is_complete(false));
 	subsequent_globalrev->recstatus.completed_recordings.emplace(current_channelstate.config,&sg_channelstate);	
       }
-      
-      subsequent_globalrev->recstatus.defined_recordings.erase(def_recs_it);
+
+      if (in_defined_recordings) {
+	subsequent_globalrev->recstatus.defined_recordings.erase(recs_it);
+      } else if (in_instantiated_recordings) {
+	subsequent_globalrev->recstatus.instantiated_recordings.erase(recs_it);
+
+      }
     }  
     sg_channelstate.issue_nonmath_notifications(subsequent_globalrev);
 

@@ -90,17 +90,17 @@ namespace snde {
   class qt_osg_compositor_view_tracking_pose_recording: public tracking_pose_recording {
   public:
     //QWeakPointer<qt_osg_compositor> compositor;
-    std::string channel_to_track; // string is a path name, absolute or relative, treating the path of the tracking_pose_recording with a trailing slash as a group context
-    virtual snde_orientation3 get_channel_to_track_pose() const;
+    std::string channel_to_reorient; // string is a path name, absolute or relative, treating the path of the tracking_pose_recording with a trailing slash as a group context
+    virtual snde_orientation3 get_channel_to_reorient_pose(std::shared_ptr<recording_set_state> rss) const;
     
-    qt_osg_compositor_view_tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_track,std::string component_name,QSharedPointer<qt_osg_compositor> compositor);
+    qt_osg_compositor_view_tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient,std::string component_name,QSharedPointer<qt_osg_compositor> compositor);
     
   };
   
 
   // template for qoc_view_tracking_pose_recording arguments
   template <class T>
-    std::shared_ptr<T> create_recording_qoc_view_tracking_pose_info(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string channel_to_track,std::string component_name,QSharedPointer<qt_osg_compositor> compositor);
+    std::shared_ptr<T> create_recording_qoc_view_tracking_pose_info(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string channel_to_reorient,std::string component_name,QSharedPointer<qt_osg_compositor> compositor);
   %{
 #define create_recording_qoc_view_tracking_pose_info create_recording
    %}

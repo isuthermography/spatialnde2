@@ -108,9 +108,11 @@ namespace snde {
   class qt_osg_compositor_view_tracking_pose_recording: public tracking_pose_recording {
   public:
     QWeakPointer<qt_osg_compositor> compositor;
-    virtual snde_orientation3 get_channel_to_track_pose() const;
+    virtual snde_orientation3 get_channel_to_reorient_pose(std::shared_ptr<recording_set_state> rss) const;
+    // channel to reorient is the channel that should appear fixed in this
+    // view, with the same view as in the channel to reorient
     
-    qt_osg_compositor_view_tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_track,std::string component_name,QSharedPointer<qt_osg_compositor> compositor);
+    qt_osg_compositor_view_tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient,std::string component_name,QSharedPointer<qt_osg_compositor> compositor);
     
   };
   

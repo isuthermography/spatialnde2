@@ -438,7 +438,7 @@ namespace snde {
 	      { result_ref, true }
 	    },
 #ifdef SNDE_OPENCL
-	    true
+	    std::dynamic_pointer_cast<assigned_compute_resource_opencl>(compute_resource) ? true:false
 #else
 	    false
 #endif

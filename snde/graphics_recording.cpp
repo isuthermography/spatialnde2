@@ -1,6 +1,7 @@
 
 #include "snde/graphics_recording.hpp"
 #include "snde/geometrydata.h"
+#include "snde/display_requirements.hpp"
 
 namespace snde {
 
@@ -189,13 +190,57 @@ namespace snde {
   }
 
   
-  tracking_pose_recording::tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_track,std::string component_name):
+  tracking_pose_recording::tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient,std::string component_name):
     recording_group(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,nullptr),
-    channel_to_track(channel_to_track),
+    channel_to_reorient(channel_to_reorient),
     component_name(component_name)
   {
     
   }
 
 
+  // Register the pre-existing tracking_pose_recording_display_handler in display_requirement.cpp/hpp as the display handler for pose_channel_tracking_pose_recording
+  static int register_pctpr_display_handler = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(pose_channel_tracking_pose_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+	return std::make_shared<tracking_pose_recording_display_handler>(display,displaychan,base_rss);
+      }));
+
+  pose_channel_tracking_pose_recording::pose_channel_tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient,std::string component_name,std::string pose_channel_name):
+    tracking_pose_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,channel_to_reorient,component_name),
+    pose_channel_name(pose_channel_name)
+  {
+    
+  }
+
+  snde_orientation3 pose_channel_tracking_pose_recording::get_channel_to_reorient_pose(std::shared_ptr<recording_set_state> rss) const
+  {
+    snde_orientation3 retval = { {{ 0.0, 0.0, 0.0, 0.0 } }, {{ 0.0, 0.0, 0.0, 0.0 } } }; // invalid orientation
+
+    std::string chanpath = info->name;
+    std::string pose_recording_fullpath = recdb_join_assembly_and_component_names(chanpath,pose_channel_name);
+    std::shared_ptr<recording_base> pose_recording = rss->get_recording(pose_recording_fullpath);
+
+    if (!pose_recording)  {
+      return retval;
+    }
+
+    std::shared_ptr<multi_ndarray_recording> pose_rec_ndarray = pose_recording->cast_to_multi_ndarray();
+    if (!pose_rec_ndarray) {
+      return retval;
+    }
+
+    std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> pose_ref = pose_rec_ndarray->reference_typed_ndarray<snde_orientation3>();
+    if (!pose_ref) {
+      return retval;
+    }
+
+    if (pose_ref->storage->requires_locking_read) {
+      throw snde_error("pose_channel_tracking_pose_recording::get_channel_to_reorient_pose(), channel %s: Pose channel %s requires locking for read, which may be unsafe in this context. Switch it to a storage manager that does not require locking.",chanpath.c_str(),pose_recording_fullpath.c_str());
+    }
+    return pose_ref->element(0);
+    
+  }
+
+
+  
+  
 };
