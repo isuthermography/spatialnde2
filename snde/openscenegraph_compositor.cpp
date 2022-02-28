@@ -481,6 +481,15 @@ namespace snde {
 	    }
 	    adminlock2.lock();
 
+	    auto FutCamPoseIt = FutureChannelCamPose.find(display_req.second->channelpath);
+	    if (FutCamPoseIt != FutureChannelCamPose.end()) {
+	      renderer->AssignNewCameraPose(FutCamPoseIt->second);
+	    }
+	    auto FutRotCtrIt = FutureChannelRotationCenter.find(display_req.second->channelpath);
+	    if (FutRotCtrIt != FutureChannelRotationCenter.end()) {
+	      renderer->AssignNewRotationCenter(FutRotCtrIt->second);
+	    }
+	    
 	    renderers->erase(display_req.second->channelpath);
 	    renderers->emplace(display_req.second->channelpath,renderer);
 	  } else {	
@@ -1150,15 +1159,24 @@ namespace snde {
       std::lock_guard<std::mutex> compositor_admin(admin); // required for access to renderers
       
       auto renderer_it = renderers->find(channel_path);
-      if (renderer_it == renderers->end()) {
-	// channel not found -- return null orientation
-	snde_orientation3 null;
-	snde_null_orientation3(&null);
-	return null;
+      if (renderer_it != renderers->end()) {
+
+	//CamPose = renderer_it->second->Camera->getInverseViewMatrix(); // camera pose is the inverse of the view matrix
+	CamPose = renderer_it->second->GetLastCameraPose();
+      } else {
+	// channel not found - check for FutureChannelCamPose
+	auto FutCamPoseIt = FutureChannelCamPose.find(channel_path);
+	if (FutCamPoseIt != FutureChannelCamPose.end()) {
+	  CamPose = FutCamPoseIt->second;
+	} else {
+
+	  // return null orientation
+	  snde_orientation3 null;
+	  snde_null_orientation3(&null);
+	  return null;
+	}
       }
       
-      //CamPose = renderer_it->second->Camera->getInverseViewMatrix(); // camera pose is the inverse of the view matrix
-      CamPose = renderer_it->second->GetLastCameraPose();
     }
     
     osg::Vec3d translation;
@@ -1189,19 +1207,92 @@ namespace snde {
     {
       std::lock_guard<std::mutex> compositor_admin(admin); // required for access to renderers
       
-      auto renderer_it = renderers->find(channel_path);
-      if (renderer_it == renderers->end()) {
-	// channel not found -- return null orientation
-	throw snde_error("set_camera_pose: channel %s not found",channel_path.c_str());
-      }
-
       snde_coord4 rotmtx[4];
       orientation_build_rotmtx(newpose,rotmtx);
       osg::Matrixd OSGCamPose(&rotmtx[0].coord[0]);
-      renderer_it->second->AssignNewCameraPose(OSGCamPose);
+
+      
+      auto renderer_it = renderers->find(channel_path);
+      if (renderer_it != renderers->end()) {
+	renderer_it->second->AssignNewCameraPose(OSGCamPose);
+
+      } else {
+	// channel not found - check for FutureChannelCamPose
+	auto FutCamPoseIt = FutureChannelCamPose.find(channel_path);
+	if (FutCamPoseIt != FutureChannelCamPose.end()) {
+	  FutCamPoseIt->second = OSGCamPose;
+	} else {
+	  FutureChannelCamPose.emplace(channel_path,OSGCamPose);
+	}
+      }
+
     }
   }
-  
+
+
+  snde_coord3 osg_compositor::get_rotation_center(std::string channel_path) // get the viewer rotation center
+  {
+    osg::Vec3 RotCenter;
+    {
+      std::lock_guard<std::mutex> compositor_admin(admin); // required for access to renderers
+      
+      auto renderer_it = renderers->find(channel_path);
+      if (renderer_it != renderers->end()) {
+	RotCenter = renderer_it->second->GetLastRotationCenter();
+
+      } else {
+	// channel not found - check for FutureChannelRotationCenter
+	auto FutRotCtrIt = FutureChannelRotationCenter.find(channel_path);
+	if (FutRotCtrIt != FutureChannelRotationCenter.end()) {
+	  RotCenter = FutRotCtrIt->second;
+	} else {
+
+	  // channel not found -- return null position
+	  snde_coord3 null = { { 0,0,0 } };
+	  return null;
+	}
+      }
+      
+    }
+    
+
+    snde_coord3 retval;
+    retval.coord[0]=RotCenter.x();
+    retval.coord[1]=RotCenter.y();
+    retval.coord[2]=RotCenter.z();
+
+    return retval;
+
+  }
+  void osg_compositor::set_rotation_center(std::string channel_path,const snde_coord3 &newcenter)
+  {
+    {
+      std::lock_guard<std::mutex> compositor_admin(admin); // required for access to renderers
+      
+      osg::Vec3d OSGCenter;
+      OSGCenter.x() = newcenter.coord[0];
+      OSGCenter.y() = newcenter.coord[1];
+      OSGCenter.z() = newcenter.coord[2];
+      
+      auto renderer_it = renderers->find(channel_path);
+      if (renderer_it != renderers->end()) {
+	renderer_it->second->AssignNewRotationCenter(OSGCenter);
+
+      } else {
+	// channel not found - check for FutureChannelRotCenter
+	auto FutRotCtrIt = FutureChannelRotationCenter.find(channel_path);
+	if (FutRotCtrIt != FutureChannelRotationCenter.end()) {
+	  FutRotCtrIt->second = OSGCenter;
+	} else {
+	  FutureChannelRotationCenter.emplace(channel_path,OSGCenter);
+	}
+
+      }
+      
+    }
+
+  }
+
   void osg_compositor::start()
   {
     

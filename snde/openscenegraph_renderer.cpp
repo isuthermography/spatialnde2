@@ -9,6 +9,7 @@
 #include <osg/Version>
 #include <osg/GL>
 #include <osg/GLExtensions>
+#include <osgGA/OrbitManipulator>
 
 #if OPENSCENEGRAPH_MAJOR_VERSION >= 3 && OPENSCENEGRAPH_MINOR_VERSION >= 6
 #include <osg/VertexArrayState>
@@ -54,11 +55,13 @@ namespace snde {
   
   osg_renderer::osg_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
 			     osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
+			     osg::ref_ptr<osgGA::CameraManipulator> Manipulator,
 			     std::string channel_path,int type,bool enable_shaders) :
     Viewer(Viewer),
     RootTransform(new osg::MatrixTransform()),
     Camera(Viewer->getCamera()),
     GraphicsWindow(GraphicsWindow),
+    Manipulator(Manipulator),
     channel_path(channel_path),
     type(type),
     enable_shaders(enable_shaders)
@@ -69,20 +72,51 @@ namespace snde {
 
     
     _LastCameraPose = Camera->getInverseViewMatrix(); // camera pose is the inverse of the view matrix
+    _LastRotationCenter.x()=0.0;
+    _LastRotationCenter.y()=0.0;
+    _LastRotationCenter.z()=0.0;
+    if (Manipulator) {
+      osgGA::OrbitManipulator *Manip = dynamic_cast<osgGA::OrbitManipulator*>(Manipulator.get());
+      if (Manip) {
+	_LastRotationCenter = Manip->getCenter();
+      }
+    }
   }
   
   void osg_renderer::frame()
   {
     osg::ref_ptr<osg::RefMatrixd> NewCameraPose;
+    std::shared_ptr<osg::Vec3d> NewRotationCenter;
     {
       std::lock_guard<std::mutex> LCP_NCP_lock(LCP_NCP_mutex);
       
       NewCameraPose = _NewCameraPose;
       _NewCameraPose = nullptr;
+
+      NewRotationCenter = _NewRotationCenter;
+      _NewRotationCenter = nullptr;
+
     }
 
-    if (NewCameraPose) {
-      Viewer->getCameraManipulator()->setByMatrix(*NewCameraPose);
+    if (NewCameraPose && Manipulator) {
+      Manipulator->setByMatrix(*NewCameraPose);
+    }
+    if (NewRotationCenter && Manipulator) {
+      osgGA::OrbitManipulator *Manip = dynamic_cast<osgGA::OrbitManipulator*>(Manipulator.get());
+      if (Manip) {
+	// Make sure the new rotation center doesn't change the camera pose
+	osg::Matrixd CamMtx = Manip->getMatrix();
+	
+	//snde_warning("rendering %s setting rotation center to (%f,%f,%f)",channel_path.c_str(),NewRotationCenter->x(),NewRotationCenter->y(),NewRotationCenter->z());
+
+	// really all we set with the center is the distance to the
+	// rotation point because we don't allow the
+	// rotation center application to change the camera pose
+	double distance = sqrt(pow(NewRotationCenter->x()-CamMtx(3,0),2)+pow(NewRotationCenter->y()-CamMtx(3,1),2) + pow(NewRotationCenter->z()-CamMtx(3,2),2));
+	
+	Manip->setDistance(distance);
+	Manip->setByMatrix(CamMtx);
+      }
     }
     
     Viewer->frame();
@@ -90,6 +124,13 @@ namespace snde {
     {
       std::lock_guard<std::mutex> LCP_NCP_lock(LCP_NCP_mutex);
       _LastCameraPose = Camera->getInverseViewMatrix(); // camera pose is the inverse of the view matrix
+      if (Manipulator) {
+	osgGA::OrbitManipulator *Manip = dynamic_cast<osgGA::OrbitManipulator*>(Manipulator.get());
+	if (Manip) {
+	  _LastRotationCenter = Manip->getCenter();
+	  //snde_warning("rendering %s got rotation center of (%f,%f,%f)",channel_path.c_str(),_LastRotationCenter.x(),_LastRotationCenter.y(),_LastRotationCenter.z());
+	}
+      }
     }
   }
   
@@ -111,6 +152,27 @@ namespace snde {
     }
     
   }
+
+
+  osg::Vec3d osg_renderer::GetLastRotationCenter()
+  {
+    {
+      std::lock_guard<std::mutex> LCP_NCP_lock(LCP_NCP_mutex);
+      return _LastRotationCenter;
+    }
+    
+  }
+
+  void osg_renderer::AssignNewRotationCenter(const osg::Vec3d &newcenter)
+  {
+    {
+      std::lock_guard<std::mutex> LCP_NCP_lock(LCP_NCP_mutex);
+      _NewRotationCenter = std::make_shared<osg::Vec3d>(newcenter);
+      _LastRotationCenter = newcenter; 
+    }
+    
+  }
+
 
   
   void osg_SyncableState::SyncModeBits()

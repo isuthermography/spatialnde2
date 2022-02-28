@@ -16,12 +16,12 @@ namespace snde {
     // inherited members from osg_renderer
     //osg::ref_ptr<osgViewer::Viewer> Viewer;
     //osg::ref_ptr<osg::Camera> Camera;
+    //osg::ref_ptr<osgGA::CameraManipulator> Manipulator;
     //osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow;
     //std::string channel_path;
     //
     //int type; // see SNDE_DRRT_XXXXX in rec_display.hpp
 
-    osg::ref_ptr<osgGA::TrackballManipulator> Manipulator;
     osg::ref_ptr<osg::Group> group;
     
 

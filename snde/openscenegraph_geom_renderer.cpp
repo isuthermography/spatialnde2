@@ -18,8 +18,7 @@ namespace snde {
   osg_geom_renderer::osg_geom_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
 				       osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
 				       std::string channel_path,bool enable_shaders) :
-    osg_renderer(Viewer,GraphicsWindow,channel_path,SNDE_DRRT_GEOMETRY,enable_shaders),
-    Manipulator(new osgGA::TrackballManipulator())
+    osg_renderer(Viewer,GraphicsWindow,new osgGA::TrackballManipulator(),channel_path,SNDE_DRRT_GEOMETRY,enable_shaders)
     //firstrun(true)
   {
 
@@ -40,7 +39,7 @@ namespace snde {
 
     Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded); // We handle threading ourselves... this is REQUIRED
     Viewer->setCameraManipulator(Manipulator);
-    Manipulator->setAllowThrow(false); // leave at false unless/until we get the other animation infrastructure working (basically relevant event callbacks compatible with the OSG timers)
+    (dynamic_cast<osgGA::OrbitManipulator *>(Manipulator.get()))->setAllowThrow(false); // leave at false unless/until we get the other animation infrastructure working (basically relevant event callbacks compatible with the OSG timers)
     //Viewer->addEventHandler(Manipulator);
     Viewer->realize();
 

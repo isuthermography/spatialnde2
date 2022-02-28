@@ -184,6 +184,10 @@ namespace snde {
     osg::ref_ptr<osg::Camera> Camera;
     osg::ref_ptr<osg_compositor_eventhandler> eventhandler; 
 
+    std::map<std::string,osg::Matrixd> FutureChannelCamPose; // locked by admin mutex
+    std::map<std::string,osg::Vec3d> FutureChannelRotationCenter; // locked by admin mutex
+    
+    
     std::shared_ptr<display_info> display;
     std::string selected_channel; // locked by admin lock.... maybe selected channel should instead be handled like compositor_width, compositor_height, etc. below. or stored in display_info copy we will eventually have? 
     
@@ -347,6 +351,8 @@ namespace snde {
 
     virtual snde_orientation3 get_camera_pose(std::string channel_path); // get the camera pose (or a null orientation) for the given channel
     virtual void set_camera_pose(std::string channel_path,const snde_orientation3 &newpose);
+    virtual snde_coord3 get_rotation_center(std::string channel_path); // get the viewer rotation center
+    virtual void set_rotation_center(std::string channel_path,const snde_coord3 &newcenter);
     
     
 

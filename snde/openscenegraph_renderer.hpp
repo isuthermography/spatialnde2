@@ -61,13 +61,16 @@ namespace snde {
     osg::ref_ptr<osgViewer::Viewer> Viewer;
     osg::ref_ptr<osg::MatrixTransform> RootTransform; // Need Root group because swapping out SceneData clears event queue
     osg::ref_ptr<osg::Camera> Camera;
+    osg::ref_ptr<osgGA::CameraManipulator> Manipulator;
     osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow;
     osg::ref_ptr<osgGA::EventQueue> EventQueue; // we keep a separate pointer to the event queue because getEventQueue() may not e thread safe but the EventQueue itself seems to be. 
     std::string channel_path;
 
     std::mutex LCP_NCP_mutex; // protects _LastCameraPose and _NewCameraPose; last in the locking order; definitely after the compositor admin lock
     osg::Matrixd _LastCameraPose;
+    osg::Vec3d _LastRotationCenter;
     osg::ref_ptr<osg::RefMatrixd> _NewCameraPose; // if not nullptr, use this new camera pose on next render.
+    std::shared_ptr<osg::Vec3d> _NewRotationCenter; // if not nullptr, use this new rotation center on next render.
 
     int type; // see SNDE_DRRT_XXXXX in rec_display.hpp
     bool enable_shaders;
@@ -76,6 +79,7 @@ namespace snde {
 
     osg_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
 		 osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
+		 osg::ref_ptr<osgGA::CameraManipulator> Manipulator,
 		 std::string channel_path,int type,bool enable_shaders);
     osg_renderer(const osg_renderer &) = delete;
     osg_renderer & operator=(const osg_renderer &) = delete;
@@ -94,7 +98,9 @@ namespace snde {
     
     virtual void frame();
     virtual osg::Matrixd GetLastCameraPose();
+    virtual osg::Vec3d GetLastRotationCenter();
     virtual void AssignNewCameraPose(const osg::Matrixd &newpose);
+    virtual void AssignNewRotationCenter(const osg::Vec3d &newrotctr);
     
   };
 

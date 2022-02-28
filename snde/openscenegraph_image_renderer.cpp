@@ -13,7 +13,7 @@ namespace snde {
   osg_image_renderer::osg_image_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
 					 osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
 					 std::string channel_path,bool enable_shaders) :
-    osg_renderer(Viewer,GraphicsWindow,channel_path,SNDE_DRRT_IMAGE,enable_shaders)
+    osg_renderer(Viewer,GraphicsWindow,nullptr,channel_path,SNDE_DRRT_IMAGE,enable_shaders)
   {
     
     EventQueue=GraphicsWindow->getEventQueue();

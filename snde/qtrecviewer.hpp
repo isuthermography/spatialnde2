@@ -70,7 +70,9 @@ namespace snde {
 
     snde_orientation3 get_camera_pose(std::string channelpath);
     void set_camera_pose(std::string channelpath,const snde_orientation3 &newpose);
-    
+    snde_coord3 get_rotation_center(std::string channelpath);
+    void set_rotation_center(std::string channelpath,const snde_coord3 &newcenter);
+
 							      
   public slots:
     void update_rec_list(); // Triggered from a hint from the recording database that there was a new globalrev
