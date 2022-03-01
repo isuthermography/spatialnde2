@@ -1,20 +1,6 @@
 #ifndef SNDE_ERROR_HPP
 #define SNDE_ERROR_HPP
 
-// CMake's CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS is set, but some global variables still require 
-// explicit import and export flags to compile properly with MSVC and other compilers that
-// behave similarly.  Newer versions of GCC shouldn't care about the presence of dllimport
-// or dllexport, but it doesn't need it.
-#ifdef _WIN32
-#ifdef SPATIALNDE2_SHAREDLIB_EXPORT
-#define SNDE_API __declspec(dllexport)
-#else
-#define SNDE_API __declspec(dllimport)
-#endif
-#else
-#define SNDE_API
-#endif
-
 
 #ifdef __GNUG__ // catches g++ and clang see https://www.gnu.org/software/libc/manual/html_node/Backtraces.html
 
@@ -29,6 +15,7 @@
 
 #include <map>
 #include <cstdio>
+#include "snde/snde_types.h"
 
 #if defined(_MSC_VER) && _MSC_VER < 1900
 #define snprintf _snprintf

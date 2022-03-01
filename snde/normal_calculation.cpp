@@ -225,7 +225,7 @@ namespace snde {
     }); 
   }
 
-  std::shared_ptr<math_function> trinormals_function = define_spatialnde2_trinormals_function();
+  SNDE_OCL_API std::shared_ptr<math_function> trinormals_function = define_spatialnde2_trinormals_function();
   
   static int registered_trinormals_function = register_math_function("spatialnde2.trinormals",trinormals_function);
   
@@ -432,7 +432,7 @@ namespace snde {
     
   }
 
-  std::shared_ptr<math_function> vertnormals_recording_function=define_vertnormals_recording_function();
+  SNDE_OCL_API std::shared_ptr<math_function> vertnormals_recording_function=define_vertnormals_recording_function();
   
   static int registered_vertnormals_function = register_math_function("spatialnde2.vertnormals",vertnormals_recording_function);
   
