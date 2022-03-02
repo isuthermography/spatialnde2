@@ -1,26 +1,14 @@
-// ***!!!! Should modify revision manager to better use common code
-// to determine inputs, determine output regions, and perform locking. 
-
-#include "snde/opencl_utils.hpp"
-
-
 #ifndef SNDE_INPLANEMAT_CALCULATION_HPP
 #define SNDE_INPLANEMAT_CALCULATION_HPP
 
 
 namespace snde {
-  class geometry;
-  class trm;
-  class component;
   
-  
-  //extern opencl_program inplanematcalc_opencl_program;
+  std::shared_ptr<math_function> define_spatialnde2_inplanemat_calculation_function();
 
-// The snde::geometry's object_trees_lock should be held when making this call,
-  // and it should be inside a revman transaction
-  std::shared_ptr<trm_dependency> inplanemat_calculation(std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<component> comp,cl_context context,cl_device_id device,cl_command_queue queue);
-
-
+  // NOTE: Change to SNDE_OCL_API if/when we add GPU acceleration support, and
+  // (in CMakeLists.txt) make it move into the _ocl.so library)
+  extern SNDE_API std::shared_ptr<math_function> inplanemat_calculation_function;
 
 };
 #endif // SNDE_INPLANEMAT_CALCULATION_HPP

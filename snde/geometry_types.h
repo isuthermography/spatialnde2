@@ -625,7 +625,7 @@ struct snde_faceedge {
 struct snde_face {
   snde_index firstfaceedgeindex; // refer to a list of faceedges within the topo_indices array
   snde_index numfaceedgeindices;
-  snde_index imagenum; // index of snde_image within which this face is located. should be less than snde_parameterization.numuvimages
+  snde_index patchnum; // index of snde_image within which this face is located. should be less than snde_parameterization.numuvpatches
   snde_index boundary_num; // boundary number within the part (NOT relative to first_topological) (valid for 3D faces but not 2D faces)
                            // boundary number of 0 means outer boundary, > 0 means void boundary
   union {
@@ -736,8 +736,8 @@ struct snde_parameterization {
   snde_index firstuvvertex,numuvvertices; /* vertices in mesheduv may not line up with edges in object */
   snde_index first_uv_vertex_edgelist,num_uv_vertex_edgelist; // vertex edges for a particular vertex are listed in in CCW order
 
-  snde_index firstuvpatch; // index into array of snde_parameterization_patch... number of elements used is numuvimages
-  snde_index numuvimages; /* "images" are regions in uv space that the vertices are represented in. There can be multiple images pointed to by the different patches.  Indexes  go from zero to numuvimage. They will need to be added to the firstuvimage of the snde_partinstance. Note that if numuvimages > 1, the parameterization is not directly renderable and needs a processing step prior to rendering to combine the uv images into a single parameterization space. NOTE: this parameter (numuvimages) is not permitted to be changed once created (create an entirely new snde_parameterization) */
+  snde_index firstuvpatch; // index into array of snde_parameterization_patch... number of elements used is numuvpatches
+  snde_index numuvpatches; /* "patches" are regions in uv space that the vertices are represented in. There can be multiple images pointed to by the different patches.  Indexes  go from zero to numpatches. They will need to be added to the firstuvpatch of the snde_partinstance. Note that if numuvpatches > 1, the parameterization is not directly renderable and needs a processing step prior to rendering to combine the uv patches into a single parameterization space. NOTE: this parameter (numuvpatches) is not permitted to be changed once created (create an entirely new snde_parameterization) */
     
 };
   

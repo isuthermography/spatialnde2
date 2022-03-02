@@ -900,7 +900,9 @@ namespace snde {
     mndinfo()->dims_valid=false;
     mndinfo()->data_valid=false;
     mndinfo()->num_arrays = num_ndarrays;
-    mndinfo()->arrays = (snde_ndarray_info *)calloc(sizeof(snde_ndarray_info)*num_ndarrays,1);
+    if (num_ndarrays) {
+      mndinfo()->arrays = (snde_ndarray_info *)calloc(sizeof(snde_ndarray_info)*num_ndarrays,1);
+    }
     //ndinfo()->ndim=0;
     //ndinfo()->base_index=0;
     //ndinfo()->dimlen=nullptr;
@@ -920,10 +922,24 @@ namespace snde {
   {
     // c pointers get freed automatically because they point into the c++ structs.
     // except for info->arrays
-    free(mndinfo()->arrays);
+    if (mndinfo()->arrays) {
+      free(mndinfo()->arrays);
+    }
     mndinfo()->arrays=nullptr; 
   }
 
+  void multi_ndarray_recording::set_num_ndarrays(size_t num_ndarrays)
+  // NOTE: This can only be called on a recording that was constructed with num_ndarrays
+  // set to zero, and must be called before any arrays are defined, etc. etc.,
+  // i.e. first thing after construction 
+  {
+    assert(!mndinfo()->arrays);
+
+    mndinfo()->arrays = (snde_ndarray_info *)calloc(sizeof(snde_ndarray_info)*num_ndarrays,1);
+    
+  }
+
+  
   void multi_ndarray_recording::mark_as_ready()
   {
     // Notify our storage that we are marked as ready, which may cause cache invalidation, etc.

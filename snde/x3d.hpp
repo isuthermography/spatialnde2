@@ -1584,7 +1584,7 @@ namespace snde {
 						       .first_uv_vertex_edgelist=SNDE_INDEX_INVALID,
 						       .num_uv_vertex_edgelist=SNDE_INDEX_INVALID,
 						       .firstuvpatch=SNDE_INDEX_INVALID,
-						       .numuvimages=1,
+						       .numuvpatches=1,
 						       //.firstuvbox=SNDE_INDEX_INVALID,
 						       //.numuvboxes=SNDE_INDEX_INVALID,
 						       //.firstuvboxpoly=SNDE_INDEX_INVALID,
@@ -2502,7 +2502,7 @@ namespace snde {
 	//geom->geom.uvs[firstuv].firstuvbox=SNDE_INDEX_INVALID;
 	//geom->geom.uvs[firstuv].numuvboxes=SNDE_INDEX_INVALID;
 	//geom->geom.uvs[firstuv].firstuvpatch=SNDE_INDEX_INVALID;
-	//geom->geom.uvs[firstuv].numuvimages=SNDE_INDEX_INVALID;
+	//geom->geom.uvs[firstuv].numuvpatches=SNDE_INDEX_INVALID;
 	//geom->geom.uvs[firstuv].firstuvboxpoly=SNDE_INDEX_INVALID;
 	//geom->geom.uvs[firstuv].numuvboxpolys=SNDE_INDEX_INVALID;
 	//geom->geom.uvs[firstuv].firstuvboxcoord=SNDE_INDEX_INVALID;
@@ -2524,7 +2524,7 @@ namespace snde {
 	std::shared_ptr<channelconfig> uvparam_config=std::make_shared<snde::channelconfig>(uvparamfullname, ownername, (void *)owner,false);
 	std::shared_ptr<snde::channel> uvparam_chan = recdb->reserve_channel(uvparam_config);
       
-	uvparam = create_recording<meshed_parameterization_recording>(recdb,uvparam_chan,(void *)owner);  // currently only implement numuvimages==1
+	uvparam = create_recording<meshed_parameterization_recording>(recdb,uvparam_chan,(void *)owner);  // currently only implement numuvpatches==1
 	uvparam->assign_storage_manager(graphman);
 	x3d_assign_allocated_storage(uvparam,"uvs",graphman->geom.uvs,firstuv,1);
 	x3d_assign_allocated_storage(uvparam,"uv_patches",graphman->geom.uv_patches,graphman->geom.uvs[firstuv].firstuvpatch,1);

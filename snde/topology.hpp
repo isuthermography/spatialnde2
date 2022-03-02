@@ -142,7 +142,7 @@ std::vector<snde_topological> assign_texturetri_facenums(snde_geometrydata *geom
   while(next_tri < geom->uvs[parameterization].numuvtris && next_tri != SNDE_INDEX_INVALID) {
     next_tri=find_next_unassigned_uvtri(geom,parameterization,next_tri);
     if (next_tri != SNDE_INDEX_INVALID) {
-      faces.emplace_back(snde_topological{.face={ .firstfaceedgeindex=SNDE_INDEX_INVALID,.numfaceedgeindices=0,.imagenum=0,.boundary_num=SNDE_INDEX_INVALID,.surface={.TwoD={.meshed={},.nurbs={.valid=false}}}}});
+      faces.emplace_back(snde_topological{.face={ .firstfaceedgeindex=SNDE_INDEX_INVALID,.numfaceedgeindices=0,.patchnum=0,.boundary_num=SNDE_INDEX_INVALID,.surface={.TwoD={.meshed={},.nurbs={.valid=false}}}}});
       
       snde_face &this_face = faces.back().face;
       

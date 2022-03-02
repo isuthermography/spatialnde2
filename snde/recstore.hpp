@@ -386,6 +386,11 @@ namespace snde {
     virtual ~multi_ndarray_recording();
 
 
+    // NOTE: This can only be called on a recording that was constructed with num_ndarrays
+    // set to zero, and must be called before any arrays are defined, etc. etc.,
+    // i.e. first thing after construction 
+    virtual void set_num_ndarrays(size_t num_ndarrays); 
+
     virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held. Passes on ready_notifications to storage
     virtual void _mark_storage_as_finalized_internal();
 

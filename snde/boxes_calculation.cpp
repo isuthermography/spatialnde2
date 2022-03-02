@@ -1,32 +1,20 @@
-#include <Eigen/Dense>
-
-
-#include "snde/revision_manager.hpp"
-
 #include "snde/snde_types.h"
 #include "snde/geometry_types.h"
 #include "snde/vecops.h"
 #include "snde/geometry_ops.h"
 #include "snde/geometrydata.h"
-#include "snde/geometry.hpp"
 
-#include "snde/openclcachemanager.hpp"
-#include "snde/opencl_utils.hpp"
+#include "snde/recmath_cppfunction.hpp"
+#include "snde/graphics_recording.hpp"
+#include "snde/graphics_storage.hpp"
 
-
-#include "snde/revman_geometry.hpp"
-#include "snde/revman_parameterization.hpp"
 
 #include "snde/boxes_calculation.hpp"
 
 namespace snde {
 
-  //opencl_program boxescalc_opencl_program("boxescalc", { geometry_types_h, vecops_h, boxes_calc_c });
 
-
-
-
-static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersecting_polygons_3d(std::set<snde_index> & polys,const snde_triangle *part_triangles,const snde_edge *part_edges,const snde_coord3 *part_vertices,const snde_cmat23 *part_inplanemats,const snde_coord3 *part_trinormals,snde_coord3 box_v0,snde_coord3 box_v1)
+static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersecting_polygons_3d(std::set<snde_index> & polys,const snde_triangle *part_triangles,const snde_edge *part_edges,const snde_coord3 *part_vertices,const snde_coord3 *part_trinormals,const snde_cmat23 *part_inplanemats,snde_coord3 box_v0,snde_coord3 box_v1)
   {
   // retpolys assumed to be at least as big as polypool
   //size_t num_returned_polys=0;
@@ -99,7 +87,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
     
   }
   
-  snde_index _buildbox_3d(std::shared_ptr<geometry> geom,const snde_part &partstruct,std::vector<std::array<snde_index,10>> &boxlist, std::vector<std::pair<snde_coord3,snde_coord3>> &boxcoordlist, std::set<snde_index> &polys,std::vector<snde_index> &boxpolylist,snde_index cnt, snde_index depth,snde_coord minx,snde_coord miny, snde_coord minz,snde_coord maxx,snde_coord maxy, snde_coord maxz)
+  snde_index _buildbox_3d(const struct snde_part *part, const snde_triangle *triangles,const snde_edge *edges,const snde_coord3 *vertices,const snde_coord3 *trinormals,const snde_cmat23 *inplanemats,std::vector<std::array<snde_index,10>> &boxlist, std::vector<std::pair<snde_coord3,snde_coord3>> &boxcoordlist, std::set<snde_index> &polys,std::vector<snde_index> &boxpolylist,snde_index cnt, snde_index depth,snde_coord minx,snde_coord miny, snde_coord minz,snde_coord maxx,snde_coord maxy, snde_coord maxz)
 
   // cnt is the index of the box we are building;
   // returns index of the next available box to build
@@ -120,7 +108,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
     
     // filter down polys according to what is in this box
     if (depth != 0) {// all pass for depth = 0
-      std::tie(num_fully_enclosed,ourpolys) = enclosed_or_intersecting_polygons_3d(polys,&geom->geom.triangles[partstruct.firsttri],&geom->geom.edges[partstruct.firstedge],&geom->geom.vertices[partstruct.firstvertex],&geom->geom.inplanemats[partstruct.firsttri],&geom->geom.trinormals[partstruct.firsttri],box_v0,box_v1);
+      std::tie(num_fully_enclosed,ourpolys) = enclosed_or_intersecting_polygons_3d(polys,triangles,edges,vertices,trinormals,inplanemats,box_v0,box_v1);
       
     } else {
       ourpolys=polys;
@@ -143,7 +131,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 					     snde_coord3{.coord={maxx,maxy,maxz}}));
       
     snde_index newcnt=cnt+1;
-
+    
     if (num_fully_enclosed > 10 && depth <= 22) {
       // split up box
       snde_coord distx=maxx-minx;
@@ -154,21 +142,21 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
       // boxlist elements 0..7: subboxes
       boxlist[cnt][0]=newcnt;
-      newcnt = _buildbox_3d(geom,partstruct,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx,miny,minz,minx+distx/2.0+eps,miny+disty/2.0+eps,minz+distz/2.0+eps);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx,miny,minz,minx+distx/2.0+eps,miny+disty/2.0+eps,minz+distz/2.0+eps);
       boxlist[cnt][1]=newcnt;
-      newcnt = _buildbox_3d(geom,partstruct,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx+distx/2.0-eps,miny,minz,maxx,miny+disty/2.0+eps,minz+distz/2.0+eps);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx+distx/2.0-eps,miny,minz,maxx,miny+disty/2.0+eps,minz+distz/2.0+eps);
       boxlist[cnt][2]=newcnt;
-      newcnt = _buildbox_3d(geom,partstruct,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx,miny+disty/2.0-eps,minz,minx+distx/2.0+eps,maxy,minz+distz/2.0+eps);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx,miny+disty/2.0-eps,minz,minx+distx/2.0+eps,maxy,minz+distz/2.0+eps);
       boxlist[cnt][3]=newcnt;
-      newcnt = _buildbox_3d(geom,partstruct,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx+distx/2.0-eps,miny+disty/2.0-eps,minz,maxx,maxy,minz+distz/2.0+eps);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx+distx/2.0-eps,miny+disty/2.0-eps,minz,maxx,maxy,minz+distz/2.0+eps);
       boxlist[cnt][4]=newcnt;
-      newcnt = _buildbox_3d(geom,partstruct,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx,miny,minz+distz/2.0-eps,minx+distx/2.0+eps,miny+disty/2.0+eps,maxz);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx,miny,minz+distz/2.0-eps,minx+distx/2.0+eps,miny+disty/2.0+eps,maxz);
       boxlist[cnt][5]=newcnt;
-      newcnt = _buildbox_3d(geom,partstruct,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx+distx/2.0-eps,miny,minz+distz/2.0-eps,maxx,miny+disty/2.0+eps,maxz);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx+distx/2.0-eps,miny,minz+distz/2.0-eps,maxx,miny+disty/2.0+eps,maxz);
       boxlist[cnt][6]=newcnt;
-      newcnt = _buildbox_3d(geom,partstruct,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx,miny+disty/2.0-eps,minz+distz/2.0-eps,minx+distx/2.0+eps,maxy,maxz);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx,miny+disty/2.0-eps,minz+distz/2.0-eps,minx+distx/2.0+eps,maxy,maxz);
       boxlist[cnt][7]=newcnt;
-      newcnt = _buildbox_3d(geom,partstruct,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx+distx/2.0-eps,miny+disty/2.0-eps,minz+distz/2.0-eps,maxx,maxy,maxz);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx+distx/2.0-eps,miny+disty/2.0-eps,minz+distz/2.0-eps,maxx,maxy,maxz);
       
     } else {
       // This is a leaf node
@@ -192,7 +180,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   std::tuple<
     std::vector<std::array<snde_index,10>>,
     std::vector<std::pair<snde_coord3,snde_coord3>>,
-    std::vector<snde_index>> build_boxes_3d(std::shared_ptr<geometry> geom,const snde_part &partstruct)
+    std::vector<snde_index>> build_boxes_3d(struct snde_part *part, const snde_triangle *triangles,const snde_edge *edges,const snde_coord3 *vertices,const snde_coord3 *trinormals,const snde_cmat23 *inplanemats)
   // assumes part, vertices,edges,triangles,inplanemat are all locked
   // returns <boxlist,boxcoordlist,boxpolylist>
   {
@@ -203,7 +191,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
 
     // initialize polys to all
-    for (snde_index trinum=0;trinum < partstruct.numtris;trinum++) {
+    for (snde_index trinum=0;trinum < part->numtris;trinum++) {
       polys.emplace(trinum);
     }
 
@@ -220,26 +208,26 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
     snde_coord eps=1e-6;
     
 
-    for (snde_index vertnum=0;vertnum < partstruct.numvertices;vertnum++) {
-      if (minx > geom->geom.vertices[partstruct.firstvertex+vertnum].coord[0]) {
-	minx = geom->geom.vertices[partstruct.firstvertex+vertnum].coord[0];	
+    for (snde_index vertnum=0;vertnum < part->numvertices;vertnum++) {
+      if (minx > vertices[vertnum].coord[0]) {
+	minx = vertices[vertnum].coord[0];	
       }
-      if (maxx < geom->geom.vertices[partstruct.firstvertex+vertnum].coord[0]) {
-	maxx = geom->geom.vertices[partstruct.firstvertex+vertnum].coord[0];	
+      if (maxx < vertices[vertnum].coord[0]) {
+	maxx = vertices[vertnum].coord[0];	
       }
-      if (miny > geom->geom.vertices[partstruct.firstvertex+vertnum].coord[1]) {
-	miny = geom->geom.vertices[partstruct.firstvertex+vertnum].coord[1];	
+      if (miny > vertices[vertnum].coord[1]) {
+	miny = vertices[vertnum].coord[1];	
       }
-      if (maxy < geom->geom.vertices[partstruct.firstvertex+vertnum].coord[1]) {
-	maxy = geom->geom.vertices[partstruct.firstvertex+vertnum].coord[1];	
+      if (maxy < vertices[vertnum].coord[1]) {
+	maxy = vertices[vertnum].coord[1];	
       }
-      if (minz > geom->geom.vertices[partstruct.firstvertex+vertnum].coord[2]) {
-	minz = geom->geom.vertices[partstruct.firstvertex+vertnum].coord[2];	
+      if (minz > vertices[vertnum].coord[2]) {
+	minz = vertices[vertnum].coord[2];	
       }
-      if (maxz < geom->geom.vertices[partstruct.firstvertex+vertnum].coord[2]) {
-	maxz = geom->geom.vertices[partstruct.firstvertex+vertnum].coord[2];	
+      if (maxz < vertices[vertnum].coord[2]) {
+	maxz = vertices[vertnum].coord[2];	
       }
-
+      
       if (eps < 1e-6*fabs(minx)) {
 	eps=1e-6*fabs(minx);
       }
@@ -263,7 +251,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
 
     // Call recursive box-builder function... populates boxlist, boxcoordlist,boxpolylist
-    _buildbox_3d(geom,partstruct,boxlist,boxcoordlist,polys,boxpolylist,0,0,minx-eps,miny-eps,minz-eps,maxx+eps,maxy+eps,maxz+eps);
+    _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,polys,boxpolylist,0,0,minx-eps,miny-eps,minz-eps,maxx+eps,maxy+eps,maxz+eps);
 
     
 
@@ -271,179 +259,217 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
     
   }
   
+
+  class boxes_calculation_3d: public recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<meshed_inplanemat_recording>> {
+  public:
+    boxes_calculation_3d(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) :
+      recmath_cppfuncexec(rss,inst)
+    {
+      
+    }
+    
+    // use default for decide_new_revision
+    
+    std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(std::shared_ptr<meshed_part_recording> part,std::shared_ptr<meshed_trinormals_recording> trinormals,std::shared_ptr<meshed_inplanemat_recording> inplanemat)
+    {
+      snde_ndarray_info *rec_tri_info = part->ndinfo(part->name_mapping.at("triangles"));
+      if (rec_tri_info->ndim != 1) {
+	throw snde_error("boxes_calculation: triangle dimensionality must be 1");
+      }
+      snde_index numtris = rec_tri_info->dimlen[0];
+
+      snde_ndarray_info *rec_edge_info = part->ndinfo(part->name_mapping.at("edges"));
+      if (rec_edge_info->ndim != 1) {
+	throw snde_error("boxes_calculation: edge dimensionality must be 1");
+      }
+      snde_index numedges = rec_edge_info->dimlen[0];
+      
+      
+      snde_ndarray_info *rec_vert_info = part->ndinfo(part->name_mapping.at("vertices"));
+      if (rec_vert_info->ndim != 1) {
+	throw snde_error("boxes_calculation: vertices dimensionality must be 1");
+      }
+      snde_index numverts = rec_vert_info->dimlen[0];
+
+      std::vector<std::shared_ptr<compute_resource_option>> option_list =
+	{
+	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+							numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord3) + numtris*sizeof(snde_trivertnormals) + numtris*sizeof(snde_box3), // data_bytes for transfer
+							numtris*(200), // flops
+							1, // max effective cpu cores
+							1), // useful_cpu_cores (min # of cores to supply
+	  
+	};
+      return std::make_pair(option_list,nullptr);
+    }
+    
+    std::shared_ptr<metadata_function_override_type> define_recs(std::shared_ptr<meshed_part_recording> part,std::shared_ptr<meshed_trinormals_recording> trinormals_rec,std::shared_ptr<meshed_inplanemat_recording> inplanemats_rec) 
+    {
+      // define_recs code
+    //printf("define_recs()\n");
+      std::shared_ptr<boxes3d_recording> result_rec;
+    result_rec = create_recording_math<boxes3d_recording>(get_result_channel_path(0),rss);
+    
+    return std::make_shared<metadata_function_override_type>([ this,result_rec,part,trinormals_rec,inplanemats_rec ]() {
+      // metadata code
+      std::unordered_map<std::string,metadatum> metadata;
+      
+      result_rec->metadata=std::make_shared<immutable_metadata>(metadata);
+      result_rec->mark_metadata_done();
+      
+      return std::make_shared<lock_alloc_function_override_type>([ this,result_rec,part,trinormals_rec,inplanemats_rec ]() {
+	// lock_alloc code
+	
+	std::shared_ptr<graphics_storage_manager> graphman = std::dynamic_pointer_cast<graphics_storage_manager>(result_rec->assign_storage_manager());
+
+	if (!graphman) {
+	  throw snde_error("boxes_calculation: Output arrays must be managed by a graphics storage manager");
+	}
+	
+	
+
+	// Note that we do NOT lock the output (boxes, etc.) arrays yet.
+	// This is because we don't know the size to allocate.
+	// The boxes arrays are AFTER the regular arrays for the same graphics storage manager
+	// because the locks arrays are in the order they are allocated in the graphics_storage_manager
+	// constructor. Therefore it is safe to wait on allocating the boxes. 
+	
+	rwlock_token_set locktokens = lockmgr->lock_recording_arrays({
+	    { part, { "parts", true }}, // first element is recording_ref, 2nd parameter is false for read, true for write
+	    { part, { "triangles", false }},
+	    { part, {"edges", false }},
+	    { part, {"vertices", false}},
+	    { trinormals_rec, {"trinormals", false}},
+	    { inplanemats_rec, {"inplanemats", false }}
+	  },
+	  false
+	  );
+	
+	return std::make_shared<exec_function_override_type>([ this,locktokens, result_rec, part, trinormals_rec,inplanemats_rec, graphman ]() {
+	  // exec code
+	  //snde_ndarray_info *rec_tri_info = part->ndinfo(part->name_mapping.at("triangles"));
+	  //snde_index numtris = rec_tri_info->dimlen[0];
+	  
+
+	  struct snde_part *parts =(snde_part *)part->void_shifted_arrayptr("parts");
+	  const snde_triangle *triangles=(snde_triangle *)part->void_shifted_arrayptr("triangles");
+	  const snde_edge *edges=(snde_edge *)part->void_shifted_arrayptr("edges");
+	  const snde_coord3 *vertices=(snde_coord3 *)part->void_shifted_arrayptr("vertices");
+	  const snde_coord3 *trinormals=(snde_coord3 *)trinormals_rec->void_shifted_arrayptr("trinormals");
+	  const snde_cmat23 *inplanemats=(snde_cmat23 *)inplanemats_rec->void_shifted_arrayptr("inplanemats");
+	  
+	  
+	  std::vector<std::array<snde_index,10>> boxlist;
+	  std::vector<std::pair<snde_coord3,snde_coord3>> boxcoordlist;
+	  std::vector<snde_index> boxpolylist;
+
+	  //std::shared_ptr<ndtyped_recording_ref<snde_part>> part_ref=part->reference_typed_ndarray<snde_part>(parts);
+	  
+	  //snde_part &partstruct = part_ref.element(0);
+	  
+	  std::tie(boxlist,boxcoordlist,boxpolylist)=build_boxes_3d(parts,triangles,edges,vertices,trinormals,inplanemats);
+	  assert(boxlist.size()==boxcoordlist.size());
+
+	  // set up allocation process
+	  std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(graphman->manager->locker); // new locking process
+	  std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
+	  rwlock_token_set all_box_locks;
+	  
+	  
+	  // allocate boxes: boxlist.size()
+	  holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.boxes,boxlist.size(),""));
+	  
+	  // allocate boxpolys: boxpolylist.size()
+	  holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.boxpolys,boxpolylist.size(),""));
+
+	  all_box_locks = lockprocess->finish();
+
+	  snde_index firstbox = holder->get_alloc((void **)&graphman->geom.boxes,"");
+	  
+	  // create storage objects
+	  // boxes has its own allocation
+	  std::shared_ptr<graphics_storage> boxes_storage = graphman->storage_from_allocation(result_rec->info->name,nullptr,"boxes",result_rec->info->revision,rss->unique_index,firstbox,sizeof(*graphman->geom.boxes),rtn_typemap.at(typeid(*graphman->geom.boxes)),boxlist.size());
+	  result_rec->assign_storage(boxes_storage,"boxes",{boxlist.size()});
+
+	  // boxcoord is a follower of boxes allocation
+	  std::shared_ptr<graphics_storage> boxcoord_storage = graphman->storage_from_allocation(result_rec->info->name,boxes_storage,"boxcoord",result_rec->info->revision,rss->unique_index,firstbox,sizeof(*graphman->geom.boxcoord),rtn_typemap.at(typeid(*graphman->geom.boxcoord)),boxlist.size());
+	  result_rec->assign_storage(boxcoord_storage,"boxcoord",{boxlist.size()});
+	  
+
+	  //boxpolys has its own allocation
+	  snde_index firstboxpoly = holder->get_alloc((void **)&graphman->geom.boxpolys,"");
+	  std::shared_ptr<graphics_storage> boxpolys_storage = graphman->storage_from_allocation(result_rec->info->name,nullptr,"boxpolys",result_rec->info->revision,rss->unique_index,firstboxpoly,sizeof(*graphman->geom.boxpolys),rtn_typemap.at(typeid(*graphman->geom.boxpolys)),boxpolylist.size());
+	  result_rec->assign_storage(boxpolys_storage,"boxpolys",{boxpolylist.size()});
+	  	  
+	  
+	  // output 0: boxes
+	  // output 1: boxcoord (allocated with boxes)
+	  // output 2: boxpolys (separate allocation)
+
+	  // Nothing to do here but copy the output, since we have already
+	  // done the hard work of executing during the locking process
+	  parts->firstbox=firstbox;
+	  parts->numboxes=boxlist.size();
+
+	  parts->firstboxpoly=firstboxpoly;
+	  parts->numboxpolys=boxpolylist.size();
+	  
+	  snde_box3 *boxes=(snde_box3 *)result_rec->void_shifted_arrayptr("boxes");
+	  snde_boxcoord3 *boxcoord=(snde_boxcoord3 *)result_rec->void_shifted_arrayptr("boxcoord");
+	  snde_index *boxpolys=(snde_index *)result_rec->void_shifted_arrayptr("boxpolys");
+	  
+	  
+	  // copy boxlist -> boxes
+	  for (snde_index boxcnt=0;boxcnt < boxlist.size();boxcnt++) {
+	    for (size_t subboxcnt=0; subboxcnt < 8; subboxcnt++) {
+	      boxes[boxcnt].subbox[subboxcnt]=boxlist[boxcnt][subboxcnt];
+	    }
+	    boxes[boxcnt].boxpolysidx=boxlist[boxcnt][8];
+	    boxes[boxcnt].numboxpolys=boxlist[boxcnt][9]; 
+	  }
+	  
+	  // copy boxcoordlist -> boxcoord
+	  for (snde_index boxcnt=0;boxcnt < boxcoordlist.size();boxcnt++) {
+	    boxcoord[boxcnt].min=boxcoordlist[boxcnt].first;
+	    boxcoord[boxcnt].max=boxcoordlist[boxcnt].second;
+	  }
+	  
+	  // copy boxpolys
+	  
+	  memcpy((void *)boxpolys,(void *)boxpolylist.data(),sizeof(snde_index)*boxpolylist.size());
+
+	  unlock_rwlock_token_set(all_box_locks); // lock must be released prior to mark_as_ready() 
+	  unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
+
+	  result_rec->mark_as_ready();
+	  
+	  
+	});
+      });
+    });
+    };
+
+  };
   
-std::shared_ptr<trm_dependency> boxes_calculation_3d(std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<snde::component> comp,cl_context context,cl_device_id device,cl_command_queue queue)
-{
-
-  // ***!!! NOTE: This calculation does not assign its output location until it actually executes.
-  // so you cannot usefully define dependence on its output, except through the implicit struct dependency
-  // on the calculation itself.
-  // (this is because it is not possible to predict the output size without doing the full execution)
   
-  //assert(comp->type==component::TYPE::meshed); // May support NURBS in the future...
 
 
-  std::shared_ptr<part> partobj = std::dynamic_pointer_cast<part>(comp);
 
-  assert(partobj);
+  std::shared_ptr<math_function> define_spatialnde2_boxes_calculation_3d_function()
+  {
+    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+      return std::make_shared<boxes_calculation_3d>(rss,inst);
+    }); 
+    
+  }
+
+  SNDE_API std::shared_ptr<math_function> boxes_calculation_3d_function = define_spatialnde2_boxes_calculation_3d_function();
   
-  //snde_index partnum = partobj->idx;
+  static int registered_boxes_calculation_3d_function = register_math_function("spatialnde2.boxes_calculation_3d",boxes_calculation_3d_function);
 
-  std::vector<trm_struct_depend> struct_inputs;
 
-  struct_inputs.emplace_back(geom_dependency(revman,comp));
-  //inputs_seed.emplace_back(geom->manager,(void **)&geom->geom.parts,partnum,1);
   
-  
-  return revman->add_dependency_during_update(
-					      struct_inputs,
-					      std::vector<trm_arrayregion>(), // inputs
-					      std::vector<trm_struct_depend>(), // struct_outputs
-					      // Function
-					      // input parameters are:
-					      // partnum
-					      [ geom,context,device,queue ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
-						// actions is STDA_IDENTIFY_INPUTS or
-						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS or
-						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS|STDA_EXECUTE
-
-						std::shared_ptr<component> comp=get_geom_dependency(dep->struct_inputs[0]);
-						std::shared_ptr<part> partobj = std::dynamic_pointer_cast<part>(comp);
-						
-						if (!comp || !partobj) {
-						  // component no longer exists... clear out inputs and outputs (if applicable)
-						  std::vector<trm_arrayregion> new_inputs;
-						  
-						  dep->update_inputs(new_inputs);
-						  
-						  if (actions & STDA_IDENTIFYOUTPUTS) {
-						    
-						    std::vector<trm_arrayregion> new_outputs;
-						    dep->update_outputs(new_outputs);
-						  }
-						
-						
-
-						  return;
-						}
-						// Perform locking
-						std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
-						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
-						
-						/* Obtain lock for this component and its geometry */
-						//comp->obtain_lock(lockprocess);
-						obtain_graph_lock(lockprocess,comp,
-								  std::vector<std::string>(),
-								  std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
-								  nullptr,"", // recdb and context only relevant for components which might have children we want to access (this only operates on parts, which can only have parameterizations, which we're not asking fore)
-								  SNDE_INFOSTORE_COMPONENTS|SNDE_COMPONENT_GEOM_PARTS|((actions & STDA_EXECUTE) ? (SNDE_COMPONENT_GEOM_TRIS|SNDE_COMPONENT_GEOM_EDGES|SNDE_COMPONENT_GEOM_VERTICES|SNDE_COMPONENT_GEOM_TRINORMALS) : 0),
-								  (actions & STDA_EXECUTE) ? (SNDE_COMPONENT_GEOM_PARTS|SNDE_COMPONENT_GEOM_BOXES|SNDE_COMPONENT_GEOM_BOXCOORD|SNDE_COMPONENT_GEOM_BOXPOLYS):0);
-
-
-						std::vector<std::array<snde_index,10>> boxlist;
-						std::vector<std::pair<snde_coord3,snde_coord3>> boxcoordlist;
-						std::vector<snde_index> boxpolylist;
-						
-						snde_part &partstruct = geom->geom.parts[partobj->idx()];
-
-						if (actions & STDA_EXECUTE) {
-						  // Perform execution while still obtaining locks
-						  // because we don't have any idea how big the output will
-						  // be until we are done
-
-						  
-						  std::tie(boxlist,boxcoordlist,boxpolylist)=build_boxes_3d(geom,partstruct);
-						  assert(boxlist.size()==boxcoordlist.size());
-						  
-						  holder->store_alloc(dep->realloc_output_if_needed(lockprocess,geom->manager,0,(void **)&geom->geom.boxes,boxlist.size(),"boxes"));
-						  holder->store_alloc(dep->realloc_output_if_needed(lockprocess,geom->manager,2,(void **)&geom->geom.boxpolys,boxpolylist.size(),"boxpolys"));
-						}
-						rwlock_token_set all_locks=lockprocess->finish();
-						    
-						
-						
-						// build up-to-date vector of new inputs
-						std::vector<trm_arrayregion> new_inputs;
-						
-						
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.parts,partobj->idx(),1);
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.triangles,partstruct.firsttri,partstruct.numtris);
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.edges,partstruct.firstedge,partstruct.numedges);
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.vertices,partstruct.firstvertex,partstruct.numvertices);
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.trinormals,partstruct.firsttri,partstruct.numtris);
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.inplanemats,partstruct.firsttri,partstruct.numtris);						
-						
-						dep->update_inputs(new_inputs);
-						
-						if (actions & STDA_EXECUTE) { // would be conditional on IDENTIFYOUTPUTS but we can't identif outputs without executing
-						  
-						  std::vector<trm_arrayregion> new_outputs;
-						  // output 0: boxes
-						  dep->add_output_to_array(new_outputs,geom->manager,holder,0,(void **)&geom->geom.boxes,"boxes");
-						  // output 1: boxcoord (allocated with boxes)
-						  new_outputs.emplace_back(geom->manager,(void **)&geom->geom.boxcoord,
-									   holder->get_alloc((void **)&geom->geom.boxes,"boxes"),
-									   holder->get_alloc_len((void **)&geom->geom.boxes,"boxes"));
-						  
-						  // output 2: boxpolys (separate allocation)
-						  dep->add_output_to_array(new_outputs,geom->manager,holder,2,(void **)&geom->geom.boxpolys,"boxpolys");
-
-						  dep->update_outputs(new_outputs);
-						  
-						  if (actions & STDA_EXECUTE) {
-							
-						    // Nothing to do here but copy the output, since we have already
-						    // done the hard work of executing during the locking process
-						    partstruct.firstbox=holder->get_alloc((void **)&geom->geom.boxes,"boxes");
-						    partstruct.numboxes=holder->get_alloc_len((void **)&geom->geom.boxes,"boxes");
-						    
-						    assert(boxlist.size() == partstruct.numboxes);
-						    // copy boxlist -> boxes
-						    for (snde_index boxcnt=0;boxcnt < boxlist.size();boxcnt++) {
-						      for (size_t subboxcnt=0; subboxcnt < 8; subboxcnt++) {
-							geom->geom.boxes[partstruct.firstbox + boxcnt].subbox[subboxcnt]=boxlist[boxcnt][subboxcnt];
-						      }
-						      geom->geom.boxes[partstruct.firstbox + boxcnt].boxpolysidx=boxlist[boxcnt][8];
-						      geom->geom.boxes[partstruct.firstbox + boxcnt].numboxpolys=boxlist[boxcnt][9]; 
-						    }
-
-						    // copy boxcoordlist -> boxcoord
-						    for (snde_index boxcnt=0;boxcnt < boxcoordlist.size();boxcnt++) {
-						      geom->geom.boxcoord[partstruct.firstbox+boxcnt].min=boxcoordlist[boxcnt].first;
-						      geom->geom.boxcoord[partstruct.firstbox+boxcnt].max=boxcoordlist[boxcnt].second;
-						    }
-
-						    // copy boxpolys
-						    partstruct.firstboxpoly=holder->get_alloc((void **)&geom->geom.boxpolys,"boxpolys");
-						    partstruct.numboxpolys=holder->get_alloc_len((void **)&geom->geom.boxpolys,"boxpolys");
-						    
-
-						    assert(partstruct.numboxpolys==boxpolylist.size());
-						    memcpy((void *)&geom->geom.boxpolys[partstruct.firstboxpoly],(void *)boxpolylist.data(),sizeof(snde_index)*boxpolylist.size());
-						    
-						  }
-						  
-						}
-					      },
-					      [ ] (trm_dependency *dep)  {
-						// cleanup function
-
-						// free our outputs
-						std::vector<trm_arrayregion> new_outputs;
-						dep->free_output(new_outputs,0);
-						new_outputs.emplace_back(trm_arrayregion(nullptr,nullptr,SNDE_INDEX_INVALID,0));
-						dep->free_output(new_outputs,2);
-						dep->update_outputs(new_outputs);
-						
-					      });
-  
-  
-  
-}
-
-
-
-static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersecting_polygons_2d(std::set<snde_index> & polys,const snde_triangle *param_triangles,const snde_edge *param_edges,const snde_coord2 *param_vertices,snde_coord2 box_v0,snde_coord2 box_v1)
+  static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersecting_polygons_2d(std::set<snde_index> & polys,const snde_triangle *param_triangles,const snde_edge *param_edges,const snde_coord2 *param_vertices,snde_coord2 box_v0,snde_coord2 box_v1)
   {
   // retpolys assumed to be at least as big as polypool
   //size_t num_returned_polys=0;
@@ -517,7 +543,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
   
 
-  snde_index _buildbox_2d(std::shared_ptr<geometry> geom,const snde_parameterization &paramstruct,std::vector<std::array<snde_index,6>> &boxlist, std::vector<std::pair<snde_coord2,snde_coord2>> &boxcoordlist, std::set<snde_index> &polys,std::vector<snde_index> &boxpolylist,snde_index cnt, snde_index depth,snde_coord minu,snde_coord minv,snde_coord maxu,snde_coord maxv)
+  snde_index _buildbox_2d(const struct snde_parameterization *param,const snde_triangle *uv_triangles,const snde_edge *uv_edges,const snde_coord2 *uv_vertices,std::vector<std::array<snde_index,6>> &boxlist, std::vector<std::pair<snde_coord2,snde_coord2>> &boxcoordlist, std::set<snde_index> &polys,std::vector<snde_index> &boxpolylist,snde_index cnt, snde_index depth,snde_coord minu,snde_coord minv,snde_coord maxu,snde_coord maxv)
 
   // cnt is the index of the box we are building;
   // returns index of the next available box to build
@@ -536,7 +562,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
     
     // filter down polys according to what is in this box
     if (depth != 0) {// all pass for depth = 0
-      std::tie(num_fully_enclosed,ourpolys) = enclosed_or_intersecting_polygons_2d(polys,&geom->geom.uv_triangles[paramstruct.firstuvtri],&geom->geom.uv_edges[paramstruct.firstuvedge],&geom->geom.uv_vertices[paramstruct.firstuvvertex],box_v0,box_v1);
+      std::tie(num_fully_enclosed,ourpolys) = enclosed_or_intersecting_polygons_2d(polys,uv_triangles,uv_edges,uv_vertices,box_v0,box_v1);
       
     } else {
       ourpolys=polys;
@@ -562,16 +588,16 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
       snde_coord distv=maxv-minv;
       snde_coord eps=1e-4*sqrt(distu*distu + distv*distv);
 
-
+      
       // boxlist elements 0..3: subboxes
       boxlist[cnt][0]=newcnt;
-      newcnt = _buildbox_2d(geom,paramstruct,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minu,minv,minu+distu/2.0+eps,minv+distv/2.0+eps);
+      newcnt = _buildbox_2d(param,uv_triangles,uv_edges,uv_vertices,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minu,minv,minu+distu/2.0+eps,minv+distv/2.0+eps);
       boxlist[cnt][1]=newcnt;
-      newcnt = _buildbox_2d(geom,paramstruct,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minu+distu/2.0-eps,minv,maxu,minv+distv/2.0+eps);
+      newcnt = _buildbox_2d(param,uv_triangles,uv_edges,uv_vertices,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minu+distu/2.0-eps,minv,maxu,minv+distv/2.0+eps);
       boxlist[cnt][2]=newcnt;
-      newcnt = _buildbox_2d(geom,paramstruct,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minu,minv+distv/2.0-eps,minu+distu/2.0+eps,maxv);
+      newcnt = _buildbox_2d(param,uv_triangles,uv_edges,uv_vertices,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minu,minv+distv/2.0-eps,minu+distu/2.0+eps,maxv);
       boxlist[cnt][3]=newcnt;
-      newcnt = _buildbox_2d(geom,paramstruct,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minu+distu/2.0-eps,minv+distv/2.0-eps,maxu,maxv);
+      newcnt = _buildbox_2d(param,uv_triangles,uv_edges,uv_vertices,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minu+distu/2.0-eps,minv+distv/2.0-eps,maxu,maxv);
       
     } else {
       // This is a leaf node
@@ -595,7 +621,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   std::tuple<
     std::vector<std::array<snde_index,6>>,
     std::vector<std::pair<snde_coord2,snde_coord2>>,
-    std::vector<snde_index>> build_boxes_2d(std::shared_ptr<geometry> geom,const snde_parameterization &paramstruct,const snde_parameterization_patch &patchstruct,snde_index patchnum)
+    std::vector<snde_index>> build_boxes_2d(const struct snde_parameterization *param,const snde_triangle *uv_triangles,const snde_edge *uv_edges,const snde_coord2 *uv_vertices)
   // assumes part, vertices,edges,triangles,inplanemat are all locked
   // returns <boxlist,boxcoordlist,boxpolylist>
   {
@@ -608,7 +634,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
     // ****!!!! NEED TO GO THROUGH TOPOLOGICAL DATA AND SELECT ONLY TRIANGLES AND CORRESPONDING VERTICES CORRESPONDING TO PATCHNUM !!!***
 
     // initialize polys to all
-    for (snde_index trinum=0;trinum < paramstruct.numuvtris;trinum++) {
+    for (snde_index trinum=0;trinum < param->numuvtris;trinum++) {
       polys.emplace(trinum);
     }
 
@@ -623,18 +649,18 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
     snde_coord eps=1e-6;
     
 
-    for (snde_index vertnum=0;vertnum < paramstruct.numuvvertices;vertnum++) {
-      if (minu > geom->geom.uv_vertices[paramstruct.firstuvvertex+vertnum].coord[0]) {
-	minu = geom->geom.uv_vertices[paramstruct.firstuvvertex+vertnum].coord[0];	
+    for (snde_index vertnum=0;vertnum < param->numuvvertices;vertnum++) {
+      if (minu > uv_vertices[vertnum].coord[0]) {
+	minu = uv_vertices[vertnum].coord[0];	
       }
-      if (maxu < geom->geom.uv_vertices[paramstruct.firstuvvertex+vertnum].coord[0]) {
-	maxu = geom->geom.uv_vertices[paramstruct.firstuvvertex+vertnum].coord[0];	
+      if (maxu < uv_vertices[vertnum].coord[0]) {
+	maxu = uv_vertices[vertnum].coord[0];	
       }
-      if (minv > geom->geom.uv_vertices[paramstruct.firstuvvertex+vertnum].coord[1]) {
-	minv = geom->geom.uv_vertices[paramstruct.firstuvvertex+vertnum].coord[1];	
+      if (minv > uv_vertices[vertnum].coord[1]) {
+	minv = uv_vertices[vertnum].coord[1];	
       }
-      if (maxv < geom->geom.uv_vertices[paramstruct.firstuvvertex+vertnum].coord[1]) {
-	maxv = geom->geom.uv_vertices[paramstruct.firstuvvertex+vertnum].coord[1];	
+      if (maxv < uv_vertices[vertnum].coord[1]) {
+	maxv = uv_vertices[vertnum].coord[1];	
       }
 
       if (eps < 1e-6*fabs(minu)) {
@@ -654,221 +680,258 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
 
     // Call recursive box-builder function... populates boxlist, boxcoordlist,boxpolylist
-    _buildbox_2d(geom,paramstruct,boxlist,boxcoordlist,polys,boxpolylist,0,0,minu-eps,minv-eps,maxu+eps,maxv+eps);
+    _buildbox_2d(param,uv_triangles,uv_edges,uv_vertices,boxlist,boxcoordlist,polys,boxpolylist,0,0,minu-eps,minv-eps,maxu+eps,maxv+eps);
 
     
-
+    
     return std::make_tuple(boxlist,boxcoordlist,boxpolylist);
     
   }
   
 
   
-std::shared_ptr<trm_dependency> boxes_calculation_2d(std::shared_ptr<mutablerecdb> recdb,std::string recdb_context,std::string recname,std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<snde::parameterization> param,snde_index patchnum,cl_context context,cl_device_id device,cl_command_queue queue)
-{
 
-  // ***!!! NOTE: This calculation does not assign its output location until it actually executes.
-  // so you cannot usefully define dependence on its output, except through the implicit struct dependency
-  // on the calculation itself.
-  // (this is because it is not possible to predict the output size without doing the full execution)
   
-  //assert(comp->type==component::TYPE::meshed); // May support NURBS in the future...
+  class boxes_calculation_2d: public recmath_cppfuncexec<std::shared_ptr<meshed_parameterization_recording>> {
+  public:
+    boxes_calculation_2d(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) :
+      recmath_cppfuncexec(rss,inst)
+    {
+      
+    }
+    
+    // use default for decide_new_revision
+    
+    std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(std::shared_ptr<meshed_parameterization_recording> param)
+    {
+      snde_ndarray_info *rec_tri_info = param->ndinfo(param->name_mapping.at("uv_triangles"));
+      if (rec_tri_info->ndim != 1) {
+	throw snde_error("boxes_calculation: uv_triangles dimensionality must be 1");
+      }
+      snde_index numtris = rec_tri_info->dimlen[0];
+
+      snde_ndarray_info *rec_edge_info = param->ndinfo(param->name_mapping.at("uv_edges"));
+      if (rec_edge_info->ndim != 1) {
+	throw snde_error("boxes_calculation: uv_edge dimensionality must be 1");
+      }
+      snde_index numedges = rec_edge_info->dimlen[0];
+      
+      
+      snde_ndarray_info *rec_vert_info = param->ndinfo(param->name_mapping.at("uv_vertices"));
+      if (rec_vert_info->ndim != 1) {
+	throw snde_error("boxes_calculation: uv_vertices dimensionality must be 1");
+      }
+      snde_index numverts = rec_vert_info->dimlen[0];
+
+      std::vector<std::shared_ptr<compute_resource_option>> option_list =
+	{
+	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+							numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord2) +  numtris*sizeof(snde_box2), // data_bytes for transfer
+							numtris*(200), // flops
+							1, // max effective cpu cores
+							1), // useful_cpu_cores (min # of cores to supply
+	  
+	};
+      return std::make_pair(option_list,nullptr);
+    }
+    
+    std::shared_ptr<metadata_function_override_type> define_recs(std::shared_ptr<meshed_parameterization_recording> param) 
+    {
+      // define_recs code
+      //printf("define_recs()\n");
+      std::shared_ptr<boxes2d_recording> result_rec;
+      result_rec = create_recording_math<boxes2d_recording>(get_result_channel_path(0),rss);
+      
+      return std::make_shared<metadata_function_override_type>([ this,result_rec,param ]() {
+	// metadata code
+	std::unordered_map<std::string,metadatum> metadata;
+	
+	result_rec->metadata=std::make_shared<immutable_metadata>(metadata);
+	result_rec->mark_metadata_done();
+      
+	return std::make_shared<lock_alloc_function_override_type>([ this,result_rec,param ]() {
+	  // lock_alloc code
+	  
+	  std::shared_ptr<graphics_storage_manager> graphman = std::dynamic_pointer_cast<graphics_storage_manager>(result_rec->assign_storage_manager());
+	  
+	  if (!graphman) {
+	    throw snde_error("boxes_calculation: Output arrays must be managed by a graphics storage manager");
+	  }
+	
+	  
+	  
+	  // Note that we do NOT lock the output (boxes, etc.) arrays yet.
+	  // This is because we don't know the size to allocate.
+	  // The boxes arrays are AFTER the regular arrays for the same graphics storage manager
+	  // because the locks arrays are in the order they are allocated in the graphics_storage_manager
+	  // constructor. Therefore it is safe to wait on allocating the boxes. 
+	  
+	  rwlock_token_set locktokens = lockmgr->lock_recording_arrays({
+	      { param, { "uvs", false }}, // first element is recording_ref, 2nd parameter is false for read, true for write
+	      { param, { "uv_patches", true }}, // first element is recording_ref, 2nd parameter is false for read, true for write
+	      { param, { "uv_triangles", false }},
+	      { param, {"uv_edges", false }},
+	      { param, {"uv_vertices", false}},
+	    },
+	    false
+	    );
+	  
+	  return std::make_shared<exec_function_override_type>([ this,locktokens, result_rec, param, graphman ]() {
+	    // exec code
+	    //snde_ndarray_info *rec_tri_info = part->ndinfo(part->name_mapping.at("triangles"));
+	    //snde_index numtris = rec_tri_info->dimlen[0];
+	    
+	    
+	    snde_parameterization *params =(struct snde_parameterization *)param->void_shifted_arrayptr("uvs");
+	    snde_parameterization_patch *uv_patches =(snde_parameterization_patch *)param->void_shifted_arrayptr("uv_patches");
+	    const snde_triangle *uv_triangles=(snde_triangle *)param->void_shifted_arrayptr("uv_triangles");
+	    const snde_edge *uv_edges=(snde_edge *)param->void_shifted_arrayptr("uv_edges");
+	    const snde_coord2 *uv_vertices=(snde_coord2 *)param->void_shifted_arrayptr("uv_vertices");
+	    
+	    
+	    
+	    std::vector<std::vector<std::array<snde_index,6>>> boxlists;
+	    std::vector<std::vector<std::pair<snde_coord2,snde_coord2>>> boxcoordlists;
+	    std::vector<std::vector<snde_index>> boxpolylists;
+	    
+	    //std::shared_ptr<ndtyped_recording_ref<snde_part>> part_ref=part->reference_typed_ndarray<snde_part>(parts);
+	    
+	    //snde_part &partstruct = part_ref.element(0);
+	    
+	    // set up allocation process
+	    std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(graphman->manager->locker); // new locking process
+	    std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
+	    rwlock_token_set all_box_locks;
+	    
+	    
+	    for (snde_index patchnum=0;patchnum < params->numuvpatches;patchnum++) {
+	      boxlists.emplace_back();
+	      boxcoordlists.emplace_back();
+	      boxpolylists.emplace_back();
+	      
+	      std::vector<std::array<snde_index,6>> &boxlist = boxlists.at(patchnum);
+	      std::vector<std::pair<snde_coord2,snde_coord2>> &boxcoordlist = boxcoordlists.at(patchnum);
+	      std::vector<snde_index> &boxpolylist = boxpolylists.at(patchnum);
+	      
+	      snde_parameterization_patch *patch = &uv_patches[patchnum];
 
 
+	      std::tie(boxlist,boxcoordlist,boxpolylist)=build_boxes_2d(params,uv_triangles,uv_edges,uv_vertices);
+	      assert(boxlist.size()==boxcoordlist.size());
+	      
+	      // allocate boxes: boxlist.size()
+	      holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.uv_boxes,boxlist.size(),"uv_boxes"+std::to_string(patchnum)));
+	      
+	      // allocate boxpolys: boxpolylist.size()
+	      holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.uv_boxpolys,boxpolylist.size(),"uv_boxpolys"+std::to_string(patchnum)));
+	      
+	      
+	      
+	    }
+	    
+	    
+	    all_box_locks = lockprocess->finish();
 
-  assert(param);
+	    result_rec->set_num_patches(params->numuvpatches);
+	    
+	    for (snde_index patchnum=0;patchnum < params->numuvpatches;patchnum++) {
+	      
+	      snde_parameterization_patch *patch = &uv_patches[patchnum];
+	      
+	      // create storage objects
+	      // boxes has its own allocation
+	      snde_index firstbox = holder->get_alloc((void **)&graphman->geom.uv_boxes,"uv_boxes"+std::to_string(patchnum));
+	      
+	      snde_index numboxes = holder->get_alloc_len((void **)&graphman->geom.uv_boxes,"uv_boxes"+std::to_string(patchnum));
+	      
+	      std::shared_ptr<graphics_storage> boxes_storage = graphman->storage_from_allocation(result_rec->info->name,nullptr,"uv_boxes",result_rec->info->revision,rss->unique_index,firstbox,sizeof(*graphman->geom.uv_boxes),rtn_typemap.at(typeid(*graphman->geom.uv_boxes)),numboxes);
+	      result_rec->assign_storage(boxes_storage,"uv_boxes"+std::to_string(patchnum),{numboxes});
+	      
+	      // boxcoord is a follower of boxes allocation
+	      std::shared_ptr<graphics_storage> boxcoord_storage = graphman->storage_from_allocation(result_rec->info->name,boxes_storage,"uv_boxcoord",result_rec->info->revision,rss->unique_index,firstbox,sizeof(*graphman->geom.uv_boxcoord),rtn_typemap.at(typeid(*graphman->geom.uv_boxcoord)),numboxes);
+	      result_rec->assign_storage(boxcoord_storage,"uv_boxcoord"+std::to_string(patchnum),{numboxes});
+	      
+	      
+	      // boxpolys has its own allocation
+	      snde_index firstboxpoly = holder->get_alloc((void **)&graphman->geom.uv_boxpolys,"uv_boxpolys"+std::to_string(patchnum));
+	      snde_index numboxpolys = holder->get_alloc_len((void **)&graphman->geom.uv_boxpolys,"uv_boxpolys"+std::to_string(patchnum));
+	      std::shared_ptr<graphics_storage> boxpolys_storage = graphman->storage_from_allocation(result_rec->info->name,nullptr,"uv_boxpolys",result_rec->info->revision,rss->unique_index,firstboxpoly,sizeof(*graphman->geom.uv_boxpolys),rtn_typemap.at(typeid(*graphman->geom.uv_boxpolys)),numboxpolys);
+	      result_rec->assign_storage(boxpolys_storage,"uv_boxpolys"+std::to_string(patchnum),{numboxpolys});
+	      
+	      // output 0: uv_boxes for each patch
+	      // output 1: uv_boxcoord (allocated with uv_boxes) for each patch
+	      // output 2: uv_boxpolys (separate allocation)  for each patch
+	      
+
+	      
+	      patch->firstuvbox=firstbox;
+	      patch->numuvboxes=numboxes;
+	      
+	      patch->firstuvboxpoly = firstboxpoly;
+	      patch->numuvboxpolys = numboxpolys;
+	      
+	      
+	      snde_box2 *uv_boxes=(snde_box2 *)result_rec->void_shifted_arrayptr("uv_boxes"+std::to_string(patchnum));
+	      snde_boxcoord2 *uv_boxcoord=(snde_boxcoord2 *)result_rec->void_shifted_arrayptr("uv_boxcoord"+std::to_string(patchnum));
+	      snde_index *uv_boxpolys=(snde_index *)result_rec->void_shifted_arrayptr("uv_boxpolys"+std::to_string(patchnum));
+	      
+	      
+	      std::vector<std::array<snde_index,6>> &boxlist = boxlists.at(patchnum);
+	      std::vector<std::pair<snde_coord2,snde_coord2>> &boxcoordlist = boxcoordlists.at(patchnum);
+	      std::vector<snde_index> &boxpolylist = boxpolylists.at(patchnum);
+	      
+	      // copy boxlist -> boxes
+	      for (snde_index boxcnt=0;boxcnt < boxlist.size();boxcnt++) {
+		for (size_t subboxcnt=0; subboxcnt < 4; subboxcnt++) {
+		  uv_boxes[boxcnt].subbox[subboxcnt]=boxlist[boxcnt][subboxcnt];
+		}
+		uv_boxes[boxcnt].boxpolysidx=boxlist[boxcnt][4];
+		uv_boxes[boxcnt].numboxpolys=boxlist[boxcnt][5]; 
+	      }
+	      
+	      // copy boxcoordlist -> boxcoord
+	      for (snde_index boxcnt=0;boxcnt < boxcoordlist.size();boxcnt++) {
+		uv_boxcoord[boxcnt].min=boxcoordlist[boxcnt].first;
+		uv_boxcoord[boxcnt].max=boxcoordlist[boxcnt].second;
+	      }
+	      
+	      // copy boxpolys
+	      assert(patch->numuvboxpolys==boxpolylist.size());
+	      memcpy((void *)uv_boxpolys,(void *)boxpolylist.data(),sizeof(snde_index)*boxpolylist.size());
+	      
+	    }
+	    
+	    unlock_rwlock_token_set(all_box_locks); // lock must be released prior to mark_as_ready() 
+	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
+	    
+	    result_rec->mark_as_ready();
+	    
+	    
+	  });
+	});
+      });
+    };
+
+  };
   
-  snde_index paramnum = param->idx;
-
-  std::vector<trm_struct_depend> struct_inputs;
-
-  struct_inputs.emplace_back(parameterization_dependency(revman,param));
-  //inputs_seed.emplace_back(geom->manager,(void **)&geom->geom.parts,partnum,1);
-  
-  
-  return revman->add_dependency_during_update(
-					      struct_inputs,
-					      std::vector<trm_arrayregion>(), // inputs
-					      std::vector<trm_struct_depend>(), // struct_outputs
-					      // Function
-					      // input parameters are:
-					      // paramnum
-					      [ geom,context,device,queue,recdb,recdb_context ] (snde_index newversion,std::shared_ptr<trm_dependency> dep,const std::set<trm_struct_depend_key> &inputchangedstructs,const std::vector<rangetracker<markedregion>> &inputchangedregions,unsigned actions)  {
-						// actions is STDA_IDENTIFY_INPUTS or
-						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS or
-						// STDA_IDENTIFYINPUTS|STDA_IDENTIFYOUTPUTS|STDA_EXECUTE
-
-						std::shared_ptr<parameterization> param=get_parameterization_dependency(dep->struct_inputs[0]);
-						
-						if (!param) {
-						  // component no longer exists... clear out inputs and outputs (if applicable)
-						  std::vector<trm_arrayregion> new_inputs;
-						  
-						  dep->update_inputs(new_inputs);
-						  
-						  if (actions & STDA_IDENTIFYOUTPUTS) {
-						    
-						    std::vector<trm_arrayregion> new_outputs;
-						    dep->update_outputs(new_outputs);
-						  }
-						
-						
-
-						  return;
-						}
-						// Perform locking
-						std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
-						std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(geom->manager->locker); // new locking process
-						
-						/* Obtain lock for this component and its geometry */
-						obtain_graph_lock(lockprocess,param,
-								  std::vector<std::string>(),
-								  std::set<std::shared_ptr<lockable_infostore_or_component>,std::owner_less<std::shared_ptr<lockable_infostore_or_component>>>(),
-								  recdb,recdb_context, 
-								  SNDE_INFOSTORE_PARAMETERIZATIONS|SNDE_UV_GEOM_UVS|((actions & STDA_EXECUTE) ? (SNDE_UV_GEOM_UV_TRIANGLES|SNDE_UV_GEOM_UV_EDGES|SNDE_UV_GEOM_UV_VERTICES) : 0),
-								  (actions & STDA_EXECUTE) ? (SNDE_UV_GEOM_UV_PATCHES|SNDE_UV_GEOM_UV_BOXES|SNDE_UV_GEOM_UV_BOXCOORD|SNDE_UV_GEOM_UV_BOXPOLYS) : 0);
-						
-
-
-						snde_parameterization &paramstruct = geom->geom.uvs[param->idx];
-
-						std::vector<std::vector<std::array<snde_index,6>>> boxlists;
-						std::vector<std::vector<std::pair<snde_coord2,snde_coord2>>> boxcoordlists;
-						std::vector<std::vector<snde_index>> boxpolylists;
-						
-						
-						for (snde_index patchnum=0;patchnum < geom->geom.uvs[param->idx].numuvimages;patchnum++) {
-						  //std::vector<std::array<snde_index,6>> boxlist;
-						  //std::vector<std::pair<snde_coord2,snde_coord2>> boxcoordlist;
-						  //std::vector<snde_index> boxpolylist;
-						  boxlists.emplace_back();
-						  boxcoordlists.emplace_back();
-						  boxpolylists.emplace_back();
-						  
-						  std::vector<std::array<snde_index,6>> &boxlist = boxlists.at(patchnum);
-						  std::vector<std::pair<snde_coord2,snde_coord2>> &boxcoordlist = boxcoordlists.at(patchnum);
-						  std::vector<snde_index> &boxpolylist = boxpolylists.at(patchnum);
-
-						  
-						  snde_parameterization_patch &patchstruct = geom->geom.uv_patches[paramstruct.firstuvpatch+patchnum];
-						  
-						  if (actions & STDA_EXECUTE) { // shouldn't this be identifyinputs or identifyoutputs or execute???
-						    // Perform execution while still obtaining locks
-						    // because we don't have any idea how big the output will
-						    // be until we are done
-						    
-						    
-						    std::tie(boxlist,boxcoordlist,boxpolylist)=build_boxes_2d(geom,paramstruct,patchstruct,patchnum);
-						    assert(boxlist.size()==boxcoordlist.size());
-						    
-						    holder->store_alloc(dep->realloc_output_if_needed(lockprocess,geom->manager,patchnum*3+0,(void **)&geom->geom.uv_boxes,boxlist.size(),"uv_boxes"+std::to_string(patchnum)));
-						    holder->store_alloc(dep->realloc_output_if_needed(lockprocess,geom->manager,patchnum*3+2,(void **)&geom->geom.uv_boxpolys,boxpolylist.size(),"uv_boxpolys"+std::to_string(patchnum)));
-						  }
-
-						}
-						rwlock_token_set all_locks=lockprocess->finish();
-						  
-						
-						
-						// build up-to-date vector of new inputs
-						std::vector<trm_arrayregion> new_inputs;
-						
-						  
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.uvs,param->idx,1);
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.uv_patches,paramstruct.firstuvpatch,paramstruct.numuvimages);
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.uv_triangles,paramstruct.firstuvtri,paramstruct.numuvtris);
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.uv_edges,paramstruct.firstuvedge,paramstruct.numuvedges);
-						new_inputs.emplace_back(geom->manager,(void **)&geom->geom.uv_vertices,paramstruct.firstuvvertex,paramstruct.numuvvertices);
-						//new_inputs.emplace_back(geom->manager,(void **)&geom->geom.inplane2uvcoords,paramstruct.firstuvtri,paramstruct.numuvtris);						
-						
-						dep->update_inputs(new_inputs);
-						
-						
-						if (actions & STDA_EXECUTE) { // would be conditional on IDENTIFYOUTPUTS but we can't identify outputs without executing
-						  std::vector<trm_arrayregion> new_outputs;
-						  for (snde_index patchnum=0;patchnum < geom->geom.uvs[param->idx].numuvimages;patchnum++) {
-						    
-						    // output patchnum*3+0: uv_boxes
-						    dep->add_output_to_array(new_outputs,geom->manager,holder,patchnum*3+0,(void **)&geom->geom.uv_boxes,"uv_boxes"+std::to_string(patchnum));
-						    // output patchnum*3+1: uv_boxcoord (allocated with uv_boxes)
-						    new_outputs.emplace_back(geom->manager,(void **)&geom->geom.uv_boxcoord,
-									     holder->get_alloc((void **)&geom->geom.uv_boxes,"uv_boxes"+std::to_string(patchnum)),
-									     holder->get_alloc_len((void **)&geom->geom.uv_boxes,"uv_boxes"+std::to_string(patchnum)));
-						      
-						    // output patchnum*3+2: boxpolys (separate allocation)
-						    dep->add_output_to_array(new_outputs,geom->manager,holder,patchnum*3+2,(void **)&geom->geom.uv_boxpolys,"uv_boxpolys"+std::to_string(patchnum));
-						  }
-						  
-						  dep->update_outputs(new_outputs);
-						}
-
-						
-						if (actions & STDA_EXECUTE) {
-						  
-						  // Nothing to do here but copy the output, since we have already
-						  // done the hard work of executing during the locking process
-						
-						  for (snde_index patchnum=0;patchnum < geom->geom.uvs[param->idx].numuvimages;patchnum++) {
-						    snde_parameterization_patch &patchstruct = geom->geom.uv_patches[paramstruct.firstuvpatch+patchnum];
-
-						    std::vector<std::array<snde_index,6>> &boxlist = boxlists.at(patchnum);
-						    std::vector<std::pair<snde_coord2,snde_coord2>> &boxcoordlist = boxcoordlists.at(patchnum);
-						    std::vector<snde_index> &boxpolylist = boxpolylists.at(patchnum);
-
-						    patchstruct.firstuvbox=holder->get_alloc((void **)&geom->geom.uv_boxes,"uv_boxes"+std::to_string(patchnum));
-						    patchstruct.numuvboxes=holder->get_alloc_len((void **)&geom->geom.uv_boxes,"uv_boxes"+std::to_string(patchnum));
-						    
-						    assert(boxlist.size() == patchstruct.numuvboxes);
-						    // copy boxlist -> boxes
-						    for (snde_index boxcnt=0;boxcnt < boxlist.size();boxcnt++) {
-						      for (size_t subboxcnt=0; subboxcnt < 4; subboxcnt++) {
-							geom->geom.uv_boxes[patchstruct.firstuvbox + boxcnt].subbox[subboxcnt]=boxlist[boxcnt][subboxcnt];
-						      }
-						      geom->geom.uv_boxes[patchstruct.firstuvbox + boxcnt].boxpolysidx=boxlist[boxcnt][4];
-						      geom->geom.uv_boxes[patchstruct.firstuvbox + boxcnt].numboxpolys=boxlist[boxcnt][5]; 
-						    }
-						    
-						    // copy boxcoordlist -> boxcoord
-						    for (snde_index boxcnt=0;boxcnt < boxcoordlist.size();boxcnt++) {
-						      geom->geom.uv_boxcoord[patchstruct.firstuvbox+boxcnt].min=boxcoordlist[boxcnt].first;
-						      geom->geom.uv_boxcoord[patchstruct.firstuvbox+boxcnt].max=boxcoordlist[boxcnt].second;
-						    }
-
-						    // copy boxpolys
-						    patchstruct.firstuvboxpoly=holder->get_alloc((void **)&geom->geom.uv_boxpolys,"uv_boxpolys"+std::to_string(patchnum));
-						    patchstruct.numuvboxpolys=holder->get_alloc_len((void **)&geom->geom.uv_boxpolys,"uv_boxpolys"+std::to_string(patchnum));
-						    
-
-						    assert(patchstruct.numuvboxpolys==boxpolylist.size());
-						    memcpy((void *)&geom->geom.uv_boxpolys[patchstruct.firstuvboxpoly],(void *)boxpolylist.data(),sizeof(snde_index)*boxpolylist.size());
-						    
-						  }
-						  
-						}
-					      },
-					      [ ] (trm_dependency *dep)  {
-						// cleanup function
-
-						// free our outputs
-						std::vector<trm_arrayregion> new_outputs;
-
-						snde_index patchnum=0;
-						while (new_outputs.size() < dep->outputs.size()) {
-						  dep->free_output(new_outputs,patchnum*3+0);
-						  new_outputs.emplace_back(trm_arrayregion(nullptr,nullptr,SNDE_INDEX_INVALID,0));
-						  dep->free_output(new_outputs,patchnum*3+2);
-						  patchnum++;
-						}
-						dep->update_outputs(new_outputs);
-
-					      });
   
   
   
-}
   
-  
-  
+  std::shared_ptr<math_function> define_spatialnde2_boxes_calculation_2d_function()
+  {
+    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+      return std::make_shared<boxes_calculation_2d>(rss,inst);
+    }); 
+    
+  }
 
-}
+  // NOTE: Change to SNDE_OCL_API if/when we add GPU acceleration support, and
+  // (in CMakeLists.txt) make it move into the _ocl.so library)
+  SNDE_API std::shared_ptr<math_function> boxes_calculation_2d_function = define_spatialnde2_boxes_calculation_2d_function();
+  
+  static int registered_boxes_calculation_2d_function = register_math_function("spatialnde2.boxes_calculation_2d",boxes_calculation_2d_function);
+
+
+};
 

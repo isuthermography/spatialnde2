@@ -1,19 +1,28 @@
+#ifndef __OPENCL_VERSION__
+#include "snde/snde_types.h"
+#include "snde/geometry_types.h"
+#include "snde/vecops.h"
+#include "snde/geometry_ops.h"
+
+#include "snde/projinfo_calc.h"
+#endif
+
 /* implicit include of geometry_types.h */
 /* implicit include of vecops.h */
 
-__kernel void projinfo_calc(// __global const struct snde_part *part,
-			    // __global const struct snde_parameterization *param,
-			    __global const snde_triangle *part_triangles,
-			    __global const snde_edge *part_edges,
-			    __global const snde_coord3 *part_vertices,
-			    __global const snde_cmat23 *part_inplanemats,
-			    __global const snde_triangle *param_triangles,
-			    __global const snde_edge *param_edges,
-			    __global const snde_coord2 *param_vertices,
-			    __global snde_cmat23 *inplane2uvcoords,
-			    __global snde_cmat23 *uvcoords2inplane)
+void snde_projinfo_calc_one(// OCL_GLOBAL_ADDR const struct snde_part *part,
+			    // OCL_GLOBAL_ADDR const struct snde_parameterization *param,
+			    OCL_GLOBAL_ADDR const snde_triangle *part_triangles,
+			    OCL_GLOBAL_ADDR const snde_edge *part_edges,
+			    OCL_GLOBAL_ADDR const snde_coord3 *part_vertices,
+			    OCL_GLOBAL_ADDR const snde_cmat23 *part_inplanemats,
+			    OCL_GLOBAL_ADDR const snde_triangle *param_triangles, // parameterization_ i.e. uv
+			    OCL_GLOBAL_ADDR const snde_edge *param_edges,
+			    OCL_GLOBAL_ADDR const snde_coord2 *param_vertices,
+			    OCL_GLOBAL_ADDR snde_cmat23 *inplane2uvcoords,
+			    OCL_GLOBAL_ADDR snde_cmat23 *uvcoords2inplane,
+			    snde_index trianglenum)
 {
-  snde_index trianglenum=get_global_id(0);
 
   snde_coord3 centroid_3d;
   snde_coord3 triverts_3d[3];
@@ -191,3 +200,35 @@ __kernel void projinfo_calc(// __global const struct snde_part *part,
   
 }
 
+
+#ifdef __OPENCL_VERSION__
+
+__kernel void snde_projinfo_calc(// OCL_GLOBAL_ADDR const struct snde_part *part,
+				 // OCL_GLOBAL_ADDR const struct snde_parameterization *param,
+				 OCL_GLOBAL_ADDR const snde_triangle *part_triangles,
+				 OCL_GLOBAL_ADDR const snde_edge *part_edges,
+				 OCL_GLOBAL_ADDR const snde_coord3 *part_vertices,
+				 OCL_GLOBAL_ADDR const snde_cmat23 *part_inplanemats,
+				 OCL_GLOBAL_ADDR const snde_triangle *param_triangles,
+				 OCL_GLOBAL_ADDR const snde_edge *param_edges,
+				 OCL_GLOBAL_ADDR const snde_coord2 *param_vertices,
+				 OCL_GLOBAL_ADDR snde_cmat23 *inplane2uvcoords,
+				 OCL_GLOBAL_ADDR snde_cmat23 *uvcoords2inplane)
+{
+  snde_index trianglenum=get_global_id(0);
+
+  snde_projinfo_calc_one(part_triangles,
+			 part_edges,
+			 part_vertices,
+			 part_inplanemats,
+			 param_triangles,
+			 param_edges,
+			 param_vertices,
+			 inplane2uvcoords,
+			 uvcoords2inplane,
+			 trianglenum);
+  
+
+}
+
+#endif // __OPENCL_VERSION__

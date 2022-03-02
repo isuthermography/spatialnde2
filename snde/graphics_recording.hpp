@@ -27,6 +27,14 @@ namespace snde {
 
   };
 
+
+  class meshed_inplanemat_recording: public multi_ndarray_recording {
+  public:
+    meshed_inplanemat_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize);
+
+  };
+
+  
   class meshed_texvertex_recording: public multi_ndarray_recording {
   public:
     meshed_texvertex_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize);
@@ -54,6 +62,32 @@ namespace snde {
   // meshed_parameterization_recording -> meshed_texvertex_recording for rendering
   
 
+  class meshed_projinfo_recording: public multi_ndarray_recording {
+  public:
+    meshed_projinfo_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize);
+
+  };
+
+
+
+
+  class boxes3d_recording: public multi_ndarray_recording {
+  public:
+    boxes3d_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize);
+
+  };
+
+  class boxes2d_recording: public multi_ndarray_recording {
+  public:
+    boxes2d_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize);
+    // ***!!!! NOTE: Must call set_num_patches after construction and before assigning storage ***!!!
+    virtual void set_num_patches(snde_index num_patches); // may only be called once 
+    
+  };
+
+
+  
+  
   class texture_recording: public multi_ndarray_recording {
   public:
     texture_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize);
