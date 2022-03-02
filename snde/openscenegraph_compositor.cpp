@@ -485,9 +485,9 @@ namespace snde {
 	    if (FutCamPoseIt != FutureChannelCamPose.end()) {
 	      renderer->AssignNewCameraPose(FutCamPoseIt->second);
 	    }
-	    auto FutRotCtrIt = FutureChannelRotationCenter.find(display_req.second->channelpath);
-	    if (FutRotCtrIt != FutureChannelRotationCenter.end()) {
-	      renderer->AssignNewRotationCenter(FutRotCtrIt->second);
+	    auto FutRotCtrIt = FutureChannelRotationCenterDist.find(display_req.second->channelpath);
+	    if (FutRotCtrIt != FutureChannelRotationCenterDist.end()) {
+	      renderer->AssignNewRotationCenterDist(FutRotCtrIt->second);
 	    }
 	    
 	    renderers->erase(display_req.second->channelpath);
@@ -1230,61 +1230,51 @@ namespace snde {
   }
 
 
-  snde_coord3 osg_compositor::get_rotation_center(std::string channel_path) // get the viewer rotation center
+  snde_coord osg_compositor::get_rotation_center_dist(std::string channel_path) // get the viewer rotation center
   {
-    osg::Vec3 RotCenter;
+    snde_coord RotCenterDist;
     {
       std::lock_guard<std::mutex> compositor_admin(admin); // required for access to renderers
       
       auto renderer_it = renderers->find(channel_path);
       if (renderer_it != renderers->end()) {
-	RotCenter = renderer_it->second->GetLastRotationCenter();
-
+	RotCenterDist = renderer_it->second->GetLastRotationCenterDist();
+	
       } else {
-	// channel not found - check for FutureChannelRotationCenter
-	auto FutRotCtrIt = FutureChannelRotationCenter.find(channel_path);
-	if (FutRotCtrIt != FutureChannelRotationCenter.end()) {
-	  RotCenter = FutRotCtrIt->second;
+	// channel not found - check for FutureChannelRotationCenterDist
+	auto FutRotCtrIt = FutureChannelRotationCenterDist.find(channel_path);
+	if (FutRotCtrIt != FutureChannelRotationCenterDist.end()) {
+	  RotCenterDist = FutRotCtrIt->second;
 	} else {
 
-	  // channel not found -- return null position
-	  snde_coord3 null = { { 0,0,0 } };
-	  return null;
+	  // channel not found -- return 1 meter distance
+	  return 1.0;
 	}
       }
       
     }
     
 
-    snde_coord3 retval;
-    retval.coord[0]=RotCenter.x();
-    retval.coord[1]=RotCenter.y();
-    retval.coord[2]=RotCenter.z();
-
-    return retval;
+    return RotCenterDist;
 
   }
-  void osg_compositor::set_rotation_center(std::string channel_path,const snde_coord3 &newcenter)
+  void osg_compositor::set_rotation_center_dist(std::string channel_path,snde_coord newcenterdist)
   {
     {
       std::lock_guard<std::mutex> compositor_admin(admin); // required for access to renderers
       
-      osg::Vec3d OSGCenter;
-      OSGCenter.x() = newcenter.coord[0];
-      OSGCenter.y() = newcenter.coord[1];
-      OSGCenter.z() = newcenter.coord[2];
       
       auto renderer_it = renderers->find(channel_path);
       if (renderer_it != renderers->end()) {
-	renderer_it->second->AssignNewRotationCenter(OSGCenter);
-
+	renderer_it->second->AssignNewRotationCenterDist(newcenterdist);
+	
       } else {
 	// channel not found - check for FutureChannelRotCenter
-	auto FutRotCtrIt = FutureChannelRotationCenter.find(channel_path);
-	if (FutRotCtrIt != FutureChannelRotationCenter.end()) {
-	  FutRotCtrIt->second = OSGCenter;
+	auto FutRotCtrIt = FutureChannelRotationCenterDist.find(channel_path);
+	if (FutRotCtrIt != FutureChannelRotationCenterDist.end()) {
+	  FutRotCtrIt->second = newcenterdist;
 	} else {
-	  FutureChannelRotationCenter.emplace(channel_path,OSGCenter);
+	  FutureChannelRotationCenterDist.emplace(channel_path,newcenterdist);
 	}
 
       }

@@ -185,7 +185,7 @@ namespace snde {
     osg::ref_ptr<osg_compositor_eventhandler> eventhandler; 
 
     std::map<std::string,osg::Matrixd> FutureChannelCamPose; // locked by admin mutex
-    std::map<std::string,osg::Vec3d> FutureChannelRotationCenter; // locked by admin mutex
+    std::map<std::string,snde_coord> FutureChannelRotationCenterDist; // locked by admin mutex
     
     
     std::shared_ptr<display_info> display;
@@ -351,8 +351,8 @@ namespace snde {
 
     virtual snde_orientation3 get_camera_pose(std::string channel_path); // get the camera pose (or a null orientation) for the given channel
     virtual void set_camera_pose(std::string channel_path,const snde_orientation3 &newpose);
-    virtual snde_coord3 get_rotation_center(std::string channel_path); // get the viewer rotation center
-    virtual void set_rotation_center(std::string channel_path,const snde_coord3 &newcenter);
+    virtual snde_coord get_rotation_center_dist(std::string channel_path); // get the viewer rotation center
+    virtual void set_rotation_center_dist(std::string channel_path,snde_coord newcenterdist);
     
     
 

@@ -174,9 +174,9 @@ namespace snde {
   static const RecColor RecColorTable[]={
     {1.0,0.0,0.0}, /* Red */
     {0.0,0.4,1.0}, /* Blue */
-    {0.0,1.0,0.0}, /* Green */
-    {1.0,1.0,0.0}, /* Yellow */
-    {0.0,1.0,1.0}, /* Cyan */
+    {0.0,.6,0.0}, /* Green */
+    {.6,.6,0.0}, /* Yellow */
+    {0.0,.6,.6}, /* Cyan */
     {1.0,0.0,1.0}, /* Magenta */
   };
   

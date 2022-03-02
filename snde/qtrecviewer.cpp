@@ -444,14 +444,14 @@ namespace snde {
     emit NeedRedraw();
   }
 
-  snde_coord3 QTRecViewer::get_rotation_center(std::string channelpath)
+  snde_coord QTRecViewer::get_rotation_center_dist(std::string channelpath)
   {
-    return OSGWidget->get_rotation_center(channelpath);
+    return OSGWidget->get_rotation_center_dist(channelpath);
   }
 
-  void QTRecViewer::set_rotation_center(std::string channelpath,const snde_coord3 &newcenter)
+  void QTRecViewer::set_rotation_center_dist(std::string channelpath,snde_coord newcenterdist)
   {
-    OSGWidget->set_rotation_center(channelpath,newcenter);
+    OSGWidget->set_rotation_center_dist(channelpath,newcenterdist);
 
 
     emit NeedRedraw();

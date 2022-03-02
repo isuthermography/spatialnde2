@@ -68,9 +68,9 @@ namespace snde {
 
     std::mutex LCP_NCP_mutex; // protects _LastCameraPose and _NewCameraPose; last in the locking order; definitely after the compositor admin lock
     osg::Matrixd _LastCameraPose;
-    osg::Vec3d _LastRotationCenter;
+    snde_coord _LastRotationCenterDist;
     osg::ref_ptr<osg::RefMatrixd> _NewCameraPose; // if not nullptr, use this new camera pose on next render.
-    std::shared_ptr<osg::Vec3d> _NewRotationCenter; // if not nullptr, use this new rotation center on next render.
+    std::shared_ptr<snde_coord> _NewRotationCenterDist; // if not nullptr, use this new rotation center on next render.
 
     int type; // see SNDE_DRRT_XXXXX in rec_display.hpp
     bool enable_shaders;
@@ -98,9 +98,9 @@ namespace snde {
     
     virtual void frame();
     virtual osg::Matrixd GetLastCameraPose();
-    virtual osg::Vec3d GetLastRotationCenter();
+    virtual snde_coord GetLastRotationCenterDist();
     virtual void AssignNewCameraPose(const osg::Matrixd &newpose);
-    virtual void AssignNewRotationCenter(const osg::Vec3d &newrotctr);
+    virtual void AssignNewRotationCenterDist(snde_coord newrotctrdist);
     
   };
 

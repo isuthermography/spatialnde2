@@ -72,13 +72,11 @@ namespace snde {
 
     
     _LastCameraPose = Camera->getInverseViewMatrix(); // camera pose is the inverse of the view matrix
-    _LastRotationCenter.x()=0.0;
-    _LastRotationCenter.y()=0.0;
-    _LastRotationCenter.z()=0.0;
+    _LastRotationCenterDist=1.0; // reasonable value
     if (Manipulator) {
       osgGA::OrbitManipulator *Manip = dynamic_cast<osgGA::OrbitManipulator*>(Manipulator.get());
       if (Manip) {
-	_LastRotationCenter = Manip->getCenter();
+	_LastRotationCenterDist = Manip->getDistance();
       }
     }
   }
@@ -86,22 +84,22 @@ namespace snde {
   void osg_renderer::frame()
   {
     osg::ref_ptr<osg::RefMatrixd> NewCameraPose;
-    std::shared_ptr<osg::Vec3d> NewRotationCenter;
+    std::shared_ptr<snde_coord> NewRotationCenterDist;
     {
       std::lock_guard<std::mutex> LCP_NCP_lock(LCP_NCP_mutex);
       
       NewCameraPose = _NewCameraPose;
       _NewCameraPose = nullptr;
 
-      NewRotationCenter = _NewRotationCenter;
-      _NewRotationCenter = nullptr;
+      NewRotationCenterDist = _NewRotationCenterDist;
+      _NewRotationCenterDist = nullptr;
 
     }
 
     if (NewCameraPose && Manipulator) {
       Manipulator->setByMatrix(*NewCameraPose);
     }
-    if (NewRotationCenter && Manipulator) {
+    if (NewRotationCenterDist && Manipulator) {
       osgGA::OrbitManipulator *Manip = dynamic_cast<osgGA::OrbitManipulator*>(Manipulator.get());
       if (Manip) {
 	// Make sure the new rotation center doesn't change the camera pose
@@ -112,9 +110,9 @@ namespace snde {
 	// really all we set with the center is the distance to the
 	// rotation point because we don't allow the
 	// rotation center application to change the camera pose
-	double distance = sqrt(pow(NewRotationCenter->x()-CamMtx(3,0),2)+pow(NewRotationCenter->y()-CamMtx(3,1),2) + pow(NewRotationCenter->z()-CamMtx(3,2),2));
+	//double distance = sqrt(pow(NewRotationCenter->x()-CamMtx(3,0),2)+pow(NewRotationCenter->y()-CamMtx(3,1),2) + pow(NewRotationCenter->z()-CamMtx(3,2),2));
 	
-	Manip->setDistance(distance);
+	Manip->setDistance(*NewRotationCenterDist);
 	Manip->setByMatrix(CamMtx);
       }
     }
@@ -127,7 +125,7 @@ namespace snde {
       if (Manipulator) {
 	osgGA::OrbitManipulator *Manip = dynamic_cast<osgGA::OrbitManipulator*>(Manipulator.get());
 	if (Manip) {
-	  _LastRotationCenter = Manip->getCenter();
+	  _LastRotationCenterDist = Manip->getDistance();
 	  //snde_warning("rendering %s got rotation center of (%f,%f,%f)",channel_path.c_str(),_LastRotationCenter.x(),_LastRotationCenter.y(),_LastRotationCenter.z());
 	}
       }
@@ -154,21 +152,21 @@ namespace snde {
   }
 
 
-  osg::Vec3d osg_renderer::GetLastRotationCenter()
+  snde_coord osg_renderer::GetLastRotationCenterDist()
   {
     {
       std::lock_guard<std::mutex> LCP_NCP_lock(LCP_NCP_mutex);
-      return _LastRotationCenter;
+      return _LastRotationCenterDist;
     }
     
   }
 
-  void osg_renderer::AssignNewRotationCenter(const osg::Vec3d &newcenter)
+  void osg_renderer::AssignNewRotationCenterDist(snde_coord newcenterdist)
   {
     {
       std::lock_guard<std::mutex> LCP_NCP_lock(LCP_NCP_mutex);
-      _NewRotationCenter = std::make_shared<osg::Vec3d>(newcenter);
-      _LastRotationCenter = newcenter; 
+      _NewRotationCenterDist = std::make_shared<snde_coord>(newcenterdist);
+      _LastRotationCenterDist = newcenterdist; 
     }
     
   }
