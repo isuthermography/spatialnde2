@@ -1,3 +1,5 @@
+#include <array>
+
 #include "snde/snde_types.h"
 #include "snde/geometry_types.h"
 #include "snde/vecops.h"
