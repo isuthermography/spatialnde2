@@ -284,16 +284,16 @@ namespace snde {
     }
   };
 
-  // Specialization for a bool
+  // Specialization for an snde_bool
 
   template <>
-  struct rmcfe_tuple_builder_helper<bool> {
-    std::tuple<std::tuple<bool>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+  struct rmcfe_tuple_builder_helper<snde_bool> {
+    std::tuple<std::tuple<snde_bool>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       
       if (thisparam==end) {
-	throw math_parameter_mismatch("Not enough parameters provided to satisfy bool parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy snde_bool parameter #%d of %s",(int)thisparam_index,definition->definition_command.c_str());
       }
       nextparam++;
       

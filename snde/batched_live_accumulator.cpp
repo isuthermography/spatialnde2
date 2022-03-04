@@ -52,10 +52,10 @@ namespace snde {
   };
   
   template <typename T>
-  class batched_live_accumulator: public recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t,uint64_t,bool,bool> {
+  class batched_live_accumulator: public recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t,uint64_t,snde_bool,snde_bool> {
   public:
     batched_live_accumulator(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) :
-      recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t,uint64_t,bool,bool>(rss,inst)
+      recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t,uint64_t,snde_bool,snde_bool>(rss,inst)
     {
       
     }
@@ -71,7 +71,7 @@ namespace snde {
     
     // just using the default for decide_execution
 
-    std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(std::shared_ptr<ndtyped_recording_ref<T>> to_accum, uint64_t numaccum, uint64_t batch_size, bool fortran_mode,bool empty_first)
+    std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(std::shared_ptr<ndtyped_recording_ref<T>> to_accum, uint64_t numaccum, uint64_t batch_size, snde_bool fortran_mode,snde_bool empty_first)
     {
       snde_index nbytes = to_accum->layout.flattened_length() * to_accum->storage->elementsize;
 
@@ -88,7 +88,7 @@ namespace snde {
     }
 
     
-    std::shared_ptr<metadata_function_override_type> define_recs(std::shared_ptr<ndtyped_recording_ref<T>> to_accum, uint64_t numaccum, uint64_t batch_size, bool fortran_mode,bool empty_first) // fortran_mode true means accumulate a new last axis, false means accumulate a new first axis
+    std::shared_ptr<metadata_function_override_type> define_recs(std::shared_ptr<ndtyped_recording_ref<T>> to_accum, uint64_t numaccum, uint64_t batch_size, snde_bool fortran_mode,snde_bool empty_first) // fortran_mode true means accumulate a new last axis, false means accumulate a new first axis
     {
 
       // define_recs code

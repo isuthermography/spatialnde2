@@ -37,7 +37,7 @@ namespace snde {
 
   }
 
-  bool math_parameter::get_bool(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  snde_bool math_parameter::get_bool(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   {
     throw math_parameter_mismatch("Cannot get bool value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
     
@@ -218,14 +218,14 @@ namespace snde {
 
 
   
-  math_parameter_bool_const::math_parameter_bool_const(bool bool_constant) :
+  math_parameter_bool_const::math_parameter_bool_const(snde_bool bool_constant) :
     math_parameter(SNDE_MFPT_BOOL),
     bool_constant(bool_constant)
   {
 
   }
 
-  bool math_parameter_bool_const::get_bool(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  snde_bool math_parameter_bool_const::get_bool(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
     return bool_constant;
@@ -240,8 +240,8 @@ namespace snde {
       return false;
     }
     
-    return bool_constant == bref->bool_constant;
-
+    return ((bool)bool_constant) == ((bool)bref->bool_constant);
+    
   }
   
   bool math_parameter_bool_const::operator!=(const math_parameter &ref)

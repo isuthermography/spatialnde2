@@ -73,6 +73,8 @@ namespace snde {
 #define SNDE_SRG_GEOMETRY "SNDE_SRG_GEOMETRY" // goal is to create bare geometry (vertices and parameterization, but no texture)
 #define SNDE_SRG_POINTCLOUD "SNDE_SRG_POINTCLOUD" // goal is to render a point cloud
 #define SNDE_SRG_POINTCLOUDCOLORMAP "SNDE_SRG_POINTCLOUDCOLORMAP" // goal is to render a point cloud colormap
+
+#define SNDE_SRG_PHASEPLANE "SNDE_SRG_PHASEPLANE" // goal is to render a phase plane diagram
   
   //#define SNDE_SRG_CLASSSPECIFIC 1006 // render in a way that is specific to the particular recording_type indexed in the rendermode
   

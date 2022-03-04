@@ -67,7 +67,7 @@ namespace snde {
       {typeid(snde_box2),SNDE_RTN_SNDE_BOX2},
       {typeid(snde_boxcoord2),SNDE_RTN_SNDE_BOXCOORD2},
       {typeid(snde_imagedata),SNDE_RTN_SNDE_IMAGEDATA},
-      {typeid(snde_coord),SNDE_RTN_SNDE_COORD},
+      //{typeid(snde_coord),SNDE_RTN_SNDE_COORD},// C++ type is indistinguishable from either float or double, depending on config
       {typeid(snde_coord4),SNDE_RTN_SNDE_COORD4},
       {typeid(snde_orientation2),SNDE_RTN_SNDE_ORIENTATION2},
       {typeid(snde_orientation3),SNDE_RTN_SNDE_ORIENTATION3},
@@ -76,6 +76,7 @@ namespace snde {
       {typeid(snde_partinstance),SNDE_RTN_SNDE_PARTINSTANCE},
       {typeid(snde_image),SNDE_RTN_SNDE_IMAGE},
       {typeid(snde_kdnode),SNDE_RTN_SNDE_KDNODE},
+      //{typeid(snde_bool),SNDE_RTN_SNDE_BOOL}, // C++ type is indistinguishable from UINT8
 
 
   });
@@ -137,6 +138,7 @@ namespace snde {
       {SNDE_RTN_SNDE_PARTINSTANCE,sizeof(snde_partinstance)},
       {SNDE_RTN_SNDE_IMAGE,sizeof(snde_image)},
       {SNDE_RTN_SNDE_KDNODE,sizeof(snde_kdnode)},
+      {SNDE_RTN_SNDE_BOOL,sizeof(snde_bool)},
     });
   
   SNDE_API const std::unordered_map<unsigned,std::string> rtn_typenamemap({ // Look up type name based on typenum
@@ -203,6 +205,7 @@ namespace snde {
       {SNDE_RTN_SNDE_PARTINSTANCE,"SNDE_RTN_SNDE_PARTINSTANCE"},
       {SNDE_RTN_SNDE_IMAGE,"SNDE_RTN_SNDE_IMAGE"},
       {SNDE_RTN_SNDE_KDNODE,"SNDE_RTN_SNDE_KDNODE"},
+      {SNDE_RTN_SNDE_BOOL,"SNDE_RTN_SNDE_BOOL"},
     });
   
 
@@ -233,6 +236,7 @@ namespace snde {
       //!!!**** CONTINUE HERE!!!***
 
       {SNDE_RTN_SNDE_COORD,"snde_coord"},
+      {SNDE_RTN_SNDE_BOOL,"snde_bool"},
       
       
       
@@ -260,6 +264,8 @@ namespace snde {
 #else // SNDE_DOUBLEPREC_COORDS
       {SNDE_RTN_SNDE_COORD, { SNDE_RTN_FLOAT32 } },
 #endif
+      {SNDE_RTN_SNDE_BOOL, { SNDE_RTN_UINT8 } },
+      {SNDE_RTN_UINT8, { SNDE_RTN_SNDE_BOOL } },
       
     });
   

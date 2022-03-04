@@ -28,7 +28,7 @@ namespace snde {
     for (size_t paramnum=0; paramnum < param_types_vec.size();paramnum++) {
 
       unsigned paramtype = param_types_vec.at(paramnum);
-      if (paramtype != SNDE_RTN_STRING && paramtype != SNDE_RTN_INT64 && paramtype != SNDE_RTN_UINT64 && paramtype != SNDE_RTN_INT32 && paramtype != SNDE_RTN_UINT32 && paramtype != SNDE_RTN_FLOAT64 && paramtype != SNDE_RTN_FLOAT32 && paramtype != SNDE_RTN_INDEXVEC && paramtype != SNDE_RTN_RECORDING && paramtype != SNDE_RTN_RECORDING_REF && paramtype != SNDE_RTN_SNDE_COORD3 && paramtype != SNDE_RTN_SNDE_ORIENTATION3) {
+      if (paramtype != SNDE_RTN_STRING && paramtype != SNDE_RTN_INT64 && paramtype != SNDE_RTN_UINT64 && paramtype != SNDE_RTN_INT32 && paramtype != SNDE_RTN_UINT32 && paramtype != SNDE_RTN_FLOAT64 && paramtype != SNDE_RTN_FLOAT32 && paramtype != SNDE_RTN_INDEXVEC && paramtype != SNDE_RTN_RECORDING && paramtype != SNDE_RTN_RECORDING_REF && paramtype != SNDE_RTN_SNDE_COORD3 && paramtype != SNDE_RTN_SNDE_ORIENTATION3 && paramtype != SNDE_RTN_SNDE_BOOL && paramtype != SNDE_RTN_UINT8) {
 	throw snde_error("Type %s is not supported as a math function parameter",rtn_typenamemap.at(paramtype).c_str());
       }
       param_names_types.emplace_back(ssprintf("Param%d",paramnum+1),paramtype);
