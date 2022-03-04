@@ -486,6 +486,8 @@ template <typename T>
 %include "inplanemat_calculation.i"
 %include "projinfo_calculation.i"
 %include "boxes_calculation.i"
+%include "averaging_downsampler.i"
+%include "batched_live_accumulator.i"
 %include "quaternion.i"
 %include "kdtree.i"
 %include "rendermode.i"

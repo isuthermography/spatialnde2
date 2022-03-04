@@ -415,6 +415,7 @@ namespace snde {
 
     void assign_storage(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &dimlen, bool fortran_order=false);
     void assign_storage(std::shared_ptr<recording_storage> stor,std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
+    void assign_storage_portion(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &new_dimlen, bool fortran_order,snde_index new_base_index);
     
     // must assign info.elementsize and info.typenum before calling allocate_storage()
     // fortran_order only affects physical layout, not logical layout (interpretation of indices)

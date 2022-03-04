@@ -931,11 +931,15 @@ namespace snde {
   void multi_ndarray_recording::set_num_ndarrays(size_t num_ndarrays)
   // NOTE: This can only be called on a recording that was constructed with num_ndarrays
   // set to zero, and must be called before any arrays are defined, etc. etc.,
-  // i.e. first thing after construction 
+  // i.e. first thing after construction
+
+  // Will still need to call define_array() on each array. 
   {
     assert(!mndinfo()->arrays);
 
-    mndinfo()->arrays = (snde_ndarray_info *)calloc(sizeof(snde_ndarray_info)*num_ndarrays,1);
+    if (num_ndarrays > 0) {
+      mndinfo()->arrays = (snde_ndarray_info *)calloc(sizeof(snde_ndarray_info)*num_ndarrays,1);
+    }
     
   }
 
@@ -1295,6 +1299,56 @@ namespace snde {
     
     array_index = name_mapping.at(array_name);
     assign_storage(stor,array_index,dimlen,fortran_order);
+  }
+
+
+  void multi_ndarray_recording::assign_storage_portion(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &new_dimlen, bool fortran_order,snde_index new_base_index)
+  {
+    size_t dimnum;
+    snde_index stride=1;
+
+    
+    storage.at(array_index) = stor;
+    
+
+    std::vector<snde_index> strides;
+
+    strides.reserve(new_dimlen.size());
+    
+    if (fortran_order) {
+      for (dimnum=0;dimnum < new_dimlen.size();dimnum++) {
+	strides.push_back(stride);
+	stride *= new_dimlen.at(dimnum);
+      }
+    } else {
+      // c order
+      for (dimnum=0;dimnum < new_dimlen.size();dimnum++) {
+	strides.insert(strides.begin(),stride);
+	stride *= new_dimlen.at(new_dimlen.size()-dimnum-1);
+      }
+      
+    }
+
+    assert(new_base_index >= stor->base_index);
+    
+    snde_index base_index_shift = new_base_index-stor->base_index; 
+    
+    assert(stride + base_index_shift <= stor->nelem); // final stride (product of dimlen) + base_index difference had better be less than or equal to storage number of elements!
+    
+    layouts.at(array_index)=arraylayout(new_dimlen,strides);
+    ndinfo(array_index)->basearray = storage.at(array_index)->lockableaddr();
+    ndinfo(array_index)->base_index=new_base_index;
+    ndinfo(array_index)->ndim=layouts.at(array_index).dimlen.size();
+    ndinfo(array_index)->dimlen=layouts.at(array_index).dimlen.data();
+    ndinfo(array_index)->strides=layouts.at(array_index).strides.data();
+    ndinfo(array_index)->requires_locking_read=storage.at(array_index)->requires_locking_read;
+    ndinfo(array_index)->requires_locking_write=storage.at(array_index)->requires_locking_write;
+    void * dataaddr_or_null = storage.at(array_index)->dataaddr_or_null();
+    if (dataaddr_or_null) {
+      dataaddr_or_null = (void *)(((char *)dataaddr_or_null) + ndinfo(array_index)->elementsize*base_index_shift);
+    }
+    ndinfo(array_index)->shiftedarray = dataaddr_or_null;
+
   }
 
   

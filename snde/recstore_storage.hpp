@@ -93,7 +93,7 @@ namespace snde {
     virtual snde_index lockablenelem()=0;
 
     
-    virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference()=0; // NOTE: The returned storage can only be trusted if (a) the originating recording is immutable, or (b) the originating recording is mutable but has not been changed since obtain_nonmoving_copy_or_reference() was called. i.e. can only be used as long as the originating recording is unchanged. Note that this is used only for getting a direct reference within a larger (perhaps mutable) allocation, such as space for a texture or mesh geometry. If you are just referencing a range of elements of a finalized waveofrm you can just reference the recording_storage shared pointer with a suitable base_index, stride array, and dimlen array. 
+    virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference()=0; // NOTE: The returned storage can only be trusted if (a) the originating recording is immutable, or (b) the originating recording is mutable but has not been changed since obtain_nonmoving_copy_or_reference() was called. i.e. can only be used as long as the originating recording is unchanged. Note that this is used only for getting a direct reference within a larger (perhaps mutable) allocation, such as space for a texture or mesh geometry. If you are just referencing a range of elements of a finalized waveform you can just reference the recording_storage shared pointer with a suitable base_index, stride array, and dimlen array. 
 
 
     // ***!!! Need a way to register and notify caches that the data in a mutable array has changed. ***!!!
