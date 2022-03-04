@@ -64,7 +64,7 @@ test_rec_64.allocate_storage([ rec_len ]);
 locktokens = recdb.lockmgr.lock_recording_refs([
     (test_rec_32, True), # first element is recording_ref, 2nd parameter is false for read, true for write
     (test_rec_64, True),
-])
+],False)
 
 for cnt in range(rec_len):
     test_rec_32.assign_double([cnt],100.0*math.sin(cnt))
