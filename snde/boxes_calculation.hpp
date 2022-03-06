@@ -1,28 +1,16 @@
-// ***!!!! Should modify revision manager to better use common code
-// to determine inputs, determine output regions, and perform locking. 
-
-#include "snde/opencl_utils.hpp"
-
 #ifndef SNDE_BOXES_CALCULATION_HPP
 #define SNDE_BOXES_CALCULATION_HPP
 
 
 namespace snde {
-  class geometry;
-  class trm;
-  class component;
-  class parameterization;
   
+
+  std::shared_ptr<math_function> define_spatialnde2_boxes_calculation_3d_function();
+  extern SNDE_API std::shared_ptr<math_function> boxes_calculation_3d_function;
   
-  //extern opencl_program boxescalc_opencl_program;
+  std::shared_ptr<math_function> define_spatialnde2_boxes_calculation_2d_function();
+  extern SNDE_API std::shared_ptr<math_function> boxes_calculation_2d_function;
 
-// The snde::geometry's object_trees_lock should be held when making this call,
-  // and it should be inside a revman transaction
-  std::shared_ptr<trm_dependency> boxes_calculation_3d(std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<component> comp,cl_context context,cl_device_id device,cl_command_queue queue);
-
-
-
-  std::shared_ptr<trm_dependency> boxes_calculation_2d(std::shared_ptr<mutablerecdb> recdb,std::string recdb_context,std::string recname,std::shared_ptr<geometry> geom,std::shared_ptr<trm> revman,std::shared_ptr<parameterization> param,snde_index patchnum,cl_context context,cl_device_id device,cl_command_queue queue);
 
 
 

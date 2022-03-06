@@ -37,6 +37,12 @@ namespace snde {
 
   }
 
+  snde_bool math_parameter::get_bool(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  {
+    throw math_parameter_mismatch("Cannot get bool value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
+    
+  }
+  
   snde_coord3 math_parameter::get_vector(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   {
     throw math_parameter_mismatch("Cannot get vector value from parameter of class %s for parameter %d of %s",(char *)typeid(*this).name(),parameter_index,fcn_def->definition_command.c_str()); 
@@ -209,6 +215,42 @@ namespace snde {
   }
 
 
+
+
+  
+  math_parameter_bool_const::math_parameter_bool_const(snde_bool bool_constant) :
+    math_parameter(SNDE_MFPT_BOOL),
+    bool_constant(bool_constant)
+  {
+
+  }
+
+  snde_bool math_parameter_bool_const::get_bool(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  // parameter_index human interpreted parameter number, starting at 1, for error messages only
+  {
+    return bool_constant;
+  }
+
+
+  bool math_parameter_bool_const::operator==(const math_parameter &ref) // used for comparing parameters to instantiated_math_functions
+  {
+    const math_parameter_bool_const *bref = dynamic_cast<const math_parameter_bool_const *>(&ref);
+    
+    if (!bref) {
+      return false;
+    }
+    
+    return ((bool)bool_constant) == ((bool)bref->bool_constant);
+    
+  }
+  
+  bool math_parameter_bool_const::operator!=(const math_parameter &ref)
+  {
+    return !(*this==ref);
+  }
+
+
+  
   math_parameter_vector_const::math_parameter_vector_const(snde_coord3 vector_constant) :
     math_parameter(SNDE_MFPT_VECTOR),
     vector_constant(vector_constant)

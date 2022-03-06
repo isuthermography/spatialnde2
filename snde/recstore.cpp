@@ -67,7 +67,7 @@ namespace snde {
       {typeid(snde_box2),SNDE_RTN_SNDE_BOX2},
       {typeid(snde_boxcoord2),SNDE_RTN_SNDE_BOXCOORD2},
       {typeid(snde_imagedata),SNDE_RTN_SNDE_IMAGEDATA},
-      {typeid(snde_coord),SNDE_RTN_SNDE_COORD},
+      //{typeid(snde_coord),SNDE_RTN_SNDE_COORD},// C++ type is indistinguishable from either float or double, depending on config
       {typeid(snde_coord4),SNDE_RTN_SNDE_COORD4},
       {typeid(snde_orientation2),SNDE_RTN_SNDE_ORIENTATION2},
       {typeid(snde_orientation3),SNDE_RTN_SNDE_ORIENTATION3},
@@ -76,6 +76,7 @@ namespace snde {
       {typeid(snde_partinstance),SNDE_RTN_SNDE_PARTINSTANCE},
       {typeid(snde_image),SNDE_RTN_SNDE_IMAGE},
       {typeid(snde_kdnode),SNDE_RTN_SNDE_KDNODE},
+      //{typeid(snde_bool),SNDE_RTN_SNDE_BOOL}, // C++ type is indistinguishable from UINT8
 
 
   });
@@ -137,6 +138,7 @@ namespace snde {
       {SNDE_RTN_SNDE_PARTINSTANCE,sizeof(snde_partinstance)},
       {SNDE_RTN_SNDE_IMAGE,sizeof(snde_image)},
       {SNDE_RTN_SNDE_KDNODE,sizeof(snde_kdnode)},
+      {SNDE_RTN_SNDE_BOOL,sizeof(snde_bool)},
     });
   
   SNDE_API const std::unordered_map<unsigned,std::string> rtn_typenamemap({ // Look up type name based on typenum
@@ -203,6 +205,7 @@ namespace snde {
       {SNDE_RTN_SNDE_PARTINSTANCE,"SNDE_RTN_SNDE_PARTINSTANCE"},
       {SNDE_RTN_SNDE_IMAGE,"SNDE_RTN_SNDE_IMAGE"},
       {SNDE_RTN_SNDE_KDNODE,"SNDE_RTN_SNDE_KDNODE"},
+      {SNDE_RTN_SNDE_BOOL,"SNDE_RTN_SNDE_BOOL"},
     });
   
 
@@ -233,6 +236,7 @@ namespace snde {
       //!!!**** CONTINUE HERE!!!***
 
       {SNDE_RTN_SNDE_COORD,"snde_coord"},
+      {SNDE_RTN_SNDE_BOOL,"snde_bool"},
       
       
       
@@ -260,6 +264,8 @@ namespace snde {
 #else // SNDE_DOUBLEPREC_COORDS
       {SNDE_RTN_SNDE_COORD, { SNDE_RTN_FLOAT32 } },
 #endif
+      {SNDE_RTN_SNDE_BOOL, { SNDE_RTN_UINT8 } },
+      {SNDE_RTN_UINT8, { SNDE_RTN_SNDE_BOOL } },
       
     });
   
@@ -900,7 +906,9 @@ namespace snde {
     mndinfo()->dims_valid=false;
     mndinfo()->data_valid=false;
     mndinfo()->num_arrays = num_ndarrays;
-    mndinfo()->arrays = (snde_ndarray_info *)calloc(sizeof(snde_ndarray_info)*num_ndarrays,1);
+    if (num_ndarrays) {
+      mndinfo()->arrays = (snde_ndarray_info *)calloc(sizeof(snde_ndarray_info)*num_ndarrays,1);
+    }
     //ndinfo()->ndim=0;
     //ndinfo()->base_index=0;
     //ndinfo()->dimlen=nullptr;
@@ -920,10 +928,28 @@ namespace snde {
   {
     // c pointers get freed automatically because they point into the c++ structs.
     // except for info->arrays
-    free(mndinfo()->arrays);
+    if (mndinfo()->arrays) {
+      free(mndinfo()->arrays);
+    }
     mndinfo()->arrays=nullptr; 
   }
 
+  void multi_ndarray_recording::set_num_ndarrays(size_t num_ndarrays)
+  // NOTE: This can only be called on a recording that was constructed with num_ndarrays
+  // set to zero, and must be called before any arrays are defined, etc. etc.,
+  // i.e. first thing after construction
+
+  // Will still need to call define_array() on each array. 
+  {
+    assert(!mndinfo()->arrays);
+
+    if (num_ndarrays > 0) {
+      mndinfo()->arrays = (snde_ndarray_info *)calloc(sizeof(snde_ndarray_info)*num_ndarrays,1);
+    }
+    
+  }
+
+  
   void multi_ndarray_recording::mark_as_ready()
   {
     // Notify our storage that we are marked as ready, which may cause cache invalidation, etc.
@@ -1279,6 +1305,56 @@ namespace snde {
     
     array_index = name_mapping.at(array_name);
     assign_storage(stor,array_index,dimlen,fortran_order);
+  }
+
+
+  void multi_ndarray_recording::assign_storage_portion(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &new_dimlen, bool fortran_order,snde_index new_base_index)
+  {
+    size_t dimnum;
+    snde_index stride=1;
+
+    
+    storage.at(array_index) = stor;
+    
+
+    std::vector<snde_index> strides;
+
+    strides.reserve(new_dimlen.size());
+    
+    if (fortran_order) {
+      for (dimnum=0;dimnum < new_dimlen.size();dimnum++) {
+	strides.push_back(stride);
+	stride *= new_dimlen.at(dimnum);
+      }
+    } else {
+      // c order
+      for (dimnum=0;dimnum < new_dimlen.size();dimnum++) {
+	strides.insert(strides.begin(),stride);
+	stride *= new_dimlen.at(new_dimlen.size()-dimnum-1);
+      }
+      
+    }
+
+    assert(new_base_index >= stor->base_index);
+    
+    snde_index base_index_shift = new_base_index-stor->base_index; 
+    
+    assert(stride + base_index_shift <= stor->nelem); // final stride (product of dimlen) + base_index difference had better be less than or equal to storage number of elements!
+    
+    layouts.at(array_index)=arraylayout(new_dimlen,strides);
+    ndinfo(array_index)->basearray = storage.at(array_index)->lockableaddr();
+    ndinfo(array_index)->base_index=new_base_index;
+    ndinfo(array_index)->ndim=layouts.at(array_index).dimlen.size();
+    ndinfo(array_index)->dimlen=layouts.at(array_index).dimlen.data();
+    ndinfo(array_index)->strides=layouts.at(array_index).strides.data();
+    ndinfo(array_index)->requires_locking_read=storage.at(array_index)->requires_locking_read;
+    ndinfo(array_index)->requires_locking_write=storage.at(array_index)->requires_locking_write;
+    void * dataaddr_or_null = storage.at(array_index)->dataaddr_or_null();
+    if (dataaddr_or_null) {
+      dataaddr_or_null = (void *)(((char *)dataaddr_or_null) + ndinfo(array_index)->elementsize*base_index_shift);
+    }
+    ndinfo(array_index)->shiftedarray = dataaddr_or_null;
+
   }
 
   

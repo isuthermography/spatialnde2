@@ -1,8 +1,3 @@
-// ***!!!! Should modify revision manager to better use common code
-// to determine inputs, determine output regions, and perform locking. 
-
-
-
 #ifndef SNDE_NORMAL_CALCULATION_HPP
 #define SNDE_NORMAL_CALCULATION_HPP
 

@@ -46,6 +46,9 @@ namespace snde {
     virtual uint64_t get_unsigned(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
 
     virtual double get_double(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
+
+    virtual snde_bool get_bool(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
+
     
     virtual snde_coord3 get_vector(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
     
@@ -116,6 +119,20 @@ namespace snde {
   };
 
 
+  class math_parameter_bool_const: public math_parameter {
+  public:
+    snde_bool bool_constant;
+
+    math_parameter_bool_const(snde_bool bool_constant);
+    virtual snde_bool get_bool(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
+
+    virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
+    virtual bool operator!=(const math_parameter &ref);
+
+  };
+
+
+  
   class math_parameter_vector_const: public math_parameter {
   public:
     snde_coord3 vector_constant;

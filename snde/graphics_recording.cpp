@@ -73,6 +73,18 @@ namespace snde {
     define_array(0,rtn_typemap.at(typeid(*dummy.vertex_arrays)));
   }
 
+
+  meshed_inplanemat_recording::meshed_inplanemat_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
+    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
+  {
+    snde_geometrydata dummy={0};
+    
+    name_mapping.emplace(std::make_pair("inplanemats",0));
+    name_reverse_mapping.emplace(std::make_pair(0,"inplanemats"));
+    define_array(0,rtn_typemap.at(typeid(*dummy.inplanemats)));
+  }
+
+  
   meshed_texvertex_recording::meshed_texvertex_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
     multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
   {
@@ -150,6 +162,87 @@ namespace snde {
     // NOTE: Final parameter to multi_ndarray_recording() above is number of mapping entries ***!!! 
   }
 
+
+  meshed_projinfo_recording::meshed_projinfo_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
+   multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,2)
+  {
+    snde_geometrydata dummy={0};
+
+    name_mapping.emplace(std::make_pair("inplane2uvcoords",0));
+    name_reverse_mapping.emplace(std::make_pair(0,"inplane2uvcoords"));
+    define_array(0,rtn_typemap.at(typeid(*dummy.inplane2uvcoords)));
+
+    name_mapping.emplace(std::make_pair("uvcoords2inplane",1));
+    name_reverse_mapping.emplace(std::make_pair(1,"uvcoords2inplane"));
+    define_array(1,rtn_typemap.at(typeid(*dummy.uvcoords2inplane)));
+    
+    
+    // NOTE: Final parameter to multi_ndarray_recording() above is number of mapping entries ***!!! 
+  }
+
+
+  boxes3d_recording::boxes3d_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
+   multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,3)
+  {
+    snde_geometrydata dummy={0};
+
+    name_mapping.emplace(std::make_pair("boxes",0));
+    name_reverse_mapping.emplace(std::make_pair(0,"boxes"));
+    define_array(0,rtn_typemap.at(typeid(*dummy.boxes)));
+
+    name_mapping.emplace(std::make_pair("boxcoord",1));
+    name_reverse_mapping.emplace(std::make_pair(1,"boxcoord"));
+    define_array(1,rtn_typemap.at(typeid(*dummy.boxcoord)));
+
+    name_mapping.emplace(std::make_pair("boxpolys",2));
+    name_reverse_mapping.emplace(std::make_pair(2,"boxpolys"));
+    define_array(2,rtn_typemap.at(typeid(*dummy.boxpolys)));
+
+    
+    // NOTE: Final parameter to multi_ndarray_recording() above is number of mapping entries ***!!! 
+  }
+
+
+
+  boxes2d_recording::boxes2d_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
+   multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,0)
+  {
+    // ***!!!! NOTE: Must call set_num_patches after construction and before assigning storage ***!!!
+
+    // NOTE: Final parameter to multi_ndarray_recording() above is number of mapping entries, which we initialize to 0
+    // and is updated by set_num_patches()
+
+  }
+
+  void boxes2d_recording::set_num_patches(snde_index num_patches)
+  {
+    snde_geometrydata dummy={0};
+    
+    // call superclass
+    set_num_ndarrays(3*num_patches);
+    
+    for (snde_index patchnum=0;patchnum < num_patches;patchnum++) {
+      name_mapping.emplace(std::make_pair("uv_boxes"+std::to_string(patchnum),patchnum*3+0));
+      name_reverse_mapping.emplace(std::make_pair(patchnum*3+0,"uv_boxes"+std::to_string(patchnum)));
+      define_array(patchnum*3+0,rtn_typemap.at(typeid(*dummy.uv_boxes)));
+
+      
+      name_mapping.emplace(std::make_pair("uv_boxcoord"+std::to_string(patchnum),patchnum*3+1));
+      name_reverse_mapping.emplace(std::make_pair(patchnum*3+1,"uv_boxcoord"+std::to_string(patchnum)));
+      define_array(patchnum*3+1,rtn_typemap.at(typeid(*dummy.uv_boxcoord)));
+
+      
+      name_mapping.emplace(std::make_pair("uv_boxpolys"+std::to_string(patchnum),patchnum*3+2));
+      name_reverse_mapping.emplace(std::make_pair(patchnum*3+2,"uv_boxpolys"+std::to_string(patchnum)));
+      define_array(patchnum*3+2,rtn_typemap.at(typeid(*dummy.uv_boxpolys)));
+      
+    }
+    
+  }
+
+
+  
+  
   texture_recording::texture_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
     multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
     

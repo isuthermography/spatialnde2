@@ -13,7 +13,7 @@
 #include "snde/graphics_storage.hpp"
 
 
-#include "snde/normal_calculation.hpp"
+#include "snde/averaging_downsampler.hpp"
 
 namespace snde {
   /*
@@ -313,8 +313,11 @@ namespace snde {
     return newfunc;
     
   }
+
+  SNDE_API std::shared_ptr<math_function> averaging_downsampler_function=define_averaging_downsampler_function();
+
   
-  static int registered_averaging_downsampler_function = register_math_function("spatialnde2.averaging_downsampler",define_averaging_downsampler_function());
+  static int registered_averaging_downsampler_function = register_math_function("spatialnde2.averaging_downsampler",averaging_downsampler_function);
   
   
   

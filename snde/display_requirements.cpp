@@ -677,196 +677,265 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
   assert(array_rec);
 
 
-  if (simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D ) {
 
-    // goal is to render this channel
-    if (array_rec->layouts.size()==1) {
-      // if we are a simple ndarray
-      std::shared_ptr<display_axis> axis=display->GetFirstAxis(chanpath);
+  // evaluate layout characteristics
+  
+  snde_index NDim = 0;
+  
+  std::vector<snde_index> f_layout_dims;
+  std::vector<snde_index> c_layout_dims;
+  snde_index f_layout_length=0;
+  snde_index c_layout_length=0; 
+  
+  bool consistent_layout_c=true; // consistent_layout_c means multiple arrays but all with the same layout except for the first axis which is implicitly concatenated
+  bool consistent_layout_f=true; // consistent_layout_f means multiple arrays but all with the same layout except for the last axis which is implicitly concatenated
+  bool consistent_ndim=true; 
+  
+  snde_index arraynum;
+
+
+  if (!array_rec->layouts.size()) {
+    // multi-ndarray with 0 ndarrays:
+    return nullptr; 
+  }
+  
+  for (arraynum=0; arraynum < array_rec->layouts.size(); arraynum++) {
+    if (!arraynum) {
+      NDim = array_rec->layouts.at(arraynum).dimlen.size();
       
-      // Perhaps evaluate/render Max and Min levels here (see scope_drawrec.c)
-      snde_index NDim = array_rec->layouts[0].dimlen.size();
-      snde_index DimLen1=1;
       if (NDim > 0) {
-	DimLen1 = array_rec->layouts[0].dimlen[0];
-      }
-      
-      if (array_rec->layouts[0].flattened_length()==0) {
-	//retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
+	c_layout_dims = std::vector<snde_index>(array_rec->layouts.at(arraynum).dimlen.begin()+1,array_rec->layouts.at(arraynum).dimlen.end());
+	f_layout_dims = std::vector<snde_index>(array_rec->layouts.at(arraynum).dimlen.begin(),array_rec->layouts.at(arraynum).dimlen.end()-1);
 
-	snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Empty recording rendering not yet implemented");
+	c_layout_length += array_rec->layouts.at(arraynum).dimlen.at(0);
+	f_layout_length += array_rec->layouts.at(arraynum).dimlen.at(NDim-1);
 	
-	return nullptr;
-      } else if (NDim<=1 && DimLen1==1) {
-	/* "single point" recording */
-	snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Single point recording rendering not yet implemented");
-	//retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
-	return nullptr;
-      } else if (NDim==1) {
-	// 1D recording
-	snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): 1D recording rendering not yet implemented");
-	//retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
-	return nullptr;
-      } else if (NDim > 1 && NDim <= 4) {
-	// image data.. for now hardwired to u=dim 0, v=dim1, frame = dim2, seq=dim3
-	snde_index u_dimnum=0;
-	snde_index v_dimnum=1;
-	
-	std::shared_ptr<display_spatial_position> posn;
-	std::shared_ptr<display_spatial_transform> xform;
-	std::shared_ptr<display_channel_rendering_bounds> bounds;
-
-	
-	std::shared_ptr<rgbacolormapparams> colormap_params;
-	{
-	  std::lock_guard<std::mutex> di_lock(display->admin);
-	  std::lock_guard<std::mutex> dc_lock(displaychan->admin);
-	  std::vector<snde_index> other_indices({0,0});
-
-	  // !!!*** displaychan updates should be more formally assigned and passed around
-	  // this is interpreted by qtrecviewer for how the controls should work
-	  // as distinct from renderer_type in display_requirement, which is used to select the actual renderer.
-	  // Should these be unified somehow? 
-	  displaychan->render_mode = SNDE_DCRM_IMAGE;
-	  
-	  if (NDim >= 3) {
-	    if (displaychan->DisplayFrame >= array_rec->layouts[0].dimlen[2]) {
-	      displaychan->DisplayFrame = array_rec->layouts[0].dimlen[2]-1;	    
-	    }
-	    other_indices.push_back(displaychan->DisplayFrame);
-	    if (NDim >= 4) {
-	      if (displaychan->DisplaySeq >= array_rec->layouts[0].dimlen[3]) {
-		displaychan->DisplaySeq = array_rec->layouts[0].dimlen[3]-1;	    
-	      }
-	      other_indices.push_back(displaychan->DisplaySeq);
-	    }
-	  }
-		
-	  std::shared_ptr<display_axis> a = display->GetFirstAxisLocked(chanpath);
-	  std::shared_ptr<display_axis> b = display->GetSecondAxisLocked(chanpath);
-
-	  double xcenter;
-	  double xunitscale;
-	  bool horizontal_pixelflag;
-	  {
-	    std::lock_guard<std::mutex> axisadminlock(a->admin);
-	    xcenter=a->CenterCoord; /* in units */
-
-	    std::shared_ptr<display_unit> u=a->unit;
-	    std::lock_guard<std::mutex> unitadminlock(u->admin);
-	    
-	    xunitscale=u->scale;
-	    horizontal_pixelflag = u->pixelflag;
-	  }
-
-	  
-	  double yunitscale;
-	  bool vertical_pixelflag;
-	  {
-	    std::lock_guard<std::mutex> axisadminlock(b->admin);
-
-	    std::shared_ptr<display_unit> v=b->unit;
-	    std::lock_guard<std::mutex> unitadminlock(v->admin);
-	    
-	    yunitscale=v->scale;
-	    
-	    vertical_pixelflag = v->pixelflag;
-	  }
-
-	  
-	  
-	  
-	  colormap_params = std::make_shared<rgbacolormapparams>(displaychan->ColorMap,
-	    displaychan->Offset,
-	    displaychan->Scale,
-	    other_indices,
-	    u_dimnum,
-	    v_dimnum);
-
-
-	  double stepx,stepy;
-	  
-
-	  stepx = rec->metadata->GetMetaDatumDbl("nde_array-axis0_step",1.0);
-	  stepy = rec->metadata->GetMetaDatumDbl("nde_array-axis1_step",1.0);
-
-	  double left,right,bottom,top;
-
-	  if (stepx > 0) {
-	    left = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)-stepx/2.0;	  
-	    right = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
-	  } else {
-	    right = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)-stepx/2.0;	  
-	    left = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
-	  }
-	  if (stepy > 0) {
-	    bottom = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)-stepy/2.0;
-	    top = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
-	  } else {
-	    top = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)-stepy/2.0;
-	    bottom = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
-	  }
-
-	  snde_debug(SNDE_DC_DISPLAY,"spatial_transforms_for_image_channel: xunitscale=%f, yunitscale=%f",xunitscale,yunitscale);
-	  std::tie(posn,xform,bounds) = spatial_transforms_for_image_channel(display->drawareawidth,display->drawareaheight,
-									     display->horizontal_divisions,display->vertical_divisions,
-									     xcenter,-displaychan->Position,displaychan->VertZoomAroundAxis,
-									     displaychan->VertCenterCoord,
-									     xunitscale,yunitscale,display->pixelsperdiv,
-									     horizontal_pixelflag, vertical_pixelflag,
-									     displaychan->VertZoomAroundAxis,
-									     // ***!!! In order to implement procexpr/procrgba type
-									     // dynamic transforms we would have to queue up all of these parameters
-									     // and then call spatial_transforms_for_image_channel later, 
-									     // probably in the render cache -- as
-									     // the data edges are dependent on the data, which
-									     // wouldn't be available until the end anyway... Realistically
-									     // the axes would be different too -- so probably best just to
-									     // snapshot the display state or similar with a deep copy and
-									     // keep that snapshot as a record in the display pipeline
-
-									     // Note: The edges are the center bounds shifted by half a step
-									     left,
-									     right,
-									     bottom,
-									     top);
-	  
-	  
-	} // release displaychan lock
-
-
-
-	// should colormap_params really be in the rendermode_ext key for this one or just the next one?
-	// I think the answer is both because the nested requirement won't be looked at
-	// if the parent just pulls from the cache
-	retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_RGBAIMAGE,typeid(*this),colormap_params),rec,shared_from_this());
-	retval->renderer_type = SNDE_DRRT_IMAGE;
-	//retval->imgref = std::make_shared<image_reference>(chanpath,u_dimnum,v_dimnum,other_indices);
-	retval->renderable_channelpath = std::make_shared<std::string>(chanpath); 
-	retval->spatial_position = posn;
-	retval->spatial_transform = xform;
-	retval->spatial_bounds = bounds;
-
-	
-	// have a nested display_requirement for the image as a texture... recursive call to traverse_display_requirement()
-	// This will eventually call the code below (simple_goal==SNDE_SRG_TEXTURE) 
-	retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,displaychan,SNDE_SRG_TEXTURE,colormap_params));
-	
-	  
       } else {
-	snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Too many dimensions for image rendering");
-	retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirem
-	
+	consistent_layout_c=false;
+	consistent_layout_f=false; 
       }
     } else {
-      snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Multiple array rendering not implemented");
-      retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirem
-    };
-    return retval;
+      snde_index this_NDim = array_rec->layouts.at(arraynum).dimlen.size();
+      
+      if (this_NDim != NDim) {
+	consistent_ndim=false;
+	
+	consistent_layout_c=false;
+	consistent_layout_f=false;
+	break; 
+      }
+      if (this_NDim > 0) {
+	
+	std::vector<snde_index> this_c_layout_dims = std::vector<snde_index>(array_rec->layouts.at(arraynum).dimlen.begin()+1,array_rec->layouts.at(arraynum).dimlen.end()); 
+	std::vector<snde_index> this_f_layout_dims = std::vector<snde_index>(array_rec->layouts.at(arraynum).dimlen.end(),array_rec->layouts.at(arraynum).dimlen.end()-1);
 
+	// we also use c and f contiguity to confirm consistent layout
+	// because otherwise there is the possibility of detecting both
+	// in some circumstances. 
+	
+	if (this_c_layout_dims != c_layout_dims ||  !array_rec->layouts.at(arraynum).is_c_contiguous()) {
+	  consistent_layout_c=false; 
+	} else {
+	  c_layout_length += array_rec->layouts.at(arraynum).dimlen.at(0);
+	}
+	
+	if (this_f_layout_dims != f_layout_dims ||  !array_rec->layouts.at(arraynum).is_f_contiguous()) {
+	  consistent_layout_f=false; 
+	} else {	  
+	  f_layout_length += array_rec->layouts.at(arraynum).dimlen.at(NDim-1);
+	}
+	
+      }
+    }
+  }
+  
+  snde_index DimLen1=1;
+  if (NDim > 0) {
+    DimLen1 = array_rec->layouts[0].dimlen[0];
+  }
+
+  std::shared_ptr<display_axis> axis=display->GetFirstAxis(chanpath);
+
+  if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && (array_rec->layouts[0].flattened_length()==0)) {
+
+    // goal is to render empty waveform 
+    //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
     
-  } else if (simple_goal==SNDE_SRG_TEXTURE) {
+    snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Empty recording rendering not yet implemented");
+    
+    return nullptr;
+  } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && array_rec->layouts.size()==1 && (NDim == 0 || (NDim == 1 &&  DimLen1==1))) {
+    // goal is to render 0D or single point recording
+    /* "single point" recording */
+    snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Single point recording rendering not yet implemented");
+    //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
+    return nullptr;
+  } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && NDim==1) {
+    // goal is to render 1D recording
+    snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): 1D recording rendering not yet implemented");
+    //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
+    return nullptr;
+  } else if ((simple_goal == SNDE_SRG_PHASEPLANE) && NDim==1) {
+    // goal is to render 1D recording in a phase plane diagram
+    snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): 1D recording rendering not yet implemented");
+    //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
+    return nullptr;
+  
+    
+  } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && NDim >1 && NDim <= 4 && array_rec->layouts.size()==1) {
+    // goal is to render 2D image or array of images that is a single ndarray
+
+    // !!!**We ought to have another entry here that can accommodate the frame or sequence axis being multiple ndarrays with consitent_layout_f !!!***
+    
+    // image data.. for now hardwired to u=dim 0, v=dim1, frame = dim2, seq=dim3
+    snde_index u_dimnum=0;
+    snde_index v_dimnum=1;
+    
+    std::shared_ptr<display_spatial_position> posn;
+    std::shared_ptr<display_spatial_transform> xform;
+    std::shared_ptr<display_channel_rendering_bounds> bounds;
+    
+    
+    std::shared_ptr<rgbacolormapparams> colormap_params;
+    {
+      std::lock_guard<std::mutex> di_lock(display->admin);
+      std::lock_guard<std::mutex> dc_lock(displaychan->admin);
+      std::vector<snde_index> other_indices({0,0});
+      
+      // !!!*** displaychan updates should be more formally assigned and passed around
+      // this is interpreted by qtrecviewer for how the controls should work
+      // as distinct from renderer_type in display_requirement, which is used to select the actual renderer.
+      // Should these be unified somehow? 
+      displaychan->render_mode = SNDE_DCRM_IMAGE;
+      
+      if (NDim >= 3) {
+	if (displaychan->DisplayFrame >= array_rec->layouts[0].dimlen[2]) {
+	  displaychan->DisplayFrame = array_rec->layouts[0].dimlen[2]-1;	    
+	}
+	other_indices.push_back(displaychan->DisplayFrame);
+	if (NDim >= 4) {
+	  if (displaychan->DisplaySeq >= array_rec->layouts[0].dimlen[3]) {
+	    displaychan->DisplaySeq = array_rec->layouts[0].dimlen[3]-1;	    
+	  }
+	  other_indices.push_back(displaychan->DisplaySeq);
+	}
+      }
+      
+      std::shared_ptr<display_axis> a = display->GetFirstAxisLocked(chanpath);
+      std::shared_ptr<display_axis> b = display->GetSecondAxisLocked(chanpath);
+      
+      double xcenter;
+      double xunitscale;
+      bool horizontal_pixelflag;
+      {
+	std::lock_guard<std::mutex> axisadminlock(a->admin);
+	xcenter=a->CenterCoord; /* in units */
+	
+	std::shared_ptr<display_unit> u=a->unit;
+	std::lock_guard<std::mutex> unitadminlock(u->admin);
+	
+	xunitscale=u->scale;
+	horizontal_pixelflag = u->pixelflag;
+      }
+      
+      
+      double yunitscale;
+      bool vertical_pixelflag;
+      {
+	std::lock_guard<std::mutex> axisadminlock(b->admin);
+	
+	std::shared_ptr<display_unit> v=b->unit;
+	std::lock_guard<std::mutex> unitadminlock(v->admin);
+	
+	yunitscale=v->scale;
+	
+	vertical_pixelflag = v->pixelflag;
+      }
+      
+      
+      
+      
+      colormap_params = std::make_shared<rgbacolormapparams>(displaychan->ColorMap,
+							     displaychan->Offset,
+							     displaychan->Scale,
+							     other_indices,
+							     u_dimnum,
+							     v_dimnum);
+      
+      
+      double stepx,stepy;
+      
+      
+      stepx = rec->metadata->GetMetaDatumDbl("nde_array-axis0_step",1.0);
+      stepy = rec->metadata->GetMetaDatumDbl("nde_array-axis1_step",1.0);
+      
+      double left,right,bottom,top;
+      
+      if (stepx > 0) {
+	left = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)-stepx/2.0;	  
+	right = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
+      } else {
+	right = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)-stepx/2.0;	  
+	left = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
+      }
+      if (stepy > 0) {
+	bottom = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)-stepy/2.0;
+	top = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
+      } else {
+	top = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)-stepy/2.0;
+	bottom = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
+      }
+      
+      snde_debug(SNDE_DC_DISPLAY,"spatial_transforms_for_image_channel: xunitscale=%f, yunitscale=%f",xunitscale,yunitscale);
+      std::tie(posn,xform,bounds) = spatial_transforms_for_image_channel(display->drawareawidth,display->drawareaheight,
+									 display->horizontal_divisions,display->vertical_divisions,
+									 xcenter,-displaychan->Position,displaychan->VertZoomAroundAxis,
+									 displaychan->VertCenterCoord,
+									 xunitscale,yunitscale,display->pixelsperdiv,
+									 horizontal_pixelflag, vertical_pixelflag,
+									 displaychan->VertZoomAroundAxis,
+									 // ***!!! In order to implement procexpr/procrgba type
+									 // dynamic transforms we would have to queue up all of these parameters
+									 // and then call spatial_transforms_for_image_channel later, 
+									 // probably in the render cache -- as
+									 // the data edges are dependent on the data, which
+									 // wouldn't be available until the end anyway... Realistically
+									 // the axes would be different too -- so probably best just to
+									 // snapshot the display state or similar with a deep copy and
+									 // keep that snapshot as a record in the display pipeline
+									 
+									 // Note: The edges are the center bounds shifted by half a step
+									 left,
+									 right,
+									 bottom,
+									 top);
+      
+      
+    } // release displaychan lock
+    
+    
+    
+    // should colormap_params really be in the rendermode_ext key for this one or just the next one?
+    // I think the answer is both because the nested requirement won't be looked at
+    // if the parent just pulls from the cache
+    retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_RGBAIMAGE,typeid(*this),colormap_params),rec,shared_from_this());
+    retval->renderer_type = SNDE_DRRT_IMAGE;
+    //retval->imgref = std::make_shared<image_reference>(chanpath,u_dimnum,v_dimnum,other_indices);
+    retval->renderable_channelpath = std::make_shared<std::string>(chanpath); 
+    retval->spatial_position = posn;
+    retval->spatial_transform = xform;
+    retval->spatial_bounds = bounds;
+    
+    
+    // have a nested display_requirement for the image as a texture... recursive call to traverse_display_requirement()
+    // This will eventually call the code below (simple_goal==SNDE_SRG_TEXTURE) 
+    retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,displaychan,SNDE_SRG_TEXTURE,colormap_params));
+    
+    return retval;
+  } else if (simple_goal==SNDE_SRG_TEXTURE && array_rec && array_rec->layouts.size()==1 && NDim >1 && NDim <= 4) {
     // goal is to obtain a texture from the channel data
+    // ***!!! We really should be able to accommodate a frame or sequence axis being multiple ndarrays with consistent_layout_f !!!***
+
     assert(array_rec);
     assert(array_rec->layouts.size()==1);
     
@@ -916,8 +985,9 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     }
   
     return retval;
-  } else if (simple_goal == SNDE_SRG_POINTCLOUD) {
+  } else if (simple_goal == SNDE_SRG_POINTCLOUD && array_rec->layouts.size()==1) {
     // want to render this as a point cloud
+    // ***!!! Should really support implicit concatenation of multiple pointclouds across multiple ndarrays or similar 
     // multi_ndarray_recording:SNDE_SRG_POINTCLOUD
     //  -> MAIN multi_ndarray_recording_display_handler:SNDE_SRM_POINTCLOUD:multi_ndarray_recording -> osg_cachedpointclou    //     SUB multi_ndarray_recording:SNDE_SRG_POINTCLOUDCOLORMAP
     //       -> MAIN multi_ndarray_recording_display_handler:SNDE_SRM_POINTCLOUDCOLORMAP:multi_ndarray_recording -> osg_cachedpointcloudclormap
@@ -996,7 +1066,9 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     
 
     return retval;
-  } else if (simple_goal == SNDE_SRG_POINTCLOUDCOLORMAP) {
+  }  else if (simple_goal == SNDE_SRG_POINTCLOUDCOLORMAP && array_rec->layouts.size()==1)  {
+    // generate colomapping for a point cloud from z axis value
+    
 
     std::string renderable_channelpath = recdb_path_join(recdb_path_as_group(chanpath),"_snde_rec_pccolormap_di"+std::to_string(display->unique_index));
 
@@ -1025,8 +1097,14 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     return retval;
   }
 
-  throw snde_error("multi_ndarray_recording_display_handler::get_display_requirement(): Unknown simple_goal");
   
+  //else {
+  //snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Too many dimensions for image rendering");
+  //	retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirem
+  //throw snde_error("multi_ndarray_recording_display_handler::get_display_requirement(): Unknown simple_goal");
+
+  snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Could not create display requirement for %s",chanpath.c_str());
+  return nullptr;
 }
 
 

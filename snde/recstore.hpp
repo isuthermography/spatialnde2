@@ -386,6 +386,11 @@ namespace snde {
     virtual ~multi_ndarray_recording();
 
 
+    // NOTE: This can only be called on a recording that was constructed with num_ndarrays
+    // set to zero, and must be called before any arrays are defined, etc. etc.,
+    // i.e. first thing after construction 
+    virtual void set_num_ndarrays(size_t num_ndarrays); 
+
     virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held. Passes on ready_notifications to storage
     virtual void _mark_storage_as_finalized_internal();
 
@@ -410,6 +415,7 @@ namespace snde {
 
     void assign_storage(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &dimlen, bool fortran_order=false);
     void assign_storage(std::shared_ptr<recording_storage> stor,std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
+    void assign_storage_portion(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &new_dimlen, bool fortran_order,snde_index new_base_index);
     
     // must assign info.elementsize and info.typenum before calling allocate_storage()
     // fortran_order only affects physical layout, not logical layout (interpretation of indices)
