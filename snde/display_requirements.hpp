@@ -110,7 +110,8 @@ namespace snde {
     int renderer_type; // see SNDE_DRRT_xxxx
 #define SNDE_DRRT_INVALID 0
     //#define SNDE_DRRT_WAVEFORM 1  // waveform actually should be handled identically to image at the moment so we just use that
-#define SNDE_DRRT_IMAGE 2
+    //#define SNDE_DRRT_IMAGE 2
+#define SNDE_DRRT_2D 1
 #define SNDE_DRRT_GEOMETRY 3
     
     // A re-render can be avoided if (a) mode matches, (b) spatial_transform is matches (both null OK), (c) osg_rendercacheentry is the same pointer, (d) for 3D renders the manipulator orientation matches, and (e) display area width and height are unchanged.

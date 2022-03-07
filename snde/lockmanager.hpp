@@ -877,6 +877,8 @@ typedef uint64_t snde_infostore_lock_mask_t;
     //                                   {outputrec1, {"edges", true} } });
     // GPU access flag causes it to make the locking decision based on the original recording storage
     // and the requires_locking_read_gpu/requires_locking_write_gpu storage flags instead of requires_locking_read and requires_locking_write
+    rwlock_token_set lock_recording_arrays(std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>> recrefs,bool gpu_access /* = false */);
+    
     rwlock_token_set lock_recording_arrays(std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<std::string,bool>>> recrefs,bool gpu_access=false);
     
     

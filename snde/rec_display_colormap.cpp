@@ -24,68 +24,8 @@
 namespace snde {
 
 #ifdef SNDE_OPENCL
-  typedef std::unordered_map<std::type_index,std::shared_ptr<opencl_program>> colormap_program_database;
-  static std::shared_ptr<colormap_program_database> *_colormap_program_registry; // default-initialized to nullptr, locked by _colormap_program_mutex()
 
-  static std::mutex &_colormap_program_mutex()
-  {
-    // take advantage of the fact that since C++11 initialization of function statics
-    // happens on first execution and is guaranteed thread-safe. This lets us
-    // work around the "static initialization order fiasco" using the
-    // "construct on first use idiom".
-    // We just use regular pointers, which are safe from the order fiasco,
-    // but we need some way to bootstrap thread-safety, and this mutex
-    // is it. 
-    static std::mutex regmutex; 
-    return regmutex; 
-  }
-  
-  static std::shared_ptr<colormap_program_database> _colormap_program_registry_reglocked()
-  {
-    // we assume it's already locked now
-    //std::mutex &regmutex = _colormap_program_mutex();
-    //std::lock_guard<std::mutex> reglock(regmutex);
-    
-    if (!_colormap_program_registry) {
-      _colormap_program_registry = new std::shared_ptr<colormap_program_database>(std::make_shared<colormap_program_database>());
-    }
-    return *_colormap_program_registry;
-  }
 
-  template <typename T> 
-  std::shared_ptr<opencl_program> get_opencl_colormap_program()
-  {
-    std::mutex &regmutex = _colormap_program_mutex();
-    std::lock_guard<std::mutex> reglock(regmutex);
-
-    std::shared_ptr<colormap_program_database> reg = _colormap_program_registry_reglocked();
-
-    colormap_program_database::iterator reg_it = reg->find(typeid(T));
-    
-    if (reg_it != reg->end()) {
-      return reg_it->second; // return program
-    } else {
-      // construct new database (so that old one is still safe to use in background)
-      std::shared_ptr<colormap_program_database> new_reg = std::make_shared<colormap_program_database>(*reg);
-
-      auto typemap_it = rtn_typemap.find(typeid(T));
-      if (typemap_it == rtn_typemap.end()) {
-	throw snde_error("Can't colormap without typemap entry");
-      }
-      auto ocltypemap_it = rtn_ocltypemap.find(typemap_it->second);
-      if (ocltypemap_it == rtn_ocltypemap.end()) {
-	throw snde_error("Can't colormap without OpenCL typemap entry");
-      }
-
-      // OpenCL templating via a typedef....
-      std::shared_ptr<opencl_program> new_program=std::make_shared<opencl_program>("scale_colormap", std::vector<std::string>({ snde_types_h, geometry_types_h, colormap_h, "\ntypedef " + ocltypemap_it->second + " sc_intype;\n", scale_colormap_c }));
-      
-      new_reg->emplace(std::type_index(typeid(T)),new_program);
-      *_colormap_program_registry = new_reg;
-
-      return new_reg->at(std::type_index(typeid(T))); 
-    }
-  }
   
   static opencl_program pointcloud_colormap_function_opencl("scale_pointcloud_colormap", { snde_types_h, geometry_types_h, colormap_h, "\ntypedef " + rtn_ocltypemap.at(SNDE_RTN_SNDE_COORD) + " sc_intype;\n",  scale_colormap_c });
 #endif // SNDE_OPENCL
@@ -181,8 +121,13 @@ namespace snde {
 #ifdef SNDE_OPENCL
 	    std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(this->compute_resource);
 	    if (opencl_resource) {
+
+	      //cl::Kernel colormap_kern = get_opencl_colormap_program<T>()->get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
+	      cl::Kernel colormap_kern = build_typed_opencl_program<T>("spatialnde2.colormap",[] (std::string ocltypename) {
+		// OpenCL templating via a typedef....
+		return std::make_shared<opencl_program>("scale_colormap", std::vector<std::string>({ snde_types_h, geometry_types_h, colormap_h, "\ntypedef " + ocltypename + " sc_intype;\n", scale_colormap_c }));
+	      })->get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
 	      
-	      cl::Kernel colormap_kern = get_opencl_colormap_program<T>()->get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
 	      OpenCLBuffers Buffers(opencl_resource->oclcache,opencl_resource->context,opencl_resource->devices.at(0),locktokens);
 	      
 	      assert(recording->ndinfo()->base_index==0); // we don't support a shift (at least not currently)

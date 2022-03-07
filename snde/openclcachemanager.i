@@ -382,40 +382,40 @@ namespace snde {
     
 
     
+    
     cl_int SetBufferAsKernelArg(cl::Kernel kernel, cl_uint arg_index, void **arrayptr,snde_index firstelem,snde_index numelem);
   
-    //void AddSubBuffer(std::shared_ptr<arraymanager> manager, void **arrayptr,snde_index indexstart,snde_index numelem,bool write,bool write_only=false);
+
+    void AddBufferPortion(std::shared_ptr<recording_storage> storage,snde_index start_elem, snde_index length,bool write,bool write_only=false);
 
     void AddBuffer(std::shared_ptr<recording_storage> storage,bool write,bool write_only=false);
     
-    //cl_int AddSubBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl::Kernel kernel,cl_uint arg_index,void **arrayptr,snde_index indexstart,snde_index numelem,bool write,bool write_only=false);
+    cl_int AddBufferPortionAsKernelArg(std::shared_ptr<recording_storage> storage,snde_index start_elem, snde_index length,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only=false);
 
-    //cl_int AddBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl::Kernel kernel,cl_uint arg_index,void **arrayptr,bool write,bool write_only=false);
-    cl_int AddBufferAsKernelArg(std::shared_ptr<recording_storage> storage,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only=false);
+    cl_int AddBufferPortionAsKernelArg(std::shared_ptr<ndarray_recording_ref> ref,snde_index portion_start,snde_index portion_len,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only);
+
+    cl_int AddBufferPortionAsKernelArg(std::shared_ptr<multi_ndarray_recording> rec,size_t arraynum,snde_index portion_start,snde_index portion_len,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only);
+    
+    cl_int AddBufferPortionAsKernelArg(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,snde_index portion_start,snde_index portion_len,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only);
+
+    
+    //cl_int AddBufferAsKernelArg(std::shared_ptr<recording_storage> storage,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only=false);
 
     cl_int AddBufferAsKernelArg(std::shared_ptr<ndarray_recording_ref> ref,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only=false);
 
+    cl_int AddBufferAsKernelArg(std::shared_ptr<multi_ndarray_recording> rec,size_t arraynum,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only);
     cl_int AddBufferAsKernelArg(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only);
 
     /* This indicates that the array has been written to by an OpenCL kernel, 
        and that therefore it needs to be copied back into CPU memory */
+    void BufferPortionDirty(std::shared_ptr<recording_storage> storage,snde_index start_elem, snde_index length);
     void BufferDirty(std::shared_ptr<recording_storage> storage);
+    void BufferPortionDirty(std::shared_ptr<ndarray_recording_ref> ref,snde_index portion_start, snde_index portion_len);
+    void BufferPortionDirty(std::shared_ptr<multi_ndarray_recording> rec,size_t arraynum,snde_index portion_start, snde_index portion_len);
+    void BufferPortionDirty(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,snde_index portion_start, snde_index portion_len);
     void BufferDirty(std::shared_ptr<ndarray_recording_ref> ref);
+    void BufferDirty(std::shared_ptr<multi_ndarray_recording> rec,size_t arraynum);
     void BufferDirty(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname);
-
-    /* This indicates that the array region has been written to by an OpenCL kernel, 
-       and that therefore it needs to be copied back into CPU memory */
-    //void BufferDirty(std::shared_ptr<recording_storage> storage,snde_index pos,snde_index len);
-
-      
-    /* This indicates that the array region has been written to by an OpenCL kernel, 
-       and that therefore it needs to be copied back into CPU memory */
-    //void SubBufferDirty(void **arrayptr,snde_index sb_pos,snde_index sb_len);
-
-    /* This indicates that the array region has been written to by an OpenCL kernel, 
-       and that therefore it needs to be copied back into CPU memory */
-    //void SubBufferDirty(void **arrayptr,snde_index sb_pos,snde_index sb_len,snde_index dirtypos,snde_index dirtylen);
-
 
     std::pair<std::vector<cl::Event>,std::vector<cl::Event>> FlushBuffer(std::shared_ptr<recording_storage> storage,std::vector<cl::Event> explicit_prerequisites);
     

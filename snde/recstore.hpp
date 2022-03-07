@@ -236,6 +236,27 @@ namespace snde {
     }
   }
 
+
+
+  // Detection of complex types: See https://stackoverflow.com/questions/41438493/how-to-identifying-whether-a-template-argument-is-stdcomplex
+  template<typename T>
+  struct is_complex: public std::false_type {};
+  
+  // mark snde_complexfloat32 as complex
+  template<>
+  struct is_complex<snde_complexfloat32>: public std::true_type {};
+  
+  // mark snde_complexfloat64 as complex
+  template<>
+  struct is_complex<snde_complexfloat64>: public std::true_type {};
+  
+  // mark std::complex as complex
+  template<typename T>
+  struct is_complex<std::complex<T>>: public std::true_type {};
+  
+  
+  
+
   class recording_creator_data {
   public:
     recording_creator_data() = default;
@@ -487,15 +508,30 @@ namespace snde {
 
     
     double element_double(size_t array_index,const std::vector<snde_index> &idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    double element_double(size_t array_index,snde_index idx, bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    
     void assign_double(size_t array_index,const std::vector<snde_index> &idx,double val); // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    void assign_double(size_t array_index,snde_index idx,double val,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
 
     int64_t element_int(size_t array_index,const std::vector<snde_index> &idx); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    int64_t element_int(size_t array_index,snde_index idx,bool fortran_order=false); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
     void assign_int(size_t array_index,const std::vector<snde_index> &idx,int64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    void assign_int(size_t array_index,snde_index idx,int64_t val,bool fortran_order=false); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
 
     uint64_t element_unsigned(size_t array_index,const std::vector<snde_index> &idx); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    uint64_t element_unsigned(size_t array_index,snde_index idx,bool fortran_order=false); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
     void assign_unsigned(size_t array_index,const std::vector<snde_index> &idx,uint64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    void assign_unsigned(size_t array_index,snde_index idx,uint64_t val,bool fortran_order=false); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+
+
     
+    snde_complexfloat64 element_complexfloat64(size_t array_index,const std::vector<snde_index> &idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    snde_complexfloat64 element_complexfloat64(size_t array_index,size_t idx,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    void assign_complexfloat64(size_t array_index,const std::vector<snde_index> &idx,snde_complexfloat64 val); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    void assign_complexfloat64(size_t array_index,size_t idx,snde_complexfloat64 val,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+
   };
+
 
   class ndarray_recording_ref: public std::enable_shared_from_this<ndarray_recording_ref> {
     // reference to a single ndarray within an multi_ndarray_recording
@@ -610,6 +646,11 @@ namespace snde {
     virtual void assign_unsigned(snde_index idx,uint64_t val,bool fortran_order=false); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
     
 
+    virtual snde_complexfloat64 element_complexfloat64(const std::vector<snde_index> &idx);
+    virtual snde_complexfloat64 element_complexfloat64(snde_index idx,bool fortran_order=false);
+
+    virtual void assign_complexfloat64(const std::vector<snde_index> &idx,snde_complexfloat64 val);
+    virtual void assign_complexfloat64(snde_index idx,snde_complexfloat64 val,bool fortran_order=false);
 
   };
 
@@ -1279,6 +1320,108 @@ namespace snde {
     }
 
 
+
+
+    // element_complexfloat64 for complex types
+    template <typename U = T>
+    typename std::enable_if<is_complex<U>::value,snde_complexfloat64>::type _element_complexfloat64(const std::vector<snde_index> &idx) //  if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      size_t offset = element_offset(idx);
+      snde_complexfloat64 retval;
+      retval.real = shifted_arrayptr()[offset].real;
+      retval.imag = shifted_arrayptr()[offset].imag;
+
+      return retval;
+    }
+    template <typename U = T>
+    typename std::enable_if<is_complex<U>::value,snde_complexfloat64>::type _element_complexfloat64(snde_index idx,bool fortran_order) //  if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      size_t offset = element_offset(idx,fortran_order);
+      snde_complexfloat64 retval;
+      retval.real = shifted_arrayptr()[offset].real;
+      retval.imag = shifted_arrayptr()[offset].imag;
+
+      return retval;
+    }
+
+    // element_complexfloat64 for arithmetic types: returns value with real part, imaginary part of 0
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,snde_complexfloat64>::type _element_complexfloat64(const std::vector<snde_index> &idx) // if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      size_t offset = element_offset(idx);
+      snde_complexfloat64 retval;
+      retval.real = shifted_arrayptr()[offset];
+      retval.imag = 0.0;
+
+      return retval; 
+    }
+    template <typename U = T>
+    typename std::enable_if<std::is_arithmetic<U>::value,snde_complexfloat64>::type _element_complexfloat64(snde_index idx,bool fortran_order) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      size_t offset = element_offset(idx,fortran_order);
+      
+      snde_complexfloat64 retval;
+      retval.real = shifted_arrayptr()[offset];
+      retval.imag = 0.0;
+
+      return retval; 
+    }
+    
+    // element_complexfloat64 for non-arithmetic types
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value && !is_complex<U>::value,snde_complexfloat64>::type _element_complexfloat64(const std::vector<snde_index> &idx) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      throw snde_error("Cannot extract complex value from non-complex and non-arithmetic type");
+    }
+    template <typename U = T>
+    typename std::enable_if<!std::is_arithmetic<U>::value && !is_complex<U>::value,snde_complexfloat64>::type _element_complexfloat64(snde_index idx,bool fortran_order) // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    {
+      throw snde_error("Cannot extract complex value from non-complex and non-arithmetic type");
+    }
+
+
+
+    // assign_complexfloat64 for complex types
+    template <typename U = T>
+    typename std::enable_if<is_complex<U>::value,void>::type _assign_complexfloat64(const std::vector<snde_index> &idx,snde_complexfloat64 val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      size_t offset = element_offset(idx);
+
+      T to_assign;
+      to_assign.real = val.real;
+      to_assign.imag = val.imag;
+      
+      shifted_arrayptr()[offset]=to_assign;
+    }
+
+
+    template <typename U = T>
+    typename std::enable_if<is_complex<U>::value,void>::type _assign_complexfloat64(snde_index idx,snde_complexfloat64 val,bool fortran_order) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      size_t offset = element_offset(idx,fortran_order);
+      
+      T to_assign;
+      to_assign.real = val.real;
+      to_assign.imag = val.imag;
+      
+      shifted_arrayptr()[offset]=to_assign;
+    }
+
+
+
+    // assign_complexfloat64 for non-complex types
+    template <typename U = T>
+    typename std::enable_if<!is_complex<U>::value,void>::type _assign_complexfloat64(const std::vector<snde_index> &idx,snde_complexfloat64 val) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      throw snde_error("Cannot assign complex value to non-complex type");
+    }
+
+    template <typename U = T>
+    typename std::enable_if<!is_complex<U>::value,void>::type _assign_complexfloat64(snde_index idx,snde_complexfloat64 val,bool fortran_order) // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    {
+      throw snde_error("Cannot assign complex value to non-complex type");
+    }
+
     
 
     // ... and here are the non-template wrappers
@@ -1341,6 +1484,29 @@ namespace snde {
     {
       _assign_unsigned(idx,val,fortran_order);
     }
+
+    
+    snde_complexfloat64 element_complexfloat64(const std::vector<snde_index> &idx)
+    {
+      return _element_complexfloat64(idx);
+    }
+    
+    snde_complexfloat64 element_complexfloat64(snde_index idx,bool fortran_order=false)
+    {
+      return _element_complexfloat64(idx,fortran_order);
+      
+    }
+
+    void assign_complexfloat64(const std::vector<snde_index> &idx,snde_complexfloat64 val)
+    {
+      _assign_complexfloat64(idx,val);
+    }
+    
+    void assign_complexfloat64(snde_index idx,snde_complexfloat64 val,bool fortran_order=false)
+    {
+      _assign_complexfloat64(idx,val,fortran_order);      
+    }
+
 
   };
 

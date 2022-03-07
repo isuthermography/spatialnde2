@@ -26,7 +26,7 @@
 #include "snde/rec_display.hpp"
 #include "snde/display_requirements.hpp"
 #include "snde/recstore_display_transforms.hpp"
-#include "snde/openscenegraph_image_renderer.hpp"
+#include "snde/openscenegraph_2d_renderer.hpp"
 #include "snde/openscenegraph_layerwindow.hpp"
 
 /* osg_layerwindow_test.cpp:
@@ -54,7 +54,7 @@
 using namespace snde;
 
 std::shared_ptr<snde::recdatabase> recdb;
-std::shared_ptr<osg_image_renderer> renderer;
+std::shared_ptr<osg_2d_renderer> renderer;
 std::shared_ptr<osg_rendercache> rendercache;
 std::shared_ptr<display_info> display;
 std::map<std::string,std::shared_ptr<display_requirement>> display_reqs;
@@ -257,7 +257,7 @@ int main(int argc, char **argv)
 
   LW->setup_camera(Viewer->getCamera());
   
-  renderer = std::make_shared<osg_image_renderer>(Viewer,LW,
+  renderer = std::make_shared<osg_2d_renderer>(Viewer,LW,
 						  pngchan_config->channelpath,
 						  false); // enable_shaders
   

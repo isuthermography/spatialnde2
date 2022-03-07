@@ -1,0 +1,83 @@
+# This is a simple example of using dataguzzler-python
+# with the spatialnde2 recording database. 
+
+# To use: pass the name of an .x3d file as the first command-line parameter 
+# and the name of a k4a recording as the second command line parameter
+
+from dataguzzler_python import dgpy
+import spatialnde2 as snde
+import threading
+import time
+
+include(dgpy,"dgpy_startup.dpi") # If you get a NameError here, be sure you are executing this file with dataguzzler-python
+
+include(dgpy,"Qt.dpi",prefer_pyqt=False) 
+
+include(snde,"recdb.dpi",enable_opencl=False)
+include(snde,"recdb_gui.dpi")
+
+
+transact = snde.active_transaction(recdb)	
+
+live_channel = recdb.define_channel("/live complex value","main",recdb.raw())
+
+accumulator = snde.batched_live_accumulator.instantiate( [ snde.math_parameter_recording("/live complex value"),
+                                                           snde.math_parameter_unsigned_const(30),
+                                                           snde.math_parameter_unsigned_const(10),
+                                                           snde.math_parameter_bool_const(False),
+                                                           snde.math_parameter_bool_const(True)],
+                                                         [ snde.shared_string("/accumulator") ],
+                                                         "/",
+                                                         False,
+                                                         False,
+                                                         False,
+                                                         snde.math_definition("accumulator definition"),
+                                                         None)
+recdb.add_math_function(accumulator,False)
+
+globalrev = transact.end_transaction()
+
+
+def live_thread_code():
+
+    cnt = 0
+
+    center = 0.1
+    radius = 0.2
+    
+    while True: 
+
+        transact = snde.active_transaction(recdb)	
+        live_recording = snde.create_recording_ref(recdb,live_channel,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
+        metadata = snde.constructible_metadata()
+        metadata.AddMetaDatum(snde.metadatum("snde_render_goal","SNDE_SRG_PHASEPLANE"))
+        metadata.AddMetaDatum(snde.metadatum("snde_phase_plane_historical_fade",True))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-ampl_coord","Impedance"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-ampl_units","Ohms"))
+
+        live_recording.rec.metadata=metadata;
+        
+        live_recording.rec.mark_metadata_done()
+        live_recording.allocate_storage( [] )
+        angle = cnt*15*np.pi/180.0
+
+        value = center + radius*np.exp((0+1j)*angle)
+
+        #print("value=%s" % (str(value)))
+        
+        live_recording.assign_complexfloat64([],value)
+        live_recording.rec.mark_as_ready()
+        
+        transact.end_transaction()
+        
+        time.sleep(.1)
+        cnt+=1
+        pass
+    
+    pass
+
+
+
+live_thread = threading.Thread(target=live_thread_code)
+live_thread.start()
+

@@ -95,21 +95,21 @@ namespace snde {
 
     return retval;
   }
-  
-  rwlock_token_set lockmanager::lock_recording_arrays(std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<std::string,bool>>> recrefs,bool gpu_access /* = false */)
+
+
+  rwlock_token_set lockmanager::lock_recording_arrays(std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>> recrefs,bool gpu_access /* = false */)
   {
     std::map<lockingposition,std::pair<arraylayout,std::shared_ptr<recording_storage>>> ordered_locking;
-
+    
     // sort the various things that need locked
     // into the locking order
     for (auto && recref_namewritebool: recrefs) {
       std::shared_ptr<multi_ndarray_recording> &rec=recref_namewritebool.first;
       std::string name;
       bool is_write;
-      std::tie(name,is_write)=recref_namewritebool.second;
-      
-      size_t index = rec->name_mapping.at(name);
-      
+      size_t index;
+      std::tie(index,is_write)=recref_namewritebool.second;
+            
       std::shared_ptr<recording_storage> storage=rec->storage.at(index);
       if (gpu_access)  {
 	storage=storage->get_original_storage();
@@ -158,6 +158,28 @@ namespace snde {
     
     return retval;
 
+
+  }
+
+  rwlock_token_set lockmanager::lock_recording_arrays(std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<std::string,bool>>> recrefs,bool gpu_access /* = false */)
+  {
+
+    std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>> recrefs_byindex;
+
+    for (auto && recref_namewritebool: recrefs) {
+      
+      std::shared_ptr<multi_ndarray_recording> &rec=recref_namewritebool.first;
+      std::string name;
+      bool is_write;
+      std::tie(name,is_write)=recref_namewritebool.second;
+
+      size_t index = rec->name_mapping.at(name);
+      recrefs_byindex.emplace_back(std::make_pair(rec,std::make_pair(index,is_write)));
+    }
+
+    return lock_recording_arrays(recrefs_byindex,gpu_access);
+    
+    
   }
   
 

@@ -4,6 +4,7 @@
 #include <functional>
 
 #include "snde/quaternion.h"
+#include "snde/rec_display.hpp"
 
 namespace snde {
   class renderparams_base;
@@ -75,6 +76,8 @@ namespace snde {
 #define SNDE_SRG_POINTCLOUDCOLORMAP "SNDE_SRG_POINTCLOUDCOLORMAP" // goal is to render a point cloud colormap
 
 #define SNDE_SRG_PHASEPLANE "SNDE_SRG_PHASEPLANE" // goal is to render a phase plane diagram
+
+#define SNDE_SRG_PHASEPLANE_LINE_TRIANGLE_VERTICES_ALPHAS "SNDE_SRG_PHASEPLANE_LINE_TRIANGLE_VERTICES_ALPHAS"
   
   //#define SNDE_SRG_CLASSSPECIFIC 1006 // render in a way that is specific to the particular recording_type indexed in the rendermode
   
@@ -143,7 +146,11 @@ namespace snde {
 #define SNDE_SRM_ASSEMBLY "SNDE_SRM_ASSEMBLY" // render a collection of objects (group) representing an assembly
 
 #define SNDE_SRM_TRANSFORMEDCOMPONENT "SNDE_SRM_TRANSFORMEDCOMPONENT" // render a component with the pose transform defined in the rendermode_ext
+  
+#define SNDE_SRM_PHASE_PLANE_ENDPOINT_WITH_COLOREDTRANSPARENTLINES "SNDE_SRM_PHASE_PLANE_ENDPOINT_WITH_COLOREDTRANSPARENTLINES"
 
+#define SNDE_SRM_COLOREDTRANSPARENTLINES "SNDE_SRM_COLOREDTRANSPARENTLINES"
+  
   //#define SNDE_SRM_CLASSSPECIFIC 11 // render in a way that is specific to the particular recording_type indexed in the rendermode
 
   struct rendermode_hash {
@@ -231,6 +238,43 @@ namespace snde {
     }
   };
 
+
+  class color_linewidth_params: public renderparams_base {
+  public:
+    RecColor color; // each element 0-1
+    float overall_alpha; // 0-1
+
+    double linewidth_x;
+    double linewidth_y;
+    
+    color_linewidth_params(RecColor color,float overall_alpha,double linewidth_x,double linewidth_y) :
+      color(color),
+      overall_alpha(overall_alpha),
+      linewidth_x(linewidth_x),
+      linewidth_y(linewidth_y)
+    {
+
+    }
+
+    virtual ~color_linewidth_params() = default;
+    virtual size_t hash()
+    {
+      size_t hashv = std::hash<float>{}(color.R) ^ std::hash<float>{}(color.G) ^ std::hash<float>{}(color.B) ^ std::hash<float>{}(overall_alpha) ^ std::hash<double>{}(linewidth_x) ^ std::hash<double>{}(linewidth_y);
+      
+      return hashv;
+    }
+    
+    virtual bool operator==(const renderparams_base &b)
+    {
+      const color_linewidth_params *bptr = dynamic_cast<const color_linewidth_params*>(&b);
+      if (!bptr) return false; 
+
+      return color.R==bptr->color.R && color.G==bptr->color.G && color.B == bptr->color.B && overall_alpha==bptr->overall_alpha && linewidth_x==bptr->linewidth_x && linewidth_y == bptr->linewidth_y;
+      
+    }
+    
+    
+  };
 
 
   class rgbacolormapparams: public renderparams_base {

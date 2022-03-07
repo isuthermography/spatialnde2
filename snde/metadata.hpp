@@ -236,6 +236,19 @@ public:
       }
       return (*mditer).second.Unsigned(defaultval);
     }
+
+    snde_bool GetMetaDatumBool(std::string Name,snde_bool defaultval) const
+    {
+      std::unordered_map<std::string,metadatum>::const_iterator mditer; 
+      
+      mditer = metadata.find(Name);
+      if (mditer == metadata.end() || mditer->second.md_type != MWS_MDT_UNSIGNED) {
+	return defaultval;
+      }
+      return (bool)((*mditer).second.Unsigned(defaultval));
+    }
+    
+
     
     snde_index GetMetaDatumIdx(std::string Name,snde_index defaultval) const
     // actually stored as unsigned

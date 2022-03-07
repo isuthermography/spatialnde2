@@ -4,7 +4,7 @@
 #include "snde/rec_display.hpp"
 #include "snde/graphics_recording.hpp"
 #include "snde/rendermode.hpp"
-
+#include "snde/batched_live_accumulator.hpp"
 
 namespace snde {
 
@@ -652,6 +652,16 @@ static int register_mnr_display_handler_pointcloud = register_recording_display_
       return std::make_shared<multi_ndarray_recording_display_handler>(display,displaychan,base_rss);
       }));
 
+// Register this handler for SNDE_SRG_PHASEPLANE on multi_ndarray_recordings
+static int register_mnr_display_handler_phaseplane = register_recording_display_handler(rendergoal(SNDE_SRG_PHASEPLANE,typeid(multi_ndarray_recording)),std::make_shared<registered_recording_display_handler>( [] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+      return std::make_shared<multi_ndarray_recording_display_handler>(display,displaychan,base_rss);
+      }));
+
+// Register this handler for SNDE_SRG_PHASEPLANE_LINE_TRIANGLE_VERTICES_ALPHAS on multi_ndarray_recordings
+static int register_mnr_display_handler_phaseplane_line_trangle_vertices_alphas = register_recording_display_handler(rendergoal(SNDE_SRG_PHASEPLANE_LINE_TRIANGLE_VERTICES_ALPHAS,typeid(multi_ndarray_recording)),std::make_shared<registered_recording_display_handler>( [] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+      return std::make_shared<multi_ndarray_recording_display_handler>(display,displaychan,base_rss);
+      }));
+
 
 // multi_ndarray_recording:SNDE_SRG_RENDERING
 //  if 2D, 3D, or 4D
@@ -676,77 +686,20 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
   std::shared_ptr<multi_ndarray_recording> array_rec=std::dynamic_pointer_cast<multi_ndarray_recording>(rec);
   assert(array_rec);
 
-
-
-  // evaluate layout characteristics
-  
-  snde_index NDim = 0;
-  
-  std::vector<snde_index> f_layout_dims;
-  std::vector<snde_index> c_layout_dims;
-  snde_index f_layout_length=0;
-  snde_index c_layout_length=0; 
+    
+  std::vector<snde_index> layout_dims;
+  snde_index layout_length=0;
   
   bool consistent_layout_c=true; // consistent_layout_c means multiple arrays but all with the same layout except for the first axis which is implicitly concatenated
   bool consistent_layout_f=true; // consistent_layout_f means multiple arrays but all with the same layout except for the last axis which is implicitly concatenated
   bool consistent_ndim=true; 
-  
-  snde_index arraynum;
 
+  std::tie(consistent_ndim,consistent_layout_c,consistent_layout_f,layout_dims,layout_length)
+    = analyze_potentially_batched_multi_ndarray_layout(array_rec);
 
-  if (!array_rec->layouts.size()) {
-    // multi-ndarray with 0 ndarrays:
-    return nullptr; 
-  }
-  
-  for (arraynum=0; arraynum < array_rec->layouts.size(); arraynum++) {
-    if (!arraynum) {
-      NDim = array_rec->layouts.at(arraynum).dimlen.size();
-      
-      if (NDim > 0) {
-	c_layout_dims = std::vector<snde_index>(array_rec->layouts.at(arraynum).dimlen.begin()+1,array_rec->layouts.at(arraynum).dimlen.end());
-	f_layout_dims = std::vector<snde_index>(array_rec->layouts.at(arraynum).dimlen.begin(),array_rec->layouts.at(arraynum).dimlen.end()-1);
-
-	c_layout_length += array_rec->layouts.at(arraynum).dimlen.at(0);
-	f_layout_length += array_rec->layouts.at(arraynum).dimlen.at(NDim-1);
-	
-      } else {
-	consistent_layout_c=false;
-	consistent_layout_f=false; 
-      }
-    } else {
-      snde_index this_NDim = array_rec->layouts.at(arraynum).dimlen.size();
-      
-      if (this_NDim != NDim) {
-	consistent_ndim=false;
-	
-	consistent_layout_c=false;
-	consistent_layout_f=false;
-	break; 
-      }
-      if (this_NDim > 0) {
-	
-	std::vector<snde_index> this_c_layout_dims = std::vector<snde_index>(array_rec->layouts.at(arraynum).dimlen.begin()+1,array_rec->layouts.at(arraynum).dimlen.end()); 
-	std::vector<snde_index> this_f_layout_dims = std::vector<snde_index>(array_rec->layouts.at(arraynum).dimlen.end(),array_rec->layouts.at(arraynum).dimlen.end()-1);
-
-	// we also use c and f contiguity to confirm consistent layout
-	// because otherwise there is the possibility of detecting both
-	// in some circumstances. 
-	
-	if (this_c_layout_dims != c_layout_dims ||  !array_rec->layouts.at(arraynum).is_c_contiguous()) {
-	  consistent_layout_c=false; 
-	} else {
-	  c_layout_length += array_rec->layouts.at(arraynum).dimlen.at(0);
-	}
-	
-	if (this_f_layout_dims != f_layout_dims ||  !array_rec->layouts.at(arraynum).is_f_contiguous()) {
-	  consistent_layout_f=false; 
-	} else {	  
-	  f_layout_length += array_rec->layouts.at(arraynum).dimlen.at(NDim-1);
-	}
-	
-      }
-    }
+  snde_index NDim = 0;
+  if (array_rec->layouts.size() > 0) {
+    NDim = array_rec->layouts.at(0).dimlen.size();
   }
   
   snde_index DimLen1=1;
@@ -756,6 +709,9 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 
   std::shared_ptr<display_axis> axis=display->GetFirstAxis(chanpath);
 
+  snde_debug(SNDE_DC_DISPLAY,"multi_ndarray_recording_display_handler::get_display_requirement: simple_goal=\"%s\"; NDim=%llu",simple_goal.c_str(),(unsigned long long)NDim);
+
+  
   if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && (array_rec->layouts[0].flattened_length()==0)) {
 
     // goal is to render empty waveform 
@@ -777,9 +733,108 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     return nullptr;
   } else if ((simple_goal == SNDE_SRG_PHASEPLANE) && NDim==1) {
     // goal is to render 1D recording in a phase plane diagram
-    snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): 1D recording rendering not yet implemented");
-    //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
-    return nullptr;
+
+
+    std::shared_ptr<display_spatial_position> posn;
+    std::shared_ptr<display_spatial_transform> xform;
+    std::shared_ptr<display_channel_rendering_bounds> bounds;
+    size_t DC_ColorIdx;
+    
+    std::shared_ptr<rgbacolormapparams> colormap_params;
+    {
+      std::lock_guard<std::mutex> di_lock(display->admin);
+      std::lock_guard<std::mutex> dc_lock(displaychan->admin);
+      std::vector<snde_index> other_indices({0,0});
+      
+      // !!!*** displaychan updates should be more formally assigned and passed around
+      // this is interpreted by qtrecviewer for how the controls should work
+      // as distinct from renderer_type in display_requirement, which is used to select the actual renderer.
+      // Should these be unified somehow? 
+      displaychan->render_mode = SNDE_DCRM_PHASEPLANE;
+      DC_ColorIdx = displaychan->ColorIdx;
+      
+      std::shared_ptr<display_axis> a = display->GetAmplAxisLocked(chanpath);
+      
+      double xcenter;
+      double xunitscale;
+      double yunitscale;
+      {
+	std::lock_guard<std::mutex> axisadminlock(a->admin);
+	xcenter=a->CenterCoord; /* in units */
+	
+	std::shared_ptr<display_unit> u=a->unit;
+	std::lock_guard<std::mutex> unitadminlock(u->admin);
+	
+	xunitscale=u->scale;
+	yunitscale=u->scale;
+      }
+      
+      
+      
+      
+      snde_debug(SNDE_DC_DISPLAY,"spatial_transforms_for_waveform_channel: xunitscale=%f, yunitscale=%f",xunitscale,yunitscale);
+      std::tie(posn,xform,bounds) = spatial_transforms_for_waveform_channel(display->drawareawidth,display->drawareaheight,
+									    display->horizontal_divisions,display->vertical_divisions,
+									    xcenter,-displaychan->Position,displaychan->VertZoomAroundAxis,
+									    displaychan->VertCenterCoord,
+									    xunitscale,yunitscale,display->pixelsperdiv,
+									    false, false,
+									    displaychan->VertZoomAroundAxis);
+      
+      
+    } // release displaychan lock
+    
+
+    // pull scaling out of display transform
+    double horiz_pixels_per_chanunit = xform->renderarea_coords_over_channel_coords(0,0);
+    double vert_pixels_per_chanunit = xform->renderarea_coords_over_channel_coords(1,1);
+    
+    // should colormap_params really be in the rendermode_ext key for this one or just the next one?
+    // I think the answer is both because the nested requirement won't be looked at
+    // if the parent just pulls from the cache
+    std::shared_ptr<color_linewidth_params> color_renderparams=std::make_shared<color_linewidth_params>(RecColorTable[DC_ColorIdx],1.0f,2.0f/horiz_pixels_per_chanunit,2.0f/vert_pixels_per_chanunit);
+    
+    retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_PHASE_PLANE_ENDPOINT_WITH_COLOREDTRANSPARENTLINES,typeid(*this),color_renderparams),rec,shared_from_this());
+    retval->renderer_type = SNDE_DRRT_2D;
+    //retval->imgref = std::make_shared<image_reference>(chanpath,u_dimnum,v_dimnum,other_indices);
+
+    
+    std::string renderable_channelpath = recdb_path_join(recdb_path_as_group(chanpath),"_snde_phase_plane_endpoint_octagon_vertices"+std::to_string(display->unique_index));
+
+    std::shared_ptr<recdatabase> recdb = base_rss->recdb_weak.lock();
+    if (!recdb) {
+      return nullptr; 
+    }
+    
+    std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_math_function("spatialnde2.phase_plane_endpoint_octagon_vertices")->instantiate({
+	std::make_shared<math_parameter_recording>(chanpath),
+	std::make_shared<math_parameter_double_const>(8.0f/horiz_pixels_per_chanunit),
+	std::make_shared<math_parameter_double_const>(8.0f/vert_pixels_per_chanunit)
+      },
+      { std::make_shared<std::string>(renderable_channelpath) },
+      "/",
+      false, // is_mutable
+      true, // ondemand
+      false, // mdonly
+      std::make_shared<math_definition>("c++ definition of phase_plane_endpoint_octagon_vertices for rendering"),
+      nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
+    
+    retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
+    retval->renderable_function = renderable_function;
+    
+
+    retval->spatial_position = posn;
+    retval->spatial_transform = xform;
+    retval->spatial_bounds = bounds;
+    
+    
+    // have a nested display_requirement for the recording as renderable vertices... recursive call to traverse_display_requirement()
+    // This will eventually call the code below (simple_goal==SNDE_SRG_PHASEPLANE_LINE_TRIANGLE_VERTICES_ALPHAS) 
+    retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,displaychan,SNDE_SRG_PHASEPLANE_LINE_TRIANGLE_VERTICES_ALPHAS,color_renderparams));
+
+
+    return retval;
+
   
     
   } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && NDim >1 && NDim <= 4 && array_rec->layouts.size()==1) {
@@ -919,7 +974,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     // I think the answer is both because the nested requirement won't be looked at
     // if the parent just pulls from the cache
     retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_RGBAIMAGE,typeid(*this),colormap_params),rec,shared_from_this());
-    retval->renderer_type = SNDE_DRRT_IMAGE;
+    retval->renderer_type = SNDE_DRRT_2D;
     //retval->imgref = std::make_shared<image_reference>(chanpath,u_dimnum,v_dimnum,other_indices);
     retval->renderable_channelpath = std::make_shared<std::string>(chanpath); 
     retval->spatial_position = posn;
@@ -1089,6 +1144,44 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
     
     retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_POINTCLOUDCOLORMAP,typeid(*this),colormap_params),rec,shared_from_this()); // display_requirement
+    
+    
+    retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
+    retval->renderable_function = renderable_function;
+
+    return retval;
+  }  else if (simple_goal == SNDE_SRG_PHASEPLANE_LINE_TRIANGLE_VERTICES_ALPHAS)  {
+    // generate colomapping for a point cloud from z axis value
+    
+    std::shared_ptr<color_linewidth_params> color_renderparams = std::dynamic_pointer_cast<color_linewidth_params>(params_from_parent);
+      
+    std::string renderable_channelpath = recdb_path_join(recdb_path_as_group(chanpath),"_snde_phase_plane_line_triangle_vertices_alphas"+std::to_string(display->unique_index));
+
+    std::shared_ptr<recdatabase> recdb = base_rss->recdb_weak.lock();
+    if (!recdb) {
+      return nullptr; 
+    }
+    
+
+    std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_math_function("spatialnde2.phase_plane_line_triangle_vertices_alphas")->instantiate({
+	std::make_shared<math_parameter_recording>(chanpath),
+	std::make_shared<math_parameter_double_const>(color_renderparams->color.R),
+	std::make_shared<math_parameter_double_const>(color_renderparams->color.G),
+	std::make_shared<math_parameter_double_const>(color_renderparams->color.B),
+	std::make_shared<math_parameter_double_const>(color_renderparams->overall_alpha),
+	std::make_shared<math_parameter_double_const>(color_renderparams->linewidth_x),
+	std::make_shared<math_parameter_double_const>(color_renderparams->linewidth_y)
+
+      },
+      { std::make_shared<std::string>(renderable_channelpath) },
+      recdb_path_as_group(chanpath),
+      false, // is_mutable
+      true, // ondemand
+      false, // mdonly
+      std::make_shared<math_definition>("c++ definition of phase plane line triangle vertices and alphas"),
+      nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
+    
+    retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_COLOREDTRANSPARENTLINES,typeid(*this),color_renderparams),rec,shared_from_this()); // display_requirement
     
     
     retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);

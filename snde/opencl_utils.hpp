@@ -10,6 +10,8 @@
 #include <vector>
 #include <string>
 
+#include <typeindex>
+
 #ifndef CL_USE_DEPRECATED_OPENCL_1_2_APIS
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 #endif
@@ -26,6 +28,7 @@
 
 #include "snde/allocator.hpp"
 #include "snde/snde_error_opencl.hpp"
+#include "snde/recstore.hpp"
 
 namespace snde {
 
@@ -269,7 +272,72 @@ namespace snde {
 
   };
 
-  
+
+  typedef std::unordered_map<std::string,std::unordered_map<std::type_index,std::shared_ptr<opencl_program>>> typed_opencl_program_database;
+
+  std::shared_ptr<typed_opencl_program_database> _typed_opencl_program_registry_reglocked();
+
+  extern std::shared_ptr<typed_opencl_program_database> *_typed_opencl_program_registry; // default-initialized to nullptr, locked by _typed_opencl_program_mutex()
+  std::mutex &_typed_opencl_program_mutex();
+
+  template <typename T> 
+  std::shared_ptr<opencl_program> build_typed_opencl_program(std::string category,std::function<std::shared_ptr<opencl_program>(std::string ocltypename)> buildfunc)
+  {
+    std::mutex &regmutex = _typed_opencl_program_mutex();
+
+    {
+      std::lock_guard<std::mutex> reglock(regmutex);
+      
+      std::shared_ptr<typed_opencl_program_database> reg = _typed_opencl_program_registry_reglocked();
+      
+      
+      typed_opencl_program_database::iterator reg_it = reg->find(category);
+      
+      if (reg_it != reg->end()) {
+	std::unordered_map<std::type_index,std::shared_ptr<opencl_program>>::iterator typemap_it = reg_it->second.find(typeid(T));
+	
+	if (typemap_it != reg_it->second.end()) {
+	  return typemap_it->second; // return program 
+	}
+      }
+    }
+    // if we made it here we did not find a suitable program already. 
+    
+    auto typemap_it = rtn_typemap.find(typeid(T));
+    if (typemap_it == rtn_typemap.end()) {
+      throw snde_error("Can't dynamically build typed opencl programs typemap entry");
+    }
+    auto ocltypemap_it = rtn_ocltypemap.find(typemap_it->second);
+    if (ocltypemap_it == rtn_ocltypemap.end()) {
+      throw snde_error("Can't dynamically build typed opencl programs without OpenCL typemap entry");
+    }
+
+    std::string ocltypename = ocltypemap_it->second;
+    
+    // OpenCL templating via a typedef....
+    std::shared_ptr<opencl_program> new_program=buildfunc(ocltypename);
+
+    {
+      std::lock_guard<std::mutex> reglock(regmutex);
+    
+      // construct new database (so that old one is still safe to use in background)
+      std::shared_ptr<typed_opencl_program_database> new_reg = std::make_shared<typed_opencl_program_database>(*_typed_opencl_program_registry_reglocked());
+
+      typed_opencl_program_database::iterator reg_it = new_reg->find(category);
+      
+      if (reg_it == new_reg->end()) {
+	reg_it = std::get<0>(new_reg->emplace(category,std::unordered_map<std::type_index,std::shared_ptr<opencl_program>>()));
+	
+      }
+      
+      
+      reg_it->second.emplace(std::type_index(typeid(T)),new_program);
+      *_typed_opencl_program_registry = new_reg;
+
+      return reg_it->second.at(std::type_index(typeid(T))); 
+    }
+  }
+
 }
 
 #endif // SNDE_OPENCL_UTILS_HPP

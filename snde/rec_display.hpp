@@ -112,6 +112,7 @@ namespace snde {
 #define SNDE_DCRM_WAVEFORM 2
 #define SNDE_DCRM_IMAGE 3
 #define SNDE_DCRM_GEOMETRY 4
+#define SNDE_DCRM_PHASEPLANE 5
     
 
     //std::set<std::weak_ptr<trm_dependency>,std::owner_less<std::weak_ptr<trm_dependency>>> adjustment_deps; // these trm_dependencies should be triggered when these parameters are changed. *** SHOULD BE REPLACED BY revman_rec_display method

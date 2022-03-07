@@ -101,6 +101,26 @@ typedef unsigned char snde_bool;
 #define SNDE_INDEX_INVALID (~((snde_index)0))
 
 
+  typedef struct _snde_complexfloat32 {
+    snde_float32 real;
+    snde_float32 imag;
+  } snde_complexfloat32;
+
+#if (!defined(__OPENCL_VERSION__) || defined(SNDE_OCL_HAVE_DOUBLE))
+  typedef struct _snde_complexfloat64 {
+    snde_float64 real;
+    snde_float64 imag;
+  } snde_complexfloat64;
+#endif // (!defined(__OPENCL_VERSION__) || defined(SNDE_OCL_HAVE_DOUBLE))
+  
+#ifdef SNDE_HAVE_FLOAT16
+  typedef struct _snde_complexfloat16 {
+    snde_float16 real;
+    snde_float16 imag;
+  } snde_complexfloat16;
+
+#endif // SNDE_HAVE_FLOAT16
+
   // interoperability between opencl and C/C++ code
 #ifdef __OPENCL_VERSION__
 #define OCL_GLOBAL_ADDR __global

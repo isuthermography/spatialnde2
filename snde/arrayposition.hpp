@@ -75,11 +75,17 @@ namespace snde {
       return (bool)snde_array_is_contiguous(dimlen.data(),strides.data(),workbuf.data(),dimlen.size());
     }
     
-    snde_index flattened_length()
+    snde_index flattened_length() // total number of elements
     {
       return snde_array_flattened_length(dimlen.data(),dimlen.size());
     }
-    
+
+    snde_index flattened_size() // number of contiguous elements that need to be stored/transfered (different from flattened length if the data has holes due to strides, etc.
+    {
+      assert(dimlen.size()==strides.size());
+      return snde_array_flattened_size(dimlen.data(),strides.data(),strides.size());      
+    }
+      
     bool cachefriendly_indexing() // returns true for Fortran mode
     {
       return (bool)snde_array_cachefriendly_indexing(strides.data(),dimlen.size()); 

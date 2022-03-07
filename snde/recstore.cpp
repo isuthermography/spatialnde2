@@ -30,8 +30,8 @@ namespace snde {
       {typeid(uint8_t),SNDE_RTN_UINT8},
       {typeid(int8_t),SNDE_RTN_INT8},
       {typeid(snde_rgba),SNDE_RTN_RGBA32},
-      {typeid(std::complex<snde_float32>),SNDE_RTN_COMPLEXFLOAT32},
-      {typeid(std::complex<snde_float64>),SNDE_RTN_COMPLEXFLOAT64},
+      {typeid(snde_complexfloat32),SNDE_RTN_COMPLEXFLOAT32},
+      {typeid(snde_complexfloat64),SNDE_RTN_COMPLEXFLOAT64},
       {typeid(snde_rgbd),SNDE_RTN_RGBD64},
       {typeid(std::string),SNDE_RTN_STRING},
       {typeid(std::shared_ptr<recording_base>),SNDE_RTN_RECORDING},      
@@ -101,8 +101,8 @@ namespace snde {
       {SNDE_RTN_UINT8,sizeof(uint8_t)},
       {SNDE_RTN_INT8,sizeof(int8_t)},
       {SNDE_RTN_RGBA32,sizeof(snde_rgba)},
-      {SNDE_RTN_COMPLEXFLOAT32,sizeof(std::complex<snde_float32>)},
-      {SNDE_RTN_COMPLEXFLOAT64,sizeof(std::complex<snde_float64>)},
+      {SNDE_RTN_COMPLEXFLOAT32,sizeof(snde_complexfloat32)},
+      {SNDE_RTN_COMPLEXFLOAT64,sizeof(snde_complexfloat64)},
 #ifdef SNDE_HAVE_FLOAT16
       {SNDE_RTN_COMPLEXFLOAT16,sizeof(snde_float16)},
 #else // SNDE_HAVE_FLOAT16
@@ -564,7 +564,11 @@ namespace snde {
       std::lock_guard<std::mutex> adminlock(admin);
       if (_transactionrec_transaction_still_in_progress_admin_prelocked()) {
 	// this transaction is still in progress; notifications will be handled by end_transaction so don't need to do notifications
-	assert(metadata);
+
+	if (!metadata) {
+	  metadata=std::make_shared<immutable_metadata>();
+	}
+	
 	info->metadata = metadata.get();
 	
 	if (info_state == SNDE_RECS_METADATAREADY || info_state==SNDE_RECS_READY || info_state == SNDE_RECS_OBSOLETE) {
@@ -942,10 +946,15 @@ namespace snde {
   // Will still need to call define_array() on each array. 
   {
     assert(!mndinfo()->arrays);
-
+    
     if (num_ndarrays > 0) {
       mndinfo()->arrays = (snde_ndarray_info *)calloc(sizeof(snde_ndarray_info)*num_ndarrays,1);
     }
+
+    layouts = std::vector<arraylayout>(num_ndarrays);
+    storage = std::vector<std::shared_ptr<recording_storage>>(num_ndarrays);
+
+    mndinfo()->num_arrays = num_ndarrays;
     
   }
 
@@ -1031,13 +1040,18 @@ namespace snde {
     }
     
     if (num_refs==1 && name_reverse_mapping.size()==0) {
-      if (name_mapping.size() < 0) {
+      if (name_mapping.size() == 0) {
 	snde_warning("ndarray %s does not provide a name mapping",info->name);
 	return retval;
       }
       retval->push_back(name_mapping.begin()->first);
     } else {
       size_t refnum;
+      if (name_mapping.size() == 0) {
+	snde_warning("ndarray %s does not provide a name mapping",info->name);
+	return retval;
+      }
+      
       for (refnum=0;refnum < num_refs;refnum++) {
 	retval->push_back(name_reverse_mapping.at(refnum));
 	
@@ -1112,16 +1126,16 @@ namespace snde {
       break;
       
     case SNDE_RTN_COMPLEXFLOAT32:
-      ref = std::make_shared<ndtyped_recording_ref<std::complex<snde_float32>>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_complexfloat32>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
       break;
 
     case SNDE_RTN_COMPLEXFLOAT64:
-      ref = std::make_shared<ndtyped_recording_ref<std::complex<snde_float64>>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_complexfloat64>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
       break;
       
 #ifdef SNDE_HAVE_FLOAT16
     case SNDE_RTN_COMPLEXFLOAT16:
-      ref = std::make_shared<ndtyped_recording_ref<std::complex<snde_float16>>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_complexfloat16>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
       break;
 #endif
       
@@ -1479,32 +1493,75 @@ namespace snde {
   {
     return reference_ndarray(array_index)->element_double(idx);
   }
+  double multi_ndarray_recording::element_double(size_t array_index,snde_index idx,bool fortran_order)
+  {
+    return reference_ndarray(array_index)->element_double(idx,fortran_order);
+  }
   
   void multi_ndarray_recording::assign_double(size_t array_index,const std::vector<snde_index> &idx,double val)
   {
     reference_ndarray(array_index)->assign_double(idx,val);
   }
+
+  void multi_ndarray_recording::assign_double(size_t array_index,snde_index idx,double val, bool fortran_order)
+  {
+    reference_ndarray(array_index)->assign_double(idx,val,fortran_order);
+  }
+
   int64_t multi_ndarray_recording::element_int(size_t array_index,const std::vector<snde_index> &idx)
   {
     return reference_ndarray(array_index)->element_int(idx);
   }
+  int64_t multi_ndarray_recording::element_int(size_t array_index,snde_index idx, bool fortran_order)
+  {
+    return reference_ndarray(array_index)->element_int(idx,fortran_order);
+  }
   void multi_ndarray_recording::assign_int(size_t array_index,const std::vector<snde_index> &idx,int64_t val)
   {
     reference_ndarray(array_index)->assign_int(idx,val);
+  }
+  void multi_ndarray_recording::assign_int(size_t array_index,snde_index idx,int64_t val,bool fortran_order)
+  {
+    reference_ndarray(array_index)->assign_int(idx,val,fortran_order);
   }
   
   uint64_t multi_ndarray_recording::element_unsigned(size_t array_index,const std::vector<snde_index> &idx)
   {
     return reference_ndarray(array_index)->element_unsigned(idx);
   }
+  uint64_t multi_ndarray_recording::element_unsigned(size_t array_index,snde_index idx, bool fortran_order)
+  {
+    return reference_ndarray(array_index)->element_unsigned(idx,fortran_order);
+  }
   
   void multi_ndarray_recording::assign_unsigned(size_t array_index,const std::vector<snde_index> &idx,uint64_t val)
   {
     reference_ndarray(array_index)->assign_unsigned(idx,val);
   }
+  void multi_ndarray_recording::assign_unsigned(size_t array_index,snde_index idx,uint64_t val,bool fortran_order)
+  {
+    reference_ndarray(array_index)->assign_unsigned(idx,val,fortran_order);
+  }
 
+  snde_complexfloat64  multi_ndarray_recording::element_complexfloat64(size_t array_index,const std::vector<snde_index> &idx)
+  {
+    return reference_ndarray(array_index)->element_complexfloat64(idx); 
+  }
+  snde_complexfloat64  multi_ndarray_recording::element_complexfloat64(size_t array_index,snde_index idx,bool fortran_order)
+  {
+    return reference_ndarray(array_index)->element_complexfloat64(idx,fortran_order); 
+  }
 
+  void multi_ndarray_recording::assign_complexfloat64(size_t array_index,const std::vector<snde_index> &idx,snde_complexfloat64 val)
+  {
+    reference_ndarray(array_index)->assign_complexfloat64(idx,val);
+  }
+  void multi_ndarray_recording::assign_complexfloat64(size_t array_index,snde_index idx,snde_complexfloat64 val,bool fortran_order)
+  {
+    reference_ndarray(array_index)->assign_complexfloat64(idx,val,fortran_order);
+  }
 
+  
   ndarray_recording_ref::ndarray_recording_ref(std::shared_ptr<multi_ndarray_recording> rec,size_t rec_index,unsigned typenum) :
     rec(rec),
     rec_index(rec_index),
@@ -1603,6 +1660,27 @@ namespace snde {
     throw snde_error("Cannot access elements of untyped recording reference. Create typed reference with .reference_ndarray() instead.");
   }
 
+  snde_complexfloat64 ndarray_recording_ref::element_complexfloat64(const std::vector<snde_index> &idx)
+  {
+    throw snde_error("Cannot access elements of untyped recording reference. Create typed reference with .reference_ndarray() instead.");
+  }
+  snde_complexfloat64 ndarray_recording_ref::element_complexfloat64(snde_index idx,bool fortran_order)
+  {
+    throw snde_error("Cannot access elements of untyped recording reference. Create typed reference with .reference_ndarray() instead.");
+  }
+  
+  void ndarray_recording_ref::assign_complexfloat64(const std::vector<snde_index> &idx,snde_complexfloat64 val)
+  {
+    throw snde_error("Cannot access elements of untyped recording reference. Create typed reference with .reference_ndarray() instead.");    
+  }
+  
+  void ndarray_recording_ref::assign_complexfloat64(snde_index idx,snde_complexfloat64 val,bool fortran_order)
+  {
+    throw snde_error("Cannot access elements of untyped recording reference. Create typed reference with .reference_ndarray() instead.");    
+  }
+
+
+  
 #if 0
   // ***!!! This code is probably obsolete ***!!!
   rwlock_token_set recording::lock_storage_for_write()
@@ -3902,6 +3980,11 @@ namespace snde {
 	      retval->push_back(std::make_pair(channel_map_it.first,ndrec->name_mapping.begin()->first));
 	    } else {
 	      size_t refnum;
+	      if (ndrec->name_mapping.size() < 1) {
+		snde_warning("ndarray %s does not provide a name mapping",channel_map_it.first.c_str());
+		continue;
+	      }
+
 	      for (refnum=0;refnum < num_refs;refnum++) {
 		retval->push_back(std::make_pair(channel_map_it.first,ndrec->name_reverse_mapping.at(refnum)));
 		

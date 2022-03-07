@@ -118,7 +118,7 @@ namespace snde {
 
       if (previous_recording) {
 	previous_recording_ndarray = std::dynamic_pointer_cast<multi_ndarray_recording>(previous_recording);
-	if (previous_recording_ndarray && previous_recording_ndarray->layouts.at(0).dimlen.size() >= 1) {
+	if (previous_recording_ndarray && previous_recording_ndarray->layouts.size() > 0 && previous_recording_ndarray->layouts.at(0).dimlen.size() >= 1) {
 	  // check compatibility
 	  
 	  if (fortran_mode) {
@@ -307,11 +307,11 @@ namespace snde {
       result->set_num_ndarrays(new_num_batches);
       
       return std::make_shared<metadata_function_override_type>([ this, to_accum, previous_recording_ndarray, numaccum, batch_size, fortran_mode, empty_first, just_starting, got_empty, accum_dimlen, accum_indexnum, previous_num_batches, first_batch_size, last_batch_size, previous_num_accumulated, last_batch_overflow, first_batch_underflow, new_num_batches, result ]() {
-	// metadata code
+	// metadata code 
 
 	//snde_warning("avg: metadata just_starting");
 
-	std::shared_ptr<constructible_metadata> metadata = std::make_shared<constructible_metadata>();
+	std::shared_ptr<constructible_metadata> metadata = std::make_shared<constructible_metadata>(*to_accum->rec->metadata);
 	
 	result->metadata=metadata;
 	result->mark_metadata_done();
@@ -360,6 +360,8 @@ namespace snde {
 	      std::vector<snde_index> newbatch_dimlen = alloc_dimlen;
 	      newbatch_dimlen.at(accum_indexnum)=1;
 
+	      //snde_warning("New batch: alloc_dimlen.size()=%d alloc_dimlen[0]=%d newbatch_dimlen.size()=%d  newbatch_dimlen[0]=%d",(int)alloc_dimlen.size(),(int)alloc_dimlen[0],(int)newbatch_dimlen.size(),(int)newbatch_dimlen[0]);
+
 	      result->assign_storage_portion(newbatch_storage,batchnum,newbatch_dimlen,fortran_mode,newbatch_storage->base_index);
 	      
 	      // (Note that the rest of the storage is there; just unused. 
@@ -378,7 +380,11 @@ namespace snde {
 		oldbatch_baseindex += elements_in_single_entry;
 		oldbatch_dimlen.at(accum_indexnum) -= 1;
 	      }
-	      
+
+	      if (batchnum==new_num_batches-1) {
+		// This is where we add new data
+		oldbatch_dimlen.at(accum_indexnum) += 1; 
+	      }
 	      result->assign_storage_portion(previous_recording_ndarray->storage.at(previous_batchnum),batchnum,oldbatch_dimlen,fortran_mode,oldbatch_baseindex);
 	    }
 
@@ -392,21 +398,25 @@ namespace snde {
 	  return std::make_shared<exec_function_override_type>([ this, to_accum, previous_recording_ndarray, numaccum, batch_size, fortran_mode, empty_first, just_starting, got_empty, accum_dimlen, accum_indexnum, previous_num_batches, first_batch_size, last_batch_size, previous_num_accumulated, last_batch_overflow, first_batch_underflow, new_num_batches, result, locktokens ]() {
 	    // exec code
 
-	    // copy data into new element
-	    snde_index batchnum = new_num_batches-1;
-	    std::vector<snde_index> element_addr(accum_dimlen.size()+1,0); // initialize index with zeros
-	    // but our accumulation index should point at the last element	    
-	    element_addr.at(accum_indexnum) = result->layouts.at(batchnum).dimlen.at(accum_indexnum)-1;
+	    if (new_num_batches > 0) {
+	      // copy data into new element
+	      snde_index batchnum = new_num_batches-1;
+	      std::vector<snde_index> element_addr(accum_dimlen.size()+1,0); // initialize index with zeros
+	      // but our accumulation index should point at the last element	    
+	      element_addr.at(accum_indexnum) = result->layouts.at(batchnum).dimlen.at(accum_indexnum)-1;
+	      
 
+	      //snde_warning("Assigning data to batch %d addr size %d addr[0]=%d",(int)batchnum,(int)element_addr.size(),(int)element_addr[0]);
 
-	    snde_index elements_in_single_entry=1;
-	    for (auto &&axislen: accum_dimlen) {
-	      elements_in_single_entry *= axislen;
+	      
+	      snde_index elements_in_single_entry=1;
+	      for (auto &&axislen: accum_dimlen) {
+		elements_in_single_entry *= axislen;
+	      }
+	      snde_index bytes_in_single_entry = elements_in_single_entry*to_accum->ndinfo()->elementsize;
+	      
+	      memcpy(result->element_dataptr(batchnum,element_addr),to_accum->void_shifted_arrayptr(),bytes_in_single_entry);
 	    }
-	    snde_index bytes_in_single_entry = elements_in_single_entry*to_accum->ndinfo()->elementsize;
-	    
-	    memcpy(result->element_dataptr(batchnum,element_addr),to_accum->void_shifted_arrayptr(),bytes_in_single_entry);
-	    
 	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready()
 	    
 	    result->mark_as_ready();
@@ -446,6 +456,100 @@ namespace snde {
   static int registered_batched_live_accumulator_function = register_math_function("spatialnde2.batched_live_accumulator",batched_live_accumulator_function);
   
   
+
+
+  // returns consistent_ndim, consistent_layout_c, consistent_layout_f,layout_dims,layout_length
+  std::tuple<bool,bool,bool,std::vector<snde_index>,snde_index> analyze_potentially_batched_multi_ndarray_layout(std::shared_ptr<multi_ndarray_recording> array_rec)
+  {
+    // evaluate layout characteristics
+    
+    snde_index NDim = 0;
+    
+    std::vector<snde_index> f_layout_dims;
+    std::vector<snde_index> c_layout_dims;
+    snde_index f_layout_length=0;
+    snde_index c_layout_length=0; 
+    
+    bool consistent_layout_c=true; // consistent_layout_c means multiple arrays but all with the same layout except for the first axis which is implicitly concatenated
+    bool consistent_layout_f=true; // consistent_layout_f means multiple arrays but all with the same layout except for the last axis which is implicitly concatenated
+    bool consistent_ndim=true; 
+    
+    snde_index arraynum;
+    
+    
+    if (!array_rec->layouts.size()) {
+      // multi-ndarray with 0 ndarrays:
+      return std::make_tuple(false,false,false,std::vector<snde_index>(),0); 
+    }
+    
+    for (arraynum=0; arraynum < array_rec->layouts.size(); arraynum++) {
+      if (!arraynum) {
+	NDim = array_rec->layouts.at(arraynum).dimlen.size();
+	
+	if (NDim > 0) {
+	  c_layout_dims = std::vector<snde_index>(array_rec->layouts.at(arraynum).dimlen.begin()+1,array_rec->layouts.at(arraynum).dimlen.end());
+	  f_layout_dims = std::vector<snde_index>(array_rec->layouts.at(arraynum).dimlen.begin(),array_rec->layouts.at(arraynum).dimlen.end()-1);
+	  
+	  c_layout_length += array_rec->layouts.at(arraynum).dimlen.at(0);
+	  f_layout_length += array_rec->layouts.at(arraynum).dimlen.at(NDim-1);
+	  
+	} else {
+	  consistent_layout_c=false;
+	  consistent_layout_f=false; 
+	}
+      } else {
+	snde_index this_NDim = array_rec->layouts.at(arraynum).dimlen.size();
+	
+	if (this_NDim != NDim) {
+	  consistent_ndim=false;
+	  
+	  consistent_layout_c=false;
+	  consistent_layout_f=false;
+	  break; 
+	}
+	if (this_NDim > 0) {
+
+	  
+	  std::vector<snde_index> this_c_layout_dims = std::vector<snde_index>(array_rec->layouts.at(arraynum).dimlen.begin()+1,array_rec->layouts.at(arraynum).dimlen.end()); 
+	  std::vector<snde_index> this_f_layout_dims = std::vector<snde_index>(array_rec->layouts.at(arraynum).dimlen.begin(),array_rec->layouts.at(arraynum).dimlen.end()-1);
+	  
+	  // we also use c and f contiguity to confirm consistent layout
+	  // because otherwise there is the possibility of detecting both
+	  // in some circumstances. 
+	  
+	  if (this_c_layout_dims != c_layout_dims ||  !array_rec->layouts.at(arraynum).is_c_contiguous()) {
+	    consistent_layout_c=false; 
+	  } else {
+	    c_layout_length += array_rec->layouts.at(arraynum).dimlen.at(0);
+	  }
+	  
+	  if (this_f_layout_dims != f_layout_dims ||  !array_rec->layouts.at(arraynum).is_f_contiguous()) {
+	    consistent_layout_f=false; 
+	  } else {	  
+	    f_layout_length += array_rec->layouts.at(arraynum).dimlen.at(NDim-1);
+	  }
+	  
+	}
+      }
+    }
+    
+    std::vector<snde_index> layout_dims;
+    snde_index layout_length=0;
+    
+    if (consistent_layout_c) {
+      layout_dims = c_layout_dims;
+      layout_length = c_layout_length;
+    } else if (consistent_layout_f) {
+      layout_dims = f_layout_dims;
+      layout_length = f_layout_length;
+    }
+
+    //assert(layout_length != 15);
+    
+    return std::make_tuple(consistent_ndim,consistent_layout_c,consistent_layout_f,layout_dims,layout_length);
+  }
+  
+
   
   
 };

@@ -62,6 +62,7 @@ namespace snde {
     std::shared_ptr<recording_set_state> with_display_transforms;
     //std::shared_ptr<display_info> display;
 
+
     //std::shared_ptr<display_channel> displaychan; -- get from display->lookup_channel(channel_path)
 
     
@@ -176,6 +177,23 @@ namespace snde {
   };
   
 
+  class osg_rendercachearraysentry: public osg_rendercacheentry {
+  public:
+    // inherited elements from osg_rendercacheentry:     
+    //bool potentially_obsolete; // set by mark_obsolete()
+
+    std::vector<osg::ref_ptr<OSGFPArray>> osg_arrays;
+    
+    osg_rendercachearraysentry()=default;
+    osg_rendercachearraysentry & operator=(const osg_rendercachearraysentry &) = delete; // shouldn't need copy assignment
+    osg_rendercachearraysentry(const osg_rendercachearraysentry &) = delete; // shouldn't need copy constructor
+    virtual ~osg_rendercachearraysentry() = default; // subclassable
+
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
+
+  };
+  
+
   
 
   class osg_cachedimagedata: public osg_rendercachetextureentry {
@@ -276,6 +294,71 @@ namespace snde {
     virtual void clear_potentially_obsolete();
     
     virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+
+  };
+
+
+  class osg_cachedcoloredtransparentlines: public osg_rendercachearraysentry {
+  public:
+    // inherited from osg_rendercacheentry:
+    //std::weak_ptr<display_info> display; // (or should these be passed every time?)
+    //std::weak_ptr<display_channel> displaychan;
+    
+    std::vector<osg::ref_ptr<OSGFPArray>> osg_arrays; 
+
+
+    osg::ref_ptr<OSGFPArray> vertcoord_osg_array;
+    osg::ref_ptr<OSGFPArray> vertcoordcolor_osg_array;
+    
+    std::shared_ptr<multi_ndarray_recording> cached_recording;
+    
+
+    osg_cachedcoloredtransparentlines(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    ~osg_cachedcoloredtransparentlines() = default;
+    
+    //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
+     virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    
+  };
+
+
+
+  class osg_cachedphaseplaneendpointwithcoloredtransparentlines: public osg_rendercachegroupentry {
+  public:
+    // inherited from osg_rendercacheentry:
+    //std::weak_ptr<display_info> display; // (or should these be passed every time?)
+    //std::weak_ptr<display_channel> displaychan;
+    
+    //osg::ref_ptr<osg::Group> osg_group;
+
+    osg::ref_ptr<OSGFPArray> endpoint_vertcoord_osg_array;
+    
+    std::shared_ptr<multi_ndarray_recording> cached_recording;
+    std::shared_ptr<color_linewidth_params> cached_params;
+
+
+    std::shared_ptr<osg_cachedcoloredtransparentlines> coloredtransparentlines;
+    
+    osg::ref_ptr<osg::Geode> pp_geode;
+    osg::ref_ptr<osg::Geometry> pp_lines_geom;
+    osg::ref_ptr<osg::DrawArrays> pp_lines_tris;
+    //osg::ref_ptr<osg::StateSet> pp_lines_stateset;
+    osg::ref_ptr<osg::Geometry> pp_linesgeom;
+
+    osg::ref_ptr<osg::Geometry> pp_endpoint_geom;
+    osg::ref_ptr<osg::DrawArrays> pp_endpoint_tris;
+    //osg::ref_ptr<osg::StateSet> pp_endpoint_stateset;
+    osg::ref_ptr<osg::Vec4Array> pp_endpoint_color;
+
+
+    osg_cachedphaseplaneendpointwithcoloredtransparentlines(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    ~osg_cachedphaseplaneendpointwithcoloredtransparentlines() = default;
+    
+    //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    
+
+    virtual void clear_potentially_obsolete();
 
   };
 

@@ -235,16 +235,36 @@ namespace snde {
     inline size_t element_offset(size_t array_index,const std::vector<snde_index> &idx);
 
     double element_double(size_t array_index,const std::vector<snde_index> &idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    double element_double(size_t array_index,snde_index idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    double element_double(size_t array_index,snde_index idx,bool fortran_order); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
 
     void assign_double(size_t array_index,const std::vector<snde_index> &idx,double val); // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published.
+    void assign_double(size_t array_index,snde_index idx,double val); // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published.
+    void assign_double(size_t array_index,snde_index idx,double val,bool fortran_order); // WARNING: if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published.
 
 
     int64_t element_int(size_t array_index,const std::vector<snde_index> &idx); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    int64_t element_int(size_t array_index,snde_index idx); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    int64_t element_int(size_t array_index,snde_index idx,bool fortran_order); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
     void assign_int(size_t array_index,const std::vector<snde_index> &idx,int64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    void assign_int(size_t array_index,snde_index idx,int64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    void assign_int(size_t array_index,snde_index idx,int64_t val,bool fortran_order); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
 
     uint64_t element_unsigned(size_t array_index,const std::vector<snde_index> &idx); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
-    void assign_unsigned(size_t array_index,const std::vector<snde_index> &idx,uint64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    uint64_t element_unsigned(size_t array_index,snde_index idx); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
+    uint64_t element_unsigned(size_t array_index,snde_index idx,bool fortran_order); // WARNING: May overflow; if array is mutable by others, it should generally be locked for read when calling this function!
     
+    void assign_unsigned(size_t array_index,const std::vector<snde_index> &idx,uint64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    void assign_unsigned(size_t array_index,snde_index idx,uint64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    void assign_unsigned(size_t array_index,snde_index idx,uint64_t val,bool fortran_order); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+
+    snde_complexfloat64 element_complexfloat64(size_t array_index,const std::vector<snde_index> &idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    snde_complexfloat64 element_complexfloat64(size_t array_index,size_t idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    snde_complexfloat64 element_complexfloat64(size_t array_index,size_t idx,bool fortran_order); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    void assign_complexfloat64(size_t array_index,const std::vector<snde_index> &idx,snde_complexfloat64 val); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    void assign_complexfloat64(size_t array_index,size_t idx,snde_complexfloat64 val); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    void assign_complexfloat64(size_t array_index,size_t idx,snde_complexfloat64 val,bool fortran_order); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+
   };
 
   class ndarray_recording_ref {
@@ -267,7 +287,8 @@ namespace snde {
     ndarray_recording_ref(const ndarray_recording_ref &orig) = delete; // could easily be implemented if we wanted
     virtual ~ndarray_recording_ref();
 
-    virtual void allocate_storage(std::vector<snde_index> dimlen, bool fortran_order=false);
+    virtual void allocate_storage(std::vector<snde_index> dimlen);
+    virtual void allocate_storage(std::vector<snde_index> dimlen, bool fortran_order);
 
     
     inline snde_multi_ndarray_recording *mndinfo() {return (snde_multi_ndarray_recording *)rec->info;}
@@ -330,6 +351,15 @@ namespace snde {
     virtual void assign_unsigned(snde_index idx,uint64_t val); // WARNING: May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
 
 
+
+    virtual snde_complexfloat64 element_complexfloat64(const std::vector<snde_index> &idx); //  if array is mutable by others, it should generally be locked for read when calling this function!
+    virtual snde_complexfloat64 element_complexfloat64(snde_index idx,bool fortran_order); // if array is mutable by others, it should generally be locked for read when calling this function!
+    virtual snde_complexfloat64 element_complexfloat64(snde_index idx); //  if array is mutable by others, it should generally be locked for read when calling this function!
+    virtual void assign_complexfloat64(const std::vector<snde_index> &idx,snde_complexfloat64 val); //  May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    virtual void assign_complexfloat64(snde_index idx,snde_complexfloat64 val,bool fortran_order); // May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+    virtual void assign_complexfloat64(snde_index idx,snde_complexfloat64 val); // if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
+
+    
 
   };
 

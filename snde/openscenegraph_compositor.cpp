@@ -11,7 +11,7 @@
 #include "snde/rec_display.hpp"
 #include "snde/recstore_display_transforms.hpp"
 #include "snde/openscenegraph_layerwindow.hpp"
-#include "snde/openscenegraph_image_renderer.hpp"
+#include "snde/openscenegraph_2d_renderer.hpp"
 #include "snde/openscenegraph_geom_renderer.hpp"
 #include "snde/display_requirements.hpp"
 #include "snde/quaternion.h"
@@ -469,8 +469,8 @@ namespace snde {
 	    
 	    LW->setup_camera(LayerViewer->getCamera());
 	    
-	    if (display_req.second->renderer_type == SNDE_DRRT_IMAGE) {
-	      renderer=std::make_shared<osg_image_renderer>(LayerViewer,LW,display_req.second->channelpath,enable_shaders);
+	    if (display_req.second->renderer_type == SNDE_DRRT_2D) {
+	      renderer=std::make_shared<osg_2d_renderer>(LayerViewer,LW,display_req.second->channelpath,enable_shaders);
 	    } else if (display_req.second->renderer_type == SNDE_DRRT_GEOMETRY) {
 	      renderer=std::make_shared<osg_geom_renderer>(LayerViewer,LW,display_req.second->channelpath,enable_shaders);
 	      
@@ -551,7 +551,7 @@ namespace snde {
 	    LW->setup_camera(renderer->Viewer->getCamera());
 	    
 
-	    renderer=std::make_shared<osg_image_renderer>(renderer->Viewer,LW,display_req.second->channelpath);
+	    renderer=std::make_shared<osg_2d_renderer>(renderer->Viewer,LW,display_req.second->channelpath);
 	    */
 
 	    
@@ -583,11 +583,11 @@ namespace snde {
 	    if (recdb_strong) {
 	      rwlock_token_set frame_locks = recdb_strong->lockmgr->lock_recording_refs(locks_required,false /*bool gpu_access */); // gpu_access is false because that is only needed for gpgpu calculations like OpenCL where we might be trying to map the entire scene data in one large all-encompassing array
 
-	      //if (display_req.second->channelpath=="/graphics/follower channel") {
-		//osgDB::writeNodeFile(*renderer->Viewer->getSceneData(),"/tmp/follower_channel.osg");
+	      if (display_req.second->channelpath=="/accumulator") {
+		osgDB::writeNodeFile(*renderer->Viewer->getSceneData(),"/tmp/accumulator.osg");
 		//std::cout << "ViewMatrix:\n " << Eigen::Map<Eigen::Matrix4d>(renderer->Camera->getViewMatrix().ptr()) << "\n";
 		//std::cout << "InverseViewMatrix:\n " << Eigen::Map<Eigen::Matrix4d>(renderer->Camera->getInverseViewMatrix().ptr()) << "\n";
-	      //}
+	      }
 	      
 	      renderer->frame();
 	    }

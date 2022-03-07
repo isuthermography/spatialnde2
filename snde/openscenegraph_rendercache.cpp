@@ -1,6 +1,8 @@
 #include <osg/Group>
 #include <osg/MatrixTransform>
+#include <osg/BlendFunc>
 #include <iostream>
+
 
 #include "snde/snde_types.h"
 #include "snde/quaternion.h"
@@ -31,6 +33,15 @@ namespace snde {
   static int osg_registered_pointcloud = osg_register_renderer(rendermode(SNDE_SRM_POINTCLOUD,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
       return std::make_shared<osg_cachedpointcloud>(params,display_req);
     });
+
+  static int osg_registered_cachedcoloredtransparentlines = osg_register_renderer(rendermode(SNDE_SRM_COLOREDTRANSPARENTLINES,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedcoloredtransparentlines>(params,display_req);
+    });
+
+  static int osg_registered_cachedphaseplaneendpointwithcoloredtransparentlines = osg_register_renderer(rendermode(SNDE_SRM_PHASE_PLANE_ENDPOINT_WITH_COLOREDTRANSPARENTLINES,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedphaseplaneendpointwithcoloredtransparentlines>(params,display_req);
+    });
+
 
   
   static int osg_registered_meshednormals = osg_register_renderer(rendermode(SNDE_SRM_MESHEDNORMALS,typeid(meshed_part_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
@@ -872,7 +883,161 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 
 
 
+  osg_cachedcoloredtransparentlines::osg_cachedcoloredtransparentlines(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  {
+    cached_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
 
+    if (!cached_recording) {
+      throw snde_error("osg_cachedcoloredtransparentlines: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
+    }
+    
+    std::shared_ptr<ndarray_recording_ref> vertcoord_array = cached_recording->reference_ndarray("vertcoord");
+    std::shared_ptr<ndarray_recording_ref> vertcoordcolor_array = cached_recording->reference_ndarray("vertcoord_color");
+    
+    locks_required.push_back( { vertcoord_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
+    locks_required.push_back( { vertcoordcolor_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
+
+    vertcoord_osg_array = new OSGFPArray(vertcoord_array,3,3); // 3 for 3d point coordinates    
+    vertcoordcolor_osg_array = new OSGFPArray(vertcoordcolor_array,1,4); // 4 for RGBA entries    
+
+    osg_arrays.push_back(vertcoord_osg_array);
+    osg_arrays.push_back(vertcoordcolor_osg_array);
+    
+  }
+
+
+  std::pair<bool,bool> osg_cachedcoloredtransparentlines::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  {
+    std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    if (!new_recording) {
+      throw snde_error("osg_cachedcoloredtransparentlines::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
+    }
+
+    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+    
+  }
+
+
+
+  osg_cachedphaseplaneendpointwithcoloredtransparentlines::osg_cachedphaseplaneendpointwithcoloredtransparentlines(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  {
+
+    
+    cached_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+
+    if (!cached_recording) {
+      throw snde_error("osg_cachedphaseplaneendpointwithcoloredtransparentlines: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
+    }
+
+    /* std::shared_ptr<color_linewidth_params> cached_params */
+    cached_params = std::dynamic_pointer_cast<color_linewidth_params>(display_req->mode.constraint);
+    if (!cached_params) {
+      throw snde_error("osg_cachedphaseplaneendpointwithcoloredtransparentlines: Could not get color_linewidth_params");       
+
+    }
+    
+    std::shared_ptr<ndarray_recording_ref> endpoint_vertcoord_array = cached_recording->reference_ndarray("vertcoord");
+
+    locks_required.push_back( { endpoint_vertcoord_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
+
+    endpoint_vertcoord_osg_array = new OSGFPArray(endpoint_vertcoord_array,3,3); // 3 for 3d point coordinates
+
+    
+    
+
+    
+    bool modified;
+
+    // get sub-requirement #0: SNDE_SRM_COLOREDTRANSPARENTLINES
+    std::shared_ptr<osg_rendercacheentry> raw_entry;
+    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(0),&locks_required);
+    
+    // std::shared_ptr<osg_cachedcoloredtransparentlines> coloredtransparentlines; (included in class definition)
+    coloredtransparentlines = std::dynamic_pointer_cast<osg_cachedcoloredtransparentlines>(raw_entry);
+    if (!coloredtransparentlines) {
+      throw snde_error("osg_cachedphaseplaneendpointwithcoloredtransparentlines: Unable to get colored transparent lines cache entry for %s",display_req->sub_requirements.at(0)->renderable_channelpath->c_str());
+    }
+
+    
+    
+    pp_geode = new osg::Geode();
+    pp_lines_geom = new osg::Geometry();
+    pp_lines_tris = new osg::DrawArrays(osg::PrimitiveSet::TRIANGLES,0,0);
+
+    pp_lines_geom->addPrimitiveSet(pp_lines_tris);
+    if (!coloredtransparentlines->cached_recording->info->immutable) {
+      pp_lines_geom->setDataVariance(osg::Object::DYNAMIC);
+      pp_lines_tris->setDataVariance(osg::Object::DYNAMIC);
+    } else {
+      pp_lines_geom->setDataVariance(osg::Object::STATIC);
+      pp_lines_tris->setDataVariance(osg::Object::STATIC);
+    }
+
+    pp_lines_geom->setUseVertexBufferObjects(true);
+        // At least on Linux/Intel graphics we get nasty messages
+    // from the driver if we dont set the VBO in DYNAMIC_DRAW mode
+    pp_lines_geom->getOrCreateVertexBufferObject()->setUsage(GL_DYNAMIC_DRAW);
+    pp_lines_tris->setCount(coloredtransparentlines->vertcoord_osg_array->nvec); 
+    pp_lines_geom->setVertexArray(coloredtransparentlines->vertcoord_osg_array); // (vertex coordinates)
+
+    pp_lines_geom->setColorArray(coloredtransparentlines->vertcoordcolor_osg_array,osg::Array::BIND_PER_VERTEX);
+    pp_lines_geom->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
+    osg::ref_ptr<osg::StateSet> pp_lines_ss = pp_lines_geom->getOrCreateStateSet();
+    pp_lines_ss->setMode(GL_BLEND,osg::StateAttribute::ON);
+    osg::ref_ptr<osg::BlendFunc> pp_lines_bf=new osg::BlendFunc(osg::BlendFunc::SRC_ALPHA,osg::BlendFunc::ONE_MINUS_SRC_ALPHA);
+    pp_lines_ss->setAttributeAndModes(pp_lines_bf.get());
+    pp_lines_ss->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
+    pp_geode->addDrawable(pp_lines_geom);
+    
+
+
+    pp_endpoint_geom = new osg::Geometry();
+    pp_endpoint_tris = new osg::DrawArrays(osg::PrimitiveSet::TRIANGLES,0,0);
+    pp_endpoint_geom->addPrimitiveSet(pp_endpoint_tris);
+    if (!cached_recording->info->immutable) {
+      pp_endpoint_geom->setDataVariance(osg::Object::DYNAMIC);
+      pp_endpoint_tris->setDataVariance(osg::Object::DYNAMIC);
+    } else {
+      pp_endpoint_geom->setDataVariance(osg::Object::STATIC);
+      pp_endpoint_tris->setDataVariance(osg::Object::STATIC);
+    }
+    
+    pp_endpoint_geom->setUseVertexBufferObjects(true);
+        // At least on Linux/Intel graphics we get nasty messages
+    // from the driver if we dont set the VBO in DYNAMIC_DRAW mode
+    pp_endpoint_geom->getOrCreateVertexBufferObject()->setUsage(GL_DYNAMIC_DRAW);
+    pp_endpoint_tris->setCount(endpoint_vertcoord_osg_array->nvec); 
+    pp_endpoint_geom->setVertexArray(endpoint_vertcoord_osg_array); // (vertex coordinates)
+
+    osg::ref_ptr<osg::Vec4Array> EndpointColorArray=new osg::Vec4Array();
+    
+    EndpointColorArray->push_back(osg::Vec4(cached_params->color.R*1.2,cached_params->color.G*1.2,cached_params->color.B*1.2,cached_params->overall_alpha)); // Setting the first 3 to less than 1.0 will dim the output. Setting the last one would probably add alpha transparency (?)
+    
+    pp_endpoint_geom->setColorArray(EndpointColorArray,osg::Array::BIND_OVERALL);
+    pp_endpoint_geom->setColorBinding(osg::Geometry::BIND_OVERALL);    
+    pp_geode->addDrawable(pp_endpoint_geom);
+    
+ 
+    osg_group = pp_geode;
+  }
+
+  std::pair<bool,bool> osg_cachedphaseplaneendpointwithcoloredtransparentlines::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  {
+    std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    if (!new_recording) {
+      throw snde_error("osg_cachedphaseplaneendpointwithcoloredtransparentlines::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
+    }
+
+    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable && display_req->mode.constraint == cached_params,false); // (reusable,modified)
+    
+  }
+
+
+  void osg_cachedphaseplaneendpointwithcoloredtransparentlines::clear_potentially_obsolete()
+  {
+    potentially_obsolete = false;
+    coloredtransparentlines->clear_potentially_obsolete();
+  }
   
   osg_cachedparameterizationdata::osg_cachedparameterizationdata(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
     osg_rendercachearrayentry()

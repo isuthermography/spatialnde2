@@ -689,6 +689,64 @@ namespace snde {
 			#else
 				#pragma message("UpdateViewerStatus on SNDE_DCRM_SCALAR not implemented")
 			#endif 
+      } else if (render_mode == SNDE_DCRM_PHASEPLANE) {
+	a=display->GetAmplAxis(posmgr->selected_channel->FullName);
+	if (a) {
+	  if (needjoin) {
+	    statusline += " | ";
+	  }
+	  double scalefactor;
+	  double vertunitsperdiv;
+	  bool pixelflag=false;
+	  
+	  {
+	    std::lock_guard<std::mutex> adminlock(a->unit->admin);
+	    scalefactor=a->unit->scale;
+	    vertunitsperdiv=scalefactor;
+	    
+	    pixelflag=a->unit->pixelflag;
+	    snde_debug(SNDE_DC_VIEWER,"Phase plane: Amplitude axis: a=%s",a->axis.c_str());
+	  
+	  }
+	  
+	  {
+	    std::lock_guard<std::mutex> adminlock(display->admin);
+	    if (pixelflag) vertunitsperdiv*=display->pixelsperdiv;
+	  }
+	  
+	  //std::stringstream inipos;
+	  double inipos;
+	  {
+	    std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+	    if (posmgr->selected_channel->VertZoomAroundAxis) {
+	      //inipos << std::defaultfloat << std::setprecision(6) << posmgr->selected_channel->Position*vertunitsperdiv;
+	      inipos = posmgr->selected_channel->Position*vertunitsperdiv;
+	    } else {
+	      //inipos << std::defaultfloat << std::setprecision(6) << posmgr->selected_channel->VertCenterCoord;
+	      inipos = posmgr->selected_channel->VertCenterCoord;	      
+	      
+	    }
+	  }
+	  
+	  //std::stringstream vertscalestr;
+	  //vertscalestr << std::defaultfloat << std::setprecision(6) << scalefactor;
+	  
+	  //statusline += a->abbrev+"0=" + inipos.str() + " " + vertscalestr.str() + a->unit->unit.print(false);
+	  std::lock_guard<std::mutex> adminlock(a->admin);
+	  statusline += a->abbrev+"0=" + PrintWithSIPrefix(inipos,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3);
+	  
+	  if (pixelflag) {
+	    statusline += "/px";
+	  } else {
+	    statusline += "/div";
+	  }
+	  needjoin=true;
+	  
+	  
+	}
+	
+	  
+	
       } else {
 	if (chan_enabled) {
 	  snde_warning("qtrecviewer: invalid render_mode: %d on channel %s (0x%llx)",render_mode,posmgr->selected_channel->FullName.c_str(),(unsigned long long)((uintptr_t)posmgr->selected_channel.get()));

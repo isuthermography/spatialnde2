@@ -498,7 +498,7 @@ namespace snde {
 
 
 
-  std::tuple<rwlock_token_set,cl::Buffer,std::vector<cl::Event>,std::shared_ptr<openclcacheentry>> openclcachemanager::_GetOpenCLBuffer(std::shared_ptr<recording_storage> storage,rwlock_token_set alllocks,cl::Context context, cl::Device device, bool write,bool write_only/*=false*/) /* indexed by arrayidx */
+  std::tuple<rwlock_token_set,cl::Buffer,std::vector<cl::Event>,std::shared_ptr<openclcacheentry>> openclcachemanager::_GetOpenCLBuffer(std::shared_ptr<recording_storage> storage,rwlock_token_set alllocks,cl::Context context, cl::Device device, snde_index substartelem, snde_index subnumelem, bool write,bool write_only/*=false*/) /* indexed by arrayidx */
 /* cl_mem_flags flags,snde_index firstelem,snde_index numelem */ /* numelems may be SNDE_INDEX_INVALID to indicate all the way to the end */
 
 
@@ -584,8 +584,8 @@ namespace snde {
       void **arrayptr=storage->lockableaddr();
       snde_index nelem=storage->lockablenelem();
 
-      snde_index substartelem=storage->base_index;
-      snde_index subnumelem=storage->nelem;
+      //snde_index substartelem=storage->base_index;
+      //snde_index subnumelem=storage->nelem;
 
       if (substartelem != 0 || subnumelem != nelem) {
 	// need a sub-buffer instead
@@ -725,7 +725,7 @@ namespace snde {
       return std::make_tuple(regionlocks,oclbuffer->buffer,ev,oclbuffer);
     }
 
-  std::tuple<rwlock_token_set,cl::Buffer,std::vector<cl::Event>> openclcachemanager::GetOpenCLBuffer(std::shared_ptr<recording_storage> storage,rwlock_token_set alllocks,cl::Context context, cl::Device device, bool write,bool write_only/*=false*/)
+  std::tuple<rwlock_token_set,cl::Buffer,std::vector<cl::Event>> openclcachemanager::GetOpenCLBuffer(std::shared_ptr<recording_storage> storage,rwlock_token_set alllocks,cl::Context context, cl::Device device, snde_index substartelem, snde_index subnumelem,bool write,bool write_only/*=false*/)
   {
     rwlock_token_set retlocks;
     cl::Buffer buf;
@@ -733,8 +733,11 @@ namespace snde {
     std::shared_ptr<openclcacheentry> cacheentry;
 
     storage = storage->get_original_storage(); // operate only on the original storage, not a non-moving reference so that we don't have duplicate cache entries
+
     
-    std::tie(retlocks,buf,new_fill_events,cacheentry) = _GetOpenCLBuffer(storage,alllocks,context,device,write,write_only);
+    
+    
+    std::tie(retlocks,buf,new_fill_events,cacheentry) = _GetOpenCLBuffer(storage,alllocks,context,device,substartelem,subnumelem,write,write_only);
 
     return std::make_tuple(retlocks,buf,new_fill_events);
   }
@@ -1305,8 +1308,9 @@ namespace snde {
 
 
 
-  void OpenCLBuffers::AddBuffer(std::shared_ptr<recording_storage> storage,bool write,bool write_only/*=false*/)
+  void OpenCLBuffers::AddBufferPortion(std::shared_ptr<recording_storage> storage,snde_index start_elem, snde_index length,bool write,bool write_only/*=false*/)
   // (works on sub-buffers or full buffers)
+  // start_elem relative to storage, which may itself be a sub-portion of the OpenCL array 
     {
 
       //// accumulate preexisting locks + locks in all buffers together
@@ -1324,8 +1328,14 @@ namespace snde {
       //allocatedptr=manager->allocation_arrays.at(arrayptr);
       storage = storage->get_original_storage(); // operate only on the original storage, not a non-moving reference so that we don't have duplicate cache entries
 
-      
-      std::tie(locks,mem,new_fill_events,cacheentry) = cachemgr->_GetOpenCLBuffer(storage,all_locks,context,device,write,write_only); // (alternatively gets a sub-buffer if need be)
+
+      assert(start_elem + length <= storage->nelem);
+
+      // sizes relative to the base storage
+      snde_index substartelem=storage->base_index + start_elem;
+      snde_index subnumelem=length;
+
+      std::tie(locks,mem,new_fill_events,cacheentry) = cachemgr->_GetOpenCLBuffer(storage,all_locks,context,device,substartelem,subnumelem,write,write_only); // (alternatively gets a sub-buffer if need be)
       
       /* move fill events into our master list */
       fill_events.insert(fill_events.end(),new_fill_events.begin(),new_fill_events.end());
@@ -1337,7 +1347,7 @@ namespace snde {
       //					       locks)));
       void **arrayptr = storage->lockableaddr();
       buffers.emplace(std::piecewise_construct,
-		      std::forward_as_tuple(arrayptr,storage->base_index,storage->nelem),
+		      std::forward_as_tuple(arrayptr,substartelem,subnumelem),
 		      std::forward_as_tuple(mem,
 					    storage,
 					    locks,cacheentry));
@@ -1353,25 +1363,78 @@ namespace snde {
   //  AddSubBuffer(storage,0,SNDE_INDEX_INVALID,write,write_only);
   //}
 
-
-  cl_int OpenCLBuffers::AddBufferAsKernelArg(std::shared_ptr<recording_storage> storage,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only/*=false*/)
+  
+  void OpenCLBuffers::AddBuffer(std::shared_ptr<recording_storage> storage,bool write,bool write_only/*=false*/)
+  // (works on sub-buffers or full buffers)
   {
-    AddBuffer(storage,write,write_only);
+    AddBufferPortion(storage,0,storage->nelem,write,write_only);
+    
+
+  }
+
+  cl_int OpenCLBuffers::AddBufferPortionAsKernelArg(std::shared_ptr<recording_storage> storage,snde_index start_elem, snde_index length,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only/*=false*/)
+  // start_elem relative to storage, which may itself be a sub-portion of the OpenCL array 
+  {
+    AddBufferPortion(storage,start_elem,length,write,write_only);
     void **arrayptr = storage->lockableaddr();
-    snde_index indexstart = storage->base_index;
-    snde_index numelem = storage->nelem;
+
+    assert(start_elem+length <= storage->nelem);
+    snde_index indexstart = storage->base_index + start_elem;
+    snde_index numelem = length;
     return SetBufferAsKernelArg(kernel,arg_index,arrayptr,indexstart,numelem);
   }
   
+  cl_int OpenCLBuffers::AddBufferPortionAsKernelArg(std::shared_ptr<ndarray_recording_ref> ref,snde_index portion_start,snde_index portion_len,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only)
+  {
+    snde_index start_elem = ref->ndinfo()->base_index - ref->storage->base_index + portion_start;
+    snde_index size = portion_len; // note flattened_size() vs flattened_length()
+    
+    return AddBufferPortionAsKernelArg(ref->storage,start_elem,size,kernel,arg_index,write,write_only);
+  }
+
+  cl_int OpenCLBuffers::AddBufferPortionAsKernelArg(std::shared_ptr<multi_ndarray_recording> rec,size_t arraynum,snde_index portion_start,snde_index portion_len,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only)
+  {
+    snde_index start_elem=rec->ndinfo(arraynum)->base_index - rec->storage.at(arraynum)->base_index + portion_start;
+    snde_index size = portion_len;
+    return AddBufferPortionAsKernelArg(rec->storage.at(arraynum),start_elem,size,kernel,arg_index,write,write_only); // note flattened_size() vs flattened_length()
+  }
+
+  cl_int OpenCLBuffers::AddBufferPortionAsKernelArg(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,snde_index portion_start,snde_index portion_len,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only)
+  {
+    size_t arraynum = rec->name_mapping.at(arrayname);
+    
+    snde_index start_elem=rec->ndinfo(arraynum)->base_index - rec->storage.at(arraynum)->base_index + portion_start;
+    snde_index size = portion_len;
+    return AddBufferPortionAsKernelArg(rec->storage.at(arraynum),start_elem,size,kernel,arg_index,write,write_only); // note flattened_size() vs flattened_length()
+  }
+
+
+
   cl_int OpenCLBuffers::AddBufferAsKernelArg(std::shared_ptr<ndarray_recording_ref> ref,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only)
   {
-    return AddBufferAsKernelArg(ref->storage,kernel,arg_index,write,write_only);
+    snde_index start_elem = ref->ndinfo()->base_index - ref->storage->base_index;
+    snde_index size = ref->layout.flattened_size(); // note flattened_size() vs flattened_length()
+    
+    return AddBufferPortionAsKernelArg(ref->storage,start_elem,size,kernel,arg_index,write,write_only);
+  }
+
+  cl_int OpenCLBuffers::AddBufferAsKernelArg(std::shared_ptr<multi_ndarray_recording> rec,size_t arraynum,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only)
+  {
+    snde_index start_elem=rec->ndinfo(arraynum)->base_index - rec->storage.at(arraynum)->base_index;
+    snde_index size = rec->layouts.at(arraynum).flattened_size();
+    return AddBufferPortionAsKernelArg(rec->storage.at(arraynum),start_elem,size,kernel,arg_index,write,write_only); // note flattened_size() vs flattened_length()
   }
 
   cl_int OpenCLBuffers::AddBufferAsKernelArg(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Kernel kernel,cl_uint arg_index,bool write,bool write_only)
   {
-    return AddBufferAsKernelArg(rec->storage.at(rec->name_mapping.at(arrayname)),kernel,arg_index,write,write_only);
+    size_t arraynum = rec->name_mapping.at(arrayname);
+    
+    snde_index start_elem=rec->ndinfo(arraynum)->base_index - rec->storage.at(arraynum)->base_index;
+    snde_index size = rec->layouts.at(arraynum).flattened_size();
+    return AddBufferPortionAsKernelArg(rec->storage.at(arraynum),start_elem,size,kernel,arg_index,write,write_only); // note flattened_size() vs flattened_length()
   }
+
+  
 
   //cl_int OpenCLBuffers::AddBufferAsKernelArg(std::shared_ptr<arraymanager> manager,cl::Kernel kernel,cl_uint arg_index,void **arrayptr,bool write,bool write_only/*=false*/)
   //{
@@ -1382,13 +1445,20 @@ namespace snde {
 
   /* This indicates that the array has been written to by an OpenCL kernel, 
      and that therefore it needs to be copied back into CPU memory */
-  void OpenCLBuffers::BufferDirty(std::shared_ptr<recording_storage> storage)
+  void OpenCLBuffers::BufferPortionDirty(std::shared_ptr<recording_storage> storage,snde_index start_elem, snde_index length)
   // Works on buffers and subbuffers
   {
 
     void **arrayptr = storage->lockableaddr();
-    snde_index indexstart = storage->base_index;
-    snde_index numelem = storage->nelem;
+
+    assert(start_elem + length <= storage->nelem);
+
+    //snde_index indexstart = storage->base_index;
+    //snde_index numelem = storage->nelem;
+
+    snde_index indexstart = storage->base_index+start_elem;
+    snde_index numelem = length;
+    
     //snde_index total_nelem = storage->lockablenelem();
 
     
@@ -1398,15 +1468,67 @@ namespace snde {
     cachemgr->mark_as_gpu_modified(context,storage);
     
   }
+
+
+  void OpenCLBuffers::BufferDirty(std::shared_ptr<recording_storage> storage)
+  // Works on buffers and subbuffers
+  {
+    BufferPortionDirty(storage,0,storage->nelem);
+  }
+
+  void OpenCLBuffers::BufferPortionDirty(std::shared_ptr<ndarray_recording_ref> ref,snde_index portion_start, snde_index portion_len)
+  {
+
+    snde_index start_elem = ref->ndinfo()->base_index - ref->storage->base_index + portion_start;
+    snde_index size = portion_len;
+
+    BufferPortionDirty(ref->storage,start_elem,size);
+  }
+  
+  void OpenCLBuffers::BufferPortionDirty(std::shared_ptr<multi_ndarray_recording> rec,size_t arraynum,snde_index portion_start, snde_index portion_len)
+  {
+
+    snde_index start_elem=rec->ndinfo(arraynum)->base_index - rec->storage.at(arraynum)->base_index + portion_start;
+    snde_index size = portion_len;
+
+    BufferPortionDirty(rec->storage.at(arraynum),start_elem,size);
+  }
+
+  void OpenCLBuffers::BufferPortionDirty(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,snde_index portion_start, snde_index portion_len)
+  {
+    size_t arraynum = rec->name_mapping.at(arrayname);
+
+
+    snde_index start_elem=rec->ndinfo(arraynum)->base_index - rec->storage.at(arraynum)->base_index + portion_start;
+    snde_index size = portion_len;
+
+    BufferPortionDirty(rec->storage.at(arraynum),start_elem,size);
+  }
+
   
   void OpenCLBuffers::BufferDirty(std::shared_ptr<ndarray_recording_ref> ref)
   {
-    BufferDirty(ref->storage);
+    snde_index start_elem = ref->ndinfo()->base_index - ref->storage->base_index;
+    snde_index size = ref->layout.flattened_size(); // note flattened_size() vs flattened_length()
+    
+    BufferPortionDirty(ref->storage,start_elem,size);
+  }
+
+  void OpenCLBuffers::BufferDirty(std::shared_ptr<multi_ndarray_recording> rec,size_t arraynum)
+  {
+    snde_index start_elem=rec->ndinfo(arraynum)->base_index - rec->storage.at(arraynum)->base_index;
+    snde_index size = rec->layouts.at(arraynum).flattened_size();
+
+    BufferPortionDirty(rec->storage.at(arraynum),start_elem,size);
   }
 
   void OpenCLBuffers::BufferDirty(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname)
   {
-    BufferDirty(rec->storage.at(rec->name_mapping.at(arrayname)));
+    size_t arraynum = rec->name_mapping.at(arrayname);
+    snde_index start_elem=rec->ndinfo(arraynum)->base_index - rec->storage.at(arraynum)->base_index;
+    snde_index size = rec->layouts.at(arraynum).flattened_size();
+    
+    BufferPortionDirty(rec->storage.at(arraynum),start_elem,size);
   }
 
   /* This indicates that part the array has been written to by an OpenCL kernel, 

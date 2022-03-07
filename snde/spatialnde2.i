@@ -455,7 +455,7 @@ template <typename T>
 
 
 
-
+%include "snde_types.i"
 %include "geometry_types.i"
 %include "snde_error.i"
 %include "memallocator.i"
@@ -623,7 +623,10 @@ template <typename T>
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_KDNODE,(PyArray_Descr *)kdnode_dtype);
   
 
-  
+  PyObject *complexfloat32_dtype = PyRun_String("np.complex64",Py_eval_input,Globals,Globals);
+
+  PyObject *complexfloat64_dtype = PyRun_String("np.complex128",Py_eval_input,Globals,Globals);
+
 
   Py_DECREF(NumpyModule);
   Py_DECREF(np_dtype);

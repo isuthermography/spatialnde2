@@ -9,7 +9,11 @@ namespace snde {
     accumulator->push_back(req);
 
     for (auto && subreq: req->sub_requirements) {
-      _flattenreq_accumulate_reqs(subreq,accumulator);
+      if (subreq) {
+	_flattenreq_accumulate_reqs(subreq,accumulator);
+      } else {
+	snde_warning("recstore_display_transforms.cpp:_flattenreq_accumulate_reqs(): Got null sub-requirement of %s",req->channelpath.c_str());
+      }
     }
   }
   

@@ -730,7 +730,22 @@ namespace snde {
       a->unit->scale=scalefactor;
       return;
     } else if (render_mode==SNDE_DCRM_GEOMETRY) {
-      c->Scale = scalefactor;
+      {
+	
+	std::lock_guard<std::mutex> chanadmin(c->admin);
+	c->Scale = scalefactor;
+      }
+    } else if (render_mode==SNDE_DCRM_PHASEPLANE) {
+      a=GetAmplAxis(chan_name);
+      {
+	std::lock_guard<std::mutex> adminlock(a->unit->admin);
+	a->unit->scale=scalefactor;
+	
+      }
+      //{	
+      //std::lock_guard<std::mutex> chanadmin(c->admin);
+      //c->Scale = scalefactor;
+      //}
     } else {
       assert(0);
       return;
@@ -795,6 +810,17 @@ namespace snde {
 	return std::make_tuple(true,scalefactor,false); // a->unit->pixelflag);
       }
       
+    } else if (render_mode == SNDE_DCRM_PHASEPLANE) {
+      a=GetAmplAxis(chan_name);
+      //if (a->unit->pixelflag)
+      //  scalefactor=a->unit->scale*pixelsperdiv;
+      //else
+      {
+	std::lock_guard<std::mutex> adminlock(a->unit->admin);
+	scalefactor=a->unit->scale;
+	return std::make_tuple(true,scalefactor,false);
+      }
+
     } else {
       assert(0);
       return std::make_tuple(false,0.0,false);
@@ -879,6 +905,18 @@ namespace snde {
       return UnitsPerDiv;
     } else if (render_mode==SNDE_DCRM_GEOMETRY) {
       
+    } else if (render_mode==SNDE_DCRM_PHASEPLANE) {
+      /* image or image array */
+      a=GetAmplAxis(chan_name);
+      {
+	std::lock_guard<std::mutex> adminlock(a->unit->admin);
+	scalefactor=a->unit->scale;
+	UnitsPerDiv=scalefactor;
+	//if (a->unit->pixelflag) {
+	//  UnitsPerDiv *= pixelsperdiv;
+	//}
+      }
+      return UnitsPerDiv;
     } else {
       assert(0);
       return 0.0;

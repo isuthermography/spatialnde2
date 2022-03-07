@@ -1,6 +1,6 @@
 
-#ifndef SNDE_OPENSCENEGRAPH_IMAGE_RENDERER_HPP
-#define SNDE_OPENSCENEGRAPH_IMAGE_RENDERER_HPP
+#ifndef SNDE_OPENSCENEGRAPH_2D_RENDERER_HPP
+#define SNDE_OPENSCENEGRAPH_2D_RENDERER_HPP
 
 
 #include "snde/openscenegraph_rendercache.hpp"
@@ -8,7 +8,7 @@
 
 namespace snde {
   
-  class osg_image_renderer : public osg_renderer{ 
+  class osg_2d_renderer : public osg_renderer{ 
   public:
 
     // From osg_renderer base class:
@@ -22,11 +22,11 @@ namespace snde {
     //osg::ref_ptr<osg::Group> group;
     
         
-    osg_image_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
+    osg_2d_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
 		       std::string channel_path,bool enable_shaders);
-    osg_image_renderer(const osg_image_renderer &) = delete;
-    osg_image_renderer & operator=(const osg_image_renderer &) = delete;
-    virtual ~osg_image_renderer() = default; 
+    osg_2d_renderer(const osg_2d_renderer &) = delete;
+    osg_2d_renderer & operator=(const osg_2d_renderer &) = delete;
+    virtual ~osg_2d_renderer() = default; 
     
 
     std::tuple<std::shared_ptr<osg_rendercacheentry>,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>>,bool>
@@ -47,7 +47,7 @@ namespace snde {
 
 }
 
-#endif // SNDE_OPENSCENEGRAPH_IMAGE_RENDERER_HPP
+#endif // SNDE_OPENSCENEGRAPH_2D_RENDERER_HPP
 
 
 

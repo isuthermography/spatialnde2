@@ -931,7 +931,7 @@ namespace snde {
   {
     if (!inst) {
       // initial call with no instantiation to probe parameters; just use int32 case
-      return std::make_shared<CppFuncClass<std::complex<snde_float32>>>(rss,inst);
+      return std::make_shared<CppFuncClass<snde_complexfloat32>>(rss,inst);
 
     }
     
@@ -951,10 +951,10 @@ namespace snde {
 
     switch (firstparam_rec_val->ndinfo()->typenum) {
     case SNDE_RTN_COMPLEXFLOAT32:
-      return std::make_shared<CppFuncClass<std::complex<snde_float32>>>(rss,inst);
+      return std::make_shared<CppFuncClass<snde_complexfloat32>>(rss,inst);
 
     case SNDE_RTN_COMPLEXFLOAT64:
-      return std::make_shared<CppFuncClass<std::complex<snde_float64>>>(rss,inst);
+      return std::make_shared<CppFuncClass<snde_complexfloat64>>(rss,inst);
 
 
     default:

@@ -204,6 +204,26 @@ snde_array_flattened_length(
   return length;
 }
 
+
+snde_index SNDE_AIO_STATIC_INLINE
+snde_array_flattened_size(
+			    SNDE_AIO_GLOBAL snde_index *dimlen,
+			    SNDE_AIO_GLOBAL snde_index *strides,
+			    snde_index ndim)
+  // number of contiguous elements that need to be stored/transfered (different from flattened length if the data has holes due to strides, etc.
+{
+  snde_index last_element=0;
+  snde_index dimnum;
+
+  for (dimnum=0;dimnum < ndim;dimnum++) {
+    assert(dimlen[dimnum] > 0);
+    last_element += strides[dimnum]*(dimlen[dimnum]-1);
+  }
+
+  return last_element+1;
+}
+
+
 snde_bool SNDE_AIO_STATIC_INLINE
 snde_array_cachefriendly_indexing( // returns non-zero for fortran mode
 			    SNDE_AIO_GLOBAL snde_index *strides,

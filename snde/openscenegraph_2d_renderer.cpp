@@ -1,6 +1,6 @@
 #include <osgUtil/ShaderGen>
 
-#include "snde/openscenegraph_image_renderer.hpp"
+#include "snde/openscenegraph_2d_renderer.hpp"
 #include "snde/rec_display.hpp"
 #include "snde/display_requirements.hpp"
  
@@ -10,10 +10,10 @@ namespace snde {
 
 
 
-  osg_image_renderer::osg_image_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
+  osg_2d_renderer::osg_2d_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
 					 osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
 					 std::string channel_path,bool enable_shaders) :
-    osg_renderer(Viewer,GraphicsWindow,nullptr,channel_path,SNDE_DRRT_IMAGE,enable_shaders)
+    osg_renderer(Viewer,GraphicsWindow,nullptr,channel_path,SNDE_DRRT_2D,enable_shaders)
   {
     
     EventQueue=GraphicsWindow->getEventQueue();
@@ -59,10 +59,10 @@ namespace snde {
   }
 
 
-  // actually rendering is done by osg_image_renderer::frame() which just calls Viewer->frame()
+  // actually rendering is done by osg_2d_renderer::frame() which just calls Viewer->frame()
   
   std::tuple<std::shared_ptr<osg_rendercacheentry>,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>>,bool>
-  osg_image_renderer::prepare_render(//std::shared_ptr<recdatabase> recdb,
+  osg_2d_renderer::prepare_render(//std::shared_ptr<recdatabase> recdb,
 				     std::shared_ptr<recording_set_state> with_display_transforms,
 				     //std::shared_ptr<display_info> display,
 				     std::shared_ptr<osg_rendercache> RenderCache,
@@ -77,7 +77,7 @@ namespace snde {
     
     got_req=display_reqs.find(channel_path);
     if (got_req==display_reqs.end()) {
-      snde_warning("openscenegraph_image_renderer: Was not possible to transform channel \"%s\" into something renderable",channel_path.c_str());
+      snde_warning("openscenegraph_2d_renderer: Was not possible to transform channel \"%s\" into something renderable",channel_path.c_str());
       return std::make_tuple(nullptr,locks_required,true);
     }
     
@@ -170,10 +170,10 @@ namespace snde {
 	  }
 	  
 	} else {
-	  snde_warning("openscenegraph_image_renderer: cache entry not convertable to an osg_group rendering channel \"%s\"",channel_path.c_str());
+	  snde_warning("openscenegraph_2d_renderer: cache entry not convertable to an osg_group rendering channel \"%s\"",channel_path.c_str());
 	}
       } else {
-	snde_warning("openscenegraph_image_renderer: cache entry not available rendering channel \"%s\"",channel_path.c_str());
+	snde_warning("openscenegraph_2d_renderer: cache entry not available rendering channel \"%s\"",channel_path.c_str());
 	
       }
 	

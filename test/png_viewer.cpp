@@ -25,12 +25,12 @@
 #include "snde/rec_display.hpp"
 #include "snde/display_requirements.hpp"
 #include "snde/recstore_display_transforms.hpp"
-#include "snde/openscenegraph_image_renderer.hpp"
+#include "snde/openscenegraph_2d_renderer.hpp"
 
 using namespace snde;
 
 std::shared_ptr<snde::recdatabase> recdb;
-std::shared_ptr<osg_image_renderer> renderer;
+std::shared_ptr<osg_2d_renderer> renderer;
 std::shared_ptr<osg_rendercache> rendercache;
 std::shared_ptr<display_info> display;
 std::map<std::string,std::shared_ptr<display_requirement>> display_reqs;
@@ -236,9 +236,9 @@ int main(int argc, char **argv)
   Viewer->getCamera()->setViewport(new osg::Viewport(0,0,winwidth,winheight));
   Viewer->getCamera()->setGraphicsContext(GW);
   
-  renderer = std::make_shared<osg_image_renderer>(Viewer,GW,
-						  pngchan_config->channelpath,
-						  false); // enable_shaders
+  renderer = std::make_shared<osg_2d_renderer>(Viewer,GW,
+					       pngchan_config->channelpath,
+					       false); // enable_shaders
   
   display=std::make_shared<display_info>(recdb);
   display->set_current_globalrev(globalrev);
