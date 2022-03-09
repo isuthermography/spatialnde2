@@ -12,7 +12,7 @@
 #endif
 
 #include "snde/snde_types_h.h"
-//#include "snde/phase_plane_vertex_calcs_c.h"   // This is missing from the repository.  It builds fine without it since it doesn't appear to need it.  So, I'm commenting it out for now so there will be build errors later if it is actually needed for something.
+#include "snde/phase_plane_vertex_calcs_c.h"
 
   
 
