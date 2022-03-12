@@ -8,7 +8,10 @@ spatialnde2_example_external_cpp_function/spatialnde2_example_external_cpp_funct
 .vs
 .vscode
 
+doc/ProgramRef/latexout
+doc/ProgramRef/htmlout
 doc/ProgramRef/spatialnde2_referenceHTML
+doc/ProgramRef/spatialnde2_referencePDF
 doc/ProgramRef/spatialnde2_reference.pdf
 doc/UsersGuide/build
 

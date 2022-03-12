@@ -24,6 +24,8 @@ snde_rawaccessible(snde::globalrevision);
 snde_rawaccessible(snde::recdatabase);
 %shared_ptr(snde::instantiated_math_function);
 snde_rawaccessible(snde::instantiated_math_function);
+%shared_ptr(snde::active_transaction);
+snde_rawaccessible(snde::active_transaction);
 
 %{
 #include "snde/recstore.hpp"

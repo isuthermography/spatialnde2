@@ -6,9 +6,8 @@
 extern "C" {
 #endif
 
-#ifdef _MSC_VER
-    #define M_PI   3.14159265358979323846264338327950288
-#endif
+#define _USE_MATH_DEFINES
+#include <math.h>
 
 
 static inline void tricentroid3(snde_coord3 *verts, snde_coord3 *centroid_out)

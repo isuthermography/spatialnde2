@@ -1,3 +1,6 @@
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 #ifndef _MSC_VER
 #include <unistd.h>
 #endif
@@ -13,8 +16,6 @@
 #include <osgGA/TrackballManipulator>
 //#include <osgDB/ReadFile>
 #include <osgDB/WriteFile>
-
-#include <cmath>
 
 
 #include "snde/arraymanager.hpp"

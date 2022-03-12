@@ -1,3 +1,4 @@
+#define _USE_MATH_DEFINES
 #include <math.h>
 
 #include "snde/phase_plane_vertex_functions.hpp"
