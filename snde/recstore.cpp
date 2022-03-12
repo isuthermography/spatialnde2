@@ -77,7 +77,7 @@ namespace snde {
       {typeid(snde_image),SNDE_RTN_SNDE_IMAGE},
       {typeid(snde_kdnode),SNDE_RTN_SNDE_KDNODE},
       //{typeid(snde_bool),SNDE_RTN_SNDE_BOOL}, // C++ type is indistinguishable from UINT8
-
+      //{typeid(snde_compleximagedata),SNDE_RTN_SNDE_COMPLEXIMAGEDATA}, // C++ type is indistinguishable from complexfloat32
 
   });
   
@@ -139,6 +139,7 @@ namespace snde {
       {SNDE_RTN_SNDE_IMAGE,sizeof(snde_image)},
       {SNDE_RTN_SNDE_KDNODE,sizeof(snde_kdnode)},
       {SNDE_RTN_SNDE_BOOL,sizeof(snde_bool)},
+      {SNDE_RTN_SNDE_COMPLEXIMAGEDATA,sizeof(snde_compleximagedata)},
     });
   
   SNDE_API const std::unordered_map<unsigned,std::string> rtn_typenamemap({ // Look up type name based on typenum
@@ -206,6 +207,7 @@ namespace snde {
       {SNDE_RTN_SNDE_IMAGE,"SNDE_RTN_SNDE_IMAGE"},
       {SNDE_RTN_SNDE_KDNODE,"SNDE_RTN_SNDE_KDNODE"},
       {SNDE_RTN_SNDE_BOOL,"SNDE_RTN_SNDE_BOOL"},
+      {SNDE_RTN_SNDE_COMPLEXIMAGEDATA,"SNDE_RTN_SNDE_COMPLEXIMAGEDATA"},
     });
   
 
@@ -237,6 +239,7 @@ namespace snde {
 
       {SNDE_RTN_SNDE_COORD,"snde_coord"},
       {SNDE_RTN_SNDE_BOOL,"snde_bool"},
+      {SNDE_RTN_SNDE_COMPLEXIMAGEDATA,"snde_compleximagedata"},
       
       
       
@@ -266,7 +269,9 @@ namespace snde {
 #endif
       {SNDE_RTN_SNDE_BOOL, { SNDE_RTN_UINT8 } },
       {SNDE_RTN_UINT8, { SNDE_RTN_SNDE_BOOL } },
-      
+
+      {SNDE_RTN_COMPLEXFLOAT32, {SNDE_RTN_SNDE_COMPLEXIMAGEDATA} },
+      {SNDE_RTN_SNDE_COMPLEXIMAGEDATA, {SNDE_RTN_COMPLEXFLOAT32} },
     });
   
   // see https://stackoverflow.com/questions/38644146/choose-template-based-on-run-time-string-in-c
@@ -1258,6 +1263,14 @@ namespace snde {
       ref = std::make_shared<ndtyped_recording_ref<snde_kdnode>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
       break;
 
+
+    case SNDE_RTN_SNDE_BOOL:
+      ref = std::make_shared<ndtyped_recording_ref<snde_bool>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
+
+    case SNDE_RTN_SNDE_COMPLEXIMAGEDATA:
+      ref = std::make_shared<ndtyped_recording_ref<snde_compleximagedata>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      break;
       
     default:
       throw snde_error("multi_ndarray_recording::reference_ndarray(): Unknown type number %u",typenum);
@@ -1679,7 +1692,25 @@ namespace snde {
     throw snde_error("Cannot access elements of untyped recording reference. Create typed reference with .reference_ndarray() instead.");    
   }
 
+  
+  
+  fusion_ndarray_recording::fusion_ndarray_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,unsigned typenum) :
+    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,2 /* 2 ndarrays */)
+    
+  {
+    
+    name_mapping.emplace(std::make_pair("accumulator",0));
+    name_reverse_mapping.emplace(std::make_pair(0,"accumulator"));
+    define_array(0,typenum);
 
+    name_mapping.emplace(std::make_pair("totals",1));
+    name_reverse_mapping.emplace(std::make_pair(1,"totals"));
+    define_array(1,SNDE_RTN_FLOAT32);
+    
+    
+  }
+
+  
   
 #if 0
   // ***!!! This code is probably obsolete ***!!!

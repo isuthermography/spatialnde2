@@ -140,3 +140,4 @@ struct snde_multi_ndarray_recording {
 #define SNDE_RTN_SNDE_IMAGE 58
 #define SNDE_RTN_SNDE_KDNODE 59
 #define SNDE_RTN_SNDE_BOOL 60
+#define SNDE_RTN_SNDE_COMPLEXIMAGEDATA 61

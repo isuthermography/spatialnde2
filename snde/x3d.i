@@ -1,3 +1,4 @@
+%shared_ptr(snde::x3d_texture_scaling);
 %shared_ptr(snde::x3d_node);
 %shared_ptr(snde::x3d_shape);
 %shared_ptr(snde::x3d_material);
@@ -43,6 +44,18 @@ namespace snde {
   class x3d_texturecoordinate;
   class x3d_imagetexture;
   class x3d_appearance;
+
+
+  struct x3d_texture_scaling {
+    double meters_per_texunit_horiz;
+    double meters_per_texunit_vert;
+
+    /*double pixelsize_horiz;
+    double pixelsize_vert;
+    double pixels_per_texunit_horiz;
+    double pixels_per_texunit_vert;
+    */    
+  };
 
 
   class x3d_node {
@@ -256,9 +269,9 @@ namespace snde {
   };
 
 
-  std::vector<std::shared_ptr<textured_part_recording>> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::vector<std::shared_ptr<x3d_shape>> shapes,std::string ownername,void *owner_id,std::string recdb_context,std::string context_fname,bool reindex_vertices,bool reindex_tex_vertices);
+  std::vector<std::shared_ptr<textured_part_recording>> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::vector<std::shared_ptr<x3d_shape>> shapes,std::string ownername,void *owner_id,std::string recdb_context,std::string context_fname,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,bool reindex_vertices,bool reindex_tex_vertices);
 
-  std::vector<std::shared_ptr<textured_part_recording>> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::string filename,std::string ownername,void *owner_id,std::string recdb_context,bool reindex_vertices,bool reindex_tex_vertices);
+  std::vector<std::shared_ptr<textured_part_recording>> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::string filename,std::string ownername,void *owner_id,std::string recdb_context,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,bool reindex_vertices,bool reindex_tex_vertices);
 
 
 };

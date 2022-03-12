@@ -418,7 +418,8 @@ namespace snde {
     
     inline snde_multi_ndarray_recording *mndinfo() {return (snde_multi_ndarray_recording *)info;}
     inline snde_ndarray_info *ndinfo(size_t index) {return &((snde_multi_ndarray_recording *)info)->arrays[index];}
-
+    inline snde_ndarray_info *ndinfo(std::string name) {return &((snde_multi_ndarray_recording *)info)->arrays[name_mapping.at(name)];}
+    
     void define_array(size_t index,unsigned typenum);   // should be called exactly once for each index < mndinfo()->num_arrays
     void define_array(size_t index,unsigned typenum,std::string name);   // should be called exactly once for each index < mndinfo()->num_arrays
 
@@ -654,6 +655,23 @@ namespace snde {
 
   };
 
+
+  class fusion_ndarray_recording: public multi_ndarray_recording {
+  public:
+    // fusion_ndarray_recording has two arrays: accumulator, and totals.
+    // it is meant to represent the circumstance where the meaningful value is
+    // represented as a weighted average: (sum_i value_i*weight_i)/(sum_i weight_i).
+    // The "accumulator" array represents sum_i value_i*weight_i
+    // and the "totals" array represents sum_i weight_i
+    //
+    // Then meaningful output can be evaluated by dividing accumulator/totals.
+
+    // typenum parameter applies to the accumulator only (obviously)
+    
+    fusion_ndarray_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,unsigned typenum);
+    
+    
+  };
 
   class transaction {
   public:

@@ -173,7 +173,7 @@ extern "C" {
     // concrete instance of the parameterization (bitmap)
     // or region thereof. 
 
-    
+    snde_compleximagedata *compleximagebuf;
 
     snde_imagedata *imagebuf; // image data buffer used for projecting data into. This is also used by geometry_storage for anonymous allocations
     //allocatorbase *imagebuf_alloc; // really allocator<snde_imagedata>*

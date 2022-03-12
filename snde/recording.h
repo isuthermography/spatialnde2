@@ -28,7 +28,7 @@ struct snde_recording_base {
   snde_bool metadata_valid;
 
   
-  snde_bool deletable;  // whether it is OK to call snde_recording_delete() on this structure
+  snde_bool deletable;  // whether it is OK to call snde_recording_delete() on this structure ***!!! I don't think this is used and it should probably be removed ***!!!
 
   snde_bool immutable; // doesn't mean necessarily immutable __now__, just immutable once ready
 
@@ -148,6 +148,7 @@ struct snde_multi_ndarray_recording {
 #define SNDE_RTN_SNDE_IMAGE 58
 #define SNDE_RTN_SNDE_KDNODE 59
 #define SNDE_RTN_SNDE_BOOL 60
+#define SNDE_RTN_SNDE_COMPLEXIMAGEDATA 61
 
 // Still need to add NURBS types
 
