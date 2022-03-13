@@ -113,7 +113,7 @@ endif()
 # Add bigobj flag for msbuild compiler (enabling compiling completely from the Anaconda prompt on Windows)
 IF(MSVC)
     add_compile_options(-bigobj)
-    set(SPATIALNDE2_COMPILE_DEFINTIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} _USE_MATH_DEFINES)
+    set(SPATIALNDE2_COMPILE_DEFINTIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -D_USE_MATH_DEFINES)
 ENDIF(MSVC)
 
 # Workaround to specify 64 bit integers not terms of int64_t/uint64_t to accommodate

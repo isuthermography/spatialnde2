@@ -4,7 +4,12 @@
 #ifndef __OPENCL_VERSION__
 // if this is not an OpenCL kernel
 
-#include "snde_types.h"
+#ifndef _USE_MATH_DEFINES
+#define _USE_MATH_DEFINES
+#endif
+
+#include <math.h>
+#include "snde/snde_types.h"
 
 #endif
 
