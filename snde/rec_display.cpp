@@ -193,6 +193,7 @@ namespace snde {
     }),
     vertnormals_function(recdb->lookup_math_function("spatialnde2.vertnormals")),
     colormapping_function(recdb->lookup_math_function("spatialnde2.colormap")),
+    fusion_colormapping_function(recdb->lookup_math_function("spatialnde2.fusion_colormapping")),
     pointcloud_colormapping_function(recdb->lookup_math_function("spatialnde2.pointcloud_colormap")),
     vertexarray_function(recdb->lookup_math_function("spatialnde2.meshedpart_vertexarray")),
     texvertexarray_function(recdb->lookup_math_function("spatialnde2.meshedparameterization_texvertexarray"))

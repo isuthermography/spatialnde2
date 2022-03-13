@@ -542,7 +542,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_spatialnde2_project_point_onto_parameterization_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) -> std::shared_ptr<executing_math_function> {
+    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) -> std::shared_ptr<executing_math_function> {
       if (!inst) {
 	// initial call with no instantiation to probe parameters; just use snde_imagedata case
 	return std::make_shared<project_point_onto_parameterization<snde_imagedata>>(rss,inst);
@@ -574,7 +574,11 @@ namespace snde {
 
       throw snde_error("Projection only supports real or complex imagedata: Can not project onto array of type %s",rtn_typenamemap.at(to_project_rec_ref->typenum));
       
-    }); 
+    });
+
+    newfunc->self_dependent=true;
+    newfunc->mandatory_mutable=true;
+    return newfunc;
   }
   
   // NOTE: Change to SNDE_OCL_API if/when we add GPU acceleration support, and
