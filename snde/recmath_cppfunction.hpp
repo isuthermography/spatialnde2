@@ -956,7 +956,10 @@ namespace snde {
     case SNDE_RTN_COMPLEXFLOAT64:
       return std::make_shared<CppFuncClass<snde_complexfloat64>>(rss,inst);
 
+    case SNDE_RTN_SNDE_COMPLEXIMAGEDATA:
+      return std::make_shared<CppFuncClass<snde_compleximagedata>>(rss,inst);
 
+      
     default:
       //throw snde_error("In attempting to call math function %s, first parameter %s has non-floating point type %s",inst->definition->definition_command.c_str(),firstparam_rec->channel_name.c_str(),rtn_typenamemap.at(firstparam_rec_val->ndinfo()->typenum).c_str());
       return nullptr;
