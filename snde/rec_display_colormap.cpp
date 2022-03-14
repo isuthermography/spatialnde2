@@ -705,7 +705,7 @@ namespace snde {
     
   }
 
-  SNDE_API std::shared_ptr<math_function> fusion_colormapping_function = define_fusion_colormapping_function();
+  SNDE_OCL_API std::shared_ptr<math_function> fusion_colormapping_function = define_fusion_colormapping_function();
 
 
   static int registered_fusion_colormapping_function = register_math_function("spatialnde2.fusion_colormapping",fusion_colormapping_function);
