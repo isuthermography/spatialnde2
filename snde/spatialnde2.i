@@ -624,14 +624,14 @@ template <typename T>
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_KDNODE,(PyArray_Descr *)kdnode_dtype);
   
 
-  PyObject *complexfloat32_dtype = PyRun_String("np.complex64",Py_eval_input,Globals,Globals);
+  PyObject *complexfloat32_dtype = PyRun_String("dtype(np.complex64)",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_COMPLEXFLOAT32,(PyArray_Descr *)complexfloat32_dtype);
 
-  PyObject *complexfloat64_dtype = PyRun_String("np.complex128",Py_eval_input,Globals,Globals);
+  PyObject *complexfloat64_dtype = PyRun_String("dtype(np.complex128)",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_COMPLEXFLOAT64,(PyArray_Descr *)complexfloat64_dtype);
 
 
-  PyObject *snde_compleximagedata_dtype = PyRun_String("np.complex64",Py_eval_input,Globals,Globals);
+  PyObject *snde_compleximagedata_dtype = PyRun_String("dtype(np.complex64)",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COMPLEXIMAGEDATA,(PyArray_Descr *)snde_compleximagedata_dtype);
 
 
