@@ -1583,8 +1583,20 @@ namespace snde {
     layout(rec->layouts.at(rec_index)),
     storage(rec->storage.at(rec_index))
   {
-    assert(this->typenum==typenum);
-    if (storage && storage->typenum != typenum) {
+    
+    bool found_compatible=false;
+    if (this->typenum != typenum) {
+      auto rct_it = rtn_compatible_types.find(this->typenum);
+      if (rct_it != rtn_compatible_types.end()) {
+	auto rct_compat_it = rct_it->second.find(typenum);
+	if (rct_compat_it != rct_it->second.end()) {
+	  found_compatible = true; 
+	}
+      }
+    }
+    
+    assert(this->typenum==typenum || found_compatible);
+    if (storage && storage->typenum != this->typenum) {
       throw snde_error("Type number mismatch between storage and reference: %d vs. %d",(int)storage->typenum,(int)typenum);
     }
   }
