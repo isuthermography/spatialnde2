@@ -1,0 +1,25 @@
+ * Create .step file with choice of tools
+ * Load into netgen-mesher
+ * generate mesh per desired settings.
+ * Export mesh as stl (.stl); units probably mm
+ * Open blender; Delete default cube
+ * Import stl mesh into blender
+ * Select object
+ * Then switch from object mode to edit mode
+ * Go into edge selection mode
+ * Select None
+ * Select seams -- usually with "select sharp edges" function
+ (can pick sharpness)
+ * Right click on select sharp edges tool and mark the seam.
+ * Can also manually select additional seams and mark them too. 
+ * Switch to Face selection mode
+ * Select all faces
+ * UV menu -> Unwrap. Method: Angle-based (conformal seems broken)
+ * Select "UV Editing from the top to see UV space in a separate
+ pane and confirm it is appropriate
+
+ * Export in .x3d format as a _uv.x3d file, with no rotation or scaling
+ * Manually edit the file modifying one of the generated Transform elements
+   surrounding the data so as to convert units to meters (usually
+   scaling of 1e-3 on all axes) and also zeroing out the rotation of
+   the _TRANSFORM
