@@ -778,6 +778,14 @@ namespace snde {
 	//
 
 	
+      } else {
+	// we have an execfunc... Are we the right context to do the
+	// execution (or maybe execution has already begun?)
+	std::lock_guard<std::mutex> execfunc_admin(mathstatus_ptr->execfunc->admin);
+	if (mathstatus_ptr->execfunc->rss != dep_rss) {
+	  // not the right context or already executed (and execfunc->rss is nullptr). 
+	  return; 
+	}
       }
       
       mathstatus_ptr->ready_to_execute=true;

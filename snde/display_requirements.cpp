@@ -1003,7 +1003,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 
     retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_RGBAIMAGEDATA,typeid(*this),colormap_params),rec,shared_from_this()); // display_requirement
 
-    if (ref->storage->typenum != SNDE_RTN_RGBA32) {
+    if (ref->storage->typenum != SNDE_RTN_SNDE_RGBA) {
       // need colormapping */
 
 
@@ -1282,8 +1282,8 @@ std::shared_ptr<display_requirement> fusion_ndarray_recording_display_handler::g
     snde_warning("fusion_ndarray_recording_display_handler::get_display_requirement(): 1D recording rendering not yet implemented");
     //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
     return nullptr;
-  } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && NDim >1 && NDim <= 4 && array_rec->layouts.size()==1) {
-    // goal is to render 2D image or array of images that is a single ndarray
+  } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && NDim >1 && NDim <= 4 && array_rec->layouts.size()==2) {
+    // goal is to render 2D image or array of images that is a single fusion ndarray
 
     // !!!**We ought to have another entry here that can accommodate the frame or sequence axis being multiple ndarrays with consitent_layout_f !!!***
     
@@ -1434,15 +1434,14 @@ std::shared_ptr<display_requirement> fusion_ndarray_recording_display_handler::g
     retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,displaychan,SNDE_SRG_TEXTURE,colormap_params));
     
     return retval;
-  } else if (simple_goal==SNDE_SRG_TEXTURE && array_rec && array_rec->layouts.size()==1 && NDim >1 && NDim <= 4) {
+  } else if (simple_goal==SNDE_SRG_TEXTURE && array_rec && array_rec->layouts.size()==2 && NDim >1 && NDim <= 4) {
     // goal is to obtain a texture from the channel data
     // ***!!! We really should be able to accommodate a frame or sequence axis being multiple ndarrays with consistent_layout_f !!!***
 
     assert(array_rec);
-    assert(array_rec->layouts.size()==1);
     
-    // Simple ndarray recording
-    std::shared_ptr<ndarray_recording_ref> ref = array_rec->reference_ndarray();
+    // Simple fusion ndarray recording
+    std::shared_ptr<ndarray_recording_ref> accum_ref = array_rec->reference_ndarray();
 
 
     std::shared_ptr<rgbacolormapparams> colormap_params = std::dynamic_pointer_cast<rgbacolormapparams>(params_from_parent);
@@ -1451,7 +1450,7 @@ std::shared_ptr<display_requirement> fusion_ndarray_recording_display_handler::g
     // Use multi_ndarray_recording lowlevel renderer because there is no difference (just the different texture colormapping function)
     retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_RGBAIMAGEDATA,typeid(multi_ndarray_recording),colormap_params),rec,shared_from_this()); // display_requirement
 
-    assert(ref->storage->typenum != SNDE_RTN_RGBA32);
+    assert(accum_ref->storage->typenum != SNDE_RTN_SNDE_RGBA);
     
     // need colormapping */
     

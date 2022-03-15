@@ -97,7 +97,7 @@ struct snde_multi_ndarray_recording {
 #define SNDE_RTN_INT16 9
 #define SNDE_RTN_UINT8 10
 #define SNDE_RTN_INT8 11
-#define SNDE_RTN_RGBA32 12 /* R stored in lowest address... Like OpenGL with GL_RGBA and GL_UNSIGNED_BYTE, or snde_rgba type */ 
+#define SNDE_RTN_SNDE_RGBA 12 /* R stored in lowest address... Like OpenGL with GL_RGBA and GL_UNSIGNED_BYTE, or snde_rgba type */ 
 #define SNDE_RTN_COMPLEXFLOAT32 13
 #define SNDE_RTN_COMPLEXFLOAT64 14
 #define SNDE_RTN_COMPLEXFLOAT16 15

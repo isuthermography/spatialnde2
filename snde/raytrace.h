@@ -869,7 +869,6 @@ void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
   snde_index arraywidth,arrayheight;
   int arrayu0,arrayv0;
   snde_coord projecthalfwidth,projecthalfheight;
-  snde_coord newwidth,newheight;
 
   snde_coord uvcoords0_pixels=(uvcoords.coord[0]-projectionarray_instanceinfo.inival.coord[0])/(projectionarray_instanceinfo.step.coord[0]);
   snde_coord uvcoords1_pixels=(uvcoords.coord[1]-projectionarray_instanceinfo.inival.coord[1])/(projectionarray_instanceinfo.step.coord[1]);
@@ -893,7 +892,13 @@ void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
   // Ignore anything at extreme angles of incidence
   //if (angle_of_incidence > 3*M_PI/8) return;
 
+  projecthalfwidth=min_radius_uv_pixels;  // texture coordinates are relative to image size, still 
+  projecthalfheight=min_radius_uv_pixels;
+  
+  
   if (uvcoords_deriv_a && uvcoords_deriv_b) {
+    snde_coord newwidth,newheight;
+
     // jacobian stored row-major, eats (a,b) direction for lunch, gives (u,v) direction
     jacobian[0]=uvcoords_deriv_a->coord[0]; 
     jacobian[1]=uvcoords_deriv_b->coord[0];
@@ -907,21 +912,18 @@ void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
     jacinv[3]=1.0;
     fmatrixsolve(jacobian,jacinv,2,2,jacobian_pivots,0); // ***!!! NOTE: fmatrixsolve destroys jacobian!
     // jacinv stored row-major, eats (u,v) direction for lunch, gives (a,b) direction
-  }
-
   
-  projecthalfwidth=min_radius_uv_pixels;  // texture coordinates are relative to image size, still 
-  projecthalfheight=min_radius_uv_pixels;
+    newwidth=(uvcoords_deriv_a->coord[0]/projectionarray_instanceinfo.step.coord[0])*min_radius_src_pixels; 
+    if (newwidth > projecthalfwidth) projecthalfwidth=newwidth;
+    newheight=(uvcoords_deriv_a->coord[1]/projectionarray_instanceinfo.step.coord[1])*min_radius_src_pixels;
+    if (newheight > projecthalfheight) projecthalfheight=newheight;
+    
+    newwidth=(uvcoords_deriv_b->coord[0]/projectionarray_instanceinfo.step.coord[0])*min_radius_src_pixels;
+    if (newwidth > projecthalfwidth) projecthalfwidth=newwidth;
+    newheight=(uvcoords_deriv_b->coord[1]/projectionarray_instanceinfo.step.coord[1])*min_radius_src_pixels;
+    if (newheight > projecthalfheight) projecthalfheight=newheight;
 
-  newwidth=(uvcoords_deriv_a->coord[0]/projectionarray_instanceinfo.step.coord[0])*min_radius_src_pixels; 
-  if (newwidth > projecthalfwidth) projecthalfwidth=newwidth;
-  newheight=(uvcoords_deriv_a->coord[1]/projectionarray_instanceinfo.step.coord[1])*min_radius_src_pixels;
-  if (newheight > projecthalfheight) projecthalfheight=newheight;
-
-  newwidth=(uvcoords_deriv_b->coord[0]/projectionarray_instanceinfo.step.coord[0])*min_radius_src_pixels;
-  if (newwidth > projecthalfwidth) projecthalfwidth=newwidth;
-  newheight=(uvcoords_deriv_b->coord[1]/projectionarray_instanceinfo.step.coord[1])*min_radius_src_pixels;
-  if (newheight > projecthalfheight) projecthalfheight=newheight;
+  }
   
   arraywidth = (size_t) (projecthalfwidth*2+1);
   arrayheight= (size_t) (projecthalfheight*2+1);

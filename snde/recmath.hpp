@@ -485,6 +485,19 @@ namespace snde {
     virtual ~math_parameter_mismatch() = default;
   };
 
+  class silent_math_parameter_mismatch: public math_parameter_mismatch {
+  public:
+    // mismatch class that doesn't print the error, to accommodate
+    // e.g. null recording parameters without making a big todo. 
+    template<typename ... Args>
+    silent_math_parameter_mismatch(std::string fmt, Args && ... args) :
+      math_parameter_mismatch(fmt,std::forward<Args>(args) ...)
+    {
+
+    }
+    virtual ~silent_math_parameter_mismatch() = default;
+  };
+
 
   //class registered_math_function {
   //public:

@@ -414,19 +414,28 @@ namespace snde {
   std::shared_ptr<ndarray_recording_ref> math_parameter_recording::get_ndarray_recording_ref(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings because we shouldn't be called until our deps are ready.
   // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
-    std::shared_ptr<multi_ndarray_recording> rec=std::dynamic_pointer_cast<multi_ndarray_recording>(get_recording(rss,channel_path_context,fcn_def,parameter_index));
+    std::shared_ptr<recording_base> rec = get_recording(rss,channel_path_context,fcn_def,parameter_index);
 
-    if (!rec) {
+    
+    std::shared_ptr<multi_ndarray_recording> mnd_rec=std::dynamic_pointer_cast<multi_ndarray_recording>(rec);
+    
+    if (!mnd_rec) {
+      if (typeid(*rec.get())==typeid(null_recording)) {
+	// If the recording parameter is actually null,
+	// still throw the error but make it silent
+	throw silent_math_parameter_mismatch("Recording parameter %s relative to %s is not convertible to a multi_ndarray_recording",channel_name.c_str(),channel_path_context.c_str());
+      }
+      
       throw math_parameter_mismatch("Recording parameter %s relative to %s is not convertible to a multi_ndarray_recording",channel_name.c_str(),channel_path_context.c_str());
     }
 
     size_t index = array_index;
 
     if (array_name.size() > 0) { // if array_name given, use it to look up index 
-      index = rec->name_mapping.at(array_name);
+      index = mnd_rec->name_mapping.at(array_name);
     }
     
-    return rec->reference_ndarray(index); 
+    return mnd_rec->reference_ndarray(index); 
   }
 
 }

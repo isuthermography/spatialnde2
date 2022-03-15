@@ -434,9 +434,12 @@ namespace snde {
     
     
     /***!!! Insert uv patches and images here ***!!! */
+    add_grouped_arrays(&next_region_id,&geom.compleximagebuf,"compleximagebuf");
 
     add_grouped_arrays(&next_region_id,&geom.imagebuf,"imagebuf");
-    
+
+    add_grouped_arrays(&next_region_id,&geom.totals,"totals");
+
     
     add_grouped_arrays(&next_region_id,&geom.vertex_arrays,"vertex_arrays");
     add_grouped_arrays(&next_region_id,&geom.texvertex_arrays,"texvertex_arrays");
@@ -592,9 +595,16 @@ namespace snde {
 
     std::unordered_map<std::string,void **>::iterator arrayaddr_it;
 
-    if (array_name=="") {
+    if (array_name=="" && typenum==SNDE_RTN_SNDE_IMAGEDATA) {
       // redirect anonymous allocation requests to the image projection data buffer
       array_name = "imagebuf"; 
+    } else if (array_name=="" && typenum==SNDE_RTN_SNDE_COMPLEXIMAGEDATA) {
+      // redirect anonymous allocation requests to the image projection data buffer
+      array_name = "compleximagebuf"; 
+    }
+    else if (array_name=="" && typenum==SNDE_RTN_SNDE_RGBA) {
+      // redirect anonymous allocation requests to the texture data buffer
+      array_name = "texbuffer"; 
     }
     
 

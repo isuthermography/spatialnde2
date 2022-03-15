@@ -565,9 +565,9 @@ template <typename T>
   snde::rtn_numpytypemap.emplace(SNDE_RTN_INT16,PyArray_DescrFromType(NPY_INT16));
   snde::rtn_numpytypemap.emplace(SNDE_RTN_UINT8,PyArray_DescrFromType(NPY_UINT8));
   snde::rtn_numpytypemap.emplace(SNDE_RTN_INT8,PyArray_DescrFromType(NPY_INT8));
-  // SNDE_RTN_RGBA32
+  // SNDE_RTN_SNDE_RGBA
   PyObject *rgba32_dtype = PyRun_String("dtype([('r', np.uint8), ('g', np.uint8), ('b',np.uint8),('a',np.uint8)])",Py_eval_input,Globals,Globals);
-  snde::rtn_numpytypemap.emplace(SNDE_RTN_RGBA32,(PyArray_Descr *)rgba32_dtype);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_RGBA,(PyArray_Descr *)rgba32_dtype);
   
   snde::rtn_numpytypemap.emplace(SNDE_RTN_COMPLEXFLOAT32,PyArray_DescrFromType(NPY_COMPLEX64));
   snde::rtn_numpytypemap.emplace(SNDE_RTN_COMPLEXFLOAT64,PyArray_DescrFromType(NPY_COMPLEX128));

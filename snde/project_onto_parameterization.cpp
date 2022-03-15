@@ -148,6 +148,9 @@ namespace snde {
 	// metadata code
 	std::shared_ptr<constructible_metadata> metadata=std::make_shared<constructible_metadata>(*to_project->rec->metadata);
 
+	// override any previous render goal with default
+	metadata->AddMetaDatum(metadatum("snde_render_goal","SNDE_SRG_RENDERING"));
+
 
 	snde_index min_u = 0.0;
 	snde_index max_u = 0.0;
@@ -179,7 +182,7 @@ namespace snde {
 	  //  false
 	  //  );
 	  
-	  std::shared_ptr<ndtyped_recording_ref<snde_parameterization_patch>> patch_ref = param->reference_typed_ndarray<snde_parameterization_patch>("uv_patchess");
+	  std::shared_ptr<ndtyped_recording_ref<snde_parameterization_patch>> patch_ref = param->reference_typed_ndarray<snde_parameterization_patch>("uv_patches");
 	  snde_boxcoord2 uv_domain = patch_ref->element(0).domain;
 	  
 	  min_u = uv_domain.min.coord[0]; 
@@ -246,7 +249,7 @@ namespace snde {
 	  std::shared_ptr<graphics_storage_manager> graphman = std::dynamic_pointer_cast<graphics_storage_manager>(result_rec->assign_storage_manager());
 	  
 	  if (!graphman) {
-	    throw snde_error("inplanemat_calculation: Output arrays must be managed by a graphics storage manager");
+	    throw snde_error("project_onto_parameterization: Output arrays must be managed by a graphics storage manager");
 	  }
 	  
 
@@ -304,7 +307,7 @@ namespace snde {
 	  
       
 	  if (!build_on_previous) {
-	    result_rec->allocate_storage(0,dimlen,true); // storage for image
+	    result_rec->allocate_storage_in_named_array(0,is_complex ? "compleximagebuf":"imagebuf",dimlen,true); // storage for image
 	    result_rec->allocate_storage(1,dimlen,true); // storage for validity mask 
 	  } else {
 	    // accumulate on top of previous recording -- it is mutable storage!
@@ -526,7 +529,7 @@ namespace snde {
 	    }
 	    
 	    
-	    snde_warning("Project_onto_parameterization calculation complete.");
+	    //snde_warning("Project_onto_parameterization calculation complete.");
 	    
 	    
 	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 

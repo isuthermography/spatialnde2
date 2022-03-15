@@ -178,6 +178,8 @@ extern "C" {
     snde_imagedata *imagebuf; // image data buffer used for projecting data into. This is also used by geometry_storage for anonymous allocations
     //allocatorbase *imagebuf_alloc; // really allocator<snde_imagedata>*
 
+    snde_float32 *totals; // used for fusion_ndarray_recordings that usually go into imagebuf or compleximagebuf
+    
     snde_coord *zbuffer; /* separately allocated */
     snde_coord *weightingbuf; /* separately allocated */
     snde_coord *validitybuf; /* separately allocated */

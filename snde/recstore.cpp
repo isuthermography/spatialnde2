@@ -29,7 +29,7 @@ namespace snde {
       {typeid(int16_t),SNDE_RTN_INT16},
       {typeid(uint8_t),SNDE_RTN_UINT8},
       {typeid(int8_t),SNDE_RTN_INT8},
-      {typeid(snde_rgba),SNDE_RTN_RGBA32},
+      {typeid(snde_rgba),SNDE_RTN_SNDE_RGBA},
       {typeid(snde_complexfloat32),SNDE_RTN_COMPLEXFLOAT32},
       {typeid(snde_complexfloat64),SNDE_RTN_COMPLEXFLOAT64},
       {typeid(snde_rgbd),SNDE_RTN_RGBD64},
@@ -100,7 +100,7 @@ namespace snde {
       {SNDE_RTN_INT16,sizeof(int16_t)},
       {SNDE_RTN_UINT8,sizeof(uint8_t)},
       {SNDE_RTN_INT8,sizeof(int8_t)},
-      {SNDE_RTN_RGBA32,sizeof(snde_rgba)},
+      {SNDE_RTN_SNDE_RGBA,sizeof(snde_rgba)},
       {SNDE_RTN_COMPLEXFLOAT32,sizeof(snde_complexfloat32)},
       {SNDE_RTN_COMPLEXFLOAT64,sizeof(snde_complexfloat64)},
 #ifdef SNDE_HAVE_FLOAT16
@@ -157,7 +157,7 @@ namespace snde {
       {SNDE_RTN_INT16,"SNDE_RTN_INT16"},
       {SNDE_RTN_UINT8,"SNDE_RTN_UINT8"},
       {SNDE_RTN_INT8,"SNDE_RTN_INT8"},
-      {SNDE_RTN_RGBA32,"SNDE_RTN_RGBA32"},
+      {SNDE_RTN_SNDE_RGBA,"SNDE_RTN_SNDE_RGBA"},
       {SNDE_RTN_COMPLEXFLOAT32,"SNDE_RTN_COMPLEXFLOAT32"},
       {SNDE_RTN_COMPLEXFLOAT64,"SNDE_RTN_COMPLEXFLOAT64"},
       {SNDE_RTN_COMPLEXFLOAT16,"SNDE_RTN_COMPLEXFLOAT16"},
@@ -225,7 +225,7 @@ namespace snde {
       {SNDE_RTN_INT16,"short"},
       {SNDE_RTN_UINT8,"unsigned char"},
       {SNDE_RTN_INT8,"char"},
-      {SNDE_RTN_RGBA32,"snde_rgba"},
+      {SNDE_RTN_SNDE_RGBA,"snde_rgba"},
       {SNDE_RTN_COMPLEXFLOAT32,"struct { float real; float imag; }"},
       {SNDE_RTN_COMPLEXFLOAT64,"struct { double real; double imag; }"},
       {SNDE_RTN_COMPLEXFLOAT16,"struct { half real; half imag; }"},
@@ -1126,7 +1126,7 @@ namespace snde {
       ref = std::make_shared<ndtyped_recording_ref<int8_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
       break;
 
-    case SNDE_RTN_RGBA32:
+    case SNDE_RTN_SNDE_RGBA:
       ref = std::make_shared<ndtyped_recording_ref<snde_rgba>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
       break;
       
@@ -1416,6 +1416,34 @@ namespace snde {
   }
 
 
+  std::shared_ptr<recording_storage> multi_ndarray_recording::allocate_storage_in_named_array(size_t array_index,std::string storage_array_name,const std::vector<snde_index> &dimlen, bool fortran_order) // fortran_order defaults to false
+  // must assign info.elementsize and info.typenum before calling allocate_storage()
+  // fortran_order only affects physical layout, not logical layout (interpretation of indices)
+  {
+    size_t dimnum;
+    snde_index nelem=1;
+    std::shared_ptr<recording_storage_manager> storman;
+    std::shared_ptr<recording_storage> stor;
+
+    for (dimnum=0;dimnum < dimlen.size();dimnum++) {
+      nelem *= dimlen.at(dimnum);
+    }
+
+
+    storman = assign_storage_manager();
+    
+    // NOTE: Graphics storage manager allocate_recording() will create a nonmoving shadow if possible
+    // to eliminate the need for locking
+    stor = storman->allocate_recording(info->name,storage_array_name,info->revision,originating_rss_unique_id,array_index,ndinfo(array_index)->elementsize,ndinfo(array_index)->typenum,nelem,!info->immutable);
+    
+    assign_storage(stor,array_index,dimlen,fortran_order);
+
+    return stor;
+    
+  }
+
+
+  
   std::shared_ptr<recording_storage> multi_ndarray_recording::allocate_storage(std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order) // fortran_order defaults to false
   // must assign info.elementsize and info.typenum before calling allocate_storage()
   // fortran_order only affects physical layout, not logical layout (interpretation of indices)
