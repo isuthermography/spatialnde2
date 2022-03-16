@@ -152,10 +152,10 @@ namespace snde {
 	metadata->AddMetaDatum(metadatum("snde_render_goal","SNDE_SRG_RENDERING"));
 
 
-	snde_index min_u = 0.0;
-	snde_index max_u = 0.0;
-	snde_index min_v = 1.0;
-	snde_index max_v = 1.0;
+	snde_coord min_u = 0.0;
+	snde_coord max_u = 0.0;
+	snde_coord min_v = 1.0;
+	snde_coord max_v = 1.0;
 	
 	snde_index numuvpatches=0;
 	{

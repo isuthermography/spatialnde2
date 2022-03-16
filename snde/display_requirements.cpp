@@ -1420,7 +1420,7 @@ std::shared_ptr<display_requirement> fusion_ndarray_recording_display_handler::g
     // if the parent just pulls from the cache
 
     // Use multi_ndarray_recording lowlevel renderer because there is no difference (just the different texture colormapping function)
-    retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_RGBAIMAGE,typeid(multi_ndarray_recording/**this*/),colormap_params),rec,shared_from_this());
+    retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_RGBAIMAGE,typeid(multi_ndarray_recording_display_handler/**this*/),colormap_params),rec,shared_from_this());
     retval->renderer_type = SNDE_DRRT_2D;
     //retval->imgref = std::make_shared<image_reference>(chanpath,u_dimnum,v_dimnum,other_indices);
     retval->renderable_channelpath = std::make_shared<std::string>(chanpath); 
@@ -1448,7 +1448,7 @@ std::shared_ptr<display_requirement> fusion_ndarray_recording_display_handler::g
     assert(colormap_params);
 
     // Use multi_ndarray_recording lowlevel renderer because there is no difference (just the different texture colormapping function)
-    retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_RGBAIMAGEDATA,typeid(multi_ndarray_recording),colormap_params),rec,shared_from_this()); // display_requirement
+    retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_RGBAIMAGEDATA,typeid(multi_ndarray_recording_display_handler),colormap_params),rec,shared_from_this()); // display_requirement
 
     assert(accum_ref->storage->typenum != SNDE_RTN_SNDE_RGBA);
     

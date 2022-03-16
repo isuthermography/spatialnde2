@@ -576,15 +576,15 @@ namespace snde {
 	std::tie(cacheentry,locks_required,modified) = renderer->prepare_render(display_transforms->with_display_transforms,RenderCache,display_reqs,compositor_width,compositor_height);
 	
 	// rerender either if there is a modification to the tree, or if we have OSG events (such as rotating, etc)
-	snde_debug(SNDE_DC_RENDERING,"compositor about to render %s: 0x%lx modified=%d; empty=%d",display_req.second->channelpath.c_str(),(unsigned long)renderer->EventQueue.get(),(int)modified,renderer->EventQueue->empty());
+	snde_debug(SNDE_DC_RENDERING,"compositor about to render %s: 0x%llx 0x%llx modified=%d; empty=%d",display_req.second->channelpath.c_str(),(unsigned long long)cacheentry.get(),(unsigned long long)renderer->EventQueue.get(),(int)modified,(int)renderer->EventQueue->empty());
 	if (cacheentry && (modified || !renderer->EventQueue->empty())) {
 	  {
 	    std::shared_ptr<recdatabase> recdb_strong(recdb);
 	    if (recdb_strong) {
 	      rwlock_token_set frame_locks = recdb_strong->lockmgr->lock_recording_refs(locks_required,false /*bool gpu_access */); // gpu_access is false because that is only needed for gpgpu calculations like OpenCL where we might be trying to map the entire scene data in one large all-encompassing array
 
-	      if (display_req.second->channelpath=="/accumulator") {
-		osgDB::writeNodeFile(*renderer->Viewer->getSceneData(),"/tmp/accumulator.osg");
+	      if (display_req.second->channelpath=="/graphics/projection") {
+		osgDB::writeNodeFile(*renderer->Viewer->getSceneData(),"/tmp/projection.osg");
 		//std::cout << "ViewMatrix:\n " << Eigen::Map<Eigen::Matrix4d>(renderer->Camera->getViewMatrix().ptr()) << "\n";
 		//std::cout << "InverseViewMatrix:\n " << Eigen::Map<Eigen::Matrix4d>(renderer->Camera->getInverseViewMatrix().ptr()) << "\n";
 	      }
