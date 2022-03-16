@@ -942,9 +942,20 @@ typedef uint64_t snde_infostore_lock_mask_t;
 	lock.unlock();
 	return std::make_pair(&thislock->whole->reader,_get_preexisting_lock_read_lockobj(all_locks, thislock->whole));
       } else {
-	std::shared_ptr<rwlock> rwlockobj = thislock->subregions.at(markedregion(pos,pos+size));
-	lock.unlock();
-	return std::make_pair(&rwlockobj->reader,_get_preexisting_lock_read_lockobj(all_locks, rwlockobj));
+	auto rwlockobj_iter = thislock->subregions.find(markedregion(pos,pos+size));
+	if (rwlockobj_iter != thislock->subregions.end()) {
+	  
+	  std::shared_ptr<rwlock> rwlockobj = rwlockobj_iter->second; //thislock->subregions.at(markedregion(pos,pos+size));
+	  // now that we hold the shared pointer it can't be deleted behind our back, and
+	  // locking it secures the keepalive. 
+	  
+	  lock.unlock();
+	  return std::make_pair(&rwlockobj->reader,_get_preexisting_lock_read_lockobj(all_locks, rwlockobj));
+	} else {
+	  // subregion missing. This means it was deleted behind our back and therefore no longer needs to be locked
+	  return std::make_pair(nullptr,nullptr);
+	  
+	}
       }
     }
     
@@ -957,8 +968,9 @@ typedef uint64_t snde_infostore_lock_mask_t;
       rwlock_lockable *lockobj;
       std::tie(lockobj,retval)=_get_preexisting_lock_read_array_region(all_locks,arrayidx,pos,size);
       
-      if (retval == nullptr) {
-	
+      if (lockobj && !retval) {
+	/* if we got here, we do not have a token, need to make one */
+
 	retval = rwlock_token(new std::unique_lock<rwlock_lockable>(*lockobj));
 	(*all_locks)[lockobj]=retval;
       }
@@ -997,14 +1009,26 @@ typedef uint64_t snde_infostore_lock_mask_t;
       }
       (*token_set)[&alock->whole->reader]=wholearray_token;
             
-      /* now that we have wholearray_lock, nobody else can do allocations, etc. that may modify subregions, 
-	 so we can safely iterate over it without holding the admin lock */
-      
-      for (auto & markedregion_rwlock : alock->subregions) {
+      /* now that we have wholearray_lock, nobody else can do allocations, etc. that may add to subregions, 
+	 but we can't safely iterate over it without holding the admin lock because entries might expire 
+	 (via freallocation()). What we can do is copy it but we have to be careful in case something is
+	 freed behind our back. 
+      */
+
+      std::map<markedregion,std::shared_ptr<rwlock>> alock_subregions_copy;
+      {
+	std::lock_guard<std::mutex> alock_admin(alock->admin);
+	alock_subregions_copy = alock->subregions; 
+      }
+
+      for (auto & markedregion_rwlock : alock_subregions_copy) {
 	rwlock_lockable *lockableptr;
 	rwlock_token token;
 	std::tie(lockableptr,token)=_get_lock_read_array_region(all_locks,idx,markedregion_rwlock.first.regionstart,markedregion_rwlock.first.regionend-markedregion_rwlock.first.regionstart);
-	(*token_set)[lockableptr]=token;
+	if (lockableptr) {
+	  // can be nullptr if the lockable was freed before we could lock it (otherwise kept in place by the keepalive)
+	  (*token_set)[lockableptr]=token;
+	}
       }
       return token_set;
     }
@@ -1044,11 +1068,20 @@ typedef uint64_t snde_infostore_lock_mask_t;
       }
 
       (*token_set)[&alock->whole->reader]=wholearray_token;
+
+      /* now that we have wholearray_lock, nobody else can do allocations, etc. that may add to subregions, 
+	 but we can't safely iterate over it without holding the admin lock because entries might expire 
+	 (via freallocation()). What we can do is copy it but we have to be careful in case something is
+	 freed behind our back. In this case the preexisting lock is required, so that should be findable
+      */
+
+      std::map<markedregion,std::shared_ptr<rwlock>> alock_subregions_copy;
+      {
+	std::lock_guard<std::mutex> alock_admin(alock->admin);
+	alock_subregions_copy = alock->subregions; 
+      }
       
-      /* now that we have wholearray_lock, nobody else can do allocations, etc. that may modify subregions, 
-	 so we can safely iterate over it without holding the admin lock */
-      
-      for (auto & markedregion_rwlock : alock->subregions) {	
+      for (auto & markedregion_rwlock : alock_subregions_copy) {	
       
 	rwlock_lockable *lockableptr;
 	rwlock_token preexisting_lock;
@@ -1185,9 +1218,17 @@ typedef uint64_t snde_infostore_lock_mask_t;
 	return std::make_pair(&thislock->whole->writer,_get_preexisting_lock_write_lockobj(all_locks,thislock->whole));
 	
       }
-      std::shared_ptr<rwlock> rwlockobj = thislock->subregions.at(markedregion(indexstart,indexstart+numelems));
-      lock.unlock();
-      return std::make_pair(&rwlockobj->writer,_get_preexisting_lock_write_lockobj(all_locks,rwlockobj));
+      auto rwlockobj_iter = thislock->subregions.find(markedregion(indexstart,indexstart+numelems));
+      if (rwlockobj_iter != thislock->subregions.end()) {
+	std::shared_ptr<rwlock> rwlockobj = rwlockobj_iter->second; // thislock->subregions.at(markedregion(indexstart,indexstart+numelems));
+	// now that we hold the shared pointer it can't be deleted behind our back, and
+	// locking it secures the keepalive. 
+	lock.unlock(); 
+	return std::make_pair(&rwlockobj->writer,_get_preexisting_lock_write_lockobj(all_locks,rwlockobj));
+      } else {
+	// subregion missing. This means it was deleted behind our back and therefore no longer needs to be locked
+	return std::make_pair(nullptr,nullptr);
+      }
       
     }
     
@@ -1200,7 +1241,8 @@ typedef uint64_t snde_infostore_lock_mask_t;
 
 
       std::tie(lockobj,retval)=_get_preexisting_lock_write_array_region(all_locks,arrayidx,pos,size);
-      if (retval == nullptr) {
+      
+      if (lockobj && !retval) {
 	
 	/* if we got here, we do not have a token, need to make one */
 	retval = std::make_shared<std::unique_lock<rwlock_lockable>>(*lockobj);
@@ -1243,16 +1285,29 @@ typedef uint64_t snde_infostore_lock_mask_t;
       }
       (*token_set)[&alock->whole->writer]=wholearray_token;
       
-      /* now that we have wholearray_lock, nobody else can do allocations, etc. that may modify subregions, 
-	 so we can safely iterate over it without holding the admin lock */
+      /* now that we have wholearray_lock, nobody else can do allocations, etc. that may add to subregions, 
+	 but we can't safely iterate over it without holding the admin lock because entries might expire 
+	 (via freallocation()). What we can do is copy it but we have to be careful in case something is
+	 freed behind our back. 
+      */
+
       
-      for (auto & markedregion_rwlock : alock->subregions) {
+      std::map<markedregion,std::shared_ptr<rwlock>> alock_subregions_copy;
+      {
+	std::lock_guard<std::mutex> alock_admin(alock->admin);
+	alock_subregions_copy = alock->subregions; 
+      }
+      
+      for (auto & markedregion_rwlock : alock_subregions_copy) {
 	
 	//(*token_set)[&markedregion_rwlock.second.writer]
 	rwlock_lockable *lockableptr;
 	rwlock_token token;
 	std::tie(lockableptr,token)=_get_lock_write_array_region(all_locks,idx,markedregion_rwlock.first.regionstart,markedregion_rwlock.first.regionend-markedregion_rwlock.first.regionstart);
-	(*token_set)[lockableptr]=token;
+	if (lockableptr) {
+	  // can be nullptr if the lockable was freed before we could lock it (otherwise kept in place by the keepalive)
+	  (*token_set)[lockableptr]=token;
+	}
       }
       return token_set;
     }
@@ -1292,10 +1347,19 @@ typedef uint64_t snde_infostore_lock_mask_t;
 
       (*token_set)[&alock->whole->writer]=wholearray_token;
       
-      /* now that we have wholearray_lock, nobody else can do allocations, etc. that may modify subregions, 
-	 so we can safely iterate over it without holding the admin lock */
+      /* now that we have wholearray_lock, nobody else can do allocations, etc. that may add to subregions, 
+	 but we can't safely iterate over it without holding the admin lock because entries might expire 
+	 (via freallocation()). What we can do is copy it but we have to be careful in case something is
+	 freed behind our back. In this case the preexisting lock is required, so that should be findable.
+      */
+
+      std::map<markedregion,std::shared_ptr<rwlock>> alock_subregions_copy;
+      {
+	std::lock_guard<std::mutex> alock_admin(alock->admin);
+	alock_subregions_copy = alock->subregions; 
+      }
       
-      for (auto & markedregion_rwlock : alock->subregions) {	
+      for (auto & markedregion_rwlock : alock_subregions_copy) {	
 	rwlock_lockable *lockableptr;
 	rwlock_token preexisting_lock;
       
