@@ -591,6 +591,8 @@ template <typename T>
 
   // ***!!! Still need numpy dtypes for most graphics arrays!!!***
 #ifdef SNDE_DOUBLEPREC_COORDS
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD,PyArray_DescrFromType(NPY_FLOAT64));
+  
   PyObject *coord3_dtype = PyRun_String("dtype([('coord', np.float64, 3), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD3,(PyArray_Descr *)coord3_dtype);
   PyObject *coord4_dtype = PyRun_String("dtype([('coord', np.float64, 4), ])",Py_eval_input,Globals,Globals);
@@ -602,6 +604,8 @@ template <typename T>
   PyObject *orientation3_dtype = PyRun_String("dtype([('offset', np.float64, 4), ('quat', np.float64,4) ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_ORIENTATION3,(PyArray_Descr *)orientation3_dtype);
 #else
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD,PyArray_DescrFromType(NPY_FLOAT32));
+  
   PyObject *coord3_dtype = PyRun_String("dtype([('coord', np.float32, 3), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD3,(PyArray_Descr *)coord3_dtype);
   PyObject *coord4_dtype = PyRun_String("dtype([('coord', np.float32, 4), ])",Py_eval_input,Globals,Globals);
