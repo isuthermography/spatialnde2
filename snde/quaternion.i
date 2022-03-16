@@ -19,7 +19,7 @@
   Py_IncRef((PyObject *)ArrayDescr); // because PyArray_NewFromDescr steals a reference to its descr parameter
 
   // Cast to our desired type
-  castedarrayobj = (PyArrayObject *)PyArray_CheckFromAny($input,ArrayDescr,0,0,NPY_ARRAY_C_CONTIGUOUS|NPY_ARRAY_NOTSWAPPED|NPY_ARRAY_ELEMENTSTRIDES,nullptr);
+  castedarrayobj = (PyArrayObject *)PyArray_CheckFromAny($input,ArrayDescr,0,0,NPY_ARRAY_F_CONTIGUOUS|NPY_ARRAY_NOTSWAPPED|NPY_ARRAY_ELEMENTSTRIDES,nullptr);
   if (!castedarrayobj) {
     SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
 			  "$argnum"" input typemap: Input data is not compatible with contiguous snde_coord");
