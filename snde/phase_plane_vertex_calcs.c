@@ -60,7 +60,7 @@ void phase_plane_vertices_alphas_one(OCL_GLOBAL_ADDR ppvao_intype *complex_input
   //printf("ppvao: width_direction.real=%f;linewidth_horiz=%f\n",width_direction.real,linewidth_horiz);
   //printf("ppvao: tvout.coord[0]=%f\n",prior_coords.real - linewidth_horiz*width_direction.real/2.0);
 
-  printf("ppvao: totalpos=%u; totallen=%u\n",(unsigned)totalpos,(unsigned)totallen);
+  //printf("ppvao: totalpos=%u; totallen=%u\n",(unsigned)totalpos,(unsigned)totallen);
   tri_vertices[pos*6].coord[0] = prior_coords.real - linewidth_horiz*width_direction.real/2.0;
   tri_vertices[pos*6].coord[1] = prior_coords.imag - linewidth_vert*width_direction.imag/2.0;
   tri_vertices[pos*6].coord[2] = 0.0f;
