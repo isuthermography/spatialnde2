@@ -175,9 +175,14 @@ namespace snde {
       
     }
 
-    // assign recordings to all referencing rss recordings (should all still exist)
+    // assign recordings to all referencing rss recordings (should all still exist)  -- but it turns out sometimes maybe not (dynamic calcs?)
     for (auto && referencing_rss_weak: referencing_rss_copy) {
-      std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
+      //std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
+      std::shared_ptr<recording_set_state> referencing_rss_strong=referencing_rss_weak.lock();
+      if (!referencing_rss_strong) {
+	snde_warning("recmath_compute_resource.cpp: _tfrs: referencing_rss is already expired!");
+	continue;
+      }
 
       if (referencing_rss_strong==ignore_rss) {
 	continue; // ignore ignored-rss
@@ -230,8 +235,13 @@ namespace snde {
     }
 
     for (auto && referencing_rss_weak: referencing_rss_copy) {
-      std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
-      
+      //std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
+      std::shared_ptr<recording_set_state> referencing_rss_strong=referencing_rss_weak.lock();
+      if (!referencing_rss_strong) {
+	snde_warning("recmath_compute_resource.cpp: _ecn: referencing_rss is already expired!");
+	continue;
+      }
+
       execution_complete_notify_single_referencing_rss(recdb,execfunc,mdonly,possibly_redundant,prerequisite_state,referencing_rss_strong);
     }
     
@@ -567,7 +577,11 @@ namespace snde {
 	  }
 	  
 	} catch (const math_parameter_mismatch &exc) {
-	  snde_warning("Math parameter mismatch in initiate_execution(): %s (function %s)",exc.shortwhat(),execfunc->inst->definition->definition_command.c_str());
+	  if (typeid(exc)==typeid(silent_math_parameter_mismatch)) {
+	    snde_debug(SNDE_DC_RECMATH,"Silent math parameter mismatch in initiate_execution(): %s (function %s)",exc.shortwhat(),execfunc->inst->definition->definition_command.c_str());
+	  } else  {
+	    snde_warning("Math parameter mismatch in initiate_execution(): %s (function %s)",exc.shortwhat(),execfunc->inst->definition->definition_command.c_str());
+	  }
 	  snde_debug(SNDE_DC_RECMATH,"Full backtrace: %s",exc.what());
 	  
 	  // This code here is identical to the initiate_execution() null return case above

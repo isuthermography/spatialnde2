@@ -6,8 +6,6 @@
 extern "C" {
 #endif
 
-#define _USE_MATH_DEFINES
-#include <math.h>
 
 
 static inline void tricentroid3(snde_coord3 *verts, snde_coord3 *centroid_out)

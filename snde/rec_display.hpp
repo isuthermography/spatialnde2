@@ -225,6 +225,7 @@ namespace snde {
     
     const std::shared_ptr<math_function> vertnormals_function; // immutable
     const std::shared_ptr<math_function> colormapping_function; // immutable
+    const std::shared_ptr<math_function> fusion_colormapping_function; // immutable
     const std::shared_ptr<math_function> pointcloud_colormapping_function; // immutable
     const std::shared_ptr<math_function> vertexarray_function; // immutable
     const std::shared_ptr<math_function> texvertexarray_function; // immutable

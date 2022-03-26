@@ -1003,7 +1003,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 
     retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_RGBAIMAGEDATA,typeid(*this),colormap_params),rec,shared_from_this()); // display_requirement
 
-    if (ref->storage->typenum != SNDE_RTN_RGBA32) {
+    if (ref->storage->typenum != SNDE_RTN_SNDE_RGBA) {
       // need colormapping */
 
 
@@ -1199,6 +1199,302 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
   snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Could not create display requirement for %s",chanpath.c_str());
   return nullptr;
 }
+
+
+
+
+fusion_ndarray_recording_display_handler::fusion_ndarray_recording_display_handler(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) :
+  recording_display_handler_base(display,displaychan,base_rss)
+{
+
+}
+
+// register this handler for mode SNDE_SRG_RENDERING and SNDE_SRG_RENDERING_2D
+static int register_fnr_display_handler_rendering = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(fusion_ndarray_recording)),std::make_shared<registered_recording_display_handler>( [] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+      return std::make_shared<fusion_ndarray_recording_display_handler>(display,displaychan,base_rss);
+    }));
+
+static int register_fnr_display_handler_rendering_2d = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING_2D,typeid(fusion_ndarray_recording)),std::make_shared<registered_recording_display_handler>( [] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+      return std::make_shared<fusion_ndarray_recording_display_handler>(display,displaychan,base_rss);
+    }));
+
+
+// register this handler for mode SNDE_SRG_TEXTURE for multi_ndarray_recordings...
+static int register_fnr_display_handler_texture = register_recording_display_handler(rendergoal(SNDE_SRG_TEXTURE,typeid(fusion_ndarray_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+      return std::make_shared<fusion_ndarray_recording_display_handler>(display,displaychan,base_rss);
+    }));
+
+
+std::shared_ptr<display_requirement> fusion_ndarray_recording_display_handler::get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent)
+{
+  std::shared_ptr<display_requirement> retval=nullptr;
+  
+  const std::string &chanpath = displaychan->FullName;
+  std::shared_ptr<recording_base> rec = base_rss->get_recording(chanpath);
+  
+  std::shared_ptr<fusion_ndarray_recording> array_rec=std::dynamic_pointer_cast<fusion_ndarray_recording>(rec);
+  assert(array_rec);
+
+    
+
+  std::vector<snde_index> layout_dims;
+  snde_index layout_length=0;
+  
+  bool consistent_layout_c=true; // consistent_layout_c means multiple arrays but all with the same layout except for the first axis which is implicitly concatenated
+  bool consistent_layout_f=true; // consistent_layout_f means multiple arrays but all with the same layout except for the last axis which is implicitly concatenated
+  bool consistent_ndim=true; 
+  
+  std::tie(consistent_ndim,consistent_layout_c,consistent_layout_f,layout_dims,layout_length)
+    = analyze_potentially_batched_multi_ndarray_layout(array_rec);
+
+  snde_index NDim = 0;
+  if (array_rec->layouts.size() > 0) {
+    NDim = array_rec->layouts.at(0).dimlen.size();
+  }
+  
+  snde_index DimLen1=1;
+  if (NDim > 0) {
+    DimLen1 = array_rec->layouts[0].dimlen[0];
+  }
+
+  std::shared_ptr<display_axis> axis=display->GetFirstAxis(chanpath);
+
+  snde_debug(SNDE_DC_DISPLAY,"fusion_ndarray_recording_display_handler::get_display_requirement: simple_goal=\"%s\"; NDim=%llu",simple_goal.c_str(),(unsigned long long)NDim);
+
+
+  
+  if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && (array_rec->layouts[0].flattened_length()==0)) {
+
+    // goal is to render empty waveform 
+    //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
+    
+    snde_warning("fusion_ndarray_recording_display_handler::get_display_requirement(): Empty recording rendering not yet implemented");
+    
+    return nullptr;
+  } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && array_rec->layouts.size()==1 && (NDim == 0 || (NDim == 1 &&  DimLen1==1))) {
+    // goal is to render 0D or single point recording
+    /* "single point" recording */
+    snde_warning("fusion_ndarray_recording_display_handler::get_display_requirement(): Single point recording rendering not yet implemented");
+    //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
+    return nullptr;
+  } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && NDim==1) {
+    // goal is to render 1D recording
+    snde_warning("fusion_ndarray_recording_display_handler::get_display_requirement(): 1D recording rendering not yet implemented");
+    //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
+    return nullptr;
+  } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && NDim >1 && NDim <= 4 && array_rec->layouts.size()==2) {
+    // goal is to render 2D image or array of images that is a single fusion ndarray
+
+    // !!!**We ought to have another entry here that can accommodate the frame or sequence axis being multiple ndarrays with consitent_layout_f !!!***
+    
+    // image data.. for now hardwired to u=dim 0, v=dim1, frame = dim2, seq=dim3
+    snde_index u_dimnum=0;
+    snde_index v_dimnum=1;
+    
+    std::shared_ptr<display_spatial_position> posn;
+    std::shared_ptr<display_spatial_transform> xform;
+    std::shared_ptr<display_channel_rendering_bounds> bounds;
+    
+    
+    std::shared_ptr<rgbacolormapparams> colormap_params;
+    {
+      std::lock_guard<std::mutex> di_lock(display->admin);
+      std::lock_guard<std::mutex> dc_lock(displaychan->admin);
+      std::vector<snde_index> other_indices({0,0});
+      
+      // !!!*** displaychan updates should be more formally assigned and passed around
+      // this is interpreted by qtrecviewer for how the controls should work
+      // as distinct from renderer_type in display_requirement, which is used to select the actual renderer.
+      // Should these be unified somehow? 
+      displaychan->render_mode = SNDE_DCRM_IMAGE;
+      
+      if (NDim >= 3) {
+	if (displaychan->DisplayFrame >= array_rec->layouts[0].dimlen[2]) {
+	  displaychan->DisplayFrame = array_rec->layouts[0].dimlen[2]-1;	    
+	}
+	other_indices.push_back(displaychan->DisplayFrame);
+	if (NDim >= 4) {
+	  if (displaychan->DisplaySeq >= array_rec->layouts[0].dimlen[3]) {
+	    displaychan->DisplaySeq = array_rec->layouts[0].dimlen[3]-1;	    
+	  }
+	  other_indices.push_back(displaychan->DisplaySeq);
+	}
+      }
+      
+      std::shared_ptr<display_axis> a = display->GetFirstAxisLocked(chanpath);
+      std::shared_ptr<display_axis> b = display->GetSecondAxisLocked(chanpath);
+      
+      double xcenter;
+      double xunitscale;
+      bool horizontal_pixelflag;
+      {
+	std::lock_guard<std::mutex> axisadminlock(a->admin);
+	xcenter=a->CenterCoord; /* in units */
+	
+	std::shared_ptr<display_unit> u=a->unit;
+	std::lock_guard<std::mutex> unitadminlock(u->admin);
+	
+	xunitscale=u->scale;
+	horizontal_pixelflag = u->pixelflag;
+      }
+      
+      
+      double yunitscale;
+      bool vertical_pixelflag;
+      {
+	std::lock_guard<std::mutex> axisadminlock(b->admin);
+	
+	std::shared_ptr<display_unit> v=b->unit;
+	std::lock_guard<std::mutex> unitadminlock(v->admin);
+	
+	yunitscale=v->scale;
+	
+	vertical_pixelflag = v->pixelflag;
+      }
+      
+      
+      
+      
+      colormap_params = std::make_shared<rgbacolormapparams>(displaychan->ColorMap,
+							     displaychan->Offset,
+							     displaychan->Scale,
+							     other_indices,
+							     u_dimnum,
+							     v_dimnum);
+      
+      
+      double stepx,stepy;
+      
+      
+      stepx = rec->metadata->GetMetaDatumDbl("nde_array-axis0_step",1.0);
+      stepy = rec->metadata->GetMetaDatumDbl("nde_array-axis1_step",1.0);
+      
+      double left,right,bottom,top;
+      
+      if (stepx > 0) {
+	left = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)-stepx/2.0;	  
+	right = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
+      } else {
+	right = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)-stepx/2.0;	  
+	left = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
+      }
+      if (stepy > 0) {
+	bottom = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)-stepy/2.0;
+	top = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
+      } else {
+	top = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)-stepy/2.0;
+	bottom = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
+      }
+      
+      snde_debug(SNDE_DC_DISPLAY,"spatial_transforms_for_image_channel: xunitscale=%f, yunitscale=%f",xunitscale,yunitscale);
+      std::tie(posn,xform,bounds) = spatial_transforms_for_image_channel(display->drawareawidth,display->drawareaheight,
+									 display->horizontal_divisions,display->vertical_divisions,
+									 xcenter,-displaychan->Position,displaychan->VertZoomAroundAxis,
+									 displaychan->VertCenterCoord,
+									 xunitscale,yunitscale,display->pixelsperdiv,
+									 horizontal_pixelflag, vertical_pixelflag,
+									 displaychan->VertZoomAroundAxis,
+									 // ***!!! In order to implement procexpr/procrgba type
+									 // dynamic transforms we would have to queue up all of these parameters
+									 // and then call spatial_transforms_for_image_channel later, 
+									 // probably in the render cache -- as
+									 // the data edges are dependent on the data, which
+									 // wouldn't be available until the end anyway... Realistically
+									 // the axes would be different too -- so probably best just to
+									 // snapshot the display state or similar with a deep copy and
+									 // keep that snapshot as a record in the display pipeline
+									 
+									 // Note: The edges are the center bounds shifted by half a step
+									 left,
+									 right,
+									 bottom,
+									 top);
+      
+      
+    } // release displaychan lock
+    
+    
+    
+    // should colormap_params really be in the rendermode_ext key for this one or just the next one?
+    // I think the answer is both because the nested requirement won't be looked at
+    // if the parent just pulls from the cache
+
+    // Use multi_ndarray_recording lowlevel renderer because there is no difference (just the different texture colormapping function)
+    retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_RGBAIMAGE,typeid(multi_ndarray_recording_display_handler/**this*/),colormap_params),rec,shared_from_this());
+    retval->renderer_type = SNDE_DRRT_2D;
+    //retval->imgref = std::make_shared<image_reference>(chanpath,u_dimnum,v_dimnum,other_indices);
+    retval->renderable_channelpath = std::make_shared<std::string>(chanpath); 
+    retval->spatial_position = posn;
+    retval->spatial_transform = xform;
+    retval->spatial_bounds = bounds;
+    
+    
+    // have a nested display_requirement for the image as a texture... recursive call to traverse_display_requirement()
+    // This will eventually call the code below (simple_goal==SNDE_SRG_TEXTURE) 
+    retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,displaychan,SNDE_SRG_TEXTURE,colormap_params));
+    
+    return retval;
+  } else if (simple_goal==SNDE_SRG_TEXTURE && array_rec && array_rec->layouts.size()==2 && NDim >1 && NDim <= 4) {
+    // goal is to obtain a texture from the channel data
+    // ***!!! We really should be able to accommodate a frame or sequence axis being multiple ndarrays with consistent_layout_f !!!***
+
+    assert(array_rec);
+    
+    // Simple fusion ndarray recording
+    std::shared_ptr<ndarray_recording_ref> accum_ref = array_rec->reference_ndarray();
+
+
+    std::shared_ptr<rgbacolormapparams> colormap_params = std::dynamic_pointer_cast<rgbacolormapparams>(params_from_parent);
+    assert(colormap_params);
+
+    // Use multi_ndarray_recording lowlevel renderer because there is no difference (just the different texture colormapping function)
+    retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_RGBAIMAGEDATA,typeid(multi_ndarray_recording_display_handler),colormap_params),rec,shared_from_this()); // display_requirement
+
+    assert(accum_ref->storage->typenum != SNDE_RTN_SNDE_RGBA);
+    
+    // need colormapping */
+    
+    
+    
+    std::string renderable_channelpath = recdb_path_join(recdb_path_as_group(chanpath),"_snde_fusionrec_colormap_di"+std::to_string(display->unique_index));
+    // Will need to do something similar to
+    // recdb->add_math_function() on this
+    // renderable_function to make it run
+    std::shared_ptr<display_channel> displaychan = display->lookup_channel(chanpath);
+    
+    assert(displaychan); // lookup_channel always returns something
+    
+    std::shared_ptr<instantiated_math_function> renderable_function = display->fusion_colormapping_function->instantiate({
+	std::make_shared<math_parameter_recording>(chanpath,"accumulator"),
+	std::make_shared<math_parameter_recording>(chanpath),
+	std::make_shared<math_parameter_int_const>(colormap_params->ColorMap),
+	std::make_shared<math_parameter_double_const>(colormap_params->Offset), 
+	std::make_shared<math_parameter_double_const>(colormap_params->Scale), 
+	std::make_shared<math_parameter_indexvec_const>(colormap_params->other_indices), 
+	std::make_shared<math_parameter_unsigned_const>(colormap_params->u_dimnum), 
+	std::make_shared<math_parameter_unsigned_const>(colormap_params->v_dimnum)
+      },
+      { std::make_shared<std::string>(renderable_channelpath) },
+      recdb_path_as_group(chanpath),
+      false, // is_mutable
+      true, // ondemand
+      false, // mdonly
+      std::make_shared<math_definition>("c++ definition of fusion colormapping"),
+      nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
+    
+    retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
+    retval->renderable_function = renderable_function;
+    
+    return retval;
+  }
+
+
+  snde_warning("fusion_ndarray_recording_display_handler::get_display_requirement(): Could not create display requirement for %s",chanpath.c_str());
+  return nullptr;
+
+  
+}
+
 
 
 
@@ -1500,48 +1796,50 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
     
     // Iterate over the texture_refs. They become the fourth and beyond sub-requirements
     for (auto && facenum_imgref: texedpart_rec->texture_refs) {
-      std::string texture_path = recdb_path_join(recdb_path_as_group(chanpath),facenum_imgref.second->image_path);
-      std::shared_ptr<display_channel> texchan = display->lookup_channel(texture_path);
-      std::shared_ptr<recording_base> tex_rec = base_rss->get_recording(texture_path);
-      
-      std::shared_ptr<multi_ndarray_recording> texarray_rec=std::dynamic_pointer_cast<multi_ndarray_recording>(tex_rec);
-      
-      snde_index u_dimnum=0;
-      snde_index v_dimnum=1;
-      std::shared_ptr<rgbacolormapparams> colormap_params;
-      
-      {
-	std::lock_guard<std::mutex> tc_lock(texchan->admin);
-	size_t NDim = texarray_rec->layouts.at(0).dimlen.size();
-	std::vector<snde_index> other_indices({0,0});
-	if (NDim >= 3) {
-	  if (texchan->DisplayFrame >= texarray_rec->layouts[0].dimlen[2]) {
-	    texchan->DisplayFrame = texarray_rec->layouts[0].dimlen[2]-1;	    
-	  }
-	  other_indices.push_back(texchan->DisplayFrame);
-	  if (NDim >= 4) {
-	    if (texchan->DisplaySeq >= texarray_rec->layouts[0].dimlen[3]) {
-	      texchan->DisplaySeq = texarray_rec->layouts[0].dimlen[3]-1;	    
+      if (facenum_imgref.second->image_path.size() > 0) {
+	std::string texture_path = recdb_path_join(recdb_path_as_group(chanpath),facenum_imgref.second->image_path);
+	std::shared_ptr<display_channel> texchan = display->lookup_channel(texture_path);
+	std::shared_ptr<recording_base> tex_rec = base_rss->get_recording(texture_path);
+	
+	std::shared_ptr<multi_ndarray_recording> texarray_rec=std::dynamic_pointer_cast<multi_ndarray_recording>(tex_rec);
+	
+	snde_index u_dimnum=0;
+	snde_index v_dimnum=1;
+	std::shared_ptr<rgbacolormapparams> colormap_params;
+	
+	{
+	  std::lock_guard<std::mutex> tc_lock(texchan->admin);
+	  size_t NDim = texarray_rec->layouts.at(0).dimlen.size();
+	  std::vector<snde_index> other_indices({0,0});
+	  if (NDim >= 3) {
+	    if (texchan->DisplayFrame >= texarray_rec->layouts[0].dimlen[2]) {
+	      texchan->DisplayFrame = texarray_rec->layouts[0].dimlen[2]-1;	    
 	    }
-	    other_indices.push_back(texchan->DisplaySeq);
+	    other_indices.push_back(texchan->DisplayFrame);
+	    if (NDim >= 4) {
+	      if (texchan->DisplaySeq >= texarray_rec->layouts[0].dimlen[3]) {
+		texchan->DisplaySeq = texarray_rec->layouts[0].dimlen[3]-1;	    
+	      }
+	      other_indices.push_back(texchan->DisplaySeq);
+	    }
 	  }
-	}
 	
 	
-	colormap_params = std::make_shared<rgbacolormapparams>(texchan->ColorMap,
-												   texchan->Offset,
-												   texchan->Scale,
-												   other_indices,
-												   u_dimnum,
-												   v_dimnum);
-      } // release texchan lock; 
+	  colormap_params = std::make_shared<rgbacolormapparams>(texchan->ColorMap,
+								 texchan->Offset,
+								 texchan->Scale,
+								 other_indices,
+								 u_dimnum,
+								 v_dimnum);
+	} // release texchan lock; 
       
-      retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,texchan,SNDE_SRG_TEXTURE,colormap_params));
-
-
-      // also merge the colormap parameters into our own parameter block
-      // (as we will render differently if any of the colormaps is different)
-      texedmeshedpart_params->push_back(*colormap_params);
+	retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,texchan,SNDE_SRG_TEXTURE,colormap_params));
+      
+	
+	// also merge the colormap parameters into our own parameter block
+	// (as we will render differently if any of the colormaps is different)
+	texedmeshedpart_params->push_back(*colormap_params);
+      }
     }
     
     

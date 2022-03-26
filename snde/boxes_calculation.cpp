@@ -89,7 +89,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
     
   }
   
-  snde_index _buildbox_3d(const struct snde_part *part, const snde_triangle *triangles,const snde_edge *edges,const snde_coord3 *vertices,const snde_coord3 *trinormals,const snde_cmat23 *inplanemats,std::vector<std::array<snde_index,10>> &boxlist, std::vector<std::pair<snde_coord3,snde_coord3>> &boxcoordlist, std::set<snde_index> &polys,std::vector<snde_index> &boxpolylist,snde_index cnt, snde_index depth,snde_coord minx,snde_coord miny, snde_coord minz,snde_coord maxx,snde_coord maxy, snde_coord maxz)
+  snde_index _buildbox_3d(const struct snde_part *part, const snde_triangle *triangles,const snde_edge *edges,const snde_coord3 *vertices,const snde_coord3 *trinormals,const snde_cmat23 *inplanemats,std::vector<std::array<snde_index,10>> &boxlist, std::vector<std::pair<snde_coord3,snde_coord3>> &boxcoordlist, std::set<snde_index> &polys,std::vector<snde_index> &boxpolylist, snde_index *max_depth, snde_index cnt, snde_index depth,snde_coord minx,snde_coord miny, snde_coord minz,snde_coord maxx,snde_coord maxy, snde_coord maxz)
 
   // cnt is the index of the box we are building;
   // returns index of the next available box to build
@@ -105,7 +105,9 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
     box_v1.coord[1]=maxy;
     box_v1.coord[2]=maxz;
 
-
+    if (depth > *max_depth) {
+      *max_depth = depth; 
+    }
 
     
     // filter down polys according to what is in this box
@@ -144,21 +146,21 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
       // boxlist elements 0..7: subboxes
       boxlist[cnt][0]=newcnt;
-      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx,miny,minz,minx+distx/2.0+eps,miny+disty/2.0+eps,minz+distz/2.0+eps);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,max_depth,newcnt,depth+1,minx,miny,minz,minx+distx/2.0+eps,miny+disty/2.0+eps,minz+distz/2.0+eps);
       boxlist[cnt][1]=newcnt;
-      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx+distx/2.0-eps,miny,minz,maxx,miny+disty/2.0+eps,minz+distz/2.0+eps);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,max_depth,newcnt,depth+1,minx+distx/2.0-eps,miny,minz,maxx,miny+disty/2.0+eps,minz+distz/2.0+eps);
       boxlist[cnt][2]=newcnt;
-      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx,miny+disty/2.0-eps,minz,minx+distx/2.0+eps,maxy,minz+distz/2.0+eps);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,max_depth,newcnt,depth+1,minx,miny+disty/2.0-eps,minz,minx+distx/2.0+eps,maxy,minz+distz/2.0+eps);
       boxlist[cnt][3]=newcnt;
-      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx+distx/2.0-eps,miny+disty/2.0-eps,minz,maxx,maxy,minz+distz/2.0+eps);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,max_depth,newcnt,depth+1,minx+distx/2.0-eps,miny+disty/2.0-eps,minz,maxx,maxy,minz+distz/2.0+eps);
       boxlist[cnt][4]=newcnt;
-      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx,miny,minz+distz/2.0-eps,minx+distx/2.0+eps,miny+disty/2.0+eps,maxz);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,max_depth,newcnt,depth+1,minx,miny,minz+distz/2.0-eps,minx+distx/2.0+eps,miny+disty/2.0+eps,maxz);
       boxlist[cnt][5]=newcnt;
-      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx+distx/2.0-eps,miny,minz+distz/2.0-eps,maxx,miny+disty/2.0+eps,maxz);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,max_depth,newcnt,depth+1,minx+distx/2.0-eps,miny,minz+distz/2.0-eps,maxx,miny+disty/2.0+eps,maxz);
       boxlist[cnt][6]=newcnt;
-      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx,miny+disty/2.0-eps,minz+distz/2.0-eps,minx+distx/2.0+eps,maxy,maxz);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,max_depth,newcnt,depth+1,minx,miny+disty/2.0-eps,minz+distz/2.0-eps,minx+distx/2.0+eps,maxy,maxz);
       boxlist[cnt][7]=newcnt;
-      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minx+distx/2.0-eps,miny+disty/2.0-eps,minz+distz/2.0-eps,maxx,maxy,maxz);
+      newcnt = _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,ourpolys,boxpolylist,max_depth,newcnt,depth+1,minx+distx/2.0-eps,miny+disty/2.0-eps,minz+distz/2.0-eps,maxx,maxy,maxz);
       
     } else {
       // This is a leaf node
@@ -182,7 +184,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   std::tuple<
     std::vector<std::array<snde_index,10>>,
     std::vector<std::pair<snde_coord3,snde_coord3>>,
-    std::vector<snde_index>> build_boxes_3d(struct snde_part *part, const snde_triangle *triangles,const snde_edge *edges,const snde_coord3 *vertices,const snde_coord3 *trinormals,const snde_cmat23 *inplanemats)
+    std::vector<snde_index>,snde_index> build_boxes_3d(struct snde_part *part, const snde_triangle *triangles,const snde_edge *edges,const snde_coord3 *vertices,const snde_coord3 *trinormals,const snde_cmat23 *inplanemats)
   // assumes part, vertices,edges,triangles,inplanemat are all locked
   // returns <boxlist,boxcoordlist,boxpolylist>
   {
@@ -251,13 +253,14 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
       
     }
 
+    snde_index max_depth=0;
 
     // Call recursive box-builder function... populates boxlist, boxcoordlist,boxpolylist
-    _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,polys,boxpolylist,0,0,minx-eps,miny-eps,minz-eps,maxx+eps,maxy+eps,maxz+eps);
+    _buildbox_3d(part,triangles,edges,vertices,trinormals,inplanemats,boxlist,boxcoordlist,polys,boxpolylist,&max_depth,0,0,minx-eps,miny-eps,minz-eps,maxx+eps,maxy+eps,maxz+eps);
 
     
 
-    return std::make_tuple(boxlist,boxcoordlist,boxpolylist);
+    return std::make_tuple(boxlist,boxcoordlist,boxpolylist,max_depth);
     
   }
   
@@ -313,11 +316,11 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
     result_rec = create_recording_math<boxes3d_recording>(get_result_channel_path(0),rss);
     
     return std::make_shared<metadata_function_override_type>([ this,result_rec,part,trinormals_rec,inplanemats_rec ]() {
-      // metadata code
-      std::unordered_map<std::string,metadatum> metadata;
+      // metadata code moved to exec so that it can get max_depth info
+      //std::unordered_map<std::string,metadatum> metadata;
       
-      result_rec->metadata=std::make_shared<immutable_metadata>(metadata);
-      result_rec->mark_metadata_done();
+      //result_rec->metadata=std::make_shared<immutable_metadata>(metadata);
+      //result_rec->mark_metadata_done();
       
       return std::make_shared<lock_alloc_function_override_type>([ this,result_rec,part,trinormals_rec,inplanemats_rec ]() {
 	// lock_alloc code
@@ -364,13 +367,23 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 	  std::vector<std::array<snde_index,10>> boxlist;
 	  std::vector<std::pair<snde_coord3,snde_coord3>> boxcoordlist;
 	  std::vector<snde_index> boxpolylist;
+	  snde_index max_depth;
 
 	  //std::shared_ptr<ndtyped_recording_ref<snde_part>> part_ref=part->reference_typed_ndarray<snde_part>(parts);
 	  
 	  //snde_part &partstruct = part_ref.element(0);
 	  
-	  std::tie(boxlist,boxcoordlist,boxpolylist)=build_boxes_3d(parts,triangles,edges,vertices,trinormals,inplanemats);
+	  std::tie(boxlist,boxcoordlist,boxpolylist,max_depth)=build_boxes_3d(parts,triangles,edges,vertices,trinormals,inplanemats);
 	  assert(boxlist.size()==boxcoordlist.size());
+
+	  // metadata code moved here so we can get max depth info 
+	  constructible_metadata metadata;
+	  metadata.AddMetaDatum(metadatum("snde_boxes3d_max_depth",max_depth));
+	  
+	  result_rec->metadata=std::make_shared<immutable_metadata>(metadata);
+	  result_rec->mark_metadata_done();
+	  
+
 
 	  // set up allocation process
 	  std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(graphman->manager->locker); // new locking process
@@ -545,7 +558,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
   
 
-  snde_index _buildbox_2d(const struct snde_parameterization *param,const snde_triangle *uv_triangles,const snde_edge *uv_edges,const snde_coord2 *uv_vertices,std::vector<std::array<snde_index,6>> &boxlist, std::vector<std::pair<snde_coord2,snde_coord2>> &boxcoordlist, std::set<snde_index> &polys,std::vector<snde_index> &boxpolylist,snde_index cnt, snde_index depth,snde_coord minu,snde_coord minv,snde_coord maxu,snde_coord maxv)
+  snde_index _buildbox_2d(const struct snde_parameterization *param,const snde_triangle *uv_triangles,const snde_edge *uv_edges,const snde_coord2 *uv_vertices,std::vector<std::array<snde_index,6>> &boxlist, std::vector<std::pair<snde_coord2,snde_coord2>> &boxcoordlist, std::set<snde_index> &polys,std::vector<snde_index> &boxpolylist,snde_index *max_depth,snde_index cnt, snde_index depth,snde_coord minu,snde_coord minv,snde_coord maxu,snde_coord maxv)
 
   // cnt is the index of the box we are building;
   // returns index of the next available box to build
@@ -559,8 +572,11 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
     box_v1.coord[0]=maxu;
     box_v1.coord[1]=maxv;
 
+    
 
-
+    if (depth > *max_depth) {
+      *max_depth = depth; 
+    }
     
     // filter down polys according to what is in this box
     if (depth != 0) {// all pass for depth = 0
@@ -593,13 +609,13 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
       
       // boxlist elements 0..3: subboxes
       boxlist[cnt][0]=newcnt;
-      newcnt = _buildbox_2d(param,uv_triangles,uv_edges,uv_vertices,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minu,minv,minu+distu/2.0+eps,minv+distv/2.0+eps);
+      newcnt = _buildbox_2d(param,uv_triangles,uv_edges,uv_vertices,boxlist,boxcoordlist,ourpolys,boxpolylist,max_depth,newcnt,depth+1,minu,minv,minu+distu/2.0+eps,minv+distv/2.0+eps);
       boxlist[cnt][1]=newcnt;
-      newcnt = _buildbox_2d(param,uv_triangles,uv_edges,uv_vertices,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minu+distu/2.0-eps,minv,maxu,minv+distv/2.0+eps);
+      newcnt = _buildbox_2d(param,uv_triangles,uv_edges,uv_vertices,boxlist,boxcoordlist,ourpolys,boxpolylist,max_depth,newcnt,depth+1,minu+distu/2.0-eps,minv,maxu,minv+distv/2.0+eps);
       boxlist[cnt][2]=newcnt;
-      newcnt = _buildbox_2d(param,uv_triangles,uv_edges,uv_vertices,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minu,minv+distv/2.0-eps,minu+distu/2.0+eps,maxv);
+      newcnt = _buildbox_2d(param,uv_triangles,uv_edges,uv_vertices,boxlist,boxcoordlist,ourpolys,boxpolylist,max_depth,newcnt,depth+1,minu,minv+distv/2.0-eps,minu+distu/2.0+eps,maxv);
       boxlist[cnt][3]=newcnt;
-      newcnt = _buildbox_2d(param,uv_triangles,uv_edges,uv_vertices,boxlist,boxcoordlist,ourpolys,boxpolylist,newcnt,depth+1,minu+distu/2.0-eps,minv+distv/2.0-eps,maxu,maxv);
+      newcnt = _buildbox_2d(param,uv_triangles,uv_edges,uv_vertices,boxlist,boxcoordlist,ourpolys,boxpolylist,max_depth,newcnt,depth+1,minu+distu/2.0-eps,minv+distv/2.0-eps,maxu,maxv);
       
     } else {
       // This is a leaf node
@@ -623,7 +639,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   std::tuple<
     std::vector<std::array<snde_index,6>>,
     std::vector<std::pair<snde_coord2,snde_coord2>>,
-    std::vector<snde_index>> build_boxes_2d(const struct snde_parameterization *param,const snde_triangle *uv_triangles,const snde_edge *uv_edges,const snde_coord2 *uv_vertices)
+    std::vector<snde_index>,snde_index> build_boxes_2d(const struct snde_parameterization *param,const snde_triangle *uv_triangles,const snde_edge *uv_edges,const snde_coord2 *uv_vertices)
   // assumes part, vertices,edges,triangles,inplanemat are all locked
   // returns <boxlist,boxcoordlist,boxpolylist>
   {
@@ -680,13 +696,14 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
       
     }
 
-
+    snde_index max_depth=0;
+    
     // Call recursive box-builder function... populates boxlist, boxcoordlist,boxpolylist
-    _buildbox_2d(param,uv_triangles,uv_edges,uv_vertices,boxlist,boxcoordlist,polys,boxpolylist,0,0,minu-eps,minv-eps,maxu+eps,maxv+eps);
+    _buildbox_2d(param,uv_triangles,uv_edges,uv_vertices,boxlist,boxcoordlist,polys,boxpolylist,&max_depth,0,0,minu-eps,minv-eps,maxu+eps,maxv+eps);
 
     
     
-    return std::make_tuple(boxlist,boxcoordlist,boxpolylist);
+    return std::make_tuple(boxlist,boxcoordlist,boxpolylist,max_depth);
     
   }
   
@@ -745,11 +762,11 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
       result_rec = create_recording_math<boxes2d_recording>(get_result_channel_path(0),rss);
       
       return std::make_shared<metadata_function_override_type>([ this,result_rec,param ]() {
-	// metadata code
-	std::unordered_map<std::string,metadatum> metadata;
+	// metadata code moved to exec function so we can get max depth info 
+	//constructible_metadata metadata;
 	
-	result_rec->metadata=std::make_shared<immutable_metadata>(metadata);
-	result_rec->mark_metadata_done();
+	//result_rec->metadata=std::make_shared<immutable_metadata>(metadata);
+	//result_rec->mark_metadata_done();
       
 	return std::make_shared<lock_alloc_function_override_type>([ this,result_rec,param ]() {
 	  // lock_alloc code
@@ -804,6 +821,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 	    std::shared_ptr<lockingprocess_threaded> lockprocess=std::make_shared<lockingprocess_threaded>(graphman->manager->locker); // new locking process
 	    std::shared_ptr<lockholder> holder=std::make_shared<lockholder>();
 	    rwlock_token_set all_box_locks;
+	    snde_index max_depth=0;
 	    
 	    
 	    for (snde_index patchnum=0;patchnum < params->numuvpatches;patchnum++) {
@@ -816,10 +834,15 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 	      std::vector<snde_index> &boxpolylist = boxpolylists.at(patchnum);
 	      
 	      snde_parameterization_patch *patch = &uv_patches[patchnum];
+	      snde_index this_max_depth;
+	      
 
-
-	      std::tie(boxlist,boxcoordlist,boxpolylist)=build_boxes_2d(params,uv_triangles,uv_edges,uv_vertices);
+	      std::tie(boxlist,boxcoordlist,boxpolylist,this_max_depth)=build_boxes_2d(params,uv_triangles,uv_edges,uv_vertices);
 	      assert(boxlist.size()==boxcoordlist.size());
+
+	      if (this_max_depth > max_depth) {
+		max_depth=this_max_depth;
+	      }
 	      
 	      // allocate boxes: boxlist.size()
 	      holder->store_alloc(lockprocess->alloc_array_region(graphman->manager,(void **)&graphman->geom.uv_boxes,boxlist.size(),"uv_boxes"+std::to_string(patchnum)));
@@ -835,6 +858,15 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 	    all_box_locks = lockprocess->finish();
 
 	    result_rec->set_num_patches(params->numuvpatches);
+
+	    // metadata code moved here so we can get max depth info 
+	    constructible_metadata metadata;
+	    metadata.AddMetaDatum(metadatum("snde_boxes2d_max_depth",max_depth));
+	    
+	    result_rec->metadata=std::make_shared<immutable_metadata>(metadata);
+	    result_rec->mark_metadata_done();
+	    
+	    
 	    
 	    for (snde_index patchnum=0;patchnum < params->numuvpatches;patchnum++) {
 	      

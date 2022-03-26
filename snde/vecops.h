@@ -479,6 +479,21 @@ static VECOPS_INLINE void addcoordscaledcoord3(snde_coord3 vec1,snde_coord coeff
 
 
 
+static VECOPS_INLINE void addcoordscaledcoord4(snde_coord4 vec1,snde_coord coeff, snde_coord4 vec2,snde_coord4 *out)
+// NOTE: if vec1 and vec2 are 3D coordinates in a 4D projective space,
+// then vec2 must be a vector, not a position
+{
+  int outidx;
+
+  for (outidx=0;outidx < 4; outidx++) {
+    out->coord[outidx] = vec1.coord[outidx] + coeff* vec2.coord[outidx];
+    
+  }
+}
+
+
+
+
 static VECOPS_INLINE void normalize_wcoord4(snde_coord *vec)
 /* operates in-place */
 {

@@ -33,7 +33,7 @@ namespace snde {
 
 
 
-  class projinfo_calculation: public recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>> {
+  class projinfo_calculation: public recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<meshed_parameterization_recording>> {
   public:
     projinfo_calculation(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) :
       recmath_cppfuncexec(rss,inst)
@@ -43,7 +43,7 @@ namespace snde {
     
     // use default for decide_new_revision
     
-    std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(std::shared_ptr<meshed_part_recording> part,std::shared_ptr<meshed_parameterization_recording> parameterization)
+    std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(std::shared_ptr<meshed_part_recording> part,std::shared_ptr<meshed_inplanemat_recording> inplanemat,std::shared_ptr<meshed_parameterization_recording> parameterization)
     {
       snde_ndarray_info *rec_tri_info = part->ndinfo(part->name_mapping.at("triangles"));
       if (rec_tri_info->ndim != 1) {
@@ -85,14 +85,14 @@ namespace snde {
       return std::make_pair(option_list,nullptr);
     }
     
-    std::shared_ptr<metadata_function_override_type> define_recs(std::shared_ptr<meshed_part_recording> part,std::shared_ptr<meshed_parameterization_recording> parameterization) 
+    std::shared_ptr<metadata_function_override_type> define_recs(std::shared_ptr<meshed_part_recording> part,std::shared_ptr<meshed_inplanemat_recording> inplanemat,std::shared_ptr<meshed_parameterization_recording> parameterization) 
   {
     // define_recs code
     //printf("define_recs()\n");
     std::shared_ptr<meshed_projinfo_recording> result_rec;
     result_rec = create_recording_math<meshed_projinfo_recording>(get_result_channel_path(0),rss);
     
-    return std::make_shared<metadata_function_override_type>([ this,result_rec,part,parameterization ]() {
+    return std::make_shared<metadata_function_override_type>([ this,result_rec,part,inplanemat,parameterization ]() {
       // metadata code
       std::unordered_map<std::string,metadatum> metadata;
       //printf("metadata()\n");
@@ -101,7 +101,7 @@ namespace snde {
       result_rec->metadata=std::make_shared<immutable_metadata>(metadata);
       result_rec->mark_metadata_done();
       
-      return std::make_shared<lock_alloc_function_override_type>([ this,result_rec,part,parameterization ]() {
+      return std::make_shared<lock_alloc_function_override_type>([ this,result_rec,part,inplanemat,parameterization ]() {
 	// lock_alloc code
 	
 	std::shared_ptr<graphics_storage_manager> graphman = std::dynamic_pointer_cast<graphics_storage_manager>(result_rec->assign_storage_manager());
@@ -136,7 +136,7 @@ namespace snde {
 	    { part, { "triangles", false }},
 	    { part, {"edges", false }},
 	    { part, {"vertices", false}},
-	    { part, { "inplanemats", false }},
+	    { inplanemat, { "inplanemats", false }},
 	    //{ parameterization, { "uvs", false }},
 	    { parameterization, { "uv_triangles", false }},
 	    { parameterization, { "uv_edges", false }},
@@ -151,7 +151,7 @@ namespace snde {
 #endif
 	  );
 	
-	return std::make_shared<exec_function_override_type>([ this,locktokens, result_rec, part, parameterization ]() {
+	return std::make_shared<exec_function_override_type>([ this,locktokens, result_rec, part, inplanemat,parameterization ]() {
 	  // exec code
 	  snde_ndarray_info *rec_tri_info = part->ndinfo(part->name_mapping.at("triangles"));
 	  snde_index numtris = rec_tri_info->dimlen[0];
@@ -168,7 +168,7 @@ namespace snde {
 	    Buffers.AddBufferAsKernelArg(part,"triangles",projinfo_kern,0,false,false);
 	    Buffers.AddBufferAsKernelArg(part,"edges",projinfo_kern,1,false,false);
 	    Buffers.AddBufferAsKernelArg(part,"vertices",projinfo_kern,2,false,false);
-	    Buffers.AddBufferAsKernelArg(part,"inplanemats",projinfo_kern,3,false,false);
+	    Buffers.AddBufferAsKernelArg(inplanemat,"inplanemats",projinfo_kern,3,false,false);
 	    Buffers.AddBufferAsKernelArg(parameterization,"uv_triangles",projinfo_kern,4,false,false);
 	    Buffers.AddBufferAsKernelArg(parameterization,"uv_edges",projinfo_kern,5,false,false);
 	    Buffers.AddBufferAsKernelArg(parameterization,"uv_vertices",projinfo_kern,6,false,false);
@@ -198,7 +198,7 @@ namespace snde {
 	    const snde_triangle *triangles=(snde_triangle *)part->void_shifted_arrayptr("triangles");
 	    const snde_edge *edges=(snde_edge *)part->void_shifted_arrayptr("edges");
 	    const snde_coord3 *vertices=(snde_coord3 *)part->void_shifted_arrayptr("vertices");
-	    const snde_cmat23 *inplanemats=(snde_cmat23 *)part->void_shifted_arrayptr("inplanemats");
+	    const snde_cmat23 *inplanemats=(snde_cmat23 *)inplanemat->void_shifted_arrayptr("inplanemats");
 	    const snde_triangle *uv_triangles=(snde_triangle *)parameterization->void_shifted_arrayptr("uv_triangles");
 	    const snde_edge *uv_edges=(snde_edge *)parameterization->void_shifted_arrayptr("uv_edges");
 	    const snde_coord2 *uv_vertices=(snde_coord2 *)parameterization->void_shifted_arrayptr("uv_vertices");

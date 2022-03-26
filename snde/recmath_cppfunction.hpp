@@ -377,9 +377,10 @@ namespace snde {
       }
       nextparam++;
 
-      std::shared_ptr<T> rec_subclass = std::dynamic_pointer_cast<T>((*thisparam)->get_recording(rss,channel_path_context,definition,thisparam_index));
+      std::shared_ptr<recording_base> this_rec = (*thisparam)->get_recording(rss,channel_path_context,definition,thisparam_index);
+      std::shared_ptr<T> rec_subclass = std::dynamic_pointer_cast<T>(this_rec);
       if (!rec_subclass) {
-	throw math_parameter_mismatch("Recording parameter %s relative to %s is not convertible to %s",std::dynamic_pointer_cast<math_parameter_recording>(*thisparam)->channel_name.c_str(),channel_path_context.c_str(),typeid(T).name());
+	throw math_parameter_mismatch("Recording parameter %s relative to %s (which is a %s) is not convertible to %s",std::dynamic_pointer_cast<math_parameter_recording>(*thisparam)->channel_name.c_str(),channel_path_context.c_str(),typeid(*this_rec.get()).name(),typeid(T).name());
       }
 
       // return statement implements the following:
@@ -956,7 +957,10 @@ namespace snde {
     case SNDE_RTN_COMPLEXFLOAT64:
       return std::make_shared<CppFuncClass<snde_complexfloat64>>(rss,inst);
 
+    case SNDE_RTN_SNDE_COMPLEXIMAGEDATA:
+      return std::make_shared<CppFuncClass<snde_compleximagedata>>(rss,inst);
 
+      
     default:
       //throw snde_error("In attempting to call math function %s, first parameter %s has non-floating point type %s",inst->definition->definition_command.c_str(),firstparam_rec->channel_name.c_str(),rtn_typenamemap.at(firstparam_rec_val->ndinfo()->typenum).c_str());
       return nullptr;

@@ -4,7 +4,12 @@
 #ifndef __OPENCL_VERSION__
 // if this is not an OpenCL kernel
 
-#include "snde_types.h"
+#ifndef _USE_MATH_DEFINES
+#define _USE_MATH_DEFINES
+#endif
+
+#include <math.h>
+#include "snde/snde_types.h"
 
 #endif
 
@@ -35,9 +40,10 @@ typedef float snde_coord;
 #endif
 
   
-typedef float snde_rendercoord;
-typedef float snde_imagedata;
- 
+  typedef float snde_rendercoord;
+  typedef float snde_imagedata;
+  typedef snde_complexfloat32 snde_compleximagedata;
+  
   typedef union {
     unsigned int intval;
     float floatval;
@@ -89,6 +95,7 @@ typedef float snde_coord;
 
 typedef float snde_rendercoord;
 typedef float snde_imagedata;
+typedef snde_complexfloat32 snde_compleximagedata;
 
 #if (defined(__STDC_VERSION__) && (__STDC_VERSION__>= 201112L) && !defined(__STDC_NO_ATOMICS__)) || (defined(__cplusplus) && defined(__clang__)) 
   // Use C11 atomics when supported under C and also under C++ with clang
@@ -452,7 +459,7 @@ typedef struct _snde_vertex_edgelist_index {
 
 typedef struct _snde_triangle {
   snde_index edges[3];
-  snde_index face; // topological face (3D or 2D depending on whether this is part of triangles or uv_triangles) this triangle is part of (index, relative to first_topo for a 3D face; relative to 0 for a 2D face) 
+  snde_index face; // topological face (3D or 2D depending on whether this is part of triangles or uv_triangles) this triangle is part of (index, relative to the part's first_face for a 3D face; relative to the firstuvface of this parameterization for a 2D face) 
 } snde_triangle; // NOTE if this triangle does not exist, is invalid, etc, then face should be set to SNDE_INDEX_INVALID
   
 typedef struct _snde_indexrange {
@@ -645,7 +652,7 @@ struct snde_face {
 
   
 struct snde_boundary {
-  snde_index firstface,numfaces; // relative to first_topo 
+  snde_index firstface,numfaces; // relative to the part's first_face
   // Each face contained within the part can have a meshed surface representation,
   // a NURBS surface representation, or both, controlled by the "valid" boolean within the
   // edges referenced in the meshedsurface
@@ -680,6 +687,9 @@ struct snde_part {
   snde_index first_topoidx;
   snde_index num_topoidxs; 
   
+  snde_index first_face; // faces are an array of struct snde_face with the .ThreeD filled out. Relative to first_topo
+  snde_index num_faces; 
+
   
   snde_index firsttri,numtris; /* apply to triangles, refpoints, maxradius, normal, inplanemat... broken into segments, one per surface. NOTE: any triangles that are not valid should have their .face set to SNDE_INDEX_INVALID */
   
@@ -708,6 +718,7 @@ struct snde_part {
 
 
 struct snde_parameterization_patch {
+  snde_boxcoord2 domain; // image projection domain for this patch
   // Boxes for identifying which triangle and face is at a particular (u,v)
   snde_index firstuvbox, numuvboxes; /* the first numuvpatches boxes correspond to the outer boxes for each patch */
   //snde_index firstuvboxcoord,numuvboxcoords; uv boxcoords allocated with uv boxes
@@ -774,7 +785,7 @@ struct snde_partinstance {
   //snde_index nurbspartnum; /* if nurbspartnum is SNDE_INDEX_INVALID, then there is a meshed representation only */
   snde_index partnum; // was meshedpartnum
   //std::string discrete_parameterization_name; -- really maps to mesheduvnmum /* index of the discrete parameterization */
-  snde_index firstuvimage; /* starting uv_patch # (snde_image) for this instance...  */ 
+  snde_index firstuvpatch; /* starting uv_patch # (snde_image) for this instance...  */ 
   snde_index uvnum; /* select which parameterization... can be SNDE_INDEX_INVALID or .idx of the parameterization */
   //snde_index imgbuf_extra_offset; // Additional offset into imgbuf, e.g. to select a particular frame of multiframe image data 
 };
@@ -783,7 +794,9 @@ struct snde_partinstance {
   
 struct snde_image  {
   // ***!!!! Probably needs an update!
-  snde_index imgbufoffset; /* index into image buffer array */
+  snde_index projectionbufoffset; /* index into projection buffer array where the data for this image starts */
+  snde_index weightingbufoffset; /* index into weighting buffer array where the data for this image starts */
+  snde_index validitybufoffset; /* index into validity buffer array where the data for this image starts */
   //snde_index rgba_imgbufoffset; /* index into rgba image buffer array (if imgbufoffset is SNDE_INDEX_INVALID */
   
   snde_index nx,ny; // X and Y size (ncols, nrows) ... note Fortran style indexing
@@ -800,7 +813,12 @@ struct snde_image  {
 				    (startcorner.coord[1]+step.coord[1]*(ny-0.5))
                             */
   snde_coord2 step; /* step size per texel, in meaningful units. For the moment, at least, both should be positive */
-  //snde_index nextimage; // index of alternate image to be used if data in this image shows as NaN, fully transparent, or is outside the image boundary... set to SNDE_INDEX_INVALID if there should be no nextimage.
+
+  snde_index projection_strides[2]; // usually (1,nx)
+  snde_index weighting_strides[2]; // usually (1,nx)
+  snde_index validity_strides[2]; // usually (1,nx)
+
+  
 };
 
 

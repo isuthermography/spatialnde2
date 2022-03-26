@@ -1,0 +1,252 @@
+from dataguzzler_python import dgpy
+import spatialnde2 as snde
+import threading
+import time
+
+include(dgpy,"dgpy_startup.dpi") # If you get a NameError here, be sure you are executing this file with dataguzzler-python
+
+include(dgpy,"Qt.dpi",prefer_pyqt=False) 
+
+include(dgpy,"matplotlib.dpi")
+include(snde,"recdb.dpi",enable_opencl=False) # false for the moment for faster startup
+include(snde,"recdb_gui.dpi")
+
+
+orient_dtype = [('offset', '<f4', (4,)), ('quat', '<f4', (4,))]
+
+graphman=snde.graphics_storage_manager("/graphics/",recdb.lowlevel_alloc,recdb.alignment_requirements,recdb.lockmgr,1e-8);
+
+transact = snde.active_transaction(recdb)
+
+
+graphicsgroup = recdb.define_channel("/graphics","main",recdb.raw(),False,graphman)
+
+plate_recordings = snde.x3d_load_geometry(recdb,graphman,"Plate_uv.x3d","main",recdb.raw(),"/graphics/plate/",None,True,True)
+
+
+probe_recordings = snde.x3d_load_geometry(recdb,graphman,"Probe_uv.x3d","main",recdb.raw(),"/graphics/probe/",None,True,True)
+
+
+main_viewer.viewer.set_camera_pose("/graphics/probe/x3d_meshed0",np.array(([0,0,.4,  0.        ], [ 0,0,0,  1]),dtype=[('offset', '<f4', (4,)), ('quat', '<f4', (4,))]))
+main_viewer.viewer.set_rotation_center_dist("/graphics/probe/x3d_meshed0",0.4)
+
+
+# Might be simpler if we just set up the pose channel and this were just a create_pose_channel_tracking_pose_recording()...
+positioned_plate_chan = recdb.define_channel("/positioned_plate","main",recdb.raw())
+plate_position = np.array(((0,0,0,0),(.4, .3, .625, .6)),dtype=orient_dtype)
+snde.create_assembly_recording(recdb,positioned_plate_chan,recdb.raw(),
+                               snde.VectorOfStringOrientationPairs([ ("/graphics/plate/x3d_meshed0",snde.snde_orientation3(plate_position)) ])).mark_as_ready()
+
+
+probe_positioner_chan = recdb.define_channel("/probe_positioner","main",recdb.raw())
+probe_positioner_rec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,probe_positioner_chan,recdb.raw(),"/graphics/probe/x3d_meshed0","/positioned_plate",main_viewer.viewer.OSGWidget)
+probe_positioner_rec.mark_as_ready()
+
+
+main_viewer.viewer.set_camera_pose("/probe_positioner",np.array(([-0.27967322, -0.13708538,  0.31322557,  0.        ], [ 0.11939247, -0.3743305 , -0.03798857,  0.9187921 ]),dtype=[('offset', '<f4', (4,)), ('quat', '<f4', (4,))]))
+main_viewer.viewer.set_rotation_center_dist("/probe_positioner",0.425)
+
+
+
+# Add plate sub-channels
+plate_trinormals = snde.trinormals.instantiate( [ snde.math_parameter_recording("/graphics/plate/x3d_meshed0") ],
+                                               [ snde.shared_string("/graphics/plate/x3d_meshed0_trinormals") ],
+                                               "/",
+                                               False,
+                                               False,
+                                               False,
+                                               snde.math_definition("trinormals"),
+                                               None)
+recdb.add_math_function(plate_trinormals,False)
+
+plate_inplanemat = snde.inplanemat_calculation.instantiate( [ snde.math_parameter_recording("/graphics/plate/x3d_meshed0"),
+                                                              snde.math_parameter_recording("/graphics/plate/x3d_meshed0_trinormals") ],
+                                                            [ snde.shared_string("/graphics/plate/x3d_meshed0_inplanemat") ],
+                                                            "/",
+                                                            False,
+                                                            False,
+                                                            False,
+                                                            snde.math_definition("inplanemat"),
+                                                            None)
+recdb.add_math_function(plate_inplanemat,False)
+
+
+
+plate_projinfo = snde.projinfo_calculation.instantiate( [ snde.math_parameter_recording("/graphics/plate/x3d_meshed0"),
+                                                          snde.math_parameter_recording("/graphics/plate/x3d_meshed0_inplanemat"),
+                                                          snde.math_parameter_recording("/graphics/plate/x3d_uv0")],
+                                                        [ snde.shared_string("/graphics/plate/x3d_meshed0_projinfo") ],
+                                                        "/",
+                                                        False,
+                                                        False,
+                                                        False,
+                                                        snde.math_definition("projinfo"),
+                                                            None)
+recdb.add_math_function(plate_projinfo,False)
+
+
+
+plate_boxes3d = snde.boxes_calculation_3d.instantiate( [ snde.math_parameter_recording("/graphics/plate/x3d_meshed0"),
+                                                         snde.math_parameter_recording("/graphics/plate/x3d_meshed0_trinormals"),
+                                                         snde.math_parameter_recording("/graphics/plate/x3d_meshed0_inplanemat")],
+                                                       [ snde.shared_string("/graphics/plate/x3d_meshed0_boxes3d") ],
+                                                       "/",
+                                                       False,
+                                                       False,
+                                                       False,
+                                                    snde.math_definition("boxes3d"),
+                                                    None)
+recdb.add_math_function(plate_boxes3d,False)
+
+
+
+
+plate_boxes2d = snde.boxes_calculation_2d.instantiate( [ snde.math_parameter_recording("/graphics/plate/x3d_uv0")],
+                                                        [ snde.shared_string("/graphics/plate/x3d_meshed0_boxes2d") ],
+                                                        "/",
+                                                        False,
+                                                        False,
+                                                        False,
+                                                        snde.math_definition("boxes2d"),
+                                                       None)
+recdb.add_math_function(plate_boxes2d,False)
+
+
+
+# Might be simpler if this were what we initialized and to view we created a create_pose_channel_tracking_pose_recording()...
+plate_pose_chan = recdb.define_channel("/plate_pose","main",recdb.raw())
+plate_pose_ref = snde.create_recording_ref(recdb,plate_pose_chan,recdb.raw(),snde.SNDE_RTN_SNDE_ORIENTATION3)
+plate_pose_ref.allocate_storage([1])
+plate_pose_ref.data()[0]=plate_position
+plate_pose_ref.rec.mark_as_ready()
+
+
+
+probe_pose_chan = recdb.define_channel("/probe_pose","main",recdb.raw())
+
+
+# Synthetic probe based on phase_plot_test.dgp
+
+synthetic_probe_impedance_chan = recdb.define_channel("/synthetic_probe_impedance","main",recdb.raw())
+
+synthetic_probe_history = snde.batched_live_accumulator.instantiate( [ snde.math_parameter_recording("/synthetic_probe_impedance"),
+                                                                       snde.math_parameter_unsigned_const(30),
+                                                                       snde.math_parameter_unsigned_const(10),
+                                                                       snde.math_parameter_bool_const(False),
+                                                                       snde.math_parameter_bool_const(True)],
+                                                                     [ snde.shared_string("/synthetic_probe_history") ],
+                                                                     "/",
+                                                                     False,
+                                                                     False,
+                                                                     False,
+                                                                     snde.math_definition("synthetic_probe_history definition"),
+                                                                     None)
+recdb.add_math_function(synthetic_probe_history,False)
+
+
+
+projection = snde.project_point_onto_parameterization.instantiate( [ snde.math_parameter_recording("/graphics/plate/x3d_meshed0"),
+                                                                     snde.math_parameter_recording("/graphics/plate/x3d_uv0"),
+                                                                     snde.math_parameter_recording("/graphics/plate/x3d_meshed0_trinormals"),
+                                                                     snde.math_parameter_recording("/graphics/plate/x3d_meshed0_boxes3d"),
+                                                                     snde.math_parameter_recording("/graphics/plate/x3d_meshed0_projinfo"),
+                                                                     snde.math_parameter_recording("/graphics/plate/x3d_meshed0_inplanemat"),
+                                                                     snde.math_parameter_recording("/plate_pose"),
+                                                                     snde.math_parameter_recording("/probe_pose"),
+                                                                     snde.math_parameter_recording("/synthetic_probe_impedance"),
+                                                                     snde.math_parameter_double_const(0.2),
+                                                                     snde.math_parameter_double_const(-0.1),
+                                                                     snde.math_parameter_double_const(0.01),
+                                                                     snde.math_parameter_unsigned_const(1282),
+                                                                     snde.math_parameter_unsigned_const(1280),
+                                                                     snde.math_parameter_bool_const(True)],
+                                                                   [ snde.shared_string("/graphics/projection") ],
+                                                                   "/",
+                                                                   False,
+                                                                   False,
+                                                                   False,
+                                                                   snde.math_definition("projection"),
+                                                                   None)
+recdb.add_math_function(projection,False)
+
+
+transact.end_transaction()
+
+
+
+
+
+
+def live_thread_code():
+
+    cnt = 0
+
+    center = 0.1
+    radius = 0.2
+    
+    while True: 
+
+        transact = snde.active_transaction(recdb)	
+        synthetic_probe_imp_ref = snde.create_recording_ref(recdb,synthetic_probe_impedance_chan,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
+        metadata = snde.constructible_metadata()
+        metadata.AddMetaDatum(snde.metadatum("snde_render_goal","SNDE_SRG_PHASEPLANE"))
+        metadata.AddMetaDatum(snde.metadatum("snde_phase_plane_historical_fade",True))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-ampl_coord","Impedance"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-ampl_units","Ohms"))
+
+        synthetic_probe_imp_ref.rec.metadata=metadata;
+        
+        synthetic_probe_imp_ref.rec.mark_metadata_done()
+        synthetic_probe_imp_ref.allocate_storage( [] )
+        angle = cnt*15*np.pi/180.0
+
+        value = center + radius*np.exp((0+1j)*angle)
+
+        #print("value=%s" % (str(value)))
+        
+        synthetic_probe_imp_ref.assign_complexfloat64([],value)
+        synthetic_probe_imp_ref.rec.mark_as_ready()
+        
+        transact.end_transaction()
+        
+        time.sleep(.1)
+        cnt+=1
+        pass
+    
+    pass
+
+
+
+live_thread = threading.Thread(target=live_thread_code)
+live_thread.start()
+
+
+def new_probe_posn():
+    transact = snde.active_transaction(recdb)
+
+
+    probe_pose_ref = snde.create_recording_ref(recdb,probe_pose_chan,recdb.raw(),snde.SNDE_RTN_SNDE_ORIENTATION3)
+    probe_pose_ref.allocate_storage([1])
+
+
+    # Figure out probe position from the camera orientations in the probe channel
+    # and the view tracking channel, probe_positioner
+    probe_campose = main_viewer.viewer.get_camera_pose("/graphics/probe/x3d_meshed0")
+    probe_campose_inverse = snde.orientation_inverse(probe_campose)
+    probe_positioner_campose = main_viewer.viewer.get_camera_pose("/probe_positioner")
+    probe_position = snde.orientation_orientation_multiply(probe_positioner_campose,probe_campose_inverse)
+    
+    probe_pose_ref.data()[0]=probe_position
+    probe_pose_ref.rec.mark_as_ready()
+    
+
+    # Create tracking pose recording so we can see the positioned probe
+    positioned_probe_chan = recdb.define_channel("/positioned_probe","main",recdb.raw())
+    snde.create_pose_channel_tracking_pose_recording(recdb,positioned_probe_chan,recdb.raw(),
+                                                     "/graphics/probe/x3d_meshed0","/positioned_plate","/probe_pose").mark_as_ready()
+
+
+    
+    transact.end_transaction()
+    
+    pass

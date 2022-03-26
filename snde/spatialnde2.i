@@ -488,6 +488,7 @@ template <typename T>
 %include "boxes_calculation.i"
 %include "averaging_downsampler.i"
 %include "batched_live_accumulator.i"
+%include "project_onto_parameterization.i"
 %include "quaternion.i"
 %include "kdtree.i"
 %include "rendermode.i"
@@ -564,9 +565,9 @@ template <typename T>
   snde::rtn_numpytypemap.emplace(SNDE_RTN_INT16,PyArray_DescrFromType(NPY_INT16));
   snde::rtn_numpytypemap.emplace(SNDE_RTN_UINT8,PyArray_DescrFromType(NPY_UINT8));
   snde::rtn_numpytypemap.emplace(SNDE_RTN_INT8,PyArray_DescrFromType(NPY_INT8));
-  // SNDE_RTN_RGBA32
+  // SNDE_RTN_SNDE_RGBA
   PyObject *rgba32_dtype = PyRun_String("dtype([('r', np.uint8), ('g', np.uint8), ('b',np.uint8),('a',np.uint8)])",Py_eval_input,Globals,Globals);
-  snde::rtn_numpytypemap.emplace(SNDE_RTN_RGBA32,(PyArray_Descr *)rgba32_dtype);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_RGBA,(PyArray_Descr *)rgba32_dtype);
   
   snde::rtn_numpytypemap.emplace(SNDE_RTN_COMPLEXFLOAT32,PyArray_DescrFromType(NPY_COMPLEX64));
   snde::rtn_numpytypemap.emplace(SNDE_RTN_COMPLEXFLOAT64,PyArray_DescrFromType(NPY_COMPLEX128));
@@ -590,6 +591,8 @@ template <typename T>
 
   // ***!!! Still need numpy dtypes for most graphics arrays!!!***
 #ifdef SNDE_DOUBLEPREC_COORDS
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD,PyArray_DescrFromType(NPY_FLOAT64));
+  
   PyObject *coord3_dtype = PyRun_String("dtype([('coord', np.float64, 3), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD3,(PyArray_Descr *)coord3_dtype);
   PyObject *coord4_dtype = PyRun_String("dtype([('coord', np.float64, 4), ])",Py_eval_input,Globals,Globals);
@@ -601,6 +604,8 @@ template <typename T>
   PyObject *orientation3_dtype = PyRun_String("dtype([('offset', np.float64, 4), ('quat', np.float64,4) ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_ORIENTATION3,(PyArray_Descr *)orientation3_dtype);
 #else
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD,PyArray_DescrFromType(NPY_FLOAT32));
+  
   PyObject *coord3_dtype = PyRun_String("dtype([('coord', np.float32, 3), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD3,(PyArray_Descr *)coord3_dtype);
   PyObject *coord4_dtype = PyRun_String("dtype([('coord', np.float32, 4), ])",Py_eval_input,Globals,Globals);
@@ -623,9 +628,15 @@ template <typename T>
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_KDNODE,(PyArray_Descr *)kdnode_dtype);
   
 
-  PyObject *complexfloat32_dtype = PyRun_String("np.complex64",Py_eval_input,Globals,Globals);
+  PyObject *complexfloat32_dtype = PyRun_String("dtype(np.complex64)",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_COMPLEXFLOAT32,(PyArray_Descr *)complexfloat32_dtype);
 
-  PyObject *complexfloat64_dtype = PyRun_String("np.complex128",Py_eval_input,Globals,Globals);
+  PyObject *complexfloat64_dtype = PyRun_String("dtype(np.complex128)",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_COMPLEXFLOAT64,(PyArray_Descr *)complexfloat64_dtype);
+
+
+  PyObject *snde_compleximagedata_dtype = PyRun_String("dtype(np.complex64)",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COMPLEXIMAGEDATA,(PyArray_Descr *)snde_compleximagedata_dtype);
 
 
   Py_DECREF(NumpyModule);

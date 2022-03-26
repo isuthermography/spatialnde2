@@ -1,11 +1,14 @@
 #include "snde/rec_display_colormap.hpp"
 #include "snde/recmath_cppfunction.hpp"
 #include "snde/colormap.h"
+#include "snde/fusion_colormap.h"
+
 
 #include "snde/snde_types_h.h"
 #include "snde/geometry_types_h.h"
 #include "snde/colormap_h.h"
 #include "snde/scale_colormap_c.h"
+#include "snde/fusion_colormap_c.h"
 
 
 #ifdef SNDE_OPENCL
@@ -409,6 +412,308 @@ namespace snde {
 
   static int registered_pointcloud_colormap_function = register_math_function("spatialnde2.pointcloud_colormap",define_pointcloud_colormap_function());
   
+
+
+
+  template <typename T,typename Enable = void>
+  struct fusion_colormap {
+    
+    snde_rgba operator()(int colormap_type,T accumulated,snde_float32 total,
+			 snde_float32 offset,snde_float32 unitsperintensity,
+			 snde_float32 maxtotal,uint8_t alphaval)
+    {
+      throw snde_error("fusion_colormap on unsupported type %s",typeid(T).name());
+    }
+    
+  };
+
+
+
+  template <typename T>
+  struct fusion_colormap<T,typename std::enable_if<std::is_floating_point<T>::value>::type> {
+    
+    snde_rgba operator()(int colormap_type,T accumulated,snde_float32 total,
+			 snde_float32 offset,snde_float32 unitsperintensity,
+			 snde_float32 maxtotal,uint8_t alphaval)
+    {
+
+      return snde_fusion_colormap_real((snde_float32)accumulated,total,colormap_type,offset,unitsperintensity,maxtotal,alphaval);
+				       
+    }
+    
+  };
+
+
+
+
+  template <typename T>
+  struct fusion_colormap<T,typename std::enable_if<is_complex<T>::value>::type> {
+    
+    snde_rgba operator()(int colormap_type,T accumulated,snde_float32 total,
+			 snde_float32 offset,snde_float32 unitsperintensity,
+			 snde_float32 maxtotal,
+			 uint8_t alphaval)
+    {
+
+      return snde_fusion_colormap_complex(accumulated,total,colormap_type,offset,unitsperintensity,maxtotal,alphaval);
+    }
+
+    
+  };
+
+  
+  template <>
+  struct fusion_colormap<snde_complexfloat64> {
+    
+    snde_rgba operator()(int colormap_type,snde_complexfloat64 accumulated,snde_float32 total,
+			 snde_float32 offset,snde_float32 unitsperintensity,
+			 snde_float32 maxtotal,
+			 uint8_t alphaval)
+    {
+      snde_complexfloat32 cf32;
+      cf32.real=(snde_float32)accumulated.real;
+      cf32.imag=(snde_float32)accumulated.imag;
+
+      return snde_fusion_colormap_complex(cf32,total,colormap_type,offset,unitsperintensity,maxtotal,alphaval);
+    }
+
+    
+  };
+
+
+
+  
+  
+  template <typename T>
+  class fusion_colormapping: public recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,std::shared_ptr<fusion_ndarray_recording>,int,snde_float64,snde_float64,std::vector<snde_index>,unsigned,unsigned>
+  {
+  public:
+    fusion_colormapping(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) :
+      recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,std::shared_ptr<fusion_ndarray_recording>,int,snde_float64,snde_float64,std::vector<snde_index>,unsigned,unsigned>(rss,inst)
+    {
+      
+    }
+    
+    // These typedefs are regrettably necessary and will need to be updated according to the parameter signature of your function
+    // https://stackoverflow.com/questions/1120833/derived-template-class-access-to-base-class-member-data
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,std::shared_ptr<fusion_ndarray_recording>,int,snde_float64,snde_float64,std::vector<snde_index>,unsigned,unsigned>::define_recs_function_override_type define_recs_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,std::shared_ptr<fusion_ndarray_recording>,int,snde_float64,snde_float64,std::vector<snde_index>,unsigned,unsigned>::metadata_function_override_type metadata_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,std::shared_ptr<fusion_ndarray_recording>,int,snde_float64,snde_float64,std::vector<snde_index>,unsigned,unsigned>::lock_alloc_function_override_type lock_alloc_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,std::shared_ptr<fusion_ndarray_recording>,int,snde_float64,snde_float64,std::vector<snde_index>,unsigned,unsigned>::exec_function_override_type exec_function_override_type;
+    
+    // just using the default for decide_new_revision
+
+    std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(std::shared_ptr<ndtyped_recording_ref<T>> accumulator, std::shared_ptr<fusion_ndarray_recording> fusion,int colormap_type,snde_float64 offset, snde_float64 unitsperintensity,std::vector<snde_index> base_position,unsigned u_dim,unsigned v_dim) 
+    {
+      snde_index numdatapoints = accumulator->layout.dimlen.at(u_dim)*accumulator->layout.dimlen.at(v_dim);
+
+      std::vector<std::shared_ptr<compute_resource_option>> option_list =
+	{
+	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+							numdatapoints*(sizeof(T)+sizeof(snde_rgba)), // data_bytes for transfer
+							numdatapoints*(10), // flops
+							1, // max effective cpu cores
+							1), // useful_cpu_cores (min # of cores to supply
+	  
+#ifdef SNDE_OPENCL
+	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+							   numdatapoints*(sizeof(T)+sizeof(snde_rgba)),
+							   0, // cpu_flops
+							   numdatapoints*(10), // gpuflops
+							   1, // max effective cpu cores
+							   1, // useful_cpu_cores (min # of cores to supply
+							   std::is_floating_point<T>::value && (sizeof(T) > sizeof(float))), // requires_doubleprec 
+#endif // SNDE_OPENCL
+	};
+      return std::make_pair(option_list,nullptr);
+    }
+
+
+ 
+    std::shared_ptr<metadata_function_override_type> define_recs(std::shared_ptr<ndtyped_recording_ref<T>> accumulator, std::shared_ptr<fusion_ndarray_recording> fusion, int colormap_type,snde_float64 offset, snde_float64 unitsperintensity,std::vector<snde_index> base_position,unsigned u_dim,unsigned v_dim) 
+    {
+      // define_recs code
+      //snde_debug(SNDE_DC_APP,"define_recs()");
+      // Use of "this" in the next line for the same reason as the typedefs, above
+      std::shared_ptr<ndtyped_recording_ref<snde_rgba>> result_rec = create_typed_recording_ref_math<snde_rgba>(this->get_result_channel_path(0),this->rss);
+      
+      return std::make_shared<metadata_function_override_type>([ this,result_rec,accumulator,fusion,colormap_type,offset,unitsperintensity,base_position,u_dim,v_dim ]() {
+	// metadata code
+	//std::unordered_map<std::string,metadatum> metadata;
+	//snde_debug(SNDE_DC_APP,"metadata()");
+	//metadata.emplace("Test_metadata_entry",metadatum("Test_metadata_entry",3.14));
+	
+	result_rec->rec->metadata=accumulator->rec->metadata;
+	result_rec->rec->mark_metadata_done();
+	
+	return std::make_shared<lock_alloc_function_override_type>([ this,result_rec,accumulator,fusion,colormap_type,offset,unitsperintensity,base_position,u_dim,v_dim ]() {
+	  // lock_alloc code
+	  
+	  result_rec->allocate_storage(accumulator->layout.dimlen,true); // Note fortran order flag -- required by renderer
+	   
+
+	  std::shared_ptr<ndtyped_recording_ref<snde_float32>> totals = fusion->reference_typed_ndarray<snde_float32>("totals");
+	  // locking is only required for certain recordings
+	  // with special storage under certain conditions,
+	  // however it is always good to explicitly request
+	  // the locks, as the locking is a no-op if
+	  // locking is not actually required. 
+	  rwlock_token_set locktokens = this->lockmgr->lock_recording_refs({
+	      { accumulator, false }, // first element is recording_ref, 2nd parameter is false for read, true for write 
+	      { totals, false }, // first element is recording_ref, 2nd parameter is false for read, true for write 
+	      { result_rec, true },
+	    });
+	  
+	  
+	  return std::make_shared<exec_function_override_type>([ this, locktokens,result_rec,accumulator,fusion,totals,colormap_type,offset,unitsperintensity,base_position,u_dim,v_dim ]() {
+	    // exec code
+	    //snde_index flattened_length = recording->layout.flattened_length();
+	    //for (snde_index pos=0;pos < flattened_length;pos++){
+	    //  result_rec->element(pos) = (recording->element(pos)-offset)/unitsperintensity;
+	    //}
+
+	    snde_coord maxtotal=0.0;
+	    {
+	      snde_float32 *totals_data=totals->shifted_arrayptr();
+	      assert(totals->layout.is_contiguous());
+	      
+	      snde_index totals_size=totals->layout.flattened_size();
+	      snde_index pos; 
+
+	      for (pos=0;pos < totals_size;pos++) {
+		if (totals_data[pos] > maxtotal) {
+		  maxtotal=totals_data[pos];
+		}
+	      }
+	    }
+
+	    
+	    bool complexflag=false;
+	    if (accumulator->ndinfo()->typenum==SNDE_RTN_COMPLEXFLOAT32 || accumulator->ndinfo()->typenum==SNDE_RTN_COMPLEXFLOAT64 || accumulator->ndinfo()->typenum==SNDE_RTN_COMPLEXFLOAT16 || accumulator->ndinfo()->typenum==SNDE_RTN_SNDE_COMPLEXIMAGEDATA) {
+	      complexflag=true; 
+	    }
+	    
+#ifdef SNDE_OPENCL
+	    std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(this->compute_resource);
+	    if (opencl_resource) {
+
+	      //cl::Kernel colormap_kern = get_opencl_colormap_program<T>()->get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
+	      cl::Kernel colormap_kern = build_typed_opencl_program<T>("spatialnde2.fusion_colormap",[ complexflag ] (std::string ocltypename) {
+		// OpenCL templating via a typedef....
+		return std::make_shared<opencl_program>("fusion_colormap_kern", std::vector<std::string>({
+		      snde_types_h,
+		      geometry_types_h,
+		      colormap_h,
+		      "\ntypedef " + ocltypename + " fc_intype;\n",
+		      complexflag ? ("\ntypedef " + ocltypename + " fc_complex_intype;\n"):("\ntypedef " + ocltypename + "fc_real_intype;\n"),
+		      complexflag ? ("\ntypedef snde_float32 fc_real_intype;\n"):("\ntypedef snde_complexfloat32 fc_complex_intype;\n"),
+		      fusion_colormap_c
+		    }));
+	      })->get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
+	      
+	      OpenCLBuffers Buffers(opencl_resource->oclcache,opencl_resource->context,opencl_resource->devices.at(0),locktokens);
+	      
+	      assert(accumulator->ndinfo()->base_index==0); // we don't support a shift (at least not currently)
+	      Buffers.AddBufferAsKernelArg(accumulator,colormap_kern,0,false,false);
+	      Buffers.AddBufferAsKernelArg(totals,colormap_kern,1,false,false);	      
+	      Buffers.AddBufferAsKernelArg(result_rec,colormap_kern,2,true,true);
+	      
+	      snde_index stride_u=accumulator->layout.strides.at(u_dim);
+	      snde_index stride_v=accumulator->layout.strides.at(v_dim);	      
+	      colormap_kern.setArg(3,sizeof(stride_u),&stride_u);
+	      colormap_kern.setArg(4,sizeof(stride_v),&stride_v);
+
+	      uint32_t ocl_colormap_type = colormap_type;
+	      colormap_kern.setArg(5,sizeof(ocl_colormap_type),&ocl_colormap_type);
+
+	      snde_float32 ocl_offset = (snde_float32)offset;
+	      colormap_kern.setArg(6,sizeof(ocl_offset),&ocl_offset);
+	      
+	      snde_float32 ocl_intensityperunits = (snde_float32)(1.0/unitsperintensity);
+	      colormap_kern.setArg(7,sizeof(ocl_intensityperunits),&ocl_intensityperunits);
+	      
+	      uint8_t ocl_alpha = 255;
+	      colormap_kern.setArg(8,sizeof(ocl_alpha),&ocl_alpha);
+	      
+	      cl::Event kerndone;
+	      std::vector<cl::Event> FillEvents=Buffers.FillEvents();
+	      
+	      cl_int err = opencl_resource->queues.at(0).enqueueNDRangeKernel(colormap_kern,{},{
+		  accumulator->layout.dimlen.at(u_dim),
+		  accumulator->layout.dimlen.at(v_dim)	      
+		},{},&FillEvents,&kerndone);	      
+	      if (err != CL_SUCCESS) {
+		throw openclerror(err,"Error enqueueing kernel");
+	      }
+	      opencl_resource->queues.at(0).flush(); /* trigger execution */
+	      // mark that the kernel has modified result_rec
+	      Buffers.BufferDirty(result_rec);
+	      // wait for kernel execution and transfers to complete
+	      Buffers.RemBuffers(kerndone,kerndone,true);
+	      
+	    } else {	    
+#endif // SNDE_OPENCL
+	      //snde_warning("Performing colormapping on CPU. This will be slow.");
+
+	      std::vector<snde_index> pos(base_position);
+	    
+	      // !!!*** OpenCL version must generate fortran-ordered
+	      // output
+	      for (snde_index vpos=0;vpos < accumulator->layout.dimlen.at(v_dim);vpos++){
+		for (snde_index upos=0;upos < accumulator->layout.dimlen.at(u_dim);upos++){
+		  pos.at(u_dim)=upos;
+		  pos.at(v_dim)=vpos;
+		  //result_rec->element(pos) = do_colormap(colormap_type,recording->element(pos)-offset)/unitsperintensity;
+		  //result_rec->element(pos) = fusion_colormap(colormap_type,(float)((recording->element(pos)-offset)/unitsperintensity),255);
+		  result_rec->element(pos) = fusion_colormap<T>{}(colormap_type,accumulator->element(pos),totals->element(pos),
+								  offset,unitsperintensity,maxtotal,255);
+		}
+	      }
+#ifdef SNDE_OPENCL
+	    }
+#endif // SNDE_OPENCL
+	    
+	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
+	    result_rec->rec->mark_as_ready();
+	  }); 
+	});
+      });
+    }
+    
+    
+  };
+  
+
+
+
+
+  std::shared_ptr<math_function> define_fusion_colormapping_function()
+  {
+    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+      std::shared_ptr<executing_math_function> executing;
+      
+      executing = make_cppfuncexec_floatingtypes<fusion_colormapping>(rss,inst);
+      if (!executing) {
+	executing = make_cppfuncexec_complextypes<fusion_colormapping>(rss,inst);
+      }
+      if (!executing) {
+	throw snde_error("In attempting to call math function %s, first parameter has unsupported data type.",inst->definition->definition_command.c_str());
+      }
+      
+      return executing;      
+    });
+    
+  }
+
+  SNDE_OCL_API std::shared_ptr<math_function> fusion_colormapping_function = define_fusion_colormapping_function();
+
+
+  static int registered_fusion_colormapping_function = register_math_function("spatialnde2.fusion_colormapping",fusion_colormapping_function);
+  
+
+
+
+
 };
 
 

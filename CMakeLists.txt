@@ -122,7 +122,7 @@ endif()
 # Add bigobj flag for msbuild compiler (enabling compiling completely from the Anaconda prompt on Windows)
 IF(MSVC)
     add_compile_options(-bigobj)
-    set(SPATIALNDE2_COMPILE_DEFINTIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} _USE_MATH_DEFINES)
+    set(SPATIALNDE2_COMPILE_DEFINTIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -D_USE_MATH_DEFINES)
 ENDIF(MSVC)
 
 # Workaround to specify 64 bit integers not terms of int64_t/uint64_t to accommodate
@@ -148,7 +148,7 @@ else()
   set(SHARED_LIBRARY_SUFFIX_PYTHON .so )
 endif()
 
-set(SPATIALNDE2_SOURCES snde/allocator.cpp snde/lockmanager.cpp snde/recmath_compute_resource.cpp snde/recmath.cpp snde/recmath_parameter.cpp snde/recstore.cpp snde/metadata.cpp snde/recstore_storage.cpp snde/recmath_cppfunction.cpp snde/notify.cpp snde/snde_error.cpp snde/graphics_storage.cpp snde/rec_display.cpp snde/recstore_display_transforms.cpp snde/graphics_recording.cpp snde/cached_recording.cpp snde/recstore_setup.cpp snde/rec_display_vertexarray.c snde/rec_display_texvertexarray.c snde/normal_calc.c snde/projinfo_calc.c snde/display_requirements.cpp snde/averaging_downsampler.cpp snde/batched_live_accumulator.cpp snde/kdtree_knn.c snde/inplanemat_calculation.cpp snde/boxes_calculation.cpp ) # snde/infostore_or_component.cpp snde/geometry.cpp snde/revision_manager.cpp snde/mutablerecstore.cpp )
+set(SPATIALNDE2_SOURCES snde/allocator.cpp snde/lockmanager.cpp snde/recmath_compute_resource.cpp snde/recmath.cpp snde/recmath_parameter.cpp snde/recstore.cpp snde/metadata.cpp snde/recstore_storage.cpp snde/recmath_cppfunction.cpp snde/notify.cpp snde/snde_error.cpp snde/graphics_storage.cpp snde/rec_display.cpp snde/recstore_display_transforms.cpp snde/graphics_recording.cpp snde/cached_recording.cpp snde/recstore_setup.cpp snde/rec_display_vertexarray.c snde/rec_display_texvertexarray.c snde/normal_calc.c snde/fusion_colormap.c snde/projinfo_calc.c snde/display_requirements.cpp snde/averaging_downsampler.cpp snde/batched_live_accumulator.cpp snde/kdtree_knn.c snde/inplanemat_calculation.cpp snde/boxes_calculation.cpp snde/project_onto_parameterization.cpp ) # snde/infostore_or_component.cpp snde/geometry.cpp snde/revision_manager.cpp snde/mutablerecstore.cpp )
 
 if (NOT WIN32)
   set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/shared_memory_allocator_posix.cpp )
@@ -333,7 +333,7 @@ target_compile_definitions(spatialnde2 PRIVATE SPATIALNDE2_SHAREDLIB_EXPORT)
 
 IF (OpenCL_FOUND)
   add_library(spatialnde2_ocl SHARED ${SPATIALNDE2_OCL_SOURCES} )
-  target_link_libraries(spatialnde2_ocl ${OpenCL_LIBRARIES} spatialnde2)
+  target_link_libraries(spatialnde2_ocl OpenCL::OpenCL spatialnde2)
   target_compile_definitions(spatialnde2_ocl PRIVATE SPATIALNDE2_OCL_SHAREDLIB_EXPORT)
 ENDIF()
 
@@ -433,9 +433,9 @@ ENDIF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
 
 
 IF (Python3_FOUND)
-    set(PYTHONGENHEADERS snde/snde_types.h snde/geometry_types.h snde/geometry_ops.h snde/vecops.h snde/quaternion.h snde/normal_calc.c snde/projinfo_calc.c snde/rec_display_vertexarray.c snde/rec_display_texvertexarray.c snde/colormap.h snde/scale_colormap.c snde/kdtree_knn.c snde/phase_plane_vertex_calcs.c ) #  snde/testkernel.c snde/osg_vertexarray.c snde/osg_texvertexarray.c snde/normal_calc.c snde/projinfo_calc.c snde/colormap.h snde/scale_colormap.c snde/dummy_scale_colormap.c )
+    set(PYTHONGENHEADERS snde/snde_types.h snde/geometry_types.h snde/geometry_ops.h snde/vecops.h snde/quaternion.h snde/normal_calc.c snde/projinfo_calc.c snde/rec_display_vertexarray.c snde/rec_display_texvertexarray.c snde/colormap.h snde/scale_colormap.c snde/fusion_colormap.c snde/kdtree_knn.c snde/phase_plane_vertex_calcs.c ) #  snde/testkernel.c snde/osg_vertexarray.c snde/osg_texvertexarray.c snde/normal_calc.c snde/projinfo_calc.c snde/colormap.h snde/scale_colormap.c snde/dummy_scale_colormap.c )
   
-    set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/include/snde/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/vecops_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/quaternion_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/projinfo_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/rec_display_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/rec_display_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/kdtree_knn_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/phase_plane_vertex_calcs_c.h ) # ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h  ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
+    set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/include/snde/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/vecops_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/quaternion_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/projinfo_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/rec_display_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/rec_display_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/fusion_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/kdtree_knn_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/phase_plane_vertex_calcs_c.h ) # ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h  ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
 
     add_custom_command(OUTPUT ${PYTHONGENERATEDHEADERS}
             DEPENDS ${PYTHONGENHEADERS} 
@@ -452,6 +452,7 @@ IF (Python3_FOUND)
             COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/rec_display_texvertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/include/snde/rec_display_texvertexarray_c.h
             COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/colormap.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/colormap_h.h
             COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/scale_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/include/snde/scale_colormap_c.h
+            COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/fusion_colormap.c ${CMAKE_CURRENT_BINARY_DIR}/include/snde/fusion_colormap_c.h
             COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/kdtree_knn.c ${CMAKE_CURRENT_BINARY_DIR}/include/snde/kdtree_knn_c.h
             COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/phase_plane_vertex_calcs.c ${CMAKE_CURRENT_BINARY_DIR}/include/snde/phase_plane_vertex_calcs_c.h
 
@@ -696,7 +697,7 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	set_property(SOURCE snde/spatialnde2.i PROPERTY SWIG_MODULE_NAME spatialnde2_python)
 
 	
-	set(SWIG_SPATIALNDE2_LINK_TARGETS Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools PNG::PNG) # Libraries needed by swig_spatialnde2 that are swig targets
+	set(SWIG_SPATIALNDE2_LINK_TARGETS Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools PNG::PNG OpenCL::OpenCL) # Libraries needed by swig_spatialnde2 that are swig targets
 	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${Python3_LIBRARIES} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${SPATIALNDE2_QT_LIBS} )
 
 	#IF(NOT WIN32)

@@ -47,7 +47,17 @@
 
 namespace snde {
 
+  struct x3d_texture_scaling {
+    double meters_per_texunit_horiz;
+    double meters_per_texunit_vert;
 
+    /*double pixelsize_horiz;
+    double pixelsize_vert;
+    double pixels_per_texunit_horiz;
+    double pixels_per_texunit_vert;
+    */
+  };
+  
   class x3d_node {
 
   public:
@@ -1272,7 +1282,7 @@ namespace snde {
   }
 
   
-  std::vector<std::shared_ptr<textured_part_recording>> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::vector<std::shared_ptr<x3d_shape>> shapes,std::string ownername,void *owner,std::string recdb_context,std::string context_fname,bool reindex_vertices,bool reindex_tex_vertices)
+  std::vector<std::shared_ptr<textured_part_recording>> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::vector<std::shared_ptr<x3d_shape>> shapes,std::string ownername,void *owner,std::string recdb_context,std::string context_fname,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,bool reindex_vertices,bool reindex_tex_vertices)
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
@@ -1356,12 +1366,19 @@ namespace snde {
 						 std::dynamic_pointer_cast<x3d_indexedfaceset>(indexedset)->normalIndex :
 					       std::dynamic_pointer_cast<x3d_indexedtriangleset>(indexedset)->index);
 
-      snde_image teximage_data={ SNDE_INDEX_INVALID, // imgbufoffset
-				 //SNDE_INDEX_INVALID, // rgba_imgbufoffset
-				 1024,1024, // nx,ny
-				 { {0.0,0.0} }, // startcorner
-				 { {1.0/1024,1.0/1024} }, // step
-      };
+      /*
+      snde_image teximage_data={
+	.projectionbufoffset = SNDE_INDEX_INVALID,
+	.weightingbufoffset = SNDE_INDEX_INVALID,
+	.validitybufoffset = SNDE_INDEX_INVALID,
+	.nx=1024,
+	.ny=1024, // nx,ny
+	.inival={ {0.0,0.0} }, // startcorner
+	.step={ {1.0/1024,1.0/1024} }, // step
+	.projection_strides={1,1024}
+	.weighting_strides={1,1024}
+	.validity_strides={1,1024}
+	};*/
       // Grab texture image, if available
       
       std::shared_ptr<multi_ndarray_recording> texture_rec=nullptr;
@@ -1405,6 +1422,8 @@ namespace snde {
       }
       
       Eigen::Matrix<double,3,3> TexCoordsToParameterizationCoords=Eigen::Matrix<double,3,3>::Identity();
+      double Min1=0.0,Max1=1.0; // Min1, Max1 are the domain bounds, a half step outside the sample center bounds. 
+      double Min2=0.0,Max2=1.0;
       
       if (texture_ref && texture_ref->layout.dimlen.size() >= 2) {
 	// uv_imagedata_channels should be comma-separated list
@@ -1428,6 +1447,7 @@ namespace snde {
 	//  IniVal2 = texture_ref->rec->metadata->GetMetaDatumDbl("IniVal2",0.0+Step2/2.0);
 	//}
 	IniVal2 = texture_ref->rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0);
+
 	
 	TexCoordsToParameterizationCoords(0,0)=fabs(Step1)*texture_ref->layout.dimlen[0];
 	TexCoordsToParameterizationCoords(1,1)=fabs(Step2)*texture_ref->layout.dimlen[1];
@@ -1438,34 +1458,87 @@ namespace snde {
 
 	if (Step1 > 0.0) {
 	  TexCoordsToParameterizationCoords(0,2)=IniVal1-Step1/2.0;
+	  Min1 = IniVal1-Step1/2.0;
+	  Max1 = IniVal1+texture_ref->layout.dimlen[0]*Step1 - Step1/2.0;
 	} else {
 	  // For negative step1, x values start at the right (max value) and
 	  // decrease... so the 0 texcoord point is actually at IniVal1+Step1*dimlen[0]-Step1/2.0
 	  // (Remember, Step2 is negative in that expression!)
 	  TexCoordsToParameterizationCoords(0,2)=IniVal1+Step1*texture_ref->layout.dimlen[0]-Step1/2.0;
 
+	  Max1 = IniVal1-Step1/2.0;
+	  Min1 = IniVal1+texture_ref->layout.dimlen[0]*Step1 - Step1/2.0;
+
 	}
 	
 	// Same rule for Y if step positive
 	if (Step2 > 0.0) {
 	  TexCoordsToParameterizationCoords(1,2)=IniVal2-Step2/2.0;
+	  Min2 = IniVal2-Step2/2.0;
+	  Max2 = IniVal2+texture_ref->layout.dimlen[1]*Step2 - Step2/2.0;
 	} else {
 	  // For negative step2, y values start at the top (max value) and
 	  // decrease... so the 0 texcoord point is actually at IniVal2+Step2*dimlen[1]-Step2/2.0
 	  // (Remember, Step2 is negative in that expression!)
 	  TexCoordsToParameterizationCoords(1,2)=IniVal2+Step2*texture_ref->layout.dimlen[1]-Step2/2.0;
+	  Max2 = IniVal2-Step2/2.0;
+	  Min2 = IniVal2+texture_ref->layout.dimlen[1]*Step2 - Step2/2.0;
 	}
 	
+      } else if (default_texture_scaling) {
+
+	/*
+	// Assume that the texture coords, per usual X3D behavior, go from [0,1]
+	double Step1 = default_texture_scaling->pixelsize_horiz;
+	assert(Step1 > 0.0); 
+	double Step2 = default_texture_scaling->pixelsize_vert;
+	assert(Step2 > 0.0); 
+
+	double IniVal1 = Step1/2.0; // first center is a half pixel in from the bound
+	double IniVal2 = Step2/2.0;
+
+	snde_index DimLen1, DimLen2;
+	DimLen1 = default_texture_scaling->pixels_per_texunit_horiz;
+	DimLen2 = default_texture_scaling->pixels_per_texunit_vert;
+
+	Min1=0.0;
+	Min2=0.0;
+
+	Max1 = IniVal1 + DimLen1*Step1 - Step1/2.0; // equivalent to DimLen1*Step1
+	Max2 = IniVal2 + DimLen2*Step2 - Step2/2.0;
+	
+	TexCoordsToParameterizationCoords(0,0)=fabs(Step1)*DimLen1;
+	TexCoordsToParameterizationCoords(1,1)=fabs(Step2)*DimLen2;
+	TexCoordsToParameterizationCoords(0,2)=IniVal1-Step1/2.0;
+	TexCoordsToParameterizationCoords(1,2)=IniVal2-Step2/2.0;
+	*/
+	
+	// To get [0,2] element, rule is that texture coordinate 0 maps to IniVal1-Step1/2.0 (For positive Step1) because the left edge of that first element is 1/2 step to the left. 
+	// TCTPC[0,0]*TexU + TCTPC[0,2] = scaled pos
+	// TCTPC[0,0]*0  + TCTCP[0,2] = IniVal1-Step1/2.0
+	
+	TexCoordsToParameterizationCoords(0,0)=default_texture_scaling->meters_per_texunit_horiz; 
+	TexCoordsToParameterizationCoords(1,1)=default_texture_scaling->meters_per_texunit_vert; 
+	TexCoordsToParameterizationCoords(0,2)=0.0;
+	TexCoordsToParameterizationCoords(1,2)=0.0;
+
+	Min1=0.0;
+	Min2=0.0;
+
+	Max1=default_texture_scaling->meters_per_texunit_horiz;
+	Max2=default_texture_scaling->meters_per_texunit_vert;
       }
 
       /* Construct topology for this shape (single face, no edges) (SHOULD PROBABLY DO A PROPER TOPOLOGICAL ANALYSIS TO EVALUATE THAT!)*/
 
       std::vector<snde_topological> topos;
-      topos.push_back(snde_topological{.boundary={ .firstface=1,.numfaces=1 }});
+      topos.push_back(snde_topological{.boundary={ .firstface=0,.numfaces=1 }});
       snde_boundary &boundary = topos.back().boundary;
       topos.push_back(snde_topological{.face={ .firstfaceedgeindex=SNDE_INDEX_INVALID,.numfaceedgeindices=SNDE_INDEX_INVALID, .boundary_num=0, .surface{ .ThreeD={ .meshed={.firsttri=0,.numtris=coordIndex.size(),.valid=true,}, .nurbs={.valid=false} }}}});
       snde_face &face = topos.back().face;
-      
+
+      snde_index first_face=1;
+      snde_index num_faces=1;
 
       
       
@@ -1537,6 +1610,10 @@ namespace snde {
       graphman->geom.parts[firstpart].first_topoidx=firsttopo_index;
       graphman->geom.parts[firstpart].num_topoidxs=1;
       
+
+      graphman->geom.parts[firstpart].first_face=first_face;
+      graphman->geom.parts[firstpart].num_faces=1;
+      
       
       snde_index firstedge = holder->get_alloc((void **)&graphman->geom.edges,"");
       /* edge modified region marked with realloc_down() call below */
@@ -1595,6 +1672,7 @@ namespace snde {
 	
 	graphman->geom.uvs[firstuv].firstuvpatch = holder->get_alloc((void **)&graphman->geom.uv_patches,"");
 	graphman->geom.uv_patches[graphman->geom.uvs[firstuv].firstuvpatch]=snde_parameterization_patch{
+	  .domain={ .min={(snde_coord)Min1,(snde_coord)Min2}, .max={(snde_coord)Max1,(snde_coord)Max2}, },
 												.firstuvbox=SNDE_INDEX_INVALID,
 												.numuvboxes=0,
 												.firstuvboxpoly=SNDE_INDEX_INVALID,
@@ -2646,7 +2724,7 @@ namespace snde {
   }
 
 
-  std::vector<std::shared_ptr<textured_part_recording>> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::string filename,std::string ownername,void *owner,std::string recdb_context,bool reindex_vertices,bool reindex_tex_vertices)
+  std::vector<std::shared_ptr<textured_part_recording>> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::string filename,std::string ownername,void *owner,std::string recdb_context,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,bool reindex_vertices,bool reindex_tex_vertices)
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
@@ -2658,7 +2736,7 @@ namespace snde {
   {
     std::vector<std::shared_ptr<x3d_shape>> shapes=x3d_loader::shapes_from_file(filename.c_str());
     
-    return x3d_load_geometry(recdb,graphman,shapes,ownername,owner,recdb_context,filename,reindex_vertices,reindex_tex_vertices);
+    return x3d_load_geometry(recdb,graphman,shapes,ownername,owner,recdb_context,filename,default_texture_scaling,reindex_vertices,reindex_tex_vertices);
     
   }
 
