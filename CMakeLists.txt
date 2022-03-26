@@ -23,6 +23,13 @@ endif()
 # Select coordinate precision: single vs. double
 set(SNDE_DOUBLEPREC_COORDS OFF CACHE BOOL "Use double precision for geometric coordinates rather than single precision" )
 
+# There is no realloc functionality on win32.  We could implement code that would replicate the capability
+# however, this would create an inconsistency with existing pointers that are floating around elsewhere out of the
+# control of the shared memory allocator.  So, instead, we just allocate way more address space than we expect to need.
+# If you need more, no need to recompile.  Just create a new shared memory space with the needed size and it will be
+# allocated.  However, you will not be able to realloc to increase the size later -- this will throw an exception.
+set(SNDE_WIN32_SHMEM_SIZE 4294967296ull CACHE STRING "Amount of address space, in bytes, to allocate for each recording" )
+
 # Set installation location rules
 
 IF(APPLE)    # Apple
@@ -55,6 +62,8 @@ set(SPATIALNDE2_COMPILE_LIBRARIES )
 IF(SNDE_DOUBLEPREC_COORDS)
   set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_DOUBLEPREC_COORDS ) 
 ENDIF()
+
+set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_WIN32_SHMEM_SIZE=${SNDE_WIN32_SHMEM_SIZE})
 
 ## Application is C++11 (now 14)
 if (MSVC)
@@ -143,6 +152,10 @@ set(SPATIALNDE2_SOURCES snde/allocator.cpp snde/lockmanager.cpp snde/recmath_com
 
 if (NOT WIN32)
   set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/shared_memory_allocator_posix.cpp )
+endif()
+
+if (WIN32)
+  set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/shared_memory_allocator_win32.cpp )
 endif()
 
 

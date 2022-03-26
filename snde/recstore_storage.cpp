@@ -2,7 +2,7 @@
 #include "snde/allocator.hpp"
 
 #ifdef _WIN32
-// No win32 shared_memory_allocator yet
+#include "snde/shared_memory_allocator_win32.hpp"
 #else
 #include "snde/shared_memory_allocator_posix.hpp"
 #endif

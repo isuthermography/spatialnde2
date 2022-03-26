@@ -231,6 +231,22 @@ namespace snde {
     }
   };
 
+  class win32_error : public snde_error {
+  public:
+      int _myerrno;
+
+      template<typename ... Args>
+      win32_error(std::string fmt, Args&& ... args) :
+          _myerrno(errno),
+          snde_error("%s", ssprintf("Win32 runtime error %d (%s): %s", _myerrno, portable_strerror(_myerrno).c_str(), ssprintf(fmt, std::forward<Args>(args) ...).c_str()).c_str())
+      {
+          //std::string foo=openclerrorstring[clerrnum];
+          //std::string bar=openclerrorstring.at(clerrnum);
+          //std::string fubar=openclerrorstring.at(-37);
+
+      }
+  };
+
   template<typename ... Args>
   void snde_warning(std::string fmt, Args && ... args)
   {

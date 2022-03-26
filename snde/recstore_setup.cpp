@@ -2,6 +2,8 @@
 
 #ifndef _WIN32
 #include "shared_memory_allocator_posix.hpp"
+#else
+#include "shared_memory_allocator_win32.hpp"
 #endif // !_WIN32
 
 namespace snde {
@@ -21,8 +23,9 @@ namespace snde {
   void setup_storage_manager(std::shared_ptr<recdatabase> recdb)
   {
 #ifdef _WIN32
-#pragma message("No shared memory allocator available for Win32 yet. Using regular memory instead")
-    recdb->lowlevel_alloc=std::make_shared<cmemallocator>();
+//#pragma message("No shared memory allocator available for Win32 yet. Using regular memory instead")
+//    recdb->lowlevel_alloc=std::make_shared<cmemallocator>();
+    recdb->lowlevel_alloc = std::make_shared<shared_memory_allocator_win32>();
     
 #else
     recdb->lowlevel_alloc=std::make_shared<shared_memory_allocator_posix>();
