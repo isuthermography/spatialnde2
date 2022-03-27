@@ -175,7 +175,7 @@ namespace snde {
 			std::forward_as_tuple(id,shm_name,hMapFile,addr,nbytes,memtoalloc)); // parameters to shared_memory_info_win32 constructor
     }
 
-    //fprintf(stderr,"calloc 0x%lx: %d\n",(unsigned long)addr,(int)nbytes);
+    //fprintf(stderr,"calloc 0x%lx (%s): %d\n",(unsigned long)addr, shm_name.c_str(), (int)nbytes);
     
 
     return addr;
@@ -203,7 +203,7 @@ namespace snde {
       
     }
     this_info.nbytes=newsize;
-    //fprintf(stderr,"realloc 0x%lx: %d\n",(unsigned long)this_info.addr,(int)newsize);
+    //fprintf(stderr,"realloc 0x%lx (%s): %d\n",(unsigned long)this_info.addr, this_info.shm_name.c_str(), (int)newsize);
     return this_info.addr;
   }
   
@@ -219,7 +219,7 @@ namespace snde {
     GetSystemInfo(&sysinfo);
     unsigned long page_size;
 
-    page_size = (unsigned long) sysinfo.dwPageSize;
+    page_size = (unsigned long) sysinfo.dwAllocationGranularity;
     if (page_size < 0) {
       throw win32_error("shared_memory_allocator_win32::obtain_nonmoving_copy_or_reference GetSystemInfo.page_size");
     }
@@ -243,6 +243,8 @@ namespace snde {
       throw win32_error("shared_memory_allocator_win32::obtain_nonmoving_copy_or_reference MapViewOfFile(%s,%llu,%llu)",this_info.shm_name.c_str(),(unsigned long long)mmaplength,(unsigned long long)(shiftpages*page_size));
       
     }
+
+    //fprintf(stderr, "obtain_nonmoving_copy_or_reference 0x%lx (%s): %llu, %llu\n", (unsigned long) this_info.addr, this_info.shm_name.c_str(), (unsigned long long) shift, (unsigned long long)length);
     return std::make_shared<nonmoving_copy_or_reference_win32>(basearray,shift,length,mmapaddr,mmaplength,ptrshift);
     
   }
