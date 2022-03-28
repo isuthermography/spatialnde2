@@ -8,6 +8,12 @@
 
 #endif // __GNUG__
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <Windows.h>
+#endif
+
 #include <string>
 #include <stdexcept>
 #include <cstring>
@@ -31,7 +37,7 @@ namespace snde {
     char *buf=NULL;
     va_list ap;
     size_t len;
-    long long nbytes;
+    unsigned long long nbytes;
     
     len=4*fmt.size();
     
@@ -61,7 +67,7 @@ namespace snde {
   {
     char *buf=NULL;
     size_t len;
-    long long nbytes;
+    unsigned long long nbytes;
     
     len=4*fmt.size();
     
@@ -163,6 +169,29 @@ namespace snde {
     //}
   };
 
+#ifdef _WIN32
+  static inline std::string GetWin32ErrorAsString(DWORD err)
+  {
+      if (err == 0) {
+          return std::string();
+      }
+
+      LPSTR buf = nullptr;
+      size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+          NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&buf, 0, NULL);
+
+      std::string message(buf, size);
+      message.erase(message.find_last_not_of(" \t\n\r\f\v") + 1);
+
+      LocalFree(buf);
+      return message;
+  }
+#else
+  static inline std::string GetWin32ErrorAsString(unsigned long err) {
+
+  }
+#endif
+
   static inline std::string portable_strerror(int errnum)
   {
     char *errstr;
@@ -231,14 +260,17 @@ namespace snde {
     }
   };
 
+  // This class is only for use with Windows API calls found in Windows.h
   class win32_error : public snde_error {
   public:
-      int _myerrno;
+      DWORD _myerrno;
+      std::string _errstr;
 
       template<typename ... Args>
       win32_error(std::string fmt, Args&& ... args) :
-          _myerrno(errno),
-          snde_error("%s", ssprintf("Win32 runtime error %d (%s): %s", _myerrno, portable_strerror(_myerrno).c_str(), ssprintf(fmt, std::forward<Args>(args) ...).c_str()).c_str())
+          _myerrno(GetLastError()),
+          _errstr(GetWin32ErrorAsString(_myerrno)),
+          snde_error("%s", ssprintf("Win32 runtime error 0x%lx (%s): %s", _myerrno, _errstr.c_str(), ssprintf(fmt, std::forward<Args>(args) ...).c_str()).c_str())
       {
           //std::string foo=openclerrorstring[clerrnum];
           //std::string bar=openclerrorstring.at(clerrnum);

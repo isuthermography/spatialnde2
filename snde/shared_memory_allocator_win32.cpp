@@ -141,6 +141,7 @@ namespace snde {
     HANDLE hMapFile = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, memHigh, memLow, shm_name.c_str());
     //int fd = shm_open(shm_name.c_str(),O_RDWR|O_CREAT|O_EXCL,0777);
     if (hMapFile == NULL) {
+        /* // These don't work on windows
       if (errno==EEXIST) {
 	throw win32_error("shared_memory_allocator_win32::calloc name collision while attempting to create shared memory object: %s",shm_name.c_str());
 
@@ -148,7 +149,7 @@ namespace snde {
       if (errno==EMFILE) {
 	throw win32_error("shared_memory_allocator_win32::calloc too many open files while attempting to create shared memory object: %s",shm_name.c_str());
 
-      }
+      }*/
       throw win32_error("shared_memory_allocator_win32::calloc CreateFileMapping(%s)",shm_name.c_str());
     }
 
@@ -193,7 +194,7 @@ namespace snde {
 
     // MAKE SURE THERE'S ENOUGH MEMORY FIRST
     if (newsize > this_info.bytesalloc)
-        throw win32_error("shared_memory_allocator_win32::realloc Attempting to realloc more than originally allocated is not implemented (newsize = %llu, allocated = %llu)", (unsigned long long)newsize, (unsigned long long)this_info.bytesalloc);
+        throw snde_error("shared_memory_allocator_win32::realloc Attempting to realloc more than originally allocated is not implemented (newsize = %llu, allocated = %llu)", (unsigned long long)newsize, (unsigned long long)this_info.bytesalloc);
     
     //this_info.addr = mmap(nullptr,newsize,PROT_READ|PROT_WRITE,MAP_SHARED,this_info.fd,0);
     this_info.addr = MapViewOfFile(this_info.hFile, FILE_MAP_ALL_ACCESS, 0, 0, newsize);
