@@ -48,9 +48,10 @@ namespace snde {
 
   nonmoving_copy_or_reference_win32::~nonmoving_copy_or_reference_win32()  // virtual destructor required so we can be subclassed
   {
-    if (!UnmapViewOfFile(mmapaddr)) {
+    // Nothing should actually be needed here since this will be taken care of for the entire block of space at the end by shared_memory_info_win32
+    /*if (!UnmapViewOfFile(mmapaddr)) {
       throw win32_error("shared_memory_allocator_win32 nonmoving_copy_or_reference_win32 destructor UnmapViewOfFile(%llu,%llu)",(unsigned long long)mmapaddr);
-    }
+    }*/
     mmapaddr=nullptr;
   }
   
@@ -138,7 +139,7 @@ namespace snde {
     DWORD memHigh = static_cast<DWORD>((memtoalloc >> 32) & 0xFFFFFFFFul);
     DWORD memLow = static_cast<DWORD>(memtoalloc & 0xFFFFFFFFul);
 
-    HANDLE hMapFile = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, memHigh, memLow, shm_name.c_str());
+    HANDLE hMapFile = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE | SEC_RESERVE, memHigh, memLow, shm_name.c_str());
     //int fd = shm_open(shm_name.c_str(),O_RDWR|O_CREAT|O_EXCL,0777);
     if (hMapFile == NULL) {
         /* // These don't work on windows
@@ -159,24 +160,30 @@ namespace snde {
     }*/
 
     //void *addr = mmap(nullptr,nbytes,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
-    LPVOID addr = MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0, nbytes);
+    LPVOID addr = MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0, memtoalloc);
     if (addr==NULL) {
       CloseHandle(hMapFile);
-      throw win32_error("shared_memory_allocator_win32::calloc MapViewOfFile(%s,%llu)",shm_name.c_str(),(unsigned long long)nbytes);
+      throw win32_error("shared_memory_allocator_win32::calloc MapViewOfFile(%s,%llu)",shm_name.c_str(),(unsigned long long)memtoalloc);
       
     }
 
-    {
-      std::lock_guard<std::mutex> lock(_admin);    
-      assert(_shm_info.find(std::make_tuple(recording_path,recrevision,originating_rss_unique_id,id))==_shm_info.end()); // 
-
-      // shared_memory_info_win32(id,shm_name,fd,addr,nbytes);
-      _shm_info.emplace(std::piecewise_construct,
-			std::forward_as_tuple(std::make_tuple(recording_path,recrevision,originating_rss_unique_id,id)), // index
-			std::forward_as_tuple(id,shm_name,hMapFile,addr,nbytes,memtoalloc)); // parameters to shared_memory_info_win32 constructor
+    if (VirtualAlloc(addr, nbytes, MEM_COMMIT, PAGE_READWRITE) == NULL) {
+        CloseHandle(hMapFile);
+        UnmapViewOfFile(addr);
+        throw win32_error("shared_memory_allocator_win32::calloc MapViewOfFile(%s,%llu)", shm_name.c_str(), (unsigned long long)nbytes);
     }
 
-    //fprintf(stderr,"calloc 0x%lx (%s): %d\n",(unsigned long)addr, shm_name.c_str(), (int)nbytes);
+ 
+    std::lock_guard<std::mutex> lock(_admin);    
+    assert(_shm_info.find(std::make_tuple(recording_path,recrevision,originating_rss_unique_id,id))==_shm_info.end()); // 
+
+    // shared_memory_info_win32(id,shm_name,fd,addr,nbytes);
+    _shm_info.emplace(std::piecewise_construct,
+			std::forward_as_tuple(std::make_tuple(recording_path,recrevision,originating_rss_unique_id,id)), // index
+			std::forward_as_tuple(id,shm_name,hMapFile,addr,nbytes,memtoalloc)); // parameters to shared_memory_info_win32 constructor
+    
+
+    fprintf(stderr,"calloc 0x%llx (%s): %d\n",(unsigned long long)addr, shm_name.c_str(), (int)nbytes);
     
 
     return addr;
@@ -188,23 +195,27 @@ namespace snde {
     shared_memory_info_win32 &this_info = _shm_info.find(std::make_tuple(recording_path,recrevision,originating_rss_unique_id,id))->second;
     assert(this_info.addr==ptr);
 
-    if (!UnmapViewOfFile(this_info.addr)) {
+    /*if (!UnmapViewOfFile(this_info.addr)) {
       throw win32_error("shared_memory_allocator_win32::realloc UnmapViewOfFile(%llu)",(unsigned long long)this_info.addr);
-    }
+    }*/
 
     // MAKE SURE THERE'S ENOUGH MEMORY FIRST
     if (newsize > this_info.bytesalloc)
         throw snde_error("shared_memory_allocator_win32::realloc Attempting to realloc more than originally allocated is not implemented (newsize = %llu, allocated = %llu)", (unsigned long long)newsize, (unsigned long long)this_info.bytesalloc);
     
     //this_info.addr = mmap(nullptr,newsize,PROT_READ|PROT_WRITE,MAP_SHARED,this_info.fd,0);
+
+    /*
     this_info.addr = MapViewOfFile(this_info.hFile, FILE_MAP_ALL_ACCESS, 0, 0, newsize);
+    */
+    this_info.addr = VirtualAlloc(this_info.addr, newsize, MEM_COMMIT, PAGE_READWRITE);
     if (this_info.addr==NULL) {
       this_info.addr=nullptr;
-      throw win32_error("shared_memory_allocator_win32::realloc MapViewOfFile(%s,%llu)",this_info.shm_name.c_str(),(unsigned long long)newsize);
+      throw win32_error("shared_memory_allocator_win32::realloc VirtualAlloc(%s,%llu)",this_info.shm_name.c_str(),(unsigned long long)newsize);
       
     }
     this_info.nbytes=newsize;
-    //fprintf(stderr,"realloc 0x%lx (%s): %d\n",(unsigned long)this_info.addr, this_info.shm_name.c_str(), (int)newsize);
+    fprintf(stderr,"realloc 0x%llx (%s): %d\n",(unsigned long long)this_info.addr, this_info.shm_name.c_str(), (int)newsize);
     return this_info.addr;
   }
   
@@ -235,17 +246,21 @@ namespace snde {
     size_t mmaplength=length + ptrshift;
     size_t offset = shiftpages * page_size;
 
-    DWORD offsetHigh = static_cast<DWORD>((offset >> 32) & 0xFFFFFFFFul);
-    DWORD offsetLow = static_cast<DWORD>(offset & 0xFFFFFFFFul);
+    //DWORD offsetHigh = static_cast<DWORD>((offset >> 32) & 0xFFFFFFFFul);
+    //DWORD offsetLow = static_cast<DWORD>(offset & 0xFFFFFFFFul);
 
-    LPVOID mmapaddr = MapViewOfFile(this_info.hFile, FILE_MAP_ALL_ACCESS, offsetHigh, offsetLow, mmaplength);
+    //LPVOID mmapaddr = MapViewOfFile(this_info.hFile, FILE_MAP_ALL_ACCESS, offsetHigh, offsetLow, mmaplength);
     //void *mmapaddr = mmap(nullptr,mmaplength,PROT_READ|PROT_WRITE,MAP_SHARED,this_info.fd,shiftpages*page_size);
+
+    LPVOID tempaddr = static_cast<char*>(this_info.addr) + offset;
+    LPVOID mmapaddr = VirtualAlloc(tempaddr, mmaplength, MEM_COMMIT, PAGE_READWRITE);
+
     if (mmapaddr==NULL) {
-      throw win32_error("shared_memory_allocator_win32::obtain_nonmoving_copy_or_reference MapViewOfFile(%s,%llu,%llu)",this_info.shm_name.c_str(),(unsigned long long)mmaplength,(unsigned long long)(shiftpages*page_size));
+      throw win32_error("shared_memory_allocator_win32::obtain_nonmoving_copy_or_reference VirtualAlloc(%s,%llu,%llu)",this_info.shm_name.c_str(),(unsigned long long)mmaplength,(unsigned long long)(shiftpages*page_size));
       
     }
 
-    //fprintf(stderr, "obtain_nonmoving_copy_or_reference 0x%lx (%s): %llu, %llu\n", (unsigned long) this_info.addr, this_info.shm_name.c_str(), (unsigned long long) shift, (unsigned long long)length);
+    fprintf(stderr, "obtain_nonmoving_copy_or_reference 0x%llx (%s): %llu, %llu\n", (unsigned long long) this_info.addr, this_info.shm_name.c_str(), (unsigned long long) shift, (unsigned long long)length);
     return std::make_shared<nonmoving_copy_or_reference_win32>(basearray,shift,length,mmapaddr,mmaplength,ptrshift);
     
   }
@@ -257,6 +272,7 @@ namespace snde {
     std::unordered_map<std::tuple<std::string,uint64_t,uint64_t,memallocator_regionid>,shared_memory_info_win32,memkey_hash/*,memkey_equal*/>::iterator this_it = _shm_info.find(std::make_tuple(recording_path,recrevision,originating_rss_unique_id,id));
     shared_memory_info_win32 &this_info = this_it->second;
     assert(this_info.addr==ptr);
+    fprintf(stderr, "free 0x%llx (%s) : %llu\n", (unsigned long long)this_info.addr, this_info.shm_name.c_str(), this_info.nbytes);
 
     if (!UnmapViewOfFile(this_info.addr)) {
         throw win32_error("shared_memory_allocator_win32::free UnmapViewOfFile(%llu)", (unsigned long long)this_info.addr);
@@ -276,7 +292,8 @@ namespace snde {
   {
     for ( auto && shm_info_it : _shm_info ) {
       shared_memory_info_win32 &this_info = shm_info_it.second;
-      
+      fprintf(stderr, "~shared_memory_allocator_win32 0x%llx (%s) : %llu\n", (unsigned long long)this_info.addr, this_info.shm_name.c_str(), this_info.nbytes);
+
       /*if (munmap(this_info.addr,this_info.nbytes)) {
 	throw win32_error("shared_memory_allocator_win32 destructor munmap(%llu,%llu)",(unsigned long long)this_info.addr,(unsigned long long)this_info.nbytes);
       }
@@ -285,13 +302,8 @@ namespace snde {
       
       shm_unlink(this_info.shm_name.c_str());*/
 
-      if (!UnmapViewOfFile(this_info.addr)) {
-          throw win32_error("shared_memory_allocator_win32 destructor UnmapViewOfFile(%llu)", (unsigned long long)this_info.addr);
-      }
-
-      if (!CloseHandle(this_info.hFile)) {
-          throw win32_error("shared_memory_allocator_win32 destructor CloseHandle(%llu)", (unsigned long long)this_info.hFile);
-      }
+      UnmapViewOfFile(this_info.addr);
+      CloseHandle(this_info.hFile);
     }
   }
 
