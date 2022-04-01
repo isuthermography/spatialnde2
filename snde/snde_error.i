@@ -40,6 +40,8 @@ namespace snde {
     posix_error(std::string); // pretend it only takes one argument for Python
   };
 
+#ifdef _WIN32
+
   class win32_error : public snde_error {
   public:
     unsigned long _myerrno;
@@ -47,6 +49,7 @@ namespace snde {
     
     win32_error(std::string); // pretend it only takes one argument for Python
   };
+#endif // _WIN32
 
   void snde_warning(std::string fmt); // pretend it only takes one argument for Python
 

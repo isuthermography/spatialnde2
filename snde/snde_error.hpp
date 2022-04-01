@@ -187,8 +187,10 @@ namespace snde {
       return message;
   }
 #else
-  static inline std::string GetWin32ErrorAsString(unsigned long err) {
-
+  static inline std::string GetWin32ErrorAsString(unsigned long err)
+  {
+    assert(0);
+    return "";
   }
 #endif
 
@@ -261,6 +263,8 @@ namespace snde {
   };
 
   // This class is only for use with Windows API calls found in Windows.h
+
+#ifdef _WIN32
   class win32_error : public snde_error {
   public:
       DWORD _myerrno;
@@ -278,7 +282,9 @@ namespace snde {
 
       }
   };
+#endif // _WIN32
 
+  
   template<typename ... Args>
   void snde_warning(std::string fmt, Args && ... args)
   {
