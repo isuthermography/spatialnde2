@@ -148,7 +148,7 @@ else()
   set(SHARED_LIBRARY_SUFFIX_PYTHON .so )
 endif()
 
-set(SPATIALNDE2_SOURCES snde/allocator.cpp snde/lockmanager.cpp snde/recmath_compute_resource.cpp snde/recmath.cpp snde/recmath_parameter.cpp snde/recstore.cpp snde/metadata.cpp snde/recstore_storage.cpp snde/recmath_cppfunction.cpp snde/notify.cpp snde/snde_error.cpp snde/graphics_storage.cpp snde/rec_display.cpp snde/recstore_display_transforms.cpp snde/graphics_recording.cpp snde/cached_recording.cpp snde/recstore_setup.cpp snde/rec_display_vertexarray.c snde/rec_display_texvertexarray.c snde/normal_calc.c snde/fusion_colormap.c snde/projinfo_calc.c snde/display_requirements.cpp snde/averaging_downsampler.cpp snde/batched_live_accumulator.cpp snde/kdtree_knn.c snde/inplanemat_calculation.cpp snde/boxes_calculation.cpp snde/project_onto_parameterization.cpp ) # snde/infostore_or_component.cpp snde/geometry.cpp snde/revision_manager.cpp snde/mutablerecstore.cpp )
+set(SPATIALNDE2_SOURCES snde/allocator.cpp snde/lockmanager.cpp snde/recmath_compute_resource.cpp snde/recmath.cpp snde/recmath_parameter.cpp snde/recstore.cpp snde/metadata.cpp snde/recstore_storage.cpp snde/recmath_cppfunction.cpp snde/notify.cpp snde/snde_error.cpp snde/graphics_storage.cpp snde/rec_display.cpp snde/recstore_display_transforms.cpp snde/graphics_recording.cpp snde/cached_recording.cpp snde/recstore_setup.cpp snde/rec_display_vertexarray.c snde/rec_display_texvertexarray.c snde/normal_calc.c snde/fusion_colormap.c snde/projinfo_calc.c snde/display_requirements.cpp snde/averaging_downsampler.cpp snde/batched_live_accumulator.cpp snde/kdtree_knn.c snde/inplanemat_calculation.cpp snde/boxes_calculation.cpp snde/project_onto_parameterization.cpp snde/nde_file.cpp ) # snde/infostore_or_component.cpp snde/geometry.cpp snde/revision_manager.cpp snde/mutablerecstore.cpp )
 
 if (NOT WIN32)
   set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/shared_memory_allocator_posix.cpp )
@@ -201,6 +201,12 @@ message(PYTHON_EXECUTABLE " " ${PYTHON_EXECUTABLE})
 find_package(Python3 COMPONENTS Interpreter Development)
 find_package(SWIG)
 find_package(PNG)
+find_package(HDF5 REQUIRED COMPONENTS C CXX )
+
+include_directories(${HDF5_C_INCLUDE_DIRS})
+include_directories(${HDF5_CXX_INCLUDE_DIRS})
+
+set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} ${HDF5_C_DEFINITIONS} ${HDF5_CXX_DEFINITIONS} ) 
 
 
 # OpenSceneGraph (osg) dependencies
@@ -240,7 +246,7 @@ IF (Python3_FOUND)
     message(STATUS "Python3: " ${Python3_VERSION})
 ENDIF (Python3_FOUND)
 
-set(SPATIALNDE2_LIBS spatialnde2 ${CMAKE_THREAD_LIBS_INIT})
+set(SPATIALNDE2_LIBS spatialnde2 ${CMAKE_THREAD_LIBS_INIT} ${HDF5_LIBRARIES})
 set(SPATIALNDE2_OCL_LIBS spatialnde2_ocl )
 set(SPATIALNDE2_OSG_LIBS spatialnde2_osg )
 set(SPATIALNDE2_QT_LIBS spatialnde2_qt )
@@ -322,13 +328,14 @@ ENDIF()
 
 
 
-# SpatialNDE2 library
+# SpatialNDE2 library target 
 add_library(spatialnde2 SHARED ${SPATIALNDE2_SOURCES} )
 add_dependencies(spatialnde2 OpenGL::GL )
 
 
 # Need a define for direct compiling of spatialnde2 for the items that need dllimport/dllexport on Windows
 target_compile_definitions(spatialnde2 PRIVATE SPATIALNDE2_SHAREDLIB_EXPORT)
+target_link_libraries(spatialnde2 hdf5::hdf5 hdf5::hdf5_cpp )
 
 
 IF (OpenCL_FOUND)

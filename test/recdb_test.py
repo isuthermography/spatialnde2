@@ -13,7 +13,7 @@ recdb.startup()
 
  
 transact = recdb.start_transaction();
-testchan = recdb.define_channel("/test channel", "main", recdb);
+testchan = recdb.define_channel("/test channel", "main", recdb.raw());
 test_ref = snde.create_recording_ref(recdb,testchan,recdb.raw(),snde.SNDE_RTN_FLOAT32)
 globalrev = transact.end_transaction()
 
@@ -35,7 +35,7 @@ test_ref.allocate_storage([ rec_len ],False);
 
 locktokens = recdb.lockmgr.lock_recording_refs([
     (test_ref, True), # first element is recording_ref, 2nd parameter is false for read, true for write 
-])
+],False)
 for cnt in range(rec_len):
     test_ref.assign_double([cnt],100.0*math.sin(cnt))
     pass
