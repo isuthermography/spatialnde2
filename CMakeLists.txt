@@ -201,6 +201,7 @@ message(PYTHON_EXECUTABLE " " ${PYTHON_EXECUTABLE})
 find_package(Python3 COMPONENTS Interpreter Development)
 find_package(SWIG)
 find_package(PNG)
+set(HDF5_USE_STATIC_LIBRARIES OFF )
 find_package(HDF5 REQUIRED COMPONENTS C CXX )
 
 include_directories(${HDF5_C_INCLUDE_DIRS})
