@@ -196,14 +196,15 @@ namespace snde {
 
   static inline std::string portable_strerror(int errnum)
   {
-    char *errstr;
     char *buf=nullptr;
 
 #ifdef _WIN32
     // Win32 strerror() is thread safe per MS docs
-    errstr=strerror(errnum);
+    char errstr[95];
+    strerror_s(errstr, 95, errnum);
 #else
     {
+      char* errstr;
       int buflen=1; // Make this big once tested
 #if (_POSIX_C_SOURCE >= 200112L) && !  _GNU_SOURCE
       int err=0;
