@@ -203,8 +203,8 @@ namespace snde {
     char errstr[95];
     strerror_s(errstr, 95, errnum);
 #else
+    char* errstr;
     {
-      char* errstr;
       int buflen=1; // Make this big once tested
 #if (_POSIX_C_SOURCE >= 200112L) && !  _GNU_SOURCE
       int err=0;

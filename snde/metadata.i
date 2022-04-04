@@ -135,9 +135,19 @@ public:
       
     }
     
-    
+    std::string to_string();
+
   };
 
+  %extend constructible_metadata {
+    std::string __str__()
+    {
+      return self->to_string();
+      
+    }
+
+  };
+  
   static std::shared_ptr<constructible_metadata> MergeMetadata(std::shared_ptr<const constructible_metadata> baseline_md,std::shared_ptr<const constructible_metadata> override_md)
   {
     std::shared_ptr<constructible_metadata> retval=std::make_shared<constructible_metadata>();

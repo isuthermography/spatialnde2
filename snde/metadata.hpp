@@ -1,11 +1,13 @@
+#ifndef SNDE_METADATA_HPP
+#define SNDE_METADATA_HPP
+
 #include <string>
 #include <mutex>
 #include <unordered_map>
 #include <memory>
 #include <atomic>
 
-#ifndef SNDE_METADATA_HPP
-#define SNDE_METADATA_HPP
+#include "snde/snde_error.hpp"
 
 namespace snde {
 
@@ -293,7 +295,32 @@ public:
       
     }
     
-    
+    std::string to_string() const
+    {
+      // Warning: doesn't scale well
+      std::string result;
+
+      for (auto && mdname_mdvalue: metadata) {
+	assert(mdname_mdvalue.first == mdname_mdvalue.second.Name);
+	
+	if (mdname_mdvalue.second.md_type==MWS_MDT_INT) {
+	  result += ssprintf("%s: INT %lld\n",mdname_mdvalue.first.c_str(),(long long)mdname_mdvalue.second.intval);
+	  
+	} else if (mdname_mdvalue.second.md_type==MWS_MDT_STR) {
+	  result += ssprintf("%s: STR \"%s\"\n",mdname_mdvalue.first.c_str(),mdname_mdvalue.second.strval.c_str());
+	  	  
+	} else if (mdname_mdvalue.second.md_type==MWS_MDT_DBL) {
+	  result += ssprintf("%s: DBL %g\n",mdname_mdvalue.first.c_str(),mdname_mdvalue.second.dblval);
+	  
+	} else if (mdname_mdvalue.second.md_type==MWS_MDT_INT) {
+	  result += ssprintf("%s: UNSIGNED %llu\n",mdname_mdvalue.first.c_str(),(unsigned long long)mdname_mdvalue.second.unsignedval);
+	  
+	} else {
+	  throw snde_error("constructible_metadata::to_string(): Invalid metadatum type %u for %s",(unsigned)mdname_mdvalue.second.md_type,mdname_mdvalue.first.c_str());
+	}
+      }
+      return result;
+    }
   };
 
   static std::shared_ptr<constructible_metadata> MergeMetadata(std::shared_ptr<const constructible_metadata> baseline_md,std::shared_ptr<const constructible_metadata> override_md)

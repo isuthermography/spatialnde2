@@ -563,8 +563,10 @@ namespace snde {
       return FindAxis("Time","seconds");
     }
 
-
+    //snde_warning("Getting second axis for %s:",fullname.c_str());
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis1_coord","Time");
+    //snde_warning("Full metadata=%s\n",rec->rec->metadata->to_string().c_str());
+    
     std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis1_units","seconds");
 
     return FindAxis(AxisName,UnitName);

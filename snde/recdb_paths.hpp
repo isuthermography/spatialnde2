@@ -111,7 +111,10 @@ namespace snde {
       throw snde_error("recdb_path_join(): context %s is not a context (no trailing slash)",context.c_str());
     }
     
-    
+    // prevent double slash
+    if (context.size() >= 2 && context.at(context.size()-1)=='/' && context.at(context.size()-2)=='/') {
+      context.pop_back(); // remove last character
+    }
     
 
     /*

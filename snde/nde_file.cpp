@@ -138,7 +138,7 @@ namespace snde {
     nde_recording_version_attr.read(nde_rv_dtype,nde_recording_version);
     
     
-    H5::Attribute nde_recording_label_attr = group.openAttribute("nde-recording-label");
+    H5::Attribute nde_recording_label_attr = group.openAttribute("nde_recording-label");
     H5::DataType nde_rl_dtype = nde_recording_label_attr.getDataType();
     if (nde_rl_dtype.getClass() != H5T_STRING) {
       throw snde_error("nde_recording-label for hdf5 group %s should be a string",h5path.c_str());
@@ -154,31 +154,37 @@ namespace snde {
     if (nde_ct_dspace.getSimpleExtentNdims() != 1) {
       throw snde_error("nde-class-tags attribute for hdf5 group %s should have exactly one iterable dimension",h5path.c_str());
     }
-    if (nde_ct_dtype.getClass() != H5T_STRING) {
-      throw snde_error("nde-class-tags attribute for hdf5 group %s should be an array of strings",h5path.c_str());
-    }
-    
-    // std::set<std::string> nde_class_tags; // actually a class member
-    
+
     // number of classes
     hsize_t nde_ct_num=0;
+
     nde_ct_dspace.getSimpleExtentDims(&nde_ct_num);
-    char **class_tag_strings = new char*[nde_ct_num];
-    H5::StrType nde_ct_strtype(H5::PredType::C_S1,H5T_VARIABLE);
-    nde_class_tags_attr.read(nde_ct_strtype,(void *)class_tag_strings);
+
+    if (nde_ct_num > 0) {
+      if (nde_ct_dtype.getClass() != H5T_STRING) {
+	throw snde_error("nde-class-tags attribute for hdf5 group %s should be an array of strings",h5path.c_str());
+      }
     
-    size_t nde_class_tags_size=nde_ct_dtype.getSize();
-    for (size_t class_idx=0;class_idx < nde_ct_num;class_idx++) {
-      // Per https://stackoverflow.com/questions/43722194/reading-a-string-array-hdf5-attribute-in-c
-      // we actually have to call delete[] on each string, which seems
-      // odd  (maybe they really mean free()?), but....
-      nde_class_tags.emplace(class_tag_strings[class_idx]);
-      delete[] class_tag_strings[class_idx];
+      // std::set<std::string> nde_class_tags; // actually a class member
       
+      char **class_tag_strings = new char*[nde_ct_num];
+      H5::StrType nde_ct_strtype(H5::PredType::C_S1,H5T_VARIABLE);
+      nde_ct_strtype.setCset(H5T_CSET_UTF8);
+      nde_ct_strtype.setStrpad(H5T_STR_NULLTERM);
+      nde_class_tags_attr.read(nde_ct_strtype,(void *)class_tag_strings);
+      
+      size_t nde_class_tags_size=nde_ct_dtype.getSize();
+      for (size_t class_idx=0;class_idx < nde_ct_num;class_idx++) {
+	// Per https://stackoverflow.com/questions/43722194/reading-a-string-array-hdf5-attribute-in-c
+	// we actually have to call delete[] on each string, which seems
+	// odd  (maybe they really mean free()?), but....
+	nde_class_tags.emplace(class_tag_strings[class_idx]);
+	delete[] class_tag_strings[class_idx];
+	
+      }
+      delete[] class_tag_strings;
+    
     }
-    delete[] class_tag_strings;
-    
-    
     
     // read the metadata here.
     //if (file.nameExists(h5path+"/nde_recording-metadata")) {
@@ -222,8 +228,12 @@ namespace snde {
 	  
 	case H5T_STRING:
 	  {
+	    H5::StrType md_strtype(H5::PredType::C_S1,H5T_VARIABLE);
+	    md_strtype.setCset(H5T_CSET_UTF8);
+	    md_strtype.setStrpad(H5T_STR_NULLTERM);
+
 	    std::string strval;
-	    md_attr.read(H5::PredType::C_S1,strval);
+	    md_attr.read(md_strtype,strval);
 	    metadata_loader.AddMetaDatum(metadatum(attr_name,strval));
 	    
 	  }
@@ -241,7 +251,8 @@ namespace snde {
       metadata=std::make_shared<immutable_metadata>();
       
     }
-    
+
+    //snde_warning("Got metadata for %s: %s",recpath.c_str(),metadata->to_string().c_str());
     
     // basically anything that might be needed to decide how to instantiate
     // the final recording in define_rec needs to be read here. This
@@ -296,6 +307,8 @@ namespace snde {
     }
     
     std::shared_ptr<multi_ndarray_recording> retval = create_recording<multi_ndarray_recording>(recdb,loadchan,owner_id,(size_t)numarrays);
+
+    retval->metadata=metadata;
     
     return retval;
     
@@ -331,6 +344,8 @@ namespace snde {
       }
       H5std_string nde_array_name;
       nde_array_name_attr.read(nde_an_dtype,nde_array_name);
+
+      //snde_warning("reading nde_array: %s",nde_array_name.c_str());
       
       std::vector<snde_index> dimlen;
       bool fortran_order=false;
@@ -466,6 +481,7 @@ namespace snde {
       
       
     }
+    rec->mark_as_ready();
   }
 
   ndefile_readgroup::ndefile_readgroup(const std::set<std::string> &nde_classes,std::string h5path, H5::Group group, std::string recpath,std::shared_ptr<nde_recording_map> filemap) :
@@ -479,10 +495,10 @@ namespace snde {
     }
     
     
-    H5::Attribute nde_group_version_attr = group.openAttribute("nde-group-version");
+    H5::Attribute nde_group_version_attr = group.openAttribute("nde_group-version");
     H5::DataType nde_gv_dtype = nde_group_version_attr.getDataType();
     if (nde_gv_dtype.getClass() != H5T_STRING) {
-      throw snde_error("nde-group-version for hdf5 group %s should be a string",h5path.c_str());
+      throw snde_error("nde_group-version for hdf5 group %s should be a string",h5path.c_str());
     }
     nde_group_version_attr.read(nde_gv_dtype,group_version);
     
@@ -518,7 +534,8 @@ namespace snde {
     
     // ***!!! Should we provide the group with an explicit order that matches the order in the file???
     std::shared_ptr<recording_group> retval = create_recording<recording_group>(recdb,loadchan,owner_id,nullptr);
-    
+    retval->metadata=metadata;
+
     return retval;
   }
 
@@ -546,6 +563,9 @@ namespace snde {
   nde_c_dspace.getSimpleExtentDims(&nde_c_num);
   char **class_strings = new char*[nde_c_num];
   H5::StrType nde_c_strtype(H5::PredType::C_S1,H5T_VARIABLE);
+  nde_c_strtype.setCset(H5T_CSET_UTF8);
+  nde_c_strtype.setStrpad(H5T_STR_NULLTERM);
+  
   nde_classes_attr.read(nde_c_strtype,(void *)class_strings);
   
   size_t nde_classes_size=nde_c_dtype.getSize();
@@ -588,7 +608,8 @@ namespace snde {
     throw snde_error("ndefile_loadrecording: Recording %s does not specify any known classes",recpath.c_str());
   }
 
-  
+
+  //snde_warning("Using class %s for hdf5 group %s",deepest_class.c_str(),h5path.c_str());
   std::shared_ptr<ndefile_readrecording_base> readerobj = (*deepest_loaderfunc)(nde_classes,h5path,group,recpath,filemap);  
   filemap->emplace(recpath,std::make_pair(readerobj,nullptr));
 
@@ -614,7 +635,7 @@ namespace snde {
     std::shared_ptr<ndefile_readrecording_base> readerobj;
       
     readerobj = ndefile_loadrecording("/",rootgroup,recpath,filemap);
-    std::shared_ptr<recording_base> new_rec = readerobj->define_rec(recdb,ownername,owner_id);
+    //std::shared_ptr<recording_base> new_rec = readerobj->define_rec(recdb,ownername,owner_id);
   
 
     // iterate through all recordings and define them
@@ -630,7 +651,7 @@ namespace snde {
       std::string recname = std::get<0>(recname_loaderptr_recordingptr);
       std::pair<std::shared_ptr<ndefile_readrecording_base>,std::shared_ptr<recording_base>> &loaderptr_recordingptr=std::get<1>(recname_loaderptr_recordingptr);
       // define recording and assign into filemap
-      loaderptr_recordingptr.first->read(loaderptr_recordingptr.second,filemap);
+      loaderptr_recordingptr.first->read(loaderptr_recordingptr.second);
     }
     
     

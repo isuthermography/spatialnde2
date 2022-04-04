@@ -72,10 +72,12 @@ namespace snde {
     
     virtual std::shared_ptr<recording_base> define_rec(std::shared_ptr<recdatabase> recdb,std::string ownername,void *owner_id)=0;
     
-    virtual void read(std::shared_ptr<recording_base> rec,std::shared_ptr<nde_recording_map> filemap) // read actual data into rec and any sub-recordings into filemap
+    virtual void read(std::shared_ptr<recording_base> rec) // read actual data into rec and any sub-recordings into filemap
     {
       // no-op
+      rec->mark_as_ready();
     }
+    virtual ~ndefile_readrecording_base() = default;
   };
   
   
@@ -97,7 +99,9 @@ namespace snde {
     ndefile_readarray(const std::set<std::string> &nde_classes,std::string h5path, H5::Group group, std::string recpath,std::shared_ptr<nde_recording_map> filemap);
     
     virtual std::shared_ptr<recording_base> define_rec(std::shared_ptr<recdatabase> recdb,std::string ownername,void *owner_id);    
-    virtual void read(std::shared_ptr<recording_base> rec); // read actual data  
+    virtual void read(std::shared_ptr<recording_base> rec); // read actual data
+
+    virtual ~ndefile_readarray() = default;
   };
   
 
@@ -122,7 +126,9 @@ namespace snde {
     virtual void read(std::shared_ptr<recording_base> rec) // read actual data
     {
       // nothing to actually read for a group
+      rec->mark_as_ready();
     }
+    virtual ~ndefile_readgroup() = default;
     
   };
 
