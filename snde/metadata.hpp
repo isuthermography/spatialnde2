@@ -14,8 +14,10 @@ namespace snde {
 #define MWS_MDT_INT 0
 #define MWS_MDT_STR 1
 #define MWS_MDT_DBL 2
-#define MWS_MDT_UNSIGNED 3
-#define MWS_MDT_NONE 4
+#define MWS_MDT_DBL_UNITS 3
+#define MWS_MDT_UNSIGNED 4
+#define MWS_MDT_BOOL 5
+#define MWS_MDT_NONE 6
 
 #define MWS_UNSIGNED_INVALID (~((uint64_t)0))
   
@@ -27,6 +29,8 @@ public:
   uint64_t unsignedval;
   std::string strval;
   double dblval;
+  std::string dblunits;
+  bool boolval;
 
   unsigned md_type; /* MWS_MDT_... */
 
@@ -36,6 +40,8 @@ public:
     unsignedval(0),
     strval(""),
     dblval(0.0),
+    dblunits(""),
+    boolval(false),
     md_type(MWS_MDT_NONE)
   {
 
@@ -47,6 +53,8 @@ public:
     unsignedval(oldmd.unsignedval),
     strval(oldmd.strval),
     dblval(oldmd.dblval),
+    dblunits(oldmd.dblunits),
+    boolval(oldmd.boolval),
     md_type(oldmd.md_type)
     // copy from pre-existing metadatum
   {
@@ -59,6 +67,8 @@ public:
     unsignedval(0),
     strval(""),
     dblval(0.0),
+    dblunits(""),
+    boolval(false),
     md_type(MWS_MDT_INT)
   {
     
@@ -71,6 +81,8 @@ public:
     unsignedval(0),
     strval(strval),
     dblval(0.0),
+    dblunits(""),
+    boolval(false),
     md_type(MWS_MDT_STR)
   {
     
@@ -82,18 +94,50 @@ public:
     unsignedval(0),
     strval(""),
     dblval(dblval),
+    dblunits(""),
+    boolval(false),
     md_type(MWS_MDT_DBL)
   {
     
   }
 
+  metadatum(std::string Name,double dblval,std::string units) :
+    Name(Name),
+    intval(0),
+    unsignedval(0),
+    strval(""),
+    dblval(dblval),
+    dblunits(units),
+    boolval(false),
+    md_type(MWS_MDT_DBL_UNITS)
+  {
+    
+  }
+
+  
   metadatum(std::string Name,uint64_t unsignedval) :
     Name(Name),
     intval(0),
     unsignedval(unsignedval),
     strval(""),
     dblval(0.0),
+    dblunits(""),
+    boolval(false),
     md_type(MWS_MDT_UNSIGNED)
+  {
+    
+  }
+
+
+  metadatum(std::string Name,bool boolval) :
+    Name(Name),
+    intval(0),
+    unsignedval(0),
+    strval(""),
+    dblval(0.0),
+    dblunits(""),
+    boolval(boolval),
+    md_type(MWS_MDT_BOOL)
   {
     
   }
@@ -105,6 +149,8 @@ public:
     intval(0),
     strval(""),
     dblval(0.0),
+    dblunits(""),
+    boolval(false),
     md_type(MWS_MDT_UNSIGNED)
   {
     if (indexval==SNDE_INDEX_INVALID) {
@@ -124,6 +170,12 @@ public:
 
     } else if (md_type==MWS_MDT_UNSIGNED && unsignedval < (1ull<<63)) {
       return (int64_t)unsignedval;
+    } else if (md_type == MWS_MDT_BOOL) {
+      if (boolval) {
+	return 1;
+      } else {
+	return 0;
+      }
     }
     return defaultval;
   }
@@ -134,6 +186,12 @@ public:
       return unsignedval;
     } else if (md_type == MWS_MDT_INT && intval >= 0) {
       return (uint64_t)intval;
+    } else if (md_type == MWS_MDT_BOOL) {
+      if (boolval) {
+	return 1;
+      } else {
+	return 0;
+      }
     }
     return defaultval;
   }
@@ -147,12 +205,38 @@ public:
   }
   double Dbl(double defaultval) const
   {
-    if (md_type != MWS_MDT_DBL) {
-      return defaultval;
-    }
-    return dblval;
+    if (md_type == MWS_MDT_DBL) {
+      return dblval;
+    } else if (md_type == MWS_MDT_DBL_UNITS) {
+      return dblval;
+    } 
+    return defaultval;
+  }
+  
+  std::pair<double,std::string> DblUnits(double defaultval,std::string defaultunits) const
+  {
+    if (md_type == MWS_MDT_DBL_UNITS) {
+      return std::make_pair(dblval,dblunits);
+    } 
+    return std::make_pair(defaultval,defaultunits);
   }
 
+  // Should have a method that will return a dblunits value in particular units
+
+  
+  bool Bool(bool defaultval) const
+  {
+    if (md_type == MWS_MDT_BOOL) {
+      return boolval;
+    } else if (md_type == MWS_MDT_INT) {
+      return intval != 0;
+    } else if (md_type == MWS_MDT_UNSIGNED) {
+      return unsignedval != 0;
+    }
+    return defaultval;
+  }
+  
+  
   double Numeric(double defaultval) const
   {
     if (md_type == MWS_MDT_DBL) {
@@ -161,6 +245,12 @@ public:
       return (double)intval;
     } else if (md_type == MWS_MDT_UNSIGNED) {
       return (double)unsignedval;
+    } else if (md_type == MWS_MDT_BOOL) {
+      if (boolval) {
+	return 1.0;
+      } else {
+	return 0.0;
+      }
     } else {
       return defaultval;
     }
@@ -188,6 +278,10 @@ public:
   metadatum metadatum_str(std::string Name,std::string strval);
 
   metadatum metadatum_dbl(std::string Name,double doubleval);
+  
+  metadatum metadatum_dblunits(std::string Name,double doubleval,std::string units);
+
+  metadatum metadatum_bool(std::string Name,bool boolval);
 
   metadatum metadatum_unsigned(std::string Name,uint64_t unsignedval);
 
@@ -220,9 +314,9 @@ public:
     int64_t GetMetaDatumInt(std::string Name,int64_t defaultval) const
     {
       std::unordered_map<std::string,metadatum>::const_iterator mditer; 
-
+      
       mditer = metadata.find(Name);
-      if (mditer == metadata.end() || mditer->second.md_type != MWS_MDT_INT) {
+      if (mditer == metadata.end()) {
 	return defaultval;
       }
       return (*mditer).second.Int(defaultval);
@@ -233,7 +327,7 @@ public:
       std::unordered_map<std::string,metadatum>::const_iterator mditer; 
       
       mditer = metadata.find(Name);
-      if (mditer == metadata.end() || mditer->second.md_type != MWS_MDT_UNSIGNED) {
+      if (mditer == metadata.end()) {
 	return defaultval;
       }
       return (*mditer).second.Unsigned(defaultval);
@@ -244,10 +338,10 @@ public:
       std::unordered_map<std::string,metadatum>::const_iterator mditer; 
       
       mditer = metadata.find(Name);
-      if (mditer == metadata.end() || mditer->second.md_type != MWS_MDT_UNSIGNED) {
+      if (mditer == metadata.end()) {
 	return defaultval;
       }
-      return (bool)((*mditer).second.Unsigned(defaultval));
+      return (bool)((*mditer).second.Bool(defaultval));
     }
     
 
@@ -258,7 +352,7 @@ public:
       std::unordered_map<std::string,metadatum>::const_iterator mditer; 
       
       mditer = metadata.find(Name);
-      if (mditer == metadata.end() || mditer->second.md_type != MWS_MDT_UNSIGNED) {
+      if (mditer == metadata.end()) {
 	return defaultval;
       }
       return (*mditer).second.Index(defaultval);
@@ -270,7 +364,7 @@ public:
       std::unordered_map<std::string,metadatum>::const_iterator mditer; 
       
       mditer = metadata.find(Name);
-      if (mditer == metadata.end() || mditer->second.md_type != MWS_MDT_STR) {
+      if (mditer == metadata.end()) {
 	return defaultval;
       }
       return (*mditer).second.Str(defaultval);
@@ -281,10 +375,21 @@ public:
       std::unordered_map<std::string,metadatum>::const_iterator mditer; 
       
       mditer = metadata.find(Name);
-      if (mditer == metadata.end() || mditer->second.md_type != MWS_MDT_DBL) {
+      if (mditer == metadata.end()) {
 	return defaultval;
       }
       return (*mditer).second.Dbl(defaultval);
+    }
+
+    std::pair<double,std::string> GetMetaDatumDblUnits(std::string Name,double defaultval,std::string defaultunits) const
+    {
+      std::unordered_map<std::string,metadatum>::const_iterator mditer; 
+      
+      mditer = metadata.find(Name);
+      if (mditer == metadata.end()) {
+	return std::make_pair(defaultval,defaultunits);
+      }
+      return (*mditer).second.DblUnits(defaultval,defaultunits);
     }
 
     void AddMetaDatum(metadatum newdatum)
@@ -305,15 +410,17 @@ public:
 	
 	if (mdname_mdvalue.second.md_type==MWS_MDT_INT) {
 	  result += ssprintf("%s: INT %lld\n",mdname_mdvalue.first.c_str(),(long long)mdname_mdvalue.second.intval);
-	  
+	} else if (mdname_mdvalue.second.md_type==MWS_MDT_UNSIGNED) {
+	  result += ssprintf("%s: UNSIGNED %llu\n",mdname_mdvalue.first.c_str(),(unsigned long long)mdname_mdvalue.second.unsignedval);	  
 	} else if (mdname_mdvalue.second.md_type==MWS_MDT_STR) {
 	  result += ssprintf("%s: STR \"%s\"\n",mdname_mdvalue.first.c_str(),mdname_mdvalue.second.strval.c_str());
 	  	  
 	} else if (mdname_mdvalue.second.md_type==MWS_MDT_DBL) {
 	  result += ssprintf("%s: DBL %g\n",mdname_mdvalue.first.c_str(),mdname_mdvalue.second.dblval);
-	  
-	} else if (mdname_mdvalue.second.md_type==MWS_MDT_INT) {
-	  result += ssprintf("%s: UNSIGNED %llu\n",mdname_mdvalue.first.c_str(),(unsigned long long)mdname_mdvalue.second.unsignedval);
+	} else if (mdname_mdvalue.second.md_type==MWS_MDT_DBL_UNITS) {
+	  result += ssprintf("%s: DBLUNITS %g %s\n",mdname_mdvalue.first.c_str(),mdname_mdvalue.second.dblval,mdname_mdvalue.second.dblunits.c_str());
+	} else if (mdname_mdvalue.second.md_type==MWS_MDT_BOOL) {
+	  result += ssprintf("%s: BOOL %s\n",mdname_mdvalue.first.c_str(),mdname_mdvalue.second.boolval ? "True":"False");	  
 	  
 	} else {
 	  throw snde_error("constructible_metadata::to_string(): Invalid metadatum type %u for %s",(unsigned)mdname_mdvalue.second.md_type,mdname_mdvalue.first.c_str());

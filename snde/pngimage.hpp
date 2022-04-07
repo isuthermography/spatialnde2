@@ -49,15 +49,15 @@ namespace snde {
     // is 0.5 pixel in each axis beyond the bottom left corner
     
     if (unit_type==PNG_RESOLUTION_METER && res_x) {
-      md->AddMetaDatum(metadatum("nde_array-axis0_step",1.0/res_x));
+      md->AddMetaDatum(metadatum("nde_array-axis0_step",1.0/res_x,"meters"));
       //md->AddMetaDatum(metadatum("IniVal1",-(width*1.0)/res_x/2.0) + 1.0/res_x/2.0);
-      md->AddMetaDatum(metadatum("nde_array-axis0_inival",1.0/res_x/2.0));
-      md->AddMetaDatum(metadatum("nde_array-axis0_units","meters"));      
+      md->AddMetaDatum(metadatum("nde_array-axis0_inival",1.0/res_x/2.0,"meters"));
+      //md->AddMetaDatum(metadatum("nde_array-axis0_units","meters"));      
     } else {
-      md->AddMetaDatum(metadatum("nde_array-axis0_step",1.0));
+      md->AddMetaDatum(metadatum("nde_array-axis0_step",1.0,"pixels"));
       //md->AddMetaDatum(metadatum("IniVal1",-(width*1.0)/2.0)+0.5);
-      md->AddMetaDatum(metadatum("nde_array-axis0_inival",0.5));
-      md->AddMetaDatum(metadatum("nde_array-axis0_units","pixels"));      
+      md->AddMetaDatum(metadatum("nde_array-axis0_inival",0.5,"pixels"));
+      //md->AddMetaDatum(metadatum("nde_array-axis0_units","pixels"));      
     }
     md->AddMetaDatum(metadatum("nde_array-axis0_coord","X Position"));
 
@@ -65,16 +65,16 @@ namespace snde {
        in in the upper-left corner, even with our convention  that
        the origin is in the lower-left, 0.5 pixel beyond */
     if (unit_type==PNG_RESOLUTION_METER && res_y) {
-      md->AddMetaDatum(metadatum("nde_array-axis1_step",-1.0/res_y));
+      md->AddMetaDatum(metadatum("nde_array-axis1_step",-1.0/res_y,"meters"));
       //md->AddMetaDatum(metadatum("IniVal2",(height*1.0)/res_y/2.0 -0.5/res_y));
-      md->AddMetaDatum(metadatum("nde_array-axis1_inival",(height*1.0)/res_y - 0.5/res_y));
-      md->AddMetaDatum(metadatum("nde_array-axis1_units","meters"));
+      md->AddMetaDatum(metadatum("nde_array-axis1_inival",(height*1.0)/res_y - 0.5/res_y,"meters"));
+      //md->AddMetaDatum(metadatum("nde_array-axis1_units","meters"));
       fprintf(stderr,"Got Y resolution in meters\n");
     } else {
-      md->AddMetaDatum(metadatum("nde_array-axis1_step",-1.0));
+      md->AddMetaDatum(metadatum("nde_array-axis1_step",-1.0,"pixels"));
       //md->AddMetaDatum(metadatum("IniVal2",(height*1.0)/2.0) - 0.5);
-      md->AddMetaDatum(metadatum("nde_array-axis1_inival",(height*1.0) - 0.5));
-      md->AddMetaDatum(metadatum("nde_array-axis1_units","pixels"));      
+      md->AddMetaDatum(metadatum("nde_array-axis1_inival",(height*1.0) - 0.5,"pixels"));
+      //md->AddMetaDatum(metadatum("nde_array-axis1_units","pixels"));      
       fprintf(stderr,"Got Y resolution in arbitrary\n");
     }
     md->AddMetaDatum(metadatum("nde_array-axis1_coord","Y Position"));

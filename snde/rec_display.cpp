@@ -528,8 +528,11 @@ namespace snde {
     }
     
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis0_coord","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis0_units","seconds");
+    std::string UnitName;
+    double inival0;
 
+    std::tie(inival0,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_inival",0.0,"seconds");
+    
     return FindAxis(AxisName,UnitName);
   }
 
@@ -546,7 +549,9 @@ namespace snde {
     }
     
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis0_coord","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis0_units","seconds");
+    std::string UnitName;
+    double inival0;
+    std::tie(inival0,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_inival",0.0,"seconds");
 
     return FindAxisLocked(AxisName,UnitName);
   }
@@ -567,7 +572,10 @@ namespace snde {
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis1_coord","Time");
     //snde_warning("Full metadata=%s\n",rec->rec->metadata->to_string().c_str());
     
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis1_units","seconds");
+    std::string UnitName;
+    double inival1;
+    std::tie(inival1,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("nde_array-axis1_inival",0.0,"seconds");
+
 
     return FindAxis(AxisName,UnitName);
   }
@@ -585,7 +593,9 @@ namespace snde {
 
 
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis1_coord","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis1_units","seconds");
+    std::string UnitName;
+    double inival1;
+    std::tie(inival1,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("nde_array-axis1_inival",0.0,"seconds");
 
     return FindAxisLocked(AxisName,UnitName);
   }
@@ -602,7 +612,9 @@ namespace snde {
     }
 
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis2_coord","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis2_units","seconds");
+    std::string UnitName;
+    double inival2;
+    std::tie(inival2,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("nde_array-axis2_inival",0.0,"seconds");
 
     return FindAxis(AxisName,UnitName);
   }
@@ -619,7 +631,9 @@ namespace snde {
     }
 
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis2_coord","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis2_units","seconds");
+    std::string UnitName;
+    double inival2;
+    std::tie(inival2,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("nde_array-axis2_inival",0.0,"seconds");
 
     return FindAxisLocked(AxisName,UnitName);
   }
@@ -635,7 +649,9 @@ namespace snde {
     }
 
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis3_coord","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis3_units","seconds");
+    std::string UnitName;
+    double inival3;
+    std::tie(inival3,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("nde_array-axis3_inival",0.0,"seconds");
 
     return FindAxis(AxisName,UnitName);
   }
@@ -652,7 +668,9 @@ namespace snde {
     }
 
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis3_coord","Time");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-axis3_units","seconds");
+    std::string UnitName;
+    double inival3;
+    std::tie(inival3,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("nde_array-axis3_inival",0.0,"seconds");
 
     return FindAxisLocked(AxisName,UnitName);
   }
@@ -669,8 +687,8 @@ namespace snde {
       return FindAxis("Time","seconds");
     }
 
-    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_amplcoord","Voltage");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_amplunits","Volts");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-ampl_coord","Voltage");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-ampl_units","Volts");
 
     return FindAxis(AxisName,UnitName);
   }
@@ -686,8 +704,8 @@ namespace snde {
       return FindAxis("Time","seconds");
     }
 
-    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_amplcoord","Voltage");
-    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_amplunits","Volts");
+    std::string AxisName = rec->rec->metadata->GetMetaDatumStr("nde_array-ampl_coord","Voltage");
+    std::string UnitName = rec->rec->metadata->GetMetaDatumStr("nde_array-ampl_units","Volts");
 
     return FindAxisLocked(AxisName,UnitName);
   }

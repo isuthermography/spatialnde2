@@ -10,8 +10,10 @@ namespace snde {
 #define MWS_MDT_INT 0
 #define MWS_MDT_STR 1
 #define MWS_MDT_DBL 2
-#define MWS_MDT_UNSIGNED 3
-#define MWS_MDT_NONE 4
+#define MWS_MDT_DBL_UNITS 3
+#define MWS_MDT_UNSIGNED 4
+#define MWS_MDT_BOOL 5
+#define MWS_MDT_NONE 6
 
 #define MWS_UNSIGNED_INVALID (~((uint64_t)0))
   
@@ -23,6 +25,8 @@ public:
   uint64_t unsignedval;
   std::string strval;
   double dblval;
+  std::string dblunits;
+  bool boolval;
 
   unsigned md_type; /* MWS_MDT_... */
 
@@ -33,14 +37,19 @@ public:
   
   metadatum(std::string Name,std::string strval);
   metadatum(std::string Name,double dblval);
+  metadatum(std::string Name,double dblval,std::string units);
 
   metadatum(std::string Name,uint64_t unsignedval);
+  metadatum(std::string Name,bool boolval);
   
   int64_t Int(int64_t defaultval);
   uint64_t Unsigned(uint64_t defaultval);
 
   std::string Str(std::string defaultval);
   double Dbl(double defaultval);
+  std::pair<double,std::string> DblUnits(double defaultval,std::string defaultunits);
+  bool Bool(bool defaultval);
+
   double Numeric(double defaultval);
   snde_index Index(snde_index defaultval);
 };
@@ -48,6 +57,8 @@ public:
   metadatum metadatum_int(std::string Name,int64_t intval);
   metadatum metadatum_str(std::string Name,std::string strval);
   metadatum metadatum_dbl(std::string Name,double doubleval);
+  metadatum metadatum_dblunits(std::string Name,double doubleval,std::string units);
+  metadatum metadatum_bool(std::string Name,bool boolval);
   metadatum metadatum_unsigned(std::string Name,uint64_t unsignedval);
   metadatum metadatum_index(std::string Name,snde_index indexval);
    
@@ -91,7 +102,9 @@ public:
       }
       return (*mditer).second.Unsigned(defaultval);
     }
-    
+
+    snde_bool GetMetaDatumBool(std::string Name,snde_bool defaultval);
+
     snde_index GetMetaDatumIdx(std::string Name,snde_index defaultval) const
     // actually stored as unsigned
     {
@@ -126,6 +139,8 @@ public:
       }
       return (*mditer).second.Dbl(defaultval);
     }
+
+    std::pair<double,std::string> GetMetaDatumDblUnits(std::string Name,double defaultval,std::string defaultunits);
 
     void AddMetaDatum(metadatum newdatum)
     // Add or update an entry 

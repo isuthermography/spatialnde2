@@ -205,15 +205,15 @@ namespace snde {
 	double inival0 = min_u + step0/2.0;
 	double inival1 = min_v + step1/2.0;
 
-	metadata->AddMetaDatum(metadatum("nde_array-axis0_step",step0));
-	metadata->AddMetaDatum(metadatum("nde_array-axis0_inival",inival0));
+	metadata->AddMetaDatum(metadatum("nde_array-axis0_step",step0,units0));
+	metadata->AddMetaDatum(metadatum("nde_array-axis0_inival",inival0,units0));
 	metadata->AddMetaDatum(metadatum("nde_array-axis0_coord",coord0));
-	metadata->AddMetaDatum(metadatum("nde_array-axis0_units",units0));
+	//metadata->AddMetaDatum(metadatum("nde_array-axis0_units",units0));
 
-	metadata->AddMetaDatum(metadatum("nde_array-axis1_step",step1));
-	metadata->AddMetaDatum(metadatum("nde_array-axis1_inival",inival1));
+	metadata->AddMetaDatum(metadatum("nde_array-axis1_step",step1,units1));
+	metadata->AddMetaDatum(metadatum("nde_array-axis1_inival",inival1,units1));
 	metadata->AddMetaDatum(metadatum("nde_array-axis1_coord",coord1));
-	metadata->AddMetaDatum(metadatum("nde_array-axis1_units",units1));
+	//metadata->AddMetaDatum(metadatum("nde_array-axis1_units",units1));
 
 	metadata->AddMetaDatum(metadatum("nde_array-ampl_coord",ampl_coord));
 	metadata->AddMetaDatum(metadatum("nde_array-ampl_units",ampl_units));
@@ -276,24 +276,33 @@ namespace snde {
 		  !previous_ndarray->info->immutable) {
 		
 		if (previous_ndarray->storage.at(0)->typenum == typenum && previous_ndarray->storage.at(1)->typenum == SNDE_RTN_SNDE_IMAGEDATA) {
+
 		  
-		  double previous_step0=previous_ndarray->metadata->GetMetaDatumDbl("nde_array-axis0_step",1.0);
-		  double previous_step1=previous_ndarray->metadata->GetMetaDatumDbl("nde_array-axis1_step",1.0);
+		  double previous_step0;
+		  std::string previous_step0_units;
+		  std::tie(previous_step0,previous_step0_units)=previous_ndarray->metadata->GetMetaDatumDblUnits("nde_array-axis0_step",1.0,"meters");
 		  
-		  double previous_inival0=previous_ndarray->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0);
-		  double previous_inival1=previous_ndarray->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0);
+		  double previous_step1;
+		  std::string previous_step1_units;
+		  std::tie(previous_step1,previous_step1_units)=previous_ndarray->metadata->GetMetaDatumDblUnits("nde_array-axis1_step",1.0,"meters");
+		  
+		  double previous_inival0;
+		  std::string previous_inival0_units;
+		  std::tie(previous_inival0,previous_inival0_units)=previous_ndarray->metadata->GetMetaDatumDblUnits("nde_array-axis0_inival",0.0,"meters");
+
+		  double previous_inival1;
+		  std::string previous_inival1_units;		  
+		  std::tie(previous_inival1,previous_inival1_units)=previous_ndarray->metadata->GetMetaDatumDblUnits("nde_array-axis1_inival",0.0,"meters");
 		  
 		  std::string previous_coord0 = previous_ndarray->metadata->GetMetaDatumStr("nde_array-axis0_coord","X Position");
 		  std::string previous_coord1 = previous_ndarray->metadata->GetMetaDatumStr("nde_array-axis1_coord","Y Position");
 		  
-		  std::string previous_units0 = previous_ndarray->metadata->GetMetaDatumStr("nde_array-axis0_units","meters");
-		  std::string previous_units1 = previous_ndarray->metadata->GetMetaDatumStr("nde_array-axis1_units","meters");
 		  
 		  std::string previous_ampl_units = previous_ndarray->metadata->GetMetaDatumStr("nde_array-ampl_units","Volts");
 		  std::string previous_ampl_coord = previous_ndarray->metadata->GetMetaDatumStr("nde_array-ampl_coord","Voltage");
 		  
 		  if (previous_step0 == step0 && previous_step1==step1 && previous_inival0==inival0 && previous_inival1==inival1 &&
-		      previous_coord0 == coord0 && previous_coord1 == coord1 && previous_units0==units0 && previous_units1==units1 &&
+		      previous_coord0 == coord0 && previous_coord1 == coord1 && previous_step0_units==units0 && previous_inival0_units==units0 && previous_step1_units==units1 && previous_inival1_units==units1 && 
 		      previous_ampl_units == ampl_units && previous_ampl_coord == ampl_coord) {
 		    
 		    build_on_previous = true;

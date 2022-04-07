@@ -1038,9 +1038,9 @@ namespace snde {
 	std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->FullName);
 	std::shared_ptr<display_axis> b = display->GetSecondAxis(selected_channel->FullName);
 
-	if (a != b) {
-	  VertZoomActionTriggered(QAbstractSlider::SliderSingleStepAdd);	  
-	}
+	//if (a != b) { // don't actually want to trigger other because we get the vert scale from the horiz scale anyway
+	//  VertZoomActionTriggered(QAbstractSlider::SliderSingleStepAdd);	  
+	//}
 	
       }
     }
@@ -1064,9 +1064,9 @@ namespace snde {
 	std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->FullName);
 	std::shared_ptr<display_axis> b = display->GetSecondAxis(selected_channel->FullName);
 
-	if (a != b) {
-	  VertZoomActionTriggered(QAbstractSlider::SliderSingleStepSub);	  
-	}
+	//if (a != b) { // don't actually want to trigger other because we get the vert scale from the horiz scale anyway
+	//  VertZoomActionTriggered(QAbstractSlider::SliderSingleStepSub);	  
+	//}
 	
       }
     }

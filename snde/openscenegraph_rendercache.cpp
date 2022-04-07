@@ -167,10 +167,12 @@ namespace snde {
     }
   
     *ndim=datastore->layout.dimlen.size();
+
+    std::string IniValXUnits;
+    std::string StepSzXUnits;
     
-    
-    *IniValX=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0); /* in units  */
-    *StepSzX=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis0_step",1.0);  /* in units/index */
+    std::tie(*IniValX,IniValXUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_inival",0.0,"pixels"); /* in units  */
+    std::tie(*StepSzX,StepSzXUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_step",1.0,"pixels");  /* in units/index */
     
     if (datastore->layout.dimlen.size() >= 1) {
       *dimlenx=datastore->layout.dimlen.at(0);
@@ -178,27 +180,34 @@ namespace snde {
       *dimlenx=1;
     }
     
+    std::string IniValYUnits;
+    std::string StepSzYUnits;
     
-    *IniValY=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0); /* in units */
-    *StepSzY=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis1_step",1.0); /* in units/index */
+    std::tie(*IniValY,IniValYUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("nde_array-axis1_inival",0.0,"pixels"); /* in units */
+    std::tie(*StepSzY,IniValYUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("nde_array-axis1_step",1.0,"pixels"); /* in units/index */
     
     if (datastore->layout.dimlen.size() >= 2) {
       *dimleny=datastore->layout.dimlen.at(1);
     } else {
       *dimleny=1;
     }
-    
-    *IniValZ=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis2_inival",0.0); /* in units */
-    *StepSzZ=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis2_step",1.0); /* in units/index */
+
+    std::string IniValZUnits;
+    std::string StepSzZUnits;
+
+    std::tie(*IniValZ,IniValZUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("nde_array-axis2_inival",0.0,"pixels"); /* in units */
+    std::tie(*StepSzZ,IniValZUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("nde_array-axis2_step",1.0,"pixels"); /* in units/index */
     if (datastore->layout.dimlen.size() >= 3) {
       *dimlenz=datastore->layout.dimlen.at(2);
     } else {
       *dimlenz=1;
     }
     
+    std::string IniValWUnits;
+    std::string StepSzWUnits;
     
-    *IniValW=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis3_inival",0.0); /* in units */
-    *StepSzW=datastore->rec->metadata->GetMetaDatumDbl("nde_array-axis3_step",1.0); /* in units/index */
+    std::tie(*IniValW,IniValWUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("nde_array-axis3_inival",0.0,"pixels"); /* in units */
+    std::tie(*StepSzW,StepSzWUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("nde_array-axis3_step",1.0,"pixels"); /* in units/index */
     if (datastore->layout.dimlen.size() >= 4) {
       *dimlenw=datastore->layout.dimlen.at(3);
     } else {

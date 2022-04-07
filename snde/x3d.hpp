@@ -1432,21 +1432,31 @@ namespace snde {
 
 	// Use pixel size in given texture_rec to get scaling for texture coordinates.
 
-	double Step1 = texture_ref->rec->metadata->GetMetaDatumDbl("nde_array-axis0_step",1.0);
+	double Step1;
+	std::string Step1Units;
+	
+	std::tie(Step1,Step1Units) = texture_ref->rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_step",1.0,"pixels");
 	assert(Step1 > 0.0); 
-	double Step2 = texture_ref->rec->metadata->GetMetaDatumDbl("nde_array-axis1_step",1.0);
+	double Step2;
+	std::string Step2Units;
+
+	std::tie(Step2,Step2Units) = texture_ref->rec->metadata->GetMetaDatumDblUnits("nde_array-axis1_step",1.0,"pixels");
 
 	//double IniVal1 = texture_ref->rec->metadata->GetMetaDatumDbl("IniVal1",-texture_ref->layout.dimlen[0]/2.0);
 	//double IniVal2 = texture_ref->rec->metadata->GetMetaDatumDbl("IniVal2",texture_ref->layout.dimlen[1]/2.0);
 	//	double IniVal1 = texture_ref->rec->metadata->GetMetaDatumDbl("IniVal1",0.0+Step1/2.0);
-	double IniVal1 = texture_ref->rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0);
+	double IniVal1;
+	std::string IniVal1Units;
+	
+	std::tie(IniVal1,IniVal1Units) = texture_ref->rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_inival",0.0,"pixels");
 	double IniVal2;
+	std::string IniVal2Units;
 	//if (Step2 < 0.0) {
 	//  IniVal2 = texture_ref->rec->metadata->GetMetaDatumDbl("IniVal2",texture_ref->layout.dimlen[1]*fabs(Step2)+Step2/2.0);
 	//} else {
 	//  IniVal2 = texture_ref->rec->metadata->GetMetaDatumDbl("IniVal2",0.0+Step2/2.0);
 	//}
-	IniVal2 = texture_ref->rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0);
+	std::tie(IniVal2,IniVal2Units) = texture_ref->rec->metadata->GetMetaDatumDblUnits("nde_array-axis1_inival",0.0,"pixels");
 
 	
 	TexCoordsToParameterizationCoords(0,0)=fabs(Step1)*texture_ref->layout.dimlen[0];

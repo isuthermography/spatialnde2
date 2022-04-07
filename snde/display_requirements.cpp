@@ -919,26 +919,34 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       
       
       double stepx,stepy;
+      std::string stepx_units,stepy_units;
       
+      std::tie(stepx,stepx_units) = rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_step",1.0,"pixels");
+      std::tie(stepy,stepy_units) = rec->metadata->GetMetaDatumDblUnits("nde_array-axis1_step",1.0,"pixels");
+
+
+      double inivalx,inivaly;
+      std::string inivalx_units,inivaly_units;
       
-      stepx = rec->metadata->GetMetaDatumDbl("nde_array-axis0_step",1.0);
-      stepy = rec->metadata->GetMetaDatumDbl("nde_array-axis1_step",1.0);
+      std::tie(inivalx,inivalx_units) = rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_inival",1.0,"pixels");
+      std::tie(inivaly,inivaly_units) = rec->metadata->GetMetaDatumDblUnits("nde_array-axis1_inival",1.0,"pixels");
       
       double left,right,bottom,top;
       
+      
       if (stepx > 0) {
-	left = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)-stepx/2.0;	  
-	right = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
+	left = inivalx-stepx/2.0;	  
+	right = inivalx+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
       } else {
-	right = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)-stepx/2.0;	  
-	left = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
+	right = inivalx-stepx/2.0;	  
+	left = inivalx+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
       }
       if (stepy > 0) {
-	bottom = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)-stepy/2.0;
-	top = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
+	bottom = inivaly-stepy/2.0;
+	top = inivaly+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
       } else {
-	top = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)-stepy/2.0;
-	bottom = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
+	top = inivaly-stepy/2.0;
+	bottom = inivaly+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
       }
       
       snde_debug(SNDE_DC_DISPLAY,"spatial_transforms_for_image_channel: xunitscale=%f, yunitscale=%f",xunitscale,yunitscale);
@@ -1363,27 +1371,33 @@ std::shared_ptr<display_requirement> fusion_ndarray_recording_display_handler::g
 							     v_dimnum);
       
       
-      double stepx,stepy;
+      double stepx,stepy;      
+      std::string stepx_units,stepy_units;
       
+      std::tie(stepx,stepx_units) = rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_step",1.0,"pixels");
+      std::tie(stepy,stepy_units) = rec->metadata->GetMetaDatumDblUnits("nde_array-axis1_step",1.0,"pixels");
       
-      stepx = rec->metadata->GetMetaDatumDbl("nde_array-axis0_step",1.0);
-      stepy = rec->metadata->GetMetaDatumDbl("nde_array-axis1_step",1.0);
+      double inivalx,inivaly;
+      std::string inivalx_units,inivaly_units;
+      
+      std::tie(inivalx,inivalx_units) = rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_inival",1.0,"pixels");
+      std::tie(inivaly,inivaly_units) = rec->metadata->GetMetaDatumDblUnits("nde_array-axis1_inival",1.0,"pixels");
       
       double left,right,bottom,top;
       
       if (stepx > 0) {
-	left = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)-stepx/2.0;	  
-	right = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
+	left = inivalx-stepx/2.0;	  
+	right = inivalx+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
       } else {
-	right = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)-stepx/2.0;	  
-	left = rec->metadata->GetMetaDatumDbl("nde_array-axis0_inival",0.0)+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
+	right = inivalx-stepx/2.0;	  
+	left = inivalx+stepx*(array_rec->layouts.at(0).dimlen.at(0)-0.5);	    
       }
       if (stepy > 0) {
-	bottom = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)-stepy/2.0;
-	top = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
+	bottom = inivaly-stepy/2.0;
+	top = inivaly+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
       } else {
-	top = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)-stepy/2.0;
-	bottom = rec->metadata->GetMetaDatumDbl("nde_array-axis1_inival",0.0)+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
+	top = inivaly-stepy/2.0;
+	bottom = inivaly+stepy*(array_rec->layouts.at(0).dimlen.at(1)-0.5);
       }
       
       snde_debug(SNDE_DC_DISPLAY,"spatial_transforms_for_image_channel: xunitscale=%f, yunitscale=%f",xunitscale,yunitscale);

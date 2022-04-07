@@ -147,12 +147,12 @@ namespace snde {
     
     
     // Read the class tags here:
-    H5::Attribute nde_class_tags_attr = group.openAttribute("nde-class-tags");
+    H5::Attribute nde_class_tags_attr = group.openAttribute("nde_class-tags");
     H5::DataType nde_ct_dtype = nde_class_tags_attr.getDataType();
     H5::DataSpace nde_ct_dspace = nde_class_tags_attr.getSpace();
     
     if (nde_ct_dspace.getSimpleExtentNdims() != 1) {
-      throw snde_error("nde-class-tags attribute for hdf5 group %s should have exactly one iterable dimension",h5path.c_str());
+      throw snde_error("nde_class-tags attribute for hdf5 group %s should have exactly one iterable dimension",h5path.c_str());
     }
 
     // number of classes
@@ -162,7 +162,7 @@ namespace snde {
 
     if (nde_ct_num > 0) {
       if (nde_ct_dtype.getClass() != H5T_STRING) {
-	throw snde_error("nde-class-tags attribute for hdf5 group %s should be an array of strings",h5path.c_str());
+	throw snde_error("nde_class-tags attribute for hdf5 group %s should be an array of strings",h5path.c_str());
       }
     
       // std::set<std::string> nde_class_tags; // actually a class member
@@ -198,6 +198,11 @@ namespace snde {
       metadatagroup.iterateAttrs(&ndefile_metadata_reader_function,nullptr,(void *)&metadata_names);
       
       for (auto && attr_name: metadata_names) {
+
+	if (!attr_name.compare(attr_name.length()-6,6,"-units")) {
+	  // ending with -units means this is a units attribute of another metadata entry
+	  continue;
+	}
 	
 	H5::Attribute md_attr = metadatagroup.openAttribute(attr_name);
 	H5::DataType md_dtype = md_attr.getDataType();
@@ -222,12 +227,29 @@ namespace snde {
 	  {
 	    double dblval;
 	    md_attr.read(H5::PredType::NATIVE_DOUBLE,&dblval);
-	    metadata_loader.AddMetaDatum(metadatum(attr_name,dblval));
+
+	    // Floats can have units... check for them
+	    std::string attr_units_name = attr_name+"-units";
+	    if (metadatagroup.attrExists(attr_units_name)) {
+	      H5::Attribute md_units_attr = metadatagroup.openAttribute(attr_units_name);
+	      H5::DataType md_units_dtype = md_units_attr.getDataType();
+	      
+	      if (md_units_dtype.getClass() != H5T_STRING) {
+		throw snde_error("Units attribute \"%s\" of metadata entry %s in hdf5 group %s/nde_recording-metadata should be of string type",attr_units_name.c_str(),attr_name.c_str(),h5path.c_str());
+	      }
+	      std::string md_units_val;
+	      md_units_attr.read(md_units_dtype,md_units_val);
+	      
+	      metadata_loader.AddMetaDatum(metadatum(attr_name,dblval,md_units_val));
+	      
+	    } else {
+	      metadata_loader.AddMetaDatum(metadatum(attr_name,dblval));
+	    }
 	  }
 	  break;
 	  
 	case H5T_STRING:
-	  {
+	  { 
 	    H5::StrType md_strtype(H5::PredType::C_S1,H5T_VARIABLE);
 	    md_strtype.setCset(H5T_CSET_UTF8);
 	    md_strtype.setStrpad(H5T_STR_NULLTERM);
@@ -238,7 +260,37 @@ namespace snde {
 	    
 	  }
 	  break;
-	  
+
+	case H5T_ENUM: // Bools are stored as an H5T_ENUM which is a H5T_STD_I8LE with two values: "FALSE" (0)  and "TRUE" (1)
+	  {
+	    H5::EnumType md_enumtype = md_attr.getEnumType();
+
+	    int n_enum_members = md_enumtype.getNmembers();
+	    
+	    if (n_enum_members != 2) {
+	      throw snde_error("Enum metadata attribute \"%s\"  in hdf5 group %s/nde_recording-metadata should have exactly two members in order to be boolean",attr_name.c_str(),h5path.c_str());
+	    }
+
+	    for (int membnum=0;membnum < n_enum_members;membnum++) {
+	      int membval;
+	      md_enumtype.getMemberValue(membnum,&membval);
+	      std::string name = md_enumtype.nameOf(&membval,100);
+
+	      if (! ( (membval==0 && name=="FALSE") || (membval==1 && name=="TRUE"))) {
+		throw snde_error("Enum metadata attribute \"%s\"  in hdf5 group %s/nde_recording-metadata values should be 0=FALSE and 1=TRUE",attr_name.c_str(),h5path.c_str());
+		
+	      }
+	      
+	    }
+
+	    uint8_t uintval=0;
+	    md_attr.read(H5::PredType::NATIVE_UINT8,&uintval);
+
+	    metadata_loader.AddMetaDatum(metadatum(attr_name,(bool)uintval));
+	    
+	    
+	  }
+	  break;
 	  
 	default:
 	  throw snde_error("Unsupported HDF5 data type class for metadata entry %s: %d",attr_name.c_str(),(int)md_dtype.getClass());

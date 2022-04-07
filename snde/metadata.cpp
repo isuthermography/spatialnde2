@@ -19,6 +19,16 @@ namespace snde {
     return metadatum(Name,doubleval);
   }
 
+  metadatum metadatum_dblunits(std::string Name,double doubleval,std::string units)
+  {
+    return metadatum(Name,doubleval,units);
+  }
+
+  metadatum metadatum_bool(std::string Name,bool boolval)
+  {
+    return metadatum(Name,boolval);
+  }
+
   metadatum metadatum_unsigned(std::string Name,uint64_t unsignedval)
   {
     return metadatum(Name,unsignedval);
