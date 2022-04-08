@@ -216,7 +216,8 @@ int main(int argc, char **argv)
   osg::ref_ptr<osgViewer::Viewer> Viewer(new osgViewerCompat34());
 
   osg::ref_ptr<osgViewer::GraphicsWindow> GW=new osgViewer::GraphicsWindowEmbedded(0,0,winwidth,winheight);
-  Viewer->getCamera()->setViewport(new osg::Viewport(0,0,winwidth,winheight));
+  
+  Viewer->getCamera()->setViewport(new osg::Viewport(0,0,winwidth,winheight)); // NOTE: For some reason things are flipped in viewport setting and the little CoordAxes viewport in openscenegraph_geom_renderer comes up in the upper left in this example (?)
   Viewer->getCamera()->setGraphicsContext(GW);
   
   renderer = std::make_shared<osg_geom_renderer>(Viewer,GW,

@@ -23,8 +23,12 @@ namespace snde {
     //int type; // see SNDE_DRRT_XXXXX in rec_display.hpp
 
     osg::ref_ptr<osg::Group> group;
-    
+    osg::ref_ptr<osg::MatrixTransform> CoordAxes; // red, green, and blue coordinate axes drawn in lower left hand corner
+    osg::ref_ptr<osg::Camera> CoordAxesCamera;
 
+    size_t hudwidth;
+    size_t hudheight;
+    
     //    bool firstrun;
     
     osg_geom_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer,osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
@@ -55,14 +59,19 @@ namespace snde {
 
     */
 
+    void BuildCoordAxes();
 
+    void OrientCoordAxes();
 
+    void BuildCoordAxes_HUD();
+
+    /*
     std::tuple<double,double> GetPadding(size_t drawareawidth,size_t drawareaheight);
 
     std::tuple<double,double> GetScalefactors(std::string recname);
 
     osg::Matrixd GetChannelTransform(std::string recname,std::shared_ptr<display_channel> displaychan,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
-    
+    */
     
   };
 

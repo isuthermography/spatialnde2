@@ -118,8 +118,15 @@ namespace snde {
     // based on our viewer. 
     osgViewer::Renderer *Rend = dynamic_cast<osgViewer::Renderer *>(Viewer->getCamera()->getRenderer());
     osgUtil::RenderStage *Stage = Rend->getSceneView(0)->getRenderStage();
+
+
+    // since we are now using InitialCallback not Predraw callback
+    // we need to run RenderStage::runCameraSetup() early to generate
+    // the FBO, as InitialCallback is called before it 
+    // (the _cameraRequiresSetUp flag will prevent a double call)
+    Stage->runCameraSetUp(Info);
     
-    Stage->setDisableFboAfterRender(true); // need to drop back to the default FBO so we can do compositing
+    Stage->setDisableFboAfterRender(false); // Need to leave the Fbo in place for post_render cameras
 
 
     // OSG doesn't actually resize the texture so we need to do that ourselves in case it has changed
@@ -301,8 +308,10 @@ namespace snde {
     //Cam->setRenderTargetImplementation(osg::Camera::FRAME_BUFFER);
     Cam->setClearMask(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
     Cam->setClearColor(osg::Vec4f(0, 0, 0, 0));
-    Cam->setPreDrawCallback(predraw);
-    Cam->setPostDrawCallback(postdraw);
+    //Cam->setPreDrawCallback(predraw);
+    //Cam->setPostDrawCallback(postdraw);
+    Cam->setInitialDrawCallback(predraw);
+    Cam->setFinalDrawCallback(postdraw);
     Cam->setDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
     Cam->setReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
     
@@ -321,8 +330,10 @@ namespace snde {
 
   void osg_layerwindow::clear_from_camera(osg::ref_ptr<osg::Camera> Cam)
   {
-    Cam->setPreDrawCallback(nullptr);
-    Cam->setPostDrawCallback(nullptr);
+    //Cam->setPreDrawCallback(nullptr);
+    //Cam->setPostDrawCallback(nullptr);
+    Cam->setInitialDrawCallback(nullptr);
+    Cam->setFinalDrawCallback(nullptr);
     
     Cam->setGraphicsContext(nullptr);
   }

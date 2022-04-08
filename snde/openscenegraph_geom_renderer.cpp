@@ -1,4 +1,5 @@
 #include <osgUtil/ShaderGen>
+#include <osg/ShapeDrawable>
 
 #include "snde/openscenegraph_geom_renderer.hpp"
 #include "snde/rec_display.hpp"
@@ -13,15 +14,20 @@
 namespace snde {
 
 
-  
 
   osg_geom_renderer::osg_geom_renderer(osg::ref_ptr<osgViewer::Viewer> Viewer, // use an osgViewerCompat34()
 				       osg::ref_ptr<osgViewer::GraphicsWindow> GraphicsWindow,
 				       std::string channel_path,bool enable_shaders) :
-    osg_renderer(Viewer,GraphicsWindow,new osgGA::TrackballManipulator(),channel_path,SNDE_DRRT_GEOMETRY,enable_shaders)
+    osg_renderer(Viewer,GraphicsWindow,new osgGA::TrackballManipulator(),channel_path,SNDE_DRRT_GEOMETRY,enable_shaders),
+    hudwidth(150),
+    hudheight(150)
     //firstrun(true)
   {
 
+
+    BuildCoordAxes();
+    BuildCoordAxes_HUD();
+    
     EventQueue=GraphicsWindow->getEventQueue();
     //Camera->setGraphicsContext(GraphicsWindow);
     
@@ -41,6 +47,16 @@ namespace snde {
     Viewer->setCameraManipulator(Manipulator);
     (dynamic_cast<osgGA::OrbitManipulator *>(Manipulator.get()))->setAllowThrow(false); // leave at false unless/until we get the other animation infrastructure working (basically relevant event callbacks compatible with the OSG timers)
     //Viewer->addEventHandler(Manipulator);
+
+    CoordAxesCamera->setGraphicsContext(GraphicsWindow);
+    CoordAxesCamera->setViewport(0,0,hudwidth,hudheight);
+    //CoordAxesCamera->setClearColor(osg::Vec4(.3,.1,.1,1.0));
+    
+    //CoordAxesCamera->setRenderTargetImplementation(Camera->getRenderTargetImplementation());
+    //CoordAxesCamera->setDrawBuffer(Camera->getDrawBuffer());
+    //CoordAxesCamera->setReadBuffer(Camera->getReadBuffer());
+    //Viewer->addSlave(CoordAxesCamera,false);
+    
     Viewer->realize();
 
     if (enable_shaders) {
@@ -118,10 +134,19 @@ namespace snde {
 	GraphicsWindow->getEventQueue()->windowResize(0,0,display_req->spatial_position->width,display_req->spatial_position->height);
 	GraphicsWindow->resized(0,0,display_req->spatial_position->width,display_req->spatial_position->height);
 	Camera->setViewport(0,0,display_req->spatial_position->width,display_req->spatial_position->height);
+	
+	CoordAxesCamera->setViewport(0, // per OpenGL spec Viewport is measured from lower left, so the correct origin here is (0,0)
+				     0, // (display_req->spatial_position->height > hudheight) ? (display_req->spatial_position->height-hudheight) : 0,
+				     //(hudwidth > display_req->spatial_position->width) ? display_req->spatial_position->width : hudwidth,
+				     //(hudheight > display_req->spatial_position->height) ? display_req->spatial_position->height : hudheight,
+				     hudwidth,hudheight);
+	
 	modified = true;
       }
       Camera->setProjectionMatrixAsPerspective(30.0f,((double)width)/height,1.0f,10000.0f); // !!!*** Check last two parameters
       //snde_warning("setProjectionMatrixAsPerspective aspect ratio = %f",((double)width)/height);
+      
+      OrientCoordAxes(); // update orientation of coordinate axes
 
       {
 	osg::Vec3f eye,center,up;
@@ -160,15 +185,20 @@ namespace snde {
 	  //}
 	  
 	  if (RootTransform->getNumChildren() && RootTransform->getChild(0) != rendergroup->osg_group) {
-	    RootTransform->removeChildren(0,1);
+	    RootTransform->removeChildren(0,RootTransform->getNumChildren());
 	  }
 	  if (!RootTransform->getNumChildren()) {
 	    RootTransform->addChild(rendergroup->osg_group);
+	    RootTransform->addChild(CoordAxesCamera);
 	  }
 	  if (!Viewer->getSceneData()) {
 	    Viewer->setSceneData(RootTransform);
 	  }
-	  
+
+	  {
+	    osg::GraphicsOperation *Op=CoordAxesCamera->getRenderer(); 
+	    snde_debug(SNDE_DC_RENDERING,"CoordAxesCamera->getRenderer is 0x%llx",(unsigned long long)Op);
+	  }
 	} else {
 	  snde_warning("openscenegraph_3d_renderer: cache entry not convertable to an osg_group rendering channel %s",channel_path.c_str());
 	}
@@ -214,6 +244,113 @@ namespace snde {
     
   }
   
+  void osg_geom_renderer::BuildCoordAxes()
+  {
+    double cylradius=0.1;
+    double cyllength=0.8; // out of 1.0 total length
+    double coneheight=1.0-cyllength;
+    double coneradius=0.2;
+    
+    
+    osg::ref_ptr<osg::TessellationHints> Hints = new osg::TessellationHints();
+    Hints->setDetailRatio(0.5);
+    
+    CoordAxes = new osg::MatrixTransform();
+    osg::ref_ptr<osg::Geode> CoordAxesGeode = new osg::Geode();
+    osg::ref_ptr<osg::StateSet> CoordAxesStateSet = CoordAxesGeode->getOrCreateStateSet();
+    CoordAxes->addChild(CoordAxesGeode);
+    
+    osg::ref_ptr<osg::Cylinder> RedCyl=new osg::Cylinder(osg::Vec3(cyllength/2.0,0.0,0.0),cylradius,cyllength);
+    // Cylinder by default is in +z axis; we want +x axis;
+    // so we rotate around +y axis
+    RedCyl->setRotation(osg::Quat(M_PI/2.0,osg::Vec3(0.0,1.0,0.0)));
+    osg::ref_ptr<osg::ShapeDrawable> RedCylinder = new osg::ShapeDrawable(RedCyl,Hints);
+    RedCylinder->setColor(osg::Vec4(1.0,0.0,0.0,1.0));
+    CoordAxesGeode->addDrawable(RedCylinder);
+    
+    osg::ref_ptr<osg::Cone> RedCon=new osg::Cone(osg::Vec3(cyllength+0.25*coneheight,0.0,0.0),coneradius,coneheight);
+    RedCon->setRotation(osg::Quat(M_PI/2.0,osg::Vec3(0.0,1.0,0.0)));
+    osg::ref_ptr<osg::ShapeDrawable> RedCone = new osg::ShapeDrawable(RedCon,Hints);
+    RedCone->setColor(osg::Vec4(1.0,0.0,0.0,1.0));
+    CoordAxesGeode->addDrawable(RedCone);
+    
+    osg::ref_ptr<osg::Cylinder> GreenCyl = new osg::Cylinder(osg::Vec3(0.0,cyllength/2.0,0.0),cylradius,cyllength);
+    // Cylinder by default is in +z axis; we want +y axis;
+    // so we rotate around -x axis
+    GreenCyl->setRotation(osg::Quat(M_PI/2.0,osg::Vec3(-1.0,0.0,0.0)));
+    osg::ref_ptr<osg::ShapeDrawable> GreenCylinder = new osg::ShapeDrawable(GreenCyl,Hints);
+    GreenCylinder->setColor(osg::Vec4(0.0,1.0,0.0,1.0));
+    CoordAxesGeode->addDrawable(GreenCylinder);
+    
+    osg::ref_ptr<osg::Cone> GreenCon = new osg::Cone(osg::Vec3(0.0,cyllength+0.25*coneheight,0.0),coneradius,coneheight);
+    GreenCon->setRotation(osg::Quat(M_PI/2.0,osg::Vec3(-1.0,0.0,0.0)));
+    osg::ref_ptr<osg::ShapeDrawable> GreenCone = new osg::ShapeDrawable(GreenCon,Hints);
+    GreenCone->setColor(osg::Vec4(0.0,1.0,0.0,1.0));
+    CoordAxesGeode->addDrawable(GreenCone);
+    
+    osg::ref_ptr<osg::Cylinder> BlueCyl = new osg::Cylinder(osg::Vec3(0.0,0.0,cyllength/2.0),cylradius,cyllength);
+    osg::ref_ptr<osg::ShapeDrawable> BlueCylinder = new osg::ShapeDrawable(BlueCyl,Hints);
+    // Cylinder by default is in +z axis; no need to rotate!
+    BlueCylinder->setColor(osg::Vec4(0.0,0.0,1.0,1.0));
+    CoordAxesGeode->addDrawable(BlueCylinder);
+    
+    osg::ref_ptr<osg::Cone> BlueCon = new osg::Cone(osg::Vec3(0.0,0.0,cyllength+0.25*coneheight),coneradius,coneheight);
+    osg::ref_ptr<osg::ShapeDrawable> BlueCone = new osg::ShapeDrawable(BlueCon,Hints);
+    // Cylinder by default is in +z axis; no need to rotate!
+    BlueCone->setColor(osg::Vec4(0.0,0.0,1.0,1.0));
+    CoordAxesGeode->addDrawable(BlueCone);
+    
+    
+  }
+
+  void osg_geom_renderer::OrientCoordAxes()
+  {
+    osg::Vec3d translation;
+    osg::Quat rotation;
+    osg::Vec3d scale;
+    osg::Quat scale_orientation;
+
+    // get the view matrix from the main camera and decompose it into components
+    Camera->getViewMatrix().decompose(translation,rotation,scale,scale_orientation);
+
+    // Apply the same rotation to our CoordAxesCamera (ignoring rotation, scale, etc.
+
+    osg::Matrixd CoordAxesView = osg::Matrixd::rotate(rotation);
+
+    // step back a bit from the origin in CoordAxesView -- pushing
+    // the Coord Axes (which are at the origin) into the
+    // view of the camera
+    CoordAxesView(3,2) = -6.0;
+    CoordAxesCamera->setViewMatrix(CoordAxesView);
+    
+  }
   
+  void osg_geom_renderer::BuildCoordAxes_HUD()
+  {
+    // build a "Heads up display" to show the coordinate axes
+    // roughly following the OSG HUD example
+    // https://github.com/openscenegraph/OpenSceneGraph/blob/master/examples/osghud/osghud.cpp
+    // and XYZ axis drawing suggestions
+    // https://community.khronos.org/t/draw-xyz-axis-in-corner/55901
+    
+    
+    CoordAxesCamera = new osg::Camera;
+    CoordAxesCamera->setProjectionMatrixAsPerspective(30.0f,((double)hudwidth)/hudheight,1.0f,10000.0f); // !!!*** Check last two parameters
+
+    CoordAxesCamera->setReferenceFrame(osg::Transform::ABSOLUTE_RF);
+
+    OrientCoordAxes();
+    
+    // Clear depth buffer
+    CoordAxesCamera->setClearMask(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+
+    // mark as post render
+    CoordAxesCamera->setRenderOrder(osg::Camera::POST_RENDER);
+
+    // no event focus
+    CoordAxesCamera->setAllowEventFocus(false);
+
+    CoordAxesCamera->addChild(CoordAxes);
+  }
   
 };
