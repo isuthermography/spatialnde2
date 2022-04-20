@@ -180,7 +180,7 @@ namespace snde {
       //std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
       std::shared_ptr<recording_set_state> referencing_rss_strong=referencing_rss_weak.lock();
       if (!referencing_rss_strong) {
-	snde_warning("recmath_compute_resource.cpp: _tfrs: referencing_rss is already expired!");
+	//snde_warning("recmath_compute_resource.cpp: _tfrs: referencing_rss is already expired!");
 	continue;
       }
 
@@ -238,7 +238,7 @@ namespace snde {
       //std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
       std::shared_ptr<recording_set_state> referencing_rss_strong=referencing_rss_weak.lock();
       if (!referencing_rss_strong) {
-	snde_warning("recmath_compute_resource.cpp: _ecn: referencing_rss is already expired!");
+	//snde_warning("recmath_compute_resource.cpp: _ecn: referencing_rss is already expired!");
 	continue;
       }
 
@@ -867,6 +867,8 @@ namespace snde {
 	
 	// For now, just blindly use the useful # of cpu cores
 	size_t free_cores = _number_of_free_cpus();
+
+	snde_debug(SNDE_DC_COMPUTE_DISPATCH,"Checking execution of %s: free_cores=%llu; enough_available=%d",this_computation->function_to_execute->inst->definition->definition_command.c_str(),(unsigned long long)free_cores,(int)(compute_option_cpu->useful_cpu_cores <= free_cores || free_cores == total_cpu_cores_available));
 	
 	if (compute_option_cpu->useful_cpu_cores <= free_cores || free_cores == total_cpu_cores_available) {	    
 	  // we have enough cores available (or all of them)

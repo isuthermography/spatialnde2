@@ -39,7 +39,7 @@ static inline snde_rgba snde_colormap(snde_index ColorMap,float val,uint8_t alph
   // maps -0.5...0.5 onto color 
   
   if (ColorMap==SNDE_COLORMAP_HOT) {
-    float scaledval=(val+0.5)*3.0f;
+    float scaledval=(val+0.5f)*3.0f;
     if (scaledval < 0.0f) scaledval=0.0f;
     if (scaledval > 3.0f) scaledval=3.0f;
 
@@ -61,7 +61,7 @@ static inline snde_rgba snde_colormap(snde_index ColorMap,float val,uint8_t alph
     }
     
   } else if (ColorMap==SNDE_COLORMAP_COLORFUL) {
-    float scaledval=(val+0.5)*4.0f;
+    float scaledval=(val+0.5f)*4.0f;
     if (scaledval < 0.0f) scaledval=0.0f;
     if (scaledval > 4.0f) scaledval=4.0f;
 
@@ -94,7 +94,7 @@ static inline snde_rgba snde_colormap(snde_index ColorMap,float val,uint8_t alph
     }
   } else {
     // SNDE_COLORMAP_GRAY
-    out.r = (unsigned char)snde_round_to_uchar((val+0.5)*255.0f);
+    out.r = (unsigned char)snde_round_to_uchar((val+0.5f)*255.0f);
     out.g = out.r;
     out.b = out.g;
     out.a = alpha;
@@ -110,7 +110,7 @@ static inline void snde_colormap_float(snde_index ColorMap,float val,float alpha
   // maps -0.5...0.5 onto color 
   
   if (ColorMap==SNDE_COLORMAP_HOT) {
-    float scaledval=(val+0.5)*3.0f;
+    float scaledval=(val+0.5f)*3.0f;
     if (scaledval < 0.0f) scaledval=0.0f;
     if (scaledval > 3.0f) scaledval=3.0f;
 
@@ -132,7 +132,7 @@ static inline void snde_colormap_float(snde_index ColorMap,float val,float alpha
     }
     
   } else if (ColorMap==SNDE_COLORMAP_COLORFUL) {
-    float scaledval=(val+0.5)*4.0f;
+    float scaledval=(val+0.5f)*4.0f;
     if (scaledval < 0.0f) scaledval=0.0f;
     if (scaledval > 4.0f) scaledval=4.0f;
 

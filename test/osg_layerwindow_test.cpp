@@ -262,13 +262,14 @@ int main(int argc, char **argv)
 						  false); // enable_shaders
   
   display=std::make_shared<display_info>(recdb);
-  display->set_current_globalrev(globalrev);
+  //display->set_current_globalrev(globalrev);
   display->set_pixelsperdiv(winwidth,winheight);
 
   std::shared_ptr<display_channel> png_displaychan = display->lookup_channel(pngchan_config->channelpath);
   png_displaychan->set_enabled(true); // enable channel
   
-  std::vector<std::shared_ptr<display_channel>> channels_to_display = display->update(globalrev,pngchan_config->channelpath,true,false,false);
+  std::vector<std::shared_ptr<display_channel>> channels_to_display,mutable_channels;
+  std::tie(channels_to_display,mutable_channels) = display->get_channels(globalrev,pngchan_config->channelpath,false,true,false,false);
 
   display_reqs = traverse_display_requirements(display,globalrev,channels_to_display);
   

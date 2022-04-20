@@ -174,6 +174,7 @@ namespace snde {
 	      }
 	      opencl_resource->queues.at(0).flush(); /* trigger execution */
 	      // mark that the kernel has modified result_rec
+	      //snde_warning("BufferDirty() on vertex_arrays... start_elem=%u; size=%u",(unsigned)result_rec->ndinfo(result_rec->name_mapping.at("vertex_arrays"))->base_index -  result_rec->storage.at(result_rec->name_mapping.at("vertex_arrays"))->base_index,(unsigned)result_rec->layouts.at(result_rec->name_mapping.at("vertex_arrays")).flattened_size());
 	      Buffers.BufferDirty(result_rec,"vertex_arrays");
 	      // wait for kernel execution and transfers to complete
 	      Buffers.RemBuffers(kerndone,kerndone,true);

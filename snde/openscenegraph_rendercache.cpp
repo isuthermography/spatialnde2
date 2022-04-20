@@ -336,6 +336,8 @@ namespace snde {
       throw snde_error("osg_cachedimagedata: Could not get recording for %s",display_req->renderable_channelpath->c_str()); 
       
     }
+
+    //snde_warning("osg_cachedimagedata on %s rev %llu rec=0x%llx this=0x%llx",display_req->renderable_channelpath->c_str(),(unsigned long long)cached_recording->info->revision,(unsigned long long)cached_recording.get(),(unsigned long long)this);
     
     if (!GetGeom(cached_recording,&ndim,
 		 &IniValX,&StepX,&dimlenx,
@@ -533,6 +535,7 @@ namespace snde {
       throw snde_error("osg_cachedimage: Could not get recording for %s",display_req->renderable_channelpath->c_str()); 
       
     }
+
     if (!GetGeom(cached_recording,&ndim, // doesn't count as a parameter because dependent solely on the underlying recording
 		 &IniValX,&StepSzX,&dimlenx,
 		 &IniValY,&StepSzY,&dimleny,
@@ -552,7 +555,9 @@ namespace snde {
     if (!texture) {
       throw snde_error("osg_cachedimage: Unable to get texture cache entry for %s",display_req->sub_requirements.at(0)->renderable_channelpath->c_str());
     }
-    
+
+    //snde_warning("osg_cachedimage on %s rev %llu 0x%llx data 0x%llx",display_req->renderable_channelpath->c_str(),(unsigned long long)cached_recording->info->revision,(unsigned long long)cached_recording.get(),(unsigned long long)texture.get());
+
     osg::ref_ptr<osg::Texture> imagetexture = texture->osg_texture;
     
     
@@ -1557,14 +1562,18 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     std::shared_ptr<poseparams> pose_params = std::dynamic_pointer_cast<poseparams>(display_req->mode.constraint);
     assert(pose_params);
     
-    snde_coord4 rotmtx[4]; // index identifies which column (data stored column-major)
-    orientation_build_rotmtx(pose_params->channel_to_reorient_orientation,rotmtx);
-    
-    osg::ref_ptr<osg::MatrixTransform> xform  = new osg::MatrixTransform(osg::Matrixd(&rotmtx[0].coord[0])); // remember osg::MatrixTransform also wants the matrix column-major (as we interpret it; osg interprets it as row major, with left multiplication rather than right multiplication)
-    //std::cout << "ChannelToTrackTransform:\n " << Eigen::Map<const Eigen::Matrix4d>(xform->getMatrix().ptr()) << "\n";
-    xform->addChild(channel_to_reorient->osg_group);
-    osg_group->addChild(xform);
-    osg_group->addChild(sub_component->osg_group);
+
+    if (!isnan(pose_params->channel_to_reorient_orientation.quat.coord[0])) {
+      // (otherwise just ignore NaN poses)
+      
+      snde_coord4 rotmtx[4]; // index identifies which column (data stored column-major)
+      orientation_build_rotmtx(pose_params->channel_to_reorient_orientation,rotmtx);
+      osg::ref_ptr<osg::MatrixTransform> xform  = new osg::MatrixTransform(osg::Matrixd(&rotmtx[0].coord[0])); // remember osg::MatrixTransform also wants the matrix column-major (as we interpret it; osg interprets it as row major, with left multiplication rather than right multiplication)
+      //std::cout << "ChannelToTrackTransform:\n " << Eigen::Map<const Eigen::Matrix4d>(xform->getMatrix().ptr()) << "\n";
+      xform->addChild(channel_to_reorient->osg_group);
+      osg_group->addChild(xform);
+      osg_group->addChild(sub_component->osg_group);
+    }
     
   }
   

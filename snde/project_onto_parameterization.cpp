@@ -55,6 +55,13 @@ namespace snde {
 		      snde_index vertical_pixels, 
 		      snde_bool use_surface_normal)
     {
+
+      /*
+      {
+	// debugging
+	snde_warning("project_onto_parameterization(): compute_options on globalrev %llu",(unsigned long long)std::dynamic_pointer_cast<globalrevision>(this->rss)->globalrev);
+      }
+      */
       
       snde_ndarray_info *rec_tri_info = part->ndinfo(part->name_mapping.at("triangles"));
       if (rec_tri_info->ndim != 1) {
@@ -106,6 +113,12 @@ namespace snde {
 		snde_bool use_surface_normal)
     {
       // define_recs code
+      /*
+      {
+	// debugging
+	snde_warning("project_onto_parameterization(): define_recs on globalrev %llu",(unsigned long long)std::dynamic_pointer_cast<globalrevision>(this->rss)->globalrev);
+      }
+      */
 
       // determine real vs. complex
       bool is_complex; 
@@ -145,6 +158,13 @@ namespace snde {
 								 use_surface_normal,
 								 result_rec,
 								 is_complex ]() {
+	/*
+	{
+	  // debugging
+	  snde_warning("project_onto_parameterization(): metadata on globalrev %llu",(unsigned long long)std::dynamic_pointer_cast<globalrevision>(this->rss)->globalrev);
+	}
+	*/
+	
 	// metadata code
 	std::shared_ptr<constructible_metadata> metadata=std::make_shared<constructible_metadata>(*to_project->rec->metadata);
 
@@ -245,6 +265,12 @@ namespace snde {
 								     step1,inival1,coord1,units1,
 								     ampl_coord,ampl_units ]() {
 	  // lock_alloc code
+	  /*
+	  {
+	    // debugging
+	    snde_warning("project_onto_parameterization(): lock_alloc on globalrev %llu",(unsigned long long)std::dynamic_pointer_cast<globalrevision>(this->rss)->globalrev);
+	  }
+	  */
 	  
 	  std::shared_ptr<graphics_storage_manager> graphman = std::dynamic_pointer_cast<graphics_storage_manager>(result_rec->assign_storage_manager());
 	  
@@ -261,6 +287,15 @@ namespace snde {
 	
 
 	  unsigned typenum = rtn_typemap.at(typeid(T));
+
+	  if (typenum==SNDE_RTN_FLOAT32 && sizeof(snde_float32)==sizeof(snde_imagedata)) {
+	    typenum=SNDE_RTN_SNDE_IMAGEDATA;
+	  }
+	  
+	  if (typenum==SNDE_RTN_COMPLEXFLOAT32 && sizeof(snde_complexfloat32)==sizeof(snde_compleximagedata)) {
+	    typenum=SNDE_RTN_SNDE_COMPLEXIMAGEDATA;
+	  }
+	  
 	  std::vector<snde_index> dimlen = { horizontal_pixels, vertical_pixels };
 
 	  if (previous_ndarray && this->inst->is_mutable && !previous_ndarray->info->immutable) {
@@ -313,15 +348,15 @@ namespace snde {
 	  }
 	
 
-	  
+	  //snde_warning("build_on_previous=%d",(int)build_on_previous);
       
 	  if (!build_on_previous) {
 	    result_rec->allocate_storage_in_named_array(0,is_complex ? "compleximagebuf":"imagebuf",dimlen,true); // storage for image
 	    result_rec->allocate_storage(1,dimlen,true); // storage for validity mask 
 	  } else {
 	    // accumulate on top of previous recording -- it is mutable storage!
-	    result_rec->storage.at(0) = previous_ndarray->storage.at(0);
-	    result_rec->storage.at(0) = previous_ndarray->storage.at(1);
+	    result_rec->assign_storage_strides(previous_ndarray->storage.at(0),0,previous_ndarray->layouts.at(0).dimlen,previous_ndarray->layouts.at(0).strides);
+	    result_rec->assign_storage_strides(previous_ndarray->storage.at(1),1,previous_ndarray->layouts.at(1).dimlen,previous_ndarray->layouts.at(1).strides);
 	  }
 	  
 	  
@@ -376,6 +411,12 @@ namespace snde {
 								 ampl_coord,ampl_units,
 								 build_on_previous, dimlen, locktokens ]() {
 	    // exec code
+	    /*
+	    {
+	      // debugging
+	      snde_warning("project_onto_parameterization(): exec on globalrev %llu",(unsigned long long)std::dynamic_pointer_cast<globalrevision>(this->rss)->globalrev);
+	    }
+	    */
 	    
 	    if (!build_on_previous) {
 	      // fill new buffer with all zeros. 
@@ -445,8 +486,12 @@ namespace snde {
 	    snde_index paramnum = param->ndinfo("uvs")->base_index;
 	    
 	    std::vector<snde_partinstance> instances;
+	    snde_orientation3 orient_inv;
+	    orientation_inverse(part_orientation->element(0),&orient_inv);
+	    
 	    instances.push_back(snde_partinstance{
 		.orientation = part_orientation->element(0),
+		.orientation_inverse = orient_inv,
 		.partnum=partnum,  
 		.firstuvpatch=0, // only support single patch for now
 		.uvnum=paramnum,
@@ -471,7 +516,7 @@ namespace snde {
 	    }; // !!!*** will need an array here if we start supporting multiple (u,v) patches ***!!!
 	    struct rayintersection_properties imagedata_intersectprops;
 	    snde_index *boxnum_stack;
-	    snde_index frin_stacksize=boxes3d->metadata->GetMetaDatumUnsigned("snde_boxes3d_max_depth",10);
+	    snde_index frin_stacksize=boxes3d->metadata->GetMetaDatumUnsigned("snde_boxes3d_max_depth",10)*8+2;
 	    boxnum_stack = (snde_index *)malloc(frin_stacksize*sizeof(*boxnum_stack));
 	    
 	    raytrace_sensor_evaluate_zdist(
@@ -499,12 +544,46 @@ namespace snde {
 					   &imagedata_intersectprops); // JUST the structure for this pixel... we don't index it
 
 	    free(boxnum_stack);
+
+	    //snde_warning("project_onto_parameterization: intersects at u=%f, v=%f",imagedata_intersectprops.uvcoords.coord[0],imagedata_intersectprops.uvcoords.coord[1]);
 	    
 	    snde_imagedata real_pixelval=to_project->element_complexfloat64(0).real;
 	    snde_imagedata pixelweighting=1.0;
 
 	    //snde_coord3 uvcoords = { imagedata_intersectprops.uvcoords.coord[0],imagedata_intersectprops.uvcoords.coord[1],1.0 };
-	    snde_coord min_radius_uv_pixels = 2.0; // external parameter? 
+	    //snde_coord min_radius_uv_pixels = 2.0; // external parameter?
+	    std::shared_ptr<ndtyped_recording_ref<snde_parameterization>> uvs_ref = param->reference_typed_ndarray<snde_parameterization>("uvs");
+
+	    
+	    // debugging
+	    std::shared_ptr<ndtyped_recording_ref<snde_cmat23>> inplanemat_ref = inplanemat->reference_typed_ndarray<snde_cmat23>("inplanemats");
+	    const snde_cmat23 &inplanemat = inplanemat_ref->element(part->reference_typed_ndarray<snde_part>("parts")->element(0).firsttri + imagedata_intersectprops.trinum - part->ndinfo("triangles")->base_index);
+	   
+	    // end debugging
+	    
+	    std::shared_ptr<ndtyped_recording_ref<snde_cmat23>> inplane2uvcoords_ref = projinfo->reference_typed_ndarray<snde_cmat23>("inplane2uvcoords");
+	    const snde_cmat23 &inplane2uvcoords = inplane2uvcoords_ref->element(uvs_ref->element(0).firstuvtri + imagedata_intersectprops.trinum - param->ndinfo("uv_triangles")->base_index);
+	    
+	    // Use the average of the magnitudes of the eigenvalues of the left 2x2 of inplane2uvcoords as an estimate of the scaling between physical in plane coordinates and "meaningful" uv coordinates
+	    snde_coord i2uv_trace = inplane2uvcoords.row[0].coord[0] + inplane2uvcoords.row[1].coord[1];
+	    snde_coord i2uv_det = inplane2uvcoords.row[0].coord[0]*inplane2uvcoords.row[1].coord[1] - inplane2uvcoords.row[1].coord[0]*inplane2uvcoords.row[0].coord[1];
+
+	    // e-vals solutions of: lambda^2 - trace*lambda + det = 0
+	    // lambda = trace/2 +/- (1/2)sqrt(trace^2 - 4*det)
+
+	    // magnitude = sqrt( (trace/2)^2 + (4*det - trace^2)/4
+	    // magnitude = sqrt( (trace)^2/4 + (det - trace^2/4 )
+	    // magnitude = sqrt( det)
+	    snde_coord lambda_magnitude = sqrt(i2uv_det);
+;
+	    assert(lambda_magnitude); // if this fails then inplane2uvcoords could be doing some kind of weird mirroring maybe (!?)
+
+	    snde_coord duvcoords_dinplane = lambda_magnitude;
+	    snde_coord dpixels_duvcoords = 2.0/(step0+step1); // 1/average step size 
+	    
+	      
+	    
+	    snde_coord min_radius_uv_pixels = dpixels_duvcoords * duvcoords_dinplane * radius;
 	    snde_coord min_radius_src_pixels = 0.0; // (has no effect)
 	    snde_coord bandwidth_fraction = .4; // should this be an external parameter? 
 
@@ -539,8 +618,10 @@ namespace snde {
 	    
 	    
 	    //snde_warning("Project_onto_parameterization calculation complete.");
-	    
-	    
+	    // Need to mark our modification zone
+	    // !!!*** Would be nice to be able to specify a rectangle here ***!!!
+	    result_rec->storage.at(0)->mark_as_modified(nullptr,0,result_rec->storage.at(0)->nelem);
+	    result_rec->storage.at(1)->mark_as_modified(nullptr,0,result_rec->storage.at(1)->nelem);
 	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
 	    result_rec->mark_as_ready();
 	    

@@ -275,7 +275,8 @@ namespace snde {
     {
       iterator region;
       rangetracker<T> retval;
-
+      bool first_region_new=false;
+      
       if (!numelems) {
 	return retval;
       }
@@ -306,7 +307,7 @@ namespace snde {
 	trackedregions[firstelem]=std::make_shared<T>(firstelem,regionend,std::forward<Args>(args) ...);
 
 	region=trackedregions.lower_bound(firstelem);
-
+	first_region_new = true; 
       }
 
       /* now region refers to firstelem */
@@ -320,8 +321,13 @@ namespace snde {
       } else {
 	regionend=firstelem+numelems;
       }
-      
+
+
+      bool this_region_new = first_region_new;
+
       while (coveredthrough < regionend) {
+
+
 
 	if (region == trackedregions.end() || coveredthrough < region->second->regionstart) {
 	  /* We have a gap. Don't use this region but
@@ -336,7 +342,7 @@ namespace snde {
 	  trackedregions[coveredthrough]=std::make_shared<T>(coveredthrough,newregionend,std::forward<Args>(args) ...);
 
 	  region=trackedregions.lower_bound(coveredthrough);
-	  
+	  this_region_new = true;
 	}
 
 	/* now we've got a region that starts at coveredthrough */
@@ -348,7 +354,8 @@ namespace snde {
 	  iterator secondpieceiterator;
 	  
 	  std::tie(region,secondpieceiterator)=_breakupregion(region,regionend,std::forward<Args>(args) ...);
-
+	  this_region_new = false;
+	  
 	  assert(region->second->regionend == regionend);
 
 	  /* attempt to merge second part of broken up region 
@@ -373,7 +380,16 @@ namespace snde {
 	/* now we've got a region that starts at coveredthrough and 
 	   ends at or before firstelem+numelems */
 	assert (region->second->regionend <= regionend);
+	
+	if (!this_region_new) { 
+	  // if we're re-using an old region,
+	  // replace it because we may need to pass on
+	  // constructor info, etc.
+	  
+	  region->second=std::make_shared<T>(region->second->regionstart,region->second->regionend,std::forward<Args>(args) ...);
+	}
 
+	
 	/* add region to retval */
 	retval.trackedregions[region->second->regionstart]=region->second;
 
@@ -381,7 +397,7 @@ namespace snde {
 	coveredthrough=region->second->regionend;
 
 	region++;  // move to next region 
-	
+	this_region_new = false; // next region presumably not new
       }
 
       return retval;

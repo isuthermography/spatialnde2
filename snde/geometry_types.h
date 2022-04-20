@@ -781,7 +781,8 @@ struct snde_parameterization {
 /* partinstance table created by walking the assembly structure and choosing level of detail */
 struct snde_partinstance {
   /* (this isn't really in the database? Actually generated dynamically from the assembly structures) */
-   snde_orientation3 orientation;
+  snde_orientation3 orientation;  // Take a vector in the part's coordinates and gives a vector in world coordinates
+  snde_orientation3 orientation_inverse; // Takes a vector in world coordinates and gives a vector in part coordinates
   //snde_index nurbspartnum; /* if nurbspartnum is SNDE_INDEX_INVALID, then there is a meshed representation only */
   snde_index partnum; // was meshedpartnum
   //std::string discrete_parameterization_name; -- really maps to mesheduvnmum /* index of the discrete parameterization */

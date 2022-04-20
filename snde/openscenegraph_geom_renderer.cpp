@@ -342,7 +342,7 @@ namespace snde {
     OrientCoordAxes();
     
     // Clear depth buffer
-    CoordAxesCamera->setClearMask(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+    CoordAxesCamera->setClearMask(/*GL_COLOR_BUFFER_BIT| */GL_DEPTH_BUFFER_BIT);
 
     // mark as post render
     CoordAxesCamera->setRenderOrder(osg::Camera::POST_RENDER);

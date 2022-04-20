@@ -434,7 +434,10 @@ static RAYTRACE_INLINE int find_ray_first_part_intersection_nonrecursive(snde_in
   
   boxnum_stack[stackentries]=0;
   stackentries++;
-  
+
+  if (trace) {
+    fprintf(stderr,"ray from (%f, %f, %f) in (%f,%f,%f) direction\n",raystartproj.coord[0],raystartproj.coord[1],raystartproj.coord[2],rayvecproj.coord[0],rayvecproj.coord[1],rayvecproj.coord[2]);
+  }
   while (stackentries > 0) {
     boxnum=boxnum_stack[stackentries-1];
     if (trace) printf("find_ray_intersections_nonrecursive(boxnum=%d)\n",(int)boxnum);
@@ -443,6 +446,8 @@ static RAYTRACE_INLINE int find_ray_first_part_intersection_nonrecursive(snde_in
       /* Ray does not pass through our box. We can not possibly have an intersection */
       if (trace) {
 	fprintf(stderr,"find_ray_intersections(): Ray does not intersect box %d\n",(int)boxnum);
+	fprintf(stderr,"Box from (%f,%f,%f)\n"
+		"      to (%f,%f,%f)\n",part_boxcoord[boxnum].min.coord[0],part_boxcoord[boxnum].min.coord[1],part_boxcoord[boxnum].min.coord[2],part_boxcoord[boxnum].max.coord[0],part_boxcoord[boxnum].max.coord[1],part_boxcoord[boxnum].max.coord[2]);
 	//box_contains_polygon(surf,boxnum,17281,TRUE);
       }
 
@@ -451,6 +456,14 @@ static RAYTRACE_INLINE int find_ray_first_part_intersection_nonrecursive(snde_in
 
       // loop back
       continue;
+    } else {
+      if (trace) {
+	fprintf(stderr,"find_ray_intersections(): Ray does intersect box %d\n",(int)boxnum);
+	fprintf(stderr,"Box from (%f,%f,%f)\n"
+		"      to (%f,%f,%f)\n",part_boxcoord[boxnum].min.coord[0],part_boxcoord[boxnum].min.coord[1],part_boxcoord[boxnum].min.coord[2],part_boxcoord[boxnum].max.coord[0],part_boxcoord[boxnum].max.coord[1],part_boxcoord[boxnum].max.coord[2]);
+	//box_contains_polygon(surf,boxnum,17281,TRUE);
+      }
+
     }
     //if (trace) {
     //  box_contains_polygon(surf,boxnum,17281,TRUE);
@@ -459,7 +472,7 @@ static RAYTRACE_INLINE int find_ray_first_part_intersection_nonrecursive(snde_in
     
     if (part_boxes[boxnum].boxpolysidx != SNDE_INDEX_INVALID) {
       /* Have index into boxpolys array: This box contains polygons */
-      for (cnt=part_boxes[boxnum].boxpolysidx;cnt < part_boxes[boxnum].numboxpolys;cnt++) {
+      for (cnt=part_boxes[boxnum].boxpolysidx;cnt < part_boxes[boxnum].boxpolysidx + part_boxes[boxnum].numboxpolys;cnt++) {
 	/* Got a polygon (actually triangle) */
 	polynum=part_boxpolys[cnt];
 
@@ -505,7 +518,7 @@ static RAYTRACE_INLINE int find_ray_first_part_intersection_nonrecursive(snde_in
     /* This box may be sub-divided into 8 */
     /* Push subboxes onto stack */
     for (subbox=0;subbox < 8; subbox++) {
-      if (part_boxes[boxnum].subbox[subbox] >= 0) {
+      if (part_boxes[boxnum].subbox[subbox] != SNDE_INDEX_INVALID) {
 	if (stackentries >= frin_stacksize) {
 #ifndef __OPENCL_VERSION__
 	  // not an OpenCL kernel
@@ -552,7 +565,7 @@ static RAYTRACE_INLINE void raytrace_find_first_intersection(snde_coord4 raystar
 							     int trace)
 {
   snde_index instancecnt;
-  snde_orientation3 orient_inv;
+  //snde_orientation3 orient_inv;
   snde_coord zdist;
 
   *zdist_out=snde_infnan(ERANGE);
@@ -578,11 +591,11 @@ static RAYTRACE_INLINE void raytrace_find_first_intersection(snde_coord4 raystar
 
     // we need to do the inverse operation on raystart and rayvec to get them into part coordinates.
     // so we can find triangles.
-    orientation_inverse(instances[instancecnt].orientation,&orient_inv);
+    //orientation_inverse(instances[instancecnt].orientation,&orient_inv);
 
     // transform ray into part coordinates
-    orientation_apply_position(orient_inv,raystartproj,&raystartproj_part);
-    orientation_apply_vector(orient_inv,rayvecproj,&rayvecproj_part);
+    orientation_apply_position(instances[instancecnt].orientation_inverse,raystartproj,&raystartproj_part);
+    orientation_apply_vector(instances[instancecnt].orientation_inverse,rayvecproj,&rayvecproj_part);
     
     find_ray_first_part_intersection_nonrecursive(instancecnt,
 						  //snde_index numtris,
@@ -755,9 +768,12 @@ static RAYTRACE_INLINE snde_coord raytrace_get_angle_of_incidence(snde_coord4 ra
   snde_index partnum;
   
   partnum=instances[instnum].partnum-first_part;
-  
-  angle_of_incidence = acos(fabs(dotvecvec3(&rayvecproj.coord[0],&trinormals[parts[partnum].firsttri + trinum-first_tri].coord[0]))); // rayvecobj and facetnormals should be unit vectors 
 
+  snde_coord4 rayvecproj_partcoords;
+  orientation_apply_vector(instances[instnum].orientation_inverse,rayvecproj,&rayvecproj_partcoords);
+  
+  angle_of_incidence = acos(fabs(dotvecvec3(&rayvecproj_partcoords.coord[0],&trinormals[parts[partnum].firsttri + trinum-first_tri].coord[0]))); // rayvecproj and facetnormals should be unit vectors 
+  
   return angle_of_incidence;
 
 }
@@ -781,7 +797,8 @@ void raytrace_find_intersect_uv(snde_coord4 raystartproj,snde_coord4 rayvecproj,
 				snde_index *uv_facenum_out)
 				 
 {
-  snde_coord4 intersectpoint;
+  snde_coord4 intersectpoint_worldcoords;
+  snde_coord4 intersectpoint_partcoords;
   snde_coord3 tri_vertices[3];
   snde_coord4 refpoint;
 
@@ -793,17 +810,19 @@ void raytrace_find_intersect_uv(snde_coord4 raystartproj,snde_coord4 rayvecproj,
   paramnum = instances[instnum].uvnum-first_uv;
   
   // find intersectpoint 
-  addcoordscaledcoord4(raystartproj,zdist,rayvecproj,&intersectpoint);
+  addcoordscaledcoord4(raystartproj,zdist,rayvecproj,&intersectpoint_worldcoords);
+
+  orientation_apply_position(instances[instnum].orientation_inverse,intersectpoint_worldcoords,&intersectpoint_partcoords);
 
   // get 3D vertices
   get_we_triverts_3d(&triangles[parts[partnum].firsttri-first_triangle],trinum,&edges[parts[partnum].firstedge-first_edge],&vertices[parts[partnum].firstvertex-first_vertex],tri_vertices);
 
   // get centroid
-  polycentroid3(vertices,3 /*numvertices*/,(snde_coord3 *)&refpoint);
+  polycentroid3(tri_vertices,3 /*numvertices*/,(snde_coord3 *)&refpoint);
   refpoint.coord[3]=1.0; // refpoint is a point
 
   // Evaluate 3D intersection point relative to polygon
-  subcoordcoord4(intersectpoint,refpoint,&polyintersectvec);
+  subcoordcoord4(intersectpoint_partcoords,refpoint,&polyintersectvec);
 
   // Evaluate 2D intersection point relative to polygon
   multcmat23vec(&inplanemats[parts[partnum].firsttri + trinum-first_triangle].row[0].coord[0],&polyintersectvec.coord[0],&polyintersect2.coord[0]);
@@ -881,7 +900,7 @@ void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
     
   size_t xcnt,ycnt;
 
-  snde_coord r2_uv,r2_src=0.0f,coeff,cosval,cosparam;  //sincparam
+  snde_coord r2_uv_pixels,r2_src_pixels=0.0f,coeff,cosval,cosparam;  //sincparam
   snde_coord2 pos,pos_frac,srcpos;
   //float64_t angle_of_incidence_factor;
 
@@ -927,6 +946,8 @@ void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
   
   arraywidth = (size_t) (projecthalfwidth*2+1);
   arrayheight= (size_t) (projecthalfheight*2+1);
+
+  // arrayu0, arrayv0 in pixels
   arrayu0 = (int)(uvcoords0_pixels-projecthalfwidth+0.5);
   arrayv0 = (int)(uvcoords1_pixels-projecthalfheight+0.5);
   
@@ -954,22 +975,40 @@ void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
       //            pos[0] = imgbuf_nx-0.5 - uvcoords[0]*(imgbuf_nx) + 0.5
       //            pos[0] = imgbuf_nx-0.5 - (imgbuf_nx) + 0.5
       //            pos[0] = -0.5  + 0.5  = 0 ... so we are right on target
+
       
+      //pos.coord[0]=projectionarray_instanceinfo.inival.coord[0]+ (xcnt+arrayu0)*projectionarray_instanceinfo.step.coord[0] - uvcoords.coord[0];
+      //pos.coord[1]=projectionarray_instanceinfo.inival.coord[1]+ (ycnt+arrayv0)*projectionarray_instanceinfo.step.coord[1] - uvcoords.coord[1];
+      
+      //r2_uv = pos.coord[0]*pos.coord[0] + pos.coord[1]*pos.coord[1];
+
+      // pos is position, in meaningful units, relative to the intersection point
       pos.coord[0]=projectionarray_instanceinfo.inival.coord[0]+ (xcnt+arrayu0)*projectionarray_instanceinfo.step.coord[0] - uvcoords.coord[0];
       pos.coord[1]=projectionarray_instanceinfo.inival.coord[1]+ (ycnt+arrayv0)*projectionarray_instanceinfo.step.coord[1] - uvcoords.coord[1];
-      
-      r2_uv = pos.coord[0]*pos.coord[0] + pos.coord[1]*pos.coord[1];
 
+      
+      //if (xcnt==0 && ycnt==0) {
+      //fprintf(stderr,"Projecting, pos = (%f,%f)\n",pos.coord[0],pos.coord[1]);
+      //}
+
+      // convert pos from meaningful units relative to intersection point into pixels relative to intersection point
+      pos.coord[0] /= projectionarray_instanceinfo.step.coord[0];
+      pos.coord[1] /= projectionarray_instanceinfo.step.coord[1];
+      
+      r2_uv_pixels = pos.coord[0]*pos.coord[0] + pos.coord[1]*pos.coord[1];
+
+      
       //fprintf(stderr,"r_uv=%g; min_radius_uv = %g\n",sqrt(r2_uv),fabs(min_radius_uv_pixels));
       
       if (uvcoords_deriv_a && uvcoords_deriv_b) {
 	// pos is in uv units so far, and so are jacobian/jacimg
 	multcmatvec2(jacinv,&pos.coord[0],&srcpos.coord[0]); // srcpos gives position in (a,b) units, which are source pixels
-	r2_src = srcpos.coord[0]*srcpos.coord[0]+srcpos.coord[1]*srcpos.coord[1];
+	r2_src_pixels = srcpos.coord[0]*srcpos.coord[0]+srcpos.coord[1]*srcpos.coord[1];
 	//fprintf(stderr,"r_src=%g; min_radius_src = %g\n",sqrt(r2_src),fabs(min_radius_src_pixels));
+	assert(0); // need to debug here and check units... r2_src probably needs to be scaled from meaningful units into source pixels (?) ***!!! See also cosparam, below !!!***
       }
-      if (r2_uv <= min_radius_uv_pixels*min_radius_uv_pixels ||
-	  r2_src <= min_radius_src_pixels*min_radius_src_pixels) {
+      if (r2_uv_pixels <= min_radius_uv_pixels*min_radius_uv_pixels ||
+	  r2_src_pixels <= min_radius_src_pixels*min_radius_src_pixels) {
 	/* Include this point */
 	// Forget complicated bandlimited interpolation
 	// Instead project 2D generalized circular sinc function
@@ -987,11 +1026,18 @@ void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
 	  //weightingfactor=atomicpixel_load(&weightingbuf[(arrayx0+xcnt)  (arrayy0+ycnt)*projectionarray_instanceinfo.nx]);
 	  weightingfactor = uvdata_weighting_array[(arrayu0+xcnt)*uvdata_weighting_strides[0] + (arrayv0+ycnt)*uvdata_weighting_strides[1]];
 	}
-	
+
+
+	snde_coord r2_pixels=r2_src_pixels;
+
+	if (r2_uv_pixels > r2_pixels) {
+	  r2_pixels = r2_uv_pixels; // whichever is bigger
+	}
 
 	// Replacement -- Just use raised Cosine weigting
-	// 1+cos(sqrt(r2_src)*bandwidth_fraction)
-	cosparam=sqrt(r2_src)*bandwidth_fraction*M_PI/M_SQRT2; // 
+	// 1+cos(sqrt(r2_pixels)*bandwidth_fraction)
+	
+	cosparam=sqrt(r2_pixels)*bandwidth_fraction*M_PI/M_SQRT2; // !!!** Need to check scaling/units of r2_src.... see assert(0) above
 	if (cosparam > M_PI_SNDE_COORD) {
 	  cosval=0.0;
 	} else {
@@ -1002,6 +1048,9 @@ void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
 	//fprintf(stderr,"imgbuf[%d]+=%g\n",framenum*imgbuf_ny*imgbuf_nx + (arrayy0+ycnt)*imgbuf_nx + (arrayx0+xcnt),coeff*pixelval);
 
 	if (uvdata_projection_array) {
+	  //if (xcnt==(int)arraywidth/2 && ycnt==(int)arrayheight/2) {
+	  //  fprintf(stderr,"Projecting, to pixel = (%d,%d)\n",(int)(arrayu0+xcnt),(int)(arrayv0+ycnt));
+	  //}
 	  atomicpixel_accumulate(&uvdata_projection_array[(arrayu0+xcnt)*uvdata_projection_strides[0] + (arrayv0+ycnt)*uvdata_projection_strides[1]], coeff*pixelval);
 	  
 	}
@@ -1197,6 +1246,7 @@ void raytrace_sensor_evaluate_zdist(
 
 
   int trace=FALSE;
+  //int trace=TRUE;
   snde_index firstidx;
 
   // find the first surface intersection in the direction of the sensor
@@ -1208,7 +1258,7 @@ void raytrace_sensor_evaluate_zdist(
   // it maps onto.
   
   //camera_rayvec_wrl(cam_mtx,aindex,bindex,camcoords_to_wrlcoords,&rayvecwrl);
-  snde_coord4 sensorloc_sensor = { { 0,0,-mindist,1 } }; // Point located at the minimum distance along the sensor axis (z)  in sensor coordinates. Negated because in front of the sensor is in the -z direction
+  snde_coord4 sensorloc_sensor = { { 0,0,-mindist,1 } }; // Point located at the minimum distance along the sensor axis (z)  in sensor coordinates. Negated because behind the sensor is in the +z direction
   snde_coord4 sensordirec_sensor = { { 0,0,-1,0 } };  // Looks in the -z direction
   
   snde_coord4 sensorloc_wrl;
@@ -1252,16 +1302,16 @@ void raytrace_sensor_evaluate_zdist(
     snde_coord3 intersectpoint_uvcoords;
 
 
-    if (zdist > maxdist-mindist) {
-      // too far: Set zdist to infinity
-      zdist = snde_infnan(ERANGE);
-    }
     
     zdist=imagedata_intersectprops->zdist;
     instnum=imagedata_intersectprops->instnum;
     trinum=imagedata_intersectprops->trinum;
     //paramnum = instances[instnum].uvnum;
 
+    if (zdist > maxdist-mindist) {
+      // too far: Set zdist to infinity
+      zdist = snde_infnan(ERANGE);
+    }
     
     if (!isinf(zdist)) { 
 
@@ -1471,6 +1521,9 @@ void raytrace_camera_evaluate_zdist(
     trinum=imagedata_intersectprops->trinum;
     paramnum = instances[instnum].uvnum-first_uv;
 
+
+    // ***!!!! BUG: Does not currently consider the coordinate transformation in the instance!
+    
     camera_rayvec_deriv_a_wrl(cam_mtx,aindex,bindex,camcoords_to_wrlcoords,&rayvecderiv_a);
     camera_rayvec_deriv_b_wrl(cam_mtx,aindex,bindex,camcoords_to_wrlcoords,&rayvecderiv_b);
 
@@ -1487,6 +1540,7 @@ void raytrace_camera_evaluate_zdist(
 						 trinum, // which triangle number for the instances's part
 						 &ray_intersect_deriv_a);
     
+    // ***!!!! BUG: Does not currently consider the coordinate transformation in the instance!
     
     raytrace_find_intersection_rayvec_derivative(focalpointwrl,rayvecwrl,
 						 rayvecderiv_b,
@@ -1505,6 +1559,7 @@ void raytrace_camera_evaluate_zdist(
       
       //if (imagedata_ray_intersect_deriv_a_cam_z) {
       // derivative with respect to a in camera coordinates
+      // ***!!!! BUG: Does not currently consider the coordinate transformation in the instance!
       orientation_apply_vector(wrlcoords_to_camcoords,ray_intersect_deriv_a,&ray_intersect_deriv_a_cam);
       
       // export z-derivative with respect to a in camera coordinates

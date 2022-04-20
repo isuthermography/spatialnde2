@@ -10,6 +10,8 @@
 /* implicit include of geometry_types.h */
 /* implicit include of vecops.h */
 
+#define SNDE_PROJINFO_CALC_DEBUG_TRIANGLE (SNDE_INDEX_INVALID) // can replace with index of triangle we want to print
+
 void snde_projinfo_calc_one(// OCL_GLOBAL_ADDR const struct snde_part *part,
 			    // OCL_GLOBAL_ADDR const struct snde_parameterization *param,
 			    OCL_GLOBAL_ADDR const snde_triangle *part_triangles,
@@ -77,7 +79,7 @@ void snde_projinfo_calc_one(// OCL_GLOBAL_ADDR const struct snde_part *part,
   /* got vertex coordinates in triverts */
   tricentroid3(triverts_3d, &centroid_3d);
 
-  if (trianglenum==0) {
+  if (trianglenum==SNDE_PROJINFO_CALC_DEBUG_TRIANGLE) {
     printf("triverts_3d[0]=(%f,%f,%f)\n",triverts_3d[0].coord[0],triverts_3d[0].coord[1],triverts_3d[0].coord[2]);
     printf("triverts_3d[1]=(%f,%f,%f)\n",triverts_3d[1].coord[0],triverts_3d[1].coord[1],triverts_3d[1].coord[2]);
     printf("triverts_3[2]=(%f,%f,%f)\n",triverts_3d[2].coord[0],triverts_3d[2].coord[1],triverts_3d[2].coord[2]);
@@ -91,7 +93,7 @@ void snde_projinfo_calc_one(// OCL_GLOBAL_ADDR const struct snde_part *part,
   subcoordcoord3(triverts_3d[1],centroid_3d,&coordvals[1]);
   subcoordcoord3(triverts_3d[2],centroid_3d,&coordvals[2]);
 
-  if (trianglenum==0) {
+  if (trianglenum==SNDE_PROJINFO_CALC_DEBUG_TRIANGLE) {
     
     printf("coordvals[0]=(%f,%f,%f)\n",coordvals[0].coord[0],coordvals[0].coord[1],coordvals[0].coord[2]);
     printf("coordvals[1]=(%f,%f,%f)\n",coordvals[1].coord[0],coordvals[1].coord[1],coordvals[1].coord[2]);
@@ -104,7 +106,7 @@ void snde_projinfo_calc_one(// OCL_GLOBAL_ADDR const struct snde_part *part,
   multcmat23coord(part_inplanemats[trianglenum],coordvals[1],&coordvals2d[1]);
   multcmat23coord(part_inplanemats[trianglenum],coordvals[2],&coordvals2d[2]);
 
-  if (trianglenum==0) {
+  if (trianglenum==SNDE_PROJINFO_CALC_DEBUG_TRIANGLE) {
     printf("coordvals2d[0]=(%f,%f)\n",coordvals2d[0].coord[0],coordvals2d[0].coord[1]);
     printf("coordvals2d[1]=(%f,%f)\n",coordvals2d[1].coord[0],coordvals2d[1].coord[1]);
     printf("coordvals2d[2]=(%f,%f)\n",coordvals2d[2].coord[0],coordvals2d[2].coord[1]);
@@ -129,7 +131,7 @@ void snde_projinfo_calc_one(// OCL_GLOBAL_ADDR const struct snde_part *part,
     TexCoordVec[ vertnum*2+1 ] = uvcoordvals[vertnum].coord[1]; // v1, etc.
   }
 
-  if (trianglenum==0) {
+  if (trianglenum==SNDE_PROJINFO_CALC_DEBUG_TRIANGLE) {
     printf("A=["); // actually print out transpose
     for (unsigned row=0;row < 6;row++) {
       for (unsigned col=0;col < 6; col++) {	
@@ -153,7 +155,7 @@ void snde_projinfo_calc_one(// OCL_GLOBAL_ADDR const struct snde_part *part,
 
   }
   // Solve TexXformMtx*x = TexCoordVec... x will overwrite TexCoordVec
-  fmatrixsolve(TexXformMtx,TexCoordVec,6,1,TexXformMtx_pivots,trianglenum==0);
+  fmatrixsolve(TexXformMtx,TexCoordVec,6,1,TexXformMtx_pivots,trianglenum==SNDE_PROJINFO_CALC_DEBUG_TRIANGLE);
 
   inplane2uvcoords[trianglenum].row[0].coord[0]=TexCoordVec[0]; // A11
   inplane2uvcoords[trianglenum].row[0].coord[1]=TexCoordVec[1]; // A12
@@ -162,7 +164,7 @@ void snde_projinfo_calc_one(// OCL_GLOBAL_ADDR const struct snde_part *part,
   inplane2uvcoords[trianglenum].row[1].coord[1]=TexCoordVec[4]; // A22
   inplane2uvcoords[trianglenum].row[1].coord[2]=TexCoordVec[5]; // A23
 
-  if (trianglenum==0) {
+  if (trianglenum==SNDE_PROJINFO_CALC_DEBUG_TRIANGLE) {
     printf("A11 = %f; A12=%f; A13=%f\nA21=%f; A22=%f; A23=%f\n",TexCoordVec[0],TexCoordVec[1],TexCoordVec[2],TexCoordVec[3],TexCoordVec[4],TexCoordVec[5]);
   }
   
@@ -182,7 +184,7 @@ void snde_projinfo_calc_one(// OCL_GLOBAL_ADDR const struct snde_part *part,
   Amatinv[1]=0.0f;
   Amatinv[2]=0.0f;
   Amatinv[3]=1.0f;
-  fmatrixsolve(Amat,Amatinv,2,2,Amat_pivots,trianglenum==0);
+  fmatrixsolve(Amat,Amatinv,2,2,Amat_pivots,trianglenum==SNDE_PROJINFO_CALC_DEBUG_TRIANGLE);
 
   // extract 2x2 matrix on left of uvcoords2inplane
   uvcoords2inplane[trianglenum].row[0].coord[0]=Amatinv[0]; //Amatinv11

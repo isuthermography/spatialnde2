@@ -342,7 +342,9 @@ namespace snde {
     // ... is it a problem that both modules are calling display->update??? (and perhaps from different threads!)
     // Answer: It is OK. display->update just does internal housekeeping on the display_info list
     // of channels. The bools just determine which channels are returned. 
-    std::vector<std::shared_ptr<display_channel>> currentreclist = display->update(recdb_strong->latest_globalrev() /* actually the latest ready globalrev */,selected,false,true,false);
+    std::vector<std::shared_ptr<display_channel>> currentreclist;
+    std::vector<std::shared_ptr<display_channel>> junk;
+    std::tie(currentreclist,junk) = display->get_channels(recdb_strong->latest_globalrev() /* actually the latest ready globalrev */,selected,false,false,true,false);
     
     // clear touched flag for all selectors
     for(auto & selector: Selectors) {

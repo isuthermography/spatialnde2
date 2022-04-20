@@ -900,11 +900,13 @@ namespace snde {
 
 
   // template for textured_part info arguments
-  template <class T>
-    std::shared_ptr<T> create_recording_textured_part_info(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string part_name, std::shared_ptr<std::string> parameterization_name, const std::map<snde_index,std::shared_ptr<image_reference>> &texture_refs);
-  %{
-#define create_recording_textured_part_info create_recording
-   %}
+
+  // Moved to graphics_recording.i
+  //  template <class T>
+  //   std::shared_ptr<T> create_recording_textured_part_info(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string part_name, std::shared_ptr<std::string> parameterization_name, std::vector<std::pair<snde_index,std::shared_ptr<image_reference>>> texture_refs);
+  // %{
+  //#define create_recording_textured_part_info create_recording
+  // %}
 
   
   

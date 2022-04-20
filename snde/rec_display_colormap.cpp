@@ -103,6 +103,13 @@ namespace snde {
 	  result_rec->allocate_storage(recording->layout.dimlen,true); // Note fortran order flag -- required by renderer
 	   
 	  
+#ifdef SNDE_OPENCL
+	  std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(this->compute_resource);
+	  bool using_gpu = opencl_resource != nullptr;
+#else
+	  bool using_gpu = false;
+#endif
+
 	  // locking is only required for certain recordings
 	  // with special storage under certain conditions,
 	  // however it is always good to explicitly request
@@ -111,7 +118,7 @@ namespace snde {
 	  rwlock_token_set locktokens = this->lockmgr->lock_recording_refs({
 	      { recording, false }, // first element is recording_ref, 2nd parameter is false for read, true for write 
 	      { result_rec, true },
-	    });
+	    },using_gpu);
 	  
 	  
 	  return std::make_shared<exec_function_override_type>([ this, locktokens,result_rec,recording,colormap_type,offset,unitsperintensity,base_position,u_dim,v_dim ]() {
@@ -301,7 +308,13 @@ namespace snde {
 	  // right now we just do floating point
 	  result_dimlen.insert(result_dimlen.begin(),4);
 	  result_rec->allocate_storage(result_dimlen,true); // Note fortran order flag -- required by renderer
-	  
+#ifdef SNDE_OPENCL
+	  std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(this->compute_resource);
+	  bool using_gpu = opencl_resource != nullptr;
+#else
+	  bool using_gpu = false;
+#endif
+
 	  
 	  // locking is only required for certain recordings
 	  // with special storage under certain conditions,
@@ -311,7 +324,7 @@ namespace snde {
 	  rwlock_token_set locktokens = this->lockmgr->lock_recording_refs({
 	      { recording, false }, // first element is recording_ref, 2nd parameter is false for read, true for write 
 	      { result_rec, true },
-	    });
+	    },using_gpu);
 	  
 	  
 	  return std::make_shared<exec_function_override_type>([ this, locktokens,result_rec,recording,colormap_type,offset,unitsperintensity ]() {
@@ -553,6 +566,14 @@ namespace snde {
 	   
 
 	  std::shared_ptr<ndtyped_recording_ref<snde_float32>> totals = fusion->reference_typed_ndarray<snde_float32>("totals");
+
+#ifdef SNDE_OPENCL
+	  std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(this->compute_resource);
+	  bool using_gpu = opencl_resource != nullptr;
+#else
+	  bool using_gpu = false;
+#endif
+	  
 	  // locking is only required for certain recordings
 	  // with special storage under certain conditions,
 	  // however it is always good to explicitly request
@@ -562,7 +583,7 @@ namespace snde {
 	      { accumulator, false }, // first element is recording_ref, 2nd parameter is false for read, true for write 
 	      { totals, false }, // first element is recording_ref, 2nd parameter is false for read, true for write 
 	      { result_rec, true },
-	    });
+	    }, using_gpu);
 	  
 	  
 	  return std::make_shared<exec_function_override_type>([ this, locktokens,result_rec,accumulator,fusion,totals,colormap_type,offset,unitsperintensity,base_position,u_dim,v_dim ]() {
@@ -598,7 +619,7 @@ namespace snde {
 	    if (opencl_resource) {
 
 	      //cl::Kernel colormap_kern = get_opencl_colormap_program<T>()->get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
-	      cl::Kernel colormap_kern = build_typed_opencl_program<T>("spatialnde2.fusion_colormap",[ complexflag ] (std::string ocltypename) {
+	      std::shared_ptr<opencl_program> colormap_prog = build_typed_opencl_program<T>("spatialnde2.fusion_colormap",[ complexflag ] (std::string ocltypename) {
 		// OpenCL templating via a typedef....
 		return std::make_shared<opencl_program>("fusion_colormap_kern", std::vector<std::string>({
 		      snde_types_h,
@@ -607,13 +628,16 @@ namespace snde {
 		      "\ntypedef " + ocltypename + " fc_intype;\n",
 		      complexflag ? ("\ntypedef " + ocltypename + " fc_complex_intype;\n"):("\ntypedef " + ocltypename + "fc_real_intype;\n"),
 		      complexflag ? ("\ntypedef snde_float32 fc_real_intype;\n"):("\ntypedef snde_complexfloat32 fc_complex_intype;\n"),
+		      complexflag ? ("\n#define snde_fusion_colormap snde_fusion_colormap_complex\n"):("\n#define snde_fusion_colormap snde_fusion_colormap_real\n"),
 		      fusion_colormap_c
 		    }));
-	      })->get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
+	      });
+	      
+	      cl::Kernel colormap_kern = colormap_prog->get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
 	      
 	      OpenCLBuffers Buffers(opencl_resource->oclcache,opencl_resource->context,opencl_resource->devices.at(0),locktokens);
 	      
-	      assert(accumulator->ndinfo()->base_index==0); // we don't support a shift (at least not currently)
+	      //assert(accumulator->ndinfo()->base_index==0); // we don't support a shift (at least not currently) (yes we do)
 	      Buffers.AddBufferAsKernelArg(accumulator,colormap_kern,0,false,false);
 	      Buffers.AddBufferAsKernelArg(totals,colormap_kern,1,false,false);	      
 	      Buffers.AddBufferAsKernelArg(result_rec,colormap_kern,2,true,true);
@@ -631,13 +655,17 @@ namespace snde {
 	      
 	      snde_float32 ocl_intensityperunits = (snde_float32)(1.0/unitsperintensity);
 	      colormap_kern.setArg(7,sizeof(ocl_intensityperunits),&ocl_intensityperunits);
+
+	      snde_float32 maxtotal_float32 = maxtotal;
+	      colormap_kern.setArg(8,sizeof(maxtotal_float32),&maxtotal_float32);
 	      
 	      uint8_t ocl_alpha = 255;
-	      colormap_kern.setArg(8,sizeof(ocl_alpha),&ocl_alpha);
+	      colormap_kern.setArg(9,sizeof(ocl_alpha),&ocl_alpha);
 	      
 	      cl::Event kerndone;
 	      std::vector<cl::Event> FillEvents=Buffers.FillEvents();
-	      
+
+	      //snde_warning("Performing fusion colormapping");
 	      cl_int err = opencl_resource->queues.at(0).enqueueNDRangeKernel(colormap_kern,{},{
 		  accumulator->layout.dimlen.at(u_dim),
 		  accumulator->layout.dimlen.at(v_dim)	      
@@ -650,7 +678,18 @@ namespace snde {
 	      Buffers.BufferDirty(result_rec);
 	      // wait for kernel execution and transfers to complete
 	      Buffers.RemBuffers(kerndone,kerndone,true);
-	      
+
+	      /*
+	      int num_nonzero=0;
+	      for (snde_index vpos=0;vpos < accumulator->layout.dimlen.at(v_dim);vpos++){
+		for (snde_index upos=0;upos < accumulator->layout.dimlen.at(u_dim);upos++){
+		  if (accumulator->element_complexfloat64({upos,vpos}).real != 0.0) {
+		    num_nonzero++;
+		  }
+		}
+	      }
+	      snde_warning("Fusion_colormap: num_nonzero=%d",num_nonzero);
+	      */
 	    } else {	    
 #endif // SNDE_OPENCL
 	      //snde_warning("Performing colormapping on CPU. This will be slow.");

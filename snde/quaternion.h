@@ -22,6 +22,21 @@ static QUATERNION_INLINE void snde_null_orientation3(snde_orientation3 *out)
   *out=null_orientation;
 }
 
+static QUATERNION_INLINE void snde_invalid_orientation3(snde_orientation3 *out)
+{
+  snde_coord nan;
+  nan = snde_infnan(0);
+  
+  out->offset.coord[0]=nan;
+  out->offset.coord[1]=nan;
+  out->offset.coord[2]=nan;
+  out->offset.coord[3]=nan;
+  out->quat.coord[0]=nan;
+  out->quat.coord[1]=nan;
+  out->quat.coord[2]=nan;
+  out->quat.coord[3]=nan;
+}
+
 static QUATERNION_INLINE snde_bool quaternion_equal(const snde_coord4 a, const snde_coord4 b)
 {
   return a.coord[0]==b.coord[0] && a.coord[1]==b.coord[1] && a.coord[2]==b.coord[2] && a.coord[3]==b.coord[3];

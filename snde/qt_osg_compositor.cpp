@@ -581,7 +581,7 @@ namespace snde {
   {
     snde_orientation3 retval;
 
-    snde_null_orientation3(&retval);
+    snde_invalid_orientation3(&retval);
     QSharedPointer<qt_osg_compositor> compositor_strong = compositor.toStrongRef();
     
     

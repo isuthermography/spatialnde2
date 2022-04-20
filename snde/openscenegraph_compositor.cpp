@@ -355,9 +355,81 @@ namespace snde {
 	std::lock_guard<std::mutex> adminlock(admin);
 	selected_channel_copy=selected_channel;
       }
+
+      std::vector<std::shared_ptr<display_channel>> mutable_channels;
+
+      std::shared_ptr<globalrev_mutable_lock> incomplete_mutable_recording_locker; // used if we have mutable recordings that are incomplete to hold them from being modified once completed while we do our computations
+      rwlock_token_set complete_mutable_recording_locks;
       
-      channels_to_display = display->update(globalrev,selected_channel_copy,false,false,false);
+  
+      std::tie(channels_to_display,mutable_channels) = display->get_channels(globalrev,selected_channel_copy,true,true,false,false);
+
+      // !!!*** Really we need to check for anything mutable in the display requirements not just the raw channel list ***!!!
       
+      if (mutable_channels.size() > 0) {
+	// if we have a mutable channel we have to go to the latest defined globalrev,
+	// not the latest ready globalrev so that we don't stall the computation
+	// pipeline (display math functions are prioritized with its globalrev index
+	// and can therefore hold mutable recording locks, delaying subsequent globalrev
+	// mutable computations).
+
+	{
+	  // we hold the recdb admin lock while getting the channels so that
+	  // another globalrev can't be defined before we have the chance
+	  // to register our callback to read-lock things. 
+	  std::lock_guard<std::mutex> recdb_admin(recdb_strong->admin);
+	  
+	  // switch to latest defined globalrev
+	  globalrev = recdb_strong->latest_defined_globalrev();
+	  std::lock_guard<std::mutex> globalrev_admin(globalrev->admin);
+	  incomplete_mutable_recording_locker=globalrev->mutable_recordings_need_holder;
+	  
+	  if (globalrev->ready) {
+	    // if the globalrev is ready we can update the list of mutable channels
+	    std::tie(channels_to_display,mutable_channels) = display->get_channels(globalrev,selected_channel_copy,true,true,false,false);
+	  } else {
+	    // otherwise we hope it hasn't changed. !!!*** Alternatively can we get the mutability from the math definitions somehow? 
+	    std::vector<std::shared_ptr<display_channel>> junk;
+	    std::tie(channels_to_display,junk) = display->get_channels(globalrev,selected_channel_copy,false,true,false,false);
+	    
+	  }
+	  assert(incomplete_mutable_recording_locker);
+	  /*  This stuff is now unnecessary because the mutable_recordings_need_holder now 
+	      sticks around until a new latest_define_globalrev is assigned */
+	  /*
+	  if (!incomplete_mutable_recording_locker) {
+	    // if the locker has expired then this globalrev may already be complete and
+	    // we can hold the mutable recordings by locking them explicitly for read
+	    
+	    assert(globalrev->ready);
+	    
+	    // !!!*** Should we have a more general process that can operate on mutable
+	    // structures besides multi_ndarray_recording?
+	    std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> recrefs;
+	    
+	    for (auto && mutable_channel : mutable_channels) {
+	      std::shared_ptr<recording_base> mutable_rec = globalrev->get_recording(mutable_channel->FullName);
+	      std::shared_ptr<multi_ndarray_recording> mutable_ndarray = std::dynamic_pointer_cast<multi_ndarray_recording>(mutable_rec);
+	      
+	      if (mutable_ndarray) {
+		for (size_t array_index=0; array_index < mutable_ndarray->layouts.size();array_index++) {
+		  recrefs.push_back(std::make_pair(mutable_ndarray->reference_ndarray(array_index),false)); // will lock this ref for read
+		}
+	      }
+	    }
+	    
+	    
+	    complete_mutable_recording_locks = globalrev->lockmgr->lock_recording_refs(recrefs,false);
+	  } */
+
+	  
+	} // release the locks...
+	
+	globalrev->wait_complete(); // wait for this globalrev to become complete before finishing render process
+      }
+    
+      
+    
       ColorIdx_by_channelpath.clear();
       
       {
@@ -382,6 +454,10 @@ namespace snde {
       // perform all the transforms
       display_transforms->with_display_transforms->wait_complete(); 
 
+
+      // Closing this block frees any locks holding current versions of mutable
+      // recordings in place.
+      
     } catch (const std::exception &exc) {
       snde_warning("Exception class %s caught in osg_compositor::perform_ondemand_calcs: %s",typeid(exc).name(),exc.what());
       

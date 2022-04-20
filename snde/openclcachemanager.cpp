@@ -62,6 +62,8 @@ namespace snde {
   {
     this->regionstart=regionstart;
     this->regionend=regionend;
+
+    
     fill_event=cl::Event();  // NULL;
   }
 
@@ -83,6 +85,8 @@ namespace snde {
   {
     std::shared_ptr<openclregion> newregion(new openclregion(breakpoint,regionend));
     regionend=breakpoint;
+
+    
     
     if (fill_event.get()) {
       newregion->fill_event=fill_event;
@@ -238,6 +242,10 @@ namespace snde {
     /* Mark all of our buffers with this region as invalid */
     std::unordered_map<void **,std::vector<openclarrayinfo>>::iterator buffers_by_array_it = buffers_by_array.find(arrayptr);
 
+    /*if (1||numelem==1640960) {
+      snde_warning("Searching for buffer for array 0x%llx for invalidity marking",(unsigned long long)arrayptr);
+      }*/
+    
     if (buffers_by_array_it != buffers_by_array.end()) {
       for (auto & arrayinfo : buffers_by_array_it->second) {
       
@@ -245,14 +253,20 @@ namespace snde {
 	assert(buffer != buffer_map.end()); // If this fails then we're not cleaning up buffers_by_array properly
 	std::shared_ptr<openclcacheentry> buffer_strong = buffer->second.lock();
 	
+	
 	if (buffer_strong) {
+	  /*if (1||numelem==1640960) {
+	    snde_warning("Found buffer for array 0x%llx... invalidity.size=%u",(unsigned long long)arrayptr,(unsigned)buffer_strong->invalidity.size());
+	    }*/
+
+
 	  if (exceptbuffer == nullptr || exceptbuffer.get() != buffer_strong.get()) {
 	    
 	    if (numelem==SNDE_INDEX_INVALID) {
 	      buffer_strong->invalidity.mark_region(pos,SNDE_INDEX_INVALID);
 	      
 	    } else {
-	      buffer_strong->invalidity.mark_region(pos,pos+numelem);
+	      buffer_strong->invalidity.mark_region(pos,numelem);
 	    }
 	  }
 	}
@@ -335,13 +349,23 @@ namespace snde {
     /* transfer any relevant areas that are invalid and not currently pending */
     
     rangetracker<openclregion> invalid_regions=oclbuffer->invalidity.iterate_over_marked_portions(firstelem,numelem);
+
+    /*if (1||numelem==1640960) {
+      snde_warning("Array 0x%llx... invalidity: _TransferInvalidRegions() invalidity.size()=%u",(unsigned long long)arrayptr,(unsigned)oclbuffer->invalidity.size());
+      }*/
+
     
     for (auto & invalidregion: invalid_regions) {
-      
+
+      /*if (1||numelem==1640960) {
+	snde_warning("Array 0x%llx... _TransferInvalidRegions() invalid region @ %llu, fill event = 0x%llx",(unsigned long long)arrayptr,(unsigned long long)invalidregion.first,(unsigned long long)invalidregion.second->fill_event.get());
+	}*/
+
       /* Perform operation to transfer data to buffer object */
       
       /* wait for all other events as it is required for a 
 	 partial write to be meaningful */
+
       
       if (!invalidregion.second->fill_event.get()) {
 	snde_index offset=invalidregion.second->regionstart*oclbuffer->elemsize;
@@ -353,6 +377,11 @@ namespace snde {
 	//}
 	
 	snde_debug(SNDE_DC_OPENCL,"enqueueWriteBuffer(queue %llx, buffer %llx, offset=%llu (%llu elem) nbytes=%llu (%llu elem), array %llx)",(unsigned long long)_get_queue(context,device).get(),(unsigned long long)oclbuffer->buffer.get(),(unsigned long long)(offset),(unsigned long long)(offset/oclbuffer->elemsize),(unsigned long long)((invalidregion.second->regionend-invalidregion.second->regionstart)*oclbuffer->elemsize),(unsigned long long)(invalidregion.second->regionend-invalidregion.second->regionstart),(unsigned long long)arrayptr);
+
+	// debugging...
+	/*if (1 || numelem==1640960) {
+	  snde_warning("Enqueuing write of %u elements, arrayptr=0x%llx.",(unsigned)numelem,(unsigned long long)arrayptr);
+	  }*/
 	  
 	_get_queue(context,device).enqueueWriteBuffer(oclbuffer->buffer,CL_FALSE,offset,(invalidregion.second->regionend-invalidregion.second->regionstart)*oclbuffer->elemsize,(char *)*arrayptr + offset,&ev,&newevent);
 	
@@ -363,6 +392,9 @@ namespace snde {
 	//  clReleaseEvent(oldevent);
 	//}
 	ev.clear();
+
+	//newevent.wait();	// Debugging !!!! TEMPORARY
+
 	
 	ev.emplace_back(newevent); /* add new event to our set (this eats our ownership) */
 	
@@ -447,11 +479,17 @@ namespace snde {
     
     rangetracker<openclregion>::iterator invalidregion;
     
+    /*if (1||subnumelem==1640960) {
+      snde_warning("Looking up invalidity for array 0x%llx... invalidity.size=%u",(unsigned long long)arrayptr,(unsigned)oclbuffer->invalidity.size());
+      }*/
     
     /* make sure we will wait for any currently pending transfers overlapping with this subbuffer*/
     for (invalidregion=oclbuffer->invalidity.begin();invalidregion != oclbuffer->invalidity.end();invalidregion++) {
       if (invalidregion->second->fill_event.get() && region_overlaps(*invalidregion->second,substartelem,substartelem+subnumelem)) {
 	ev.emplace_back(invalidregion->second->fill_event); 
+	/*if (1||subnumelem==1640960) {
+	  snde_warning("Array 0x%llx... invalidity: fill event pending",(unsigned long long)arrayptr);
+	  }*/
 	
       }
     }
@@ -469,6 +507,9 @@ namespace snde {
     if (!write_only) {
       /* No need to enqueue transfers if kernel is strictly write */
       
+      /*if (1||subnumelem==1640960) {
+	snde_warning("Array 0x%llx... invalidity: Calling _TransferInvalidRegions() ",(unsigned long long)arrayptr);
+	}*/
       _TransferInvalidRegions(context,device,oclbuffer,arrayptr,substartelem,subnumelem,ev);
       
       
@@ -1465,7 +1506,10 @@ namespace snde {
     OpenCLBuffer_info &info=buffers.at(OpenCLBufferKey(arrayptr,storage->base_index,storage->nelem));
     
     
-    cachemgr->mark_as_gpu_modified(context,storage);
+    //cachemgr->mark_as_gpu_modified(context,storage);
+    std::lock_guard<std::mutex> cachemgr_admin(cachemgr->admin);
+    
+    info.cacheentry->mark_as_gpu_modified(storage,storage->base_index + start_elem,numelem);
     
   }
 

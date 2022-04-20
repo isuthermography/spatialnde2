@@ -203,7 +203,7 @@ namespace snde {
   class display_info {
   public:
     
-    mutable std::mutex admin; // locks access to below structure. Late in the locking order but prior to GIL and prior to the display_channel locks; 
+    mutable std::mutex admin; // locks access to below structure. Late in the locking order; after recdb and RSS/globalrev but prior to GIL and prior to the display_channel locks; 
     size_t unique_index;
     std::vector<std::shared_ptr<display_unit>>  UnitList;
     std::vector<std::shared_ptr<display_axis>>  AxisList;
@@ -217,11 +217,11 @@ namespace snde {
     display_posn selected_posn; 
     
     std::weak_ptr<recdatabase> recdb;
-    std::shared_ptr<globalrevision> current_globalrev;
-    uint64_t current_globalrev_index;
+    //std::shared_ptr<globalrevision> current_globalrev;
+    //uint64_t current_globalrev_index;
     
     std::unordered_map<std::string,std::shared_ptr<display_channel>> channel_info;
-    std::vector<std::string> channel_layer_order; // index is nominal order, string is full channel name
+    //std::vector<std::string> channel_layer_order; // index is nominal order, string is full channel name
     
     const std::shared_ptr<math_function> vertnormals_function; // immutable
     const std::shared_ptr<math_function> colormapping_function; // immutable
@@ -231,7 +231,7 @@ namespace snde {
     const std::shared_ptr<math_function> texvertexarray_function; // immutable
     
     display_info(std::shared_ptr<recdatabase> recdb);
-    void set_current_globalrev(std::shared_ptr<globalrevision> globalrev);
+    //void set_current_globalrev(std::shared_ptr<globalrevision> globalrev);
     
     void set_selected_posn(const display_posn &markerposn);
     
@@ -241,9 +241,9 @@ namespace snde {
     
     void set_pixelsperdiv(size_t drawareawidth,size_t drawareaheight);
     
-    std::shared_ptr<display_channel> _add_new_channel(const std::string &fullname,std::shared_ptr<recording_base> rec);  // must be called with admin lock locked. 
+    std::shared_ptr<display_channel> _add_new_channel(const std::string &fullname);  // must be called with admin lock locked. 
     
-    std::vector<std::shared_ptr<display_channel>> update(std::shared_ptr<globalrevision> globalrev,const std::string &selected, bool selected_only,bool include_disabled,bool include_hidden);  
+    std::pair<std::vector<std::shared_ptr<display_channel>>,std::vector<std::shared_ptr<display_channel>>> get_channels(std::shared_ptr<globalrevision> globalrev,const std::string &selected, bool check_for_mutable,bool selected_last,bool include_disabled,bool include_hidden);  
     
     std::shared_ptr<display_unit> FindUnitLocked(const std::string &name);
 

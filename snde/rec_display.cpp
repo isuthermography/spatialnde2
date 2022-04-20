@@ -184,7 +184,7 @@ namespace snde {
 
   display_info::display_info(std::shared_ptr<recdatabase> recdb) :
     recdb(recdb),
-    current_globalrev_index(0),
+    //current_globalrev_index(0),
     selected_posn(display_posn{
       nullptr,
       0.0,
@@ -257,7 +257,8 @@ namespace snde {
     drawareaheight=1;
   }
 
-  void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalrev)
+  /*
+void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalrev)
   {
     std::lock_guard<std::mutex> adminlock(admin);
 
@@ -269,7 +270,7 @@ namespace snde {
       current_globalrev_index = globalrev->globalrev;
     }
   }
-
+  */
 
   void display_info::set_selected_posn(const display_posn &markerposn)
   {
@@ -297,9 +298,9 @@ namespace snde {
       admin.unlock();
       // Does the rec exist in the recdb?
 
-      std::shared_ptr<recording_base> rec;
-      rec = current_globalrev->get_recording(recfullname);
-      return  _add_new_channel(recfullname,rec);
+      //std::shared_ptr<recording_base> rec;
+      //rec = current_globalrev->get_recording(recfullname);
+      return  _add_new_channel(recfullname);
     }
     return iter->second;
   }
@@ -320,7 +321,7 @@ namespace snde {
   }
 
 
-  std::shared_ptr<display_channel> display_info::_add_new_channel(const std::string &fullname,std::shared_ptr<recording_base> rec)
+  std::shared_ptr<display_channel> display_info::_add_new_channel(const std::string &fullname)
   // must be called with admin lock locked. 
   {
     
@@ -339,18 +340,22 @@ namespace snde {
     
     //std::lock_guard<std::mutex> adminlock(admin);
     channel_info.emplace(fullname,new_display_channel);
-    channel_layer_order.push_back(fullname);
+    //channel_layer_order.push_back(fullname);
     return new_display_channel;
   }
 
 
 
-  std::vector<std::shared_ptr<display_channel>> display_info::update(std::shared_ptr<globalrevision> globalrev_param,const std::string &selected, bool selected_only,bool include_disabled,bool include_hidden)
+  std::pair<std::vector<std::shared_ptr<display_channel>>,std::vector<std::shared_ptr<display_channel>>> display_info::get_channels(std::shared_ptr<globalrevision> globalrev_param,const std::string &selected, bool check_for_mutable,bool selected_last,bool include_disabled,bool include_hidden)
 
-  // for now globalrev is assumed to be fully ready (!)
+  // if check_for_mutable is set, second return value will be true if any returned channel
+  // is mutable. WARNING: globalrev_param must be fully ready in order to do this. 
+
+
+  // ***Ok to call this with the recdb's and/or globalrev_param's admin lock locked ***
     
   // if include_disabled is set, disabled channels will be included
-  // if selected is not the empty string, it will be moved to the front of the list
+  // if selected is not the empty string and selected_last is set, it will be moved to the end of the list
   // to be rendered on top
 
   // NOTE: This is called both by qtrecviewer -- to manage the list of channels on the left
@@ -372,10 +377,11 @@ namespace snde {
 
     std::vector<std::shared_ptr<display_channel>> retval;
     std::shared_ptr<display_channel> selected_chan=nullptr;
-
-    std::unordered_set<std::string> channels_considered;
+    std::vector<std::shared_ptr<display_channel>> mutable_channels;
     
-    set_current_globalrev(globalrev_param);
+    //std::unordered_set<std::string> channels_considered;
+    
+    //set_current_globalrev(globalrev_param);
 
 
     std::lock_guard<std::mutex> adminlock(admin);
@@ -385,77 +391,68 @@ namespace snde {
     // so last entries in reclist will be first 
     // (except for selected_chan which will be very last, if given).
 
-    std::vector<std::string>::reverse_iterator cl_next_iter;
+    //std::vector<std::string>::reverse_iterator cl_next_iter;
     
-    for (auto cl_name_iter=channel_layer_order.rbegin();cl_name_iter != channel_layer_order.rend();cl_name_iter=cl_next_iter) {
-      cl_next_iter = cl_name_iter+1;
-      const std::string &cl_name = *cl_name_iter;
+    //for (auto cl_name_iter=channel_layer_order.rbegin();cl_name_iter != channel_layer_order.rend();cl_name_iter=cl_next_iter) {
+    for (auto channel_map_iter = globalrev_param->recstatus.channel_map.rbegin();channel_map_iter != globalrev_param->recstatus.channel_map.rend();channel_map_iter++) {
+      const std::string &cl_name = channel_map_iter->first;
       
       auto ci_iter = channel_info.find(cl_name);
-      auto reciter = current_globalrev->recstatus.channel_map.find(cl_name);
+      //auto reciter = current_globalrev->recstatus.channel_map.find(cl_name);
 
-      if (reciter==current_globalrev->recstatus.channel_map.end()) {
-	// channel is gone; remove from channel_info
-	channel_info.erase(cl_name);
+      //if (reciter==current_globalrev->recstatus.channel_map.end()) {
+      // // channel is gone; remove from channel_info
+      //channel_info.erase(cl_name);
 
-	//auto clo_iter = std::find(channel_layer_order.begin(),channel_layer_order.end(),cl_name);
-	//assert(clo_iter != channel_layer_order.end()); // if this trips, then somehow channel_info and channel_layer_order weren't kept parallel
+	////auto clo_iter = std::find(channel_layer_order.begin(),channel_layer_order.end(),cl_name);
+	////assert(clo_iter != channel_layer_order.end()); // if this trips, then somehow channel_info and channel_layer_order weren't kept parallel
+      //
+      // channel_layer_order.erase(cl_next_iter.base()); // cl_next_iter points to the previous element of the sequence, but the .base() returns an iterator pointing at the subsequent element, so we erase the element we wanted to. Also note that this erasure invalidates all subsequent iterators (but the only one we are going to use is cl_next_iter, which isn't subsequent. 
+      //}
 
-	channel_layer_order.erase(cl_next_iter.base()); // cl_next_iter points to the previous element of the sequence, but the .base() returns an iterator pointing at the subsequent element, so we erase the element we wanted to. Also note that this erasure invalidates all subsequent iterators (but the only one we are going to use is cl_next_iter, which isn't subsequent. 
-      } else {
-
-	assert(ci_iter != channel_info.end()); // if this trips, then somehow channel_info and channel_layer_order weren't kept parallel
-
-	channels_considered.emplace(cl_name);
-	
-	std::shared_ptr<recording_base> rec=reciter->second.rec();
-	const std::string &fullname=reciter->first;
-	
-	if ((include_disabled || ci_iter->second->Enabled) || (selected_only && fullname==selected)) {
-	  if (selected.size() > 0 && fullname == selected) {
-	    //retval.insert(retval.begin(),ci_iter->second);
-	    assert(!selected_chan);
-	    selected_chan = ci_iter->second;
-	  } else if (!selected_only) {
-	    retval.push_back(ci_iter->second);
-	    //retval.insert(retval.begin(),ci_iter->second);
-	  }
-	}
-	
-	
-      }
-    }
-
-
-    for (auto reciter = current_globalrev->recstatus.channel_map.begin(); reciter != current_globalrev->recstatus.channel_map.end(); reciter++) {
+      //assert(ci_iter != channel_info.end()); // if this trips, then somehow channel_info and channel_layer_order weren't kept parallel
       
-      const std::string &fullname=reciter->first;
-      channel_state &chanstate=reciter->second;
-      if (channels_considered.find(fullname) == channels_considered.end()) {
-	// not already in our list
-	std::shared_ptr<display_channel> new_display_channel=_add_new_channel(fullname,chanstate.rec());
+      std::shared_ptr<display_channel> this_display_channel;
+      if (ci_iter == channel_info.end()) {
+	this_display_channel = _add_new_channel(cl_name);
 	
-	if ((include_disabled || new_display_channel->Enabled) || (selected_only && fullname==selected)) {
-	  if (selected.size() > 0 && fullname == selected) {
-	    //retval.insert(retval.begin(),new_display_channel);
-	    assert(!selected_chan);
-	    selected_chan = new_display_channel;
-	  } else if (!selected_only) {
-	    retval.push_back(new_display_channel);
+      } else {
+	this_display_channel = ci_iter->second;
+      }
+      
+      //channels_considered.emplace(cl_name);
+      
+      //std::shared_ptr<recording_base> rec=reciter->second.rec();
+      
+      if ((include_disabled || this_display_channel->Enabled)) {
+	if (check_for_mutable) { // check_for_mutable flag requires that RSS be fully ready
+	  if (!channel_map_iter->second.rec()->info->immutable) {
+	    mutable_channels.push_back(this_display_channel);
 	  }
-	  
 	}
 	
 	
+	if (selected.size() > 0 && cl_name == selected && selected_last) {
+	    //retval.insert(retval.begin(),ci_iter->second);
+	  assert(!selected_chan);
+	  selected_chan = this_display_channel;
+	} else {
+	  retval.push_back(this_display_channel);
+	  //retval.insert(retval.begin(),ci_iter->second);
+	}
       }
+      
+	
+      
     }
+    
     if (selected_chan) {
       retval.push_back(selected_chan);
     }
     
-    return retval;
+    return std::make_pair(retval,mutable_channels);
   }
-  
+
 
 
   std::shared_ptr<display_unit> display_info::FindUnitLocked(const std::string &name)
@@ -520,8 +517,12 @@ namespace snde {
   std::shared_ptr<display_axis> display_info::GetFirstAxis(const std::string &fullname /*std::shared_ptr<mutableinfostore> rec */)
   {
     std::shared_ptr<ndarray_recording_ref> rec;
+    std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
+    if (!recdb_strong) {
+      return nullptr; 
+    }
     try {
-      rec = current_globalrev->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -541,8 +542,12 @@ namespace snde {
   std::shared_ptr<display_axis> display_info::GetFirstAxisLocked(const std::string &fullname /*std::shared_ptr<mutableinfostore> rec */)
   {
     std::shared_ptr<ndarray_recording_ref> rec;
+    std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
+    if (!recdb_strong) {
+      return nullptr; 
+    }
     try {
-      rec = current_globalrev->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxisLocked("Time","seconds");
@@ -561,8 +566,12 @@ namespace snde {
   std::shared_ptr<display_axis> display_info::GetSecondAxis(const std::string &fullname)
   {
     std::shared_ptr<ndarray_recording_ref> rec;
+    std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
+    if (!recdb_strong) {
+      return nullptr; 
+    }
     try {
-      rec = current_globalrev->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -584,8 +593,12 @@ namespace snde {
   std::shared_ptr<display_axis> display_info::GetSecondAxisLocked(const std::string &fullname)
   {
     std::shared_ptr<ndarray_recording_ref> rec;
+    std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
+    if (!recdb_strong) {
+      return nullptr; 
+    }
     try {
-      rec = current_globalrev->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -604,8 +617,12 @@ namespace snde {
   std::shared_ptr<display_axis> display_info::GetThirdAxis(const std::string &fullname)
   {
     std::shared_ptr<ndarray_recording_ref> rec;
+    std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
+    if (!recdb_strong) {
+      return nullptr; 
+    }
     try {
-      rec = current_globalrev->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -623,8 +640,12 @@ namespace snde {
   std::shared_ptr<display_axis> display_info::GetThirdAxisLocked(const std::string &fullname)
   {
     std::shared_ptr<ndarray_recording_ref> rec;
+    std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
+    if (!recdb_strong) {
+      return nullptr; 
+    }
     try {
-      rec = current_globalrev->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -641,8 +662,12 @@ namespace snde {
   std::shared_ptr<display_axis> display_info::GetFourthAxis(const std::string &fullname)
   {
     std::shared_ptr<ndarray_recording_ref> rec;
+    std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
+    if (!recdb_strong) {
+      return nullptr; 
+    }
     try {
-      rec = current_globalrev->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -660,8 +685,12 @@ namespace snde {
   std::shared_ptr<display_axis> display_info::GetFourthAxisLocked(const std::string &fullname)
   {
     std::shared_ptr<ndarray_recording_ref> rec;
+    std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
+    if (!recdb_strong) {
+      return nullptr; 
+    }
     try {
-      rec = current_globalrev->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -680,8 +709,12 @@ namespace snde {
   std::shared_ptr<display_axis> display_info::GetAmplAxis(const std::string &fullname)
   {
     std::shared_ptr<ndarray_recording_ref> rec;
+    std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
+    if (!recdb_strong) {
+      return nullptr; 
+    }
     try {
-      rec = current_globalrev->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -697,8 +730,12 @@ namespace snde {
   std::shared_ptr<display_axis> display_info::GetAmplAxisLocked(const std::string &fullname)
   {
     std::shared_ptr<ndarray_recording_ref> rec;
+    std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
+    if (!recdb_strong) {
+      return nullptr; 
+    }
     try {
-      rec = current_globalrev->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -877,8 +914,12 @@ namespace snde {
     const std::string &chan_name = c->FullName;
     
     std::shared_ptr<ndarray_recording_ref> chan_data;
+    std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
+    if (!recdb_strong) {
+      return 0.0; 
+    }
     try {
-      chan_data = current_globalrev->get_recording_ref(chan_name);
+      chan_data = recdb_strong->latest_globalrev()->get_recording_ref(chan_name);
     } catch (snde_error &) {
       // no such reference
       return 0.0;

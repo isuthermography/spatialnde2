@@ -30,15 +30,15 @@ snde_rgba snde_fusion_colormap_real(const fc_real_intype inval,
   snde_float32 val = (float)((inval/total-offset)/unitsperintensity);
   
   if (isnan(val)) {
-    val=0.0;
+    val=0.0f;
   }
   
   snde_rgba res = snde_colormap(colormap_type,val,255);
   
   // override blue compoment based on ratio to maxtotal
   snde_float32 total_ratio = 256*total/maxtotal;
-  if (total_ratio > 255.0) {
-    total_ratio=255.0;
+  if (total_ratio > 255.0f) {
+    total_ratio=255.0f;
   }
   res.b = (uint8_t)total_ratio;
   
@@ -62,30 +62,30 @@ snde_rgba snde_fusion_colormap_complex(const fc_complex_intype inval,
   snde_rgba res;
   
   if (isnan(realval)) {
-    realval=0.0;
+    realval=0.0f;
   }
   
   if (isnan(imagval)) {
-    imagval=0.0;
+    imagval=0.0f;
   }
   
-  snde_float32 scaled_realval = (realval+0.5)*255.0;
-  if (scaled_realval > 255.0) {
-    scaled_realval = 255.0;
-  } else if (scaled_realval < 0.0) {
-    scaled_realval=0.0;
+  snde_float32 scaled_realval = (realval+0.5f)*255.0f;
+  if (scaled_realval > 255.0f) {
+    scaled_realval = 255.0f;
+  } else if (scaled_realval < 0.0f) {
+    scaled_realval=0.0f;
   }
   
-  snde_float32 scaled_imagval = (imagval+0.5)*255.0;
-  if (scaled_imagval > 255.0) {
-    scaled_imagval = 255.0;
-  } else if (scaled_imagval < 0.0) {
-    scaled_imagval=0.0;
+  snde_float32 scaled_imagval = (imagval+0.5f)*255.0f;
+  if (scaled_imagval > 255.0f) {
+    scaled_imagval = 255.0f;
+  } else if (scaled_imagval < 0.0f) {
+    scaled_imagval=0.0f;
   }
   
   snde_float32 total_ratio = 256*total/maxtotal;
-  if (total_ratio > 255.0) {
-    total_ratio=255.0;
+  if (total_ratio > 255.0f) {
+    total_ratio=255.0f;
   }
   
   res.r = (uint8_t)scaled_realval;

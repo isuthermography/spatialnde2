@@ -226,9 +226,9 @@ namespace snde {
       {SNDE_RTN_UINT8,"unsigned char"},
       {SNDE_RTN_INT8,"char"},
       {SNDE_RTN_SNDE_RGBA,"snde_rgba"},
-      {SNDE_RTN_COMPLEXFLOAT32,"struct { float real; float imag; }"},
-      {SNDE_RTN_COMPLEXFLOAT64,"struct { double real; double imag; }"},
-      {SNDE_RTN_COMPLEXFLOAT16,"struct { half real; half imag; }"},
+      {SNDE_RTN_COMPLEXFLOAT32,"struct _snde_complexfloat32"},
+      {SNDE_RTN_COMPLEXFLOAT64,"struct _snde_complexfloat64"},
+      {SNDE_RTN_COMPLEXFLOAT16,"struct _snde_complexfloat16"},
       {SNDE_RTN_RGBD64,"snde_rgbd"},
       {SNDE_RTN_SNDE_COORD3_INT16,"snde_coord3_int16"},
       // SNDE_RTN_INDEXVEC not applicable
@@ -1081,195 +1081,195 @@ namespace snde {
       break;
 	
     case SNDE_RTN_FLOAT32:
-      ref = std::make_shared<ndtyped_recording_ref<snde_float32>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_float32>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
       
     case SNDE_RTN_FLOAT64: 
-      ref = std::make_shared<ndtyped_recording_ref<snde_float64>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_float64>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
 #ifdef SNDE_HAVE_FLOAT16
     case SNDE_RTN_FLOAT16: 
-      ref = std::make_shared<ndtyped_recording_ref<snde_float16>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_float16>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 #endif
 
     case SNDE_RTN_UINT64:
-      ref = std::make_shared<ndtyped_recording_ref<uint64_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<uint64_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
       
     case SNDE_RTN_INT64:
-      ref = std::make_shared<ndtyped_recording_ref<int64_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<int64_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_UINT32:
-      ref = std::make_shared<ndtyped_recording_ref<uint32_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<uint32_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
       
     case SNDE_RTN_INT32:
-      ref = std::make_shared<ndtyped_recording_ref<int32_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<int32_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_UINT16:
-      ref = std::make_shared<ndtyped_recording_ref<uint16_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<uint16_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
       
     case SNDE_RTN_INT16:
-      ref = std::make_shared<ndtyped_recording_ref<int16_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<int16_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
       
     case SNDE_RTN_UINT8:
-      ref = std::make_shared<ndtyped_recording_ref<uint8_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<uint8_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
       
     case SNDE_RTN_INT8:
-      ref = std::make_shared<ndtyped_recording_ref<int8_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<int8_t>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_RGBA:
-      ref = std::make_shared<ndtyped_recording_ref<snde_rgba>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_rgba>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
       
     case SNDE_RTN_COMPLEXFLOAT32:
-      ref = std::make_shared<ndtyped_recording_ref<snde_complexfloat32>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_complexfloat32>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_COMPLEXFLOAT64:
-      ref = std::make_shared<ndtyped_recording_ref<snde_complexfloat64>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_complexfloat64>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
       
 #ifdef SNDE_HAVE_FLOAT16
     case SNDE_RTN_COMPLEXFLOAT16:
-      ref = std::make_shared<ndtyped_recording_ref<snde_complexfloat16>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_complexfloat16>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 #endif
       
     case SNDE_RTN_RGBD64:
-      ref = std::make_shared<ndtyped_recording_ref<snde_rgbd>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_rgbd>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_COORD3_INT16:
-      ref = std::make_shared<ndtyped_recording_ref<snde_coord3_int16>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_coord3_int16>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
       // SNDE_RTN_INDEXVEC through SNDE_RTN_ASSEMBLY_RECORDING not applicable
       
       
     case SNDE_RTN_SNDE_PART:
-      ref = std::make_shared<ndtyped_recording_ref<snde_part>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_part>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_TOPOLOGICAL:
-      ref = std::make_shared<ndtyped_recording_ref<snde_topological>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_topological>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_TRIANGLE:
-      ref = std::make_shared<ndtyped_recording_ref<snde_triangle>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_triangle>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_COORD3:
-      ref = std::make_shared<ndtyped_recording_ref<snde_coord3>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_coord3>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_CMAT23:
-      ref = std::make_shared<ndtyped_recording_ref<snde_cmat23>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_cmat23>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_EDGE:
-      ref = std::make_shared<ndtyped_recording_ref<snde_edge>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_edge>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_COORD2:
-      ref = std::make_shared<ndtyped_recording_ref<snde_coord2>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_coord2>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_AXIS32:
-      ref = std::make_shared<ndtyped_recording_ref<snde_axis32>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_axis32>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_VERTEX_EDGELIST_INDEX:
-      ref = std::make_shared<ndtyped_recording_ref<snde_vertex_edgelist_index>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_vertex_edgelist_index>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_BOX3:
-      ref = std::make_shared<ndtyped_recording_ref<snde_box3>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_box3>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_BOXCOORD3:
-      ref = std::make_shared<ndtyped_recording_ref<snde_boxcoord3>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_boxcoord3>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_PARAMETERIZATION:
-      ref = std::make_shared<ndtyped_recording_ref<snde_parameterization>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_parameterization>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_PARAMETERIZATION_PATCH:
-      ref = std::make_shared<ndtyped_recording_ref<snde_parameterization_patch>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_parameterization_patch>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_TRIVERTNORMALS:
-      ref = std::make_shared<ndtyped_recording_ref<snde_trivertnormals>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_trivertnormals>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_RENDERCOORD:
-      ref = std::make_shared<ndtyped_recording_ref<snde_rendercoord>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_rendercoord>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_BOX2:
-      ref = std::make_shared<ndtyped_recording_ref<snde_box2>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_box2>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_BOXCOORD2:
-      ref = std::make_shared<ndtyped_recording_ref<snde_boxcoord2>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_boxcoord2>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_IMAGEDATA:
-      ref = std::make_shared<ndtyped_recording_ref<snde_imagedata>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_imagedata>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_COORD:
-      ref = std::make_shared<ndtyped_recording_ref<snde_coord>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_coord>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_COORD4:
-      ref = std::make_shared<ndtyped_recording_ref<snde_coord4>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_coord4>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_ORIENTATION2:
-      ref = std::make_shared<ndtyped_recording_ref<snde_orientation2>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_orientation2>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_ORIENTATION3:
-      ref = std::make_shared<ndtyped_recording_ref<snde_orientation3>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_orientation3>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_AXIS3:
-      ref = std::make_shared<ndtyped_recording_ref<snde_axis3>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_axis3>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_INDEXRANGE:
-      ref = std::make_shared<ndtyped_recording_ref<snde_indexrange>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_indexrange>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_PARTINSTANCE:
-      ref = std::make_shared<ndtyped_recording_ref<snde_partinstance>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_partinstance>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_IMAGE:
-      ref = std::make_shared<ndtyped_recording_ref<snde_image>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_image>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_KDNODE:
-      ref = std::make_shared<ndtyped_recording_ref<snde_kdnode>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_kdnode>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
 
     case SNDE_RTN_SNDE_BOOL:
-      ref = std::make_shared<ndtyped_recording_ref<snde_bool>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_bool>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
 
     case SNDE_RTN_SNDE_COMPLEXIMAGEDATA:
-      ref = std::make_shared<ndtyped_recording_ref<snde_compleximagedata>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),index);
+      ref = std::make_shared<ndtyped_recording_ref<snde_compleximagedata>>(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),typenum,index);
       break;
       
     default:
@@ -1325,6 +1325,8 @@ namespace snde {
 
   }
 
+
+  
   void multi_ndarray_recording::assign_storage(std::shared_ptr<recording_storage> stor,std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order/*=false*/)
   {
     size_t array_index;
@@ -1333,6 +1335,28 @@ namespace snde {
     array_index = name_mapping.at(array_name);
     assign_storage(stor,array_index,dimlen,fortran_order);
   }
+
+  void multi_ndarray_recording::assign_storage_strides(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &dimlen, const std::vector<snde_index> &strides)
+  {
+    size_t dimnum;
+
+    
+    storage.at(array_index) = stor;
+    
+
+    
+    layouts.at(array_index)=arraylayout(dimlen,strides);
+    ndinfo(array_index)->basearray = storage.at(array_index)->lockableaddr();
+    ndinfo(array_index)->base_index=storage.at(array_index)->base_index;
+    ndinfo(array_index)->ndim=layouts.at(array_index).dimlen.size();
+    ndinfo(array_index)->dimlen=layouts.at(array_index).dimlen.data();
+    ndinfo(array_index)->strides=layouts.at(array_index).strides.data();
+    ndinfo(array_index)->requires_locking_read=storage.at(array_index)->requires_locking_read;
+    ndinfo(array_index)->requires_locking_write=storage.at(array_index)->requires_locking_write;
+    ndinfo(array_index)->shiftedarray = storage.at(array_index)->dataaddr_or_null();
+
+  }
+
 
 
   void multi_ndarray_recording::assign_storage_portion(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &new_dimlen, bool fortran_order,snde_index new_base_index)
@@ -1745,7 +1769,7 @@ namespace snde {
 
     name_mapping.emplace(std::make_pair("totals",1));
     name_reverse_mapping.emplace(std::make_pair(1,"totals"));
-    define_array(1,SNDE_RTN_FLOAT32);
+    define_array(1,SNDE_RTN_SNDE_IMAGEDATA);
     
     
   }
@@ -3210,14 +3234,26 @@ namespace snde {
       std::lock_guard<std::mutex> recdb_lock(recdb_strong->admin);
 
       {
-	std::lock_guard<std::mutex> globalrev_lock(globalrev->admin);
 
 	recdb_strong->_globalrevs.emplace(recdb_strong->current_transaction->globalrev,globalrev);
 
 
-	
+	std::shared_ptr<globalrevision> previous_latest = recdb_strong->latest_defined_globalrev();
 	// atomic update of _latest_defined_globalrev
 	std::atomic_store(&recdb_strong->_latest_defined_globalrev,globalrev);
+
+	// if the previously _latest_defined globalrev is ready but still has its mutable_recordings_need_holder,
+	// we can clear that now, because anyone who needed it should have gotten it by now
+	if (previous_latest && previous_latest->ready) {
+	  std::lock_guard<std::mutex> previous_latest_lock(previous_latest->admin);
+	  
+	  if (previous_latest->mutable_recordings_need_holder) {
+	    previous_latest->mutable_recordings_need_holder = nullptr;
+	  }
+	}
+	
+	
+	std::lock_guard<std::mutex> globalrev_lock(globalrev->admin);
 	
 	{
 	  // mark transaction's resulting_globalrev 
@@ -3468,6 +3504,22 @@ namespace snde {
       for (auto && notifier: rss_complete_notifiers_copy) {
 	notifier->check_recordingset_complete(rss);
       }
+    } else {
+
+      /*
+      // debugging
+      std::shared_ptr<globalrevision> globalrev=std::dynamic_pointer_cast<globalrevision>(rss);
+      if (globalrev) {
+	std::lock_guard<std::mutex> rss_admin(rss->admin);
+	snde_warning("issue_nonmath_notifications: globalrev %llu is not all_ready; defrecsize=%u, irecsize=%u",(unsigned long long)globalrev->globalrev,(unsigned)rss->recstatus.defined_recordings.size(),(unsigned)rss->recstatus.instantiated_recordings.size());
+
+	if (rss->recstatus.defined_recordings.size()==1) {
+	  snde_warning("defined recording is %s",rss->recstatus.defined_recordings.begin()->first->channelpath.c_str());
+	}
+	
+      }
+      */
+	
     }
   }
 
@@ -3899,7 +3951,7 @@ namespace snde {
   }
 
   std::shared_ptr<recording_base> recording_set_state::get_recording(const std::string &fullpath)
-  {
+  { // safe to call with or without rss locked
     std::map<std::string,channel_state>::iterator cm_it;
       
     cm_it = recstatus.channel_map.find(fullpath);
@@ -4118,6 +4170,8 @@ namespace snde {
       globalrev_strong->mutable_recordings_still_needed=false;
       
       std::lock_guard<std::mutex> globalrev_mutablenotneeded_lockholder(recdb_strong->globalrev_mutablenotneeded_lock);
+
+      //snde_warning("Pushing globalrev %llu onto globalrev_mutablenotneeded_pending",(unsigned long long)globalrev_strong->globalrev);
       
       recdb_strong->globalrev_mutablenotneeded_pending.push_back(globalrev_strong);
       recdb_strong->globalrev_mutablenotneeded_condition.notify_all();
@@ -4480,7 +4534,7 @@ namespace snde {
 	globalrev_mutablenotneeded_pending.erase(pending_it);
 	
 	globalrev_mutablenotneeded_lockholder.unlock();
-	//fprintf(stderr,"gmnnc() got pending\n");
+	//snde_warning("gmnnc() processing mutablenotneeded pending %llu",(unsigned long long)globalrev_mutablenotneeded->globalrev);
 	
 	// got a globalrev where we no longer need to protect its version of mutable waveforms from update
 	{
@@ -4492,7 +4546,7 @@ namespace snde {
 	  // and queueing them up. 
 
 	  std::multimap<uint64_t,std::shared_ptr<pending_computation>>::iterator blocked_it; 
-	  while ((blocked_it = compute_resources->blocked_list.begin()) != compute_resources->blocked_list.end() && blocked_it->first <= globalrev_mutablenotneeded->globalrev) {
+	  while ((blocked_it = compute_resources->blocked_list.begin()) != compute_resources->blocked_list.end() && blocked_it->first < (globalrev_mutablenotneeded->globalrev+2)*SNDE_CR_PRIORITY_REDUCTION_LIMIT) {  // rationale for the +2: Once a particular globalrev comes through here, we unblock the NEXT globalrev (that's the first +1) but we want to enable everything (all priorities) from that globalrev; hence strictly less than another +1, i.e. +2.
 	    std::shared_ptr<pending_computation> blocked_computation = blocked_it->second;
 
 	    //fprintf(stderr,"gmnnc() got element of blocked list\n");

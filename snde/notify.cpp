@@ -128,6 +128,18 @@ namespace snde {
   void channel_notify::notify_ready(const std::string &channelpath) // notify this notifier that the given channel has satisified ready (not usually modified by subclass)
   {
     bool generate_notify=false;
+
+    /*
+    {
+      // debugging
+      std::shared_ptr<_globalrev_complete_notify> gcn = std::dynamic_pointer_cast<_globalrev_complete_notify>(shared_from_this());
+      if (gcn) {
+	snde_warning("notify_ready on globalrev %llu/%s",(unsigned long long)gcn->globalrev->globalrev,channelpath.c_str());
+      }
+
+    }
+    */
+    
     {
       std::lock_guard<std::mutex> criteria_admin(criteria.admin);
       
@@ -176,6 +188,18 @@ namespace snde {
   {
     bool generate_notify=false;
 
+
+    {
+      // debugging
+      std::shared_ptr<_globalrev_complete_notify> gcn = std::dynamic_pointer_cast<_globalrev_complete_notify>(shared_from_this());
+      if (gcn) {
+	assert(gcn->globalrev==rss);
+	snde_debug(SNDE_DC_RECDB,"check_recordingset_complete on globalrev %llu",(unsigned long long)gcn->globalrev->globalrev);
+      }
+
+    }
+
+    
     {
       std::lock_guard<std::mutex> rss_admin(rss->admin);
       std::lock_guard<std::mutex> criteria_admin(criteria.admin);
@@ -472,6 +496,8 @@ namespace snde {
     snde_debug(SNDE_DC_RECDB,"_globalrev_complete_notify::perform_notify(); globalrev=%llu; notify_globalrev=%llu",(unsigned long long)globalrev->globalrev,(unsigned long long)recdb_strong->monitoring_notify_globalrev);
 
     //assert(globalrev->ready);
+
+    globalrev->ready = true; 
     globalrev->atomic_prerequisite_state_clear(); // once we are ready, we no longer care about any prerequisite state, so that can be free'd as needed. 
 
 
@@ -493,7 +519,7 @@ namespace snde {
 
 	// Mark complete_globalrev as now the latest ready globalrev
 	std::atomic_store(&recdb_strong->_latest_ready_globalrev,complete_globalrev);
-
+	snde_debug(SNDE_DC_RECDB,"Marking globalrev #%llu as the latest complete",(unsigned long long)complete_globalrev->globalrev);
 	
 	std::shared_ptr<globalrev_mutable_lock> complete_globalrev_mutable_recordings_lock; 
 
@@ -533,11 +559,12 @@ namespace snde {
 	for (auto && quicknotify: recdb_strong->ready_globalrev_quicknotifies_called_recdb_locked) {
 	  (*quicknotify)(recdb_strong,complete_globalrev);
 	}
-	
+
+	// if this globalrev is not the latest defined, we 
 	// clear the reference in complete_globalrev to the mutable_recordings_need_holder
 	// now once all of the monitoring is done, the globalrev_mutable_lock gets destroyed,
 	// triggering the globalrev_mutablenotneeded_thread to requeue any blocked computations
-	{
+	if (complete_globalrev != recdb_strong->latest_defined_globalrev()) {
 	  std::lock_guard<std::mutex> complete_globalrev_admin(complete_globalrev->admin);
 	  complete_globalrev->mutable_recordings_need_holder = nullptr;
 	}

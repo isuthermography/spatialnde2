@@ -437,6 +437,9 @@ namespace snde {
 
     void assign_storage(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &dimlen, bool fortran_order=false);
     void assign_storage(std::shared_ptr<recording_storage> stor,std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
+    
+    void assign_storage_strides(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &dimlen, const std::vector<snde_index> &strides);
+
     void assign_storage_portion(std::shared_ptr<recording_storage> stor,size_t array_index,const std::vector<snde_index> &new_dimlen, bool fortran_order,snde_index new_base_index);
     
     // must assign info.elementsize and info.typenum before calling allocate_storage()
@@ -1004,9 +1007,13 @@ namespace snde {
 
     // With the globalrevision object there is a single object of class globalrev_mutable_lock. This is created with the globalrevision
     // and pointed to here (mutable_recordings_still_needed) until the globalrev is ready. Once ready, notify.cpp:_globalrev_complete_notify::perform_notify()
-    // places this pointer in the pending_map of each monitor_globalrevs. When the last shared_ptr expires, the globalrev_mutable_lock destructor
-    // is called, triggering the globalrev_monitoring_thread to wake up and queue the relevant computations from the
+    // places this pointer in the pending_map of each monitor_globalrevs, and once the globalrev is both ready and there is a subsequent globalrev, the
+    // mutable_recordings_need_holder is emptied. When the last shared_ptr expires, the globalrev_mutable_lock destructor
+    // is called, clearing the mutable_recordings_still_needed flag and triggering the globalrev_monitoring_thread to wake up and queue the
+    // relevant computations from the
     // blocked_list (recdatabase::globalrev_mutablenotneeded_code())
+    // This pointer is also held by the display logic in openscenegraph_compositor to
+    // keep mutable recordings in a consistent state for viewing.
     std::shared_ptr<globalrev_mutable_lock> mutable_recordings_need_holder;
     std::atomic<bool> mutable_recordings_still_needed; 
 
@@ -1126,10 +1133,27 @@ namespace snde {
   public:
     typedef T dtype;
 
-    ndtyped_recording_ref(std::shared_ptr<multi_ndarray_recording> rec,size_t rec_index) :
-      ndarray_recording_ref(rec,rec_index,rtn_typemap.at(typeid(T)))
+    ndtyped_recording_ref(std::shared_ptr<multi_ndarray_recording> rec,unsigned typenum,size_t rec_index) :
+      ndarray_recording_ref(rec,rec_index,typenum)
     {
-      
+      unsigned templated_typenum=rtn_typemap.at(typeid(T));
+      if (templated_typenum != typenum) {
+	bool found_compatible=false;
+	auto rct_it = rtn_compatible_types.find(templated_typenum);
+	if (rct_it != rtn_compatible_types.end()) {
+	  auto rct_compat_it = rct_it->second.find(typenum);
+	  if (rct_compat_it != rct_it->second.end()) {
+	    found_compatible = true; 
+	  }
+	}
+
+	if (!found_compatible) {
+	  throw snde_error("Attempting to create reference of typenum %u that is incompatible with data specified as type %u",(unsigned)templated_typenum,typenum);
+	}
+	
+      }
+
+			      
     }
     
 
@@ -1622,42 +1646,42 @@ namespace snde {
   
   // for non math-functions operating in a transaction
   template <typename T>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id)
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum=rtn_typemap.at(typeid(T)))
   {
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
     std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<multi_ndarray_recording>(recdb,chan,owner_id,1);
-    new_rec->define_array(0,rtn_typemap.at(typeid(T)));
+    new_rec->define_array(0,typenum);
     
-    return std::make_shared<ndtyped_recording_ref<T>>(new_rec,0);
+    return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
   }
 
 
 
   template <typename T>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose) // purpose is used for naming shared memory objects
+  std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum=rtn_typemap.at(typeid(T))) // purpose is used for naming shared memory objects
   {
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
     std::shared_ptr<multi_ndarray_recording> new_rec = create_anonymous_recording<multi_ndarray_recording>(recdb,purpose,1);
-    new_rec->define_array(0,rtn_typemap.at(typeid(T)));
+    new_rec->define_array(0,typenum);
     
-    return std::make_shared<ndtyped_recording_ref<T>>(new_rec,0);
+    return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
   }
 
   
   
   // for math_recordings_only (no transaction)
   template <typename T>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss)
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum=rtn_typemap.at(typeid(T)))
   {
     std::shared_ptr<recdatabase> recdb = calc_rss->recdb_weak.lock();
     if (!recdb) return nullptr;
 
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chanpath,calc_rss,1); // owner id for math recordings is recdb raw pointer recdb.get()
     std::shared_ptr<multi_ndarray_recording> new_rec = create_recording_math<multi_ndarray_recording>(chanpath,calc_rss,1);
-    new_rec->define_array(0,rtn_typemap.at(typeid(T)));
-    return std::make_shared<ndtyped_recording_ref<T>>(new_rec,0);
+    new_rec->define_array(0,typenum);
+    return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
   }
   
   // static factory methods for creating recordings with single runtime-determined types

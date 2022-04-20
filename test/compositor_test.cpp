@@ -227,7 +227,7 @@ int main(int argc, char **argv)
   //x3dchan_config->channelpath);
 
   display=std::make_shared<display_info>(recdb);
-  display->set_current_globalrev(globalrev);
+  //display->set_current_globalrev(globalrev);
   display->set_pixelsperdiv(winwidth,winheight);
   
   std::shared_ptr<display_channel> x3d_displaychan = display->lookup_channel(x3dchan_config->channelpath);

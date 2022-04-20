@@ -125,11 +125,14 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 	  SNDE_INDEX_INVALID,
 	  SNDE_INDEX_INVALID,
 	  SNDE_INDEX_INVALID,
+	  
 	  SNDE_INDEX_INVALID,
 	  SNDE_INDEX_INVALID,
 	  SNDE_INDEX_INVALID,
    	  SNDE_INDEX_INVALID,
-	  SNDE_INDEX_INVALID});
+	  
+	  SNDE_INDEX_INVALID, // boxpolysidx
+	  0 }); // numboxpolys
 
     boxcoordlist.emplace_back(std::make_pair(snde_coord3{.coord={minx,miny,minz}},
 					     snde_coord3{.coord={maxx,maxy,maxz}}));
@@ -593,7 +596,10 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 	  SNDE_INDEX_INVALID,
 	  SNDE_INDEX_INVALID,
    	  SNDE_INDEX_INVALID,
-	  SNDE_INDEX_INVALID});
+	  
+	  SNDE_INDEX_INVALID, // boxpolysidx
+	  0 // numboxpolys
+      });
 
     boxcoordlist.emplace_back(std::make_pair(snde_coord2{.coord={minu,minv}},
 					     snde_coord2{.coord={maxu,maxv}}));

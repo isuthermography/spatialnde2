@@ -114,7 +114,13 @@ namespace snde {
     image_reference(std::string image_path, snde_index u_dimnum, snde_index v_dimnum, const std::vector<snde_index> &other_indices);
      
   };
-  
+};  
+
+%template(Index_ImageReference_Pair) std::pair<snde_index,std::shared_ptr<snde::image_reference>>;
+%template(Index_ImageReference_Pair_Vector) std::vector<std::pair<snde_index,std::shared_ptr<snde::image_reference>>>;
+
+namespace snde {
+
   class textured_part_recording: public recording_group {
   public:
     // NOTE: Texture may or may not be actually present (no texture indicated by nullptr parameterization_name and empty texture_refs
@@ -124,6 +130,9 @@ namespace snde {
     
     
     textured_part_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string part_name, std::shared_ptr<std::string> parameterization_name, const std::map<snde_index,std::shared_ptr<image_reference>> &texture_refs);
+    
+    // This version primarily for Python wrapping
+    textured_part_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string part_name, std::shared_ptr<std::string> parameterization_name, std::vector<std::pair<snde_index,std::shared_ptr<image_reference>>> texture_refs);
 
   };
   // textured_part_recording -> renderable_textured_part_recording for rendering, which points at the renderable_meshed_part recording, the meshed_texvertex recording, and an rgba_image_reference
@@ -135,6 +144,7 @@ namespace snde {
     
     assembly_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::vector<std::pair<std::string,snde_orientation3>> &pieces);
   };
+
 
 
 
@@ -158,6 +168,14 @@ namespace snde {
     virtual snde_orientation3 get_channel_to_reorient_pose(std::shared_ptr<recording_set_state> rss) const;
 
   };
+
+  // moved from recstore.i...
+  template <class T>
+    std::shared_ptr<T> create_recording_textured_part_info(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string part_name, std::shared_ptr<std::string> parameterization_name, std::vector<std::pair<snde_index,std::shared_ptr<image_reference>>> texture_refs);
+  %{
+#define create_recording_textured_part_info create_recording
+   %}
+
   
   // create_recording templates
   %template(create_meshed_part_recording) create_recording_noargs<meshed_part_recording>;
@@ -168,6 +186,8 @@ namespace snde {
   %template(create_meshed_parameterization_recording) create_recording_noargs<meshed_parameterization_recording>;
   %template(create_texture_recording) create_recording_noargs<texture_recording>;
 
+
+  
   // Note customized pseudo-templates for extra create_recording arguments are defined at the
   // bottom of recstore.i
   %template(create_textured_part_recording) create_recording_textured_part_info<textured_part_recording>;  
