@@ -459,7 +459,7 @@ namespace snde {
   
   void available_compute_resource_database::_queue_computation_internal(std::shared_ptr<recdatabase> recdb,std::shared_ptr<pending_computation> &computation) // NOTE: Sets computation to nullptr once queued
   {
-    snde_debug(SNDE_DC_RECMATH,"_queue_computation_internal");
+    snde_debug(SNDE_DC_RECMATH,"_queue_computation_internal: %s globalrev %llu",computation->function_to_execute->inst->definition->definition_command.c_str(),(unsigned long long)computation->globalrev);
 
     uint64_t globalrev_index=0;
     bool computation_rss_is_globalrev = false; 
@@ -1161,7 +1161,7 @@ namespace snde {
       
       std::shared_ptr<recdatabase> recdb_strong = recdb.lock();
       
-      snde_debug(SNDE_DC_RECMATH,"Pool code completed math function");
+      snde_debug(SNDE_DC_RECMATH,"Pool code completed math function %s",func->inst->definition->definition_command.c_str());
       //fflush(stdout);
       
       

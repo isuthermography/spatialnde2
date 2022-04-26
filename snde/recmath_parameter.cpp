@@ -394,7 +394,7 @@ namespace snde {
   std::set<std::string> math_parameter_recording::get_prerequisites(/*std::shared_ptr<recording_set_state> rss,*/ const std::string &channel_path_context)
   {
     std::set<std::string> retval;
-    retval.emplace(channel_name);
+    retval.emplace(recdb_path_join(channel_path_context,channel_name));
     return retval;
   }
 

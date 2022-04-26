@@ -60,7 +60,7 @@ int main(int argc, char **argv)
   snde::active_transaction transact(recdb); // Transaction RAII holder
 
   
-  std::vector<std::shared_ptr<textured_part_recording>> part_recordings = x3d_load_geometry(recdb,graphman,argv[1],"main",(void *)&main,"/",nullptr,false,true); // !!!*** Try enable vertex reindexing !!!***
+  std::shared_ptr<loaded_part_geometry_recording> part_recording = x3d_load_geometry(recdb,graphman,argv[1],0,"main",(void *)&main,"/loaded_x3d",nullptr,{ /* "reindex_vertices", */ "reindex_tex_vertices" } ); 
 
   std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
   

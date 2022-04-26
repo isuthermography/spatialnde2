@@ -10,6 +10,7 @@
 #include "snde/recmath_cppfunction.hpp"
 #include "snde/graphics_recording.hpp"
 #include "snde/graphics_storage.hpp"
+#include "snde/geometry_processing.hpp"
 
 #include "snde/inplanemat_calculation.hpp"
 
@@ -226,6 +227,29 @@ namespace snde {
   static int registered_inplanemat_calculation_function = register_math_function("spatialnde2.inplanemat",inplanemat_calculation_function);
   
   
+  void instantiate_inplanemat(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  {
+    std::shared_ptr<instantiated_math_function> instantiated = inplanemat_calculation_function->instantiate( {
+	std::make_shared<math_parameter_recording>("meshed"),
+	std::make_shared<math_parameter_recording>("trinormals")
+      },
+      {
+	std::make_shared<std::string>("inplanemat")
+      },
+      std::string(loaded_geom->info->name)+"/",
+      false, // is_mutable
+      false, // ondemand
+      false, // mdonly
+      std::make_shared<math_definition>("instantiate_inplanemat()"),
+      nullptr);
+
+
+    recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
+
+  }
+
+  static int registered_inplanemat_processor = register_geomproc_math_function("inplanemat",instantiate_inplanemat);
+
 
 
 

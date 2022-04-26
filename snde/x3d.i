@@ -13,7 +13,7 @@
 %shared_ptr(snde::x3d_appearance);
 %shared_ptr(snde::x3d_loader);
 
-%shared_ptr(x3d_shapelist)
+//%shared_ptr(x3d_shapelist)
 
 %shared_ptr(std::vector<std::shared_ptr<snde::textured_part_recording>>);
 
@@ -269,9 +269,12 @@ namespace snde {
   };
 
 
-  std::vector<std::shared_ptr<textured_part_recording>> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::vector<std::shared_ptr<x3d_shape>> shapes,std::string ownername,void *owner_id,std::string recdb_context,std::string context_fname,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,bool reindex_vertices,bool reindex_tex_vertices);
 
-  std::vector<std::shared_ptr<textured_part_recording>> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::string filename,std::string ownername,void *owner_id,std::string recdb_context,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,bool reindex_vertices,bool reindex_tex_vertices);
+  std::shared_ptr<loaded_part_geometry_recording> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::vector<std::shared_ptr<x3d_shape>> shapes,size_t shape_index,std::string ownername,void *owner_id,std::string recdb_group_path,std::string context_fname,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,std::vector<std::string> processing_tags);
 
+
+  std::shared_ptr<loaded_part_geometry_recording> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::string filename,size_t shape_index,std::string ownername,void *owner_id,std::string recdb_group_path,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,std::vector<std::string> processing_tags);
+
+  std::vector<std::shared_ptr<x3d_shape>> x3d_open_geometry(std::string filename);
 
 };

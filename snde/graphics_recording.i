@@ -32,6 +32,9 @@ snde_rawaccessible(snde::textured_part_recording);
 %shared_ptr(snde::assembly_recording);
 snde_rawaccessible(snde::assembly_recording);
 
+%shared_ptr(snde::loaded_part_geometry_recording);
+snde_rawaccessible(snde::loaded_part_geometry_recording);
+
 %shared_ptr(snde::tracking_pose_recording);
 snde_rawaccessible(snde::tracking_pose_recording);
 
@@ -145,6 +148,14 @@ namespace snde {
     assembly_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::vector<std::pair<std::string,snde_orientation3>> &pieces);
   };
 
+
+  class loaded_part_geometry_recording: public recording_group {
+    // represents loaded geometry -- usually a meshed part, a uv, perhaps a texed part and texture, etc. 
+  public:
+    std::unordered_set<std::string> processing_tags;
+    
+    loaded_part_geometry_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::unordered_set<std::string> &processing_tags);
+  };
 
 
 

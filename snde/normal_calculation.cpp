@@ -18,6 +18,7 @@
 #include "snde/recmath_cppfunction.hpp"
 #include "snde/graphics_recording.hpp"
 #include "snde/graphics_storage.hpp"
+#include "snde/geometry_processing.hpp"
 
 #ifdef SNDE_OPENCL
 #include "snde/opencl_utils.hpp"
@@ -228,8 +229,28 @@ namespace snde {
   SNDE_OCL_API std::shared_ptr<math_function> trinormals_function = define_spatialnde2_trinormals_function();
   
   static int registered_trinormals_function = register_math_function("spatialnde2.trinormals",trinormals_function);
-  
-  
+
+  void instantiate_trinormals(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  {
+    std::shared_ptr<instantiated_math_function> instantiated = trinormals_function->instantiate( {
+	std::make_shared<math_parameter_recording>("meshed")
+      },
+      {
+	std::make_shared<std::string>("trinormals")
+      },
+      std::string(loaded_geom->info->name)+"/",
+      false, // is_mutable
+      false, // ondemand
+      false, // mdonly
+      std::make_shared<math_definition>("instantiate_trinormals()"),
+      nullptr);
+
+
+    recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
+
+  }
+
+  static int registered_trinormals_processor = register_geomproc_math_function("trinormals",instantiate_trinormals);
 
 
   // ... vertnormals starts here
@@ -436,6 +457,30 @@ namespace snde {
   
   static int registered_vertnormals_function = register_math_function("spatialnde2.vertnormals",vertnormals_recording_function);
   
-  
-  
+
+  /*
+ ***!!! For now vertnormals is instantiated by the rendering engine, not on load, so this is unnecessary and will 
+conflict (perhaps it should be instantiated on load??? !!!*** 
+  void instantiate_vertnormals(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  {
+    std::shared_ptr<instantiated_math_function> instantiated = vertnormals_recording_function->instantiate( {
+	std::make_shared<math_parameter_recording>("meshed")
+      },
+      {
+	std::make_shared<std::string>("vertnormals")
+      },
+      std::string(loaded_geom->info->name)+"/",
+      false, // is_mutable
+      false, // ondemand
+      false, // mdonly
+      std::make_shared<math_definition>("instantiate_vertnormals()"),
+      nullptr);
+
+    recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
+
+  }
+
+  static int registered_vertnormals_processor = register_geomproc_math_function("vertnormals",instantiate_vertnormals);
+
+  */
 };

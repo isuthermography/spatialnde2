@@ -10,5 +10,7 @@ namespace snde {
   // (in CMakeLists.txt) make it move into the _ocl.so library)
   extern SNDE_API std::shared_ptr<math_function> inplanemat_calculation_function;
 
+  void instantiate_inplanemat(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom);
+
 };
 #endif // SNDE_INPLANEMAT_CALCULATION_HPP

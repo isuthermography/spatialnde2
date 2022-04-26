@@ -134,6 +134,16 @@ namespace snde {
   };
 
 
+  class loaded_part_geometry_recording: public recording_group {
+    // represents loaded (or saveable) geometry -- usually a meshed part, a uv, perhaps a texed part and texture, etc. 
+  public:
+    std::unordered_set<std::string> processing_tags; // processing tags used on load
+    
+    loaded_part_geometry_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::unordered_set<std::string> &processing_tags);
+    // Could (should) implement get_meshed_part(), get_texed_part(), get_parameterization(), etc. methods.
+  };
+
+
 
   class tracking_pose_recording: public recording_group {
     // the tracking_pose_recording is like a single-component

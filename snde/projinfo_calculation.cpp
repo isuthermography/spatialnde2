@@ -7,6 +7,7 @@
 #include "snde/recmath_cppfunction.hpp"
 #include "snde/graphics_recording.hpp"
 #include "snde/graphics_storage.hpp"
+#include "snde/geometry_processing.hpp"
 
 #ifdef SNDE_OPENCL
 #include "snde/snde_types_h.h"
@@ -247,6 +248,30 @@ namespace snde {
   static int registered_projinfo_calculation_function = register_math_function("spatialnde2.projinfo_calculation",projinfo_calculation_function);
   
   
+  void instantiate_projinfo(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  {
+    std::shared_ptr<instantiated_math_function> instantiated = projinfo_calculation_function->instantiate( {
+	std::make_shared<math_parameter_recording>("meshed"),
+	std::make_shared<math_parameter_recording>("inplanemat"),
+	std::make_shared<math_parameter_recording>("uv")
+      },
+      {
+	std::make_shared<std::string>("projinfo")
+      },
+      std::string(loaded_geom->info->name)+"/",
+      false, // is_mutable
+      false, // ondemand
+      false, // mdonly
+      std::make_shared<math_definition>("instantiate_projinfo()"),
+      nullptr);
+
+
+    recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
+
+  }
+
+  static int registered_projinfo_processor = register_geomproc_math_function("projinfo",instantiate_projinfo);
+
   
 
   

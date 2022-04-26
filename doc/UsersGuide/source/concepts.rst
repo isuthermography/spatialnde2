@@ -151,6 +151,34 @@ snde_recording_base`` base structure.  The ``struct
 snde_multi_ndarray_recording`` then points to multiple ``struct
 snde_ndarray_info`` representing the indivdual arrays.
 
+Geometric Objects such as Parts and CAD Models
+----------------------------------------------
+
+Geometric objects can be loaded using functions such as
+``x3d_load_geometry()`` which takes the filename, index of the
+shape within the file, and other parameters including ``processing_tags``.
+Each ``processing_tag`` is a string representing some sort of pre-processing
+that should be done either as part of the loading process, or by defining
+a math function to store an additional output. The ``x3d_load_geometry()``
+function accepts two preprocessing tags: ``reindex_vertices`` and ``reindex_tex_vertices`` which can enable reindexing during the loading process. In addition
+math functions can register additional postprocessing tags, such as ``trinormals``, ``inplanemat``, ``projinfo``, etc. which will then trigger automatic
+instantiation of the relevant math function as the last step in the loading
+process. 
+
+Loaded geometric objects end up represented as a collection of arrays,
+typically a sub-tree of recordings, most or all of which are stored
+using a ``graphics_storage_manager``. The sub-tree itself (if loaded
+from disk) has a ``loaded_part_geometry_recording`` as its root.
+Within, there is a ``meshed`` recording of class ``meshed_part_recording``,
+which is a ``multi_ndarray_recording`` subclass that contains a single
+1D array with a single element of ``struct snde_part``. There may also
+be a ``uv`` of class ``meshed_parameterization_recording`` representing the
+surface parameterization (texture coordinates), a ``texed`` recording of
+class ``textured_part_recording`` and possibly one or more recordings
+containing texture data.
+
+
+
 
 N-Dimensional-Array Recording References and Typed Recording References
 -----------------------------------------------------------------------

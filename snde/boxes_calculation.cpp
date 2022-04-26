@@ -9,6 +9,7 @@
 #include "snde/recmath_cppfunction.hpp"
 #include "snde/graphics_recording.hpp"
 #include "snde/graphics_storage.hpp"
+#include "snde/geometry_processing.hpp"
 
 
 #include "snde/boxes_calculation.hpp"
@@ -485,6 +486,29 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   
   static int registered_boxes_calculation_3d_function = register_math_function("spatialnde2.boxes_calculation_3d",boxes_calculation_3d_function);
 
+  void instantiate_boxes3d(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  {
+    std::shared_ptr<instantiated_math_function> instantiated = boxes_calculation_3d_function->instantiate( {
+	std::make_shared<math_parameter_recording>("meshed"),
+	std::make_shared<math_parameter_recording>("trinormals"),
+	std::make_shared<math_parameter_recording>("inplanemat")
+      },
+      {
+	std::make_shared<std::string>("boxes3d")
+      },
+      std::string(loaded_geom->info->name)+"/",
+      false, // is_mutable
+      false, // ondemand
+      false, // mdonly
+      std::make_shared<math_definition>("instantiate_boxes3d()"),
+      nullptr);
+
+
+    recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
+
+  }
+
+  static int registered_boxes3d_processor = register_geomproc_math_function("boxes3d",instantiate_boxes3d);
 
   
   static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersecting_polygons_2d(std::set<snde_index> & polys,const snde_triangle *param_triangles,const snde_edge *param_edges,const snde_coord2 *param_vertices,snde_coord2 box_v0,snde_coord2 box_v1)
@@ -971,6 +995,29 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   SNDE_API std::shared_ptr<math_function> boxes_calculation_2d_function = define_spatialnde2_boxes_calculation_2d_function();
   
   static int registered_boxes_calculation_2d_function = register_math_function("spatialnde2.boxes_calculation_2d",boxes_calculation_2d_function);
+
+
+  void instantiate_boxes2d(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  {
+    std::shared_ptr<instantiated_math_function> instantiated = boxes_calculation_2d_function->instantiate( {
+	std::make_shared<math_parameter_recording>("uv"),
+      },
+      {
+	std::make_shared<std::string>("boxes2d")
+      },
+      std::string(loaded_geom->info->name)+"/",
+      false, // is_mutable
+      false, // ondemand
+      false, // mdonly
+      std::make_shared<math_definition>("instantiate_boxes2d()"),
+      nullptr);
+
+
+    recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
+
+  }
+
+  static int registered_boxes2d_processor = register_geomproc_math_function("boxes2d",instantiate_boxes2d);
 
 
 };

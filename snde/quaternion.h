@@ -219,8 +219,10 @@ static QUATERNION_INLINE void rotmtx_build_orientation(const snde_coord4 *rotmtx
     
   } else if (eta1_sqrt >= eta3_sqrt && eta1_sqrt >= eta2_sqrt) {
     // eta1_sqrt largest: Use eqs 166
+#ifndef __OPENCL_VERSION__
     assert(eta1_sqrt >= eta4_sqrt);
-
+#endif
+    
     orient->quat.coord[0] = 0.5f*sqrt(eta1_sqrt); // eta1
     orient->quat.coord[1] = (1.0f/(4.0f*orient->quat.coord[0]))*(rotmtx[1].coord[0] + rotmtx[0].coord[1]); // eta2
     orient->quat.coord[2] = (1.0f/(4.0f*orient->quat.coord[0]))*(rotmtx[2].coord[0] + rotmtx[0].coord[2]); // eta3
@@ -229,7 +231,9 @@ static QUATERNION_INLINE void rotmtx_build_orientation(const snde_coord4 *rotmtx
     
   } else if (eta2_sqrt > eta3_sqrt) {
     // eta2_sqrt largest: Use eqs 167
+#ifndef __OPENCL_VERSION__
     assert(eta2_sqrt >= eta4_sqrt && eta2_sqrt >= eta1_sqrt);
+#endif
     orient->quat.coord[1] = 0.5f*sqrt(eta2_sqrt); // eta2
 
     orient->quat.coord[0] = (1.0f/(4.0f*orient->quat.coord[1]))*(rotmtx[0].coord[1]+rotmtx[1].coord[0]); // eta1
@@ -239,7 +243,9 @@ static QUATERNION_INLINE void rotmtx_build_orientation(const snde_coord4 *rotmtx
     
   } else {
     // eta3_sqrt largest: Use eqs 168
+#ifndef __OPENCL_VERSION__
     assert(eta3_sqrt >= eta4_sqrt && eta3_sqrt >= eta1_sqrt && eta3_sqrt >= eta2_sqrt);
+#endif
 
     orient->quat.coord[2] = 0.5f*sqrt(eta3_sqrt); // eta3
     orient->quat.coord[0] = (1.0f/(4.0f*orient->quat.coord[2]))*(rotmtx[0].coord[2] + rotmtx[2].coord[0]); // eta1
@@ -270,7 +276,9 @@ static QUATERNION_INLINE void rotmtx_build_orientation(const snde_coord4 *rotmtx
     // there is a good change your upper 3x3 is not a rotation
     // but a reflection. Check its determinant and if negative
     // then it is a reflection. 
+#ifndef __OPENCL_VERSION__
     assert(residual < 1e-4); // error residual should be minimal
+#endif
   }
 }
 

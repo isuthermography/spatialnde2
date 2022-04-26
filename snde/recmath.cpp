@@ -324,7 +324,7 @@ namespace snde {
       for (auto && resultpath_ptr : fcn_ptr->result_channel_paths) {
 	if (resultpath_ptr) {
 	  // for this result channel, look up all dependent functions
-	  auto adc_it = all_dependencies_of_channel.find(*resultpath_ptr);
+	  auto adc_it = all_dependencies_of_channel.find(recdb_path_join(fcn_ptr->channel_path_context,*resultpath_ptr));
 	  if (adc_it != all_dependencies_of_channel.end()) {
 	    // iterate over all dependencies
 	    for (auto && dep_fcn: adc_it->second) { // dep_fcn is a shared_ptr<instantiated_math_function>

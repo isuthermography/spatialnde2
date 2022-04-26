@@ -2730,16 +2730,18 @@ namespace snde {
 	    //snde_debug(SNDE_DC_RECDB,"chan_map_begin()=\"%s\"",new_rss->recstatus.channel_map.begin()->first.c_str());
 	    //snde_debug(SNDE_DC_RECDB,"chan_map_2nd=\"%s\"",(++new_rss->recstatus.channel_map.begin())->first.c_str());
 
+	    std::string prereq_channel_fullpath=recdb_path_join(mathfunction->channel_path_context,prereq_channel);
+	    
 
-	    auto prereq_chan_it = new_rss->recstatus.channel_map.find(prereq_channel);
+	    auto prereq_chan_it = new_rss->recstatus.channel_map.find(prereq_channel_fullpath);
 	    if (prereq_chan_it==new_rss->recstatus.channel_map.end()) {
 	      std::string result_name="(nullptr)";
 
 	      std::shared_ptr<std::string> result_name_ptr = mathfunction->result_channel_paths.at(0);
 	      if (result_name_ptr) {
-		result_name = *result_name_ptr;
+		result_name = recdb_path_join(mathfunction->channel_path_context,*result_name_ptr);;
 	      }
-	      throw snde_error("Prerequisite channel %s of math function %s does not exist",prereq_channel.c_str(),result_name.c_str());
+	      throw snde_error("Prerequisite channel %s of math function %s does not exist",prereq_channel_fullpath.c_str(),result_name.c_str());
 	      
 	    }
 	    
@@ -2756,7 +2758,7 @@ namespace snde {
 	    
 	    if (prereq_chanstate.config->math && !(ondemand_only ^ prereq_chanstate.config->ondemand)) {
 	      // for math channels, ondemand math channels iff ondemand_only is set, non-ondemand channels iff ondemand_only is not set
-	      std::shared_ptr<instantiated_math_function> math_prereq = new_rss->mathstatus.math_functions->defined_math_functions.at(prereq_channel);
+	      std::shared_ptr<instantiated_math_function> math_prereq = new_rss->mathstatus.math_functions->defined_math_functions.at(prereq_channel_fullpath);
 
 	      if (mathfunction_is_mdonly && math_prereq->mdonly && prereq_rec && (prereq_rec_state == SNDE_RECS_METADATAREADY || prereq_rec_state==SNDE_RECS_READY)) {
 		// If we are mdonly, and the prereq is mdonly and the recording exists and is metadataready or fully ready,
@@ -2776,14 +2778,14 @@ namespace snde {
 	    }
 	    if (prereq_complete) {
 	      bool prereq_modified = false; 
-	      std::shared_ptr<channelconfig> prereq_config = all_channels_by_name.at(prereq_channel);
+	      std::shared_ptr<channelconfig> prereq_config = all_channels_by_name.at(prereq_channel_fullpath);
 
 	      if (possiblychanged_channels_to_process.find(prereq_config) != possiblychanged_channels_to_process.end()) {
 		throw snde_error("end_transaction(): possiblychanged channel turns out to be complete");
 	      } else if (definitelychanged_channels_to_process.find(prereq_config) != definitelychanged_channels_to_process.end() || explicitly_updated_channels->find(prereq_config) != explicitly_updated_channels->end()) {
 		prereq_modified = true; 
 	      } else if (unchanged_channels->find(prereq_config) == unchanged_channels->end()) {
-		throw snde_error("end_transaction(): complete prereq channel %s not in definitelychanged or or explicitly_updated or unchanged.",prereq_channel.c_str());		
+		throw snde_error("end_transaction(): complete prereq channel %s not in definitelychanged or or explicitly_updated or unchanged.",prereq_channel_fullpath.c_str());		
 	      }
 
 	      if (prereq_modified) {
@@ -3532,6 +3534,9 @@ namespace snde {
     
     std::set<std::shared_ptr<channelconfig>>::iterator missing_prereq_it;
     math_function_status &dep_fcn_status = rss->mathstatus.function_status.at(dep_fcn);
+
+    snde_debug(SNDE_DC_RECMATH,"issue_math_notifications_check_dependent_channel %s -> %s",new_rec->info->name,dep_fcn->definition->definition_command.c_str());
+
     
     // If the dependent function is mdonly then we only have to be mdonly. Otherwise we have to be fullyready
     if (got_fullyready || (got_mdonly && dep_fcn_status.mdonly)) {
@@ -3574,12 +3579,17 @@ namespace snde {
 
     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> ready_to_execute;
     std::shared_ptr<recording_base> new_rec = rec();
-    // Issue metadataonly notifications
+    // Issue metadataonly notifications    
     bool got_mdonly = (bool)recording_is_complete(true);
     bool got_fullyready = (bool)recording_is_complete(false);
+
+    snde_debug(SNDE_DC_RECMATH,"issue_math_notifications %s; got_mdonly=%d, got_fullyready=%d",new_rec->info->name,(int)got_mdonly,(int)got_fullyready);
+
     if (got_mdonly || got_fullyready) {
       // at least complete through mdonly
-
+      
+      //snde_warning("issue_math_notifications: adoc.size()=%u channelpath=%s",(unsigned)rss->mathstatus.math_functions->all_dependencies_of_channel.size(),config->channelpath.c_str());
+      
       auto dep_it = rss->mathstatus.math_functions->all_dependencies_of_channel.find(config->channelpath);
       if (dep_it != rss->mathstatus.math_functions->all_dependencies_of_channel.end()) {
 	for (auto && dep_fcn: dep_it->second) {
