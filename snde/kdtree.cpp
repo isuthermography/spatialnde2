@@ -12,6 +12,8 @@
 
 #include "snde/recstore.hpp"
 #include "snde/recmath_cppfunction.hpp"
+#include "snde/graphics_recording.hpp"
+#include "snde/geometry_processing.hpp"
 
 #ifdef SNDE_OPENCL
 #include "snde/opencl_utils.hpp"
@@ -102,19 +104,33 @@ namespace snde {
 	  
 	  
 	  //parts_ref = recording->reference_ndarray("parts")
+
+	  std::shared_ptr<meshed_part_recording> meshedpart; // will be meshedpart or nullptr depending on whether we are part of a meshed part recording
+	  meshedpart = std::dynamic_pointer_cast<meshed_part_recording>(vertices->rec); 
 	  
+
+	  // ***!!! NOTE: We should probably consider putting the kdtree into a special graphics
+	  // storage array and writing the indices into the part object ***!!!
 	  
 	  // locking is only required for certain recordings
 	  // with special storage under certain conditions,
 	  // however it is always good to explicitly request
 	  // the locks, as the locking is a no-op if
 	  // locking is not actually required.
-	  rwlock_token_set locktokens = lockmgr->lock_recording_refs({
-	      { vertices, false }, // first element is recording_ref, 2nd parameter is false for read, true for write
-	      { result_ref, true }
-	    });
+	  std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> recrefs_to_lock = {
+	    { vertices, false }, // first element is recording_ref, 2nd parameter is false for read, true for write
+	    { result_ref, true }
+	  };
+
+	  if (meshedpart) {
+	    // if vertices are from a meshed part, we will also write into our section
+	    // of the struct snde_part so we need to lock it for write.
+	    recrefs_to_lock.push_back(std::make_pair(meshedpart->reference_ndarray("parts"),true));
+	  }
 	  
-	  return std::make_shared<exec_function_override_type>([ this,locktokens, result_ref,vertices,metadata ]() {
+	  rwlock_token_set locktokens = lockmgr->lock_recording_refs(recrefs_to_lock);
+	  
+	  return std::make_shared<exec_function_override_type>([ this,locktokens, result_ref,vertices,metadata,meshedpart ]() {
 	    // exec code
 	    snde_index numvertices = vertices->layout.flattened_length();
 	    
@@ -178,7 +194,15 @@ namespace snde {
 	    free(copy_tree);
 	    free(tree_vertices);
 	    free(orig_tree);
-	    
+
+	    if (meshedpart) { 
+	      assert(result_ref->rec->storage_manager == meshedpart->storage_manager); // must both be using the same graphics storage manager for this to be OK
+	      // modify our indexes in partstruct (these are our responsibility)
+	      snde_part &partstruct = meshedpart->reference_typed_ndarray<snde_part>("parts")->element(0);
+	      partstruct.first_vertex_kdnode = result_ref->storage->base_index;
+	      partstruct.num_vertex_kdnodes = result_ref->storage->nelem;
+	    }
+	      
 	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready()
 
 	    metadata->AddMetaDatum(metadatum("kdtree_max_depth",(uint64_t)max_depth));
@@ -208,7 +232,29 @@ namespace snde {
   static int registered_kdtree_calculation_function = register_math_function("spatialnde2.kdtree_calculation",kdtree_calculation_function);
 
 
+  void instantiate_vertex_kdtree(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  {
+    std::shared_ptr<instantiated_math_function> instantiated = kdtree_calculation_function->instantiate( {
+	std::make_shared<math_parameter_recording>("meshed","vertices")
+      },
+      {
+	std::make_shared<std::string>("vertex_kdtree")
+      },
+      std::string(loaded_geom->info->name)+"/",
+      false, // is_mutable
+      false, // ondemand
+      false, // mdonly
+      std::make_shared<math_definition>("instantiate_vertex_kdtree()"),
+      nullptr);
 
+
+    recdb->add_math_function(instantiated,true); // kdtree is generally hidden by default
+
+  }
+  
+  static int registered_vertex_kdtree_processor = register_geomproc_math_function("vertex_kdtree",instantiate_vertex_kdtree);
+  
+  
 
 
 #ifdef SNDE_OPENCL
