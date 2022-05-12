@@ -5,6 +5,7 @@
 #include "snde/graphics_recording.hpp"
 #include "snde/rendermode.hpp"
 #include "snde/batched_live_accumulator.hpp"
+#include "snde/colormap.h"
 
 namespace snde {
 
@@ -1816,43 +1817,50 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
 	std::shared_ptr<recording_base> tex_rec = base_rss->get_recording(texture_path);
 	
 	std::shared_ptr<multi_ndarray_recording> texarray_rec=std::dynamic_pointer_cast<multi_ndarray_recording>(tex_rec);
-	
-	snde_index u_dimnum=0;
-	snde_index v_dimnum=1;
-	std::shared_ptr<rgbacolormapparams> colormap_params;
-	
-	{
-	  std::lock_guard<std::mutex> tc_lock(texchan->admin);
-	  size_t NDim = texarray_rec->layouts.at(0).dimlen.size();
-	  std::vector<snde_index> other_indices({0,0});
-	  if (NDim >= 3) {
-	    if (texchan->DisplayFrame >= texarray_rec->layouts[0].dimlen[2]) {
-	      texchan->DisplayFrame = texarray_rec->layouts[0].dimlen[2]-1;	    
-	    }
-	    other_indices.push_back(texchan->DisplayFrame);
-	    if (NDim >= 4) {
-	      if (texchan->DisplaySeq >= texarray_rec->layouts[0].dimlen[3]) {
-		texchan->DisplaySeq = texarray_rec->layouts[0].dimlen[3]-1;	    
+
+
+	if (texarray_rec) {
+	  snde_index u_dimnum=0;
+	  snde_index v_dimnum=1;
+	  std::shared_ptr<rgbacolormapparams> colormap_params;
+	  
+	  {
+	    std::lock_guard<std::mutex> tc_lock(texchan->admin);
+	    size_t NDim = texarray_rec->layouts.at(0).dimlen.size();
+	    std::vector<snde_index> other_indices({0,0});
+	    if (NDim >= 3) {
+	      if (texchan->DisplayFrame >= texarray_rec->layouts[0].dimlen[2]) {
+		texchan->DisplayFrame = texarray_rec->layouts[0].dimlen[2]-1;	    
 	      }
-	      other_indices.push_back(texchan->DisplaySeq);
+	      other_indices.push_back(texchan->DisplayFrame);
+	      if (NDim >= 4) {
+		if (texchan->DisplaySeq >= texarray_rec->layouts[0].dimlen[3]) {
+		  texchan->DisplaySeq = texarray_rec->layouts[0].dimlen[3]-1;	    
+		}
+		other_indices.push_back(texchan->DisplaySeq);
+	      }
 	    }
-	  }
+	    
+	    
+	    colormap_params = std::make_shared<rgbacolormapparams>(texchan->ColorMap,
+								   texchan->Offset,
+								   texchan->Scale,
+								   other_indices,
+								   u_dimnum,
+								   v_dimnum);
+	  } // release texchan lock; 
+	  
+	  retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,texchan,SNDE_SRG_TEXTURE,colormap_params));
+	  
 	
-	
-	  colormap_params = std::make_shared<rgbacolormapparams>(texchan->ColorMap,
-								 texchan->Offset,
-								 texchan->Scale,
-								 other_indices,
-								 u_dimnum,
-								 v_dimnum);
-	} // release texchan lock; 
-      
-	retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,texchan,SNDE_SRG_TEXTURE,colormap_params));
-      
-	
-	// also merge the colormap parameters into our own parameter block
-	// (as we will render differently if any of the colormaps is different)
-	texedmeshedpart_params->push_back(*colormap_params);
+	  // also merge the colormap parameters into our own parameter block
+	  // (as we will render differently if any of the colormaps is different)
+	  texedmeshedpart_params->push_back(*colormap_params);
+
+	} else {
+	  // add dummy params, so we keep a consistent length
+	  texedmeshedpart_params->push_back(rgbacolormapparams(SNDE_COLORMAP_GRAY,0.0,0.0,std::vector<snde_index>(),0,0));
+	}
       }
     }
     

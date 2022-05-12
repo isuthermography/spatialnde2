@@ -194,8 +194,8 @@ namespace snde {
 	    }
 #endif // SNDE_OPENCL
 	    
-	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
-	    result_rec->rec->mark_as_ready();
+	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
+	    result_rec->rec->mark_data_ready();
 	  }); 
 	});
       });
@@ -401,8 +401,8 @@ namespace snde {
 	    }
 #endif // SNDE_OPENCL
 	    
-	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
-	    result_rec->rec->mark_as_ready();
+	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
+	    result_rec->rec->mark_data_ready();
 	  }); 
 	});
       });
@@ -712,8 +712,8 @@ namespace snde {
 	    }
 #endif // SNDE_OPENCL
 	    
-	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
-	    result_rec->rec->mark_as_ready();
+	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
+	    result_rec->rec->mark_data_ready();
 	  }); 
 	});
       });

@@ -26,6 +26,8 @@ snde_rawaccessible(snde::recdatabase);
 snde_rawaccessible(snde::instantiated_math_function);
 %shared_ptr(snde::active_transaction);
 snde_rawaccessible(snde::active_transaction);
+%shared_ptr(snde::transaction);
+snde_rawaccessible(snde::transaction);
 
 %{
 #include "snde/recstore.hpp"
@@ -97,7 +99,11 @@ namespace snde {
     %immutable;
     /*std::atomic_int*/ int info_state; // atomic mirror of info->state
     %mutable;
+    std::shared_ptr<constructible_metadata> pending_metadata; 
     std::shared_ptr<immutable_metadata> metadata; // pointer may not be changed once info_state reaches METADATADONE. The pointer in info is the .get() value of this pointer. 
+
+    bool needs_dynamic_metadata;
+    std::shared_ptr<constructible_metadata> pending_dynamic_metadata; 
 
     std::shared_ptr<recording_storage_manager> storage_manager; // pointer initialized to a default by recording constructor, then used by the allocate_storage() method. Any assignment must be prior to that. may not be used afterward; see recording_storage in recstore_storage.hpp for details on pointed structure.
 
@@ -119,6 +125,8 @@ namespace snde {
     recording_base(const recording_base &orig) = delete;
     virtual ~recording_base(); // virtual destructor so we can be subclassed
 
+    virtual void recording_needs_dynamic_metadata(); // Call this before mark_metadata_done() to list this recording as needing dynamic metadata
+
     std::shared_ptr<multi_ndarray_recording> cast_to_multi_ndarray();
 
     virtual std::shared_ptr<recording_set_state> _get_originating_rss_rec_admin_prelocked(); // version of get_originating_rss() to use if you have the recording database and recording's admin locks already locked.
@@ -136,9 +144,10 @@ namespace snde {
 
     
     
-    virtual void _mark_metadata_done_internal(/*std::shared_ptr<recording_set_state> rss,const std::string &channame*/);
     virtual void mark_metadata_done();  // call WITHOUT admin lock (or other locks?) held. 
-    virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held.
+    virtual void mark_dynamic_metadata_done();  // call WITHOUT admin lock (or other locks?) held. 
+    virtual void mark_data_ready();  // call WITHOUT admin lock (or other locks?) held.
+    virtual void mark_data_and_metadata_ready();  // call WITHOUT admin lock (or other locks?) held.
 
     virtual std::shared_ptr<recording_storage_manager> assign_storage_manager(std::shared_ptr<recording_storage_manager> storman);
     virtual std::shared_ptr<recording_storage_manager> assign_storage_manager();
@@ -202,7 +211,7 @@ namespace snde {
     multi_ndarray_recording(const multi_ndarray_recording &orig) = delete;
     virtual ~multi_ndarray_recording();
 
-    virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held. Passes on ready_notifications to storage
+    virtual void mark_data_ready();  // call WITHOUT admin lock (or other locks?) held. Passes on ready_notifications to storage
 
     inline snde_multi_ndarray_recording *mndinfo();
     inline snde_ndarray_info *ndinfo(size_t index);
@@ -388,7 +397,7 @@ namespace snde {
 	strides.push_back(stride*self->ndinfo()->elementsize); // our strides are in numbers of elements vs numpy does it in bytes;
       }
       int flags = 0;
-      if (self->info_state != SNDE_RECS_READY && self->info_state != SNDE_RECS_OBSOLETE) {
+      if (!(self->info_state & SNDE_RECF_DATAREADY)) {
 	flags = NPY_ARRAY_WRITEABLE; // only writeable if it's not marked as ready yet.
       }
 
@@ -446,15 +455,70 @@ namespace snde {
     // end of transaction propagates this structure into an update of recdatabase._channels
     // and a new globalrevision
 
+    std::vector<std::shared_ptr<channel_notify>> pending_channel_notifies; // channel_notifies that need to be applied to the globalrev once it is created
+
     // when the transaction is complete, resulting_globalrevision() is assigned
     // so that if you have a pointer to the transaction you can get the globalrevision (which is also a recording_set_state)
     std::weak_ptr<globalrevision> _resulting_globalrevision; // locked by transaction admin mutex; use resulting_globalrevision() accessor. 
     std::pair<std::shared_ptr<globalrevision>,bool> resulting_globalrevision(); // returned bool true means null pointer indicates expired pointer, rather than in-progress transaction
 
+
+    bool transaction_globalrev_is_complete();
+
+    // Wait on the return value of get_transaction_globalrev_complete_waiter() by
+    // calling its wait_interruptable method.
+    // You can call its interrupt() method from another thread to
+    // cancel the wait. 
+    std::shared_ptr<promise_channel_notify> get_transaction_globalrev_complete_waiter(); 
+
     
   };
 
+  // Typemaps for run_in_background_and_end_transaction()
+  %typemap(in) (std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn) {
+    Py_INCREF($input); // Matched by the Py_DECREF($input) in the lambda, below)
 
+    PyObject *ribaet_fcn_copy = $input;
+    $1 = [ ribaet_fcn_copy ] (std::shared_ptr<snde::recdatabase> recdb,std::shared_ptr<void> params) { // lambda
+      std::shared_ptr<PyObject *> ParamsPy = std::static_pointer_cast<PyObject *>(params);
+
+      PyGILState_STATE gstate;
+      gstate = PyGILState_Ensure(); // acquire the GIL -- this is run in a gil-free context
+      
+      PyObject *ret = PyObject_CallFunction(ribaet_fcn_copy,(char *)"O",*ParamsPy);
+      
+      // we don't care about the return value
+      if (ret) {
+	Py_DECREF(ret);	
+      } else {
+	// Print the Python exception information
+	PyErr_PrintEx(0);
+      }
+      // This lambda only runs once so this DECREF matches the above INCREF. 
+      Py_DECREF(ribaet_fcn_copy);
+
+      // This lambda only runs once so this DECREF matches the INCREF in the params typemap
+      Py_DECREF(*ParamsPy);
+
+      PyGILState_Release(gstate); // release the GIL -- this is run in a gil-free context
+
+      /* No Python API allowed beyond this point. */
+
+
+    };
+
+  }
+
+  // Typemaps for run_in_background_and_end_transaction()
+  %typemap(in) (std::shared_ptr<void> params) {
+    Py_INCREF($input); // Matched by the Py_DECREF(*ParamsPy) in the
+    // std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn
+    // lambda, above.
+
+    $1 = std::make_shared<PyObject *>($input);
+
+  }
+  
   class active_transaction /* : public std::enable_shared_from_this<active_transaction> */ {
     // RAII interface to transaction
     // Don't use this directly from dataguzzler-python, because there
@@ -476,7 +540,8 @@ namespace snde {
     ~active_transaction(); // destructor releases transaction_lock from holder
 
     std::shared_ptr<globalrevision> end_transaction();
-    
+    std::shared_ptr<transaction> run_in_background_and_end_transaction(std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn, std::shared_ptr<void> params);
+
   };
 
   // need global revision class which will need to have a snapshot of channel configs, including math channels
@@ -755,14 +820,17 @@ namespace snde {
 
     void startup(); // gets the math engine running, etc. 
 
-    // avoid using start_transaction() and end_transaction() from C++; instantiate the RAII wrapper class active_transaction instead
-    // (start_transaction() and end_transaction() are intended for C and perhaps Python)
-    
 
     // a transaction update can be multi-threaded but you shouldn't call end_transaction()  (or the end_transaction method on the
     // active_transaction or delete the active_transaction) until all other threads are finished with transaction actions
-    std::shared_ptr<active_transaction> start_transaction();
+
+    // NOTE end_transaction is wrapped manually with an %extend block, below
+    //std::shared_ptr<active_transaction> start_transaction();
     std::shared_ptr<globalrevision> end_transaction(std::shared_ptr<active_transaction> act_trans);
+
+    std::shared_ptr<transaction> run_in_background_and_end_transaction(std::shared_ptr<active_transaction> act_trans,std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn, std::shared_ptr<void> params);
+
+    
     // add_math_function() must be called within a transaction
     void add_math_function(std::shared_ptr<instantiated_math_function> new_function,bool hidden); // Use separate functions with/without storage manager because swig screws up the overload
     void add_math_function_storage_manager(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager);
@@ -798,6 +866,7 @@ namespace snde {
 
     std::shared_ptr<monitor_globalrevs> start_monitoring_globalrevs();
     void globalrev_mutablenotneeded_code(); 
+    void transaction_background_end_code();
 
 
     std::shared_ptr<math_function_registry_map> math_functions();
@@ -808,6 +877,84 @@ namespace snde {
 
   };
 
+  // unfortunately this %nothread (suggested by https://sourceforge.net/p/swig/mailman/swig-user/?viewmonth=200902&style=flat&viewday=4 ) doesn't work.
+  // instead it seems to affect things only beyond the %extend (?)
+  // and then the %thread afterward is ineffective...
+  // so instead we just use SWIG_PYTHON_THREAD_BEGIN_BLOCK...
+  
+  //%nothread;  // temporarily turn off swig threading support for this definition ***!!! MUST BE PAIRED WITH A %thread; after !!!***
+  %extend recdatabase {
+    // manual wrapping of start_transaction() so that we drop the dataguzzler_python context
+    // (if present) while acquiring the transaction lock
+    std::shared_ptr<active_transaction> start_transaction()
+    {
+      PyObject *dgpython_context_module=nullptr;
+      PyObject *PopThreadContext=nullptr;
+      {
+	SWIG_PYTHON_THREAD_BEGIN_BLOCK;
+      
+	
+	// check for presence of dataguzzler-python (must have already been imported by something else)
+	//dgpython_context_module = PyImport_ImportModule("dataguzzler_python.context");
+	PyObject *dgpython_context_module_name = PyUnicode_FromString("dataguzzler_python.context");
+	
+	dgpython_context_module = PyImport_GetModule(dgpython_context_module_name);
+	Py_DECREF(dgpython_context_module_name);
+	if (dgpython_context_module) {
+	  // get PopThreadContext() and PushThreadContext() functions
+	  PopThreadContext = PyObject_GetAttrString(dgpython_context_module,"PopThreadContext");
+	  PyObject *PushThreadContext = PyObject_GetAttrString(dgpython_context_module,"PushThreadContext");
+	  
+	  // Call PushThreadContext(None) to drop the current context
+	  PyObject *ret = PyObject_CallFunction(PushThreadContext,(char *)"O",Py_None);
+
+	  if (ret) {
+	    Py_DECREF(ret);
+	  }
+	  else {
+	    // Print the Python exception information
+	    PyErr_PrintEx(0);  
+	  }
+	  
+	  Py_DECREF(PushThreadContext);
+	  
+	} else {
+	  PyErr_Clear();
+	  //snde::snde_warning("start_transaction(): No dataguzzler_python context found");
+	}
+	
+	
+	// Drop the GIL and acquire the transaction lock
+	SWIG_PYTHON_THREAD_END_BLOCK;
+      }
+      std::shared_ptr<snde::active_transaction> retval;
+      //Py_BEGIN_ALLOW_THREADS;
+      {
+	//SWIG_PYTHON_THREAD_BEGIN_ALLOW;
+	retval = self->start_transaction();
+	//SWIG_PYTHON_THREAD_END_ALLOW;
+      }
+      //Py_END_ALLOW_THREADS;
+      {
+	SWIG_PYTHON_THREAD_BEGIN_BLOCK;
+	
+	// Pop the thread context to reaquire our context lock
+	if (dgpython_context_module) {
+	  PyObject *ret = PyObject_CallFunction(PopThreadContext,(char *)"");
+	  Py_DECREF(ret);
+	  Py_DECREF(PopThreadContext);
+	  Py_DECREF(dgpython_context_module);
+	}
+	
+	SWIG_PYTHON_THREAD_END_BLOCK;
+      }
+      return retval;
+    }
+    //%thread;  // reenable swig threading support after the %extend above. 
+    
+
+  };
+  
   template <typename T>
   class ndtyped_recording_ref : public ndarray_recording_ref {
     // internals not swig-wrapped; we use typemaps below instead 

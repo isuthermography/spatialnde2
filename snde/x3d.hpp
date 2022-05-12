@@ -1313,7 +1313,8 @@ namespace snde {
 
 
     std::shared_ptr<loaded_part_geometry_recording> loaded_geom = create_recording<loaded_part_geometry_recording>(recdb,loaded_geom_channel,owner_id,processing_tags);
-    loaded_geom->mark_as_ready();
+    loaded_geom->mark_metadata_done();
+    loaded_geom->mark_data_ready();
 
     std::string recdb_context = recdb_group_path + "/";
 
@@ -1427,7 +1428,7 @@ namespace snde {
 	  //texture_meta->AddMetaDatum(metadatum("uv_parameterization","intrinsic"));
 	  texture_rec->metadata=texture_meta;
 	  texture_rec->mark_metadata_done();
-	  texture_rec->mark_as_ready();
+	  texture_rec->mark_data_ready();
 	}
 	  
       }
@@ -2646,7 +2647,7 @@ namespace snde {
 	
       uvparam->metadata = std::make_shared<immutable_metadata>(); 
       uvparam->mark_metadata_done();
-      uvparam->mark_as_ready();
+      uvparam->mark_data_ready();
 
       if (texture_ref) {
 	texedcurpart->parameterization_name = std::make_shared<std::string>(uvparamfullname);
@@ -2732,9 +2733,9 @@ namespace snde {
     graphman->geom.parts[firstpart].has_curvatures=false;
 
 
-    meshedcurpart->mark_as_ready();
+    meshedcurpart->mark_data_ready();
     if (texture_ref) {
-      texedcurpart->mark_as_ready();
+      texedcurpart->mark_data_ready();
     }
       
     

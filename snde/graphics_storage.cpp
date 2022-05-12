@@ -440,6 +440,8 @@ namespace snde {
 
     add_grouped_arrays(&next_region_id,&geom.totals,"totals");
 
+
+
     
     add_grouped_arrays(&next_region_id,&geom.vertex_arrays,"vertex_arrays");
     add_grouped_arrays(&next_region_id,&geom.texvertex_arrays,"texvertex_arrays");

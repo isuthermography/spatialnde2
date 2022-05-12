@@ -457,10 +457,10 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 	  
 	  memcpy((void *)boxpolys,(void *)boxpolylist.data(),sizeof(snde_index)*boxpolylist.size());
 
-	  unlock_rwlock_token_set(all_box_locks); // lock must be released prior to mark_as_ready() 
-	  unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
+	  unlock_rwlock_token_set(all_box_locks); // lock must be released prior to mark_data_ready() 
+	  unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
 
-	  result_rec->mark_as_ready();
+	  result_rec->mark_data_ready();
 	  
 	  
 	});
@@ -965,10 +965,10 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 	      
 	    }
 	    
-	    unlock_rwlock_token_set(all_box_locks); // lock must be released prior to mark_as_ready() 
-	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
+	    unlock_rwlock_token_set(all_box_locks); // lock must be released prior to mark_data_ready() 
+	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
 	    
-	    result_rec->mark_as_ready();
+	    result_rec->mark_data_ready();
 	    
 	    
 	  });

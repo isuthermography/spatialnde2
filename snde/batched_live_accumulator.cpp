@@ -417,9 +417,9 @@ namespace snde {
 	      
 	      memcpy(result->element_dataptr(batchnum,element_addr),to_accum->void_shifted_arrayptr(),bytes_in_single_entry);
 	    }
-	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready()
+	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready()
 	    
-	    result->mark_as_ready();
+	    result->mark_data_ready();
 	    
 	  }); 
 	});

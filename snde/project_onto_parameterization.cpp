@@ -622,8 +622,8 @@ namespace snde {
 	    // !!!*** Would be nice to be able to specify a rectangle here ***!!!
 	    result_rec->storage.at(0)->mark_as_modified(nullptr,0,result_rec->storage.at(0)->nelem);
 	    result_rec->storage.at(1)->mark_as_modified(nullptr,0,result_rec->storage.at(1)->nelem);
-	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
-	    result_rec->mark_as_ready();
+	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
+	    result_rec->mark_data_ready();
 	    
 	  }); 
 	});

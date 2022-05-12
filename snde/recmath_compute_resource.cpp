@@ -277,20 +277,16 @@ namespace snde {
 	
       }
       if (result_channel_rec) {
-	if (!result_channel_rec->metadata) {
-	  result_channel_rec->metadata = std::make_shared<immutable_metadata>();
-	}
-	if (result_channel_rec->info_state < SNDE_RECS_METADATAREADY) {
+	if (!(result_channel_rec->info_state & SNDE_RECF_STATICMETADATAREADY)) {
 	  result_channel_rec->mark_metadata_done();
 	}
-	if (result_channel_rec->info_state < SNDE_RECS_READY) {
-	  result_channel_rec->mark_as_ready();
+	if (!(result_channel_rec->info_state & SNDE_RECF_DATAREADY)) {
+	  result_channel_rec->mark_data_ready();
 	}
       } else if (path_ptr) {
 	result_channel_rec = create_recording_math<null_recording>(full_path,ready_rss);
-	result_channel_rec->metadata = std::make_shared<immutable_metadata>();
 	result_channel_rec->mark_metadata_done();
-	result_channel_rec->mark_as_ready();
+	result_channel_rec->mark_data_ready();
 	
       }
     }
@@ -691,7 +687,10 @@ namespace snde {
   {
       
     bool no_actual_dispatch = false;
-    std::shared_ptr<available_compute_resource_database> acrd_keepinmemory=shared_from_this();  // this shared_ptr prevents the available_compute_resource_database object from getting released, which would make "this" become invalid under us. It also creates a memory leak unless there is a way to signal to this thread that it should return. 
+    std::shared_ptr<available_compute_resource_database> acrd_keepinmemory=shared_from_this();  // this shared_ptr prevents the available_compute_resource_database object from getting released, which would make "this" become invalid under us. It also creates a memory leak unless there is a way to signal to this thread that it should return.
+
+    set_thread_name(nullptr,"snde2 acrd dispatch");
+
 
     while(true) {
       
@@ -762,6 +761,7 @@ namespace snde {
       thread_triggers.emplace_back(std::make_shared<std::condition_variable>());
       thread_actions.push_back(std::make_tuple((std::shared_ptr<recording_set_state>)nullptr,(std::shared_ptr<math_function_execution>)nullptr,(std::shared_ptr<assigned_compute_resource_cpu>)nullptr));
       available_threads.emplace_back(std::thread([this](size_t n){ pool_code(n); },cnt));
+      set_thread_name(&available_threads.at(cnt),ssprintf("snde2 acrd %2.2d",cnt));
 
       available_threads.at(cnt).detach(); // we won't be join()ing these threads
       
@@ -1124,11 +1124,11 @@ namespace snde {
 	    if (!result_channel_rec->metadata) {
 	      result_channel_rec->metadata = std::make_shared<immutable_metadata>();
 	    }
-	    if (result_channel_rec->info_state < SNDE_RECS_METADATAREADY) {
+	    if (!(result_channel_rec->info_state & SNDE_RECF_STATICMETADATAREADY)) {
 	      result_channel_rec->mark_metadata_done();
 	    }
-	    if (result_channel_rec->info_state < SNDE_RECS_READY) {
-	      result_channel_rec->mark_as_ready();
+	    if (!(result_channel_rec->info_state & SNDE_RECF_DATAREADY)) {
+	      result_channel_rec->mark_data_ready();
 	    }
 	  }
 	}

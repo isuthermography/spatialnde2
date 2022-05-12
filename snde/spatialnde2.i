@@ -498,6 +498,7 @@ template <typename T>
 %include "qtrecviewer.i"
 %include "recstore_setup.i"
 %include "x3d.i"
+%include "utils.i"
 
 #ifdef SNDE_OPENCL
 %include "opencl_utils.i"

@@ -2,6 +2,16 @@
 #include <memory>
 
 #include <vector>
+#include <thread>
+
+#ifdef SPATIALNDE2_SET_THREAD_NAMES_PTHREAD
+#include <pthread.h>    
+#endif // SPATIALNDE2_SET_THREAD_NAMES_PTHREAD
+
+#ifdef SPATIALNDE2_SET_THREAD_NAMES_WIN32
+#include <processthreadsapi.h>
+#endif // SPATIALNDE2_SET_THREAD_NAMES_WIN32
+
 
 #ifndef SNDE_UTILS_HPP
 #define SNDE_UTILS_HPP
@@ -85,6 +95,32 @@ namespace snde {
     return retval;
     
   }
+
+
+  static inline void set_thread_name(std::thread *thr,std::string name)
+  { // pass null for thr to set the name of the current thread
+#ifdef SPATIALNDE2_SET_THREAD_NAMES_PTHREAD
+    std::string shortname=name.substr(0,15); // 15 char limit per Linux man page
+    
+    if (thr) {
+      pthread_setname_np(thr->native_handle(),shortname.c_str());
+    } else {
+      pthread_setname_np(pthread_self(),shortname.c_str());      
+    }
+#endif // SPATIALNDE2_SET_THREAD_NAMES_PTHREAD
+    
+#ifdef SPATIALNDE2_SET_THREAD_NAMES_WIN32
+    std::wstring widecopy = std::wstring(name.begin(),name.end());
+
+    if (thr) {
+      SetThreadDescription(thr->native_handle(), widecopy.c_str());
+    } else {
+      SetThreadDescription(GetCurrentThread()(), widecopy.c_str());      
+    }
+#endif // SPATIALNDE2_SET_THREAD_NAMES_WIN32
+    
+  }
+  
 }
 
 #endif // SNDE_UTILS_HPP

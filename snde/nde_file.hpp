@@ -75,7 +75,8 @@ namespace snde {
     virtual void read(std::shared_ptr<recording_base> rec) // read actual data into rec and any sub-recordings into filemap
     {
       // no-op
-      rec->mark_as_ready();
+      rec->mark_metadata_done();
+      rec->mark_data_ready();
     }
     virtual ~ndefile_readrecording_base() = default;
   };
@@ -126,7 +127,8 @@ namespace snde {
     virtual void read(std::shared_ptr<recording_base> rec) // read actual data
     {
       // nothing to actually read for a group
-      rec->mark_as_ready();
+      rec->mark_metadata_done();
+      rec->mark_data_ready();
     }
     virtual ~ndefile_readgroup() = default;
     

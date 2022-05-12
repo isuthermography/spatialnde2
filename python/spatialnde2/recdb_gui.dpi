@@ -6,10 +6,12 @@ global snde_RecViewerWindow
 global viewer
 global main_viewer
 
+enable_opencl = True
+
 if not "snde_recdb_windows" in globals():
    
     snde_recdb_windows=[]
-    include(snde,"recdb.dpi")
+    include(snde,"recdb.dpi", enable_opencl = enable_opencl)
     include(dgpy,"Qt.dpi") # in case not already started
     
     class snde_RecViewerWindow(Qt.QtWidgets.QMainWindow): 

@@ -50,9 +50,9 @@ int main(int argc, char *argv[])
       
     }
     // locktokens automatically dropped as it goes out of scope
-    // (must drop before mark_as_ready())
+    // (must drop before mark_data_ready())
   }
-  test_ref->rec->mark_as_ready();
+  test_ref->rec->mark_data_ready();
   
   globalrev->wait_complete();
   return 0;

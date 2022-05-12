@@ -337,8 +337,10 @@ namespace snde {
     //  * Because within a transaction, recdb->current_transaction is valid
     // This constructor automatically adds the new recording to the current transaction
     info{nullptr},
-    info_state(SNDE_RECS_INITIALIZING),
+    info_state(SNDE_RECF_DYNAMICMETADATAREADY), // downgrade this bit away prior to SNDE_RECS_STATICMETADATAREADY if we needs_dynamic_metadata
     metadata(nullptr),
+    needs_dynamic_metadata(false),
+    pending_dynamic_metadata(nullptr),
     storage_manager(storage_manager), // initially null but defined in end_transaction() for non-math recordings
     recdb_weak(recdb),
     defining_transact(defining_transact),
@@ -382,6 +384,15 @@ namespace snde {
   }
 
 
+  void recording_base::recording_needs_dynamic_metadata() // Call this before mark_metadata_done() to list this recording as needing dynamic metadata
+  {
+    std::lock_guard<std::mutex> rec_admin(admin);
+
+    needs_dynamic_metadata=true;
+    info->state &= ~SNDE_RECF_DYNAMICMETADATAREADY;
+    info_state = info->state;
+  }
+  
   std::shared_ptr<multi_ndarray_recording> recording_base::cast_to_multi_ndarray()
   {
     return std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this());
@@ -533,34 +544,89 @@ namespace snde {
   }
 
 
-    /* std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> */ void recording_base::_mark_metadata_done_internal(/*std::shared_ptr<recording_set_state> rss,const std::string &channame*/)
-  // internal use only. Should be called with the recording admin lock held
+  void recording_base::_check_move_to_metadataonly__rss_and_recording_locked(std::shared_ptr<recording_set_state> rss,channel_state *chanstate)
   {
 
+    if (info->state & SNDE_RECF_STATICMETADATAREADY && info->state & SNDE_RECF_DYNAMICMETADATAREADY) {
+      // rss admin lock and recording admin lock should already be locked...  
       
-    assert(info->state == info_state && info->state==SNDE_RECS_INITIALIZING);
+      // if this is a metadataonly recording
+      // Need to move this channel_state reference from rss->recstatus.instantiated_recordings into rss->recstatus->metadataonly_recordings
+      std::map<std::string,std::shared_ptr<instantiated_math_function>>::iterator math_function_it;
+      math_function_it = rss->mathstatus.math_functions->defined_math_functions.find(info->name);
+      
+      if (math_function_it != rss->mathstatus.math_functions->defined_math_functions.end()) {
+	// channel is a math channel (only math channels can be mdonly)
+	
+	math_function_status &mathstatus = rss->mathstatus.function_status.at(math_function_it->second);
+	
+	if (mathstatus.mdonly) {
+	  // yes, an mdonly channel... move it from instantiated recordings to metadataonly_recordings
+	  //mdonly=true;
+	  
+	  std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator instantiated_recording_it = rss->recstatus.instantiated_recordings.find(chanstate->config); 
+	  assert(instantiated_recording_it != rss->recstatus.instantiated_recordings.end());
+	  
+	  rss->recstatus.instantiated_recordings.erase(instantiated_recording_it);
+	  rss->recstatus.metadataonly_recordings.emplace(chanstate->config,chanstate);
+	}
+      }
+      
+    }
+  }
 
-    info->state = SNDE_RECS_METADATAREADY;
-    info_state = SNDE_RECS_METADATAREADY;
+  void recording_base::_merge_static_and_dynamic_metadata_admin_locked()
+  {
+    assert(info->state & SNDE_RECF_DYNAMICMETADATAREADY && info->state & SNDE_RECF_STATICMETADATAREADY);
+    assert(!(info->state & SNDE_RECF_ALLMETADATAREADY));
 
-    // this code replaced by issue_nonmath_notifications, below
-    //channel_state &chanstate = rss->recstatus.channel_map.at(channame);
-    //notify_about_this_channel_metadataonly = chanstate.notify_about_this_channel_metadataonly();
-    //chanstate.end_atomic_notify_about_this_channel_metadataonly_update(nullptr); // all notifications are now our responsibility
-    // return notify_about_this_channel_metadataonly;
+    std::shared_ptr<constructible_metadata> all_metadata = MergeMetadata3(metadata,pending_metadata,pending_dynamic_metadata);
+
+    metadata = all_metadata;
+    info->metadata = metadata.get();
+    
+    info->state |= SNDE_RECF_ALLMETADATAREADY;
+    info_state = info->state;
+    
+    pending_dynamic_metadata = nullptr;
+    pending_metadata = nullptr;
+  }
+
+  void recording_base::_move_to_completed__rss_and_recording_locked(std::shared_ptr<recording_set_state> rss,channel_state *chanstate)
+  {
+
+    assert(info->state == SNDE_RECS_FULLYREADY);
+    
+    // move this state from recstatus.instantiated_recordings->recstatus.completed_recordings
+    std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator instantiated_recording_it = rss->recstatus.instantiated_recordings.find(chanstate->config);
+    std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator mdonly_recording_it = rss->recstatus.metadataonly_recordings.find(chanstate->config); 
+	
+    if (instantiated_recording_it != rss->recstatus.instantiated_recordings.end()) {
+      rss->recstatus.instantiated_recordings.erase(instantiated_recording_it);
+    } else if (mdonly_recording_it != rss->recstatus.metadataonly_recordings.end()) {
+      rss->recstatus.metadataonly_recordings.erase(mdonly_recording_it);
+    } else {
+      throw snde_error("recording becomes fully ready with recording not found in instantiated or mdonly",(int)info_state);
+    }
+        
+    rss->recstatus.completed_recordings.emplace(chanstate->config,chanstate);
     
   }
-  
+
+
   void recording_base::mark_metadata_done()
   {
-    // This should be called, not holding locks, (except perhaps dg_python context) after info->metadata is finalized
-    bool mdonly=false; // set to true if we are an mdonly channel and therefore should send out mdonly notifications
+    // This should be called, not holding locks, (except perhaps dg_python context) after static metadata is finalized
+    //bool mdonly=false; // set to true if we are an mdonly channel and therefore should send out mdonly notifications
     
     std::shared_ptr<recording_set_state> rss; // originating rss
     std::shared_ptr<recording_set_state> prerequisite_state; // prerequisite_state of originating rss
     
     std::shared_ptr<recdatabase> recdb = recdb_weak.lock();
     if (!recdb) return;
+
+    bool all_metadata_done = false;
+    bool becomes_fully_ready = false; 
     
     
     std::string channame;
@@ -570,18 +636,18 @@ namespace snde {
       if (_transactionrec_transaction_still_in_progress_admin_prelocked()) {
 	// this transaction is still in progress; notifications will be handled by end_transaction so don't need to do notifications
 
-	if (!metadata) {
-	  metadata=std::make_shared<immutable_metadata>();
-	}
 	
-	info->metadata = metadata.get();
-	
-	if (info_state == SNDE_RECS_METADATAREADY || info_state==SNDE_RECS_READY || info_state == SNDE_RECS_OBSOLETE) {
+	if (info_state & SNDE_RECF_STATICMETADATAREADY) {
 	  return; // already ready (or beyond)
 	}
 	
 	channame = info->name;
-	/*notify_about_this_channel_metadataonly = */_mark_metadata_done_internal(/*rss,channame*/);
+	info->state |= SNDE_RECF_STATICMETADATAREADY;
+	info_state = info->state;
+
+	if (info->state & SNDE_RECF_DYNAMICMETADATAREADY) {
+	  _merge_static_and_dynamic_metadata_admin_locked();
+	}
 	return;
       }
     }
@@ -594,45 +660,36 @@ namespace snde {
       prerequisite_state = rss->prerequisite_state();
       std::lock_guard<std::mutex> rss_admin(rss->admin);
       std::lock_guard<std::mutex> adminlock(admin);
-      assert(metadata);
-      info->metadata = metadata.get();
+
       
-      if (info_state == SNDE_RECS_METADATAREADY || info_state==SNDE_RECS_READY || info_state == SNDE_RECS_OBSOLETE) {
+      if (info_state & SNDE_RECF_STATICMETADATAREADY) {
 	return; // already ready (or beyond)
       }
 
       channame = info->name;
-      /*notify_about_this_channel_metadataonly = */_mark_metadata_done_internal(/*rss,channame*/);
-
+      
       chanstate = &rss->recstatus.channel_map.at(channame);
+      
+      info->state |= SNDE_RECF_STATICMETADATAREADY;
+      info_state = info->state;
 
-      // if this is a metadataonly recording
-      // Need to move this channel_state reference from rss->recstatus.instantiated_recordings into rss->recstatus->metadataonly_recordings
-      std::map<std::string,std::shared_ptr<instantiated_math_function>>::iterator math_function_it;
-      math_function_it = rss->mathstatus.math_functions->defined_math_functions.find(channame);
-
-      if (math_function_it != rss->mathstatus.math_functions->defined_math_functions.end()) {
-	// channel is a math channel (only math channels can be mdonly)
+      if (info->state & SNDE_RECF_DYNAMICMETADATAREADY) {
+	_merge_static_and_dynamic_metadata_admin_locked();
+	all_metadata_done = true; 
+	_check_move_to_metadataonly__rss_and_recording_locked(rss,chanstate);
 	
-	math_function_status &mathstatus = rss->mathstatus.function_status.at(math_function_it->second);
-
-	if (mathstatus.mdonly) {
-	  // yes, an mdonly channel... move it from instantiated recordings to metadataonly_recordings
-	  mdonly=true;
-	  
-	  std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator instantiated_recording_it = rss->recstatus.instantiated_recordings.find(chanstate->config); 
-	  assert(instantiated_recording_it != rss->recstatus.instantiated_recordings.end());
-
-	  rss->recstatus.instantiated_recordings.erase(instantiated_recording_it);
-	  rss->recstatus.metadataonly_recordings.emplace(chanstate->config,chanstate);
+	if (info->state == SNDE_RECS_FULLYREADY) {
+	  becomes_fully_ready = true; 
+	  _move_to_completed__rss_and_recording_locked(rss,chanstate);
 	}
+	
       }
+      
     }
-    
-    
+
     //// perform notifications
-
-
+    
+    
     
     //for (auto && notify_ptr: *notify_about_this_channel_metadataonly) {
     //  notify_ptr->notify_metadataonly(channame);
@@ -641,13 +698,113 @@ namespace snde {
     // Above replaced by chanstate.issue_nonmath_notifications
 
     //if (mdonly) {
-    chanstate->issue_math_notifications(recdb,rss,prerequisite_state);
+
+    if (becomes_fully_ready || all_metadata_done) {
+      chanstate->issue_math_notifications(recdb,rss,prerequisite_state);
+    }
+    chanstate->issue_nonmath_notifications(rss);
+    //}
+    
+
+  }
+
+    
+    
+  
+  void recording_base::mark_dynamic_metadata_done()
+  {
+    // This should be called, not holding locks, (except perhaps dg_python context) after info->metadata is finalized
+    //bool mdonly=false; // set to true if we are an mdonly channel and therefore should send out mdonly notifications
+    
+    std::shared_ptr<recording_set_state> rss; // originating rss
+    std::shared_ptr<recording_set_state> prerequisite_state; // prerequisite_state of originating rss
+    
+    std::shared_ptr<recdatabase> recdb = recdb_weak.lock();
+    if (!recdb) return;
+    
+    bool all_metadata_done = false;
+
+    bool becomes_fully_ready = false; 
+    
+    std::string channame;
+    {
+      std::lock_guard<std::mutex> adminlock(admin);
+      if (_transactionrec_transaction_still_in_progress_admin_prelocked()) {
+	// this transaction is still in progress; notifications will be handled by end_transaction so don't need to do notifications
+	
+	
+	if (info_state & SNDE_RECF_DYNAMICMETADATAREADY) {
+	  return; // already ready (or beyond)
+	}
+	
+	channame = info->name;
+	info->state |= SNDE_RECF_DYNAMICMETADATAREADY;
+	info_state = info->state;
+	
+	if (info->state & SNDE_RECF_STATICMETADATAREADY) {
+	  _merge_static_and_dynamic_metadata_admin_locked();
+	}
+	return;
+      }
+    }
+    channel_state *chanstate;
+    {
+      
+      // with transaction complete, should be able to get an originating rss
+      // (trying to make the state change atomically)
+      rss = get_originating_rss();
+      prerequisite_state = rss->prerequisite_state();
+      std::lock_guard<std::mutex> rss_admin(rss->admin);
+      std::lock_guard<std::mutex> adminlock(admin);
+      
+      if (info_state & SNDE_RECF_DYNAMICMETADATAREADY) {
+	return; // already ready (or beyond)
+      }
+
+      channame = info->name;
+      chanstate = &rss->recstatus.channel_map.at(channame);
+
+      
+      info->state |= SNDE_RECF_DYNAMICMETADATAREADY;
+      info_state = info->state;
+
+      if (info->state & SNDE_RECF_STATICMETADATAREADY) {
+	_merge_static_and_dynamic_metadata_admin_locked();
+	all_metadata_done=true; 
+	_check_move_to_metadataonly__rss_and_recording_locked(rss,chanstate);
+	if (info->state == SNDE_RECS_FULLYREADY) {
+	  becomes_fully_ready = true;
+	  _move_to_completed__rss_and_recording_locked(rss,chanstate);
+	}
+      }
+      
+
+
+    }
+
+    
+    
+    //// perform notifications
+
+    
+    
+    //for (auto && notify_ptr: *notify_about_this_channel_metadataonly) {
+    //  notify_ptr->notify_metadataonly(channame);
+    //}
+
+    // Above replaced by chanstate.issue_nonmath_notifications
+
+    //if (mdonly) {
+
+    if (becomes_fully_ready || all_metadata_done) {
+      chanstate->issue_math_notifications(recdb,rss,prerequisite_state);
+    }
     chanstate->issue_nonmath_notifications(rss);
     //}
     
   }
   
-  void recording_base::mark_as_ready()  
+  void recording_base::mark_data_ready()  
   {
     std::string channame;
     std::shared_ptr<recording_set_state> rss; // originating rss
@@ -663,9 +820,7 @@ namespace snde {
     std::shared_ptr<recdatabase> recdb = recdb_weak.lock();
     if (!recdb) return;
 
-    if (!metadata) {
-      metadata=std::make_shared<immutable_metadata>();
-    }
+    bool becomes_fully_ready = false; 
     
     {
       std::unique_lock<std::mutex> rec_admin(admin);
@@ -674,25 +829,14 @@ namespace snde {
 	// this transaction is still in progress; notifications will be handled by end_transaction()
 	
 	
-	//assert(metadata);
-	
-	if (!info->metadata) {
-	  info->metadata = metadata.get();
-	}
-	
-	if (info_state==SNDE_RECS_READY || info_state == SNDE_RECS_OBSOLETE) {
+	if (info_state & SNDE_RECF_DATAREADY) {
 	  return; // already ready (or beyond)
 	}
 	channame = info->name;
 	
-	if (info_state==SNDE_RECS_INITIALIZING) {
-	  // need to perform metadata notifies too
-	  /*notify_about_this_channel_metadataonly =*/ /* _mark_metadata_done_internal(rss,channame); */
-	  
-	}
 	
-	info->state = SNDE_RECS_READY;
-	info_state = SNDE_RECS_READY;
+	info->state |= SNDE_RECF_DATAREADY;
+	info_state = info->state;
 
 	if (info->immutable) {
 	  rec_admin.unlock();
@@ -718,47 +862,27 @@ namespace snde {
       std::unique_lock<std::mutex> rss_admin(rss->admin);
       std::unique_lock<std::mutex> adminlock(admin);
 
-      assert(metadata);
-      if (!info->metadata) {
-	info->metadata = metadata.get();
-      }
 
-      if (info_state==SNDE_RECS_READY || info_state == SNDE_RECS_OBSOLETE) {
+      if (info_state & SNDE_RECF_DATAREADY) {
 	return; // already ready (or beyond)
       }
       channame = info->name;
       
-	
+
+      info->state |= SNDE_RECF_DATAREADY;
+      info_state = info->state;
+
 
       chanstate = &rss->recstatus.channel_map.at(channame);
 
-      if (info_state==SNDE_RECS_INITIALIZING || info_state == SNDE_RECS_METADATAREADY) {
-	// need to perform metadata notifies too
-	/*notify_about_this_channel_metadataonly =*/ /* _mark_metadata_done_internal(rss,channame); */
-	// move this state from recstatus.instantiated_recordings->recstatus.completed_recordings
-	std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator instantiated_recording_it = rss->recstatus.instantiated_recordings.find(chanstate->config);
-	std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator mdonly_recording_it = rss->recstatus.metadataonly_recordings.find(chanstate->config); 
-	
-	if (instantiated_recording_it != rss->recstatus.instantiated_recordings.end()) {
-	  rss->recstatus.instantiated_recordings.erase(instantiated_recording_it);
-	} else if (mdonly_recording_it != rss->recstatus.metadataonly_recordings.end()) {
-	  rss->recstatus.metadataonly_recordings.erase(mdonly_recording_it);
-	} else {
-	  throw snde_error("mark_as_ready() with recording not found in instantiated or mdonly",(int)info_state);
-	}
-	
-	
-      } else {
-	throw snde_error("mark_as_ready() with bad state %d",(int)info_state);
-	
-	// move this state from recstatus.metadataonly_recordings->recstatus.completed_recordings
-      
+      if (info_state==SNDE_RECS_FULLYREADY) {
 
+	// we are now fully ready
+	
+	_move_to_completed__rss_and_recording_locked(rss,chanstate);
+
+	becomes_fully_ready = true; 
       }
-
-      info->state = SNDE_RECS_READY;
-      info_state = SNDE_RECS_READY;
-      rss->recstatus.completed_recordings.emplace(chanstate->config,chanstate);
 
       if (info->immutable) {
 	adminlock.unlock();
@@ -780,10 +904,20 @@ namespace snde {
 
 
     //assert(chanstate.notify_about_this_channel_metadataonly());
-    chanstate->issue_math_notifications(recdb,rss,prerequisite_state);
+
+    if (becomes_fully_ready) {
+      chanstate->issue_math_notifications(recdb,rss,prerequisite_state);
+    }
+    
     chanstate->issue_nonmath_notifications(rss);
   }
 
+  void recording_base::mark_data_and_metadata_ready()  
+  {
+    mark_metadata_done();
+    mark_data_ready();
+  }
+  
   void recording_base::_mark_storage_as_finalized_internal()
   {
     // subclasses with storage should override this
@@ -964,7 +1098,7 @@ namespace snde {
   }
 
   
-  void multi_ndarray_recording::mark_as_ready()
+  void multi_ndarray_recording::mark_data_ready()
   {
     // Notify our storage that we are marked as ready, which may cause cache invalidation, etc.
     for (auto && recstorage: storage) {
@@ -976,7 +1110,7 @@ namespace snde {
     }
     
     // call superclass, which does the rest of the management
-    recording_base::mark_as_ready();
+    recording_base::mark_data_ready();
     // (including a _mark_storage_as_finalized_internal() call at the end if we are supposed to be immutable)
   }
   
@@ -1841,6 +1975,43 @@ namespace snde {
     return std::make_pair(globalrev,expired_pointer);
   }
 
+  bool transaction::transaction_globalrev_is_complete()
+  {
+    std::shared_ptr<globalrevision> globalrev;
+    bool expired_pointer;
+
+    std::tie(globalrev,expired_pointer) = resulting_globalrevision();
+
+    if (expired_pointer) {
+      return true; 
+    }
+    
+    if (!globalrev) {
+      return false;
+    }
+
+    // check if all recordings are ready;
+    {
+      std::lock_guard<std::mutex> globalrev_admin(globalrev->admin);
+
+      bool all_ready = !globalrev->recstatus.defined_recordings.size() && !globalrev->recstatus.instantiated_recordings.size();      
+
+      return all_ready; 
+    }
+  }
+
+  std::shared_ptr<promise_channel_notify> transaction::get_transaction_globalrev_complete_waiter()
+  // The waiter is interruptable by a promise exception; some sort of interrupt() method.
+  {
+    std::shared_ptr<promise_channel_notify> retval;
+
+    retval = std::make_shared<promise_channel_notify>(std::vector<std::string>(),std::vector<std::string>(),true);
+
+    retval->apply_to_transaction(shared_from_this());
+
+    return retval;
+  }
+  
   active_transaction::active_transaction(std::shared_ptr<recdatabase> recdb) :
     recdb(recdb),
     transaction_ended(false)
@@ -2662,7 +2833,7 @@ namespace snde {
 	    std::shared_ptr<recording_base> rec = chanstate.rec();
 	    int rec_state = rec->info_state;
 	    
-	    if (rec && rec_state==SNDE_RECS_READY) {
+	    if (rec && rec_state==SNDE_RECS_FULLYREADY) {
 	      // Criterion met. Nothing to do 
 	    } else {
 	      // Criterion not met; add notification
@@ -2760,14 +2931,14 @@ namespace snde {
 	      // for math channels, ondemand math channels iff ondemand_only is set, non-ondemand channels iff ondemand_only is not set
 	      std::shared_ptr<instantiated_math_function> math_prereq = new_rss->mathstatus.math_functions->defined_math_functions.at(prereq_channel_fullpath);
 
-	      if (mathfunction_is_mdonly && math_prereq->mdonly && prereq_rec && (prereq_rec_state == SNDE_RECS_METADATAREADY || prereq_rec_state==SNDE_RECS_READY)) {
+	      if (mathfunction_is_mdonly && math_prereq->mdonly && prereq_rec && (prereq_rec_state & SNDE_RECF_ALLMETADATAREADY)) {
 		// If we are mdonly, and the prereq is mdonly and the recording exists and is metadataready or fully ready,
 		// then this prerequisite is complete and nothing is needed.
 		
 		prereq_complete = true; 
 	      }
 	    }
-	    if (prereq_rec && prereq_rec_state == SNDE_RECS_READY) {
+	    if (prereq_rec && prereq_rec_state == SNDE_RECS_FULLYREADY) {
 	      // If the recording exists and is fully ready,
 	      // then this prerequisite is complete and nothing is needed.
 	      prereq_complete = true; 
@@ -3186,7 +3357,7 @@ namespace snde {
       new_rec->metadata = std::make_shared<immutable_metadata>();
       new_rec->mark_metadata_done();
       //new_rec->allocate_storage(0,std::vector<snde_index>());
-      new_rec->mark_as_ready();
+      new_rec->mark_data_ready();
       
       // mark it as completed
       globalrev->recstatus.defined_recordings.erase(config);
@@ -3232,6 +3403,9 @@ namespace snde {
     // Think it should be unnecessary.
     // ***!!!! This stuff doesn't belong in recstore_display_transforms::update()
     // so from here on we just keep parallel code
+
+    std::vector<std::shared_ptr<channel_notify>> transaction_pending_channel_notifies;  // from the pending_channel_notifies of the transaction
+
     {
       std::lock_guard<std::mutex> recdb_lock(recdb_strong->admin);
 
@@ -3262,6 +3436,10 @@ namespace snde {
 	  std::lock_guard<std::mutex> transaction_admin(recdb_strong->current_transaction->admin);
 	  recdb_strong->current_transaction->_resulting_globalrevision = globalrev;
 
+	  // extract pending_channel_notifies
+	  transaction_pending_channel_notifies = recdb_strong->current_transaction->pending_channel_notifies;
+	  recdb_strong->current_transaction->pending_channel_notifies.clear();
+	  
 	  // While we hold both recdb and our globalrev, and
 	  // the transaction locks, we need to
 	  // go through the globalrev rss and move any defined_recordings,
@@ -3314,6 +3492,11 @@ namespace snde {
       }
     }
 
+    // go through the pending_channel_notifies from the transaction
+    for (auto && pending_channel_notify:    transaction_pending_channel_notifies) {
+      pending_channel_notify->apply_to_rss(globalrev);
+    }
+
     //// get notified so as to remove entries from available_compute_resource_database blocked_list
     //// once the previous globalrev is complete.
     //if (previous_globalrev) {
@@ -3338,6 +3521,28 @@ namespace snde {
     
     return globalrev;
   }
+
+  std::shared_ptr<transaction> active_transaction::run_in_background_and_end_transaction(std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn,std::shared_ptr<void> params)
+  {
+    std::shared_ptr<recdatabase> recdb_strong = recdb.lock();
+    if (!recdb_strong) {
+      return nullptr;
+    }
+
+    std::shared_ptr<transaction> retval = recdb_strong->current_transaction;
+    
+    std::lock_guard<std::mutex> transaction_background_end_lockholder(recdb_strong->transaction_background_end_lock);
+
+    assert(!recdb_strong->transaction_background_end_fcn);  // should not set two background end functions simultaneously
+    recdb_strong->transaction_background_end_fcn = fcn;
+    recdb_strong->transaction_background_end_params = params;
+    recdb_strong->transaction_background_end_acttrans = shared_from_this();
+
+    recdb_strong->transaction_background_end_condition.notify_all();
+
+    return retval;
+  }
+
   
   active_transaction::~active_transaction()
   {
@@ -3429,13 +3634,13 @@ namespace snde {
     if (retval) {
       int info_state = retval->info_state;
       if (mdonly) {
-	if (info_state == SNDE_RECS_METADATAREADY || info_state==SNDE_RECS_READY) {
+	if (info_state & SNDE_RECF_ALLMETADATAREADY) {
 	  return retval;
 	} else {
 	  return nullptr;
 	}
       } else {
-	if (info_state==SNDE_RECS_READY) {
+	if (info_state==SNDE_RECS_FULLYREADY) {
 	  return retval;
 	} else {
 	  return nullptr;
@@ -3453,8 +3658,8 @@ namespace snde {
   // pass on the notifications the first time. 
   {
 
-    // !!!*** This code is largely redundant with recording::mark_as_ready, and the excess should probably be consolidated  ***!!!
-    // Note that compared to recording::mark_as_ready this is also used in circumstances
+    // !!!*** This code is largely redundant with recording::mark_data_ready, and the excess should probably be consolidated  ***!!!
+    // Note that compared to recording::mark_data_ready this is also used in circumstances
     // where an already completed recording is being assigned to a new
     // recording_set_state
     
@@ -3725,7 +3930,7 @@ namespace snde {
   }
   
   void recording_set_state::_update_recstatus__rss_admin_transaction_admin_locked()
-  // This is called during end_transaction() with the recdb admin lock, the rss admin lock, and the transaction admin lock held, to identify anything misplaced in the above unordered_maps. After the call and marking of the transaction's _resulting_globalrevision, placement responsibility shifts to mark_metadata_done() and mark_as_ready() methods of the recording. 
+  // This is called during end_transaction() with the recdb admin lock, the rss admin lock, and the transaction admin lock held, to identify anything misplaced in the above unordered_maps. After the call and marking of the transaction's _resulting_globalrevision, placement responsibility shifts to mark_metadata_done() and mark_data_ready() methods of the recording. 
   {
 
     std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator mdonlyrec_it,mdonlyrec_next;
@@ -3743,12 +3948,7 @@ namespace snde {
       
       assert(rec->info_state != SNDE_RECS_INITIALIZING); // state cannot progress backwards
       
-      if (rec->info_state==SNDE_RECS_METADATAREADY) {
-	// where we should be (even if mdonly flag is cleared
-	// I don't think we should move back to
-	// instantiated_recordings (?)
-      } else {
-	assert(rec->info_state >= SNDE_RECS_READY);
+      if (rec->info_state==SNDE_RECS_FULLYREADY) {
 	// recording is ready
 	// go into completed recordings
 	recstatus.metadataonly_recordings.erase(mdonlyrec_it);
@@ -3772,10 +3972,13 @@ namespace snde {
       assert(rec);
 
 
-      if (rec->info_state==SNDE_RECS_INITIALIZING) {
-	// Where it should be already
+      if (rec->info_state == SNDE_RECS_FULLYREADY) {
+	// recording is ready
+	// go into completed recordings
+	recstatus.instantiated_recordings.erase(instrec_it);
+	recstatus.completed_recordings.emplace(config,&state);
 	
-      } else if (rec->info_state==SNDE_RECS_METADATAREADY) {
+      } else if (rec->info_state & SNDE_RECF_ALLMETADATAREADY) {
 	  // check for MDonly
 	
 	bool mdonly = _urratal_check_mdonly(config->channelpath);
@@ -3784,18 +3987,10 @@ namespace snde {
 	  // if we have metadata and we are mdonly we go into metadataonly_recordings
 	  recstatus.instantiated_recordings.erase(instrec_it);
 	  recstatus.metadataonly_recordings.emplace(config,&state);
-	} else {
-	  // stay in instantiated_recordings
-	}
+	} 
 	
-      } else {
-	assert(rec->info_state >= SNDE_RECS_READY);
-	// recording is ready
-	// go into completed recordings
-	recstatus.instantiated_recordings.erase(instrec_it);
-	recstatus.completed_recordings.emplace(config,&state);
-      }
-
+      } 
+      
       
     }
 
@@ -3809,10 +4004,13 @@ namespace snde {
 
       std::shared_ptr<recording_base> rec = state.rec();
       if (rec) {
-	if (rec->info_state==SNDE_RECS_INITIALIZING) {
+	if (rec->info_state == SNDE_RECS_FULLYREADY) {
+	  // recording is ready
+	  // go into completed recordings
 	  recstatus.defined_recordings.erase(defrec_it);
-	  recstatus.instantiated_recordings.emplace(config,&state);
-	} else if (rec->info_state==SNDE_RECS_METADATAREADY) {
+	  recstatus.completed_recordings.emplace(config,&state);
+
+	} else if (rec->info_state & SNDE_RECF_ALLMETADATAREADY) {
 	  // check for MDonly
 	  bool mdonly = _urratal_check_mdonly(config->channelpath);
 	  
@@ -3827,12 +4025,12 @@ namespace snde {
 	  }
 	  
 	} else {
-	  assert(rec->info_state >= SNDE_RECS_READY);
-	  // recording is ready
-	  // go into completed recordings
+	  // go into instantiated_recordings
 	  recstatus.defined_recordings.erase(defrec_it);
-	  recstatus.completed_recordings.emplace(config,&state);
+	  recstatus.instantiated_recordings.emplace(config,&state);
+	  
 	}
+	
       }
     }
   }
@@ -3955,9 +4153,11 @@ namespace snde {
     
     promise_notify->apply_to_rss(shared_from_this());
 
-    std::future<void> criteria_satisfied = promise_notify->promise.get_future();
-    criteria_satisfied.wait();
+    //std::future<bool> criteria_satisfied = promise_notify->promise.get_future();
+    //criteria_satisfied.wait();
 
+    promise_notify->wait_interruptable();
+    
   }
 
   std::shared_ptr<recording_base> recording_set_state::get_recording(const std::string &fullpath)
@@ -4206,6 +4406,7 @@ namespace snde {
     default_storage_manager(nullptr),
     lockmgr(lockmgr),
     started(false),
+    transaction_background_end_mustexit(false),
     monitoring_notify_globalrev(0),
     globalrev_mutablenotneeded_mustexit(false)
 
@@ -4227,7 +4428,7 @@ namespace snde {
     globalrev_mutablenotneeded_thread = std::thread([this]() { globalrev_mutablenotneeded_code(); });
     //globalrev_mutablenotneeded_thread.detach(); // we won't be join()ing this thread
 
-    
+    transaction_background_end_thread = std::thread([this]() { transaction_background_end_code(); });
     
   }
 
@@ -4243,7 +4444,21 @@ namespace snde {
       globalrev_mutablenotneeded_mustexit=true;
       globalrev_mutablenotneeded_condition.notify_all();
     }
+    
     globalrev_mutablenotneeded_thread.join();
+    
+
+    // Trigger transaction_background_end_thread to die, then join() it. 
+    {
+      std::lock_guard<std::mutex> transaction_background_end_lockholder(transaction_background_end_lock);
+
+      transaction_background_end_mustexit=true;
+      transaction_background_end_condition.notify_all();
+    }
+
+    transaction_background_end_thread.join();
+
+
   }
 
   void recdatabase::add_alignment_requirement(size_t nbytes)
@@ -4288,6 +4503,11 @@ namespace snde {
   std::shared_ptr<globalrevision> recdatabase::end_transaction(std::shared_ptr<active_transaction> act_trans)
   {
     return act_trans->end_transaction();
+  }
+
+  std::shared_ptr<transaction> recdatabase::run_in_background_and_end_transaction(std::shared_ptr<active_transaction> act_trans,std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn,std::shared_ptr<void> params)
+  {
+    return act_trans->run_in_background_and_end_transaction(fcn,params);
   }
 
   void recdatabase::add_math_function(std::shared_ptr<instantiated_math_function> new_function,bool hidden)
@@ -4463,8 +4683,9 @@ namespace snde {
 
     promise_notify->apply_to_rss(rss);
 
-    std::future<void> criteria_satisfied = promise_notify->promise.get_future();
-    criteria_satisfied.wait();
+    //std::future<bool> criteria_satisfied = promise_notify->promise.get_future();
+    //criteria_satisfied.wait();
+    promise_notify->wait_interruptable();
   }
 
   std::shared_ptr<monitor_globalrevs> recdatabase::start_monitoring_globalrevs(std::shared_ptr<globalrevision> first/* = nullptr*/,bool inhibit_mutable/* = false */)
@@ -4531,6 +4752,8 @@ namespace snde {
     std::unique_lock<std::mutex> globalrev_mutablenotneeded_lockholder(globalrev_mutablenotneeded_lock);
     bool exit_flag=false;
 
+    set_thread_name(nullptr,"snde2 recdb gmnnc");
+
     //fprintf(stderr,"gmnnc() starting\n");
 
     while (!exit_flag) {
@@ -4583,6 +4806,51 @@ namespace snde {
 
   }
 
+
+  void recdatabase::transaction_background_end_code()
+  {
+
+    set_thread_name(nullptr,"snde2 recdb tbec");
+
+    std::unique_lock<std::mutex> transaction_background_end_lockholder(transaction_background_end_lock);
+    
+    //fprintf(stderr,"tbec() starting\n");
+
+    while (true) {
+      //fprintf(stderr,"tbec() waiting\n");
+      transaction_background_end_condition.wait(transaction_background_end_lockholder);
+      //fprintf(stderr,"tbec() wakeup\n");
+
+      if (transaction_background_end_mustexit) {
+	return;
+      }
+
+
+      if (transaction_background_end_fcn) {
+	transaction_background_end_lockholder.unlock();
+
+	std::shared_ptr<recdatabase> recdb_strong = transaction_background_end_acttrans->recdb.lock();
+	if (!recdb_strong) {
+	  return;
+	}
+
+	transaction_background_end_fcn(recdb_strong,transaction_background_end_params);
+	
+	
+	transaction_background_end_acttrans->end_transaction();
+	
+	transaction_background_end_lockholder.lock();
+	// empty the std::function
+	transaction_background_end_fcn = std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)>();
+	transaction_background_end_params = nullptr;
+	transaction_background_end_acttrans = nullptr;
+      }
+    }
+    //fprintf(stderr,"gmnnc() exit\n");
+
+  }
+
+  
   std::shared_ptr<math_function_registry_map> recdatabase::math_functions()
   {
     return std::atomic_load(&_math_functions);

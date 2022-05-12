@@ -66,7 +66,7 @@ def live_thread_code():
         #print("value=%s" % (str(value)))
         
         live_recording.assign_complexfloat64([],value)
-        live_recording.rec.mark_as_ready()
+        live_recording.rec.mark_data_ready()
         
         transact.end_transaction()
         

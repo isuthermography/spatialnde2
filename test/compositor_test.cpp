@@ -179,7 +179,7 @@ int main(int argc, char **argv)
   std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
   ReadPNG(png_rec,argv[2]);
   png_rec->rec->mark_metadata_done();
-  png_rec->rec->mark_as_ready();
+  png_rec->rec->mark_data_ready();
 
   globalrev->wait_complete(); // globalrev must be complete before we are allowed to pass it to viewer. 
 

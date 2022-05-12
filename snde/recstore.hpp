@@ -283,7 +283,11 @@ namespace snde {
     std::mutex admin; 
     struct snde_recording_base *info; // owned by this class and allocated with malloc; often actually a sublcass such as snde_multi_ndarray_recording
     std::atomic_int info_state; // atomic mirror of info->state ***!!! This is referenced by the ndarray_recording_ref->info_state
-    std::shared_ptr<immutable_metadata> metadata; // pointer may not be changed once info_state reaches <METADATADONE. The pointer in info is the .get() value of this pointer. 
+    std::shared_ptr<constructible_metadata> pending_metadata; 
+    std::shared_ptr<immutable_metadata> metadata; // pointer may not be changed once info_state ALLMETADATAREADY flag set. The pointer in info is the .get() value of this pointer. This is really the only metadata field that matters, and it is build from the combination of metadata, pending_metadata, and pending_dynamic_metadata in _merge_static_and_dynamic_metadata_admin_locked()
+
+    bool needs_dynamic_metadata; // assign with recording_needs_dynamic_metadata() method
+    std::shared_ptr<constructible_metadata> pending_dynamic_metadata; 
 
     std::shared_ptr<recording_storage_manager> storage_manager; // pointer initialized to a default by recording constructor, then used by the allocate_storage() method. Any assignment must be prior to that. may not be used afterward; see recording_storage in recstore_storage.hpp for details on pointed structure.
 
@@ -318,6 +322,9 @@ namespace snde {
     recording_base(const recording_base &orig) = delete;
     virtual ~recording_base(); // virtual destructor so we can be subclassed
 
+    virtual void recording_needs_dynamic_metadata(); // Call this before mark_metadata_done() to list this recording as needing dynamic metadata
+
+
     std::shared_ptr<multi_ndarray_recording> cast_to_multi_ndarray();
 
     virtual std::shared_ptr<recording_set_state> _get_originating_rss_rec_admin_prelocked(); // version of get_originating_rss() to use if you have the recording database and recording's admin locks already locked.
@@ -333,11 +340,17 @@ namespace snde {
     virtual rwlock_token_set lock_storage_for_read();
     */
 
+    virtual void _check_move_to_metadataonly__rss_and_recording_locked(std::shared_ptr<recording_set_state> rss,channel_state *chanstate);
     
-    
-    virtual void _mark_metadata_done_internal(/*std::shared_ptr<recording_set_state> rss,const std::string &channame*/);
+    virtual void _merge_static_and_dynamic_metadata_admin_locked();
+
+    virtual void _move_to_completed__rss_and_recording_locked(std::shared_ptr<recording_set_state> rss,channel_state *chanstate);
+
+
     virtual void mark_metadata_done();  // call WITHOUT admin lock (or other locks?) held. 
-    virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held.
+    virtual void mark_dynamic_metadata_done();  // call WITHOUT admin lock (or other locks?) held. 
+    virtual void mark_data_ready();  // call WITHOUT admin lock (or other locks?) held.
+    virtual void mark_data_and_metadata_ready();  // call WITHOUT admin lock (or other locks?) held.
     virtual void _mark_storage_as_finalized_internal();
 
     virtual std::shared_ptr<recording_storage_manager> assign_storage_manager(std::shared_ptr<recording_storage_manager> storman);
@@ -412,7 +425,7 @@ namespace snde {
     // i.e. first thing after construction 
     virtual void set_num_ndarrays(size_t num_ndarrays); 
 
-    virtual void mark_as_ready();  // call WITHOUT admin lock (or other locks?) held. Passes on ready_notifications to storage
+    virtual void mark_data_ready();  // call WITHOUT admin lock (or other locks?) held. Passes on ready_notifications to storage
     virtual void _mark_storage_as_finalized_internal();
 
     
@@ -678,7 +691,7 @@ namespace snde {
     
   };
 
-  class transaction {
+  class transaction: public std::enable_shared_from_this<transaction> {
   public:
     // mutable until end of transaction when it is destroyed and converted to a globalrev structure
     std::mutex admin; // after the recording_set_state in the locking order and after the class channel's admin lock, but before recordings. Must hold this lock when reading or writing structures within. Does not cover the channels/recordings themselves.
@@ -693,11 +706,22 @@ namespace snde {
     // end of transaction propagates this structure into an update of recdatabase._channels
     // and a new globalrevision
 
+    std::vector<std::shared_ptr<channel_notify>> pending_channel_notifies; // channel_notifies that need to be applied to the globalrev once it is created
+
     // when the transaction is complete, resulting_globalrevision() is assigned
     // so that if you have a pointer to the transaction you can get the globalrevision (which is also a recording_set_state)
     std::weak_ptr<globalrevision> _resulting_globalrevision; // locked by transaction admin mutex; use resulting_globalrevision() accessor. 
     std::pair<std::shared_ptr<globalrevision>,bool> resulting_globalrevision(); // returned bool true means null pointer indicates expired pointer, rather than in-progress transaction
 
+
+    bool transaction_globalrev_is_complete();
+
+
+    // Wait on the return value of get_transaction_globalrev_complete_waiter() by
+    // calling its wait_interruptable method.
+    // You can call its interrupt() method from another thread to
+    // cancel the wait. 
+    std::shared_ptr<promise_channel_notify> get_transaction_globalrev_complete_waiter(); 
     
   };
 
@@ -726,7 +750,7 @@ namespace snde {
 					     bool ondemand_only);
 
   
-  class active_transaction /* : public std::enable_shared_from_this<active_transaction> */ {
+  class active_transaction  : public std::enable_shared_from_this<active_transaction>  {
     // RAII interface to transaction
     // Don't use this directly from dataguzzler-python, because there
     // you need to drop the thread context before starting the
@@ -748,6 +772,8 @@ namespace snde {
 
         
     std::shared_ptr<globalrevision> end_transaction();
+
+    std::shared_ptr<transaction> run_in_background_and_end_transaction(std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn,std::shared_ptr<void> params);
     
   };
 
@@ -971,7 +997,7 @@ namespace snde {
       // internal use only for recording_set_state::_update_recstatus__rss_admin_transaction_admin_locked()
     bool _urratal_check_mdonly(std::string channelpath);
     
-    void _update_recstatus__rss_admin_transaction_admin_locked(); // This is called during end_transaction() with the recdb admin lock, the rss admin lock, and the transaction admin lock held, to identify anything misplaced in the above unordered_maps. After the call and marking of the transaction's _resulting_globalrevision, placement responsibility shifts to mark_metadata_done() and mark_as_ready() methods of the recording. 
+    void _update_recstatus__rss_admin_transaction_admin_locked(); // This is called during end_transaction() with the recdb admin lock, the rss admin lock, and the transaction admin lock held, to identify anything misplaced in the above unordered_maps. After the call and marking of the transaction's _resulting_globalrevision, placement responsibility shifts to mark_metadata_done() and mark_data_ready() methods of the recording. 
 
     std::string get_math_status();
     std::string get_math_function_status(std::string definition_command);
@@ -1045,9 +1071,19 @@ namespace snde {
 
     std::atomic<bool> started;
 
-    std::mutex transaction_lock; // ***!!! Before any dataguzzler-python module locks, etc. Before the recdb admin lock
+    std::mutex transaction_lock; // ***!!! Before any dataguzzler-python module context locks, etc. Before the recdb admin lock
     std::shared_ptr<transaction> current_transaction; // only valid while transaction_lock is held. But changing/accessing also requires the recdb admin lock
 
+
+    // managing the thread that can run stuff at the end of a transaction
+    std::thread transaction_background_end_thread; // used by active_transaction::run_in_background_and_end_transaction()
+    std::mutex transaction_background_end_lock; // locks the condition variable, function, pointers, and bool immediately below.  Last in the locking order
+    std::condition_variable transaction_background_end_condition;
+    std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> transaction_background_end_fcn;
+    std::shared_ptr<void> transaction_background_end_params;
+    std::shared_ptr<active_transaction> transaction_background_end_acttrans;
+    bool transaction_background_end_mustexit;
+    
     std::set<std::weak_ptr<monitor_globalrevs>,std::owner_less<std::weak_ptr<monitor_globalrevs>>> monitoring;
     uint64_t monitoring_notify_globalrev; // latest globalrev for which monitoring has already been notified
 
@@ -1078,6 +1114,8 @@ namespace snde {
     // active_transaction or delete the active_transaction) until all other threads are finished with transaction actions
     std::shared_ptr<active_transaction> start_transaction();
     std::shared_ptr<globalrevision> end_transaction(std::shared_ptr<active_transaction> act_trans);
+    std::shared_ptr<transaction> run_in_background_and_end_transaction(std::shared_ptr<active_transaction> act_trans,std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn, std::shared_ptr<void> params);
+
     // add_math_function() must be called within a transaction
     void add_math_function(std::shared_ptr<instantiated_math_function> new_function,bool hidden); // Use separate functions with/without storage manager because swig screws up the overload
     void add_math_function_storage_manager(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager);
@@ -1114,7 +1152,8 @@ namespace snde {
     void unregister_ready_globalrev_quicknotifies_called_recdb_locked(std::shared_ptr<std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision>)>> quicknotify);
 
     void globalrev_mutablenotneeded_code(); 
-
+    void transaction_background_end_code();
+    
     
     std::shared_ptr<math_function_registry_map> math_functions(); // Note that this includes ONLY the custom-added math functions, not the built ins. Use math_function_registry()  to get the c++ built in ones
 

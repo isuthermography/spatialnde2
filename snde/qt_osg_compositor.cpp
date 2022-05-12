@@ -20,6 +20,8 @@ namespace snde {
   
   void qt_osg_worker_thread::run()
   {
+    set_thread_name(nullptr,"snde2 qt_osg worker");
+
     comp->worker_code();
   }
 

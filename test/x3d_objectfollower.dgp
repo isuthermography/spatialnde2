@@ -29,25 +29,25 @@ transact = snde.active_transaction(recdb)
 graphicsgroup_config=snde.channelconfig("/graphics", "main", recdb.raw(),False,graphman)
 graphicsgroup = recdb.reserve_channel(graphicsgroup_config); 
 
-part_recordings = snde.x3d_load_geometry(recdb,graphman,args[1],"main",recdb,"/graphics/",False,True)
+part_recordings = snde.x3d_load_geometry(recdb,graphman,args[1],0,"main",recdb.raw(),"/graphics/x3d",None,[ "reindex_vertices", "reindex_tex_vertices", "trinormals"])
 
 
 
 followerchan_config=snde.channelconfig("/graphics/follower channel", "main", recdb.raw(),False)
 followerchan = recdb.reserve_channel(followerchan_config); 
 
-followerrec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,followerchan,recdb.raw(),"/graphics/x3d_meshed0","/pointcloud recording",main_viewer.viewer.OSGWidget)
+followerrec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,followerchan,recdb.raw(),"/graphics/x3d/meshed","/pointcloud recording",main_viewer.viewer.OSGWidget)
 
 
 followerrec
 followerrec.metadata=snde.constructible_metadata()
 followerrec.mark_metadata_done()
-followerrec.mark_as_ready()
+followerrec.mark_data_ready()
 
 globalrev = transact.end_transaction()
 
 
 k4a.running=True
 
-# can call main_viewer.viewer.get_camera_pose("/graphics/x3d_meshed0")
+# can call main_viewer.viewer.get_camera_pose("/graphics/x3d/meshed")
 # to get pose manually. 

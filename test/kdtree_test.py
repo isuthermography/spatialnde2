@@ -57,7 +57,7 @@ vertices.allocate_storage([ num_raw_vertices ]);
 raw_vertices = np.random.randn(num_raw_vertices,3)
 
 vertices.data()["coord"] = raw_vertices
-vertices.rec.mark_as_ready()
+vertices.rec.mark_data_ready()
 
 
 
@@ -75,7 +75,7 @@ search_points.allocate_storage([ num_search_points ]);
 np.random.seed(0)
 raw_search_points = np.random.randn(num_search_points,3)*8
 search_points.data()["coord"] = raw_search_points
-search_points.rec.mark_as_ready()
+search_points.rec.mark_data_ready()
 
 
     
@@ -102,7 +102,7 @@ search_points2.allocate_storage([ num_raw_vertices ]);
 #    (4,8, 0 ),
 #],dtype=np.float32)
 search_points2.data()["coord"] = raw_vertices
-search_points2.rec.mark_as_ready()
+search_points2.rec.mark_data_ready()
 globalrev2 = transact2.end_transaction()
 globalrev2.wait_complete();
 

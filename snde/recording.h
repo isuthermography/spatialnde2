@@ -34,10 +34,15 @@ struct snde_recording_base {
 
   
 };
+
+// note distinction between states (SNDE_RECS_XXXX) and flags (SNDE_RECF_XXXX) 
 #define SNDE_RECS_INITIALIZING 0
-#define SNDE_RECS_METADATAREADY 1
-#define SNDE_RECS_READY 2
-#define SNDE_RECS_OBSOLETE 3
+#define SNDE_RECF_STATICMETADATAREADY (1<<0)
+#define SNDE_RECF_DYNAMICMETADATAREADY (1<<1)
+#define SNDE_RECF_ALLMETADATAREADY (1<<2) // automatically set by _merge_static_and_dynamic_metadata_admin_locked()
+#define SNDE_RECF_DATAREADY (1<<3)
+#define SNDE_RECS_FULLYREADY (SNDE_RECF_STATICMETADATAREADY|SNDE_RECF_DYNAMICMETADATAREADY|SNDE_RECF_ALLMETADATAREADY|SNDE_RECF_DATAREADY)
+#define SNDE_RECF_OBSOLETE (1<<4)
 
 
 struct snde_ndarray_info {

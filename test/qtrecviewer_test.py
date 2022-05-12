@@ -70,11 +70,11 @@ for cnt in range(rec_len):
 pointcloud_rec.data()["coord"][:,:,0]=x_2d
 pointcloud_rec.data()["coord"][:,:,1]=y_2d
 pointcloud_rec.data()["coord"][:,:,2]=z_2d
-# must unlock prior to mark_as_ready
+# must unlock prior to mark_data_ready
 snde.unlock_rwlock_token_set(locktokens)
 
-test_rec.rec.mark_as_ready()
-pointcloud_rec.rec.mark_as_ready()
+test_rec.rec.mark_data_ready()
+pointcloud_rec.rec.mark_data_ready()
 
 globalrev.wait_complete();
 

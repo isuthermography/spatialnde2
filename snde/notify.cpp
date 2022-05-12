@@ -94,13 +94,20 @@ namespace snde {
   channel_notify::channel_notify() :
     criteria()
   {
-
+    std::shared_ptr<std::weak_ptr<recording_set_state>> null_applied_rss;
+    std::atomic_store(&_applied_rss,null_applied_rss);
   }
   
   channel_notify::channel_notify(const channel_notification_criteria &criteria_to_copy) :
     criteria(criteria_to_copy)
   {
+    std::shared_ptr<std::weak_ptr<recording_set_state>> null_applied_rss;
+    std::atomic_store(&_applied_rss,null_applied_rss);
     
+  }
+  std::shared_ptr<std::weak_ptr<recording_set_state>> channel_notify::applied_rss()
+  {
+    return std::atomic_load(&_applied_rss);
   }
 
   void channel_notify::notify_metadataonly(const std::string &channelpath) // notify this notifier that the given channel has satisified metadataonly (not usually modified by subclass)
@@ -293,12 +300,30 @@ namespace snde {
     
   
 
-  void channel_notify::check_all_criteria(std::shared_ptr<recording_set_state> rss)
+  void channel_notify::check_all_criteria()
   {
+    
     bool generate_notify=false;
-	
+    std::shared_ptr<std::weak_ptr<recording_set_state>> rss_weak = applied_rss();
+    if (!rss_weak) {
+      throw snde_error("channel_notify::check_all_criteria() applied to channel_notify that has not been associated with a transaction or rss/globalrev"); 
+    }
 
-    {
+    std::shared_ptr<recording_set_state> rss = rss_weak->lock();
+
+    if (!rss) {
+      if (!invalid_weak_ptr_is_expired(*rss_weak)) {
+	// Criteria not (necessarily) satisfied because transaction
+	// has not yet turned into an RSS/globalrev
+	return;
+      } else {
+	// Expired weak pointer means rss no longer available which
+	// generally means all critera are satisifed
+	generate_notify=true; 
+      }
+    } else {
+      // have valid rss
+      
       std::lock_guard<std::mutex> rss_admin(rss->admin);
       std::lock_guard<std::mutex> criteria_admin(criteria.admin);
 
@@ -318,6 +343,40 @@ namespace snde {
     throw snde_error("Copier must be provided for repetitive channel notifications");
     return nullptr;
   }
+
+  void channel_notify::apply_to_transaction(std::shared_ptr<transaction> trans)
+  // apply this notification process to the globalrevision that will or has arisen from a particular transaction. WARNING: May trigger the notification immediately
+  {
+    
+    std::unique_lock<std::mutex> trans_admin(trans->admin);
+    
+    std::shared_ptr<globalrevision> globalrev = trans->_resulting_globalrevision.lock();
+    if (!globalrev) {
+      bool expired_pointer = invalid_weak_ptr_is_expired(trans->_resulting_globalrevision);
+      if (expired_pointer) {
+	// an expired pointer means that the globalrevision exists and has since expired,
+	// therefore it must be fully complete and we should just notify
+	std::atomic_store(&_applied_rss,std::make_shared<std::weak_ptr<recording_set_state>>(trans->_resulting_globalrevision)); // put the expired pointer in _applied_rss too
+	trans_admin.unlock();
+	perform_notify();
+	return;
+      }
+
+      // queue this channel notify for future application to the globalrev/rss once it exists.
+      trans->pending_channel_notifies.push_back(shared_from_this());
+
+      // mark _applied_rss as an uninitialized weak_ptr
+      std::atomic_store(&_applied_rss,std::make_shared<std::weak_ptr<recording_set_state>>());
+      
+    } else {
+      // globalrev exists... apply to it. 
+      trans_admin.unlock();
+      apply_to_rss(globalrev);
+    }
+    
+    
+    
+  }
   
   void channel_notify::apply_to_rss(std::shared_ptr<recording_set_state> rss) // apply this notification process to a particular recording_set_state. WARNING: May trigger the notification immediately
   {
@@ -330,6 +389,9 @@ namespace snde {
       
       // Add criteria to this recording set state
 
+      // mark _applied_rss as a weak_ptr to this rss
+      std::atomic_store(&_applied_rss,std::make_shared<std::weak_ptr<recording_set_state>>(rss));
+      
 
       for (auto && md_channelname: criteria.metadataonly_channels) {
 	channel_state & chanstate = rss->recstatus.channel_map.at(md_channelname);
@@ -370,6 +432,9 @@ namespace snde {
 
   promise_channel_notify::promise_channel_notify(const std::vector<std::string> &mdonly_channels,const std::vector<std::string> &ready_channels,bool recset_complete)
   {
+    std::shared_ptr<std::promise<bool>> new_promise = std::make_shared<std::promise<bool>>();
+    std::atomic_store(&_promise,new_promise);
+
     for (auto && mdonly_channel: mdonly_channels) {
       criteria.add_metadataonly_channel(mdonly_channel);
     }
@@ -380,20 +445,63 @@ namespace snde {
       criteria.add_recordingset_complete();
     }
   }
+  
+  promise_channel_notify::promise_channel_notify(const channel_notification_criteria &criteria_to_copy) :
+    channel_notify(criteria_to_copy)
+  {
+    std::shared_ptr<std::promise<bool>> new_promise = std::make_shared<std::promise<bool>>();
+    std::atomic_store(&_promise,new_promise);
+  }
 
+  std::shared_ptr<std::promise<bool>> promise_channel_notify::promise()
+  {
+    return std::atomic_load(&_promise);
+  }
+  
   void promise_channel_notify::perform_notify()
   {
     // not impossible that we would have a second (superfluous) notification
     // so we explicitly ignore that.
     try {
-      promise.set_value();
+      promise()->set_value(false); // false == not_interrupted
     } catch (const std::future_error &e) {
       if (e.code() != std::future_errc::promise_already_satisfied) {
 	throw; // rethrow all other exceptions
       }
     }
   }
+
+  bool promise_channel_notify::wait_interruptable()
+  // returns true if interrupted
+  {
+    bool interrupted; 
+    std::future<bool> criteria_satisfied = promise()->get_future();
+    criteria_satisfied.wait();
+    interrupted = criteria_satisfied.get();
+
+    if (interrupted) {
+      // rebuild ourselves with a new promise and future. so that we can do another wait
+      std::shared_ptr<std::promise<bool>> new_promise = std::make_shared<std::promise<bool>>();
+      std::atomic_store(&_promise,new_promise);
+      check_all_criteria(); // in case criteria already satisfied
+    }
+    
+    return interrupted;
+  }
   
+  void promise_channel_notify::interrupt()
+  {
+    try {
+      promise()->set_value(true); // true == interrupted
+    } catch (const std::future_error &e) {
+      if (e.code() != std::future_errc::promise_already_satisfied) {
+	throw; // rethrow all other exceptions
+      }
+    }
+    
+  }
+
+
   _unchanged_channel_notify::_unchanged_channel_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> current_globalrev,std::shared_ptr<globalrevision> subsequent_globalrev,channel_state &current_channelstate,channel_state & sg_channelstate,bool mdonly) :
     recdb(recdb),
     current_globalrev(current_globalrev),

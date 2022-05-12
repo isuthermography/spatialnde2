@@ -203,13 +203,13 @@ namespace snde {
 	      partstruct.num_vertex_kdnodes = result_ref->storage->nelem;
 	    }
 	      
-	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready()
+	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready()
 
 	    metadata->AddMetaDatum(metadatum("kdtree_max_depth",(uint64_t)max_depth));
 	    
 	    result_ref->rec->metadata=metadata;
 	    result_ref->rec->mark_metadata_done();
-	    result_ref->rec->mark_as_ready();
+	    result_ref->rec->mark_data_ready();
 	    
 	  }); 
 	});
@@ -495,8 +495,8 @@ namespace snde {
 	    //snde_index numvertices = vertices->layout.flattened_length();
 	    perform_knn_calculation(compute_resource,locktokens,kdtree,vertices,search_points,result_ref);
 
-	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
-	    result_ref->rec->mark_as_ready();
+	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
+	    result_ref->rec->mark_data_ready();
 	    
 	  }); 
 	});

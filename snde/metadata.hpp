@@ -457,6 +457,45 @@ public:
   }
 
 
+  static std::shared_ptr<constructible_metadata> MergeMetadata3(std::shared_ptr<const constructible_metadata> baseline_md,std::shared_ptr<const constructible_metadata> override_md1,std::shared_ptr<const constructible_metadata> override_md2)
+  {
+    std::shared_ptr<constructible_metadata> retval=std::make_shared<constructible_metadata>();
+
+    if (!baseline_md) {
+      baseline_md = std::make_shared<constructible_metadata>();
+    }
+
+    if (!override_md1) {
+      override_md1 = std::make_shared<constructible_metadata>();
+    }
+
+    if (!override_md2) {
+      override_md2 = std::make_shared<constructible_metadata>();
+    }
+
+
+    // emplace is no-op if the element is already there. So we put the highest
+    // override (override_md2) first, then the secondary override, then the baseline. 
+
+    for (auto & mdname_mdvalue: override_md2->metadata) {
+      retval->metadata.emplace(mdname_mdvalue);
+    }
+
+    for (auto & mdname_mdvalue: override_md1->metadata) {
+      retval->metadata.emplace(mdname_mdvalue);
+    }
+
+    for (auto & mdname_mdvalue: baseline_md->metadata) {
+      
+      retval->metadata.emplace(mdname_mdvalue);
+    }
+
+
+    return retval;
+  }
+
+  
+
   typedef const constructible_metadata immutable_metadata; 
   
   class recmetadata { // OBSOLETE
