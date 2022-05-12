@@ -9,7 +9,9 @@
 #endif // SPATIALNDE2_SET_THREAD_NAMES_PTHREAD
 
 #ifdef SPATIALNDE2_SET_THREAD_NAMES_WIN32
-#include <processthreadsapi.h>
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <Windows.h>
 #endif // SPATIALNDE2_SET_THREAD_NAMES_WIN32
 
 
@@ -115,7 +117,7 @@ namespace snde {
     if (thr) {
       SetThreadDescription(thr->native_handle(), widecopy.c_str());
     } else {
-      SetThreadDescription(GetCurrentThread()(), widecopy.c_str());      
+      SetThreadDescription(GetCurrentThread(), widecopy.c_str());      
     }
 #endif // SPATIALNDE2_SET_THREAD_NAMES_WIN32
     
