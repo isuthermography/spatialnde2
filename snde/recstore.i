@@ -833,6 +833,8 @@ namespace snde {
     
     // add_math_function() must be called within a transaction
     void add_math_function(std::shared_ptr<instantiated_math_function> new_function,bool hidden); // Use separate functions with/without storage manager because swig screws up the overload
+    std::shared_ptr<instantiated_math_function> lookup_math_function(std::string fullpath);
+    void delete_math_function(std::shared_ptr<instantiated_math_function> fcn);
     void add_math_function_storage_manager(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager);
 
     void register_new_rec(std::shared_ptr<recording_base> new_rec);
@@ -869,10 +871,10 @@ namespace snde {
     void transaction_background_end_code();
 
 
-    std::shared_ptr<math_function_registry_map> math_functions();
+    std::shared_ptr<math_function_registry_map> available_math_functions();
 
-    std::shared_ptr<math_function> lookup_math_function(std::string name);
-    std::shared_ptr<std::vector<std::string>> list_math_functions();
+    std::shared_ptr<math_function> lookup_available_math_function(std::string name);
+    std::shared_ptr<std::vector<std::string>> list_available_math_functions();
 
 
   };

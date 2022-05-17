@@ -807,7 +807,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       return nullptr; 
     }
     
-    std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_math_function("spatialnde2.phase_plane_endpoint_octagon_vertices")->instantiate({
+    std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_available_math_function("spatialnde2.phase_plane_endpoint_octagon_vertices")->instantiate({
 	std::make_shared<math_parameter_recording>(chanpath),
 	std::make_shared<math_parameter_double_const>(8.0f/horiz_pixels_per_chanunit),
 	std::make_shared<math_parameter_double_const>(8.0f/vert_pixels_per_chanunit)
@@ -1172,7 +1172,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     }
     
 
-    std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_math_function("spatialnde2.phase_plane_line_triangle_vertices_alphas")->instantiate({
+    std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_available_math_function("spatialnde2.phase_plane_line_triangle_vertices_alphas")->instantiate({
 	std::make_shared<math_parameter_recording>(chanpath),
 	std::make_shared<math_parameter_double_const>(color_renderparams->color.R),
 	std::make_shared<math_parameter_double_const>(color_renderparams->color.G),

@@ -1049,7 +1049,7 @@ namespace snde {
 
   class recdatabase : public std::enable_shared_from_this<recdatabase> {
   public:
-    std::mutex admin; // Locks access to _channels and _deleted_channels and _math_functions, _globalrevs, repetitive_notifies,  and monitoring. In locking order, precedes channel admin locks, available_compute_resource_database, globalrevision admin locks, recording admin locks, and Python GIL. 
+    std::mutex admin; // Locks access to _channels and _deleted_channels and _available_math_functions, _globalrevs, repetitive_notifies,  and monitoring. In locking order, precedes channel admin locks, available_compute_resource_database, globalrevision admin locks, recording admin locks, and Python GIL. 
     std::map<std::string,std::shared_ptr<channel>> _channels; // Generally don't use the channel map directly. Grab the latestglobalrev and use the channel map from that. 
     std::map<std::string,std::shared_ptr<channel>> _deleted_channels; // Channels are put here after they are deleted. They can be moved back into the main list if re-created. 
     instantiated_math_database _instantiated_functions; 
@@ -1097,7 +1097,7 @@ namespace snde {
 
     std::set<std::shared_ptr<std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision>)>>> ready_globalrev_quicknotifies_called_recdb_locked; // locked by admin lock.  
     
-    std::shared_ptr<math_function_registry_map> _math_functions; // atomic shared pointer... use math_functions() accessor. 
+    std::shared_ptr<math_function_registry_map> _available_math_functions; // atomic shared pointer... use available_math_functions() accessor. 
     
     
     recdatabase(std::shared_ptr<lockmanager> lockmgr=nullptr);
@@ -1118,6 +1118,11 @@ namespace snde {
 
     // add_math_function() must be called within a transaction
     void add_math_function(std::shared_ptr<instantiated_math_function> new_function,bool hidden); // Use separate functions with/without storage manager because swig screws up the overload
+
+    std::shared_ptr<instantiated_math_function> lookup_math_function(std::string fullpath);
+    
+    void delete_math_function(std::shared_ptr<instantiated_math_function> fcn);
+    
     void add_math_function_storage_manager(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager);
     
     void register_new_rec(std::shared_ptr<recording_base> new_rec);
@@ -1155,13 +1160,13 @@ namespace snde {
     void transaction_background_end_code();
     
     
-    std::shared_ptr<math_function_registry_map> math_functions(); // Note that this includes ONLY the custom-added math functions, not the built ins. Use math_function_registry()  to get the c++ built in ones
+    std::shared_ptr<math_function_registry_map> available_math_functions(); // Note that this includes ONLY the custom-added math functions, not the built ins. Use math_function_registry()  to get the c++ built in ones
 
-    std::shared_ptr<math_function> lookup_math_function(std::string name); // considers both custom-added and c++ builtin math functions
-    std::shared_ptr<std::vector<std::string>> list_math_functions(); // considers both custom-added and c++ builtin math functions
+    std::shared_ptr<math_function> lookup_available_math_function(std::string name); // look up an a available math function considers both custom-added and c++ builtin math functions
+    std::shared_ptr<std::vector<std::string>> list_available_math_functions(); // considers both custom-added and c++ builtin available math functions
     
-    std::shared_ptr<math_function_registry_map> _begin_atomic_math_functions_update(); // should be called with admin lock held
-    void _end_atomic_math_functions_update(std::shared_ptr<math_function_registry_map>); // should be called with admin lock held
+    std::shared_ptr<math_function_registry_map> _begin_atomic_available_math_functions_update(); // should be called with admin lock held
+    void _end_atomic_available_math_functions_update(std::shared_ptr<math_function_registry_map>); // should be called with admin lock held
 
   };
 

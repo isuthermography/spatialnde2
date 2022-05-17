@@ -4416,7 +4416,7 @@ namespace snde {
     std::atomic_store(&_latest_defined_globalrev,null_globalrev);
     std::atomic_store(&_latest_ready_globalrev,null_globalrev);
 
-    std::atomic_store(&_math_functions,std::make_shared<math_function_registry_map>());
+    std::atomic_store(&_available_math_functions,std::make_shared<math_function_registry_map>());
     
     if (!this->lockmgr) {
       this->lockmgr = std::make_shared<lockmanager>();
@@ -4514,7 +4514,76 @@ namespace snde {
   {
     add_math_function_storage_manager(new_function,hidden,nullptr);
   }
-  
+
+  std::shared_ptr<instantiated_math_function> recdatabase::lookup_math_function(std::string full_path)
+  {
+    std::lock_guard<std::mutex> recdb_admin(admin);
+
+    auto def_fcn_it =  _instantiated_functions.defined_math_functions.find(full_path);
+    if (def_fcn_it == _instantiated_functions.defined_math_functions.end()) {
+      throw snde_error("Channel %s is not from an instantiated math function",full_path.c_str());
+    }
+    
+    return def_fcn_it->second; 
+  }
+
+  void recdatabase::delete_math_function(std::shared_ptr<instantiated_math_function> fcn)
+  {
+    // must be called within a transaction!
+    std::vector<std::tuple<std::string,std::shared_ptr<channel>>> paths_and_channels;
+
+    {
+      std::lock_guard<std::mutex> recdb_admin(admin);
+    
+      for (auto && result_channel_path: fcn->result_channel_paths) {
+	if (result_channel_path) {
+	  std::string full_path = recdb_path_join(fcn->channel_path_context,*result_channel_path);
+	  auto chan_it = _channels.find(full_path);
+	  if (chan_it != _channels.end()) {
+	    std::lock_guard<std::mutex> channel_lock(chan_it->second->admin);
+	    if (chan_it->second->_config->math_fcn == fcn) {
+	      chan_it->second->_config = nullptr;
+	      chan_it->second->latest_revision++;
+	      chan_it->second->deleted = true; 
+	      
+	      paths_and_channels.emplace_back(std::make_tuple(full_path,chan_it->second));
+	    }
+	  }
+	}
+      }
+    }
+      
+    // add to the current transaction
+    {
+      std::lock_guard<std::mutex> curtrans_lock(current_transaction->admin);
+      
+      for (auto && path_channelptr: paths_and_channels) {
+	std::string full_path;
+	std::shared_ptr<channel> channelptr;
+	std::tie(full_path,channelptr) = path_channelptr;
+	
+	current_transaction->updated_channels.emplace(channelptr);
+      }
+    }
+    
+    
+    // remove from _instantiated_functions
+    {
+      std::lock_guard<std::mutex> recdb_admin(admin);
+      for (auto && path_channelptr: paths_and_channels) {
+	std::string full_path;
+	std::shared_ptr<channel> channelptr;
+	std::tie(full_path,channelptr) = path_channelptr;
+	
+	_instantiated_functions.defined_math_functions.erase(full_path);
+      }
+
+      _instantiated_functions._rebuild_dependency_map();
+    }
+
+    
+  }
+
   void recdatabase::add_math_function_storage_manager(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager) 
   {
 
@@ -4851,15 +4920,15 @@ namespace snde {
   }
 
   
-  std::shared_ptr<math_function_registry_map> recdatabase::math_functions()
+  std::shared_ptr<math_function_registry_map> recdatabase::available_math_functions()
   {
-    return std::atomic_load(&_math_functions);
+    return std::atomic_load(&_available_math_functions);
   }
 
-  std::shared_ptr<math_function> recdatabase::lookup_math_function(std::string name)
+  std::shared_ptr<math_function> recdatabase::lookup_available_math_function(std::string name)
   {
     std::shared_ptr<math_function_registry_map> builtin_functions=math_function_registry();    
-    std::shared_ptr<math_function_registry_map> addon_functions=math_functions();
+    std::shared_ptr<math_function_registry_map> addon_functions=available_math_functions();
 
     math_function_registry_map::iterator builtin_function = builtin_functions->find(name);
     math_function_registry_map::iterator addon_function = addon_functions->find(name);
@@ -4883,7 +4952,7 @@ namespace snde {
     return nullptr;
   }
 
-  std::shared_ptr<std::vector<std::string>> recdatabase::list_math_functions()
+  std::shared_ptr<std::vector<std::string>> recdatabase::list_available_math_functions()
   {
     std::set<std::string> sorter; 
     
@@ -4892,7 +4961,7 @@ namespace snde {
     
     std::shared_ptr<math_function_registry_map> builtin_functions=math_function_registry();
     
-    std::shared_ptr<math_function_registry_map> addon_functions=math_functions();
+    std::shared_ptr<math_function_registry_map> addon_functions=available_math_functions();
 
     for (auto && funcname_function: *builtin_functions) {
       sorter.emplace(funcname_function.first);
@@ -4913,15 +4982,15 @@ namespace snde {
     return retval;
   }
 
-  std::shared_ptr<math_function_registry_map> recdatabase::_begin_atomic_math_functions_update() // should be called with admin lock held
+  std::shared_ptr<math_function_registry_map> recdatabase::_begin_atomic_available_math_functions_update() // should be called with admin lock held
   {
-    std::shared_ptr<math_function_registry_map> new_math_functions = std::make_shared<math_function_registry_map>(*math_functions());
+    std::shared_ptr<math_function_registry_map> new_math_functions = std::make_shared<math_function_registry_map>(*available_math_functions());
     return new_math_functions;
   }
   
-  void recdatabase::_end_atomic_math_functions_update(std::shared_ptr<math_function_registry_map> new_math_functions) // should be called with admin lock held
+  void recdatabase::_end_atomic_available_math_functions_update(std::shared_ptr<math_function_registry_map> new_math_functions) // should be called with admin lock held
   {
-    std::atomic_store(&_math_functions,new_math_functions);
+    std::atomic_store(&_available_math_functions,new_math_functions);
   }
   
   
