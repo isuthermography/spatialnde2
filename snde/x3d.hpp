@@ -472,6 +472,10 @@ namespace snde {
       xmlChar *USE=NULL;
       USE=xmlTextReaderGetAttribute(reader,(const xmlChar *)"USE");
       if (USE) {
+	auto use_it = defindex.find((const char *)USE);
+	if (use_it == defindex.end()) {
+	  throw snde_error("x3d file contains USE=\"%s\" but there is no corresponding DEF defined",(const char *)USE);
+	}
 	result=defindex[(const char *)USE];
 
 	xmlChar *use_containerField = containerField;
@@ -1321,7 +1325,11 @@ namespace snde {
     
     bool reindex_vertices = extract_geomproc_option(&processing_tags,"reindex_vertices");
     bool reindex_tex_vertices = extract_geomproc_option(&processing_tags,"reindex_tex_vertices");
-    
+
+
+    if (shape_index >= shapes.size()) {
+      throw snde_error("x3d_load_geometry(): Shape index %u matches or exceeds shape array size (%u)",(unsigned)shape_index,(unsigned)shapes.size());
+    }
 
     std::shared_ptr<x3d_shape> shape = shapes.at(shape_index);
       
@@ -2774,6 +2782,11 @@ namespace snde {
   /* returns a shared ptr to a vector of parts. */
   {
     std::vector<std::shared_ptr<x3d_shape>> shapes=x3d_loader::shapes_from_file(filename.c_str());
+
+    if (shape_index >= shapes.size()) {
+      throw snde_error("x3d_load_geometry(): Shape index %u matches or exceeds the number of shapes (%u) loaded from file \"%s\".",(unsigned)shape_index,(unsigned)shapes.size(),filename.c_str());
+    }
+
     
     return x3d_load_geometry(recdb,graphman,shapes,shape_index,ownername,owner_id,recdb_group_path,filename,default_texture_scaling,processing_tags);
     

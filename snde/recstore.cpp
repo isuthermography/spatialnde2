@@ -3198,10 +3198,11 @@ namespace snde {
       // assemble the channel_map
       std::map<std::string,channel_state> initial_channel_map;
       for (auto && channel_name_chan_ptr : recdb_strong->_channels) {
-	initial_channel_map.emplace(std::piecewise_construct,
-				    std::forward_as_tuple(channel_name_chan_ptr.first),
-				    std::forward_as_tuple(channel_name_chan_ptr.second,channel_name_chan_ptr.second->config(),nullptr,false)); // tentatively mark channel_state as not updated
-	
+	if (!channel_name_chan_ptr.second->deleted) {
+	  initial_channel_map.emplace(std::piecewise_construct,
+				      std::forward_as_tuple(channel_name_chan_ptr.first),
+				      std::forward_as_tuple(channel_name_chan_ptr.second,channel_name_chan_ptr.second->config(),nullptr,false)); // tentatively mark channel_state as not updated
+	}
       }
       
       // build a class globalrevision from recdb->current_transaction using this new channel_map
@@ -3273,7 +3274,7 @@ namespace snde {
 	//definitively_changed_channels.emplace(config);
 	unknownchanged_channels.erase(mcc_it);
       }
-      if (config->math) {
+      if (config && config->math) {
 	// updated math channel (presumably with modified function)
 	changed_math_functions.emplace(config->math_fcn);
 	unknownchanged_math_functions.erase(config->math_fcn);
@@ -3319,54 +3320,57 @@ namespace snde {
 
     // Second, make sure if a channel was created, it has a recording present and gets put in the channel_map
     for (auto && updated_chan: recdb_strong->current_transaction->updated_channels) {
-      std::shared_ptr<channelconfig> config = updated_chan->config();
-      //std::shared_ptr<multi_ndarray_recording> new_rec;
-      //std::shared_ptr<ndarray_recording_ref> new_rec_ref;
-      std::shared_ptr<null_recording> new_rec;
 
-      if (config->math) {
-	continue; // math channels get their recordings defined automatically
+      if (!updated_chan->deleted) {
+	std::shared_ptr<channelconfig> config = updated_chan->config();
+	//std::shared_ptr<multi_ndarray_recording> new_rec;
+	//std::shared_ptr<ndarray_recording_ref> new_rec_ref;
+	std::shared_ptr<null_recording> new_rec;
+	
+	if (config->math) {
+	  continue; // math channels get their recordings defined automatically
+	}
+	
+	if (explicitly_updated_channels.find(config) != explicitly_updated_channels.end()) {
+	  // already processed above because an explicit new recording was provided. All done here.
+	  continue;
+	}
+      
+	auto new_recording_it = recdb_strong->current_transaction->new_recordings.find(config->channelpath);
+	
+	// new recording should be required but not present; create one
+	assert(recdb_strong->current_transaction->new_recording_required.at(config->channelpath) && new_recording_it==recdb_strong->current_transaction->new_recordings.end());
+	//new_rec = std::make_shared<recording_base>(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32); // constructor adds itself to current transaction
+	//new_rec_ref = create_recording_ref(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32);
+	new_rec = std::make_shared<null_recording>(recdb_strong,select_storage_manager_for_recording_during_transaction(recdb_strong,config->channelpath.c_str()),recdb_strong->current_transaction,config->channelpath,globalrev,++updated_chan->latest_revision);
+	//recordings_needing_finalization.emplace(new_rec); // Since we provided this, we need to make it ready, below
+	
+	// insert new recording into channel_map
+	//auto cm_it = globalrev->recstatus.channel_map.emplace(std::piecewise_construct,
+	//							    std::forward_as_tuple(config->channelpath),
+	//std::forward_as_tuple(config,new_rec,true)).first; // mark updated=true
+	
+	auto cm_it = globalrev->recstatus.channel_map.find(config->channelpath);
+	assert(cm_it != globalrev->recstatus.channel_map.end());
+	cm_it->second._rec = new_rec;
+	cm_it->second.updated=true; 
+	cm_it->second.revision = std::make_shared<uint64_t>(new_rec->info->revision);
+	
+	// assign blank waveform content
+	new_rec->metadata = std::make_shared<immutable_metadata>();
+	new_rec->mark_metadata_done();
+	//new_rec->allocate_storage(0,std::vector<snde_index>());
+	new_rec->mark_data_ready();
+	
+	// mark it as completed
+	globalrev->recstatus.defined_recordings.erase(config);
+	globalrev->recstatus.completed_recordings.emplace(std::piecewise_construct,
+							  std::forward_as_tuple(config),
+							  std::forward_as_tuple(&cm_it->second));
+	
+	// mark this as explictly_updated so that it will be removed  from channels_to_process, as it has been already been inserted into the channel_map
+	explicitly_updated_channels.emplace(config);
       }
-      
-      if (explicitly_updated_channels.find(config) != explicitly_updated_channels.end()) {
-	// already processed above because an explicit new recording was provided. All done here.
-	continue;
-      }
-      
-      auto new_recording_it = recdb_strong->current_transaction->new_recordings.find(config->channelpath);
-      
-      // new recording should be required but not present; create one
-      assert(recdb_strong->current_transaction->new_recording_required.at(config->channelpath) && new_recording_it==recdb_strong->current_transaction->new_recordings.end());
-      //new_rec = std::make_shared<recording_base>(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32); // constructor adds itself to current transaction
-      //new_rec_ref = create_recording_ref(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32);
-      new_rec = std::make_shared<null_recording>(recdb_strong,select_storage_manager_for_recording_during_transaction(recdb_strong,config->channelpath.c_str()),recdb_strong->current_transaction,config->channelpath,globalrev,++updated_chan->latest_revision);
-      //recordings_needing_finalization.emplace(new_rec); // Since we provided this, we need to make it ready, below
-      
-      // insert new recording into channel_map
-      //auto cm_it = globalrev->recstatus.channel_map.emplace(std::piecewise_construct,
-      //							    std::forward_as_tuple(config->channelpath),
-      //std::forward_as_tuple(config,new_rec,true)).first; // mark updated=true
-      
-      auto cm_it = globalrev->recstatus.channel_map.find(config->channelpath);
-      assert(cm_it != globalrev->recstatus.channel_map.end());
-      cm_it->second._rec = new_rec;
-      cm_it->second.updated=true; 
-      cm_it->second.revision = std::make_shared<uint64_t>(new_rec->info->revision);
-
-      // assign blank waveform content
-      new_rec->metadata = std::make_shared<immutable_metadata>();
-      new_rec->mark_metadata_done();
-      //new_rec->allocate_storage(0,std::vector<snde_index>());
-      new_rec->mark_data_ready();
-      
-      // mark it as completed
-      globalrev->recstatus.defined_recordings.erase(config);
-      globalrev->recstatus.completed_recordings.emplace(std::piecewise_construct,
-							std::forward_as_tuple(config),
-							std::forward_as_tuple(&cm_it->second));
-      
-      // mark this as explictly_updated so that it will be removed  from channels_to_process, as it has been already been inserted into the channel_map
-      explicitly_updated_channels.emplace(config);
     }
     
     // set of ready channels
