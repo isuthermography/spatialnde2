@@ -255,6 +255,8 @@ namespace snde {
     
     
     getState()->reset(); // the OSG-expected state for THIS WINDOW may have been messed up (e.g. by another window). So we need to reset the assumptions about the OpenGL state
+	
+	getState()->initializeExtensionProcs();
 #if OPENSCENEGRAPH_MAJOR_VERSION >= 3 && OPENSCENEGRAPH_MINOR_VERSION >= 6
     // OSG 3.6.0 and above use a new VertexArrayState object that doesn't get
     // properly dirty()'d by reset()
@@ -271,7 +273,7 @@ namespace snde {
     // !!!*** reset() above may be unnecessarily pessimistic, dirtying all array buffers, etc. (why???)
     getState()->apply();
     
-    getState()->initializeExtensionProcs();
+    
     
     
     SetupOGLMessageCallback();
