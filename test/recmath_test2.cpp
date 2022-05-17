@@ -85,8 +85,8 @@ public:
 	    for (snde_index pos=0;pos < recording->layout.dimlen.at(0);pos++){
 	      result_rec->element({pos}) = (T)(recording->element({pos}) * multiplier);
 	    }
-	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
-	    result_rec->rec->mark_as_ready();
+	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
+	    result_rec->rec->mark_data_ready();
 	  }); 
 	});
       });
@@ -192,8 +192,8 @@ int main(int argc, char *argv[])
     // locktokens automatically dropped as it goes out of scope
     // must drop before mark_as_ready()
   }
-  test_rec_32->rec->mark_as_ready();
-  test_rec_64->rec->mark_as_ready();
+  test_rec_32->rec->mark_data_ready();
+  test_rec_64->rec->mark_data_ready();
 
   snde_debug(SNDE_DC_APP,"About to wait_complete()");
   globalrev->wait_complete();

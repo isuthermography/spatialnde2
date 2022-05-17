@@ -23,10 +23,12 @@ extern "C" {
 
     /* winged edge mesh format */
     snde_triangle *triangles; // allocated separately
-    snde_coord3 *refpoints; // allocated with triangles  NOTE: Refpoints are in part coordinates, not world coordinates
-    snde_coord *maxradius; // allocated with triangles
+    snde_coord3 *refpoints; // allocated with triangles  NOTE: Refpoints are in part coordinates, not world coordinates !!!*** ARE REFPOINTS STILL NEEDED?
+    snde_coord *maxradius; // allocated with triangles !!!*** ARE MAXRADIUS STILL NEEDED?
     snde_coord3 *trinormals; // allocated with triangles, one normal/triangle NOTE: Normals are in part coordinates, not world coordinates.
     snde_cmat23 *inplanemats; // allocated with triangles
+    
+    snde_trivertnormals *vertnormals; // allocated separately. For triangles, but are per vertex so three normals/triangle NOTE: Normals are in part coordinates, not world coordinates. SHOULD PROBABLY BE ALLOCATED WITH TRIANGLES. 
 
     snde_edge *edges; // allocated separately
 
@@ -183,18 +185,21 @@ extern "C" {
     snde_coord *zbuffer; /* separately allocated */
     snde_coord *weightingbuf; /* separately allocated */
     snde_coord *validitybuf; /* separately allocated */
-    
+   
     
     // Suggest uv_patches_override and second buffer array
     // to kernel so that select patches can be overridden
     // on-demand for a particular operation.
 
-    // these remaining arrays are used solely for rendering... 
-    snde_trivertnormals *vertnormals; // allocated separately. For triangles, but are per vertex so three normals/triangle NOTE: Normals are in part coordinates, not world coordinates.
+
+    
+    // these remaining arrays are used solely for rendering... (Maybe vertnormals shouldn't be???)
     snde_rendercoord *vertex_arrays; /* transformed vertex array for OpenSceneGraph / OpenGL (allocated separately) */
     snde_rendercoord *texvertex_arrays; /* transformed texture vertex array for OpenSceneGraph / OpenGL (allocated separate) */
     snde_rgba *texbuffer; // allocated separately
-    
+
+
+
   };
 #ifdef __cplusplus
 }

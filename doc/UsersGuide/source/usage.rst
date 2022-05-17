@@ -127,7 +127,7 @@ C++ from the shared pointer by the ``get()`` method or in Python from
 the wrapped object by the ``raw()`` method.
 
 The call to the ``create_recording_ref()`` function defines a new
-``multi_ndarray_recording`` on ``/test channnel`` containing a single
+``multi_ndarray_recording`` on ``/test channel`` containing a single
 n-dimensional array with index 0 that is intended to hold 32 bit
 floating point numbers (base type number identifiers are defined in
 ``recording.h``), and returns a recording reference to that single
@@ -174,7 +174,7 @@ having its metadata done (C++)::
 or (Python)::
   
   test_rec_metadata = snde.constructible_metadata()
-  test_rec_metadata.AddMetaDatum(snde.metadatum_dbl("nde_axis0_inival",0.0));
+  test_rec_metadata.AddMetaDatum(snde.metadatum_dbl("nde_array-axis0_inival",0.0));
   
   test_ref.rec.metadata = test_rec_metadata;
   test_ref.rec.mark_metadata_done()
@@ -203,7 +203,7 @@ parameter, which defaults to false determines the storage layout for
 multidimensional arrays. If false, the array will be stored with the
 rightmost index selecting adjacent elements (row major, C style); if
 true, the array will be stored with the leftmost index selecting adjacent
-elements (column major, Fortran style.
+elements (column major, Fortran style).
 
 Locking the Array
 -----------------
@@ -223,12 +223,12 @@ or (Python)::
   ])
 
 You provide a sequence of (recording reference, read/write) pairs
-where the second element is false for read and true for right.
-It is important to lock all recordings in a single method call
-because at way the locking code can ensure a consistent locking
-order is followed. Multiple simultaneous read locks are possible.
-Only one write lock is possible at a time, and no read locks can
-exist in parallel with that write lock. 
+where the second element is false for read and true for right.  It is
+important to lock all recordings in a single method call because at
+way the locking code can ensure a consistent locking order is
+followed. Multiple simultaneous read locks on a given array are
+possible. Only one write lock can be held for a given array at a time,
+and no read locks can exist in parallel with that write lock.
 
 The locks will last until explicitly unlocked or the containing
 object is destroyed
@@ -327,6 +327,18 @@ complete then you can call the ``start_monitoring_globalrevs()``
 method of the ``recdatabase`` to obtain a ``monitor_globalrevs``
 object. See the notification section of the concepts chapter for
 more details.
+
+You can always obtain the most recent complete global revision
+with ``recdb.latest_globalrev()`` or the most recent defined
+global revision (which may not yet be complete) with
+``recdb.latest_defined_globalrev()``. Given a global revision
+object stored in the variable ``globalrev``, you can list the
+recordings in a global revision with ``globalrev.list_recordings()``
+or the available array recording references with
+``globalrev.list_recording_refs()``. Likewise you can obtain
+a recording or an array reference with ``globalrev.get_recording()``
+or ``globalrev.get_recording_ref()`` respectively. 
+
 
 Using SpatialNDE2 in Dataguzzler-Python
 ---------------------------------------

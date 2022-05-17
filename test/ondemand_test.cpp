@@ -221,7 +221,7 @@ int main(int argc, char **argv)
 
   test_rec->rec->metadata=std::make_shared<snde::immutable_metadata>();
   test_rec->rec->mark_metadata_done();
-  test_rec->rec->mark_as_ready();
+  test_rec->rec->mark_data_ready();
   
   //std::shared_ptr<mutabledatastore> pngstore2 = ReadPNG(manager,"PNGFile2","PNGFile2",argv[2]);
 

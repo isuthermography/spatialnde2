@@ -163,8 +163,22 @@ a math function to store an additional output. The ``x3d_load_geometry()``
 function accepts two preprocessing tags: ``reindex_vertices`` and ``reindex_tex_vertices`` which can enable reindexing during the loading process. In addition
 math functions can register additional postprocessing tags, such as ``trinormals``, ``inplanemat``, ``projinfo``, etc. which will then trigger automatic
 instantiation of the relevant math function as the last step in the loading
-process. 
+process. Currently implemented processing tags include: 
 
+
+  * ``reindex_vertices`` (x3d loader only): Reindex the mesh vertices
+    to create a new connectivity graph rather than relying on
+    connectivity information in the loaded file.
+  * ``reindex_tex_vertices`` (x3d loader only): Reindex the
+    parameterization (texture) mesh vertices to create a new
+    connectivity graph rather than relying on connectivity information
+    in the loaded file.
+  * ``trinormals``: Generate per-triangle normal vectors. 
+  * ``inplanemat``: Generate per-triangle in-plane coordinate systems (requires ``trinormals``)
+  * ``projinfo``: Generate per-triangle transforms between in-plane coordinates and uv parameterization (requires parameterization (texture) coordinates and ``inplanemat``).
+  * ``boxes3d``: Generate triangle mesh bounding box octtree used for raytracing (requires ``trinormals`` and ``inplanemat``). 
+  * ``boxes2d``: Generate uv triangle mesh bounding box quadtree used for mapping from uv coordinates to 3D location (requires parameterization (texture) coordinates). 
+    
 Loaded geometric objects end up represented as a collection of arrays,
 typically a sub-tree of recordings, most or all of which are stored
 using a ``graphics_storage_manager``. The sub-tree itself (if loaded
@@ -177,6 +191,21 @@ surface parameterization (texture coordinates), a ``texed`` recording of
 class ``textured_part_recording`` and possibly one or more recordings
 containing texture data.
 
+The ``graphics_storage_manager`` stores geometric objects in
+a set of shared arrays pointed to by the ``struct snde_geometrydata``.
+Space in the arrays is an ``allocation`` reserved by an ``allocator``.
+Some arrays are allocated directly; others are *followers* which follow
+the allocation pattern of another array.
+
+For example the ``parts`` array of ``struct snde_part`` represents the
+various discrete boundary-represented (BREP) models of physical parts.
+Each part has both topological representation (represented by
+the ``first_topo`` and ``num_topo`` field which index into the ``topos``
+array of ``struct snde_part``) and geometrical
+representation (the various triangles and vertices fields). 
+
+A more detailed discussion of graphics and geometric objects
+is planned for another chapter. 
 
 
 
@@ -319,24 +348,6 @@ a nonmoving reference to an allocation that might move around due to
 reallocation, thus saving the space and performance degradation
 involved in creating a copy. 
 
-Graphics recordings
--------------------
-
-The ``graphics_storage_manager`` stores geometric objects in
-a set of shared arrays pointed to by the ``struct snde_geometrydata``.
-Space in the arrays is an ``allocation`` reserved by an ``allocator``.
-Some arrays are allocated directly; others are *followers* which follow
-the allocation pattern of another array.
-
-For example the ``parts`` array of ``struct snde_part`` represents the
-various discrete boundary-represented (BREP) models of physical parts.
-Each part has both topological representation (represented by
-the ``first_topo`` and ``num_topo`` field which index into the ``topos``
-array of ``struct snde_part``) and geometrical
-representation (the various triangles and vertices fields). 
-
-A detailed discussion of graphics and geometric objects
-is planned for another chapter. 
 
 Compute Resources
 -----------------

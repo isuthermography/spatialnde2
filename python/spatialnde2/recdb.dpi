@@ -4,7 +4,7 @@ global recdb
 import multiprocessing
 import spatialnde2 as snde
 
-enable_opencl=False
+enable_opencl = True
 
 global opencl_context
 global opencl_devices

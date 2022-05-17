@@ -189,6 +189,7 @@ public:
     return retval;
   }
 
+  static std::shared_ptr<constructible_metadata> MergeMetadata3(std::shared_ptr<const constructible_metadata> baseline_md,std::shared_ptr<const constructible_metadata> override_md1,std::shared_ptr<const constructible_metadata> override_md2);
 
   typedef const constructible_metadata immutable_metadata; 
 

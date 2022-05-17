@@ -202,8 +202,8 @@ namespace snde {
 	  snde_warning("Inplanemat calculation complete; numtris=%llu",(unsigned long long)numtris);
 	  
 	  
-	  unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
-	  result_rec->mark_as_ready();
+	  unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
+	  result_rec->mark_data_ready();
 	  
 	}); 
       });

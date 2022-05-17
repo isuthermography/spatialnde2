@@ -38,12 +38,12 @@ plate_position = np.array(((0,0,0,0),(.4, .3, .625, .6)),dtype=orient_dtype)
 #plate_position = np.array(((0,0,0,0),(0,0,0,1)),dtype=orient_dtype)
 
 snde.create_assembly_recording(recdb,positioned_plate_chan,recdb.raw(),
-                               snde.VectorOfStringOrientationPairs([ ("/graphics/plate/meshed",snde.snde_orientation3(plate_position)) ])).mark_as_ready()
+                               snde.VectorOfStringOrientationPairs([ ("/graphics/plate/meshed",snde.snde_orientation3(plate_position)) ])).mark_data_and_metadata_ready()
 
 
 probe_positioner_chan = recdb.define_channel("/probe_positioner","main",recdb.raw())
 probe_positioner_rec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,probe_positioner_chan,recdb.raw(),"/graphics/probe/meshed","/positioned_plate",main_viewer.viewer.OSGWidget)
-probe_positioner_rec.mark_as_ready()
+probe_positioner_rec.mark_data_and_metadata_ready()
 
 
 ## For nontrivial plate position 
@@ -126,7 +126,7 @@ plate_pose_chan = recdb.define_channel("/plate_pose","main",recdb.raw())
 plate_pose_ref = snde.create_recording_ref(recdb,plate_pose_chan,recdb.raw(),snde.SNDE_RTN_SNDE_ORIENTATION3)
 plate_pose_ref.allocate_storage([1])
 plate_pose_ref.data()[0]=plate_position
-plate_pose_ref.rec.mark_as_ready()
+plate_pose_ref.rec.mark_data_and_metadata_ready()
 
 
 
@@ -181,7 +181,7 @@ recdb.add_math_function(projection,False)
 # Create tracking pose recording so we can see the positioned probe
 positioned_probe_chan = recdb.define_channel("/positioned_probe","main",recdb.raw())
 snde.create_pose_channel_tracking_pose_recording(recdb,positioned_probe_chan,recdb.raw(),
-                                                 "/graphics/probe/meshed","/positioned_plate","/probe_pose").mark_as_ready()
+                                                 "/graphics/probe/meshed","/positioned_plate","/probe_pose").mark_data_and_metadata_ready()
 
 
 
@@ -189,7 +189,7 @@ snde.create_pose_channel_tracking_pose_recording(recdb,positioned_probe_chan,rec
 projection_plate_chan = recdb.define_channel("/graphics/projection_plate","main",recdb.raw())
 snde.create_textured_part_recording(recdb,projection_plate_chan,recdb.raw(),
                                     "/graphics/plate/meshed",snde.shared_string("/graphics/plate/uv"),
-                                    [ (0, snde.image_reference("/graphics/projection",0,1, [] )) ]).mark_as_ready()
+                                    [ (0, snde.image_reference("/graphics/projection",0,1, [] )) ]).mark_data_and_metadata_ready()
 
 transact.end_transaction()
 
@@ -226,7 +226,7 @@ def live_thread_code():
         #print("value=%s" % (str(value)))
         
         synthetic_probe_imp_ref.assign_complexfloat64([],value)
-        synthetic_probe_imp_ref.rec.mark_as_ready()
+        synthetic_probe_imp_ref.rec.mark_data_and_metadata_ready()
         
         transact.end_transaction()
         
@@ -258,7 +258,8 @@ def new_probe_posn():
     probe_position = snde.orientation_orientation_multiply(probe_positioner_campose,probe_campose_inverse)
     
     probe_pose_ref.data()[0]=probe_position
-    probe_pose_ref.rec.mark_as_ready()
+    probe_pose_ref.rec.mark_metadata_done()
+    probe_pose_ref.rec.mark_data_ready()
     
 
 

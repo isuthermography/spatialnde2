@@ -71,11 +71,11 @@ for cnt in range(rec_len):
     test_rec_64.assign_double([cnt],100.0*math.sin(cnt))
     pass
 
-# must unlock prior to mark_as_ready
+# must unlock prior to mark_data_ready
 snde.unlock_rwlock_token_set(locktokens)
 
-test_rec_32.rec.mark_as_ready()
-test_rec_64.rec.mark_as_ready()
+test_rec_32.rec.mark_data_ready()
+test_rec_64.rec.mark_data_ready()
 
 globalrev.wait_complete();
 globalrev2.wait_complete();

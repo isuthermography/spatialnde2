@@ -39,10 +39,10 @@ locktokens = recdb.lockmgr.lock_recording_refs([
 for cnt in range(rec_len):
     test_ref.assign_double([cnt],100.0*math.sin(cnt))
     pass
-# must unlock prior to mark_as_ready
+# must unlock prior to mark_data_ready
 snde.unlock_rwlock_token_set(locktokens)
 
-test_ref.rec.mark_as_ready()
+test_ref.rec.mark_data_ready()
 
 globalrev.wait_complete();
 

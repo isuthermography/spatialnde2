@@ -107,7 +107,22 @@ namespace snde {
     // not only goes into criteria but also adds into recording_state_set removing error
     // prone extra code to manually add it in and when channel_notify gets copied in
     // during end_transaction()
-    channel_notification_criteria criteria; 
+    channel_notification_criteria criteria;
+
+
+    // if _applied_rss is nullptr, then this has not been applied to
+    // an rss or transaction
+
+    // if it is an empty (unexpired) weak pointer then it has been applied
+    // to a transaction but the transaction has not yet turned into an rss
+
+    // if it is an expired weak pointer then the rss is finished
+    // and therefore the criteria must be satisifed.
+
+    // Distinguish between the two states above with invalid_weak_ptr_is_expired() from utils.hpp
+    
+    std::shared_ptr<std::weak_ptr<recording_set_state>> _applied_rss; // atomic shared pointer to weak pointer. Use applied_rss() accessor
+    
 
     channel_notify();  // initialize with empty criteria; may add with criteria methods .criteria.add_recordingset_complete(), .criteria.add_fullyready_channel(), .criteria.add_mdonly_channel(); NOTE: After instantiating and setting criteria must call apply_to_rss() to apply it to a recording_set_state or globalrev
     channel_notify(const channel_notification_criteria &criteria_to_copy);
@@ -116,6 +131,8 @@ namespace snde {
     channel_notify & operator=(const channel_notify &) = delete; 
     channel_notify(const channel_notify &orig) = delete;
     virtual ~channel_notify()=default;
+
+    virtual std::shared_ptr<std::weak_ptr<recording_set_state>> applied_rss();
     
     virtual void perform_notify()=0; // will be called once ALL criteria are satisfied. May be called in any thread or context; must return quickly. Shouldn't do more than acquire a non-heavily-contended lock and perform a simple operation. NOTE: WILL NEED TO SPECIFY WHAT EXISTING LOCKS IF ANY MIGHT BE HELD WHEN THIS IS CALLED
 
@@ -132,12 +149,13 @@ namespace snde {
     bool _check_all_criteria_locked(std::shared_ptr<recording_set_state> rss,bool notifies_already_applied_to_rss);
 
     // check all criteria and notify if everything is satisfied. 
-    virtual void check_all_criteria(std::shared_ptr<recording_set_state> rss);
+    virtual void check_all_criteria();
 
 
 
     virtual std::shared_ptr<channel_notify> notify_copier(); // default implementation throws a snde_error. Derived classes should use channel_notify(criteria) superclass constructor
 
+    virtual void apply_to_transaction(std::shared_ptr<transaction> trans);  // apply this notification process to the globalrevision that will or has arisen from a particular transaction. WARNING: May trigger the notification immediately
 
     virtual void apply_to_rss(std::shared_ptr<recording_set_state> rss); // apply this notification process to a particular recording_set_state. WARNING: May trigger the notification immediately
   };
@@ -159,21 +177,28 @@ namespace snde {
 
 
   class promise_channel_notify: public channel_notify {
-    // has a .promise member
+    // has a .promise() accessor
     // with a .get_future() that you can
     // wait on  (be sure to drop all locks before waiting)
   public:
-    std::promise<void> promise;
+    std::shared_ptr<std::promise<bool>> _promise;  // bool is true if the wait was interrupted e.g. by the interrupt() method. Atomic shared_ptr; use promise() accessor. 
 
+    
     // After construction, need to call .apply_to_rss() method!!!
     promise_channel_notify(const std::vector<std::string> &mdonly_channels,const std::vector<std::string> &ready_channels,bool recordingset_complete);
+    promise_channel_notify(const channel_notification_criteria &criteria_to_copy);
+
     // rule of 3
     promise_channel_notify & operator=(const promise_channel_notify &) = delete; 
     promise_channel_notify(const promise_channel_notify &orig) = delete;
     virtual ~promise_channel_notify()=default;
 
-    
+    std::shared_ptr<std::promise<bool>> promise();
+
     void perform_notify();
+
+    bool wait_interruptable();   // returns true if interrupted
+    void interrupt();
 
   };
   

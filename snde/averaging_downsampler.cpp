@@ -174,7 +174,7 @@ namespace snde {
 
 		  new_creator_data->pending_recs.push_back(to_avg);
 		  starting_result->creator_data = new_creator_data;
-		  starting_result->mark_as_ready();
+		  starting_result->mark_data_ready();
 		  
 		}); 
 	      });
@@ -262,7 +262,7 @@ namespace snde {
 		    }
 		    raw_output_pointer[elnum] = accum/numavgs;
 		  } 
-		  unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready()
+		  unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready()
 
 		  // clear out previous recording's creator data so that references within can go away		  
 		  {
@@ -276,7 +276,7 @@ namespace snde {
 		  std::shared_ptr<averaging_downsampler_creator_data<T>> new_creator_data = std::make_shared<averaging_downsampler_creator_data<T>>();
 		  result_ref->rec->creator_data = new_creator_data;
 		  
-		  result_ref->rec->mark_as_ready();
+		  result_ref->rec->mark_data_ready();
 		  //snde_warning("avg: Generated new result (rev %llu)",(unsigned long long)result_ref->rec->info->revision);
 		}); 
 	      });

@@ -65,7 +65,9 @@ namespace snde {
     channel_notify & operator=(const channel_notify &) = delete; 
     channel_notify(const channel_notify &orig) = delete;
     virtual ~channel_notify()=default;
-    
+
+    virtual std::shared_ptr<std::weak_ptr<recording_set_state>> applied_rss();
+
     virtual void perform_notify()=0; // will be called once ALL criteria are satisfied. May be called in any thread or context; must return quickly. Shouldn't do more than acquire a non-heavily-contended lock and perform a simple operation. NOTE: WILL NEED TO SPECIFY WHAT EXISTING LOCKS IF ANY MIGHT BE HELD WHEN THIS IS CALLED
 
     // These next three methods are called when one of the criteria has been satisifed
@@ -81,12 +83,13 @@ namespace snde {
     bool _check_all_criteria_locked(std::shared_ptr<recording_set_state> rss,bool notifies_already_applied_to_rss);
 
     // check all criteria and notify if everything is satisfied. 
-    virtual void check_all_criteria(std::shared_ptr<recording_set_state> rss);
+    virtual void check_all_criteria();
 
 
 
     virtual std::shared_ptr<channel_notify> notify_copier(); // default implementation throws a snde_error. Derived classes should use channel_notify(criteria) superclass constructor
 
+    virtual void apply_to_transaction(std::shared_ptr<transaction> trans);  // apply this notification process to the globalrevision that will or has arisen from a particular transaction. WARNING: May trigger the notification immediately
 
     virtual void apply_to_rss(std::shared_ptr<recording_set_state> rss); // apply this notification process to a particular recording_set_state. WARNING: May trigger the notification immediately
   };
@@ -112,17 +115,24 @@ namespace snde {
     // with a .get_future() that you can
     // wait on  (be sure to drop all locks before waiting)
   public:
-    //std::promise<void> promise;
+    //std::shared_ptr<std::promise<bool>> _promise;  // bool is true if the wait was interrupted e.g. by the interrupt() method. Atomic shared_ptr; use promise() accessor. 
 
     // After construction, need to call .apply_to_rss() method!!!
     promise_channel_notify(const std::vector<std::string> &mdonly_channels,const std::vector<std::string> &ready_channels,bool recordingset_complete);
+    promise_channel_notify(const channel_notification_criteria &criteria_to_copy);
+    
     // rule of 3
     promise_channel_notify & operator=(const promise_channel_notify &) = delete; 
     promise_channel_notify(const promise_channel_notify &orig) = delete;
     virtual ~promise_channel_notify()=default;
 
+    //std::shared_ptr<std::promise<bool>> promise();
     
     void perform_notify();
+
+
+    bool wait_interruptable();   // returns true if interrupted
+    void interrupt();
 
   };
   

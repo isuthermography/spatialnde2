@@ -533,7 +533,8 @@ namespace snde {
       
       
     }
-    rec->mark_as_ready();
+    rec->mark_metadata_done();
+    rec->mark_data_ready();
   }
 
   ndefile_readgroup::ndefile_readgroup(const std::set<std::string> &nde_classes,std::string h5path, H5::Group group, std::string recpath,std::shared_ptr<nde_recording_map> filemap) :

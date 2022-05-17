@@ -1,11 +1,15 @@
 SpatialNDE2 library
 -------------------
 
+*** On Windows platform see WINDOWS_ANACONDA_BUILD.txt
+for the recommended build/install procedure ***
+
 Prerequisites
 -------------
 INSTALLING ALL PREREQUISITES IS STRONGLY RECOMMENDED
 as not all possible combinations of missing prerequisites
 may have been tested
+
 
 cmake (v3.12 or above)
 libxml2
@@ -13,6 +17,7 @@ eigen3 (v3.3 or above)
 OpenCL
 Python (v3.6 or above; including development libraries)
 SWIG
+Cython
 libpng
 OpenThreads
 OpenSceneGraph
@@ -47,7 +52,7 @@ YOU CONFIGURED WITH IN CMAKE):
    python setup.py build
    python setup.py install
 The latter command may need to be run as root or Administrator if your
-Python is installed centrall.y. 
+Python is installed centrally. 
 
 You can optionally run:
    make install

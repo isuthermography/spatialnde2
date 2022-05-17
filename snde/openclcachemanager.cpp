@@ -1138,7 +1138,8 @@ namespace snde {
 	/* start thread that will hold our locks until all dirty regions are no longer dirty */
 	std::shared_ptr<openclcachemanager> shared_this=std::dynamic_pointer_cast<openclcachemanager>(shared_from_this());
 	unlock_thread=std::make_shared<std::thread>( [ shared_this,oclbuffer_strong,locks_copy1 ]() {
-	  
+
+	  set_thread_name(nullptr,"snde2 ocl cleanup");
 	  //std::vector<std::shared_ptr<opencldirtyregion>>::iterator dirtyregion;
 	  rangetracker<opencldirtyregion>::iterator dirtyregion;
 	  std::unique_lock<std::mutex> lock(shared_this->admin);

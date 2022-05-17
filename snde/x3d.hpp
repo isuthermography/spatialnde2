@@ -472,6 +472,10 @@ namespace snde {
       xmlChar *USE=NULL;
       USE=xmlTextReaderGetAttribute(reader,(const xmlChar *)"USE");
       if (USE) {
+	auto use_it = defindex.find((const char *)USE);
+	if (use_it == defindex.end()) {
+	  throw snde_error("x3d file contains USE=\"%s\" but there is no corresponding DEF defined",(const char *)USE);
+	}
 	result=defindex[(const char *)USE];
 
 	xmlChar *use_containerField = containerField;
@@ -1313,14 +1317,19 @@ namespace snde {
 
 
     std::shared_ptr<loaded_part_geometry_recording> loaded_geom = create_recording<loaded_part_geometry_recording>(recdb,loaded_geom_channel,owner_id,processing_tags);
-    loaded_geom->mark_as_ready();
+    loaded_geom->mark_metadata_done();
+    loaded_geom->mark_data_ready();
 
     std::string recdb_context = recdb_group_path + "/";
 
     
     bool reindex_vertices = extract_geomproc_option(&processing_tags,"reindex_vertices");
     bool reindex_tex_vertices = extract_geomproc_option(&processing_tags,"reindex_tex_vertices");
-    
+
+
+    if (shape_index >= shapes.size()) {
+      throw snde_error("x3d_load_geometry(): Shape index %u matches or exceeds shape array size (%u)",(unsigned)shape_index,(unsigned)shapes.size());
+    }
 
     std::shared_ptr<x3d_shape> shape = shapes.at(shape_index);
       
@@ -1427,7 +1436,7 @@ namespace snde {
 	  //texture_meta->AddMetaDatum(metadatum("uv_parameterization","intrinsic"));
 	  texture_rec->metadata=texture_meta;
 	  texture_rec->mark_metadata_done();
-	  texture_rec->mark_as_ready();
+	  texture_rec->mark_data_ready();
 	}
 	  
       }
@@ -2646,7 +2655,7 @@ namespace snde {
 	
       uvparam->metadata = std::make_shared<immutable_metadata>(); 
       uvparam->mark_metadata_done();
-      uvparam->mark_as_ready();
+      uvparam->mark_data_ready();
 
       if (texture_ref) {
 	texedcurpart->parameterization_name = std::make_shared<std::string>(uvparamfullname);
@@ -2732,9 +2741,9 @@ namespace snde {
     graphman->geom.parts[firstpart].has_curvatures=false;
 
 
-    meshedcurpart->mark_as_ready();
+    meshedcurpart->mark_data_ready();
     if (texture_ref) {
-      texedcurpart->mark_as_ready();
+      texedcurpart->mark_data_ready();
     }
       
     
@@ -2773,6 +2782,11 @@ namespace snde {
   /* returns a shared ptr to a vector of parts. */
   {
     std::vector<std::shared_ptr<x3d_shape>> shapes=x3d_loader::shapes_from_file(filename.c_str());
+
+    if (shape_index >= shapes.size()) {
+      throw snde_error("x3d_load_geometry(): Shape index %u matches or exceeds the number of shapes (%u) loaded from file \"%s\".",(unsigned)shape_index,(unsigned)shapes.size(),filename.c_str());
+    }
+
     
     return x3d_load_geometry(recdb,graphman,shapes,shape_index,ownername,owner_id,recdb_group_path,filename,default_texture_scaling,processing_tags);
     

@@ -659,11 +659,11 @@ namespace snde {
 	    if (recdb_strong) {
 	      rwlock_token_set frame_locks = recdb_strong->lockmgr->lock_recording_refs(locks_required,false /*bool gpu_access */); // gpu_access is false because that is only needed for gpgpu calculations like OpenCL where we might be trying to map the entire scene data in one large all-encompassing array
 
-	      if (display_req.second->channelpath=="/graphics/projection") {
-		osgDB::writeNodeFile(*renderer->Viewer->getSceneData(),"/tmp/projection.osg");
+	      //if (display_req.second->channelpath=="/graphics/projection") {
+	      //osgDB::writeNodeFile(*renderer->Viewer->getSceneData(),"/tmp/projection.osg");
 		//std::cout << "ViewMatrix:\n " << Eigen::Map<Eigen::Matrix4d>(renderer->Camera->getViewMatrix().ptr()) << "\n";
 		//std::cout << "InverseViewMatrix:\n " << Eigen::Map<Eigen::Matrix4d>(renderer->Camera->getInverseViewMatrix().ptr()) << "\n";
-	      }
+	      //}
 	      
 	      renderer->frame();
 	    }
@@ -1183,6 +1183,8 @@ namespace snde {
   {
     if (threaded) {
       worker_thread = std::make_shared<std::thread>([ this ]() { this->worker_code(); });
+      set_thread_name(worker_thread.get(),"snde2 osg_comp worker");
+
       worker_thread_id = std::make_shared<std::thread::id>(worker_thread->get_id());
     } else {
       worker_thread_id = std::make_shared<std::thread::id>(std::this_thread::get_id());

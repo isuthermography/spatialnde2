@@ -43,7 +43,7 @@ namespace snde {
 
     {
       std::lock_guard<std::mutex> recdb_admin(recdb->admin);
-      std::shared_ptr<math_function_registry_map> new_math_functions=recdb->_begin_atomic_math_functions_update();
+      std::shared_ptr<math_function_registry_map> new_math_functions=recdb->_begin_atomic_available_math_functions_update();
 
 
       for (auto && name_custom_fcn: custom_math_funcs) {
@@ -60,7 +60,7 @@ namespace snde {
       }
 
       // set the atomic shared pointer
-      recdb->_end_atomic_math_functions_update(new_math_functions);
+      recdb->_end_atomic_available_math_functions_update(new_math_functions);
       
     }
   }

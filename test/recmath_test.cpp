@@ -143,8 +143,8 @@ public:
 	    }
 #endif // SNDE_OPENCL
 	    
-	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_as_ready() 
-	    result_rec->rec->mark_as_ready();
+	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
+	    result_rec->rec->mark_data_ready();
 	    
 	  }); 
 	});
@@ -222,10 +222,10 @@ int main(int argc, char *argv[])
       
     }
     // locktokens automatically dropped as it goes out of scope
-    // must drop before mark_as_ready()
+    // must drop before mark_data_ready()
 
   }
-  test_rec->rec->mark_as_ready();
+  test_rec->rec->mark_data_ready();
 
   printf("About to wait_complete()\n");
   fflush(stdout);
