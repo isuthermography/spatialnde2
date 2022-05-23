@@ -28,7 +28,7 @@ version based on git tagging, such as from https://git-scm.com/downloads
 
      conda create -n SNDE -c conda-forge python=3.9 numpy scipy matplotlib cython ipython pip opencv clhpp pyopencl pint hdf5 h5py lxml setuptools netcdf4 cmake openscenegraph pyopengl glfw freeglut glew mesa eigen swig pyreadline pyserial pyside2 hdf5
      
-   Note:  not all of these packaages may be needed.  There may be other 
+   Note:  not all of these packages may be needed.  There may be other 
           packages required for certain situations.
 
 5) Activate the conda environment 

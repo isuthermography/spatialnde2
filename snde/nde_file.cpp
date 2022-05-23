@@ -199,7 +199,7 @@ namespace snde {
       
       for (auto && attr_name: metadata_names) {
 
-	if (!attr_name.compare(attr_name.length()-6,6,"-units")) {
+	if (attr_name.length() > 6 && !attr_name.compare(attr_name.length()-6,6,"-units")) {
 	  // ending with -units means this is a units attribute of another metadata entry
 	  continue;
 	}
@@ -377,22 +377,22 @@ namespace snde {
     
     for (size_t arraynum=0; arraynum < (size_t)numarrays; arraynum++) {
       std::string postfix;
-      if (!arraynum) {
-	postfix="";
-      } else {
-	postfix=std::to_string(arraynum);
-      }
+      //if (!arraynum) {
+      //postfix="";
+      //} else {
+      postfix=std::string("-")+std::to_string(arraynum);
+	//}
       
       // nde_array-name   attribute
       // nde_array-array     dataset
       // nde_array-dimlenF   dataset
       // nde_array-dimlenC   dataset
       
-      H5::Attribute nde_array_name_attr = group.openAttribute(ssprintf("nde_array%s-name",postfix.c_str()));
+      H5::Attribute nde_array_name_attr = group.openAttribute(ssprintf("nde_array-name%s",postfix.c_str()));
       
       H5::DataType nde_an_dtype = nde_array_name_attr.getDataType();
       if (nde_an_dtype.getClass() != H5T_STRING) {
-	throw snde_error("nde_array%s-name for HDF5 group %s should be a string",postfix.c_str(),h5path.c_str());
+	throw snde_error("nde_array-name%s for HDF5 group %s should be a string",postfix.c_str(),h5path.c_str());
       }
       H5std_string nde_array_name;
       nde_array_name_attr.read(nde_an_dtype,nde_array_name);
@@ -402,17 +402,17 @@ namespace snde {
       std::vector<snde_index> dimlen;
       bool fortran_order=false;
       
-      std::string dimlenCname = ssprintf("nde_array%s-dimlenC",postfix.c_str());
-      std::string dimlenFname = ssprintf("nde_array%s-dimlenF",postfix.c_str());
+      std::string dimlenCname = ssprintf("nde_array-dimlenC%s",postfix.c_str());
+      std::string dimlenFname = ssprintf("nde_array-dimlenF%s",postfix.c_str());
       if (group.nameExists(dimlenCname)) {
 	H5::DataSet nde_array_dimlenC_dataset = group.openDataSet(dimlenCname);
 	H5::DataSpace nde_adC_dspace = nde_array_dimlenC_dataset.getSpace();
 	H5::DataType nde_adC_dtype = nde_array_dimlenC_dataset.getDataType();
 	if (nde_adC_dtype.getClass() != H5T_INTEGER) {
-	  throw snde_error("nde_array%s-dimlenC for HDF5 group %s should be of integral type",postfix.c_str(),h5path.c_str());
+	  throw snde_error("nde_array-dimlenC%s for HDF5 group %s should be of integral type",postfix.c_str(),h5path.c_str());
 	}
 	if (nde_adC_dspace.getSimpleExtentNdims() != 1) {
-	  throw snde_error("nde_array%s-dimlenC should have exactly one iterable dimension",postfix.c_str());
+	  throw snde_error("nde_array-dimlenC%s should have exactly one iterable dimension",postfix.c_str());
 	}
 	hsize_t dimlen_length=0;
 	nde_adC_dspace.getSimpleExtentDims(&dimlen_length,NULL);
@@ -441,10 +441,10 @@ namespace snde {
 	H5::DataSpace nde_adF_dspace = nde_array_dimlenF_dataset.getSpace();
 	H5::DataType nde_adF_dtype = nde_array_dimlenF_dataset.getDataType();
 	if (nde_adF_dtype.getClass() != H5T_INTEGER) {
-	  throw snde_error("nde_array%s-dimlenF for HDF5 group %s should be of integral type",postfix.c_str(),h5path.c_str());
+	  throw snde_error("nde_array-dimlenF%s for HDF5 group %s should be of integral type",postfix.c_str(),h5path.c_str());
 	}
 	if (nde_adF_dspace.getSimpleExtentNdims() != 1) {
-	  throw snde_error("nde_array%s-dimlenC should have exactly one iterable dimension",postfix.c_str());
+	  throw snde_error("nde_array-dimlenF%s should have exactly one iterable dimension",postfix.c_str());
 	}
 	hsize_t dimlen_length=0;
 	nde_adF_dspace.getSimpleExtentDims(&dimlen_length,NULL);
@@ -474,7 +474,13 @@ namespace snde {
       }
       
       
-      H5::Attribute nde_array_nativetype_attr = group.openAttribute(ssprintf("nde_array%s-nativetype",postfix.c_str()));
+      
+      
+      std::string nde_array_array_name = ssprintf("nde_array-array%s",postfix.c_str());
+      H5::DataSet nde_array_array_dataset = group.openDataSet(nde_array_array_name);
+
+
+      H5::Attribute nde_array_nativetype_attr = nde_array_array_dataset.openAttribute(ssprintf("nde_array-nativetype"));
       
       H5::DataType nde_ant_dtype = nde_array_nativetype_attr.getDataType();
       if (nde_ant_dtype.getClass() != H5T_STRING) {
@@ -488,10 +494,9 @@ namespace snde {
       if (nt_mappings_it == nde_file_nativetype_mappings.end()) {
 	throw snde_error("No known native type mapping for type %s for array %d of HDF5 group %s",nde_array_nativetype.c_str(),arraynum,h5path.c_str());
       }
+
+
       
-      
-      std::string nde_array_array_name = ssprintf("nde_array%s-array",postfix.c_str());
-      H5::DataSet nde_array_array_dataset = group.openDataSet(nde_array_array_name);
       H5::DataSpace nde_aa_dspace = nde_array_array_dataset.getSpace();
       H5::DataType nde_aa_dtype = nde_array_array_dataset.getDataType();
       
@@ -507,13 +512,13 @@ namespace snde {
       
       
       if (nde_aa_dspace.getSimpleExtentNdims() != 1) {
-	throw snde_error("nde_array%s-array should have exactly one iterable dimension for HDF5 group %s",postfix.c_str(),h5path.c_str());
+	throw snde_error("nde_array-array%s should have exactly one iterable dimension for HDF5 group %s",postfix.c_str(),h5path.c_str());
       }
       
       hsize_t nelements=0;
       nde_aa_dspace.getSimpleExtentDims(&nelements,NULL);
       if (nelements != mndarray->layouts.at(arraynum).flattened_length()) {
-	throw snde_error("nde_array%s-array number of elements (%llu) does not exactly match product of dimlen dimensions (%llu) for hdf5 group %s",postfix.c_str(),(unsigned long long)nelements,(unsigned long long)mndarray->layouts.at(arraynum).flattened_length(),h5path.c_str());	  
+	throw snde_error("nde_array-array%s number of elements (%llu) does not exactly match product of dimlen dimensions (%llu) for hdf5 group %s",postfix.c_str(),(unsigned long long)nelements,(unsigned long long)mndarray->layouts.at(arraynum).flattened_length(),h5path.c_str());	  
       }
       
       
