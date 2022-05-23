@@ -528,12 +528,31 @@ namespace snde {
       std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator recs_it = subsequent_globalrev->recstatus.defined_recordings.find(current_channelstate.config);
       bool in_defined_recordings = true;
       bool in_instantiated_recordings = false;
+      bool in_metadataonly_recordings = false;
+      bool in_completed_recordings = false;
+      
       if (recs_it == subsequent_globalrev->recstatus.defined_recordings.end()) {
 	in_defined_recordings = false;
 	// not in defined recordings... should be in instantiated_recordings
 	recs_it = subsequent_globalrev->recstatus.instantiated_recordings.find(current_channelstate.config);
-	assert(recs_it != subsequent_globalrev->recstatus.instantiated_recordings.end()); // should be in either defined_recordings or instantiated_recordings prior to the notifications
-	in_instantiated_recordings = true;
+	if (recs_it != subsequent_globalrev->recstatus.instantiated_recordings.end()) {
+	  // should be in either defined_recordings or instantiated_recordings prior to the notifications
+	  in_instantiated_recordings = true;
+	} else {
+	  if (recs_it != subsequent_globalrev->recstatus.metadataonly_recordings.end()) {
+	    in_metadataonly_recordings = true;
+	    
+	  } else {
+	    if (recs_it != subsequent_globalrev->recstatus.completed_recordings.end()) {
+	      in_completed_recordings = true;
+	      
+	    } else {
+	      assert(0); // recording was not in defined, instantiated, metadataonly, or completed recordings
+	    }
+	  }
+	  
+	}
+	
       }
 
       assert(recs_it->second == &sg_channelstate);
@@ -541,11 +560,20 @@ namespace snde {
       if (mdonly  && !sg_channelstate.recording_is_complete(false)) {
 	// if we are mdonly and recording is only complete through mdonly
 	assert(sg_channelstate.recording_is_complete(true));
-	subsequent_globalrev->recstatus.metadataonly_recordings.emplace(current_channelstate.config,&sg_channelstate);	
+	if (!in_metadataonly_recordings) {
+	  subsequent_globalrev->recstatus.metadataonly_recordings.emplace(current_channelstate.config,&sg_channelstate);
+	}
       } else {
 	// recording must be complete
 	assert(sg_channelstate.recording_is_complete(false));
-	subsequent_globalrev->recstatus.completed_recordings.emplace(current_channelstate.config,&sg_channelstate);	
+	if (!in_completed_recordings) {
+	  subsequent_globalrev->recstatus.completed_recordings.emplace(current_channelstate.config,&sg_channelstate);
+	}
+
+	if (in_metadataonly_recordings) {
+	  subsequent_globalrev->recstatus.metadataonly_recordings.erase(recs_it);
+
+	}
       }
 
       if (in_defined_recordings) {
