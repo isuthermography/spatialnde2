@@ -39,19 +39,6 @@ namespace snde {
 
 
   template <typename T>
-  class averaging_downsampler_creator_data: public recording_creator_data {
-  public:
-    std::vector<std::shared_ptr<ndtyped_recording_ref<T>>> pending_recs;
-
-    averaging_downsampler_creator_data() = default;
-    // rule of 3
-    averaging_downsampler_creator_data & operator=(const averaging_downsampler_creator_data &) = delete; 
-    averaging_downsampler_creator_data(const averaging_downsampler_creator_data &orig) = delete;
-    virtual ~averaging_downsampler_creator_data()=default; 
-
-  };
-  
-  template <typename T>
   class batched_live_accumulator: public recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t,uint64_t,snde_bool,snde_bool> {
   public:
     batched_live_accumulator(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) :

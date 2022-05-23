@@ -1,3 +1,6 @@
+#ifndef SNDE_SHARED_MEMORY_ALLOCATOR_POSIX_HPP
+#define SNDE_SHARED_MEMORY_ALLOCATOR_POSIX_HPP
+
 #include <mutex>
 #include <memory>
 #include <unordered_map>
@@ -7,6 +10,8 @@
 #include "snde/snde_types.h"
 #include "snde/geometry_types.h"
 #include "snde/memallocator.hpp"
+
+#include "snde/shared_memory_allocator_common.hpp" // for memkey_hash
 
 namespace snde {
 
@@ -47,17 +52,6 @@ namespace snde {
 			     size_t nbytes);
   };
 
-  class memkey_hash {
-  public:
-    size_t operator() (std::tuple<std::string,uint64_t,uint64_t,memallocator_regionid> const &key) const {
-      const std::string &recpath=std::get<0>(key);
-      const uint64_t &recrev=std::get<1>(key);
-      const uint64_t &originating_rss_unique_id=std::get<2>(key);
-      const memallocator_regionid &id=std::get<3>(key);
-
-      return std::hash<std::string>()(recpath)^std::hash<uint64_t>()(recrev)^std::hash<uint64_t>()(originating_rss_unique_id),std::hash<memallocator_regionid>()(id);
-    }
-  };
 
   //memkey_equal
   
@@ -93,3 +87,7 @@ namespace snde {
   
   
 }
+
+
+
+#endif // SNDE_SHARED_MEMORY_ALLOCATOR_POSIX_HPP
