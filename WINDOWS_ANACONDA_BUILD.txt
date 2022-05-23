@@ -48,7 +48,7 @@ version based on git tagging, such as from https://git-scm.com/downloads
 
 8) Build with cmake and watch for errors
 
-     cmake --build . -- -p:Configuration=RelWithDebInfo
+     cmake --build . -- /p:Configuration=RelWithDebInfo
 
    Alternatively you can load the generated .sln file into Visual Studio and
    build it from there. If you do so you may need to manually select RelWithDebInfo
