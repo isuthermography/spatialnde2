@@ -499,6 +499,7 @@ template <typename T>
 %include "recstore_setup.i"
 %include "x3d.i"
 %include "utils.i"
+%include "nde_file.i"
 
 #ifdef SNDE_OPENCL
 %include "opencl_utils.i"

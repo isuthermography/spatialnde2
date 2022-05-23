@@ -22,7 +22,49 @@ copyright = '2022, Stephen D. Holland'
 author = 'Stephen D. Holland'
 
 # The full version, including alpha/beta/rc tags
-release = '0.6'
+#release = '0.6'
+import setuptools
+import subprocess
+import re
+
+# Extract GIT version (use subprocess.call(['git','rev-parse']) to check if we are inside a git repo
+if setuptools.distutils.spawn.find_executable("git") is not None and subprocess.call(['git','rev-parse'],stderr=subprocess.DEVNULL)==0:
+    # Check if tree has been modified
+    modified = subprocess.call(["git","diff-index","--quiet","HEAD","--"]) != 0
+    
+    gitrev = subprocess.check_output(["git","rev-parse","HEAD"]).decode('utf-8').strip()
+
+    version = "git-%s" % (gitrev)
+
+    # See if we can get a more meaningful description from "git describe"
+    try:
+        versionraw=subprocess.check_output(["git","describe","--tags","--match=v*"],stderr=subprocess.STDOUT).decode('utf-8').strip()
+        # versionraw is like v0.1.0-50-g434343
+        # for compatibility with PEP 440, change it to
+        # something like 0.1.0+50.g434343
+        matchobj=re.match(r"""v([^.]+[.][^.]+[.][^-.]+)(-.*)?""",versionraw)
+        version=matchobj.group(1)
+        if matchobj.group(2) is not None:
+            version += '+'+matchobj.group(2)[1:].replace("-",".")
+            pass
+        pass
+    except subprocess.CalledProcessError:
+        # Ignore error, falling back to above version string
+        pass
+
+    if modified and version.find('+') >= 0:
+        version += ".modified"
+        pass
+    elif modified:
+        version += "+modified"
+        pass
+    pass
+else:
+    version = "UNKNOWN"
+    pass
+
+release = version
+
 
 
 # -- General configuration ---------------------------------------------------
