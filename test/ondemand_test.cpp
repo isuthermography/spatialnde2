@@ -198,13 +198,13 @@ int main(int argc, char **argv)
   setup_math_functions(recdb,{});
   recdb->startup();
 
-  snde::active_transaction transact(recdb); // Transaction RAII holder
+  std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
 
   testchan_config=std::make_shared<snde::channelconfig>("/test channel", "main", (void *)&main,false);
   std::shared_ptr<snde::channel> testchan = recdb->reserve_channel(testchan_config);
   
   test_rec = create_recording_ref(recdb,testchan,(void *)&main,SNDE_RTN_FLOAT64);
-  std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
+  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
 
   test_rec->allocate_storage({100,120}, true);
 

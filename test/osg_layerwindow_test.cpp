@@ -211,14 +211,14 @@ int main(int argc, char **argv)
   setup_math_functions(recdb, {});
   recdb->startup();
 
-  snde::active_transaction transact(recdb); // Transaction RAII holder
+  std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
 
   pngchan_config=std::make_shared<snde::channelconfig>("png channel", "main", (void *)&main,false);
   std::shared_ptr<snde::channel> pngchan = recdb->reserve_channel(pngchan_config);
   
   png_rec = create_recording_ref(recdb,pngchan,(void *)&main,SNDE_RTN_UNASSIGNED);
   
-  std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
+  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
 
   png_rec->rec->metadata=std::make_shared<snde::immutable_metadata>();
   ReadPNG(png_rec,argv[1]);

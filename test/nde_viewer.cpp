@@ -54,12 +54,12 @@ int main(int argc, char **argv)
   setup_math_functions(recdb,{});
   recdb->startup();
 
-  snde::active_transaction transact(recdb); // Transaction RAII holder
+  std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
 
   
   std::shared_ptr<nde_recording_map> recmap = ndefile_loadfile(recdb,"main",(void *)&main,argv[1],"/"); 
 
-  std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
+  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
   globalrev->wait_complete();
 
   QCoreApplication::setAttribute(Qt::AA_UseDesktopOpenGL); // OpenSceneGraph requires UseDesktopOpenGL, I think

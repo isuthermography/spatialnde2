@@ -485,7 +485,8 @@ namespace snde {
       PyGILState_STATE gstate;
       gstate = PyGILState_Ensure(); // acquire the GIL -- this is run in a gil-free context
       
-      PyObject *ret = PyObject_CallFunction(ribaet_fcn_copy,(char *)"O",*ParamsPy);
+      //PyObject *ret = PyObject_CallFunction(ribaet_fcn_copy,(char *)"O",*ParamsPy);
+      PyObject *ret = PyObject_Call(ribaet_fcn_copy,*ParamsPy,nullptr);
       
       // we don't care about the return value
       if (ret) {
@@ -530,8 +531,11 @@ namespace snde {
     std::weak_ptr<recdatabase> recdb;
     std::shared_ptr<globalrevision> previous_globalrev;
     bool transaction_ended;
-    
-    active_transaction(std::shared_ptr<recdatabase> recdb);
+
+    // Direct creationg of active_transaction object disabled in Python. Use recdb.start_transaction()
+    // instead because that handles dropping dataguzzler-python locks prior to acquiring the
+    // transaction lock correctly. 
+    //active_transaction(std::shared_ptr<recdatabase> recdb);
 
 
     // rule of 3

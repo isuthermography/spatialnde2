@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
   
   
   
-  snde::active_transaction transact(recdb); // Transaction RAII holder
+  std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
   
   recdb->add_math_function(scaled_channel_function,false);
   
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
   
   std::shared_ptr<snde::channel> testchan = recdb->reserve_channel(testchan_config);
   test_rec = create_recording_ref(recdb,testchan,(void *)&main,SNDE_RTN_FLOAT32);
-  std::shared_ptr<snde::globalrevision> globalrev = transact.end_transaction();
+  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
 
   test_rec->rec->metadata=std::make_shared<snde::immutable_metadata>();
   test_rec->rec->mark_metadata_done();

@@ -16,7 +16,7 @@ orient_dtype = [('offset', '<f4', (4,)), ('quat', '<f4', (4,))]
 
 graphman=snde.graphics_storage_manager("/graphics/",recdb.lowlevel_alloc,recdb.alignment_requirements,recdb.lockmgr,1e-8);
 
-transact = snde.active_transaction(recdb)
+transact = recdb.start_transaction()
 
 
 graphicsgroup = recdb.define_channel("/graphics","main",recdb.raw(),False,graphman)
@@ -207,7 +207,7 @@ def live_thread_code():
     
     while True: 
 
-        transact = snde.active_transaction(recdb)	
+        transact = recdb.start_transaction()	
         synthetic_probe_imp_ref = snde.create_recording_ref(recdb,synthetic_probe_impedance_chan,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
         metadata = snde.constructible_metadata()
         metadata.AddMetaDatum(snde.metadatum("snde_render_goal","SNDE_SRG_PHASEPLANE"))
@@ -243,7 +243,7 @@ live_thread.start()
 
 
 def new_probe_posn():
-    transact = snde.active_transaction(recdb)
+    transact = recdb.start_transaction()
 
 
     probe_pose_ref = snde.create_recording_ref(recdb,probe_pose_chan,recdb.raw(),snde.SNDE_RTN_SNDE_ORIENTATION3)

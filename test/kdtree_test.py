@@ -41,7 +41,7 @@ knn_function = knn_math_function.instantiate([ snde.math_parameter_recording("/m
                                              None)
 
 
-transact = snde.active_transaction(recdb); # Transaction RAII holder
+transact = recdb.start_transaction(); # Transaction RAII holder
 
 recdb.add_math_function(kdtree_function,False)
 recdb.add_math_function(knn_function,False)
@@ -93,7 +93,7 @@ assert((knn==by_numpy).all()) # Note: infintesimal possibility of a transient fa
 # Do a second transaction where we feed in the vertices as the search points
 # and verify that case works as well
 
-transact2 = snde.active_transaction(recdb); # Transaction RAII holder
+transact2 = recdb.start_transaction(); # Transaction RAII holder
 search_points2 = snde.create_recording_ref(recdb,search_points_chan,recdb,snde.SNDE_RTN_SNDE_COORD3)
 search_points2.rec.metadata=snde.immutable_metadata()
 search_points2.rec.mark_metadata_done()

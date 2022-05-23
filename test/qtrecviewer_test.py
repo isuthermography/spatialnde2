@@ -16,7 +16,7 @@ snde.setup_math_functions(recdb,[])
 recdb.startup()
 
  
-transact = snde.active_transaction(recdb); # Transaction RAII holder
+transact = recdb.start_transaction(); # Transaction RAII holder
 
 testchan_config=snde.channelconfig("/test channel", "main", recdb,False)
 pointcloudchan_config=snde.channelconfig("/pointcloud channel", "main", recdb,False)

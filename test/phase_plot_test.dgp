@@ -17,7 +17,7 @@ include(snde,"recdb.dpi",enable_opencl=False)
 include(snde,"recdb_gui.dpi")
 
 
-transact = snde.active_transaction(recdb)	
+transact = recdb.start_transaction()	
 
 live_channel = recdb.define_channel("/live complex value","main",recdb.raw())
 
@@ -47,7 +47,7 @@ def live_thread_code():
     
     while True: 
 
-        transact = snde.active_transaction(recdb)	
+        transact = recdb.start_transaction()	
         live_recording = snde.create_recording_ref(recdb,live_channel,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
         metadata = snde.constructible_metadata()
         metadata.AddMetaDatum(snde.metadatum("snde_render_goal","SNDE_SRG_PHASEPLANE"))

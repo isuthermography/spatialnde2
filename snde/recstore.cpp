@@ -4549,6 +4549,9 @@ namespace snde {
 	      chan_it->second->_config = nullptr;
 	      chan_it->second->latest_revision++;
 	      chan_it->second->deleted = true; 
+	      std::shared_ptr<channel> channel_ptr = chan_it->second;
+	      _channels.erase(chan_it);
+	      _deleted_channels.emplace(std::make_pair(full_path,channel_ptr));
 	      
 	      paths_and_channels.emplace_back(std::make_tuple(full_path,chan_it->second));
 	    }
@@ -4696,6 +4699,7 @@ namespace snde {
 	  // OK to lock channel because channel locks are after the recdb lock we already hold in the locking order
 	  std::lock_guard<std::mutex> channel_lock(new_chan->admin);
 	  assert(!new_chan->config()); // should be nullptr
+	  new_chan->deleted = false;
 	  new_chan->end_atomic_config_update(new_config);
 	}
 	

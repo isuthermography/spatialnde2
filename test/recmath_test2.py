@@ -26,7 +26,7 @@ scaled_channel_function = scalar_multiply_function.instantiate([ snde.math_param
                                                                False,
                                                                snde.math_definition("c++ definition"),
                                                                None)
-transact = snde.active_transaction(recdb); # Transaction RAII holder
+transact = recdb.start_transaction(); # Transaction RAII holder
 
 recdb.add_math_function(scaled_channel_function,False)
 
@@ -40,7 +40,7 @@ test_rec_32 = snde.create_recording_ref(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT
 
 globalrev = transact.end_transaction()
 
-transact2 = snde.active_transaction(recdb); # Transaction RAII holder
+transact2 = recdb.start_transaction(); # Transaction RAII holder
 test_rec_64 = snde.create_recording_ref(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT64)
 globalrev2 = transact2.end_transaction()
 

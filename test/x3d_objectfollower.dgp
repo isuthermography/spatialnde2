@@ -24,7 +24,7 @@ k4a = ak.K4AFile("k4a",recdb, args[2], "/pointcloud recording" )
 k4a.depth_data_mode = "POINTCLOUD"
 
 
-transact = snde.active_transaction(recdb)	
+transact = recdb.start_transaction()	
 
 graphicsgroup_config=snde.channelconfig("/graphics", "main", recdb.raw(),False,graphman)
 graphicsgroup = recdb.reserve_channel(graphicsgroup_config); 
