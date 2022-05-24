@@ -228,8 +228,9 @@ def live_thread_code():
         synthetic_probe_imp_ref.assign_complexfloat64([],value)
         synthetic_probe_imp_ref.rec.mark_data_and_metadata_ready()
         
-        transact.end_transaction()
-        
+        grev = transact.end_transaction()
+
+        grev.wait_complete()
         time.sleep(.1)
         cnt+=1
         pass

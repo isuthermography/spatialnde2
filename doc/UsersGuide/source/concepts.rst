@@ -191,6 +191,15 @@ surface parameterization (texture coordinates), a ``texed`` recording of
 class ``textured_part_recording`` and possibly one or more recordings
 containing texture data.
 
+The image below shows the included plate and probe 3D models in the
+SpatialNDE2 viewer, listing some of the various recordings on the left that
+are used for rendering and ray tracing.
+
+.. image:: plate_and_probe.png
+   :width: 800
+   :alt: Screenshot of viewer window with plate and probe 3D models.
+
+
 The ``graphics_storage_manager`` stores geometric objects in
 a set of shared arrays pointed to by the ``struct snde_geometrydata``.
 Space in the arrays is an ``allocation`` reserved by an ``allocator``.
