@@ -2149,6 +2149,150 @@ std::shared_ptr<display_requirement> tracking_pose_recording_display_handler::ge
 }
 
 
+
+
+pose_channel_recording_display_handler::pose_channel_recording_display_handler(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) :
+  recording_display_handler_base(display,displaychan,base_rss)
+{
+  
+}
+
+
+// Register this handler for mode SNDE_SRG_RENDERING and SNDE_SRG_RENDERING_3D
+static int register_pcr_display_handler = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(pose_channel_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+    return std::make_shared<pose_channel_recording_display_handler>(display,displaychan,base_rss);
+    }));
+static int register_pcr_display_handler_3d = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING_3D,typeid(pose_channel_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+      return std::make_shared<pose_channel_recording_display_handler>(display,displaychan,base_rss);
+    }));
+
+std::shared_ptr<display_requirement> pose_channel_recording_display_handler::get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent)
+// pose_channel_recording:SNDE_SRG_RENDERING
+//  -> MAIN pose_channel_recording_display_handler:SNDE_SRM_TRANSFORMEDCOMPONENT
+//     SUB... textured_part_recording:SNDE_SRG_RENDERING or meshed_part_recording:SNDE_SRG_RENDERING 
+{
+  assert(simple_goal == SNDE_SRG_RENDERING || simple_goal == SNDE_SRG_RENDERING_3D);
+
+  const std::string &chanpath = displaychan->FullName;
+
+  {
+    
+    std::lock_guard<std::mutex> displaychan_admin(displaychan->admin);
+    // !!!*** displaychan updates should be more formally passed around,
+    // and perhaps this update should not occur unless this was actually a render goal (?)
+    displaychan->render_mode = SNDE_DCRM_GEOMETRY;
+  }
+  
+  
+  std::shared_ptr<recording_base> rec = base_rss->get_recording(chanpath);
+  
+  std::shared_ptr<pose_channel_recording> pose_channel_rec=std::dynamic_pointer_cast<pose_channel_recording>(rec);
+  assert(pose_channel_rec);
+
+
+
+
+  std::shared_ptr<display_spatial_position> posn;
+  std::shared_ptr<display_spatial_transform> xform;
+  std::shared_ptr<display_channel_rendering_bounds> bounds;
+  
+  
+  {
+    std::lock_guard<std::mutex> di_lock(display->admin);
+    std::lock_guard<std::mutex> dc_lock(displaychan->admin);
+    
+    // !!!*** displaychan updates should be more formally passed around,
+    // and perhaps this update should not occur unless this was actually a render goal (?)
+    displaychan->render_mode = SNDE_DCRM_GEOMETRY;
+    std::tie(posn,xform,bounds) = spatial_transforms_for_3d_channel(display->drawareawidth,display->drawareaheight,
+								    displaychan->HorizPosition,displaychan->Position,
+								    1.0/displaychan->RenderScale,display->pixelsperdiv);	  // magnification comes from the scale
+    
+  } // release displaychan lock
+
+  
+  // From the low-level rendering perspective we just treat this as an assembly
+  // with one element and the given pose
+  std::shared_ptr<poseparams> pose_params=std::make_shared<poseparams>(); // will be filled in below
+  
+  
+  std::shared_ptr<display_requirement> retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_TRANSFORMEDCOMPONENT,typeid(*this),pose_params),rec,shared_from_this());
+  retval->renderer_type = SNDE_DRRT_GEOMETRY;
+  retval->spatial_position = posn;
+  retval->spatial_transform = xform;
+  retval->spatial_bounds = bounds;
+  
+  retval->renderable_channelpath = std::make_shared<std::string>(chanpath);
+  
+  
+  // reuse assembly code to determine absolute path to channel_to_reorient and component
+  std::string channel_to_reorient_abspath = recdb_path_join(recdb_path_context(chanpath),pose_channel_rec->channel_to_reorient);
+
+  std::shared_ptr<recording_base> channel_to_reorient_rec = base_rss->get_recording(channel_to_reorient_abspath);
+  
+  // sub-requirement 1 is our channel_to_reorient in rendering mode
+  std::shared_ptr<display_requirement> sub_requirement1 = traverse_display_requirement(display,base_rss,display->lookup_channel(channel_to_reorient_abspath),SNDE_SRG_DEFAULT_3D,nullptr);
+  retval->sub_requirements.push_back(sub_requirement1);
+  
+  std::shared_ptr<renderparams_base> channel_to_reorient_params = sub_requirement1->mode.constraint;
+  pose_params->channel_to_reorient_params=channel_to_reorient_params;
+  pose_params->component_params = nullptr;
+
+  if (pose_channel_rec->storage.at(0)->requires_locking_read) {
+    // with only a few bytes there's no reason a pose channel should ever need a locking storage manager.
+    // It would probably be OK here just to go ahead and lock, but that would require properly thinking
+    // through the locking order implications, which are probably fine. Having not done that we
+    // just throw an exception
+    throw snde_error("pose_channel_recording_display_handler::get_display_requirement(): pose channel recording storage requires locking read; switch it to a storage manager that does not require locking read");
+  }
+  
+
+  std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> pose_channel_ref = pose_channel_rec->reference_typed_ndarray<snde_orientation3>();
+
+  if (!pose_channel_ref) {
+    throw snde_error("pose_channel_recording_display_handler::get_display_requirement(): pose channel data should be of type snde_orientation3");
+  }
+  
+  pose_params->channel_to_reorient_orientation = pose_channel_ref->element(0);
+
+  
+  //// this assertion is temporary for debugging purposes and needs to be removed!!!***
+  //assert(isnan(pose_params->channel_to_reorient_orientation.quat.coord[3]) || pose_params->channel_to_reorient_orientation.quat.coord[3] != 0.0);
+  //{
+  //  snde_coord4 rotmtx[4];
+  //  orientation_build_rotmtx(pose_params->channel_to_reorient_orientation,rotmtx);
+  //  std::cout << "ChannelToTrackOrientation:\n ";
+  //  std::cout << "ChannelToTrack: " << channel_to_reorient_abspath << "\n";
+  //  for (int row=0;row < 4;row++) {
+  //    for (int col=0;col < 4;col++) {
+  //	std::cout << std::to_string(rotmtx[col].coord[row]) << " ";
+  //	
+  //    }
+  //    std::cout << "\n";
+  //  }
+  //}
+  
+  
+  // sub-requirement 2 is our component in rendering mode (if present)
+  if (pose_channel_rec->component_name) {
+    std::string component_abspath = recdb_path_join(recdb_path_context(chanpath),*pose_channel_rec->component_name);
+
+    std::shared_ptr<display_requirement> sub_requirement2 = traverse_display_requirement(display,base_rss,display->lookup_channel(component_abspath),SNDE_SRG_DEFAULT_3D,nullptr);
+    retval->sub_requirements.push_back(sub_requirement2);
+
+    std::shared_ptr<renderparams_base> component_params = sub_requirement2->mode.constraint;
+    pose_params->component_params=component_params;
+    //pose_params->component_orientation = null_orientation;
+    
+  }
+  
+  return retval; 
+}
+
+
+
+
+
 std::shared_ptr<display_requirement> traverse_display_requirement(std::shared_ptr<display_info> display,std::shared_ptr<recording_set_state> base_rss,std::shared_ptr<display_channel> displaychan, std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent) // simple_goal such as SNDE_SRG_DEFAULT or SNDE_SRG_RENDERING
 {
   const std::string &chanpath = displaychan->FullName;

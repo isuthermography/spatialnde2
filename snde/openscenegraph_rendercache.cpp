@@ -79,6 +79,11 @@ namespace snde {
       return std::make_shared<osg_cachedtransformedcomponent>(params,display_req);
     });
 
+  // register our cachedtransformedcomponent as accommodating the pose_channel_recording_display_handler
+  static int osg_registered_transformedcomponent_posechannel = osg_register_renderer(rendermode(SNDE_SRM_TRANSFORMEDCOMPONENT,typeid(pose_channel_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedtransformedcomponent>(params,display_req);
+    });
+
   
   
   static std::shared_ptr<osg_renderer_map> *_osg_renderer_registry; // default-initialized to nullptr
@@ -1542,20 +1547,24 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     if (!channel_to_reorient) {
       throw snde_error("osg:cachedtransformedcomponent(): Cache entry for channeltotrack %s not convertible to a group",channeltotrack_requirement->renderable_channelpath->c_str());	
     }   
-    // sub-requirement 2 is our component in rendering mode
-    std::shared_ptr<display_requirement> subcomponent_requirement=display_req->sub_requirements.at(1);
-    std::shared_ptr<osg_rendercacheentry> subcomponent_entry;
+    // sub-requirement 2, if present, is our component in rendering mode
+    if (display_req->sub_requirements.size() > 1) {
+      std::shared_ptr<display_requirement> subcomponent_requirement=display_req->sub_requirements.at(1);
+      std::shared_ptr<osg_rendercacheentry> subcomponent_entry;
     
-    bool sc_modified;
+      bool sc_modified;
 
-    std::tie(subcomponent_entry,sc_modified) = params.rendercache->GetEntry(params,subcomponent_requirement,&locks_required);
-    if (!subcomponent_entry) {
-      throw snde_error("osg_cachedtransformedcomponent(): Could not get cache entry for sub-component %s",subcomponent_requirement->renderable_channelpath->c_str());
+      std::tie(subcomponent_entry,sc_modified) = params.rendercache->GetEntry(params,subcomponent_requirement,&locks_required);
+      if (!subcomponent_entry) {
+	throw snde_error("osg_cachedtransformedcomponent(): Could not get cache entry for sub-component %s",subcomponent_requirement->renderable_channelpath->c_str());
+      }
+
+      // sub_component is a class member
+      sub_component = std::dynamic_pointer_cast<osg_rendercachegroupentry>(subcomponent_entry);
+      if (!sub_component) {
+	throw snde_error("osg:cachedtransformedcomponent(): Cache entry for sub-component %s not convertible to a group",subcomponent_requirement->renderable_channelpath->c_str());	
+      }   
     }
-    sub_component = std::dynamic_pointer_cast<osg_rendercachegroupentry>(subcomponent_entry);
-    if (!sub_component) {
-      throw snde_error("osg:cachedtransformedcomponent(): Cache entry for sub-component %s not convertible to a group",subcomponent_requirement->renderable_channelpath->c_str());	
-    }   
     
     osg_group = new osg::Group();
 
@@ -1572,7 +1581,10 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       //std::cout << "ChannelToTrackTransform:\n " << Eigen::Map<const Eigen::Matrix4d>(xform->getMatrix().ptr()) << "\n";
       xform->addChild(channel_to_reorient->osg_group);
       osg_group->addChild(xform);
-      osg_group->addChild(sub_component->osg_group);
+
+      if (sub_component) {
+	osg_group->addChild(sub_component->osg_group);
+      }
     }
     
   }
@@ -1592,9 +1604,10 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
   void osg_cachedtransformedcomponent::clear_potentially_obsolete()
   {
     potentially_obsolete=false;
-    
-    sub_component->clear_potentially_obsolete();
-    
+
+    if (sub_component) {
+      sub_component->clear_potentially_obsolete();
+    }
   }
   
 

@@ -359,6 +359,37 @@ namespace snde {
   }
 
 
+  pose_channel_recording::pose_channel_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays,std::string channel_to_reorient) :
+    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,num_ndarrays),
+    channel_to_reorient(channel_to_reorient)
+    
+  {
+
+    if (num_ndarrays != 1) {
+      throw snde_error("pose_channel_recording::pose_channel_recording(%s): Error only single ndarray supported",chanpath.c_str());
+    }
+    
+    name_mapping.emplace(std::make_pair("pose",0));
+    name_reverse_mapping.emplace(std::make_pair(0,"pose"));
+    define_array(0,rtn_typemap.at(typeid(snde_orientation3)));
+  }
+
   
+  // only call during initialization
+  void pose_channel_recording::set_untransformed_render_channel(std::string component_name_str)
+  {
+    component_name = std::make_shared<std::string>(component_name_str);
+  }
+
+  /* static */ std::shared_ptr<pose_channel_recording> pose_channel_recording::from_ndarray_recording(std::shared_ptr<multi_ndarray_recording> rec)
+  {
+    return std::dynamic_pointer_cast<pose_channel_recording>(rec);
+  }
+
+  std::shared_ptr<ndarray_recording_ref> create_pose_channel_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string channel_to_reorient_name)
+  {
+    return create_subclass_recording_ref<pose_channel_recording>(recdb,chan,owner_id,SNDE_RTN_SNDE_ORIENTATION3,channel_to_reorient_name);
+  }
+
   
 };

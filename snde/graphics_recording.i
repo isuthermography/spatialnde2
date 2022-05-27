@@ -42,6 +42,10 @@ snde_rawaccessible(snde::tracking_pose_recording);
 snde_rawaccessible(snde::pose_channel_tracking_pose_recording);
 
 
+%shared_ptr(snde::pose_channel_recording);
+snde_rawaccessible(snde::pose_channel_recording);
+
+
 %{
 #include "snde/graphics_recording.hpp"
 
@@ -180,6 +184,24 @@ namespace snde {
 
   };
 
+  class pose_channel_recording: public multi_ndarray_recording {
+  public:
+    std::string channel_to_reorient; // Name of the channel to render with the given pose, potentially relative to the parent of the pose_channel_recording
+    std::shared_ptr<std::string> component_name; // nullptr, or name of the channel to render untransformed. 
+
+    
+    pose_channel_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays,std::string channel_to_reorient);
+
+    void set_untransformed_render_channel(std::string component_name_str);
+
+    // this static method is used by Python through the SWIG wrappers to get a pose_channel_recording from the .rec attribute of an ndarray_recording_ref
+    static std::shared_ptr<pose_channel_recording> from_ndarray_recording(std::shared_ptr<multi_ndarray_recording> rec);
+
+  };
+
+
+  std::shared_ptr<ndarray_recording_ref> create_pose_channel_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string channel_to_reorient_name);
+
   // moved from recstore.i...
   template <class T>
     std::shared_ptr<T> create_recording_textured_part_info(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string part_name, std::shared_ptr<std::string> parameterization_name, std::vector<std::pair<snde_index,std::shared_ptr<image_reference>>> texture_refs);
@@ -201,10 +223,14 @@ namespace snde {
   
   // Note customized pseudo-templates for extra create_recording arguments are defined at the
   // bottom of recstore.i
+  //%template(create_pose_channel_recording) create_recording_size_t_string<pose_channel_recording>;
   %template(create_textured_part_recording) create_recording_textured_part_info<textured_part_recording>;  
   %template(create_assembly_recording) create_recording_const_vector_of_string_orientation_pairs<assembly_recording>;
   
   // can't create a tracking_pose_recording because it is an abstract class
   %template(create_pose_channel_tracking_pose_recording) create_recording_three_strings<pose_channel_tracking_pose_recording>;
-  
+
+  // template for instantiation of a recording_ref to a pose_channel .... replaced by explict function, above
+  //%template(create_pose_channel_recording_ref) snde::create_subclass_recording_ref_string<snde::pose_channel_recording>;
+
 };

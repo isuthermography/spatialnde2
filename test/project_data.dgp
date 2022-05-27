@@ -31,18 +31,20 @@ main_viewer.viewer.set_camera_pose("/graphics/probe/meshed",np.array(([0,0,.4,  
 main_viewer.viewer.set_rotation_center_dist("/graphics/probe/meshed",0.4)
 
 
-# Might be simpler if we just set up the pose channel and this were just a create_pose_channel_tracking_pose_recording()...
-positioned_plate_chan = recdb.define_channel("/positioned_plate","main",recdb.raw())
+plate_pose_chan = recdb.define_channel("/plate_pose","main",recdb.raw())
+plate_pose_ref = snde.create_pose_channel_recording_ref(recdb,plate_pose_chan,recdb.raw(),"/graphics/plate/meshed")
+plate_pose_ref.allocate_storage([1])
 plate_position = np.array(((0,0,0,0),(.4, .3, .625, .6)),dtype=orient_dtype)
 # Temporarily use trivial plate position
 #plate_position = np.array(((0,0,0,0),(0,0,0,1)),dtype=orient_dtype)
+plate_pose_ref.data()[0]=plate_position
+plate_pose_ref.rec.mark_data_and_metadata_ready()
 
-snde.create_assembly_recording(recdb,positioned_plate_chan,recdb.raw(),
-                               snde.VectorOfStringOrientationPairs([ ("/graphics/plate/meshed",snde.snde_orientation3(plate_position)) ])).mark_data_and_metadata_ready()
+
 
 
 probe_positioner_chan = recdb.define_channel("/probe_positioner","main",recdb.raw())
-probe_positioner_rec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,probe_positioner_chan,recdb.raw(),"/graphics/probe/meshed","/positioned_plate",main_viewer.viewer.OSGWidget)
+probe_positioner_rec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,probe_positioner_chan,recdb.raw(),"/graphics/probe/meshed","/plate_pose",main_viewer.viewer.OSGWidget)
 probe_positioner_rec.mark_data_and_metadata_ready()
 
 
@@ -120,13 +122,12 @@ main_viewer.viewer.set_rotation_center_dist("/probe_positioner",0.425)
 #recdb.add_math_function(plate_boxes2d,False)
 
 
+#include(snde,"project_data.dgi",graphman=graphman,
+#	specimen_tracked_channel = "/plate_pose",
+#	probe_tracked_channel = "/probe_pose")
+	
 
-# Might be simpler if this were what we initialized and to view we created a create_pose_channel_tracking_pose_recording()...
-plate_pose_chan = recdb.define_channel("/plate_pose","main",recdb.raw())
-plate_pose_ref = snde.create_recording_ref(recdb,plate_pose_chan,recdb.raw(),snde.SNDE_RTN_SNDE_ORIENTATION3)
-plate_pose_ref.allocate_storage([1])
-plate_pose_ref.data()[0]=plate_position
-plate_pose_ref.rec.mark_data_and_metadata_ready()
+
 
 
 
@@ -178,10 +179,10 @@ projection = snde.project_point_onto_parameterization.instantiate( [ snde.math_p
 recdb.add_math_function(projection,False)
 
 
-# Create tracking pose recording so we can see the positioned probe
-positioned_probe_chan = recdb.define_channel("/positioned_probe","main",recdb.raw())
-snde.create_pose_channel_tracking_pose_recording(recdb,positioned_probe_chan,recdb.raw(),
-                                                 "/graphics/probe/meshed","/positioned_plate","/probe_pose").mark_data_and_metadata_ready()
+## Create tracking pose recording so we can see the positioned probe
+#positioned_probe_chan = recdb.define_channel("/positioned_probe","main",recdb.raw())
+#snde.create_pose_channel_tracking_pose_recording(recdb,positioned_probe_chan,recdb.raw(),
+#                                                 "/graphics/probe/meshed","/plate_pose","/probe_pose").mark_data_and_metadata_ready()
 
 
 
@@ -247,10 +248,12 @@ def new_probe_posn():
     transact = recdb.start_transaction()
 
 
-    probe_pose_ref = snde.create_recording_ref(recdb,probe_pose_chan,recdb.raw(),snde.SNDE_RTN_SNDE_ORIENTATION3)
+    probe_pose_ref = snde.create_pose_channel_recording_ref(recdb,probe_pose_chan,recdb.raw(),"/graphics/probe/meshed")
     probe_pose_ref.allocate_storage([1])
 
-
+    probe_pose_rec = snde.pose_channel_recording.from_ndarray_recording(probe_pose_ref.rec)
+    probe_pose_rec.set_untransformed_render_channel("/plate_pose")
+    
     # Figure out probe position from the camera orientations in the probe channel
     # and the view tracking channel, probe_positioner
     probe_campose = main_viewer.viewer.get_camera_pose("/graphics/probe/meshed")

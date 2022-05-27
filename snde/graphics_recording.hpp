@@ -146,10 +146,11 @@ namespace snde {
 
 
   class tracking_pose_recording: public recording_group {
-    // the tracking_pose_recording is like a single-component
-    // assembly with a particular orientation that, when
+    // the tracking_pose_recording is like a two-component
+    // assembly with one component (channel_to_reorient) having particular orientation that, when
     // rendered, tracks the pose of something else, as
     // determined by the behavior of the get_channel_to_reorient_pose() virtual method
+    // The channel given by component_name is also rendered but isn't rotated. 
     
     // abstract class: Must subclass! ... Then register your class to use the tracking_pose_recording_display_handler (see display_requirements.cpp)
   public:
@@ -163,16 +164,49 @@ namespace snde {
   };
 
 
+  // Note: pose_channel_tracking_pose recording
+  // is a renderable channel that refers to an external
+  // ndarray pose recording.
+  // It works, but is obsolete and (probably) no longer used.
+  // Replaced by making the ndarray actually an ndarray_pose_recording
+  // so you have one fewer channels. 
   class pose_channel_tracking_pose_recording: public tracking_pose_recording {
   public:
     // Get the orientation of the 
     std::string pose_channel_name;
 
+    // channel_to_reorient will be rotated by the pose stored in the pose channel.
+    // component_name will be included like in the assembly, but unrotated
+    // pose_channel_name is the name of the channel containing the pose. 
     pose_channel_tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient,std::string component_name,std::string pose_channel_name);
     
     virtual snde_orientation3 get_channel_to_reorient_pose(std::shared_ptr<recording_set_state> rss) const;
 
   };
+
+
+
+  // Simpler alternative to a pose_channel ndarray recording + a pose_channel_tracking_pose_recording
+  // but does not support a fixed recording as well
+
+  class pose_channel_recording: public multi_ndarray_recording {
+  public:
+
+    std::string channel_to_reorient; // Name of the channel to render with the given pose, potentially relative to the parent of the pose_channel_recording
+    std::shared_ptr<std::string> component_name; // nullptr, or name of the channel to render untransformed. 
+    
+    pose_channel_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays,std::string channel_to_reorient); // must have num_ndarrays parameter for compatibility with create_subclass_recording_ref<S,T>...
+
+    void set_untransformed_render_channel(std::string component_name_str); // only call during initialization
+
+    // this static method is used by Python through the SWIG wrappers to get a pose_channel_recording from the .rec attribute of an ndarray_recording_ref
+    static std::shared_ptr<pose_channel_recording> from_ndarray_recording(std::shared_ptr<multi_ndarray_recording> rec);
+    
+  };
+
+  // convenience function for SWIG
+  std::shared_ptr<ndarray_recording_ref> create_pose_channel_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner,std::string channel_to_reorient_name);
+  
   
 };
 

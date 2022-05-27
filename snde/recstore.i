@@ -997,17 +997,44 @@ namespace snde {
   // for non math-functions operating in a transaction
   template <typename T>
   std::shared_ptr<ndtyped_recording_ref<T>> create_typed_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id);
+
+  template <typename S,typename T,typename ... Args>
+    std::shared_ptr<ndtyped_recording_ref<T>> create_typed_subclass_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,Args && ... args);
+
+
+  // These next two templates are commented out because they
+  // cause SWIG syntax errors for no apparent reason whatsoever (?)
+  
+  //template <typename T>
+  //std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum=rtn_typemap.at(typeid(T))); // purpose is used for naming shared memory objects
+
+  //template <typename S,typename T,typename ... Args>
+  //std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_subclass_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,Args && ... args); // purpose is used for naming shared memory objects
+
   
   // for math_recordings_only (no transaction)
   template <typename T>
   std::shared_ptr<ndtyped_recording_ref<T>> create_typed_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss);
 
+
+  template <typename S,typename T,typename ... Args>
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_subclass_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,Args && ... args);
+
   std::shared_ptr<ndarray_recording_ref> create_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
+
+  template <typename S,typename ... Args> 
+  std::shared_ptr<ndarray_recording_ref> create_subclass_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum,Args && ... args);
 
   std::shared_ptr<ndarray_recording_ref> create_anonymous_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum); // purpose is used for naming shared memory objects
 
+  template <typename S,typename ... Args> 
+  std::shared_ptr<ndarray_recording_ref> create_anonymous_subclass_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum, Args && ... args); // purpose is used for naming shared memory objects
+
+  
   std::shared_ptr<ndarray_recording_ref> create_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
 
+  template <typename S,typename ... Args>
+  std::shared_ptr<ndarray_recording_ref> create_subclass_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum,Args && ... args); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
 
   // create recording templates
   // Work around SWIG not supporting variadic templates
@@ -1029,6 +1056,15 @@ namespace snde {
 #define create_recording_ptr_to_string create_recording
    %}
 
+
+  // template for one extra recording argument that is a std::string
+  template <class T>
+    std::shared_ptr<T> create_recording_string(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string stringarg);
+  %{
+#define create_recording_string create_recording
+   %}
+
+  
   // template for one extra recording argument that is a size_t
   template <class T>
     std::shared_ptr<T> create_recording_size_t(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,size_t);
@@ -1062,9 +1098,18 @@ namespace snde {
   // %}
 
   
+  // template for recording ref for a ndarray subclass with one extra recording argument that is a std::string
+  template <class T>
+    std::shared_ptr<ndarray_recording_ref> create_subclass_recording_ref_string(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum,std::string stringarg);
+  %{
+#define create_subclass_recording_ref_string create_subclass_recording_ref
+   %}
+
+
   
-  %template(create_null_recording) snde::create_recording_noargs<null_recording>;
-  %template(create_recording_group) create_recording_ptr_to_string<recording_group>;
-  %template(create_multi_ndarray_recording) create_recording_size_t<multi_ndarray_recording>;
+  %template(create_null_recording) snde::create_recording_noargs<snde::null_recording>;
+  %template(create_recording_group) snde::create_recording_ptr_to_string<snde::recording_group>;
+  %template(create_multi_ndarray_recording) snde::create_recording_size_t<snde::multi_ndarray_recording>;
+
   
 };

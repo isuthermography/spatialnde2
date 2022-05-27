@@ -1700,6 +1700,19 @@ namespace snde {
     return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
   }
 
+  template <typename S,typename T,typename ... Args>
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_subclass_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,Args && ... args)
+  {
+
+    unsigned typenum=rtn_typemap.at(typeid(T));
+    //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
+    
+    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<S>(recdb,chan,owner_id,1,args...);
+    new_rec->define_array(0,typenum);
+    
+    return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
+  }
+
 
 
   template <typename T>
@@ -1708,6 +1721,18 @@ namespace snde {
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
     std::shared_ptr<multi_ndarray_recording> new_rec = create_anonymous_recording<multi_ndarray_recording>(recdb,purpose,1);
+    new_rec->define_array(0,typenum);
+    
+    return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
+  }
+
+  template <typename S,typename T,typename ... Args>
+  std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_subclass_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,Args && ... args) // purpose is used for naming shared memory objects
+  {
+    unsigned typenum=rtn_typemap.at(typeid(T));
+    //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
+    
+    std::shared_ptr<multi_ndarray_recording> new_rec = create_anonymous_recording<S>(recdb,purpose,1,args...);
     new_rec->define_array(0,typenum);
     
     return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
@@ -1727,43 +1752,105 @@ namespace snde {
     new_rec->define_array(0,typenum);
     return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
   }
+
+  template <typename S,typename T,typename ... Args>
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_subclass_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,Args && ... args)
+  {
+    unsigned typenum=rtn_typemap.at(typeid(T));
+    std::shared_ptr<recdatabase> recdb = calc_rss->recdb_weak.lock();
+    if (!recdb) return nullptr;
+
+    //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chanpath,calc_rss,1); // owner id for math recordings is recdb raw pointer recdb.get()
+    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording_math<S>(chanpath,calc_rss,1,args...);
+    new_rec->define_array(0,typenum);
+    return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
+  }
+
   
   // static factory methods for creating recordings with single runtime-determined types
   // for regular (non-math) use. Automatically registers the new recording
   // ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
   std::shared_ptr<ndarray_recording_ref> create_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
+
+  template <typename S,typename ... Args> 
+  std::shared_ptr<ndarray_recording_ref> create_subclass_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum,Args && ... args)
+  {
+    std::shared_ptr<multi_ndarray_recording> rec;
+    std::shared_ptr<ndarray_recording_ref> ref;
+
+    // ***!!! Should look up maker method in a runtime-addable database ***!!!
+
+    rec=create_recording<S>(recdb,chan,owner_id,1,args...);
+    rec->define_array(0,typenum);
+    
+    ref=rec->reference_ndarray(0);
+    return ref;
+  }
   
   std::shared_ptr<ndarray_recording_ref> create_anonymous_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum); // purpose is used for naming shared memory objects
 
+  template <typename S,typename ... Args> 
+  std::shared_ptr<ndarray_recording_ref> create_anonymous_subclass_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum, Args && ... args) // purpose is used for naming shared memory objects
+  {
+    std::shared_ptr<multi_ndarray_recording> rec;
+    std::shared_ptr<ndarray_recording_ref> ref;
+    
+    // ***!!! Should look up maker method in a runtime-addable database ***!!!
+    
+    rec=create_anonymous_recording<S>(recdb,purpose,1,args...);
+    rec->define_array(0,typenum);
+    
+    ref=rec->reference_ndarray(0);
+    return ref;
+
+  }
+
   std::shared_ptr<ndarray_recording_ref> create_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
 
+  template <typename S,typename ... Args>
+  std::shared_ptr<ndarray_recording_ref> create_subclass_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum,Args && ... args) // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
+  {
+    std::shared_ptr<multi_ndarray_recording> rec;
+    std::shared_ptr<ndarray_recording_ref> ref;
+    
+    std::shared_ptr<recdatabase> recdb = calc_rss->recdb_weak.lock();
+    if (!recdb) return nullptr;
+
+    
+    rec=create_recording_math<S>(chanpath,calc_rss,1,args...); 
+    rec->define_array(0,typenum);
+    ref=rec->reference_ndarray(0);
+
+    return ref;
+  }
 
 
-    template <typename T>
-    std::shared_ptr<ndtyped_recording_ref<T>> multi_ndarray_recording::reference_typed_ndarray(size_t index/*=0*/)
-    {
-      std::shared_ptr<ndarray_recording_ref> untyped_ref = reference_ndarray(index);
-      std::shared_ptr<ndtyped_recording_ref<T>> typed_ref = std::dynamic_pointer_cast<ndtyped_recording_ref<T>>(untyped_ref);
 
-      if (!typed_ref) {
-	throw snde_error("reference_typed_ndarray(): Cannot cast ndarray with type %s to type %s",rtn_typenamemap.at(untyped_ref->typenum).c_str(),rtn_typenamemap.at(rtn_typemap.at(typeid(T))).c_str());
-      }
-      return typed_ref; 
+  template <typename T>
+  std::shared_ptr<ndtyped_recording_ref<T>> multi_ndarray_recording::reference_typed_ndarray(size_t index/*=0*/)
+  {
+    std::shared_ptr<ndarray_recording_ref> untyped_ref = reference_ndarray(index);
+    std::shared_ptr<ndtyped_recording_ref<T>> typed_ref = std::dynamic_pointer_cast<ndtyped_recording_ref<T>>(untyped_ref);
+    
+    if (!typed_ref) {
+      throw snde_error("reference_typed_ndarray(): Cannot cast ndarray with type %s to type %s",rtn_typenamemap.at(untyped_ref->typenum).c_str(),rtn_typenamemap.at(rtn_typemap.at(typeid(T))).c_str());
     }
-
-    template <typename T>
-    std::shared_ptr<ndtyped_recording_ref<T>> multi_ndarray_recording::reference_typed_ndarray(const std::string &array_name)
-    {
-      std::shared_ptr<ndarray_recording_ref> untyped_ref = reference_ndarray(array_name);
-      std::shared_ptr<ndtyped_recording_ref<T>> typed_ref = std::dynamic_pointer_cast<ndtyped_recording_ref<T>>(untyped_ref);
-
-      if (!typed_ref) {
-	throw snde_error("reference_typed_ndarray(): Cannot cast ndarray with type %s to type %s",rtn_typenamemap.at(untyped_ref->typenum).c_str(),rtn_typenamemap.at(rtn_typemap.at(typeid(T))).c_str());
-      }
-      return typed_ref; 
-      
+    return typed_ref; 
+  }
+    
+  template <typename T>
+  std::shared_ptr<ndtyped_recording_ref<T>> multi_ndarray_recording::reference_typed_ndarray(const std::string &array_name)
+  {
+    std::shared_ptr<ndarray_recording_ref> untyped_ref = reference_ndarray(array_name);
+    std::shared_ptr<ndtyped_recording_ref<T>> typed_ref = std::dynamic_pointer_cast<ndtyped_recording_ref<T>>(untyped_ref);
+    
+    if (!typed_ref) {
+      throw snde_error("reference_typed_ndarray(): Cannot cast ndarray with type %s to type %s",rtn_typenamemap.at(untyped_ref->typenum).c_str(),rtn_typenamemap.at(rtn_typemap.at(typeid(T))).c_str());
     }
-
+    return typed_ref; 
+    
+  }
+  
 
   
 };
