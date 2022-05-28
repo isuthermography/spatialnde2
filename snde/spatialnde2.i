@@ -491,6 +491,7 @@ template <typename T>
 %include "project_onto_parameterization.i"
 %include "quaternion.i"
 %include "kdtree.i"
+%include "orientation_product.i"
 %include "rendermode.i"
 %include "display_requirements.i"
 %include "snde_qt.i"

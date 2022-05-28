@@ -875,7 +875,7 @@ namespace snde {
 	if (image_xleft < 0.0) {
 	  image_xleft = 0.0;
 	}
-
+	
 	float image_xright = dispreq->spatial_position->x+dispreq->spatial_position->width;
 	if (image_xright > compositor_width) {
 	  image_xright = compositor_width;
