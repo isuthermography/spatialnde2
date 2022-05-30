@@ -42,10 +42,17 @@ plate_pose_ref.rec.mark_data_and_metadata_ready()
 
 
 
+probe_pose_func = include(snde,"manual_positioner_in_transaction.dpi",
+                          positioner_channel="/probe_positioner",
+                          background_channel="/plate_pose",
+                          model_channel="/graphics/probe/meshed")
 
-probe_positioner_chan = recdb.define_channel("/probe_positioner","main",recdb.raw())
-probe_positioner_rec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,probe_positioner_chan,recdb.raw(),"/graphics/probe/meshed","/plate_pose",main_viewer.viewer.OSGWidget)
-probe_positioner_rec.mark_data_and_metadata_ready()
+probe_pose_chan = recdb.define_channel("/probe_pose","main",recdb.raw())
+        
+
+#probe_positioner_chan = recdb.define_channel("/probe_positioner","main",recdb.raw())
+#probe_positioner_rec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,probe_positioner_chan,recdb.raw(),"/graphics/probe/meshed","/plate_pose",main_viewer.viewer.OSGWidget)
+#probe_positioner_rec.mark_data_and_metadata_ready()
 
 
 ## For nontrivial plate position 
@@ -58,80 +65,8 @@ main_viewer.viewer.set_rotation_center_dist("/probe_positioner",0.425)
 
 
 
-## Add plate sub-channels (now instantiated upon loading)
-#plate_trinormals = snde.trinormals.instantiate( [ snde.math_parameter_recording("/graphics/plate/meshed") ],
-#                                               [ snde.shared_string("/graphics/plate/trinormals") ],
-#                                               "/",
-#                                               False,
-#                                               False,
-#                                               False,
-#                                               snde.math_definition("trinormals"),
-#                                               None)
-#recdb.add_math_function(plate_trinormals,False)
-
-#plate_inplanemat = snde.inplanemat_calculation.instantiate( [ snde.math_parameter_recording("/graphics/plate/meshed"),
-#                                                              snde.math_parameter_recording("/graphics/plate/trinormals") ],
-#                                                            [ snde.shared_string("/graphics/plate/inplanemat") ],
-#                                                            "/",
-#                                                            False,
-#                                                            False,
-#                                                            False,
-#                                                            snde.math_definition("inplanemat"),
-#                                                            None)
-#recdb.add_math_function(plate_inplanemat,False)
 
 
-
-#plate_projinfo = snde.projinfo_calculation.instantiate( [ snde.math_parameter_recording("/graphics/plate/meshed"),
-#                                                          snde.math_parameter_recording("/graphics/plate/inplanemat"),
-#                                                          snde.math_parameter_recording("/graphics/plate/uv")],
-#                                                        [ snde.shared_string("/graphics/plate/projinfo") ],
-#                                                        "/",
-#                                                        False,
-#                                                        False,
-#                                                        False,
-#                                                        snde.math_definition("projinfo"),
-#                                                            None)
-#recdb.add_math_function(plate_projinfo,False)
-
-
-
-#plate_boxes3d = snde.boxes_calculation_3d.instantiate( [ snde.math_parameter_recording("/graphics/plate/meshed"),
-#                                                         snde.math_parameter_recording("/graphics/plate/trinormals"),
-#                                                         snde.math_parameter_recording("/graphics/plate/inplanemat")],
-#                                                       [ snde.shared_string("/graphics/plate/boxes3d") ],
-#                                                       "/",
-#                                                       False,
-#                                                       False,
-#                                                       False,
-#                                                    snde.math_definition("boxes3d"),
-#                                                    None)
-#recdb.add_math_function(plate_boxes3d,False)
-
-
-
-
-#plate_boxes2d = snde.boxes_calculation_2d.instantiate( [ snde.math_parameter_recording("/graphics/plate/uv")],
-#                                                        [ snde.shared_string("/graphics/plate/boxes2d") ],
-#                                                        "/",
-#                                                        False,
-#                                                        False,
-#                                                        False,
-#                                                        snde.math_definition("boxes2d"),
-#                                                       None)
-#recdb.add_math_function(plate_boxes2d,False)
-
-
-#include(snde,"project_data.dgi",graphman=graphman,
-#	specimen_tracked_channel = "/plate_pose",
-#	probe_tracked_channel = "/probe_pose")
-	
-
-
-
-
-
-probe_pose_chan = recdb.define_channel("/probe_pose","main",recdb.raw())
 
 
 # Synthetic probe based on phase_plot_test.dgp
@@ -256,12 +191,12 @@ def new_probe_posn():
     
     # Figure out probe position from the camera orientations in the probe channel
     # and the view tracking channel, probe_positioner
-    probe_campose = main_viewer.viewer.get_camera_pose("/graphics/probe/meshed")
-    probe_campose_inverse = snde.orientation_inverse(probe_campose)
-    probe_positioner_campose = main_viewer.viewer.get_camera_pose("/probe_positioner")
-    probe_position = snde.orientation_orientation_multiply(probe_positioner_campose,probe_campose_inverse)
+    #probe_campose = main_viewer.viewer.get_camera_pose("/graphics/probe/meshed")
+    #probe_campose_inverse = snde.orientation_inverse(probe_campose)
+    #probe_positioner_campose = main_viewer.viewer.get_camera_pose("/probe_positioner")
+    #probe_position = snde.orientation_orientation_multiply(probe_positioner_campose,probe_campose_inverse)
     
-    probe_pose_ref.data()[0]=probe_position
+    probe_pose_ref.data()[0]=probe_pose_func() # probe_position
     probe_pose_ref.rec.mark_metadata_done()
     probe_pose_ref.rec.mark_data_ready()
     
