@@ -14,6 +14,10 @@ positioner_rec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recd
 positioner_rec.mark_data_and_metadata_ready()
 
 
+# Set main viewer camera angle to looking straight out of camera
+viewer.viewer.set_camera_pose(positioner_channel,np.array(([0,0,0,  0.        ], [ 0,0,0,  1]),dtype=[('offset', '<f4', (4,)), ('quat', '<f4', (4,))]))
+viewer.viewer.set_rotation_center_dist(positioner_channel,1.0)
+
 
 def model_pose_func():
     # Take camera pose of positioner channel and multiply by inverse of camera pose of model channel.
