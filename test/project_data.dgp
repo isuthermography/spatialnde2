@@ -14,6 +14,7 @@ include(snde,"recdb_gui.dpi")
 specimen_model_file = "Plate_uv.x3d"
 specimen_model_tree = "/graphics/specimen"
 specimen_pose_channel = "/specimen_pose"
+projection_channel="/graphics/projection"
 projection_specimen_channel="/graphics/projection_specimen"
 
 
@@ -97,31 +98,19 @@ synthetic_probe_history = snde.batched_live_accumulator.instantiate( [ snde.math
 recdb.add_math_function(synthetic_probe_history,False)
 
 
-
-projection = snde.project_point_onto_parameterization.instantiate( [ snde.math_parameter_recording(specimen_model_tree+"/meshed"),
-                                                                     snde.math_parameter_recording(specimen_model_tree+"/uv"),
-                                                                     snde.math_parameter_recording(specimen_model_tree+"/trinormals"),
-                                                                     snde.math_parameter_recording(specimen_model_tree+"/boxes3d"),
-                                                                     snde.math_parameter_recording(specimen_model_tree+"/projinfo"),
-                                                                     snde.math_parameter_recording(specimen_model_tree+"/inplanemat"),
-                                                                     snde.math_parameter_recording(specimen_pose_channel),
-                                                                     snde.math_parameter_recording(probe_pose_channel),
-                                                                     snde.math_parameter_recording("/synthetic_probe_impedance"),
-                                                                     snde.math_parameter_double_const(-0.2),
-                                                                     snde.math_parameter_double_const(0.3),
-                                                                     snde.math_parameter_double_const(0.01),
-                                                                     snde.math_parameter_unsigned_const(1282),
-                                                                     snde.math_parameter_unsigned_const(1280),
-                                                                     snde.math_parameter_bool_const(True)],
-                                                                   [ snde.shared_string("/graphics/projection") ],
-                                                                   "/",
-                                                                   True,
-                                                                   False,
-                                                                   False,
-                                                                   snde.math_definition("projection"),
-                                                                   None)
-recdb.add_math_function(projection,False)
-
+include(snde,"project_probe_tip_data_in_transaction.dpi",
+        specimen_model_tree = specimen_model_tree,
+        specimen_pose_channel = specimen_pose_channel,
+        probe_pose_channel=probe_pose_channel,
+        probe_tip_data_channel="/synthetic_probe_impedance",
+        min_dist = -0.2, # starting position for ray tracer, relative to probe tip position, in meters
+        max_dist = 0.3, # ending position for ray tracer, relative to probe tip position, in meters
+        radius = 0.01, # spot size, in nominal parameterization scale, in meters
+        horizontal_pixels = 1282, # horizontal total pixel width in parameterization space
+        vertical_pixels = 1280, # vertical total pixel width in parameterization space
+        projection_channel = projection_channel,
+        projection_specimen_channel = projection_specimen_channel,
+        )
 
 ## Create tracking pose recording so we can see the positioned probe
 #positioned_probe_chan = recdb.define_channel("/positioned_probe","main",recdb.raw())
@@ -129,12 +118,6 @@ recdb.add_math_function(projection,False)
 #                                                 probe_model_tree+"/meshed",specimen_pose_channel,probe_pose_channel).mark_data_and_metadata_ready()
 
 
-
-# Create channel with projected object 
-projection_specimen_chan = recdb.define_channel(projection_specimen_channel,"main",recdb.raw())
-snde.create_textured_part_recording(recdb,projection_specimen_chan,recdb.raw(),
-                                    specimen_model_tree+"/meshed",snde.shared_string(specimen_model_tree+"/uv"),
-                                    [ (0, snde.image_reference("/graphics/projection",0,1, [] )) ]).mark_data_and_metadata_ready()
 
 transact.end_transaction()
 
