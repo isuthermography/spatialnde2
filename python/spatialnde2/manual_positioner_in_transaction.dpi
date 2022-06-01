@@ -2,6 +2,7 @@ positioner_channel = None  # positioner channel name
 model_channel = None # name of channel containing renderable model to position
 background_channel = None # name of channel containing background to render
 
+
 viewer = None
 
 if viewer is None:

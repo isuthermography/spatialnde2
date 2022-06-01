@@ -499,129 +499,133 @@ namespace snde {
 	    
 	    
 	    snde_orientation3 sensorcoords_to_wrlcoords=source_orientation->element(0);
-	    snde_orientation3 wrlcoords_to_sensorcoords;
-	    orientation_inverse(sensorcoords_to_wrlcoords,&wrlcoords_to_sensorcoords);
-	    
-	    snde_image projectionarray_info={
-	      .projectionbufoffset=0,
-	      .weightingbufoffset=0,
-	      .validitybufoffset=0,
-	      .nx=horizontal_pixels,
-	      .ny=vertical_pixels,
-	      .inival={{ (snde_coord)inival0,(snde_coord)inival1 }},
-	      .step={{ (snde_coord)step0,(snde_coord)step1 }},
-	      .projection_strides={ is_complex ? 2u:1u,is_complex ? (2*horizontal_pixels):horizontal_pixels },  // need to multiply by 2 if complex
-	      .weighting_strides={ 0,0 }, // don't use weighting
-	      .validity_strides={ 1,horizontal_pixels },
-	    }; // !!!*** will need an array here if we start supporting multiple (u,v) patches ***!!!
-	    struct rayintersection_properties imagedata_intersectprops;
-	    snde_index *boxnum_stack;
-	    snde_index frin_stacksize=boxes3d->metadata->GetMetaDatumUnsigned("snde_boxes3d_max_depth",10)*8+2;
-	    boxnum_stack = (snde_index *)malloc(frin_stacksize*sizeof(*boxnum_stack));
-	    
-	    raytrace_sensor_evaluate_zdist(
-					   sensorcoords_to_wrlcoords,
-					   wrlcoords_to_sensorcoords,
-					   min_dist,max_dist,
-					   instances.data(),
-					   instances.size(),
-					   (snde_part *)part->void_shifted_arrayptr("parts"),part->ndinfo("parts")->base_index,
-					   (snde_topological *)part->void_shifted_arrayptr("topos"),part->ndinfo("topos")->base_index,
-					   (snde_triangle *)part->void_shifted_arrayptr("triangles"),part->ndinfo("triangles")->base_index,
-					   (snde_coord3 *)trinormals->void_shifted_arrayptr("trinormals"),
-					   (snde_cmat23 *)inplanemat->void_shifted_arrayptr("inplanemats"),
-					   (snde_edge *)part->void_shifted_arrayptr("edges"),part->ndinfo("edges")->base_index,
-					   (snde_coord3 *)part->void_shifted_arrayptr("vertices"),part->ndinfo("vertices")->base_index,
-					   (snde_box3 *)boxes3d->void_shifted_arrayptr("boxes"),boxes3d->ndinfo("boxes")->base_index,
-					   (snde_boxcoord3 *)boxes3d->void_shifted_arrayptr("boxcoord"),
-					   (snde_index *)boxes3d->void_shifted_arrayptr("boxpolys"),boxes3d->ndinfo("boxpolys")->base_index,
-					   (snde_parameterization *)param->void_shifted_arrayptr("uvs"),param->ndinfo("uvs")->base_index,
-					   (snde_triangle *)param->void_shifted_arrayptr("uv_triangles"),param->ndinfo("uv_triangles")->base_index,
-					   (snde_cmat23 *)projinfo->void_shifted_arrayptr("inplane2uvcoords"),
-					   &projectionarray_info, // projectionarray_info, indexed according to the firstuvpatches of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
-					   frin_stacksize,
-					   boxnum_stack,
-					   &imagedata_intersectprops); // JUST the structure for this pixel... we don't index it
-
-	    free(boxnum_stack);
-
-	    //snde_warning("project_onto_parameterization: intersects at u=%f, v=%f",imagedata_intersectprops.uvcoords.coord[0],imagedata_intersectprops.uvcoords.coord[1]);
-	    
-	    snde_imagedata real_pixelval=to_project->element_complexfloat64(0).real;
-	    snde_imagedata pixelweighting=1.0;
-
-	    //snde_coord3 uvcoords = { imagedata_intersectprops.uvcoords.coord[0],imagedata_intersectprops.uvcoords.coord[1],1.0 };
-	    //snde_coord min_radius_uv_pixels = 2.0; // external parameter?
-	    std::shared_ptr<ndtyped_recording_ref<snde_parameterization>> uvs_ref = param->reference_typed_ndarray<snde_parameterization>("uvs");
-
-	    
-	    // debugging
-	    std::shared_ptr<ndtyped_recording_ref<snde_cmat23>> inplanemat_ref = inplanemat->reference_typed_ndarray<snde_cmat23>("inplanemats");
-	    const snde_cmat23 &inplanemat = inplanemat_ref->element(part->reference_typed_ndarray<snde_part>("parts")->element(0).firsttri + imagedata_intersectprops.trinum - part->ndinfo("triangles")->base_index);
-	   
-	    // end debugging
-	    
-	    std::shared_ptr<ndtyped_recording_ref<snde_cmat23>> inplane2uvcoords_ref = projinfo->reference_typed_ndarray<snde_cmat23>("inplane2uvcoords");
-	    const snde_cmat23 &inplane2uvcoords = inplane2uvcoords_ref->element(uvs_ref->element(0).firstuvtri + imagedata_intersectprops.trinum - param->ndinfo("uv_triangles")->base_index);
-	    
-	    // Use the average of the magnitudes of the eigenvalues of the left 2x2 of inplane2uvcoords as an estimate of the scaling between physical in plane coordinates and "meaningful" uv coordinates
-	    snde_coord i2uv_trace = inplane2uvcoords.row[0].coord[0] + inplane2uvcoords.row[1].coord[1];
-	    snde_coord i2uv_det = inplane2uvcoords.row[0].coord[0]*inplane2uvcoords.row[1].coord[1] - inplane2uvcoords.row[1].coord[0]*inplane2uvcoords.row[0].coord[1];
-
-	    // e-vals solutions of: lambda^2 - trace*lambda + det = 0
-	    // lambda = trace/2 +/- (1/2)sqrt(trace^2 - 4*det)
-
-	    // magnitude = sqrt( (trace/2)^2 + (4*det - trace^2)/4
-	    // magnitude = sqrt( (trace)^2/4 + (det - trace^2/4 )
-	    // magnitude = sqrt( det)
-	    snde_coord lambda_magnitude = sqrt(i2uv_det);
-;
-	    assert(lambda_magnitude); // if this fails then inplane2uvcoords could be doing some kind of weird mirroring maybe (!?)
-
-	    snde_coord duvcoords_dinplane = lambda_magnitude;
-	    snde_coord dpixels_duvcoords = 2.0/(step0+step1); // 1/average step size 
-	    
+	    if (!isnan(sensorcoords_to_wrlcoords.quat.coord[0])) {
 	      
-	    
-	    snde_coord min_radius_uv_pixels = dpixels_duvcoords * duvcoords_dinplane * radius;
-	    snde_coord min_radius_src_pixels = 0.0; // (has no effect)
-	    snde_coord bandwidth_fraction = .4; // should this be an external parameter? 
+	      snde_orientation3 wrlcoords_to_sensorcoords;
+	      orientation_inverse(sensorcoords_to_wrlcoords,&wrlcoords_to_sensorcoords);
+	      
+	      
+	      snde_image projectionarray_info={
+		.projectionbufoffset=0,
+		.weightingbufoffset=0,
+		.validitybufoffset=0,
+		.nx=horizontal_pixels,
+		.ny=vertical_pixels,
+		.inival={{ (snde_coord)inival0,(snde_coord)inival1 }},
+		.step={{ (snde_coord)step0,(snde_coord)step1 }},
+		.projection_strides={ is_complex ? 2u:1u,is_complex ? (2*horizontal_pixels):horizontal_pixels },  // need to multiply by 2 if complex
+		.weighting_strides={ 0,0 }, // don't use weighting
+		.validity_strides={ 1,horizontal_pixels },
+	      }; // !!!*** will need an array here if we start supporting multiple (u,v) patches ***!!!
+	      struct rayintersection_properties imagedata_intersectprops;
+	      snde_index *boxnum_stack;
+	      snde_index frin_stacksize=boxes3d->metadata->GetMetaDatumUnsigned("snde_boxes3d_max_depth",10)*8+2;
+	      boxnum_stack = (snde_index *)malloc(frin_stacksize*sizeof(*boxnum_stack));
+	      
+	      raytrace_sensor_evaluate_zdist(
+					     sensorcoords_to_wrlcoords,
+					     wrlcoords_to_sensorcoords,
+					     min_dist,max_dist,
+					     instances.data(),
+					     instances.size(),
+					     (snde_part *)part->void_shifted_arrayptr("parts"),part->ndinfo("parts")->base_index,
+					     (snde_topological *)part->void_shifted_arrayptr("topos"),part->ndinfo("topos")->base_index,
+					     (snde_triangle *)part->void_shifted_arrayptr("triangles"),part->ndinfo("triangles")->base_index,
+					     (snde_coord3 *)trinormals->void_shifted_arrayptr("trinormals"),
+					     (snde_cmat23 *)inplanemat->void_shifted_arrayptr("inplanemats"),
+					     (snde_edge *)part->void_shifted_arrayptr("edges"),part->ndinfo("edges")->base_index,
+					     (snde_coord3 *)part->void_shifted_arrayptr("vertices"),part->ndinfo("vertices")->base_index,
+					     (snde_box3 *)boxes3d->void_shifted_arrayptr("boxes"),boxes3d->ndinfo("boxes")->base_index,
+					     (snde_boxcoord3 *)boxes3d->void_shifted_arrayptr("boxcoord"),
+					     (snde_index *)boxes3d->void_shifted_arrayptr("boxpolys"),boxes3d->ndinfo("boxpolys")->base_index,
+					     (snde_parameterization *)param->void_shifted_arrayptr("uvs"),param->ndinfo("uvs")->base_index,
+					     (snde_triangle *)param->void_shifted_arrayptr("uv_triangles"),param->ndinfo("uv_triangles")->base_index,
+					     (snde_cmat23 *)projinfo->void_shifted_arrayptr("inplane2uvcoords"),
+					     &projectionarray_info, // projectionarray_info, indexed according to the firstuvpatches of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
+					     frin_stacksize,
+					     boxnum_stack,
+					     &imagedata_intersectprops); // JUST the structure for this pixel... we don't index it
+	      
+	      free(boxnum_stack);
+	      
+	      //snde_warning("project_onto_parameterization: intersects at u=%f, v=%f",imagedata_intersectprops.uvcoords.coord[0],imagedata_intersectprops.uvcoords.coord[1]);
+	      
+	      snde_imagedata real_pixelval=to_project->element_complexfloat64(0).real;
+	      snde_imagedata pixelweighting=1.0;
+	      
+	      //snde_coord3 uvcoords = { imagedata_intersectprops.uvcoords.coord[0],imagedata_intersectprops.uvcoords.coord[1],1.0 };
+	      //snde_coord min_radius_uv_pixels = 2.0; // external parameter?
+	      std::shared_ptr<ndtyped_recording_ref<snde_parameterization>> uvs_ref = param->reference_typed_ndarray<snde_parameterization>("uvs");
+	      
+	      
+	      //// debugging
+	      //std::shared_ptr<ndtyped_recording_ref<snde_cmat23>> inplanemat_ref = inplanemat->reference_typed_ndarray<snde_cmat23>("inplanemats");
+	      //const snde_cmat23 &inplanemat = inplanemat_ref->element(part->reference_typed_ndarray<snde_part>("parts")->element(0).firsttri + imagedata_intersectprops.trinum - part->ndinfo("triangles")->base_index);
+	      
+	      // end debugging
+	      
+	      std::shared_ptr<ndtyped_recording_ref<snde_cmat23>> inplane2uvcoords_ref = projinfo->reference_typed_ndarray<snde_cmat23>("inplane2uvcoords");
+	      const snde_cmat23 &inplane2uvcoords = inplane2uvcoords_ref->element(uvs_ref->element(0).firstuvtri + imagedata_intersectprops.trinum - param->ndinfo("uv_triangles")->base_index);
+	      
+	      // Use the average of the magnitudes of the eigenvalues of the left 2x2 of inplane2uvcoords as an estimate of the scaling between physical in plane coordinates and "meaningful" uv coordinates
+	      snde_coord i2uv_trace = inplane2uvcoords.row[0].coord[0] + inplane2uvcoords.row[1].coord[1];
+	      snde_coord i2uv_det = inplane2uvcoords.row[0].coord[0]*inplane2uvcoords.row[1].coord[1] - inplane2uvcoords.row[1].coord[0]*inplane2uvcoords.row[0].coord[1];
 
-	    project_to_uv_arrays(real_pixelval,pixelweighting,
-				 imagedata_intersectprops.uvcoords,nullptr,nullptr,
-				 projectionarray_info,
-				 (snde_atomicimagedata *)result_rec->void_shifted_arrayptr("accumulator"),
-				 projectionarray_info.projection_strides,
-				 nullptr, // OCL_GLOBAL_ADDR snde_imagedata *uvdata_weighting_arrays,
-				 projectionarray_info.weighting_strides,
-				 (snde_atomicimagedata *)result_rec->void_shifted_arrayptr("totals"), // OCL_GLOBAL_ADDR snde_atomicimagedata *uvdata_validity_arrays,
-				 projectionarray_info.validity_strides,
-				 min_radius_uv_pixels,min_radius_src_pixels,bandwidth_fraction);
-	    
-
-	    if (is_complex) {
-	      // project imaginary part
-	      snde_imagedata imag_pixelval=to_project->element_complexfloat64(0).imag;
-
-	      project_to_uv_arrays(imag_pixelval,pixelweighting,
+	      // e-vals solutions of: lambda^2 - trace*lambda + det = 0
+	      // lambda = trace/2 +/- (1/2)sqrt(trace^2 - 4*det)
+	      
+	      // magnitude = sqrt( (trace/2)^2 + (4*det - trace^2)/4
+	      // magnitude = sqrt( (trace)^2/4 + (det - trace^2/4 )
+	      // magnitude = sqrt( det)
+	      snde_coord lambda_magnitude = sqrt(i2uv_det);
+	      
+	      assert(lambda_magnitude); // if this fails then inplane2uvcoords could be doing some kind of weird mirroring maybe (!?)
+	      
+	      snde_coord duvcoords_dinplane = lambda_magnitude;
+	      snde_coord dpixels_duvcoords = 2.0/(step0+step1); // 1/average step size 
+	      
+	      
+	      
+	      snde_coord min_radius_uv_pixels = dpixels_duvcoords * duvcoords_dinplane * radius;
+	      snde_coord min_radius_src_pixels = 0.0; // (has no effect)
+	      snde_coord bandwidth_fraction = .4; // should this be an external parameter? 
+	      
+	      project_to_uv_arrays(real_pixelval,pixelweighting,
 				   imagedata_intersectprops.uvcoords,nullptr,nullptr,
 				   projectionarray_info,
-				   ((snde_atomicimagedata *)result_rec->void_shifted_arrayptr("accumulator"))+1, // the +1 switches us from the real part to the imaginary part
+				   (snde_atomicimagedata *)result_rec->void_shifted_arrayptr("accumulator"),
 				   projectionarray_info.projection_strides,
 				   nullptr, // OCL_GLOBAL_ADDR snde_imagedata *uvdata_weighting_arrays,
 				   projectionarray_info.weighting_strides,
-				   nullptr,
+				   (snde_atomicimagedata *)result_rec->void_shifted_arrayptr("totals"), // OCL_GLOBAL_ADDR snde_atomicimagedata *uvdata_validity_arrays,
 				   projectionarray_info.validity_strides,
 				   min_radius_uv_pixels,min_radius_src_pixels,bandwidth_fraction);
 	      
+	      
+	      if (is_complex) {
+		// project imaginary part
+		snde_imagedata imag_pixelval=to_project->element_complexfloat64(0).imag;
+		
+		project_to_uv_arrays(imag_pixelval,pixelweighting,
+				     imagedata_intersectprops.uvcoords,nullptr,nullptr,
+				     projectionarray_info,
+				     ((snde_atomicimagedata *)result_rec->void_shifted_arrayptr("accumulator"))+1, // the +1 switches us from the real part to the imaginary part
+				     projectionarray_info.projection_strides,
+				     nullptr, // OCL_GLOBAL_ADDR snde_imagedata *uvdata_weighting_arrays,
+				     projectionarray_info.weighting_strides,
+				     nullptr,
+				     projectionarray_info.validity_strides,
+				     min_radius_uv_pixels,min_radius_src_pixels,bandwidth_fraction);
+		
+	      }
+	      
+	    
+	      //snde_warning("Project_onto_parameterization calculation complete.");
+	      // Need to mark our modification zone
+	      // !!!*** Would be nice to be able to specify a rectangle here ***!!!
+	      result_rec->storage.at(0)->mark_as_modified(nullptr,0,result_rec->storage.at(0)->nelem);
+	      result_rec->storage.at(1)->mark_as_modified(nullptr,0,result_rec->storage.at(1)->nelem);
 	    }
-	    
-	    
-	    //snde_warning("Project_onto_parameterization calculation complete.");
-	    // Need to mark our modification zone
-	    // !!!*** Would be nice to be able to specify a rectangle here ***!!!
-	    result_rec->storage.at(0)->mark_as_modified(nullptr,0,result_rec->storage.at(0)->nelem);
-	    result_rec->storage.at(1)->mark_as_modified(nullptr,0,result_rec->storage.at(1)->nelem);
 	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
 	    result_rec->mark_data_ready();
 	    

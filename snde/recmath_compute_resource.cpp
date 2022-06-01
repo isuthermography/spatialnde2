@@ -310,6 +310,13 @@ namespace snde {
     {
       std::lock_guard<std::mutex> ready_rss_admin(ready_rss->admin);
       math_function_status &ready_rss_status = ready_rss->mathstatus.function_status.at(ready_fcn);
+
+      {
+	std::shared_ptr<globalrevision> gv=std::dynamic_pointer_cast<globalrevision>(ready_rss);
+	if (gv) {
+	  snde_debug(SNDE_DC_RECMATH,"_wrap_up_execution: Marking %s as complete in globalrev %u",ready_fcn->definition->definition_command.c_str(),(unsigned)gv->globalrev);
+	}
+      }
       
       ready_rss_status.complete=true;
     }

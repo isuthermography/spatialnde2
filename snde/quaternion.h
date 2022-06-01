@@ -294,6 +294,11 @@ static QUATERNION_INLINE void orientation_inverse(const snde_orientation3 orient
   // p = q1'p_rotq1 - q1'o1q1
   // Therefore, the orientation inverse
   // is q1', -q1'o1q1
+  if (isnan(orient.quat.coord[0])) {
+    snde_invalid_orientation3(inverse);
+    return;
+  }
+  
   quaternion_inverse(orient.quat,&inverse->quat);
   quaternion_apply_vector(inverse->quat,orient.offset,&inverse->offset);
   inverse->offset.coord[0]=-inverse->offset.coord[0];

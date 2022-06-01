@@ -53,6 +53,8 @@
 
 void snde_null_orientation3(snde_orientation3 *OUTPUT);
 
+void snde_invalid_orientation3(snde_orientation3 *OUTPUT);
+
 snde_bool quaternion_equal(const snde_coord4 a, const snde_coord4 b);
 
 snde_bool orientation3_equal(const snde_orientation3 a, const snde_orientation3 b);

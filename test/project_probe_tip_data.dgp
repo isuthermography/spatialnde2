@@ -58,8 +58,24 @@ probe_pose_func = include(snde,"manual_positioner_in_transaction.dpi",
                           model_channel=probe_model_tree+"/meshed")
 
 probe_pose_chan = recdb.define_channel(probe_pose_channel,"main",recdb.raw())
-        
 
+
+def new_probe_posn_in_transaction(orientation):
+    
+    probe_pose_ref = snde.create_pose_channel_recording_ref(recdb,probe_pose_chan,recdb.raw(),probe_model_tree+"/meshed")
+    probe_pose_ref.allocate_storage([1])
+
+    probe_pose_rec = snde.pose_channel_recording.from_ndarray_recording(probe_pose_ref.rec)
+    probe_pose_rec.set_untransformed_render_channel(specimen_pose_channel)
+    
+    probe_pose_ref.data()[0]=orientation
+    probe_pose_ref.rec.mark_metadata_done()
+    probe_pose_ref.rec.mark_data_ready()
+    pass
+
+# initialize probe_pose with an invalid orientation so we can get an
+# initial empty projection
+new_probe_posn_in_transaction(snde.snde_invalid_orientation3())
 #probe_positioner_chan = recdb.define_channel("/probe_positioner","main",recdb.raw())
 #probe_positioner_rec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,probe_positioner_chan,recdb.raw(),probe_model_tree+"/meshed","/specimen_pose",main_viewer.viewer.OSGWidget)
 #probe_positioner_rec.mark_data_and_metadata_ready()
@@ -82,6 +98,29 @@ main_viewer.viewer.set_rotation_center_dist("/probe_positioner",0.425)
 # Synthetic probe based on phase_plot_test.dgp
 
 synthetic_probe_impedance_chan = recdb.define_channel("/synthetic_probe_impedance","main",recdb.raw())
+
+def new_synthetic_probe_impedance_rec_in_transaction(value):
+    """This function is used within a transaction to create a new 
+recording with a new value (NOTE: Not particularly necessary to have this abstracted out)"""
+    synthetic_probe_imp_ref = snde.create_recording_ref(recdb,synthetic_probe_impedance_chan,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
+    metadata = snde.constructible_metadata()
+    metadata.AddMetaDatum(snde.metadatum("snde_render_goal","SNDE_SRG_PHASEPLANE"))
+    metadata.AddMetaDatum(snde.metadatum("snde_phase_plane_historical_fade",True))
+    metadata.AddMetaDatum(snde.metadatum("nde_array-ampl_coord","Impedance"))
+    metadata.AddMetaDatum(snde.metadatum("nde_array-ampl_units","Ohms"))
+    
+    synthetic_probe_imp_ref.rec.metadata=metadata;
+    
+    synthetic_probe_imp_ref.rec.mark_metadata_done()
+    synthetic_probe_imp_ref.allocate_storage( [] )
+    
+    synthetic_probe_imp_ref.assign_complexfloat64([],value)
+    synthetic_probe_imp_ref.rec.mark_data_and_metadata_ready()
+    pass
+
+# Provide initial NaN value on the channel so we can create the projection immediately
+new_synthetic_probe_impedance_rec_in_transaction(np.nan)
+
 
 synthetic_probe_history = snde.batched_live_accumulator.instantiate( [ snde.math_parameter_recording("/synthetic_probe_impedance"),
                                                                        snde.math_parameter_unsigned_const(30),
@@ -124,7 +163,7 @@ transact.end_transaction()
 
 
 
-
+    
 
 def live_thread_code():
 
@@ -136,25 +175,17 @@ def live_thread_code():
     while True: 
 
         transact = recdb.start_transaction()	
-        synthetic_probe_imp_ref = snde.create_recording_ref(recdb,synthetic_probe_impedance_chan,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
-        metadata = snde.constructible_metadata()
-        metadata.AddMetaDatum(snde.metadatum("snde_render_goal","SNDE_SRG_PHASEPLANE"))
-        metadata.AddMetaDatum(snde.metadatum("snde_phase_plane_historical_fade",True))
-        metadata.AddMetaDatum(snde.metadatum("nde_array-ampl_coord","Impedance"))
-        metadata.AddMetaDatum(snde.metadatum("nde_array-ampl_units","Ohms"))
-
-        synthetic_probe_imp_ref.rec.metadata=metadata;
-        
-        synthetic_probe_imp_ref.rec.mark_metadata_done()
-        synthetic_probe_imp_ref.allocate_storage( [] )
         angle = cnt*15*np.pi/180.0
 
         value = center + radius*np.exp((0+1j)*angle)
 
+        new_synthetic_probe_impedance_rec_in_transaction(value)
+        
+        #if np.real(value) < 0.0:
+        #    value = np.nan
+        #    pass
         #print("value=%s" % (str(value)))
         
-        synthetic_probe_imp_ref.assign_complexfloat64([],value)
-        synthetic_probe_imp_ref.rec.mark_data_and_metadata_ready()
         
         grev = transact.end_transaction()
 
@@ -171,15 +202,11 @@ live_thread = threading.Thread(target=live_thread_code)
 live_thread.start()
 
 
+
 def new_probe_posn():
     transact = recdb.start_transaction()
 
 
-    probe_pose_ref = snde.create_pose_channel_recording_ref(recdb,probe_pose_chan,recdb.raw(),probe_model_tree+"/meshed")
-    probe_pose_ref.allocate_storage([1])
-
-    probe_pose_rec = snde.pose_channel_recording.from_ndarray_recording(probe_pose_ref.rec)
-    probe_pose_rec.set_untransformed_render_channel(specimen_pose_channel)
     
     # Figure out probe position from the camera orientations in the probe channel
     # and the view tracking channel, probe_positioner
@@ -188,11 +215,9 @@ def new_probe_posn():
     #probe_positioner_campose = main_viewer.viewer.get_camera_pose("/probe_positioner")
     #probe_position = snde.orientation_orientation_multiply(probe_positioner_campose,probe_campose_inverse)
     
-    probe_pose_ref.data()[0]=probe_pose_func() # probe_position
-    probe_pose_ref.rec.mark_metadata_done()
-    probe_pose_ref.rec.mark_data_ready()
+    orientation = probe_pose_func() # probe_position
     
-
+    new_probe_posn_in_transaction(orientation)
 
     
     transact.end_transaction()
