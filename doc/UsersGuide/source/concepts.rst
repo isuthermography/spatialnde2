@@ -217,6 +217,42 @@ A more detailed discussion of graphics and geometric objects
 is planned for another chapter. 
 
 
+Orientations and Object Poses
+-----------------------------
+"Pose" is a technical term referring to the rotation and position
+of an object in three-dimensional space. Within the context
+of SpatialNDE2, we will measure and store the "pose" of an object
+as the transform (an snde_orientation3, with Numpy dtype
+representation ``[('offset', '<f4', (4,)), ('quat', '<f4', (4,))]``)
+that, when multiplied on the right by a position or vector in
+object coordinates, gives the position or vector in world coordinates.
+
+Within the context of SpatialNDE2, an *orientation* is a relation
+(rotation **and** translation) between two coordinate frames,
+represented as a ratio. 
+The orientation of coordinate frame A relative to coordinate frame B,
+perhaps referred to as ``orient_A_over_B``, when multiplied on the
+right by a position or vector in B coordinates gives the position
+or vector in A coordinates. Thus the "Pose of A" is equivalent to ``orient_world_over_A``.
+
+We can then use dimensional analysis to construct a desired orientation
+or pose from pieces. However since left and right multiplication are
+different, the order matters. In general if you have an ``_over_A``
+it should be multiplied on the right by either coordinates relative to A
+or an ``orient_A_over_``. 
+
+The underlying implementation, while represented by an offset and quaternion,
+is designed to behave equivalently to 4x4 transformation matrices in
+Homogeneous (projective) coordinates as commonly used in computer
+graphics, with the ``quat`` equivalent to the upper 3x3, and the
+offset being the rightmost column (except we define the last entry in the
+offset to be always zero, whereas in the matrix representation it would
+be always one). Thus when you multiply an orientation by a position,
+it first applies the rotation ``quat`` and then adds the offset. Multiplying
+an orientation by a vector applies the rotation and ignores the offset.
+These multiplication operations are implemented in ``quaternion.h`` by
+``orientation_apply_position()`` and ``orientation_apply_vector()``,
+respectively. 
 
 N-Dimensional-Array Recording References and Typed Recording References
 -----------------------------------------------------------------------

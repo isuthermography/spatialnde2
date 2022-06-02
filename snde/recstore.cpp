@@ -4546,7 +4546,7 @@ namespace snde {
 	  if (chan_it != _channels.end()) {
 	    std::lock_guard<std::mutex> channel_lock(chan_it->second->admin);
 	    if (chan_it->second->_config->math_fcn == fcn) {
-	      chan_it->second->_config = nullptr;
+	      chan_it->second->end_atomic_config_update(nullptr);
 	      chan_it->second->latest_revision++;
 	      chan_it->second->deleted = true; 
 	      std::shared_ptr<channel> channel_ptr = chan_it->second;
@@ -4649,6 +4649,15 @@ namespace snde {
   {
     std::lock_guard<std::mutex> recdb_admin(admin);
     std::lock_guard<std::mutex> curtrans_lock(current_transaction->admin);
+
+
+    // in case one new recording has already been added in this transaction for this
+    // channel we erase the old one so the new one gets emplaced. 
+    auto old_iter = current_transaction->new_recordings.find(new_rec->info->name);
+    if (old_iter != current_transaction->new_recordings.end()) {
+      current_transaction->new_recordings.erase(old_iter);
+    }
+    
     current_transaction->new_recordings.emplace(new_rec->info->name,new_rec);
     
   }
@@ -4727,7 +4736,45 @@ namespace snde {
     return new_chan;
   }
 
+  void recdatabase::release_channel(std::string path,void *owner_id) // must be called within a transaction
+  {
+    std::shared_ptr<channel> chan;
 
+    {
+      std::lock_guard<std::mutex> recdb_lock(admin);
+      
+      std::map<std::string,std::shared_ptr<channel>>::iterator chan_it;
+      chan_it = _channels.find(path);
+      
+      if (chan_it == _channels.end()) {
+	// channel nonexistent
+	return;
+      }
+      
+      chan = chan_it->second;
+      if (chan->config()->owner_id != owner_id) {
+	throw snde_error("recdatabase::release_channel: owner_id mismatch: Owned by 0x%p (owner_name=%s) vs. released by 0x%p",chan->config()->owner_id,chan->config()->owner_name,owner_id);
+      }
+      
+      
+      _channels.erase(chan_it);
+      _deleted_channels.emplace(path,chan);
+      
+      std::lock_guard<std::mutex> chan_lock(chan->admin);
+      chan->latest_revision++;
+      chan->deleted = true;
+      chan->end_atomic_config_update(nullptr);
+    }
+
+    // add to the current transaction
+    {
+      std::lock_guard<std::mutex> curtrans_lock(current_transaction->admin);
+
+      current_transaction->updated_channels.emplace(chan);
+
+    }
+  }
+  
   // Define a new channel; throws an error if the channel is already in use
   std::shared_ptr<channel> recdatabase::define_channel(std::string channelpath, std::string owner_name, void *owner_id, bool hidden/*=false*/, std::shared_ptr<recording_storage_manager> storage_manager/* =nullptr */)
   {

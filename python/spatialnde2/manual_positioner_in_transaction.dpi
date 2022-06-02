@@ -28,8 +28,13 @@ def model_pose_func():
     positioner_campose = viewer.viewer.get_camera_pose(positioner_channel)
 
     model_campose_inverse = snde.orientation_inverse(model_campose)
+    # positioner_campose represents background coordinates over positioner camera coordinates
+    # model_campose represents model coordinates over model camera coordinates
+    # model_campose_inverse represents model camera coordinates over model_coordinates
+    # since the cameras are made to line up by the qt_osg_compositor_view_tracking_pose viewer
+    # the positioner camera coordinates can cancel the model camera coordinates. 
     return snde.orientation_orientation_multiply(positioner_campose,model_campose_inverse)
 
-return model_pose_func
+return model_pose_func # represents background coordinates over model coordinates
     
 

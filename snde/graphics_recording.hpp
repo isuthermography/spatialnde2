@@ -191,9 +191,11 @@ namespace snde {
 
   class pose_channel_recording: public multi_ndarray_recording {
   public:
-
+    // should have a single 0D array of type snde_orientation3
+    // with the value representing the orient_world_over_object. 
+    
     std::string channel_to_reorient; // Name of the channel to render with the given pose, potentially relative to the parent of the pose_channel_recording
-    std::shared_ptr<std::string> component_name; // nullptr, or name of the channel to render untransformed. 
+    std::shared_ptr<std::string> component_name; // nullptr, or name of the channel to render untransformed, potentially relative to the parent of the pose_channel_recording
     
     pose_channel_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays,std::string channel_to_reorient); // must have num_ndarrays parameter for compatibility with create_subclass_recording_ref<S,T>...
 

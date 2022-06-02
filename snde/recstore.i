@@ -852,6 +852,8 @@ namespace snde {
     // Allocate channel with a specific name; returns nullptr if the name is inuse
     std::shared_ptr<channel> reserve_channel(std::shared_ptr<channelconfig> new_config);
 
+    void release_channel(std::string channelpath, void *owner_id); // must be called within a transaction
+
     // Define a new channel; throws an error if the channel is already in use
     //std::shared_ptr<channel> define_channel(std::string channelpath, std::string owner_name, void *owner_id, bool hidden=false, std::shared_ptr<recording_storage_manager> storage_manager=nullptr);
 

@@ -846,7 +846,7 @@ namespace snde {
     // channel admin lock must be locked when calling this function. It is a template because channelconfig can be subclassed. Call it as begin_atomic_config_update<channelconfig>() if you need to subclass It returns a new modifiable copy of the atomically guarded data
     // (it returns nullptr if the existing config doesn't match T)
     {
-      std::shared_ptr<T> old_config = std::dynamic_pointer_cast<T>(_config);
+      std::shared_ptr<T> old_config = std::dynamic_pointer_cast<T>(std::atomic_load(&_config));
       if (!old_config) {
 	return nullptr;
       }
@@ -1133,7 +1133,8 @@ namespace snde {
     std::shared_ptr<globalrevision> latest_globalrev(); // safe to call with or without recdb admin lock held. Returns latest globalrev which is ready and for which all prior globalrevs are ready
 
     // Allocate channel with a specific name; returns nullptr if the name is inuse
-    std::shared_ptr<channel> reserve_channel(std::shared_ptr<channelconfig> new_config);
+    std::shared_ptr<channel> reserve_channel(std::shared_ptr<channelconfig> new_config); // must be called within a transaction
+    void release_channel(std::string channelpath, void *owner_id); // must be called within a transaction
 
     // Define a new channel; throws an error if the channel is already in use.
     // Must be called within a transaction
