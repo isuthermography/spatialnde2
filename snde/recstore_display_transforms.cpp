@@ -369,13 +369,13 @@ namespace snde {
 
     snde_debug(SNDE_DC_DISPLAY,"recstore_display_transforms::update build_rss_from_functions_and_channels() complete with %d unknownchanged_math_functions and %d changed_math_functions",unknownchanged_math_functions.size(),changed_math_functions.size());
 
-    // globalrev->_update_recstatus__rss_admin_transaction_admin_locked()
+    // with_display_transforms->_update_recstatus__rss_admin_transaction_admin_locked()
     // isn't needed here because in the math calculations, the resulting
     // rss pointer has been known from the beginning, so the state should
     // be in the correct bin already. 
 
     // Perform notifies that unchanged copied recordings from prior revs are now ready
-    // (and that globalrev is ready if there is nothing pending!)
+    // (and that with_display_transforms is ready if there is nothing pending!)
     for (auto && readychan : ready_channels) { // readychan is a channel_state &
       readychan->issue_nonmath_notifications(with_display_transforms);
     }
@@ -393,8 +393,8 @@ namespace snde {
   
     // Check if everything is done; issue notification
     if (all_ready) {
-      std::unique_lock<std::mutex> rss_admin(globalrev->admin);
-      std::unordered_set<std::shared_ptr<channel_notify>> recordingset_complete_notifiers=std::move(globalrev->recordingset_complete_notifiers);
+      std::unique_lock<std::mutex> rss_admin(with_display_transforms->admin);
+      std::unordered_set<std::shared_ptr<channel_notify>> recordingset_complete_notifiers=std::move(with_display_transforms->recordingset_complete_notifiers);
       with_display_transforms->recordingset_complete_notifiers.clear();
       rss_admin.unlock();
 
