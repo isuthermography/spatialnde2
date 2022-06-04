@@ -28,6 +28,7 @@
 // (kernel will have to explicitly ignore!) 
 
 snde_index snde_kdtree_knn_one(KDTREE_GLOBAL struct snde_kdnode *tree,
+			       KDTREE_GLOBAL uint32_t *nodemask,
 			       KDTREE_GLOBAL snde_coord *vertices,
 			       KDTREE_LOCAL snde_index *nodestack, // (max_depth+1)*sizeof(snde_index)
 			       KDTREE_LOCAL uint8_t *statestack, // (max_depth+1)*sizeof(uint8_t)
@@ -147,11 +148,14 @@ snde_index snde_kdtree_knn_one(KDTREE_GLOBAL struct snde_kdnode *tree,
 	}
 	
 	// Let's check if this node is closest so-far
-	snde_coord node_dist_sq = distsqglobalvecn(&vertices[working_node->cutting_vertex*ndim],to_find,ndim);
-	if (node_dist_sq < closest_dist_sq) {
+	
+	if (!nodemask || nodemask[nodestack[depth] >> 5] & (1 << (nodestack[depth]&0x1f)) ) { // mask is 32 bits wide, 2^5 = 32; & 0x1f gives modulus after dividing by 32
+	  snde_coord node_dist_sq = distsqglobalvecn(&vertices[working_node->cutting_vertex*ndim],to_find,ndim);
+	  if (node_dist_sq < closest_dist_sq) {
 	  // this one is closest
-	  closest_dist_sq = node_dist_sq;
-	  closest_index = working_node->cutting_vertex;
+	    closest_dist_sq = node_dist_sq;
+	    closest_index = working_node->cutting_vertex;
+	  }
 	}
 	
 	// need to pick whether to traverse down on the left or right
@@ -312,6 +316,7 @@ snde_index snde_kdtree_knn_one(KDTREE_GLOBAL struct snde_kdnode *tree,
 
 #ifdef __OPENCL_VERSION__
 __kernel void snde_kdtree_knn_opencl(KDTREE_GLOBAL struct snde_kdnode *tree,
+				     KDTREE_GLOBAL uint32_t *nodemask,
 				     KDTREE_GLOBAL snde_coord *vertices,
 				     KDTREE_LOCAL snde_index *nodestacks, // (stacksize_per_workitem)*sizeof(snde_index)*work_group_size
 				     KDTREE_LOCAL uint8_t *statestacks, // (stacksize_per_workitem)*sizeof(uint8_t)*work_group_size
@@ -360,6 +365,7 @@ __kernel void snde_kdtree_knn_opencl(KDTREE_GLOBAL struct snde_kdnode *tree,
     
     
     closest_out[find_index] =snde_kdtree_knn_one(tree,
+						 nodemask,
 						 vertices,
 						 nodestack, // (max_depth+1)*sizeof(snde_index)
 						 statestack, // (max_depth+1)*sizeof(uint8_t)

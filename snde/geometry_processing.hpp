@@ -19,8 +19,10 @@ namespace snde {
   std::unordered_set<std::string> geomproc_vector_to_set(std::vector<std::string> vec);
 
   // Instantiate the relevant geometry processing math functions according to the specified processing
-  // tags (which are removed from the set)
-  void instantiate_geomproc_math_functions(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom, std::unordered_set<std::string> *processing_tags);
+  // tags (which are removed from the set). NOTE: Must be called while still in the transaction
+  // in which the geometry is defined and loaded, and before meshedcurpart/texedcurpart are marked
+  // as "data ready"
+  void instantiate_geomproc_math_functions(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom, std::shared_ptr<meshed_part_recording> meshedcurpart,std::shared_ptr<textured_part_recording> texedcurpart,std::unordered_set<std::string> *processing_tags);
 
 
   

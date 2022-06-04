@@ -191,7 +191,7 @@ namespace snde {
       nullptr,
       0.0,
     }),
-    vertnormals_function(recdb->lookup_available_math_function("spatialnde2.vertnormals")),
+    vertnormalarray_function(recdb->lookup_available_math_function("spatialnde2.vertnormalarray")),
     colormapping_function(recdb->lookup_available_math_function("spatialnde2.colormap")),
     fusion_colormapping_function(recdb->lookup_available_math_function("spatialnde2.fusion_colormapping")),
     pointcloud_colormapping_function(recdb->lookup_available_math_function("spatialnde2.pointcloud_colormap")),

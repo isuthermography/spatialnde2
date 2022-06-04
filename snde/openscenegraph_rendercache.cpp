@@ -1122,24 +1122,24 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     osg_rendercachearrayentry()
   {
     
-    cached_recording = std::dynamic_pointer_cast<meshed_vertnormals_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    cached_recording = std::dynamic_pointer_cast<meshed_vertnormalarrays_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!cached_recording) {
       throw snde_error("osg_cachedmeshednormals: Could not get recording for %s",display_req->renderable_channelpath->c_str()); 
       
     }
     
-    std::shared_ptr<ndarray_recording_ref> vertnormals_array = cached_recording->reference_ndarray("vertnormals");
+    std::shared_ptr<ndarray_recording_ref> vertnormal_array = cached_recording->reference_ndarray("vertnormal_arrays");
     
-    locks_required.push_back( { vertnormals_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
+    locks_required.push_back( { vertnormal_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
 
-    osg_array = new OSGFPArray(vertnormals_array,9,3); // SNDE groups them by 9 (per triangle), OSG by 3 (per vertex)for 3d coordinates
+    osg_array = new OSGFPArray(vertnormal_array,9,3); // SNDE groups them by 9 (per triangle), OSG by 3 (per vertex)for 3d coordinates
     
   }
 
 
   std::pair<bool,bool> osg_cachedmeshednormals::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
   {
-    std::shared_ptr<meshed_vertnormals_recording> new_recording = std::dynamic_pointer_cast<meshed_vertnormals_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    std::shared_ptr<meshed_vertnormalarrays_recording> new_recording = std::dynamic_pointer_cast<meshed_vertnormalarrays_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedmeshedvertexarray::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }

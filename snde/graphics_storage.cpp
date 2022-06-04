@@ -381,15 +381,17 @@ namespace snde {
 		       &geom.trinormals,"trinormals",
 		       &geom.inplanemats,"inplanemats");
 
-    add_grouped_arrays(&next_region_id,&geom.vertnormals,"vertnormals");
     
     add_grouped_arrays(&next_region_id,&geom.edges,"edges");
     
     
     add_grouped_arrays(&next_region_id,&geom.vertices,"vertices",
+		       &geom.vertnormals,"vertnormals",
 		       &geom.principal_curvatures,"principal_curvatures",
 		       &geom.curvature_tangent_axes,"curvature_tangent_axes",
 		       &geom.vertex_edgelist_indices,"vertex_edgelist_indices");
+    
+
 
     add_grouped_arrays(&next_region_id,&geom.vertex_edgelist,"vertex_edgelist");
 
@@ -445,6 +447,7 @@ namespace snde {
     
     add_grouped_arrays(&next_region_id,&geom.vertex_arrays,"vertex_arrays");
     add_grouped_arrays(&next_region_id,&geom.texvertex_arrays,"texvertex_arrays");
+    add_grouped_arrays(&next_region_id,&geom.vertnormal_arrays,"vertnormal_arrays");
     add_grouped_arrays(&next_region_id,&geom.texbuffer,"texbuffer");
 
 

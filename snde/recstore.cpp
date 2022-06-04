@@ -311,7 +311,7 @@ namespace snde {
     // Go up through hierarchy searching for a storage manager.
     // Drop down to the default if we hit the root
     std::string base=chanpath;
-    std::string leaf;
+    std::string leaf="";
 
     do {
       std::map<std::string,channel_state>::iterator channel_map_it=rss->recstatus.channel_map.find(base);
@@ -322,6 +322,9 @@ namespace snde {
 	if (config->storage_manager) {
 	  return config->storage_manager;
 	}
+      }
+      if (base.size() > 0 && base.at(base.size()-1)=='/') {
+	base = base.substr(0,base.size()-1); // if base ends with a '/' strip it so that recdb_path_split will remove the next segment.
       }
       std::tie(base,leaf)=recdb_path_split(base);
     } while ((base.size() > 0) && !(base == "/" && leaf.size()==0));
@@ -1034,7 +1037,9 @@ namespace snde {
     recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,recording_default_info_structsize(info_structsize,sizeof(snde_recording_base))),
     path_to_primary(path_to_primary)
   {
-
+    if (!chanpath.size() || chanpath.at(chanpath.size()-1) != '/') {
+      throw snde_error("Recording group %s does not end with a trailing slash",chanpath.c_str());
+    }
   }
 
   

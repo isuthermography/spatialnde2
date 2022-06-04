@@ -109,7 +109,7 @@ namespace snde {
 	  snde_index numtris = rec_tri_info->dimlen[0];
 	  
 	  std::shared_ptr<graphics_storage_manager> graphman = std::dynamic_pointer_cast<graphics_storage_manager>(result_rec->assign_storage_manager());
-	  
+	  // Don't think special storage manager is really necessary for this as it's now just a rendering intermediate!!!***
 	  if (!graphman) {
 	    throw snde_error("vertexarray_function: Output arrays must be managed by a graphics storage manager");
 	  }

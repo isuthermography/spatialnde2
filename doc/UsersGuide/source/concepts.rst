@@ -507,6 +507,14 @@ By the end of the execution function, it should have marked metadata
 as done on all output recordings (``mark_metadata_done()`` method of
 the recording) and the data as being ready (``mark_as_ready()`` method).
 
+If math code throws an exception, it will be caught and (if the
+exception was an ``snde_error()``) a backtrace printed. Exceptions of 
+other types may not print a backtrace; it may be helpful in that
+case to disable exception handling by rebuilding spatialnde2 with the
+``SNDE_RCR_DISABLE_EXCEPTION_HANDLING`` preprocessor symbol defined.
+With ``SNDE_RCR_DISABLE_EXCEPTION_HANDLING`` the exception will instead cause
+an immediate crash, which may generate a core dump or drop into the debugger, depending on your system configuration. This can make it easier to debug the exception.
+environment and
 
 Threading and Locking
 ---------------------

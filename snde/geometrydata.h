@@ -28,12 +28,13 @@ extern "C" {
     snde_coord3 *trinormals; // allocated with triangles, one normal/triangle NOTE: Normals are in part coordinates, not world coordinates.
     snde_cmat23 *inplanemats; // allocated with triangles
     
-    snde_trivertnormals *vertnormals; // allocated separately. For triangles, but are per vertex so three normals/triangle NOTE: Normals are in part coordinates, not world coordinates. SHOULD PROBABLY BE ALLOCATED WITH TRIANGLES. 
 
     snde_edge *edges; // allocated separately
 
     // polygon (triangle) vertices...
     snde_coord3 *vertices; // allocated separately
+    snde_coord3 *vertnormals; // allocated with vertices (in part coordinates)
+
     snde_coord2 *principal_curvatures; // allocated with vertices
     snde_axis32 *curvature_tangent_axes; // allocated with vertices
 
@@ -193,9 +194,13 @@ extern "C" {
 
 
     
-    // these remaining arrays are used solely for rendering... (Maybe vertnormals shouldn't be???)
+    // these remaining arrays are used solely for rendering...
+    // Do they really need to be here or can we use a regular storage manager for
+    // them if they're not needed for anything but rendering?
     snde_rendercoord *vertex_arrays; /* transformed vertex array for OpenSceneGraph / OpenGL (allocated separately) */
     snde_rendercoord *texvertex_arrays; /* transformed texture vertex array for OpenSceneGraph / OpenGL (allocated separate) */
+    snde_trivertnormals *vertnormal_arrays; // allocated separately. For triangles, but are per vertex so three normals/triangle NOTE: Normals are in part coordinates, not world coordinates.
+    
     snde_rgba *texbuffer; // allocated separately
 
 

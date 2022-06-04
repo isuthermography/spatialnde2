@@ -223,7 +223,7 @@ namespace snde {
     std::unordered_map<std::string,std::shared_ptr<display_channel>> channel_info;
     //std::vector<std::string> channel_layer_order; // index is nominal order, string is full channel name
     
-    const std::shared_ptr<math_function> vertnormals_function; // immutable
+    const std::shared_ptr<math_function> vertnormalarray_function; // immutable
     const std::shared_ptr<math_function> colormapping_function; // immutable
     const std::shared_ptr<math_function> fusion_colormapping_function; // immutable
     const std::shared_ptr<math_function> pointcloud_colormapping_function; // immutable

@@ -593,7 +593,7 @@ namespace snde {
 
     std::string chanpath(info->name);
 
-    std::string channel_to_reorient_fullpath = recdb_join_assembly_and_component_names(chanpath,channel_to_reorient);
+    std::string channel_to_reorient_fullpath = recdb_path_join(chanpath,channel_to_reorient);
 
     snde_orientation3 channel_to_reorient_campose = compositor_strong->get_camera_pose(channel_to_reorient_fullpath);
     // channel_to_reorient_campose represents the orientation of the camera

@@ -1316,11 +1316,14 @@ namespace snde {
     std::shared_ptr<channel> loaded_geom_channel=recdb->reserve_channel(loaded_geom_config);
 
 
-    std::shared_ptr<loaded_part_geometry_recording> loaded_geom = create_recording<loaded_part_geometry_recording>(recdb,loaded_geom_channel,owner_id,processing_tags);
-    loaded_geom->mark_metadata_done();
-    loaded_geom->mark_data_ready();
+    if (!recdb_group_path.size() || recdb_group_path.at(0) != '/') {
+      throw snde_error("Group path %s does not end with a trailing slash",recdb_group_path.c_str());
 
-    std::string recdb_context = recdb_group_path + "/";
+    }
+
+    std::shared_ptr<loaded_part_geometry_recording> loaded_geom = create_recording<loaded_part_geometry_recording>(recdb,loaded_geom_channel,owner_id,processing_tags);
+
+    std::string recdb_context = recdb_group_path;
 
     
     bool reindex_vertices = extract_geomproc_option(&processing_tags,"reindex_vertices");
@@ -2741,27 +2744,31 @@ namespace snde {
     graphman->geom.parts[firstpart].has_curvatures=false;
 
 
-    meshedcurpart->mark_data_ready();
-    if (texture_ref) {
-      texedcurpart->mark_data_ready();
-    }
-      
     
     
     
     //return std::make_shared<std::vector<snde_index>>(part_indices);
+
+    loaded_geom->mark_metadata_done();
 
     /* returns vector of part objects. If the part had texture coordinates, it 
        will also include a parameterization. If it also defined an imagetexture url, then 
        the parameterization will have a single, unit-length patches, named according to the 
        imagetexture URL. The snde_image structure will be allocated but blank 
        (imgbufoffset==SNDE_INDEX_INVALID). No image buffer space is allocated */
-    instantiate_geomproc_math_functions(recdb,loaded_geom,&processing_tags);
+    instantiate_geomproc_math_functions(recdb,loaded_geom,meshedcurpart,texedcurpart,&processing_tags);
 
     for (auto && remaining_tag: processing_tags) {
       snde_warning("x3d_load_geometry: Unhandled processing tag %s loading into %s",remaining_tag.c_str(),recdb_group_path.c_str());
     }
+
+    meshedcurpart->mark_data_ready();
+    if (texture_ref) {
+      texedcurpart->mark_data_ready();
+    }
     
+    
+    loaded_geom->mark_data_ready();
     
     return loaded_geom;
   }

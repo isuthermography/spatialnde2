@@ -372,7 +372,7 @@ namespace snde {
     
     //osg::ref_ptr<osg::Array> osg_array;
     
-    std::shared_ptr<meshed_vertnormals_recording> cached_recording;
+    std::shared_ptr<meshed_vertnormalarrays_recording> cached_recording;
     
 
     osg_cachedmeshednormals(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);

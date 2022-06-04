@@ -234,13 +234,14 @@ namespace snde {
 
   void instantiate_vertex_kdtree(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
   {
+    std::string context = recdb_path_context(loaded_geom->info->name);
     std::shared_ptr<instantiated_math_function> instantiated = kdtree_calculation_function->instantiate( {
-	std::make_shared<math_parameter_recording>("meshed","vertices")
+	std::make_shared<math_parameter_recording>(loaded_geom->processed_relpaths.at("meshed"),"vertices")
       },
       {
 	std::make_shared<std::string>("vertex_kdtree")
       },
-      std::string(loaded_geom->info->name)+"/",
+      context,
       false, // is_mutable
       false, // ondemand
       false, // mdonly
@@ -249,7 +250,8 @@ namespace snde {
 
 
     recdb->add_math_function(instantiated,true); // kdtree is generally hidden by default
-
+    loaded_geom->processed_relpaths.emplace("kdtree","kdtree");
+    
   }
   
   static int registered_vertex_kdtree_processor = register_geomproc_math_function("vertex_kdtree",instantiate_vertex_kdtree);
@@ -263,7 +265,7 @@ namespace snde {
 #endif // SNDE_OPENCL
 
 #ifdef SNDE_OPENCL
-  cl::Event perform_inline_ocl_knn_calculation(std::shared_ptr<assigned_compute_resource_opencl> opencl_resource,rwlock_token_set locktokens, std::shared_ptr<ndtyped_recording_ref<snde_kdnode>> kdtree, std::shared_ptr<ndtyped_recording_ref<snde_coord3>> kdtree_vertices, OpenCLBuffers &Buffers,std::shared_ptr<ndtyped_recording_ref<snde_coord3>> search_points,cl::Event search_points_ready,std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref) // returns event that indicates result is ready (on GPU)
+  cl::Event perform_inline_ocl_knn_calculation(std::shared_ptr<assigned_compute_resource_opencl> opencl_resource,rwlock_token_set locktokens, std::shared_ptr<ndtyped_recording_ref<snde_kdnode>> kdtree, std::shared_ptr<ndtyped_recording_ref<uint32_t>> nodemask,std::shared_ptr<ndtyped_recording_ref<snde_coord3>> kdtree_vertices, OpenCLBuffers &Buffers,std::shared_ptr<ndtyped_recording_ref<snde_coord3>> search_points,cl::Event search_points_ready,std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref) // returns event that indicates result is ready (on GPU)
   {
     // NOTE: Must keep code parallel with perform_knn_calculation(), below!!!***
     snde_index num_search_points = search_points->layout.flattened_length();
@@ -301,21 +303,27 @@ namespace snde {
     
       
     Buffers.AddBufferAsKernelArg(kdtree,knn_kern,0,false,false);
-    Buffers.AddBufferAsKernelArg(kdtree_vertices,knn_kern,1,false,false);
+    if (nodemask) {
+      Buffers.AddBufferAsKernelArg(nodemask,knn_kern,1,false,false);
+    } else {
+      knn_kern.setArg(1,sizeof(cl_mem),nullptr); // pass null for nodemask    
+    }
+    
+    Buffers.AddBufferAsKernelArg(kdtree_vertices,knn_kern,2,false,false);
     // add local memory arrays 
-    knn_kern.setArg(2,nodestacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
-    knn_kern.setArg(3,statestacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
-    knn_kern.setArg(4,bboxstacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
+    knn_kern.setArg(3,nodestacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
+    knn_kern.setArg(4,statestacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
+    knn_kern.setArg(5,bboxstacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
       
-    knn_kern.setArg(5,sizeof(stacksize_per_workitem),&stacksize_per_workitem);
-    Buffers.AddBufferAsKernelArg(search_points,knn_kern,6,false,false);
-    Buffers.AddBufferAsKernelArg(result_ref,knn_kern,7,true,true);
+    knn_kern.setArg(6,sizeof(stacksize_per_workitem),&stacksize_per_workitem);
+    Buffers.AddBufferAsKernelArg(search_points,knn_kern,7,false,false);
+    Buffers.AddBufferAsKernelArg(result_ref,knn_kern,8,true,true);
     uint32_t opencl_ndim=3;
-    knn_kern.setArg(8,sizeof(opencl_ndim),&opencl_ndim);
+    knn_kern.setArg(9,sizeof(opencl_ndim),&opencl_ndim);
     uint32_t opencl_max_depth=max_depth;
-    knn_kern.setArg(9,sizeof(opencl_max_depth),&opencl_max_depth);
+    knn_kern.setArg(10,sizeof(opencl_max_depth),&opencl_max_depth);
     snde_index max_index_plus_one = num_search_points;
-    knn_kern.setArg(10,sizeof(max_index_plus_one),&max_index_plus_one);
+    knn_kern.setArg(11,sizeof(max_index_plus_one),&max_index_plus_one);
       
     
       
@@ -339,7 +347,7 @@ namespace snde {
   
 #endif // SNDE_OPENCL
 
-  void perform_knn_calculation(std::shared_ptr<assigned_compute_resource> compute_resource,rwlock_token_set locktokens, std::shared_ptr<ndtyped_recording_ref<snde_kdnode>> kdtree, std::shared_ptr<ndtyped_recording_ref<snde_coord3>> kdtree_vertices, std::shared_ptr<ndtyped_recording_ref<snde_coord3>> search_points,std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref)
+  void perform_knn_calculation(std::shared_ptr<assigned_compute_resource> compute_resource,rwlock_token_set locktokens, std::shared_ptr<ndtyped_recording_ref<snde_kdnode>> kdtree, std::shared_ptr<ndtyped_recording_ref<uint32_t>> nodemask,std::shared_ptr<ndtyped_recording_ref<snde_coord3>> kdtree_vertices, std::shared_ptr<ndtyped_recording_ref<snde_coord3>> search_points,std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref) // NOTE: nodemask may be nullptr
   {
     // NOTE: Must keep code parallel with perform_inline_ocl_knn_calculation(), above!!!***
     snde_index num_search_points = search_points->layout.flattened_length();
@@ -366,6 +374,7 @@ namespace snde {
       cl::Event knn_calculation_done = perform_inline_ocl_knn_calculation(opencl_resource,
 									  locktokens,
 									  kdtree,
+									  nodemask,
 									  kdtree_vertices,
 									  Buffers,
 									  search_points,
@@ -384,6 +393,7 @@ namespace snde {
       
       for (snde_index searchidx=0;searchidx < num_search_points;searchidx++) {
 	result_ref->element({searchidx}) = snde_kdtree_knn_one(kdtree->shifted_arrayptr(),
+							       nodemask ? nodemask->shifted_arrayptr() : nullptr,
 							       (snde_coord *)kdtree_vertices->shifted_arrayptr(),
 							       nodestack,
 							       statestack,
@@ -493,7 +503,7 @@ namespace snde {
 	  return std::make_shared<exec_function_override_type>([ this,locktokens, result_ref,vertices,kdtree,search_points ]() {
 	    // exec code
 	    //snde_index numvertices = vertices->layout.flattened_length();
-	    perform_knn_calculation(compute_resource,locktokens,kdtree,vertices,search_points,result_ref);
+	    perform_knn_calculation(compute_resource,locktokens,kdtree,nullptr,vertices,search_points,result_ref);
 
 	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
 	    result_ref->rec->mark_data_ready();

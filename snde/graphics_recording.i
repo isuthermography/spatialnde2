@@ -14,6 +14,9 @@ snde_rawaccessible(snde::meshed_texvertex_recording);
 %shared_ptr(snde::meshed_vertnormals_recording);
 snde_rawaccessible(snde::meshed_vertnormals_recording);
 
+%shared_ptr(snde::meshed_vertnormalarrays_recording);
+snde_rawaccessible(snde::meshed_vertnormalarrays_recording);
+
 %shared_ptr(snde::meshed_trinormals_recording);
 snde_rawaccessible(snde::meshed_trinormals_recording);
 
@@ -88,6 +91,12 @@ namespace snde {
     // has vertnormals field. 
   };
 
+    class meshed_vertnormalarrays_recording: public multi_ndarray_recording {
+  public:
+    meshed_vertnormalarrays_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize);
+    // has vertnormal_arrays field. 
+  };
+
   class meshed_trinormals_recording: public multi_ndarray_recording {
   public:
     meshed_trinormals_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize);
@@ -128,7 +137,7 @@ namespace snde {
 
 namespace snde {
 
-  class textured_part_recording: public recording_group {
+  class textured_part_recording: public recording_base {
   public:
     // NOTE: Texture may or may not be actually present (no texture indicated by nullptr parameterization_name and empty texture_refs
     std::string part_name; // strings are path names, absolute or relative, treating the path of the texured_part_recording with a trailing slash as a group context
@@ -145,7 +154,7 @@ namespace snde {
   // textured_part_recording -> renderable_textured_part_recording for rendering, which points at the renderable_meshed_part recording, the meshed_texvertex recording, and an rgba_image_reference
 
   
-  class assembly_recording: public recording_group {
+  class assembly_recording: public recording_base {
   public:
     std::vector<std::pair<std::string,snde_orientation3>> pieces; // strings are path names, absolute or relative, treating the path of the assembly_recording with a trailing slash as a group context
     
@@ -163,7 +172,7 @@ namespace snde {
 
 
 
-  class tracking_pose_recording: public recording_group {
+  class tracking_pose_recording: public recording_base {
     // abstract class: Must subclass! ... Then register your class to use the tracking_pose_recording_display_handler (see display_requirements.cpp)
   public:
     std::string component_name; // string is a path name, absolute or relative, treating the path of the tracking_pose_recording with a trailing slash as a group context

@@ -250,15 +250,17 @@ namespace snde {
   
   void instantiate_projinfo(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
   {
+    std::string context = recdb_path_context(loaded_geom->info->name);
+
     std::shared_ptr<instantiated_math_function> instantiated = projinfo_calculation_function->instantiate( {
-	std::make_shared<math_parameter_recording>("meshed"),
-	std::make_shared<math_parameter_recording>("inplanemat"),
-	std::make_shared<math_parameter_recording>("uv")
+	std::make_shared<math_parameter_recording>(loaded_geom->processed_relpaths.at("meshed")),
+	std::make_shared<math_parameter_recording>(loaded_geom->processed_relpaths.at("inplanemat")),
+	std::make_shared<math_parameter_recording>(loaded_geom->processed_relpaths.at("uv"))
       },
       {
 	std::make_shared<std::string>("projinfo")
       },
-      std::string(loaded_geom->info->name)+"/",
+      context,
       false, // is_mutable
       false, // ondemand
       false, // mdonly
@@ -267,6 +269,7 @@ namespace snde {
 
 
     recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
+    loaded_geom->processed_relpaths.emplace("projinfo","projinfo");
 
   }
 

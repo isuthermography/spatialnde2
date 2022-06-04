@@ -24,6 +24,7 @@ extern "C" {
 
 
   snde_index snde_kdtree_knn_one(KDTREE_GLOBAL struct snde_kdnode *tree,
+				 KDTREE_GLOBAL uint32_t *nodemask,
 				 KDTREE_GLOBAL snde_coord *vertices,
 				 KDTREE_LOCAL snde_index *nodestack, // (max_depth+1)*sizeof(snde_index)
 				 KDTREE_LOCAL uint8_t *statestack, // (max_depth+1)*sizeof(uint8_t)

@@ -1543,7 +1543,7 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
 //     SUB meshed_part_recording:SNDE_SRG_VERTEXARRAYS
 //       -> MAIN meshed_part_recording_display_handler:SNDE_SRM_VERTEXARRAYS:meshed_vertexarray_recording -> osg_cachedmeshedvertexarray
 //     SUB meshed_part_recording:SNDE_SRG_VERTNORMALS
-//       -> MAIN meshed_part_recording_display_handler:SNDE_SRM_VERTNORMALS:meshed_vertnormals_recording -> osg_cachedmeshednormals
+//       -> MAIN meshed_part_recording_display_handler:SNDE_SRM_VERTNORMALS:meshed_vertnormalarrays_recording -> osg_cachedmeshednormals
 // 
 {
 
@@ -1648,10 +1648,18 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
     assert(meshedpart_rec);
     
     retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_MESHEDNORMALS,typeid(*this),nullptr),rec,shared_from_this());
+
+    //if (!meshedpart_rec->vertnormals_name) {
+    //  throw snde_error("meshed_part_recording_display_handler::get_display_requirement SNDE_SRG_VERTNORMALS: vertnormals_name attribute is not set on recording %s",meshedpart_rec->info->name);
+    //}
+
+    //std::string vertnormals_name = *meshedpart_rec->vertnormals_name;
     
-    std::string renderable_channelpath = recdb_path_join(recdb_path_as_group(chanpath),"vertnormals");
+    //retval->renderable_channelpath = std::make_shared<std::string>(recdb_path_join(recdb_path_context(rec->info->name),vertnormals_name));
     
-    std::shared_ptr<instantiated_math_function> renderable_function = display->vertnormals_function->instantiate({
+    std::string renderable_channelpath = recdb_path_join(recdb_path_as_group(chanpath),"_snde_rec_vertnormalarray"+std::to_string(display->unique_index));
+    
+    std::shared_ptr<instantiated_math_function> renderable_function = display->vertnormalarray_function->instantiate({
 	std::make_shared<math_parameter_recording>(chanpath)
       },
       { std::make_shared<std::string>(renderable_channelpath) },
@@ -1756,7 +1764,7 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
 //         SUB meshed_part_recording:SNDE_SRG_VERTEXARRAYS
 //           -> MAIN meshed_part_recording_display_handler:SNDE_SRM_VERTEXARRAYS:meshed_vertexarray_recording -> osg_cachedmeshedvertexarray
 //         SUB meshed_part_recording:SNDE_SRG_VERTNORMALS
-//           -> MAIN meshed_part_recording_display_handler:SNDE_SRM_MESHEDNORMALS:meshed_vertnormals_recording -> osg_cachedmeshednormals
+//           -> MAIN meshed_part_recording_display_handler:SNDE_SRM_MESHEDNORMALS:meshed_vertnormalarrays_recording -> osg_cachedmeshednormals
 //         SUB meshed_parameterization_recording: SNDE_SRG_RENDERING
 //           -> MAIN meshed_parameterization_recording_display_handler:SNDE_SRM_MESHED2DPARAMETERIZATION:meshed_texvertex_recording -> osg_cachedparameterizationdata
 //     SUB multi_ndarray_recording:SNDE_SRG_TEXTURE
@@ -2008,8 +2016,9 @@ std::shared_ptr<display_requirement> assembly_recording_display_handler::get_dis
   
   
   for (auto && relpath_orientation: assempart_rec->pieces) {
-
-    std::string abspath = recdb_join_assembly_and_component_names(chanpath,std::get<0>(relpath_orientation));
+    
+    //std::string abspath = recdb_join_assembly_and_component_names(chanpath,std::get<0>(relpath_orientation));
+    std::string abspath = recdb_path_join(chanpath,std::get<0>(relpath_orientation));
     
     std::shared_ptr<display_requirement> sub_requirement = traverse_display_requirement(display,base_rss,display->lookup_channel(abspath),SNDE_SRG_DEFAULT_3D,nullptr);
     retval->sub_requirements.push_back(sub_requirement);
@@ -2105,8 +2114,8 @@ std::shared_ptr<display_requirement> tracking_pose_recording_display_handler::ge
 
   
   // reuse assembly code to determine absolute path to channel_to_reorient and component
-  std::string channel_to_reorient_abspath = recdb_join_assembly_and_component_names(chanpath,trackingpose_rec->channel_to_reorient);
-  std::string component_abspath = recdb_join_assembly_and_component_names(chanpath,trackingpose_rec->component_name);
+  std::string channel_to_reorient_abspath = recdb_path_join(chanpath,trackingpose_rec->channel_to_reorient);
+  std::string component_abspath = recdb_path_join(chanpath,trackingpose_rec->component_name);
 
   std::shared_ptr<recording_base> channel_to_reorient_rec = base_rss->get_recording(channel_to_reorient_abspath);
   

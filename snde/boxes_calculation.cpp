@@ -488,15 +488,17 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
   void instantiate_boxes3d(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
   {
+    std::string context = recdb_path_context(loaded_geom->info->name);
+
     std::shared_ptr<instantiated_math_function> instantiated = boxes_calculation_3d_function->instantiate( {
-	std::make_shared<math_parameter_recording>("meshed"),
-	std::make_shared<math_parameter_recording>("trinormals"),
-	std::make_shared<math_parameter_recording>("inplanemat")
+	std::make_shared<math_parameter_recording>(loaded_geom->processed_relpaths.at("meshed")),
+	std::make_shared<math_parameter_recording>(loaded_geom->processed_relpaths.at("trinormals")),
+	std::make_shared<math_parameter_recording>(loaded_geom->processed_relpaths.at("inplanemat"))
       },
       {
 	std::make_shared<std::string>("boxes3d")
       },
-      std::string(loaded_geom->info->name)+"/",
+      context,
       false, // is_mutable
       false, // ondemand
       false, // mdonly
@@ -505,6 +507,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
 
     recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
+    loaded_geom->processed_relpaths.emplace("boxes3d","boxes3d");
 
   }
 
@@ -999,24 +1002,26 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
   void instantiate_boxes2d(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
   {
+    
+    std::string context = recdb_path_context(loaded_geom->info->name);
     std::shared_ptr<instantiated_math_function> instantiated = boxes_calculation_2d_function->instantiate( {
-	std::make_shared<math_parameter_recording>("uv"),
+	std::make_shared<math_parameter_recording>(loaded_geom->processed_relpaths.at("uv")),
       },
       {
 	std::make_shared<std::string>("boxes2d")
       },
-      std::string(loaded_geom->info->name)+"/",
+      context,
       false, // is_mutable
       false, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("instantiate_boxes2d()"),
       nullptr);
 
-
+    
     recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
-
+    loaded_geom->processed_relpaths.emplace("boxes2d","boxes2d");
   }
-
+  
   static int registered_boxes2d_processor = register_geomproc_math_function("boxes2d",instantiate_boxes2d);
 
 

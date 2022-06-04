@@ -229,14 +229,16 @@ namespace snde {
   
   void instantiate_inplanemat(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
   {
+    std::string context = recdb_path_context(loaded_geom->info->name);
+    
     std::shared_ptr<instantiated_math_function> instantiated = inplanemat_calculation_function->instantiate( {
-	std::make_shared<math_parameter_recording>("meshed"),
-	std::make_shared<math_parameter_recording>("trinormals")
+	std::make_shared<math_parameter_recording>(loaded_geom->processed_relpaths.at("meshed")),
+	std::make_shared<math_parameter_recording>(loaded_geom->processed_relpaths.at("trinormals"))
       },
       {
 	std::make_shared<std::string>("inplanemat")
       },
-      std::string(loaded_geom->info->name)+"/",
+      context,
       false, // is_mutable
       false, // ondemand
       false, // mdonly
@@ -245,7 +247,8 @@ namespace snde {
 
 
     recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
-
+    loaded_geom->processed_relpaths.emplace("inplanemat","inplanemat");
+    
   }
 
   static int registered_inplanemat_processor = register_geomproc_math_function("inplanemat",instantiate_inplanemat);

@@ -65,6 +65,58 @@ snde_coord3 snde_normalcalc_triangle(OCL_GLOBAL_ADDR const struct snde_part *par
   
 }
 
+
+
+snde_coord3 snde_normalcalc_vertex(OCL_GLOBAL_ADDR const struct snde_part *part,
+				   OCL_GLOBAL_ADDR const snde_triangle *part_triangles,
+				   OCL_GLOBAL_ADDR const snde_edge *part_edges,
+				   OCL_GLOBAL_ADDR const snde_coord3 *part_vertices,
+				   OCL_GLOBAL_ADDR const snde_vertex_edgelist_index *part_vertex_edgelist_indices,
+				   OCL_GLOBAL_ADDR const snde_index *part_vertex_edgelist,
+				   OCL_GLOBAL_ADDR const snde_coord3 *part_trinormals,
+				   
+				   snde_index vertexnum)
+{
+
+  snde_index edgelist_index_index;
+
+  snde_coord3 accum = { 0.f,0.f,0.f };
+  //snde_coord weight = 0.f;
+
+  // If we wanted here we could weight the average according to the area of the
+  // triangle close to the edge. That may be advantageous for some algorithms,
+  // so don't rely on the current behavior of an unweighted average, as it may change.
+  
+  for (edgelist_index_index=0;edgelist_index_index < part_vertex_edgelist_indices[vertexnum].edgelist_numentries;edgelist_index_index++) {
+    snde_index edge_index = part_vertex_edgelist[part_vertex_edgelist_indices[vertexnum].edgelist_index + edgelist_index_index];
+    
+    snde_index tri_a = part_edges[edge_index].tri_a;
+    snde_index tri_b = part_edges[edge_index].tri_b;
+
+    if (tri_a != SNDE_INDEX_INVALID) {
+      accum.coord[0] += part_trinormals[tri_a].coord[0];
+      accum.coord[1] += part_trinormals[tri_a].coord[1];
+      accum.coord[2] += part_trinormals[tri_a].coord[2];
+      //weight += 1; 
+    }
+
+    if (tri_b != SNDE_INDEX_INVALID) {
+      accum.coord[0] += part_trinormals[tri_b].coord[0];
+      accum.coord[1] += part_trinormals[tri_b].coord[1];
+      accum.coord[2] += part_trinormals[tri_b].coord[2];
+      //weight += 1; 
+    }
+
+  }
+
+  normalizecoord3(&accum);
+  
+  return accum;
+  
+}
+
+
+
 #ifdef __OPENCL_VERSION__
 __kernel void snde_normalcalc_trinormals(__global const struct snde_part *part,
 			      __global const snde_triangle *part_triangles,
@@ -84,11 +136,11 @@ __kernel void snde_normalcalc_trinormals(__global const struct snde_part *part,
 }
 
 
-__kernel void snde_normalcalc_vertnormals(__global const struct snde_part *part,
-			      __global const snde_triangle *part_triangles,
-			      __global const snde_edge *part_edges,
-			      __global const snde_coord3 *part_vertices,
-			      __global snde_trivertnormals *vertnormals)
+__kernel void snde_normalcalc_vertnormalarray(__global const struct snde_part *part,
+					      __global const snde_triangle *part_triangles,
+					      __global const snde_edge *part_edges,
+					      __global const snde_coord3 *part_vertices,
+					      __global snde_trivertnormals *vertnormals)
 {
   snde_index trianglenum=get_global_id(0);
   snde_coord3 normal;
@@ -101,6 +153,30 @@ __kernel void snde_normalcalc_vertnormals(__global const struct snde_part *part,
   vertnormals[trianglenum].vertnorms[0]=normal;
   vertnormals[trianglenum].vertnorms[1]=normal;
   vertnormals[trianglenum].vertnorms[2]=normal;
+
+}
+
+
+
+__kernel void snde_normalcalc_vertnormals(__global const struct snde_part *part,
+					  __global const snde_triangle *part_triangles,
+					  __global const snde_edge *part_edges,
+					  __global const snde_coord3 *part_vertices,
+					  __global const snde_vertex_edgelist_index *part_vertex_edgelist_indices,
+					  __global const snde_index *part_vertex_edgelist,
+					  __global const snde_coord3 *part_trinormals,
+					  __global snde_coord3 *vertnormals)
+{
+  snde_index vertnum=get_global_id(0);
+  
+  vertnormals[vertnum] = snde_normalcalc_vertex(part,
+						part_triangles,
+						part_edges,
+						part_vertices,
+						part_vertex_edgelist_indices,
+						part_vertex_edgelist,
+						part_trinormals,
+						vertnum);
 
 }
 

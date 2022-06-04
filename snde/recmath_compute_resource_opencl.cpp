@@ -105,7 +105,7 @@ namespace snde {
     size_t paranum;
     for (paranum=0; paranum < max_parallel; paranum++) {
       for (devnum=0; devnum < opencl_devices.size();devnum++) {
-	queues.push_back(cl::CommandQueue(opencl_context,opencl_devices[devnum],0));
+	queues.push_back(cl::CommandQueue(opencl_context,opencl_devices[devnum],CL_QUEUE_PROFILING_ENABLE));
       }
     }
   }
