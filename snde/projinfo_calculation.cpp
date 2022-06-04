@@ -253,9 +253,9 @@ namespace snde {
     std::string context = recdb_path_context(loaded_geom->info->name);
 
     std::shared_ptr<instantiated_math_function> instantiated = projinfo_calculation_function->instantiate( {
-	std::make_shared<math_parameter_recording>(loaded_geom->processed_relpaths.at("meshed")),
-	std::make_shared<math_parameter_recording>(loaded_geom->processed_relpaths.at("inplanemat")),
-	std::make_shared<math_parameter_recording>(loaded_geom->processed_relpaths.at("uv"))
+	std::make_shared<math_parameter_recording>("meshed"),
+	std::make_shared<math_parameter_recording>("inplanemat"),
+	std::make_shared<math_parameter_recording>("uv")
       },
       {
 	std::make_shared<std::string>("projinfo")

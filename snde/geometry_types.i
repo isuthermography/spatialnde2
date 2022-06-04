@@ -235,6 +235,7 @@ nt_snde_axis32=np.dtype((nt_snde_coord,(2,3)))
 nt_snde_mat23=np.dtype((nt_snde_coord,(2,3)))
 
 
+# WARNING: OBSOLETE!!!***
 nt_snde_meshedpart=np.dtype([  # ('orientation', nt_snde_orientation3),
 		    ('firsttri', nt_snde_index),
 		    ('numtris', nt_snde_index),

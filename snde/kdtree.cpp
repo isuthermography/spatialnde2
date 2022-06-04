@@ -236,7 +236,7 @@ namespace snde {
   {
     std::string context = recdb_path_context(loaded_geom->info->name);
     std::shared_ptr<instantiated_math_function> instantiated = kdtree_calculation_function->instantiate( {
-	std::make_shared<math_parameter_recording>(loaded_geom->processed_relpaths.at("meshed"),"vertices")
+	std::make_shared<math_parameter_recording>("meshed","vertices")
       },
       {
 	std::make_shared<std::string>("vertex_kdtree")
