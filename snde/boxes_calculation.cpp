@@ -489,7 +489,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   
   static int registered_boxes_calculation_3d_function = register_math_function("spatialnde2.boxes_calculation_3d",boxes_calculation_3d_function);
 
-  void instantiate_boxes3d(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  void instantiate_boxes3d(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
     std::string context = recdb_path_context(loaded_geom->info->name);
 
@@ -1007,7 +1007,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   static int registered_boxes_calculation_2d_function = register_math_function("spatialnde2.boxes_calculation_2d",boxes_calculation_2d_function);
 
 
-  void instantiate_boxes2d(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  void instantiate_boxes2d(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
     
     std::string context = recdb_path_context(loaded_geom->info->name);

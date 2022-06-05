@@ -234,9 +234,16 @@ namespace snde {
   static int registered_kdtree_calculation_function = register_math_function("spatialnde2.kdtree_calculation",kdtree_calculation_function);
 
 
-  void instantiate_vertex_kdtree(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  void instantiate_vertex_kdtree(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
     std::string context = recdb_path_context(loaded_geom->info->name);
+
+    bool withmapping_flag = false;
+
+    //if (all_processing_tags->find("vertex_kdtree_withmapping") != all_processing_tags->end()) {
+    //   withmapping_flag = true; // withmapping flags enables generating a mapping from kdtree index to 
+    //}
+    
     std::shared_ptr<instantiated_math_function> instantiated = kdtree_calculation_function->instantiate( {
 	std::make_shared<math_parameter_recording>("meshed","vertices")
       },
@@ -257,6 +264,7 @@ namespace snde {
   }
   
   static int registered_vertex_kdtree_processor = register_geomproc_math_function("vertex_kdtree",instantiate_vertex_kdtree);
+  //static int registered_vertex_kdtree_withmapping_processor = register_geomproc_math_function("vertex_kdtree_withmapping",instantiate_vertex_kdtree);
   
   
 

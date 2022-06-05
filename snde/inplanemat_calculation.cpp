@@ -227,9 +227,12 @@ namespace snde {
   static int registered_inplanemat_calculation_function = register_math_function("spatialnde2.inplanemat",inplanemat_calculation_function);
   
   
-  void instantiate_inplanemat(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  void instantiate_inplanemat(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
     std::string context = recdb_path_context(loaded_geom->info->name);
+
+    // require trinormals
+    geomproc_specify_dependency(remaining_processing_tags,all_processing_tags,"trinormals");
     
     std::shared_ptr<instantiated_math_function> instantiated = inplanemat_calculation_function->instantiate( {
 	std::make_shared<math_parameter_recording>("meshed"),

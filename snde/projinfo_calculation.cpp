@@ -248,9 +248,11 @@ namespace snde {
   static int registered_projinfo_calculation_function = register_math_function("spatialnde2.projinfo_calculation",projinfo_calculation_function);
   
   
-  void instantiate_projinfo(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  void instantiate_projinfo(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
     std::string context = recdb_path_context(loaded_geom->info->name);
+
+    geomproc_specify_dependency(remaining_processing_tags,all_processing_tags,"inplanemat"); // we require inplanemat 
 
     std::shared_ptr<instantiated_math_function> instantiated = projinfo_calculation_function->instantiate( {
 	std::make_shared<math_parameter_recording>("meshed"),

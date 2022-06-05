@@ -122,7 +122,7 @@ namespace snde {
   std::shared_ptr<math_function> define_kdtree_calculation_function();
   SNDE_OCL_API extern std::shared_ptr<math_function> kdtree_calculation_function;
 
-  void instantiate_vertex_kdtree(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom);
+  void instantiate_vertex_kdtree(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags);
 
 
 #ifdef SNDE_OPENCL

@@ -55,8 +55,13 @@ void phase_plane_vertices_alphas_one(OCL_GLOBAL_ADDR ppvao_intype *complex_input
   ppvao_intype width_direction;
   width_direction.real = -l0.imag;
   width_direction.imag = l0.real;
+#ifdef __OPENCL_VERSION__
+  if (isnan(width_direction.real)) {
+    printf("phase_plane_vertices_alphas_one() got NaN width_direction.real\n");
+  }
+#else
   assert(!isnan(width_direction.real));
-  
+#endif
   //printf("ppvao: width_direction.real=%f;linewidth_horiz=%f\n",width_direction.real,linewidth_horiz);
   //printf("ppvao: tvout.coord[0]=%f\n",prior_coords.real - linewidth_horiz*width_direction.real/2.0);
 
@@ -156,7 +161,7 @@ __kernel void phase_plane_vertices_alphas(OCL_GLOBAL_ADDR ppvao_intype *complex_
 					  snde_index totallen, // for historical_fade
 					  snde_float32 linewidth_horiz,
 					  snde_float32 linewidth_vert,
-					  snde_float32 R
+					  snde_float32 R,
 					  snde_float32 G,
 					  snde_float32 B,
 					  snde_float32 A,

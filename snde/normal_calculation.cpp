@@ -230,7 +230,7 @@ namespace snde {
   
   static int registered_trinormals_function = register_math_function("spatialnde2.trinormals",trinormals_function);
 
-  void instantiate_trinormals(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  void instantiate_trinormals(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
     std::string context = recdb_path_context(loaded_geom->info->name);
 	
@@ -696,10 +696,11 @@ namespace snde {
   static int registered_vertnormals_function = register_math_function("spatialnde2.vertnormals",vertnormals_recording_function);
   
 
-  void instantiate_vertnormals(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  void instantiate_vertnormals(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
     std::string context = recdb_path_context(loaded_geom->info->name);
-    
+
+    geomproc_specify_dependency(remaining_processing_tags,all_processing_tags,"trinormals"); // we require trinormals 
     std::shared_ptr<instantiated_math_function> instantiated = vertnormals_recording_function->instantiate( {
 	std::make_shared<math_parameter_recording>("meshed"),
 	std::make_shared<math_parameter_recording>("trinormals")

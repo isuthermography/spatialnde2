@@ -17,8 +17,7 @@ snde_coord snde_areacalc_trianglearea(OCL_GLOBAL_ADDR const snde_triangle *part_
 {
   snde_coord3 triverts[3];
   
-  // For the moment, this calculates a normal per triangle and stores it
-  // for all vertices of the triangle, and for the triangle as a whole;
+  // For the moment, this calculates a area per triangle and stores it
   
 
   /* traverse edges of this triangle and extract vertex coordinates -> triverts*/
@@ -101,10 +100,10 @@ __kernel void snde_areacalc_triangleareas(__global const snde_triangle *part_tri
   snde_index trianglenum=get_global_id(0);
   snde_coord area;
   
-  area = snde_normalcalc_triangle(part_triangles,
-				  part_edges,
-				  part_vertices,
-				  trianglenum);
+  area = snde_areacalc_trianglearea(part_triangles,
+				    part_edges,
+				    part_vertices,
+				    trianglenum);
   trianglearea[trianglenum]=area;
 }
 
@@ -121,13 +120,13 @@ __kernel void snde_areacalc_vertexareas(__global const snde_triangle *part_trian
 {
   snde_index vertnum=get_global_id(0);
   
-  vertareas[vertnum] = snde_normalcalc_vertex(part_triangles,
-					      part_edges,
-					      part_vertices,
-					      part_vertex_edgelist_indices,
-					      part_vertex_edgelist,
-					      part_trianglearea,
-					      vertnum);
+  vertareas[vertnum] = snde_areacalc_vertexarea(part_triangles,
+						part_edges,
+						part_vertices,
+						part_vertex_edgelist_indices,
+						part_vertex_edgelist,
+						part_trianglearea,
+						vertnum);
   
 }
 

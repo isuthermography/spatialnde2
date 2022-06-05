@@ -88,6 +88,16 @@ namespace snde {
     
   }
 
+  void geomproc_specify_dependency(std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags,std::string needed_tag)
+  // Specify from within an instantiation routine that the current routine is dependent on some other tag,
+  // which may or may not have already been specified. 
+  {
+    if (all_processing_tags->find(needed_tag)==all_processing_tags->end()) {
+      // not already specified
+      all_processing_tags->emplace(needed_tag);
+      remaining_processing_tags->emplace(needed_tag);
+    }
+  }
   
   // Instantiate the relevant geometry processing math functions according to the specified processing
   // tags (which are removed from the set). NOTE: Must be called while still in the transaction
@@ -107,21 +117,28 @@ namespace snde {
     
     std::unordered_set<std::string>::iterator thistag,nexttag;
 
-    for (thistag=processing_tags->begin();thistag != processing_tags->end();thistag=nexttag) {
-      nexttag = thistag;
-      ++nexttag;
-      
-      geomproc_instantiator_map::iterator map_entry = instantiator_map->find(*thistag);
+    std::unordered_set<std::string> remaining_processing_tags = *processing_tags;
+    std::unordered_set<std::string> all_processing_tags = *processing_tags; // copy the list we were provided
+    std::unordered_set<std::string> missing_processing_tags;
+    
+    for (thistag=remaining_processing_tags.begin();thistag != remaining_processing_tags.end();thistag=remaining_processing_tags.begin()) {
+
+      std::string thistag_str = *thistag; 
+      geomproc_instantiator_map::iterator map_entry = instantiator_map->find(thistag_str);
 
       if (map_entry != instantiator_map->end()) {
 	// Found this tag in the instantiator map
 
 	// ... instantiate.
-	map_entry->second(recdb,loaded_geom);
+	map_entry->second(recdb,loaded_geom,&remaining_processing_tags,&all_processing_tags);
 
-	// Remove tag
-	processing_tags->erase(thistag);
+	// Remove tag if still present from remaining_processing_tags
+	remaining_processing_tags.erase(thistag_str);
 	
+      } else {
+	// did not find: Move to missing_processing_tags
+	missing_processing_tags.emplace(thistag_str);
+	remaining_processing_tags.erase(thistag_str);
       }
       
     }
@@ -132,6 +149,9 @@ namespace snde {
     if (texedcurpart) {
       texedcurpart->processed_relpaths = loaded_geom->processed_relpaths;
     }
+
+    // return just the missing processing tags
+    *processing_tags = missing_processing_tags; 
       
   }
 
