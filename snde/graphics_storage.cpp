@@ -140,10 +140,12 @@ namespace snde {
   }
 
 
-  void graphics_storage::mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)
+  void graphics_storage::mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem,bool override_finalized_check /*=false*/)
   // pos and numelem are relative to __this_recording__
   {
-    assert(!finalized);
+    if (!override_finalized_check) {
+      assert(!finalized);
+    }
     
     if (numelem==SNDE_INDEX_INVALID) {
       numelem=nelem-pos; // actual number of elements
@@ -445,12 +447,14 @@ namespace snde {
 
 
     
-    add_grouped_arrays(&next_region_id,&geom.vertex_arrays,"vertex_arrays");
-    add_grouped_arrays(&next_region_id,&geom.texvertex_arrays,"texvertex_arrays");
-    add_grouped_arrays(&next_region_id,&geom.vertnormal_arrays,"vertnormal_arrays");
+    //add_grouped_arrays(&next_region_id,&geom.vertex_arrays,"vertex_arrays");
+    //add_grouped_arrays(&next_region_id,&geom.texvertex_arrays,"texvertex_arrays");
+    //add_grouped_arrays(&next_region_id,&geom.vertnormal_arrays,"vertnormal_arrays");
     add_grouped_arrays(&next_region_id,&geom.texbuffer,"texbuffer");
 
 
+    add_grouped_arrays(&next_region_id,&geom.trianglearea,"trianglearea");
+    add_grouped_arrays(&next_region_id,&geom.vertexarea,"vertexarea");
 
     // ... need to initialize rest of struct...
     // Probably want an array manager class to handle all of this
@@ -600,6 +604,8 @@ namespace snde {
 
     std::unordered_map<std::string,void **>::iterator arrayaddr_it;
 
+    // NOTE: We never get array_name=="" any more so this
+    // anonymous allocation logic is now non-functional. 
     if (array_name=="" && typenum==SNDE_RTN_SNDE_IMAGEDATA) {
       // redirect anonymous allocation requests to the image projection data buffer
       array_name = "imagebuf"; 

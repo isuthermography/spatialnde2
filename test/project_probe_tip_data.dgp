@@ -12,14 +12,14 @@ include(snde,"recdb.dpi",enable_opencl=True)
 include(snde,"recdb_gui.dpi")
 
 specimen_model_file = "Plate_uv.x3d"
-specimen_model_tree = "/graphics/specimen"
+specimen_model_tree = "/graphics/specimen/"
 specimen_pose_channel = "/specimen_pose"
 projection_channel="/graphics/projection"
 projection_specimen_channel="/graphics/projection_specimen"
 
 
 probe_model_file = "Probe_uv.x3d"
-probe_model_tree = "/graphics/probe"
+probe_model_tree = "/graphics/probe/"
 probe_pose_channel = "/probe_pose"
 
 orient_dtype = [('offset', '<f4', (4,)), ('quat', '<f4', (4,))]
@@ -29,7 +29,7 @@ graphman=snde.graphics_storage_manager("/graphics/",recdb.lowlevel_alloc,recdb.a
 transact = recdb.start_transaction()
 
 
-graphicsgroup = recdb.define_channel("/graphics","main",recdb.raw(),False,graphman)
+graphicsgroup = recdb.define_channel("/graphics/","main",recdb.raw(),False,graphman)
 
 plate_recording = snde.x3d_load_geometry(recdb,graphman,specimen_model_file,0,"main",recdb.raw(),specimen_model_tree,None,[ "reindex_vertices","reindex_tex_vertices", "trinormals","inplanemat", "projinfo",  "boxes3d", "boxes2d" ])
 

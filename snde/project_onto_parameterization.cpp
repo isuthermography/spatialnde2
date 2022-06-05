@@ -352,7 +352,7 @@ namespace snde {
       
 	  if (!build_on_previous) {
 	    result_rec->allocate_storage_in_named_array(0,is_complex ? "compleximagebuf":"imagebuf",dimlen,true); // storage for image
-	    result_rec->allocate_storage(1,dimlen,true); // storage for validity mask 
+	    result_rec->allocate_storage_in_named_array(1,"imagebuf",dimlen,true); // storage for validity mask 
 	  } else {
 	    // accumulate on top of previous recording -- it is mutable storage!
 	    result_rec->assign_storage_strides(previous_ndarray->storage.at(0),0,previous_ndarray->layouts.at(0).dimlen,previous_ndarray->layouts.at(0).strides);

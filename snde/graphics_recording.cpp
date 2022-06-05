@@ -14,9 +14,7 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
     
-    name_mapping.emplace(std::make_pair("vertices",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"vertices"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.vertices)));
+    define_array(0,rtn_typemap.at(typeid(*dummy.vertices)),"vertices");
 
   }
   */
@@ -27,37 +25,21 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
     
-    name_mapping.emplace(std::make_pair("parts",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"parts"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.parts)));
+    define_array(0,rtn_typemap.at(typeid(*dummy.parts)),"parts");
 
-    name_mapping.emplace(std::make_pair("topos",1));
-    name_reverse_mapping.emplace(std::make_pair(1,"topos"));
-    define_array(1,rtn_typemap.at(typeid(*dummy.topos)));
+    define_array(1,rtn_typemap.at(typeid(*dummy.topos)),"topos");
 
-    name_mapping.emplace(std::make_pair("topo_indices",2));
-    name_reverse_mapping.emplace(std::make_pair(2,"topo_indices"));
-    define_array(2,rtn_typemap.at(typeid(*dummy.topo_indices)));
+    define_array(2,rtn_typemap.at(typeid(*dummy.topo_indices)),"topo_indices");
 
-    name_mapping.emplace(std::make_pair("triangles",3));
-    name_reverse_mapping.emplace(std::make_pair(3,"triangles"));
-    define_array(3,rtn_typemap.at(typeid(*dummy.triangles)));
+    define_array(3,rtn_typemap.at(typeid(*dummy.triangles)),"triangles");
 
-    name_mapping.emplace(std::make_pair("edges",4));
-    name_reverse_mapping.emplace(std::make_pair(4,"edges"));
-    define_array(4,rtn_typemap.at(typeid(*dummy.edges)));
+    define_array(4,rtn_typemap.at(typeid(*dummy.edges)),"edges");
 
-    name_mapping.emplace(std::make_pair("vertices",5));
-    name_reverse_mapping.emplace(std::make_pair(5,"vertices"));
-    define_array(5,rtn_typemap.at(typeid(*dummy.vertices)));
+    define_array(5,rtn_typemap.at(typeid(*dummy.vertices)),"vertices");
 
-    name_mapping.emplace(std::make_pair("vertex_edgelist_indices",6));
-    name_reverse_mapping.emplace(std::make_pair(6,"vertex_edgelist_indices"));
-    define_array(6,rtn_typemap.at(typeid(*dummy.vertex_edgelist_indices)));
+    define_array(6,rtn_typemap.at(typeid(*dummy.vertex_edgelist_indices)),"vertex_edgelist_indices");
     
-    name_mapping.emplace(std::make_pair("vertex_edgelist",7));
-    name_reverse_mapping.emplace(std::make_pair(7,"vertex_edgelist"));
-    define_array(7,rtn_typemap.at(typeid(*dummy.vertex_edgelist)));
+    define_array(7,rtn_typemap.at(typeid(*dummy.vertex_edgelist)),"vertex_edgelist");
 
     // NOTE: Final parameter to multi_ndarray_recording() above is number of mapping entries ***!!! 
   }
@@ -65,12 +47,10 @@ namespace snde {
   meshed_vertexarray_recording::meshed_vertexarray_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
     multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
   {
-    snde_geometrydata dummy={0};
+    //snde_geometrydata dummy={0};
     
-    name_mapping.emplace(std::make_pair("vertex_arrays",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"vertex_arrays"));
 
-    define_array(0,rtn_typemap.at(typeid(*dummy.vertex_arrays)));
+    define_array(0,rtn_typemap.at(typeid(snde_rendercoord /**dummy.vertex_arrays*/)),"vertex_arrays");
   }
 
 
@@ -79,9 +59,7 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
     
-    name_mapping.emplace(std::make_pair("inplanemats",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"inplanemats"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.inplanemats)));
+    define_array(0,rtn_typemap.at(typeid(*dummy.inplanemats)),"inplanemats");
   }
 
   
@@ -90,9 +68,7 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
     
-    name_mapping.emplace(std::make_pair("texvertex_arrays",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"texvertex_arrays"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.texvertex_arrays)));
+    define_array(0,rtn_typemap.at(typeid(snde_rendercoord /* *dummy.texvertex_arrays */)),"texvertex_arrays");
 
   }
     
@@ -101,9 +77,7 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
     
-    name_mapping.emplace(std::make_pair("vertnormals",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"vertnormals"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.vertnormals)));
+    define_array(0,rtn_typemap.at(typeid(*dummy.vertnormals)),"vertnormals");
 
   }
 
@@ -112,9 +86,7 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
     
-    name_mapping.emplace(std::make_pair("vertnormal_arrays",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"vertnormal_arrays"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.vertnormal_arrays)));
+    define_array(0,rtn_typemap.at(typeid(snde_trivertnormals /* *dummy.vertnormal_arrays */)),"vertnormal_arrays");
 
   }
 
@@ -124,9 +96,7 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
 
-    name_mapping.emplace(std::make_pair("trinormals",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"trinormals"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.trinormals)));
+    define_array(0,rtn_typemap.at(typeid(*dummy.trinormals)),"trinormals");
 
   }
 
@@ -135,41 +105,23 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
 
-    name_mapping.emplace(std::make_pair("uvs",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"uvs"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.uvs)));
+    define_array(0,rtn_typemap.at(typeid(*dummy.uvs)),"uvs");
 
-    name_mapping.emplace(std::make_pair("uv_patches",1));
-    name_reverse_mapping.emplace(std::make_pair(1,"uv_patches"));
-    define_array(1,rtn_typemap.at(typeid(*dummy.uv_patches)));
+    define_array(1,rtn_typemap.at(typeid(*dummy.uv_patches)),"uv_patches");
 
-    name_mapping.emplace(std::make_pair("uv_topos",2));
-    name_reverse_mapping.emplace(std::make_pair(2,"uv_topos"));
-    define_array(2,rtn_typemap.at(typeid(*dummy.uv_topos)));
+    define_array(2,rtn_typemap.at(typeid(*dummy.uv_topos)),"uv_topos");
 
-    name_mapping.emplace(std::make_pair("uv_topo_indices",3));
-    name_reverse_mapping.emplace(std::make_pair(3,"uv_topo_indices"));
-    define_array(3,rtn_typemap.at(typeid(*dummy.uv_topo_indices)));
+    define_array(3,rtn_typemap.at(typeid(*dummy.uv_topo_indices)),"uv_topo_indices");
 
-    name_mapping.emplace(std::make_pair("uv_triangles",4));
-    name_reverse_mapping.emplace(std::make_pair(4,"uv_triangles"));
-    define_array(4,rtn_typemap.at(typeid(*dummy.uv_triangles)));
+    define_array(4,rtn_typemap.at(typeid(*dummy.uv_triangles)),"uv_triangles");
 
-    name_mapping.emplace(std::make_pair("uv_edges",5));
-    name_reverse_mapping.emplace(std::make_pair(5,"uv_edges"));
-    define_array(5,rtn_typemap.at(typeid(*dummy.uv_edges)));
+    define_array(5,rtn_typemap.at(typeid(*dummy.uv_edges)),"uv_edges");
 
-    name_mapping.emplace(std::make_pair("uv_vertices",6));
-    name_reverse_mapping.emplace(std::make_pair(6,"uv_vertices"));
-    define_array(6,rtn_typemap.at(typeid(*dummy.uv_vertices)));
+    define_array(6,rtn_typemap.at(typeid(*dummy.uv_vertices)),"uv_vertices");
 
-    name_mapping.emplace(std::make_pair("uv_vertex_edgelist_indices",7));
-    name_reverse_mapping.emplace(std::make_pair(7,"uv_vertex_edgelist_indices"));
-    define_array(7,rtn_typemap.at(typeid(*dummy.uv_vertex_edgelist_indices)));
+    define_array(7,rtn_typemap.at(typeid(*dummy.uv_vertex_edgelist_indices)),"uv_vertex_edgelist_indices");
 
-    name_mapping.emplace(std::make_pair("uv_vertex_edgelist",8));
-    name_reverse_mapping.emplace(std::make_pair(8,"uv_vertex_edgelist"));
-    define_array(8,rtn_typemap.at(typeid(*dummy.uv_vertex_edgelist)));
+    define_array(8,rtn_typemap.at(typeid(*dummy.uv_vertex_edgelist)),"uv_vertex_edgelist");
 
     // NOTE: Final parameter to multi_ndarray_recording() above is number of mapping entries ***!!! 
   }
@@ -180,13 +132,9 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
 
-    name_mapping.emplace(std::make_pair("inplane2uvcoords",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"inplane2uvcoords"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.inplane2uvcoords)));
+    define_array(0,rtn_typemap.at(typeid(*dummy.inplane2uvcoords)),"inplane2uvcoords");
 
-    name_mapping.emplace(std::make_pair("uvcoords2inplane",1));
-    name_reverse_mapping.emplace(std::make_pair(1,"uvcoords2inplane"));
-    define_array(1,rtn_typemap.at(typeid(*dummy.uvcoords2inplane)));
+    define_array(1,rtn_typemap.at(typeid(*dummy.uvcoords2inplane)),"uvcoords2inplane");
     
     
     // NOTE: Final parameter to multi_ndarray_recording() above is number of mapping entries ***!!! 
@@ -198,17 +146,11 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
 
-    name_mapping.emplace(std::make_pair("boxes",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"boxes"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.boxes)));
+    define_array(0,rtn_typemap.at(typeid(*dummy.boxes)),"boxes");
 
-    name_mapping.emplace(std::make_pair("boxcoord",1));
-    name_reverse_mapping.emplace(std::make_pair(1,"boxcoord"));
-    define_array(1,rtn_typemap.at(typeid(*dummy.boxcoord)));
+    define_array(1,rtn_typemap.at(typeid(*dummy.boxcoord)),"boxcoord");
 
-    name_mapping.emplace(std::make_pair("boxpolys",2));
-    name_reverse_mapping.emplace(std::make_pair(2,"boxpolys"));
-    define_array(2,rtn_typemap.at(typeid(*dummy.boxpolys)));
+    define_array(2,rtn_typemap.at(typeid(*dummy.boxpolys)),"boxpolys");
 
     
     // NOTE: Final parameter to multi_ndarray_recording() above is number of mapping entries ***!!! 
@@ -234,19 +176,13 @@ namespace snde {
     set_num_ndarrays(3*num_patches);
     
     for (snde_index patchnum=0;patchnum < num_patches;patchnum++) {
-      name_mapping.emplace(std::make_pair("uv_boxes"+std::to_string(patchnum),patchnum*3+0));
-      name_reverse_mapping.emplace(std::make_pair(patchnum*3+0,"uv_boxes"+std::to_string(patchnum)));
-      define_array(patchnum*3+0,rtn_typemap.at(typeid(*dummy.uv_boxes)));
+      define_array(patchnum*3+0,rtn_typemap.at(typeid(*dummy.uv_boxes)),"uv_boxes"+std::to_string(patchnum));
 
       
-      name_mapping.emplace(std::make_pair("uv_boxcoord"+std::to_string(patchnum),patchnum*3+1));
-      name_reverse_mapping.emplace(std::make_pair(patchnum*3+1,"uv_boxcoord"+std::to_string(patchnum)));
-      define_array(patchnum*3+1,rtn_typemap.at(typeid(*dummy.uv_boxcoord)));
+      define_array(patchnum*3+1,rtn_typemap.at(typeid(*dummy.uv_boxcoord)),"uv_boxcoord"+std::to_string(patchnum));
 
       
-      name_mapping.emplace(std::make_pair("uv_boxpolys"+std::to_string(patchnum),patchnum*3+2));
-      name_reverse_mapping.emplace(std::make_pair(patchnum*3+2,"uv_boxpolys"+std::to_string(patchnum)));
-      define_array(patchnum*3+2,rtn_typemap.at(typeid(*dummy.uv_boxpolys)));
+      define_array(patchnum*3+2,rtn_typemap.at(typeid(*dummy.uv_boxpolys)),"uv_boxpolys"+std::to_string(patchnum));
       
     }
     
@@ -261,9 +197,7 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
     
-    name_mapping.emplace(std::make_pair("texbuffer",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"texbuffer"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.texbuffer)));
+    define_array(0,rtn_typemap.at(typeid(*dummy.texbuffer)),"texbuffer");
     
     
   }
@@ -381,9 +315,7 @@ namespace snde {
       throw snde_error("pose_channel_recording::pose_channel_recording(%s): Error only single ndarray supported",chanpath.c_str());
     }
     
-    name_mapping.emplace(std::make_pair("pose",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"pose"));
-    define_array(0,rtn_typemap.at(typeid(snde_orientation3)));
+    define_array(0,rtn_typemap.at(typeid(snde_orientation3)),"pose");
   }
 
   

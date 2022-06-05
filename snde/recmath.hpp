@@ -430,6 +430,7 @@ namespace snde {
   public:
     std::shared_ptr<recording_set_state> rss; // recording set state in which we are executing. Set to nullptr by owner of parent's execution ticket after metadata phase to avoid a reference loop that will keep old recordings in memory. 
     std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
+    std::shared_ptr<recdatabase> recdb; // to avoid reference loops, this is only to be read by the function code itself, managed by the executing thread (recomath_compute_resource pool_code), and set to nullptr when execution is not actually occuring. 
     std::shared_ptr<lockmanager> lockmgr;
 
     // should also have parameter values, references, etc. here

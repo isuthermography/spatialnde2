@@ -197,13 +197,15 @@ extern "C" {
     // these remaining arrays are used solely for rendering...
     // Do they really need to be here or can we use a regular storage manager for
     // them if they're not needed for anything but rendering?
-    snde_rendercoord *vertex_arrays; /* transformed vertex array for OpenSceneGraph / OpenGL (allocated separately) */
-    snde_rendercoord *texvertex_arrays; /* transformed texture vertex array for OpenSceneGraph / OpenGL (allocated separate) */
-    snde_trivertnormals *vertnormal_arrays; // allocated separately. For triangles, but are per vertex so three normals/triangle NOTE: Normals are in part coordinates, not world coordinates.
+    //snde_rendercoord *vertex_arrays; /* transformed vertex array for OpenSceneGraph / OpenGL (allocated separately) */
+    //snde_rendercoord *texvertex_arrays; /* transformed texture vertex array for OpenSceneGraph / OpenGL (allocated separate) */
+    //snde_trivertnormals *vertnormal_arrays; // allocated separately. For triangles, but are per vertex so three normals/triangle NOTE: Normals are in part coordinates, not world coordinates.
     
     snde_rgba *texbuffer; // allocated separately
 
 
+    snde_coord *trianglearea; // allocated separately
+    snde_coord *vertexarea; // allocated separately
 
   };
 #ifdef __cplusplus

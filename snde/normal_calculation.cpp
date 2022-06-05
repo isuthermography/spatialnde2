@@ -354,6 +354,8 @@ namespace snde {
 	
 	//std::shared_ptr<graphics_storage> vertnormals_storage = std::dynamic_pointer_cast<graphics_storage>(graphman->allocate_recording(result_rec->info->name,"vertnormals",result_rec->info->revision,sizeof(*graphman->geom.vertnormals),rtn_typemap.at(typeid(*graphman->geom.vertnormals)),numtris,false));
 	//result_rec->assign_storage(vertnormals_storage,"vertnormals",{numtris});
+	result_rec->assign_storage_manager(this->recdb->default_storage_manager); // Force default storage manager so that we DON'T go to the graphics storage (which is unnecessary for temporary output such as this)
+
 	result_rec->allocate_storage("vertnormal_arrays",{numtris},false);
 
 

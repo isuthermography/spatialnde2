@@ -334,6 +334,28 @@ static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata
   //#endif /* 0 && SNDE_OPENCL*/
 #endif /* __OPENCL_VERSION__ */
 
+
+
+
+#ifdef __OPENCL_VERSION__
+GEOTYPES_INLINE __global void *snde_memset(__global void *s, int c, size_t n)
+{
+  __global char *sc;
+  size_t pos;
+  sc = (__global char *)s;
+
+  for (pos=0;pos < n;pos++) {
+    sc[pos]=(char)c;
+  }
+  return s; 
+}
+#else // __OPENCL_VERSION__
+#define snde_memset memset
+#endif // __OPENCL_VERSION__
+
+
+
+
 #define SNDE_DIRECTION_CCW 0 // counterclockwise
 #define SNDE_DIRECTION_CW 1 // clockwise
   
@@ -686,6 +708,12 @@ struct snde_part {
   // This is properly supported by the graphics_storage_manager, and all changes
   // require a write-lock to the underlying array. 
 
+  // ***!!! IMPORTANT: Modify the Python Numpy struct definition in spatialnde2.i
+  // also, whenever this gets changed. In addition, modify snde_part_initialize()
+  // in geometry_ops.h
+
+  // NOTE: Need strategy to identify presence of optional array data for this part
+  // to replace the has_triangledata, etc. boolean
   snde_index firstboundary;  // firstboundary is outer boundary (relative to first_topological)
   snde_index numboundaries;  // all remaining boundaries are boundaries of voids.
 
@@ -722,9 +750,15 @@ struct snde_part {
   // NOTE: These are conceptually part of the vertex_kdtreee recording (see comment above on mutability!)
   snde_index first_vertex_kdnode; // index into vertex_kdtree
   snde_index num_vertex_kdnodes;
+
+  snde_index first_triarea; // size should be the same as numtris. 
+  snde_index first_vertarea; // size should be the same as numvertices. 
   
-  snde_bool solid;
-  snde_bool has_triangledata; // Have we stored/updated refpoints, maxradius, normal, inplanemat
+  snde_index reserved[12];
+  
+  
+  snde_bool solid; // needed? 
+  snde_bool has_triangledata; // Have we stored/updated refpoints, maxradius, normal, inplanemat  NOTE: Needs updated/removed!
   snde_bool has_curvatures; // Have we stored principal_curvatures/curvature_tangent_axes?  
   uint8_t pad1;
   uint8_t pad2[4];
@@ -763,6 +797,9 @@ struct snde_parameterization {
   // This is properly supported by the graphics_storage_manager, and all changes
   // require a write-lock to the underlying array. 
 
+  // ***!!! IMPORTANT: Modify the Python Numpy struct definition in spatialnde2.i
+  // also, whenever this gets changed. In addition, modify snde_part_initialize()
+  // in geometry_ops.h
   
   // specific to a part;
   snde_index first_uv_topo;
@@ -786,7 +823,8 @@ struct snde_parameterization {
 
   snde_index firstuvpatch; // index into array of snde_parameterization_patch... number of elements used is numuvpatches
   snde_index numuvpatches; /* "patches" are regions in uv space that the vertices are represented in. There can be multiple images pointed to by the different patches.  Indexes  go from zero to numpatches. They will need to be added to the firstuvpatch of the snde_partinstance. Note that if numuvpatches > 1, the parameterization is not directly renderable and needs a processing step prior to rendering to combine the uv patches into a single parameterization space. NOTE: this parameter (numuvpatches) is not permitted to be changed once created (create an entirely new snde_parameterization) */
-    
+
+  snde_index reserved[16];
 };
   
 

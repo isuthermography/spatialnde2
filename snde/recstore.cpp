@@ -1134,6 +1134,10 @@ namespace snde {
   void multi_ndarray_recording::define_array(size_t index,unsigned typenum)
   // should be called exactly once for each index < mndinfo()->num_arrays
   {
+    std::lock_guard<std::mutex> rec_admin(admin);
+
+    // ***!!!! Must keep content parallel to the explicit name define_array() (below)
+    
     ndinfo(index)->ndim=0;
     ndinfo(index)->base_index=0;
     ndinfo(index)->dimlen=nullptr;
@@ -1152,18 +1156,43 @@ namespace snde {
     ndinfo(index)->shiftedarray = nullptr;
     //ndinfo()->basearray_holder = nullptr;
 
+    std::string name=std::string("array")+std::to_string(index);
+    
+    name_mapping.emplace(name,index);
+    name_reverse_mapping.emplace(index,name);
+
     
   }
 
 
   void multi_ndarray_recording::define_array(size_t index,unsigned typenum,std::string name)   // should be called exactly once for each index < mndinfo()->num_arrays
   {
-    define_array(index,typenum);
+    std::lock_guard<std::mutex> rec_admin(admin); 
+
+    // ***!!!! Must keep content parallel to the implicit name define_array() (above)
+    
+    ndinfo(index)->ndim=0;
+    ndinfo(index)->base_index=0;
+    ndinfo(index)->dimlen=nullptr;
+    ndinfo(index)->strides=nullptr;
+    ndinfo(index)->owns_dimlen_strides=false;
+    ndinfo(index)->typenum=typenum;
+
+    if (typenum != SNDE_RTN_UNASSIGNED) {
+      ndinfo(index)->elementsize=rtn_typesizemap.at(typenum);
+    } else {
+      ndinfo(index)->elementsize=0;
+    }
+    ndinfo(index)->requires_locking_read=false;
+    ndinfo(index)->requires_locking_write=false;
+    ndinfo(index)->basearray = nullptr;
+    ndinfo(index)->shiftedarray = nullptr;
+    //ndinfo()->basearray_holder = nullptr;
+
 
     if (isdigit(name.at(0))) {
       throw snde_error("Array names snould not begin with a digit");
     }
-    std::lock_guard<std::mutex> rec_admin(admin); 
 
     if (name_mapping.find(name) != name_mapping.end()) {
       throw snde_error("Recording array %s already defined",name.c_str());
@@ -1902,13 +1931,9 @@ namespace snde {
     
   {
     
-    name_mapping.emplace(std::make_pair("accumulator",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"accumulator"));
-    define_array(0,typenum);
+    define_array(0,typenum,"accumulator");
 
-    name_mapping.emplace(std::make_pair("totals",1));
-    name_reverse_mapping.emplace(std::make_pair(1,"totals"));
-    define_array(1,SNDE_RTN_SNDE_IMAGEDATA);
+    define_array(1,SNDE_RTN_SNDE_IMAGEDATA,"totals");
     
     
   }
@@ -5085,6 +5110,20 @@ namespace snde {
     return ref;
   }
 
+  std::shared_ptr<ndarray_recording_ref> create_named_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string arrayname,unsigned typenum)
+  {
+    std::shared_ptr<multi_ndarray_recording> rec;
+    std::shared_ptr<ndarray_recording_ref> ref;
+
+    // ***!!! Should look up maker method in a runtime-addable database ***!!!
+
+    rec=create_recording<multi_ndarray_recording>(recdb,chan,owner_id,1);
+    rec->define_array(0,typenum,arrayname);
+    
+    ref=rec->reference_ndarray(0);
+    return ref;
+  }
+
   std::shared_ptr<ndarray_recording_ref> create_anonymous_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum)
   {
     std::shared_ptr<multi_ndarray_recording> rec;
@@ -5094,6 +5133,22 @@ namespace snde {
     
     rec=create_anonymous_recording<multi_ndarray_recording>(recdb,purpose,1);
     rec->define_array(0,typenum);
+    
+    ref=rec->reference_ndarray(0);
+    return ref;
+
+  }
+
+
+  std::shared_ptr<ndarray_recording_ref> create_anonymous_named_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,std::string arrayname,unsigned typenum)
+  {
+    std::shared_ptr<multi_ndarray_recording> rec;
+    std::shared_ptr<ndarray_recording_ref> ref;
+    
+    // ***!!! Should look up maker method in a runtime-addable database ***!!!
+    
+    rec=create_anonymous_recording<multi_ndarray_recording>(recdb,purpose,1);
+    rec->define_array(0,typenum,arrayname);
     
     ref=rec->reference_ndarray(0);
     return ref;
@@ -5117,5 +5172,22 @@ namespace snde {
     return ref;
   }
 
-  
+
+  std::shared_ptr<ndarray_recording_ref> create_named_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,std::string arrayname,unsigned typenum)
+  {
+    std::shared_ptr<multi_ndarray_recording> rec;
+    std::shared_ptr<ndarray_recording_ref> ref;
+    
+    std::shared_ptr<recdatabase> recdb = calc_rss->recdb_weak.lock();
+    if (!recdb) return nullptr;
+
+    
+    rec=create_recording_math<multi_ndarray_recording>(chanpath,calc_rss,1); 
+    rec->define_array(0,typenum,arrayname);
+    ref=rec->reference_ndarray(0);
+
+    return ref;
+  }
+
+
 };

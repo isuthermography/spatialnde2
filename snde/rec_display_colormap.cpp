@@ -99,7 +99,7 @@ namespace snde {
 	
 	return std::make_shared<lock_alloc_function_override_type>([ this,result_rec,recording,colormap_type,offset,unitsperintensity,base_position,u_dim,v_dim ]() {
 	  // lock_alloc code
-	  
+	  result_rec->rec->assign_storage_manager(this->recdb->default_storage_manager); // Force default storage manager so that we DON'T go to the graphics storage (which is unnecessary for temporary output such as this)
 	  result_rec->allocate_storage(recording->layout.dimlen,true); // Note fortran order flag -- required by renderer
 	   
 	  
@@ -307,6 +307,8 @@ namespace snde {
 	  // But shouldn't we just to RGBA in uchar format???
 	  // right now we just do floating point
 	  result_dimlen.insert(result_dimlen.begin(),4);
+	  result_rec->rec->assign_storage_manager(this->recdb->default_storage_manager); // Force default storage manager so that we DON'T go to the graphics storage (which is unnecessary for temporary output such as this)
+
 	  result_rec->allocate_storage(result_dimlen,true); // Note fortran order flag -- required by renderer
 #ifdef SNDE_OPENCL
 	  std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(this->compute_resource);
@@ -562,6 +564,7 @@ namespace snde {
 	return std::make_shared<lock_alloc_function_override_type>([ this,result_rec,accumulator,fusion,colormap_type,offset,unitsperintensity,base_position,u_dim,v_dim ]() {
 	  // lock_alloc code
 	  
+	  result_rec->rec->assign_storage_manager(this->recdb->default_storage_manager); // Force default storage manager so that we DON'T go to the graphics storage (which is unnecessary for temporary output such as this)
 	  result_rec->allocate_storage(accumulator->layout.dimlen,true); // Note fortran order flag -- required by renderer
 	   
 

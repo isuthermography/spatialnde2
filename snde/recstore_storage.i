@@ -59,7 +59,7 @@ namespace snde {
 
     virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference()=0; // NOTE: The returned storage can only be trusted if (a) the originating recording is immutable, or (b) the originating recording is mutable but has not been changed since obtain_nonmoving_copy_or_reference() was called. i.e. can only be used as long as the originating recording is unchanged. Note that this is used only for getting a direct reference within a larger (perhaps mutable) allocation, such as space for a texture or mesh geometry. If you are just referencing a range of elements of a finalized waveofrm you can just reference the recording_storage shared pointer with a suitable base_index, stride array, and dimlen array. 
 
-    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)=0; // pos and numelem are relative to __this_recording__
+    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem,bool override_finalized_check=false)=0; // pos and numelem are relative to __this_recording__
     
   };
 
@@ -87,7 +87,7 @@ namespace snde {
     virtual void **lockableaddr();
     virtual snde_index lockablenelem();
     virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference();
-    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
+    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem,bool override_finalized_check=false); // pos and numelem are relative to __this_recording__
 
     //virtual void mark_as_invalid(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
     //virtual void add_follower_cachemanager(std::shared_ptr<cachemanager> cachemgr);
@@ -107,7 +107,7 @@ namespace snde {
     virtual void *cur_dataaddr();
     virtual void **lockableaddr();
     virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference();
-    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
+    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem,bool override_finalized_check=false); // pos and numelem are relative to __this_recording__
   };
 
   class recording_storage_manager {

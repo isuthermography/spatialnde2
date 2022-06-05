@@ -16,12 +16,12 @@ use_surface_normal = True # Not yet used; in future may limit projection to surf
 
 
 
-projection = snde.project_point_onto_parameterization.instantiate( [ snde.math_parameter_recording(specimen_model_tree+"/meshed"),
-                                                                     snde.math_parameter_recording(specimen_model_tree+"/uv"),
-                                                                     snde.math_parameter_recording(specimen_model_tree+"/trinormals"),
-                                                                     snde.math_parameter_recording(specimen_model_tree+"/boxes3d"),
-                                                                     snde.math_parameter_recording(specimen_model_tree+"/projinfo"),
-                                                                     snde.math_parameter_recording(specimen_model_tree+"/inplanemat"),
+projection = snde.project_point_onto_parameterization.instantiate( [ snde.math_parameter_recording(snde.recdb_path_join(specimen_model_tree,"meshed")),
+                                                                     snde.math_parameter_recording(snde.recdb_path_join(specimen_model_tree,"uv")),
+                                                                     snde.math_parameter_recording(snde.recdb_path_join(specimen_model_tree,"trinormals")),
+                                                                     snde.math_parameter_recording(snde.recdb_path_join(specimen_model_tree,"boxes3d")),
+                                                                     snde.math_parameter_recording(snde.recdb_path_join(specimen_model_tree,"projinfo")),
+                                                                     snde.math_parameter_recording(snde.recdb_path_join(specimen_model_tree,"inplanemat")),
                                                                      snde.math_parameter_recording(specimen_pose_channel),
                                                                      snde.math_parameter_recording(probe_pose_channel),
                                                                      snde.math_parameter_recording(probe_tip_data_channel),
@@ -44,6 +44,6 @@ recdb.add_math_function(projection,False)
 # Create channel with projected object 
 projection_specimen_chan = recdb.define_channel(projection_specimen_channel,"main",recdb.raw())
 snde.create_textured_part_recording(recdb,projection_specimen_chan,recdb.raw(),
-                                    specimen_model_tree+"/meshed",snde.shared_string(specimen_model_tree+"/uv"),
+                                    snde.recdb_path_join(specimen_model_tree,"meshed"),snde.shared_string(snde.recdb_path_join(specimen_model_tree,"uv")),
                                     [ (0, snde.image_reference(projection_channel,0,1, [] )) ]).mark_data_and_metadata_ready()
 

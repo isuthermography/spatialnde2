@@ -433,6 +433,9 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 	  parts->firstboxpoly=firstboxpoly;
 	  parts->numboxpolys=boxpolylist.size();
 	  
+	  part->reference_ndarray("parts")->storage->mark_as_modified(nullptr,0,1,true); // indicate that we have modified this first element of "parts", invalidating caches. 
+
+	  
 	  snde_box3 *boxes=(snde_box3 *)result_rec->void_shifted_arrayptr("boxes");
 	  snde_boxcoord3 *boxcoord=(snde_boxcoord3 *)result_rec->void_shifted_arrayptr("boxcoord");
 	  snde_index *boxpolys=(snde_index *)result_rec->void_shifted_arrayptr("boxpolys");
@@ -937,7 +940,8 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 	      patch->firstuvboxpoly = firstboxpoly;
 	      patch->numuvboxpolys = numboxpolys;
 	      
-	      
+	      //param->reference_ndarray("uv_patches")->storage->mark_as_modified(nullptr,uv_patchnum,1); // indicate that we have modified this first element of "parts", invalidating caches. 
+
 	      snde_box2 *uv_boxes=(snde_box2 *)result_rec->void_shifted_arrayptr("uv_boxes"+std::to_string(patchnum));
 	      snde_boxcoord2 *uv_boxcoord=(snde_boxcoord2 *)result_rec->void_shifted_arrayptr("uv_boxcoord"+std::to_string(patchnum));
 	      snde_index *uv_boxpolys=(snde_index *)result_rec->void_shifted_arrayptr("uv_boxpolys"+std::to_string(patchnum));
@@ -967,6 +971,9 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 	      memcpy((void *)uv_boxpolys,(void *)boxpolylist.data(),sizeof(snde_index)*boxpolylist.size());
 	      
 	    }
+
+	    param->reference_ndarray("uv_patches")->storage->mark_as_modified(nullptr,0,params->numuvpatches,true); // indicate that we have modified this first element of "parts", invalidating caches. 
+
 	    
 	    unlock_rwlock_token_set(all_box_locks); // lock must be released prior to mark_data_ready() 
 	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 

@@ -104,10 +104,12 @@ namespace snde {
     return reference;
   }
 
-  void recording_storage_simple::mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)
+  void recording_storage_simple::mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem,bool override_finalized_check /*=false*/)
   // pos and numelem are relative to __this_recording__
   {
-    assert(!finalized);
+    if (!override_finalized_check) {
+      assert(!finalized);
+    }
     
     std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>> fc_copy;
     {
@@ -193,9 +195,9 @@ namespace snde {
     return shared_from_this();
   }
 
-  void recording_storage_reference::mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)
+  void recording_storage_reference::mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem, bool override_finalized_check /*=false */)
   {
-    orig->mark_as_modified(already_knows,pos,numelem);
+    orig->mark_as_modified(already_knows,pos,numelem,override_finalized_check);
   }
   
   void recording_storage_reference::ready_notification()

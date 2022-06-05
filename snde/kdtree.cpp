@@ -201,6 +201,8 @@ namespace snde {
 	      snde_part &partstruct = meshedpart->reference_typed_ndarray<snde_part>("parts")->element(0);
 	      partstruct.first_vertex_kdnode = result_ref->storage->base_index;
 	      partstruct.num_vertex_kdnodes = result_ref->storage->nelem;
+	      meshedpart->reference_ndarray("parts")->storage->mark_as_modified(nullptr,0,1,true); // indicate that we have modified this first element of "parts", invalidating caches. 
+
 	    }
 	      
 	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready()

@@ -955,7 +955,14 @@ namespace snde {
       std::vector<std::shared_ptr<recording_base>> result_channel_recs;
       bool mdonly = false;
       bool failed = false;
-      
+
+
+      // temporarily assign recdb during function execution, so it is available to the function code
+      func->execution_tracker->recdb = recstate->recdb_weak.lock();
+      if (!func->execution_tracker->recdb) {
+	continue; // nowhere to put result if recdb is gone
+      }
+
       // Set the build-time variable SNDE_RCR_DISABLE_EXCEPTION_HANDLING to disable the try {} ... catch{} block in math execution so that you can capture the offending scenario in the debugger
       //#define SNDE_RCR_DISABLE_EXCEPTION_HANDLING
 #ifndef SNDE_RCR_DISABLE_EXCEPTION_HANDLING
@@ -973,8 +980,7 @@ namespace snde {
 	//// Get the mdonly and is_mutable flags from the math_function_status 
 	//{
 	//std::lock_guard<std::mutex> rss_admin(recstate->admin);
-	
-	
+
 	
 	//math_function_status &our_status = recstate->mathstatus.function_status.at(func->inst);
 	//  mdonly = our_status.mdonly;
@@ -1103,12 +1109,15 @@ namespace snde {
 	  func->execution_tracker->rss = nullptr;
 	  
 	}
+	func->execution_tracker->recdb = nullptr; // eliminate reference loop
 	
 #ifndef SNDE_RCR_DISABLE_EXCEPTION_HANDLING
       } catch(const std::exception &exc) {
 	// Only consider exceptions derived from std::exception because there's no general way to print anything else, so we might as well just crash in that case. 
 	// func is our math_function_execution
 	snde_warning("Exception class %s caught in math thread pool: %s (function %s)",typeid(exc).name(),exc.what(),func->inst->definition->definition_command.c_str());
+
+	func->execution_tracker->recdb = nullptr; // eliminate reference loop
 	
 	// mark as complete
 	//func->fully_complete = true; -- now done in _transfer_function_result_state()

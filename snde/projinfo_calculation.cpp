@@ -179,7 +179,7 @@ namespace snde {
       
 	    cl::Event kerndone;
 	    std::vector<cl::Event> FillEvents=Buffers.FillEvents();
-	    
+	     
 	    cl_int err = opencl_resource->queues.at(0).enqueueNDRangeKernel(projinfo_kern,{},{ numtris },{},&FillEvents,&kerndone);
 	    if (err != CL_SUCCESS) {
 	      throw openclerror(err,"Error enqueueing kernel");

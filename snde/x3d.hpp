@@ -25,6 +25,7 @@
 #include "snde/path.hpp"
 #include "snde/topology.hpp"
 #include "snde/vecops.h"
+#include "snde/geometry_ops.h"
 #include "snde/geometry_processing.hpp"
 
 
@@ -1626,8 +1627,12 @@ namespace snde {
     all_locks=lockprocess->finish();
       
     snde_index firstpart = holder->get_alloc((void **)&graphman->geom.parts,"");
-    memset(&graphman->geom.parts[firstpart],0,sizeof(*graphman->geom.parts));
 
+
+    
+    //memset(&graphman->geom.parts[firstpart],0,sizeof(*graphman->geom.parts));
+    snde_part_initialize(&graphman->geom.parts[firstpart]);
+    
           
       
     snde_index firsttri = holder->get_alloc((void **)&graphman->geom.triangles,"");
@@ -1680,31 +1685,35 @@ namespace snde {
       
     if (texCoords) {
       firstuv = holder->get_alloc((void **)&graphman->geom.uvs,"");
-      graphman->geom.uvs[firstuv]=snde_parameterization{ .first_uv_topo=SNDE_INDEX_INVALID,
-	.num_uv_topos=SNDE_INDEX_INVALID,
-	.first_uv_topoidx=SNDE_INDEX_INVALID,
-	.num_uv_topoidxs=SNDE_INDEX_INVALID,
-	.firstuvtri=SNDE_INDEX_INVALID,
-	.numuvtris=SNDE_INDEX_INVALID,
-	.firstuvface=SNDE_INDEX_INVALID,
-	.numuvfaces=SNDE_INDEX_INVALID,
-	.firstuvedge=SNDE_INDEX_INVALID,
-	.numuvedges=SNDE_INDEX_INVALID,
-	.firstuvvertex=SNDE_INDEX_INVALID,
-	.numuvvertices=SNDE_INDEX_INVALID,
-	.first_uv_vertex_edgelist=SNDE_INDEX_INVALID,
-	.num_uv_vertex_edgelist=SNDE_INDEX_INVALID,
-	.firstuvpatch=SNDE_INDEX_INVALID,
-	.numuvpatches=1,
+
+      snde_parameterization_initialize(&graphman->geom.uvs[firstuv]);
+      //graphman->geom.uvs[firstuv]=snde_parameterization{ .first_uv_topo=SNDE_INDEX_INVALID,
+      //.num_uv_topos=SNDE_INDEX_INVALID,
+      //.first_uv_topoidx=SNDE_INDEX_INVALID,
+      //.num_uv_topoidxs=SNDE_INDEX_INVALID,
+      //.firstuvtri=SNDE_INDEX_INVALID,
+      //.numuvtris=SNDE_INDEX_INVALID,
+      //.firstuvface=SNDE_INDEX_INVALID,
+      //.numuvfaces=SNDE_INDEX_INVALID,
+      //.firstuvedge=SNDE_INDEX_INVALID,
+      //.numuvedges=SNDE_INDEX_INVALID,
+      //.firstuvvertex=SNDE_INDEX_INVALID,
+      //.numuvvertices=SNDE_INDEX_INVALID,
+      //.first_uv_vertex_edgelist=SNDE_INDEX_INVALID,
+      //.num_uv_vertex_edgelist=SNDE_INDEX_INVALID,
+      //.firstuvpatch=SNDE_INDEX_INVALID,
+      //.numuvpatches=1,
 	//.firstuvbox=SNDE_INDEX_INVALID,
 	//.numuvboxes=SNDE_INDEX_INVALID,
 	//.firstuvboxpoly=SNDE_INDEX_INVALID,
 	//.numuvboxpolys=SNDE_INDEX_INVALID,
 	//.firstuvboxcoord=SNDE_INDEX_INVALID,
 	//.numuvboxcoords=SNDE_INDEX_INVALID
-      };
-	
+      //};
+
+
       graphman->geom.uvs[firstuv].firstuvpatch = holder->get_alloc((void **)&graphman->geom.uv_patches,"");
+      graphman->geom.uvs[firstuv].numuvpatches = 1;
       graphman->geom.uv_patches[graphman->geom.uvs[firstuv].firstuvpatch]=snde_parameterization_patch{
 	.domain={ .min={(snde_coord)Min1,(snde_coord)Min2}, .max={(snde_coord)Max1,(snde_coord)Max2}, },
 	.firstuvbox=SNDE_INDEX_INVALID,
