@@ -37,12 +37,12 @@ plate_recording = snde.x3d_load_geometry(recdb,graphman,specimen_model_file,0,"m
 probe_recording = snde.x3d_load_geometry(recdb,graphman,probe_model_file,0,"main",recdb.raw(),probe_model_tree,None,[ "reindex_vertices","reindex_tex_vertices" ])
 
 
-main_viewer.viewer.set_camera_pose(probe_model_tree+"/meshed",np.array(([0,0,.4,  0.        ], [ 0,0,0,  1]),dtype=[('offset', '<f4', (4,)), ('quat', '<f4', (4,))]))
-main_viewer.viewer.set_rotation_center_dist(probe_model_tree+"/meshed",0.4)
+main_viewer.viewer.set_camera_pose(snde.recdb_path_join(probe_model_tree,"meshed"),np.array(([0,0,.4,  0.        ], [ 0,0,0,  1]),dtype=[('offset', '<f4', (4,)), ('quat', '<f4', (4,))]))
+main_viewer.viewer.set_rotation_center_dist(snde.recdb_path_join(probe_model_tree,"meshed"),0.4)
 
 
 specimen_pose_chan = recdb.define_channel(specimen_pose_channel,"main",recdb.raw())
-specimen_pose_ref = snde.create_pose_channel_recording_ref(recdb,specimen_pose_chan,recdb.raw(),specimen_model_tree+"/meshed")
+specimen_pose_ref = snde.create_pose_channel_recording_ref(recdb,specimen_pose_chan,recdb.raw(),snde.recdb_path_join(specimen_model_tree,"meshed"))
 specimen_pose_ref.allocate_storage([1])
 specimen_position = np.array(((0,0,0,0),(.4, .3, .625, .6)),dtype=orient_dtype)
 # Temporarily use trivial specimen position
@@ -55,14 +55,14 @@ specimen_pose_ref.rec.mark_data_and_metadata_ready()
 probe_pose_func = include(snde,"manual_positioner_in_transaction.dpi",
                           positioner_channel="/probe_positioner",
                           background_channel=specimen_pose_channel,
-                          model_channel=probe_model_tree+"/meshed")
+                          model_channel=snde.recdb_path_join(probe_model_tree,"meshed"))
 
 probe_pose_chan = recdb.define_channel(probe_pose_channel,"main",recdb.raw())
 
 
 def new_probe_posn_in_transaction(orientation):
     
-    probe_pose_ref = snde.create_pose_channel_recording_ref(recdb,probe_pose_chan,recdb.raw(),probe_model_tree+"/meshed")
+    probe_pose_ref = snde.create_pose_channel_recording_ref(recdb,probe_pose_chan,recdb.raw(),snde.recdb_path_join(probe_model_tree,"meshed"))
     probe_pose_ref.allocate_storage([1])
 
     probe_pose_rec = snde.pose_channel_recording.from_ndarray_recording(probe_pose_ref.rec)
