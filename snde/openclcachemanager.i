@@ -427,16 +427,16 @@ namespace snde {
     //void RemSubBuffer(void **arrayptr,snde_index startidx,snde_index numelem,cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait);
     //void RemBuffer(void **arrayptr,cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait);
     void ForgetBuffer(std::shared_ptr<recording_storage> storage,cl::Event data_not_needed);
-    void RemBuffer(std::shared_ptr<recording_storage> storage,snde_index firstelem, snde_index numelem,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait);
+    std::vector<cl::Event> RemBuffer(std::shared_ptr<recording_storage> storage,snde_index firstelem, snde_index numelem,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait);
     void ForgetBuffer(std::shared_ptr<ndarray_recording_ref> ref,cl::Event data_not_needed);
-    void RemBuffer(std::shared_ptr<ndarray_recording_ref> ref,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait);
+    std::vector<cl::Event> RemBuffer(std::shared_ptr<ndarray_recording_ref> ref,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait);
     void ForgetBuffer(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Event data_not_needed);
 
-    void RemBuffer(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait);
+    std::vector<cl::Event> RemBuffer(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait);
 
-    void RemBuffers(cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait);
-    void RemBuffers(cl::Event input_data_not_needed,cl::Event output_data_complete,bool wait);
-    void RemBuffers(cl::Event input_data_not_needed,bool wait);
+    std::vector<cl::Event> RemBuffers(cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait);
+    std::vector<cl::Event> RemBuffers(cl::Event input_data_not_needed,cl::Event output_data_complete,bool wait);
+    std::vector<cl::Event> RemBuffers(cl::Event input_data_not_needed,bool wait);
       
   };
   

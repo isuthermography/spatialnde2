@@ -323,14 +323,17 @@ __kernel void snde_kdtree_knn_opencl(KDTREE_GLOBAL struct snde_kdnode *tree,
 				     KDTREE_LOCAL snde_coord *bboxstacks, // (stacksize_per_workitem)*sizeof(snde_coord)*2*work_group_size
 				     uint32_t stacksize_per_workitem,   // stacksize_per_workitem must be at least max_depth+1!!!
 
+				     KDTREE_GLOBAL snde_index *to_find_indices, // may be nullptr in which case global_id indexes to_find instead of this
 				     KDTREE_GLOBAL snde_coord *to_find,
 				     KDTREE_GLOBAL snde_index *closest_out,
 				     //KDTREE_GLOBAL snde_coord *dist_squared_out,
 				     uint32_t ndim,
 				     uint32_t max_depth,
-				     snde_index max_index_plus_one)
+				     snde_index max_global_id_plus_one)
 { 
-  snde_index find_index = get_global_id(0);
+  snde_index global_id = get_global_id(0);
+  snde_index find_index;
+
 
   //printf("OPENCL KERNEL: global_id: %u, local_id:%u\n",(unsigned)find_index,(unsigned)get_local_id(0));
 
@@ -339,9 +342,14 @@ __kernel void snde_kdtree_knn_opencl(KDTREE_GLOBAL struct snde_kdnode *tree,
   //printf("OPENCL KERNEL: global_id: %u, local_id:%u: bboxstacks=0x%lx\n",(unsigned)find_index,(unsigned)get_local_id(0),(unsigned long)bboxstacks);
   
   
-  if (find_index < max_index_plus_one) { // so that we don't have to worry about our # of work items being a factor of the global size on OpenCL 1.2; excess work items will just fail this if and do nothing. 
+  if (global_id < max_global_id_plus_one) { // so that we don't have to worry about our # of work items being a factor of the global size on OpenCL 1.2; excess work items will just fail this if and do nothing. 
 
-
+    if (to_find_indices) {
+      find_index = to_find_indices[global_id];
+    } else {
+      find_index = global_id; 
+    }
+    
     size_t nodestacks_octwords_per_workitem = (stacksize_per_workitem*sizeof(snde_index) + 7)/8;
     size_t statestacks_octwords_per_workitem = (stacksize_per_workitem*sizeof(uint8_t) + 7)/8;
     size_t bboxstacks_octwords_per_workitem = (stacksize_per_workitem*(sizeof(snde_coord)*2) + 7)/8;
@@ -364,17 +372,17 @@ __kernel void snde_kdtree_knn_opencl(KDTREE_GLOBAL struct snde_kdnode *tree,
       }*/
     
     
-    closest_out[find_index] =snde_kdtree_knn_one(tree,
-						 nodemask,
-						 vertices,
-						 nodestack, // (max_depth+1)*sizeof(snde_index)
-						 statestack, // (max_depth+1)*sizeof(uint8_t)
-						 bboxstack, // (max_depth+1)*sizeof(snde_coord)*2
-						 &to_find[find_index*ndim],
-						 //&dist_squared_out[find_index],
-						 ndim,
-						 max_depth,
-						 find_index);
+    closest_out[global_id] =snde_kdtree_knn_one(tree,
+						nodemask,
+						vertices,
+						nodestack, // (max_depth+1)*sizeof(snde_index)
+						statestack, // (max_depth+1)*sizeof(uint8_t)
+						bboxstack, // (max_depth+1)*sizeof(snde_coord)*2
+						&to_find[find_index*ndim],
+						//&dist_squared_out[find_index],
+						ndim,
+						max_depth,
+						find_index);
 
   }
 }

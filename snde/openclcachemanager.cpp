@@ -1663,7 +1663,7 @@ namespace snde {
 
 
   
-  void OpenCLBuffers::RemBuffer(std::shared_ptr<recording_storage> storage,snde_index firstelem, snde_index numelem,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait)
+  std::vector<cl::Event> OpenCLBuffers::RemBuffer(std::shared_ptr<recording_storage> storage,snde_index firstelem, snde_index numelem,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait)
     /* Either specify wait=true, then you can explicitly unlock_rwlock_token_set() your locks because you know they're done, 
        or specify wait=false in which case things may finish later. The only way to make sure they are finished is 
        to obtain a new lock on the same items */
@@ -1698,7 +1698,8 @@ namespace snde {
       
       /* remove from hash table */
       buffers.erase(Key);
-    
+
+      return all_finished;
     }
 
 
@@ -1708,9 +1709,9 @@ namespace snde {
   }
 
   
-  void OpenCLBuffers::RemBuffer(std::shared_ptr<ndarray_recording_ref> ref,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait)
+  std::vector<cl::Event> OpenCLBuffers::RemBuffer(std::shared_ptr<ndarray_recording_ref> ref,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait)
   {
-    RemBuffer(ref->storage,ref->storage->base_index,ref->storage->nelem,input_data_not_needed,output_data_complete,wait);
+    return RemBuffer(ref->storage,ref->storage->base_index,ref->storage->nelem,input_data_not_needed,output_data_complete,wait);
   }
 
   void OpenCLBuffers::ForgetBuffer(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Event data_not_needed)
@@ -1719,10 +1720,10 @@ namespace snde {
 
   }
 
-  void OpenCLBuffers::RemBuffer(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait)
+  std::vector<cl::Event> OpenCLBuffers::RemBuffer(std::shared_ptr<multi_ndarray_recording> rec,std::string arrayname,cl::Event input_data_not_needed,const std::vector<cl::Event> &output_data_complete,bool wait)
   {
     std::shared_ptr<recording_storage> stor = rec->storage.at(rec->name_mapping.at(arrayname));
-    RemBuffer(stor,stor->base_index,stor->nelem,input_data_not_needed,output_data_complete,wait);
+    return RemBuffer(stor,stor->base_index,stor->nelem,input_data_not_needed,output_data_complete,wait);
 
   }
 
@@ -1731,31 +1732,36 @@ namespace snde {
   //  RemSubBuffer(arrayptr,0,SNDE_INDEX_INVALID,input_data_not_needed,output_data_complete,wait);
   //}
   
-  void OpenCLBuffers::RemBuffers(cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait)
+  std::vector<cl::Event> OpenCLBuffers::RemBuffers(cl::Event input_data_not_needed,std::vector<cl::Event> output_data_complete,bool wait)
   {
+    std::vector<cl::Event> all_finished,all_finished_buf;
+    
     for (std::unordered_map<OpenCLBufferKey,OpenCLBuffer_info>::iterator nextbuffer = buffers.begin();
 	 nextbuffer != buffers.end();) {
       std::unordered_map<OpenCLBufferKey,OpenCLBuffer_info>::iterator thisbuffer=nextbuffer;
       nextbuffer++;
 
       assert(thisbuffer->first.array == thisbuffer->second.storage->lockableaddr());
-      RemBuffer(thisbuffer->second.storage,thisbuffer->first.firstelem,thisbuffer->first.numelem,input_data_not_needed,output_data_complete,wait);
-      
+      all_finished_buf = RemBuffer(thisbuffer->second.storage,thisbuffer->first.firstelem,thisbuffer->first.numelem,input_data_not_needed,output_data_complete,wait);
+
+      // Move entries from all_finished_buf onto all_finished
+      all_finished.insert(all_finished.end(),all_finished_buf.begin(),all_finished_buf.end());
       
     }
+    return all_finished;
   }
 
 
-  void OpenCLBuffers::RemBuffers(cl::Event input_data_not_needed,cl::Event output_data_complete,bool wait)
+  std::vector<cl::Event> OpenCLBuffers::RemBuffers(cl::Event input_data_not_needed,cl::Event output_data_complete,bool wait)
   {
     std::vector<cl::Event> output_data_complete_vector{output_data_complete};
-    RemBuffers(input_data_not_needed,output_data_complete_vector,wait);
+    return RemBuffers(input_data_not_needed,output_data_complete_vector,wait);
   }
 
-  void OpenCLBuffers::RemBuffers(cl::Event input_data_not_needed,bool wait)
+  std::vector<cl::Event> OpenCLBuffers::RemBuffers(cl::Event input_data_not_needed,bool wait)
   {
     std::vector<cl::Event> output_data_complete_vector{};
-    RemBuffers(input_data_not_needed,output_data_complete_vector,wait);
+    return RemBuffers(input_data_not_needed,output_data_complete_vector,wait);
   }
   
   
