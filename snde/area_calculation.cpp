@@ -224,7 +224,7 @@ namespace snde {
 
   // NOTE: Change to SNDE_OCL_API if/when we add GPU acceleration support, and
   // (in CMakeLists.txt) make it move into the _ocl.so library)
-  SNDE_API std::shared_ptr<math_function> trianglearea_calculation_function = define_spatialnde2_trianglearea_calculation_function();
+  SNDE_OCL_API std::shared_ptr<math_function> trianglearea_calculation_function = define_spatialnde2_trianglearea_calculation_function();
   
   static int registered_trianglearea_calculation_function = register_math_function("spatialnde2.trianglearea_calculation",trianglearea_calculation_function);
 
@@ -463,7 +463,7 @@ namespace snde {
 
   // NOTE: Change to SNDE_OCL_API if/when we add GPU acceleration support, and
   // (in CMakeLists.txt) make it move into the _ocl.so library)
-  SNDE_API std::shared_ptr<math_function> vertexarea_calculation_function = define_spatialnde2_vertexarea_calculation_function();
+  SNDE_OCL_API std::shared_ptr<math_function> vertexarea_calculation_function = define_spatialnde2_vertexarea_calculation_function();
   
   static int registered_vertexarea_calculation_function = register_math_function("spatialnde2.vertexarea_calculation",vertexarea_calculation_function);
 
