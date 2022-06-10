@@ -26,7 +26,10 @@ if not "snde_recdb_windows" in globals():
 
             # Intelligent default size
             self.resize(QApp.primaryScreen().availableGeometry().size()*0.7);
-            
+
+            # Call QApp.processEvents() immedately to ease debugging, per
+            # https://stackoverflow.com/questions/56686603/how-to-avoid-sigpipe-due-to-a-timeout-when-debugging-an-x11-program
+            QApp.processEvents()
             pass
         pass
     pass
