@@ -1557,7 +1557,7 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
     assert(meshedpart_rec);
     
     
-    std::string normals_chanpath = recdb_path_join(recdb_path_as_group(chanpath),"normals");
+    //std::string normals_chanpath = recdb_path_join(recdb_path_as_group(chanpath),"normals");
     
     //std::shared_ptr<recording_base> normals_rec = base_rss->get_recording(normals_chanpath);
     
@@ -2018,7 +2018,7 @@ std::shared_ptr<display_requirement> assembly_recording_display_handler::get_dis
   for (auto && relpath_orientation: assempart_rec->pieces) {
     
     //std::string abspath = recdb_join_assembly_and_component_names(chanpath,std::get<0>(relpath_orientation));
-    std::string abspath = recdb_path_join(chanpath,std::get<0>(relpath_orientation));
+    std::string abspath = recdb_path_join(recdb_path_context(chanpath),std::get<0>(relpath_orientation));
     
     std::shared_ptr<display_requirement> sub_requirement = traverse_display_requirement(display,base_rss,display->lookup_channel(abspath),SNDE_SRG_DEFAULT_3D,nullptr);
     retval->sub_requirements.push_back(sub_requirement);
