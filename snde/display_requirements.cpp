@@ -1714,7 +1714,7 @@ std::shared_ptr<display_requirement> meshed_parameterization_recording_display_h
 
 
   retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_MESHED2DPARAMETERIZATION,typeid(*this),nullptr),rec,shared_from_this());
-  retval->renderable_channelpath = std::make_shared<std::string>(recdb_path_join(recdb_path_as_group(chanpath),"texvertex_arrays"));
+  retval->renderable_channelpath = std::make_shared<std::string>(recdb_path_join(recdb_path_context(chanpath),"texvertex_arrays"));
 
 
   std::shared_ptr<instantiated_math_function> renderable_function = display->texvertexarray_function->instantiate({
@@ -1820,7 +1820,7 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
     // Iterate over the texture_refs. They become the fourth and beyond sub-requirements
     for (auto && facenum_imgref: texedpart_rec->texture_refs) {
       if (facenum_imgref.second->image_path.size() > 0) {
-	std::string texture_path = recdb_path_join(recdb_path_as_group(chanpath),facenum_imgref.second->image_path);
+	std::string texture_path = recdb_path_join(recdb_path_context(chanpath),facenum_imgref.second->image_path);
 	std::shared_ptr<display_channel> texchan = display->lookup_channel(texture_path);
 	std::shared_ptr<recording_base> tex_rec = base_rss->get_recording(texture_path);
 	
@@ -1893,7 +1893,7 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
     
     // have a nested display_requirement for the meshed_part, which we transform into vertex arrays,
     // the normals, and the parameterization,
-    std::string part_name = recdb_path_join(recdb_path_as_group(chanpath),texedpart_rec->part_name);
+    std::string part_name = recdb_path_join(recdb_path_context(chanpath),texedpart_rec->part_name);
   
     std::shared_ptr<recording_base> part_rec = base_rss->get_recording(part_name);
     if (!part_rec) {
@@ -1925,7 +1925,7 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
     //retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,lookup_channel(part_name),SNDE_SRG_RENDER,nullptr));
     
     // We add a third sub-requirement for the parameterization,
-    std::string parameterization_name = recdb_path_join(recdb_path_as_group(chanpath),*texedpart_rec->parameterization_name);
+    std::string parameterization_name = recdb_path_join(recdb_path_context(chanpath),*texedpart_rec->parameterization_name);
     retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,display->lookup_channel(parameterization_name),SNDE_SRG_RENDERING_3D,nullptr));
     
 
