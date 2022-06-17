@@ -2114,8 +2114,8 @@ std::shared_ptr<display_requirement> tracking_pose_recording_display_handler::ge
 
   
   // reuse assembly code to determine absolute path to channel_to_reorient and component
-  std::string channel_to_reorient_abspath = recdb_path_join(chanpath,trackingpose_rec->channel_to_reorient);
-  std::string component_abspath = recdb_path_join(chanpath,trackingpose_rec->component_name);
+  std::string channel_to_reorient_abspath = recdb_path_join(recdb_path_context(chanpath),trackingpose_rec->channel_to_reorient);
+  std::string component_abspath = recdb_path_join(recdb_path_context(chanpath),trackingpose_rec->component_name);
 
   std::shared_ptr<recording_base> channel_to_reorient_rec = base_rss->get_recording(channel_to_reorient_abspath);
   
