@@ -567,7 +567,9 @@ scripted from Python such as when using Dataguzzler-Python.
     sure Native Code and Python Code are both checked. Once that step
     is completed you should be able to successfully attach to a running
     Python process, insert breakpoints, step through code, and
-    troubleshoot crashes.
+    troubleshoot crashes. (NOTE: It does not work to attach to the
+    "dataguzzler-python" loader process itself from VS; instead attach to the
+    Python process that is started by the loader).
   * To troubleshoot a deadlock, attach to the deadlocked process and
     search for two threads that are both waiting on a mutex. By examining
     the mutex structure it should be possible to identify the thread

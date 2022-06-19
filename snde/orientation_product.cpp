@@ -286,7 +286,7 @@ namespace snde {
 
 
 
-  class pose_follower: public recmath_cppfuncexec<std::shared_ptr<pose_channel_recording>,std::string> {
+  class pose_follower: public recmath_cppfuncexec<std::shared_ptr<pose_channel_recording>,std::string,std::string> {
   public:
     pose_follower(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) :
       recmath_cppfuncexec(rss,inst)
@@ -296,7 +296,7 @@ namespace snde {
     
     // use default for decide_new_revision
     
-    std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(std::shared_ptr<pose_channel_recording> leader,std::string follower_content)
+    std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(std::shared_ptr<pose_channel_recording> leader,std::string follower_content,std::string untransfomed)
     {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
@@ -311,12 +311,15 @@ namespace snde {
       return std::make_pair(option_list,nullptr);
     }
   
-    std::shared_ptr<metadata_function_override_type> define_recs(std::shared_ptr<pose_channel_recording> leader,std::string follower_content) 
+    std::shared_ptr<metadata_function_override_type> define_recs(std::shared_ptr<pose_channel_recording> leader,std::string follower_content,std::string untransformed) 
   {
     // define_recs code
     //printf("define_recs()\n");
     std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> result_ref;
     result_ref = create_typed_subclass_recording_ref_math<pose_channel_recording,snde_orientation3>(get_result_channel_path(0),rss,recdb_path_join(inst->channel_path_context,follower_content));
+    if (untransformed.size() > 0) {
+      std::dynamic_pointer_cast<pose_channel_recording>(result_ref->rec)->set_untransformed_render_channel(untransformed);
+    }
     
     return std::make_shared<metadata_function_override_type>([ this,result_ref,leader ]() {
       // metadata code  -- copy from right, (will merge in updates from left if it is a recording)
