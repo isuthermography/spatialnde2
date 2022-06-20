@@ -80,7 +80,7 @@ snde_coord3 snde_normalcalc_vertex(OCL_GLOBAL_ADDR const struct snde_part *part,
 
   snde_index edgelist_index_index;
 
-  snde_coord3 accum = { 0.f,0.f,0.f };
+  snde_coord3 accum = { { 0.f,0.f,0.f }  };
   //snde_coord weight = 0.f;
 
   // If we wanted here we could weight the average according to the area of the
