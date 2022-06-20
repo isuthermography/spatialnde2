@@ -46,8 +46,10 @@ void phase_plane_vertices_alphas_one(OCL_GLOBAL_ADDR ppvao_intype *complex_input
   l.real = complex_inputs[pos].real-prior_coords.real;
   l.imag = complex_inputs[pos].imag-prior_coords.imag;
 
-  ppvao_intype scale;
-  scale.real = 1.0f/sqrt(l.real*l.real + l.imag*l.imag); 
+  ppvao_intype scale={0.f,0.f};
+
+  scale.real = 1.0f/sqrt(l.real*l.real + l.imag*l.imag);
+;
 
   l0.real=l.real*scale.real;
   l0.imag=l.imag*scale.real;
@@ -55,13 +57,75 @@ void phase_plane_vertices_alphas_one(OCL_GLOBAL_ADDR ppvao_intype *complex_input
   ppvao_intype width_direction;
   width_direction.real = -l0.imag;
   width_direction.imag = l0.real;
-#ifdef __OPENCL_VERSION__
+  //#ifdef __OPENCL_VERSION__
+  //if (isnan(width_direction.real)) {
+  //  printf("phase_plane_vertices_alphas_one() got NaN width_direction.real\n");
+  // }
+  //#else
+  //assert(!isnan(width_direction.real));
+  //#endif
+
   if (isnan(width_direction.real)) {
-    printf("phase_plane_vertices_alphas_one() got NaN width_direction.real\n");
+    // This means either the incoming data is invalid, or
+    // the two endpoints are the same. Either way we don't draw anything
+    snde_float32 nanval = snde_infnan(0);
+    tri_vertices[pos*6].coord[0] = nanval;
+    tri_vertices[pos*6].coord[1] = nanval;
+    tri_vertices[pos*6].coord[2] = nanval;
+
+    tri_vertices[pos*6+1].coord[0] = nanval;
+    tri_vertices[pos*6+1].coord[1] = nanval;
+    tri_vertices[pos*6+1].coord[2] = nanval;
+
+    tri_vertices[pos*6+2].coord[0] = nanval;
+    tri_vertices[pos*6+2].coord[1] = nanval;
+    tri_vertices[pos*6+2].coord[2] = nanval;
+
+    tri_vertices[pos*6+3].coord[0] = nanval;
+    tri_vertices[pos*6+3].coord[1] = nanval;
+    tri_vertices[pos*6+3].coord[2] = nanval;
+
+    tri_vertices[pos*6+4].coord[0] = nanval;
+    tri_vertices[pos*6+4].coord[1] = nanval;
+    tri_vertices[pos*6+4].coord[2] = nanval;
+    
+    tri_vertices[pos*6+5].coord[0] = nanval;
+    tri_vertices[pos*6+5].coord[1] = nanval;
+    tri_vertices[pos*6+5].coord[2] = nanval;
+
+
+    trivert_colors[pos*6*4 + 0*4 + 0] = 0.f;
+    trivert_colors[pos*6*4 + 0*4 + 1] = 0.f; 
+    trivert_colors[pos*6*4 + 0*4 + 2] = 0.f;
+    trivert_colors[pos*6*4 + 0*4 + 3] = 0.f; 
+
+    trivert_colors[pos*6*4 + 1*4 + 0] = 0.f;
+    trivert_colors[pos*6*4 + 1*4 + 1] = 0.f; 
+    trivert_colors[pos*6*4 + 1*4 + 2] = 0.f;
+    trivert_colors[pos*6*4 + 1*4 + 3] = 0.f; 
+
+    trivert_colors[pos*6*4 + 2*4 + 0] = 0.f;
+    trivert_colors[pos*6*4 + 2*4 + 1] = 0.f; 
+    trivert_colors[pos*6*4 + 2*4 + 2] = 0.f;
+    trivert_colors[pos*6*4 + 2*4 + 3] = 0.f; 
+
+    trivert_colors[pos*6*4 + 3*4 + 0] = 0.f;
+    trivert_colors[pos*6*4 + 3*4 + 1] = 0.f; 
+    trivert_colors[pos*6*4 + 3*4 + 2] = 0.f;
+    trivert_colors[pos*6*4 + 3*4 + 3] = 0.f; 
+
+    trivert_colors[pos*6*4 + 4*4 + 0] = 0.f;
+    trivert_colors[pos*6*4 + 4*4 + 1] = 0.f; 
+    trivert_colors[pos*6*4 + 4*4 + 2] = 0.f;
+    trivert_colors[pos*6*4 + 4*4 + 3] = 0.f; 
+
+    trivert_colors[pos*6*4 + 5*4 + 0] = 0.f;
+    trivert_colors[pos*6*4 + 5*4 + 1] = 0.f; 
+    trivert_colors[pos*6*4 + 5*4 + 2] = 0.f;
+    trivert_colors[pos*6*4 + 5*4 + 3] = 0.f; 
+
+    return;
   }
-#else
-  assert(!isnan(width_direction.real));
-#endif
   //printf("ppvao: width_direction.real=%f;linewidth_horiz=%f\n",width_direction.real,linewidth_horiz);
   //printf("ppvao: tvout.coord[0]=%f\n",prior_coords.real - linewidth_horiz*width_direction.real/2.0);
 
