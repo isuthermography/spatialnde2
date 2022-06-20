@@ -848,7 +848,8 @@ namespace snde {
 
     std::shared_ptr<globalrevision> latest_globalrev(); // safe to call with or without recdb admin lock held. Returns latest globalrev which is ready and for which all prior globalrevs are ready
 
-    
+    std::shared_ptr<globalrevision> get_globalrev(uint64_t revnum);
+
     // Allocate channel with a specific name; returns nullptr if the name is inuse
     std::shared_ptr<channel> reserve_channel(std::shared_ptr<channelconfig> new_config);
 

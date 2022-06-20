@@ -4714,6 +4714,19 @@ namespace snde {
     return std::atomic_load(&_latest_ready_globalrev);
   }
 
+  std::shared_ptr<globalrevision> recdatabase::get_globalrev(uint64_t revnum) 
+  {
+    std::lock_guard<std::mutex> recdb_admin(admin);
+
+    auto grev_it = _globalrevs.find(revnum);
+
+    if (grev_it == _globalrevs.end()) {
+      return nullptr;
+    }
+    return grev_it->second;
+  }
+
+  
   std::shared_ptr<channel> recdatabase::reserve_channel(std::shared_ptr<channelconfig> new_config)
   {
     // Note that this is called with transaction lock held, but that is OK because transaction lock precedes recdb admin lock
