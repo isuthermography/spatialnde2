@@ -31,7 +31,7 @@ transact = recdb.start_transaction()
 
 graphicsgroup = recdb.define_channel("/graphics/","main",recdb.raw(),False,graphman)
 
-plate_recording = snde.x3d_load_geometry(recdb,graphman,specimen_model_file,0,"main",recdb.raw(),specimen_model_tree,None,[ "reindex_vertices","reindex_tex_vertices", "trinormals","inplanemat", "projinfo",  "boxes3d", "boxes2d" ])
+plate_recording = snde.x3d_load_geometry(recdb,graphman,specimen_model_file,0,"main",recdb.raw(),specimen_model_tree,None,[ "reindex_vertices","reindex_tex_vertices"] + snde.project_onto_parameterization_processing_tags)
 
 
 probe_recording = snde.x3d_load_geometry(recdb,graphman,probe_model_file,0,"main",recdb.raw(),probe_model_tree,None,[ "reindex_vertices","reindex_tex_vertices" ])
