@@ -13,7 +13,7 @@ namespace snde {
 
   %pythoncode %{
 project_point_onto_parameterization = cvar.project_point_onto_parameterization_function # make our swig-wrapped math_function accessible as 'spatialnde2.project_point_onto_parameterization'
-  project_onto_parameterization_processing_tags = [ "trinormals","inplanemat", "projinfo",  "boxes3d", "boxes2d"]
+project_onto_parameterization_processing_tags = [ "trinormals","inplanemat", "projinfo",  "boxes3d", "boxes2d"]
   %}
 
 
