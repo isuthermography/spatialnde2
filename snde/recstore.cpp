@@ -2807,7 +2807,7 @@ namespace snde {
       }
       
     }
-
+    
     
     //  Need to copy repetitive_notifies into place.
     {
@@ -2893,6 +2893,7 @@ namespace snde {
     }
 
 
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> need_to_check_if_ready;
 
     
     // Iterate through all non-complete math functions, filling out missing_prerequisites 
@@ -2990,7 +2991,9 @@ namespace snde {
 	      }
 
 	      if (prereq_modified) {
-		funcstatus.num_modified_prerequisites++; // this is a complete prerequisite that is modified. 
+		// Should not count self-dependencies here (we don't)
+		funcstatus.num_modified_prerequisites++; // this is a complete prerequisite that is modified.
+		need_to_check_if_ready.emplace(mathfunction);
 	      }
 	    }
 	    
@@ -3001,6 +3004,9 @@ namespace snde {
     }
     
     // add self-dependencies to the missing_external_prerequisites of this new_rss
+    // ***!!!! really we only know that we are actually dependent on our previous self
+    // once we know that at least one of our parameters has actually changed... Which might not be
+    // decided yet. This list should probably be possible_self_dependencies !!!***
     if (previous_rss) { // (at least if there was a previous_rss to be dependent on)
       for (auto && self_dep : self_dependencies) {
 	new_rss->mathstatus.function_status.at(self_dep).missing_external_function_prerequisites.emplace(std::make_tuple(previous_rss,self_dep));
@@ -3062,7 +3068,6 @@ namespace snde {
     
     // add self-dependencies to the _external_dependencies_on_function of the previous_rss
     //std::vector<std::shared_ptr<instantiated_math_function>> need_to_check_if_ready;
-    std::unordered_set<std::shared_ptr<instantiated_math_function>> need_to_check_if_ready;
 
     for (auto && changed_math_function: *changed_math_functions) {
       need_to_check_if_ready.emplace(changed_math_function);
@@ -3798,6 +3803,7 @@ namespace snde {
       if (missing_prereq_it != dep_fcn_status.missing_prerequisites.end()) {
 	dep_fcn_status.missing_prerequisites.erase(missing_prereq_it);
 	if (channel_modified) {
+	  // Don't count self-dependencies here (at least not unless the definition has changed) ... but shouldn't be possible to get this code path on a self-dependency
 	  dep_fcn_status.num_modified_prerequisites++;
 	}
       }

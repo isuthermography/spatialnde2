@@ -293,7 +293,7 @@ namespace snde {
   public:
     // Should this next map be replaced by a map of general purpose notifies that trigger when all missing prerequisites are satisified? (probably not but we still need the notification functionality)
     std::set<std::shared_ptr<channelconfig>> missing_prerequisites; // all missing (non-ready -- or !!!*** non-mdonly as appropriate) local (in this recording_set_state/globalrev) prerequisites of this function. Remove entries from the set as they become ready. When the set is empty, the math function represented by the key is dispatchable and should be marked as ready_to_execute
-    size_t num_modified_prerequisites; // count of the number of prerequisites no longer (or never) listed in missing_prerequisites that have indeed been modified. Used to determine whether execution is actually needed. Anybody modifying missing_prerequisites is responsible for updating this. Pre-initialize to 1 to always force execution. 
+    size_t num_modified_prerequisites; // count of the number of prerequisites no longer (or never) listed in missing_prerequisites that have indeed been modified. Used solely to determine whether execution is actually needed. Anybody modifying missing_prerequisites is responsible for updating this. Pre-initialize to 1 to always force execution.  Should not include self-dependencies
     
     // !!!*** Do we need to list out potentially-missing prerequisites based on channels determined by math functions that may or may not execute !!!***???
     // !!!*** A math function that decides not to execute needs to define its outputs as ready, referencing the previous state !!!***
