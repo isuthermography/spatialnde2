@@ -3902,7 +3902,9 @@ namespace snde {
   {
     std::atomic_store(&_rec,new_recording);
 
-    end_atomic_revision_update(new_recording->info->revision);
+    if (new_recording) {
+      end_atomic_revision_update(new_recording->info->revision);
+    }
   }
 
   void channel_state::end_atomic_revision_update(uint64_t new_rev)
