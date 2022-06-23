@@ -108,7 +108,7 @@ namespace snde {
 	
 	if (ToResultState == SNDE_FRS_INSTANTIATED || ToResultState==SNDE_FRS_ALL || (ToResultState == SNDE_FRS_COMPLETED && (FromResultState & SNDE_FRS_DEFINED))) {
 	  referencing_rss_channel_state.end_atomic_rec_update(result_channel_recs.at(cnt));
-	  referencing_rss_channel_state.revision = std::make_shared<uint64_t>(result_channel_recs.at(cnt)->info->revision);
+	  //referencing_rss_channel_state.revision = std::make_shared<uint64_t>(result_channel_recs.at(cnt)->info->revision); (now implicit in the above)
 	}
       }
     }
@@ -268,9 +268,9 @@ namespace snde {
 	channel_state &chanstate = ready_rss->recstatus.channel_map.at(full_path);
 	
 	if (!chanstate.rec()) {
+	  assert(!chanstate.revision()); // potential pitfall here if we promise a new revision but don't deliver it (?)
 	  chanstate.end_atomic_rec_update(result_channel_rec);
-	  assert(!chanstate.revision); // potential pitfall here if we promise a new revision but don't deliver it (?)
-	  chanstate.revision = std::make_shared<uint64_t>(result_channel_rec->info->revision);
+	  //chanstate.revision = std::make_shared<uint64_t>(result_channel_rec->info->revision); (now implicit in the above)
 	} else {
 	  result_channel_rec = chanstate.rec();
 	}

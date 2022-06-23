@@ -668,13 +668,13 @@ namespace snde {
 	    
 	    // look up the parameter/prerequisite in our current rss
 	    channel_state &paramstate = dep_rss->recstatus.channel_map.at(dep_fcn_param_fullpath);
-	    assert(paramstate.revision);
+	    assert(paramstate.revision());
 
 
 	    channel_state &parampriorstate = prior_state->recstatus.channel_map.at(dep_fcn_param_fullpath);
-	    assert(parampriorstate.revision);
+	    assert(parampriorstate.revision());
 
-	    if ( (*paramstate.revision) != (*parampriorstate.revision)) {
+	    if ( (*paramstate.revision()) != (*parampriorstate.revision())) {
 	      // parameter has changed: Need a recalculation
 	      snde_debug(SNDE_DC_RECMATH,"recmath: %s need recalc due to %s revision mismatch",dep_fcn->definition->definition_command.c_str(),dep_fcn_param_fullpath.c_str());
 	      need_recalc=true;

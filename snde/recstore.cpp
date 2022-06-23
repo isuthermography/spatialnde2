@@ -2524,13 +2524,13 @@ namespace snde {
       //						 std::forward_as_tuple(unchanged_channel,channel_rec,false)); // mark channel_state as not updated
       channel_map_it = new_rss->recstatus.channel_map.find(unchanged_channel->channelpath);
       assert(channel_map_it != new_rss->recstatus.channel_map.end());
-      channel_map_it->second._rec = channel_rec; // may be nullptr if recording hasn't been defined yet
-      
+      //channel_map_it->second._rec = channel_rec; // may be nullptr if recording hasn't been defined yet
+      channel_map_it->second.end_atomic_rec_update(channel_rec);
 
       // check if added channel is complete
       if (channel_rec_is_complete) {
-	// assign the channel_state revision field
-	channel_map_it->second.revision = std::make_shared<uint64_t>(channel_rec->info->revision);
+	// assign the channel_state revision field (now implicit in the above)
+	//channel_map_it->second.revision = std::make_shared<uint64_t>(channel_rec->info->revision);
 
 	
 	// if it is math, queue it to mark the function_status as complete, because if we are looking at it here, all
@@ -2717,7 +2717,7 @@ namespace snde {
 	  channel_state &state = new_rss->recstatus.channel_map.at(recdb_path_join(changed_math_function->channel_path_context,*result_channel_path_ptr));
 	  
 	  uint64_t new_revision = ++state._channel->latest_revision; // latest_revision is atomic; correct ordering because a new transaction cannot start until we are done
-	  state.revision=std::make_shared<uint64_t>(new_revision);
+	  state.end_atomic_revision_update(new_revision);
 	}
 	
       }
@@ -3333,10 +3333,11 @@ namespace snde {
       }
       auto cm_it = globalrev->recstatus.channel_map.find(new_rec_chanpath_ptr.first);
       assert(cm_it != globalrev->recstatus.channel_map.end());
-      cm_it->second._rec = new_rec_chanpath_ptr.second;
+      //cm_it->second._rec = new_rec_chanpath_ptr.second;
+      cm_it->second.end_atomic_rec_update(new_rec_chanpath_ptr.second);
 
-      // assign the .revision field
-      cm_it->second.revision = std::make_shared<uint64_t>(new_rec_chanpath_ptr.second->info->revision);
+      // assign the .revision field (now implicit)
+      //cm_it->second.revision = std::make_shared<uint64_t>(new_rec_chanpath_ptr.second->info->revision);
       cm_it->second.updated=true; 
       
       //
@@ -3387,9 +3388,11 @@ namespace snde {
 	
 	auto cm_it = globalrev->recstatus.channel_map.find(config->channelpath);
 	assert(cm_it != globalrev->recstatus.channel_map.end());
-	cm_it->second._rec = new_rec;
+	//cm_it->second._rec = new_rec;
+	cm_it->second.end_atomic_rec_update(new_rec);
+
 	cm_it->second.updated=true; 
-	cm_it->second.revision = std::make_shared<uint64_t>(new_rec->info->revision);
+	//cm_it->second.revision = std::make_shared<uint64_t>(new_rec->info->revision); (now implicit)
 	
 	// assign blank waveform content
 	new_rec->metadata = std::make_shared<immutable_metadata>();
@@ -3633,12 +3636,12 @@ namespace snde {
   channel_state::channel_state(std::shared_ptr<channel> chan,std::shared_ptr<channelconfig> config,std::shared_ptr<recording_base> rec_param,bool updated) :
     config(config),
     _channel(chan),
-    _rec(nullptr),
-    updated(updated),
-    revision(nullptr)
+    updated(updated)
   {
     // warning/note: recdb may be locked when this constructor is called. (called within end_transaction to create a prototype that is later copied into the globalrevision structure. 
     //std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_nullptr;
+    std::shared_ptr<uint64_t> null_revision_ptr;
+    std::atomic_store(&_revision,null_revision_ptr);
     std::atomic_store(&_rec,rec_param);
     std::atomic_store(&_notify_about_this_channel_metadataonly,std::make_shared<std::unordered_set<std::shared_ptr<channel_notify>>>());
     std::atomic_store(&_notify_about_this_channel_ready,std::make_shared<std::unordered_set<std::shared_ptr<channel_notify>>>());
@@ -3647,13 +3650,12 @@ namespace snde {
   channel_state::channel_state(const channel_state &orig) :
     config(orig.config),
     _channel(orig._channel),
-    _rec(nullptr),
-    updated((bool)orig.updated),
-    revision(orig.revision)
+    updated((bool)orig.updated)
     // copy constructor used for initializing channel_map from prototype defined in end_transaction()
   {
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_nullptr;
-
+    std::atomic_store(&_revision,orig.revision());
+ 
     //assert(!orig._notify_about_this_channel_metadataonly);
     //assert(!orig._notify_about_this_channel_ready);
     
@@ -3665,6 +3667,11 @@ namespace snde {
   std::shared_ptr<recording_base> channel_state::rec() const
   {
     return std::atomic_load(&_rec);
+  }
+
+  std::shared_ptr<uint64_t> channel_state::revision() const
+  {
+    return std::atomic_load(&_revision);
   }
 
   std::shared_ptr<recording_base> channel_state::recording_is_complete(bool mdonly)
@@ -3895,6 +3902,14 @@ namespace snde {
   {
     std::atomic_store(&_rec,new_recording);
 
+    end_atomic_revision_update(new_recording->info->revision);
+  }
+
+  void channel_state::end_atomic_revision_update(uint64_t new_rev)
+  {
+    
+    std::atomic_store(&_revision,std::make_shared<uint64_t>(new_rev));
+    
   }
 
 
@@ -4319,8 +4334,8 @@ namespace snde {
     
     for (auto && channel_map_it: recstatus.channel_map) {
       uint64_t revision=0;
-      if (channel_map_it.second.revision) {
-	revision = *channel_map_it.second.revision;
+      if (channel_map_it.second.revision()) {
+	revision = *channel_map_it.second.revision();
       }
       retval->push_back(std::make_pair(channel_map_it.first,revision));
     }

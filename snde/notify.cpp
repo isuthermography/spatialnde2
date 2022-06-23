@@ -524,7 +524,7 @@ namespace snde {
     
       // Pass completed recording from this channel_state to subsequent_globalrev's channelstate
       sg_channelstate.end_atomic_rec_update(current_channelstate.rec());
-
+      
       std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator recs_it = subsequent_globalrev->recstatus.defined_recordings.find(current_channelstate.config);
       bool in_defined_recordings = true;
       bool in_instantiated_recordings = false;
