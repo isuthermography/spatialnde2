@@ -539,10 +539,12 @@ namespace snde {
 	  // should be in either defined_recordings or instantiated_recordings prior to the notifications
 	  in_instantiated_recordings = true;
 	} else {
+	  recs_it = subsequent_globalrev->recstatus.metadataonly_recordings.find(current_channelstate.config);
 	  if (recs_it != subsequent_globalrev->recstatus.metadataonly_recordings.end()) {
 	    in_metadataonly_recordings = true;
 	    
 	  } else {
+	    recs_it = subsequent_globalrev->recstatus.completed_recordings.find(current_channelstate.config);
 	    if (recs_it != subsequent_globalrev->recstatus.completed_recordings.end()) {
 	      in_completed_recordings = true;
 	      

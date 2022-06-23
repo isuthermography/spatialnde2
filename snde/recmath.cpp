@@ -619,7 +619,7 @@ namespace snde {
 
     std::shared_ptr<globalrevision> dep_globalrev = std::dynamic_pointer_cast<globalrevision>(dep_rss);
     if (dep_globalrev) {
-      snde_debug(SNDE_DC_RECMATH,"recmath: check_dep_fcn_ready(%s); num_modified_prerequisites=%llu; globalrev=%llu",dep_fcn->definition->definition_command.c_str(),(unsigned long long)mathstatus_ptr->num_modified_prerequisites,(unsigned long long)dep_globalrev->globalrev);
+      snde_debug(SNDE_DC_RECMATH,"recmath: check_dep_fcn_ready(%s); num_modified_prerequisites=%llu; globalrev=%llu; %u missing prereqs, %u mecp %u mefp",dep_fcn->definition->definition_command.c_str(),(unsigned long long)mathstatus_ptr->num_modified_prerequisites,(unsigned long long)dep_globalrev->globalrev,(unsigned)mathstatus_ptr->missing_prerequisites.size(),(unsigned)mathstatus_ptr->missing_external_channel_prerequisites.size(),(unsigned)mathstatus_ptr->missing_external_function_prerequisites.size());
       
     } else {
       snde_debug(SNDE_DC_RECMATH,"recmath: check_dep_fcn_ready(%s); num_modified_prerequisites=%llu",dep_fcn->definition->definition_command.c_str(),(unsigned long long)mathstatus_ptr->num_modified_prerequisites);
