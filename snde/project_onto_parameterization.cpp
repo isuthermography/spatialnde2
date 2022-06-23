@@ -730,6 +730,7 @@ namespace snde {
 
     newfunc->self_dependent=true;
     newfunc->mandatory_mutable=true;
+    newfunc->new_revision_optional=true;
     return newfunc;
   }
   
