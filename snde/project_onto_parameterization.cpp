@@ -19,10 +19,10 @@
 namespace snde {
 
   template <typename T>
-  class project_point_onto_parameterization: public recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool> {
+  class project_point_onto_parameterization: public recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<recording_base>,std::shared_ptr<recording_base>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool> {
   public:
     project_point_onto_parameterization(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) :
-      recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>(rss,inst)
+      recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<recording_base>,std::shared_ptr<recording_base>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>(rss,inst)
     {
       
     }
@@ -30,13 +30,67 @@ namespace snde {
 
         // These typedefs are regrettably necessary and will need to be updated according to the parameter signature of your function
     // https://stackoverflow.com/questions/1120833/derived-template-class-access-to-base-class-member-data
-    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::define_recs_function_override_type define_recs_function_override_type;
-    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::metadata_function_override_type metadata_function_override_type;
-    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::lock_alloc_function_override_type lock_alloc_function_override_type;
-    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::exec_function_override_type exec_function_override_type;
+    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<recording_base>,std::shared_ptr<recording_base>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::compute_options_function_override_type compute_options_function_override_type;
+    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<recording_base>,std::shared_ptr<recording_base>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::define_recs_function_override_type define_recs_function_override_type;
+    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<recording_base>,std::shared_ptr<recording_base>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::metadata_function_override_type metadata_function_override_type;
+    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<recording_base>,std::shared_ptr<recording_base>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::lock_alloc_function_override_type lock_alloc_function_override_type;
+    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<recording_base>,std::shared_ptr<recording_base>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::exec_function_override_type exec_function_override_type;
 
     
     // use default for decide_new_revision
+    std::pair<bool,std::shared_ptr<compute_options_function_override_type>>
+    decide_new_revision(std::shared_ptr<meshed_part_recording> part,
+		std::shared_ptr<meshed_parameterization_recording> param,
+		std::shared_ptr<meshed_trinormals_recording> trinormals,
+		std::shared_ptr<boxes3d_recording> boxes3d,
+		std::shared_ptr<meshed_projinfo_recording> projinfo,
+		std::shared_ptr<meshed_inplanemat_recording> inplanemat,
+		std::shared_ptr<recording_base> part_orientation,
+		std::shared_ptr<recording_base> source_orientation,
+		std::shared_ptr<ndtyped_recording_ref<T>> to_project,
+		double min_dist,
+		double max_dist,
+		double radius,
+		snde_index horizontal_pixels,
+		snde_index vertical_pixels, 
+		snde_bool use_surface_normal)
+    {
+      
+      
+      std::shared_ptr<multi_ndarray_recording> part_ndarray=std::dynamic_pointer_cast<multi_ndarray_recording>(part_orientation);
+      if (!part_ndarray) {
+	return std::make_pair(false,nullptr);
+      }
+      std::shared_ptr<ndarray_recording_ref> part_orientation_ref=part_ndarray->reference_ndarray(0);
+      if (!part_orientation_ref) {
+	return std::make_pair(false,nullptr);
+      }
+      std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> part_orientation_tref=std::dynamic_pointer_cast<ndtyped_recording_ref<snde_orientation3>>(part_orientation_ref);
+
+      
+      
+      std::shared_ptr<multi_ndarray_recording> source_ndarray=std::dynamic_pointer_cast<multi_ndarray_recording>(source_orientation);
+      if (!source_ndarray) {
+	return std::make_pair(false,nullptr);
+      }
+      std::shared_ptr<ndarray_recording_ref> source_orientation_ref=source_ndarray->reference_ndarray(0);
+      if (!source_orientation_ref) {
+	return std::make_pair(false,nullptr);
+      }
+      std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> source_orientation_tref=std::dynamic_pointer_cast<ndtyped_recording_ref<snde_orientation3>>(source_orientation_ref);
+
+
+
+      if (!part_orientation_tref) {
+	return std::make_pair(false,nullptr);
+      }
+
+      if (!source_orientation_tref) {
+	return std::make_pair(false,nullptr);
+      }
+      return std::make_pair(true,nullptr);
+    }
+    
     
     std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>>
       compute_options(std::shared_ptr<meshed_part_recording> part,
@@ -45,8 +99,8 @@ namespace snde {
 		      std::shared_ptr<boxes3d_recording> boxes3d,
 		      std::shared_ptr<meshed_projinfo_recording> projinfo,
 		      std::shared_ptr<meshed_inplanemat_recording> inplanemat,
-		      std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> part_orientation,
-		      std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> source_orientation,
+		      std::shared_ptr<recording_base> part_orientation,
+		      std::shared_ptr<recording_base> source_orientation,
 		      std::shared_ptr<ndtyped_recording_ref<T>> to_project,
 		      double min_dist,
 		      double max_dist,
@@ -102,8 +156,8 @@ namespace snde {
 		std::shared_ptr<boxes3d_recording> boxes3d,
 		std::shared_ptr<meshed_projinfo_recording> projinfo,
 		std::shared_ptr<meshed_inplanemat_recording> inplanemat,
-		std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> part_orientation,
-		std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> source_orientation,
+		std::shared_ptr<recording_base> part_orientation,
+		std::shared_ptr<recording_base> source_orientation,
 		std::shared_ptr<ndtyped_recording_ref<T>> to_project,
 		double min_dist,
 		double max_dist,
@@ -360,7 +414,8 @@ namespace snde {
 	  }
 	  
 	  
-	  
+	  std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> part_orientation_ref=std::dynamic_pointer_cast<multi_ndarray_recording>(part_orientation)->reference_typed_ndarray<snde_orientation3>(0);
+	  std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> source_orientation_ref=std::dynamic_pointer_cast<multi_ndarray_recording>(source_orientation)->reference_typed_ndarray<snde_orientation3>(0);
 	  
 	  rwlock_token_set locktokens = this->lockmgr->lock_recording_refs({
 	      { part->reference_ndarray("parts"), false }, // first element is recording_ref, 2nd parameter is false for read, true for write
@@ -377,8 +432,8 @@ namespace snde {
 		{ param->reference_ndarray("uv_topos"),false},
 		{ param->reference_ndarray("uv_triangles"),false},
 		{ projinfo->reference_ndarray("inplane2uvcoords"), false},
-		{ part_orientation, false },
-		{ source_orientation, false },
+		{ part_orientation_ref, false },
+		{ source_orientation_ref, false },
 	    
 		// projectionarray_image
 		
@@ -395,8 +450,8 @@ namespace snde {
 								 boxes3d,
 								 projinfo,
 								 inplanemat,
-								 part_orientation,
-								 source_orientation,
+								 part_orientation, part_orientation_ref,
+								 source_orientation, source_orientation_ref,
 								 to_project,
 								 min_dist,
 								 max_dist,
@@ -487,10 +542,10 @@ namespace snde {
 	    
 	    std::vector<snde_partinstance> instances;
 	    snde_orientation3 orient_inv;
-	    orientation_inverse(part_orientation->element(0),&orient_inv);
+	    orientation_inverse(part_orientation_ref->element(0),&orient_inv);
 	    
 	    instances.push_back(snde_partinstance{
-		.orientation = part_orientation->element(0),
+		.orientation = part_orientation_ref->element(0),
 		.orientation_inverse = orient_inv,
 		.partnum=partnum,  
 		.firstuvpatch=0, // only support single patch for now
@@ -498,7 +553,7 @@ namespace snde {
 	      });
 	    
 	    
-	    snde_orientation3 sensorcoords_to_wrlcoords=source_orientation->element(0);
+	    snde_orientation3 sensorcoords_to_wrlcoords=source_orientation_ref->element(0);
 	    if (!isnan(sensorcoords_to_wrlcoords.quat.coord[0])) {
 	      
 	      snde_orientation3 wrlcoords_to_sensorcoords;
