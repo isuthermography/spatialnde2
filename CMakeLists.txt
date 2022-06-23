@@ -115,11 +115,25 @@ endif()
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
   string( REPLACE "/DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+  string( REPLACE "/Ob1" "/Ob0" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")  # Debug-style function inlining behavior
+  string( REPLACE "/O2" "/Od" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")  # Debug-style optimization
+  
+  
 endif()
 
 if (CMAKE_C_COMPILER_ID MATCHES "MSVC")
   string( REPLACE "/DNDEBUG" "" CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
 endif()
+
+
+
+## Optionally disable optimization in RelWithDebInfo mode
+#set(SNDE_DISABLE_OPTIMIZATION_RELWITHDEBINFO OFF CACHE BOOL "Disable optimization for RelWithDebInfo builds" )
+#if (SNDE_DISABLE_OPTIMIZATION_RELWITHDEBINFO)
+#  
+#endif()
+
+
 
 # Enable parallel build in MSVC -- currently hardwired to 8 jobs
 if (CMAKE_C_COMPILER_ID MATCHES "MSVC" )
