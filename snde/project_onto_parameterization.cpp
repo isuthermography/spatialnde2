@@ -37,9 +37,9 @@ namespace snde {
     typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<recording_base>,std::shared_ptr<recording_base>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::exec_function_override_type exec_function_override_type;
 
     
-    // use default for decide_new_revision
+    // use default for decide_execution
     std::pair<bool,std::shared_ptr<compute_options_function_override_type>>
-    decide_new_revision(std::shared_ptr<meshed_part_recording> part,
+    decide_execution(std::shared_ptr<meshed_part_recording> part,
 		std::shared_ptr<meshed_parameterization_recording> param,
 		std::shared_ptr<meshed_trinormals_recording> trinormals,
 		std::shared_ptr<boxes3d_recording> boxes3d,
