@@ -273,6 +273,7 @@ namespace snde {
 	  //chanstate.revision = std::make_shared<uint64_t>(result_channel_rec->info->revision); (now implicit in the above)
 	} else {
 	  result_channel_rec = chanstate.rec();
+	  chanstate.updated=true;
 	}
 	
       }

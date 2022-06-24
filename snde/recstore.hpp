@@ -867,7 +867,7 @@ namespace snde {
     std::shared_ptr<channelconfig> config; // immutable
     std::shared_ptr<channel> _channel; // immutable pointer, but pointed data is not immutable, (but you shouldn't generally need to access this)
     std::shared_ptr<recording_base> _rec; // atomic shared ptr to recording structure created to store the ouput; may be nullptr if not (yet) created. Always nullptr for ondemand recordings... recording contents may be mutable but have their own admin lock
-    std::atomic<bool> updated; // this field is only valid once rec() returns a valid pointer and once rec()->state is READY or METADATAREADY. It is true if this particular recording has a new revision particular to the enclosing recording_set_state
+    std::atomic<bool> updated; // this field is only valid once the creating transaction is ended and rec() returns a valid pointer and once rec()->state is READY or METADATAREADY. It is true if this particular recording has a new revision particular to the enclosing recording_set_state. For math recordings this is assigned in the create_recording_math<T> template (below). For non-math recordings it is assigned in end_transaction(). 
     std::shared_ptr<uint64_t> _revision; // Atomic shared pointer... This is assigned when the channel_state is created from _rec->info->revision for manually created recordings. (For ondemand math recordings this is not meaningful?) For math recordings with the math_function's new_revision_optional (config->math_fcn->fcn->new_revision_optional) flag clear, this is defined during end_transaction() before the channel_state is published. If the new_revision_optional flag is set, this left nullptr; once the math function determines whether a new recording will be instantiated the revision will be assigned when the recording is define, with ordering ensured by the implicit self-dependency implied by the new_revision_optional flag (recmath_compute_resource.cpp)
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_metadataonly; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes metadataonly; set to nullptr at end of channel becoming metadataonly. 
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_ready; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes ready; set to nullptr at end of channel becoming ready. 
@@ -1663,11 +1663,14 @@ namespace snde {
     std::shared_ptr<recording_storage_manager> storage_manager = select_storage_manager_for_recording(recdb,chanpath,calc_rss);
     std::shared_ptr<transaction> defining_transact = (std::dynamic_pointer_cast<globalrevision>(calc_rss)) ? (std::dynamic_pointer_cast<globalrevision>(calc_rss)->defining_transact):nullptr;
     uint64_t new_revision=0;
+
+    channel_state &state = calc_rss->recstatus.channel_map.at(chanpath);
+    state.updated = true; // mark as updated but ONLY in the RSS of the calculation itself (not in subsequent referencing rss's)
+    
     if (std::dynamic_pointer_cast<globalrevision>(calc_rss)) {
       // if calc_rss is really a globalrevision (i.e. not an ondemand calculation)
       // then we need to define a new revision of this recording
             
-      channel_state &state = calc_rss->recstatus.channel_map.at(chanpath);
       assert(!state.config->ondemand);
 
       // if the new_revision_optional flag is set, then we have to define the new revision now;

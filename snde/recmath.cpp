@@ -615,8 +615,8 @@ namespace snde {
   // notification probably can't be issued with dep_rss admin lock held.
     
   {
-
-
+    if (dep_rss->ready) return; // unnecessary call
+    
     std::shared_ptr<globalrevision> dep_globalrev = std::dynamic_pointer_cast<globalrevision>(dep_rss);
     if (dep_globalrev) {
       snde_debug(SNDE_DC_RECMATH,"recmath: check_dep_fcn_ready(%s); num_modified_prerequisites=%llu; globalrev=%llu; %u missing prereqs, %u mecp %u mefp",dep_fcn->definition->definition_command.c_str(),(unsigned long long)mathstatus_ptr->num_modified_prerequisites,(unsigned long long)dep_globalrev->globalrev,(unsigned)mathstatus_ptr->missing_prerequisites.size(),(unsigned)mathstatus_ptr->missing_external_channel_prerequisites.size(),(unsigned)mathstatus_ptr->missing_external_function_prerequisites.size());
@@ -655,8 +655,9 @@ namespace snde {
 	// Note: We know the the math function definition itself is unchanged, because otherwise
 	// execfunc would have been assigned in recstore.cpp end_transaction()
 	// So all we have to check here is the full list of prerequisites
+	
 	std::shared_ptr<recording_set_state> prior_state = dep_rss->prerequisite_state();
-	assert(prior_state);
+	assert(prior_state); 
 
 	
 	bool need_recalc = false; 
@@ -674,9 +675,15 @@ namespace snde {
 	    channel_state &parampriorstate = prior_state->recstatus.channel_map.at(dep_fcn_param_fullpath);
 	    assert(parampriorstate.revision());
 
-	    if ( (*paramstate.revision()) != (*parampriorstate.revision())) {
+	    if (paramstate.updated) {
+	      snde_debug(SNDE_DC_RECMATH,"recmath: %s need recalc due to %s updated.",dep_fcn->definition->definition_command.c_str(),dep_fcn_param_fullpath.c_str());
+	      // Alternate conditional
+	      //if ( (*paramstate.revision()) != (*parampriorstate.revision())) {
+	      //snde_debug(SNDE_DC_RECMATH,"recmath: %s need recalc due to changed revision of %s.",dep_fcn->definition->definition_command.c_str(),dep_fcn_param_fullpath.c_str());
+	      
 	      // parameter has changed: Need a recalculation
-	      snde_debug(SNDE_DC_RECMATH,"recmath: %s need recalc due to %s revision mismatch",dep_fcn->definition->definition_command.c_str(),dep_fcn_param_fullpath.c_str());
+	      
+
 	      need_recalc=true;
 	      break;
 	    }
