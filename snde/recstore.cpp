@@ -3080,7 +3080,7 @@ namespace snde {
 
       std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> new_prevglob_extdep = previous_rss->mathstatus.begin_atomic_external_dependencies_on_function_update();
 
-      std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> completed_self_deps_to_remove_from_missing_external_function_prequisites;
+      std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> completed_self_deps_to_remove_from_missing_external_function_prerequisites;
       
       for (auto && self_dep : self_dependencies) {
 	// Check to make sure previous new_rss even has this exact math function.
@@ -3092,7 +3092,7 @@ namespace snde {
 	    
 	    // complete -- perform ready check on this recording
 	    need_to_check_if_ready.emplace(self_dep); // should already be there
-	    completed_self_deps_to_remove_from_missing_external_function_prequisites.emplace(std::make_tuple(previous_rss,self_dep));
+	    completed_self_deps_to_remove_from_missing_external_function_prerequisites.emplace(std::make_tuple(previous_rss,self_dep));
 	  } else {
 	    //add to previous new_rss's _external_dependencies
 	    new_prevglob_extdep->at(self_dep).push_back(std::make_tuple(new_rss,self_dep));
@@ -3101,14 +3101,14 @@ namespace snde {
 	  // previous RSS doesn't have this function
 
 	  need_to_check_if_ready.emplace(self_dep); // should already be there
-	  completed_self_deps_to_remove_from_missing_external_function_prequisites.emplace(std::make_tuple(previous_rss,self_dep));
+	  completed_self_deps_to_remove_from_missing_external_function_prerequisites.emplace(std::make_tuple(previous_rss,self_dep));
 	  
 	  
 	}
       }
       previous_rss->mathstatus.end_atomic_external_dependencies_on_function_update(new_prevglob_extdep);
 
-      for (auto && prev_rss_completed_self_dep: completed_self_deps_to_remove_from_missing_external_function_prequisites) {
+      for (auto && prev_rss_completed_self_dep: completed_self_deps_to_remove_from_missing_external_function_prerequisites) {
 
 	std::weak_ptr<recording_set_state> prev_rss_weak = std::get<0>(prev_rss_completed_self_dep);
 	std::shared_ptr<recording_set_state> prev_rss = prev_rss_weak.lock();
