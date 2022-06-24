@@ -3008,9 +3008,15 @@ namespace snde {
     // once we know that at least one of our parameters has actually changed... Which might not be
     // decided yet. This list should probably be possible_self_dependencies !!!***
     if (previous_rss) { // (at least if there was a previous_rss to be dependent on)
+      std::lock_guard<std::mutex> previous_rss_admin(previous_rss->admin);
       for (auto && self_dep : self_dependencies) {
-	new_rss->mathstatus.function_status.at(self_dep).missing_external_function_prerequisites.emplace(std::make_tuple(previous_rss,self_dep));
-	
+	// self_dep is an instantiated_math_function
+	auto fs_it = previous_rss->mathstatus.function_status.find(self_dep);
+	if (fs_it != previous_rss->mathstatus.function_status.end()) {
+	  if (!fs_it->second.complete) {
+	    new_rss->mathstatus.function_status.at(self_dep).missing_external_function_prerequisites.emplace(std::make_tuple(previous_rss,self_dep));
+	  }
+	}
       }
     }
 
@@ -3554,8 +3560,9 @@ namespace snde {
     
     std::shared_ptr<_globalrev_complete_notify> complete_notify=std::make_shared<_globalrev_complete_notify>(recdb,globalrev);
     
+    snde_debug(SNDE_DC_NOTIFY,"creating _globalrev_complete_notify 0x%llx for globalrev %llu (0x%llx)",(unsigned long long)complete_notify.get(),(unsigned long long)globalrev->globalrev,(unsigned long long)globalrev.get());
     complete_notify->apply_to_rss(globalrev);
-
+    snde_debug(SNDE_DC_NOTIFY,"_globalrev_complete_notify 0x%llx applies to globalrev %llu (0x%llx)",(unsigned long long)complete_notify.get(),(unsigned long long)globalrev->globalrev,(unsigned long long)globalrev.get());
 
     // clear out datastructure
     previous_globalrev = nullptr;
@@ -3701,13 +3708,17 @@ namespace snde {
   // based on the channel_state's current status
   // Note that this might be called more than once for a given situation,
   // but because the notifications it issues are one-shots, it will only
-  // pass on the notifications the first time. 
+  // pass on the notifications the first time.
+
+  // NOTE: There may be many excess calls to issue_nonmath_notifications,
+  // perhaps should troubleshoot this on a performance basis
   {
 
     // !!!*** This code is largely redundant with recording::mark_data_ready, and the excess should probably be consolidated  ***!!!
     // Note that compared to recording::mark_data_ready this is also used in circumstances
     // where an already completed recording is being assigned to a new
     // recording_set_state
+
     
     // Issue metadataonly notifications
     if (recording_is_complete(true)) {
@@ -3747,6 +3758,7 @@ namespace snde {
       std::lock_guard<std::mutex> rss_admin(rss->admin);
       all_ready = !rss->recstatus.defined_recordings.size() && !rss->recstatus.instantiated_recordings.size();      
     }
+    snde_debug(SNDE_DC_NOTIFY,"issue_nonmath_notifications: rss=0x%llx; all_ready=%d",(unsigned long long)rss.get(),(int)all_ready);
     
     if (all_ready) {
       std::unordered_set<std::shared_ptr<channel_notify>> rss_complete_notifiers_copy;

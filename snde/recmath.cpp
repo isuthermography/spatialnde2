@@ -464,6 +464,8 @@ namespace snde {
       std::lock_guard<std::mutex> rss_admin(recstate->admin);
       math_function_status &our_status = recstate->mathstatus.function_status.at(fcn);
 
+
+      our_status.complete = true; // trust that whoever called us knows what they were talking about
       // ***!!!!! Need to refactor the status transfer so that we can
       // explicitly check it; also need to be OK with status transfer
       // being ahead of us (possibly another thread)

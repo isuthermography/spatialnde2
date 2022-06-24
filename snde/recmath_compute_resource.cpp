@@ -411,6 +411,7 @@ namespace snde {
 									     std::make_tuple(std::weak_ptr<pending_computation>(computation),selected_option)));
 	  //compute_resource_lock.unlock();  (???What was this supposed to do???)
 	  //selected_resource->computations_added.notify_one();
+	  snde_debug(SNDE_DC_COMPUTE_DISPATCH,"_queue_computation_into_database_acrdb_locked: Notifying ACRD of changes");
 	  notify_acrd_of_changes_to_prioritized_computations();
 	  retval=true;
 
@@ -703,7 +704,9 @@ namespace snde {
       
       std::unique_lock<std::mutex> admin_lock(*admin);
       if (no_actual_dispatch) {
+	snde_debug(SNDE_DC_COMPUTE_DISPATCH,"waiting on computations_added_or_completed");
 	computations_added_or_completed.wait(admin_lock);
+	snde_debug(SNDE_DC_COMPUTE_DISPATCH,"wakeup on computations_added_or_completed");
       }
 
       no_actual_dispatch = true; 
