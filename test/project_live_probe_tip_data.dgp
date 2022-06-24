@@ -166,8 +166,7 @@ transact.end_transaction()
 
     
 
-def live_thread_code():
-
+def sensordata_thread_code():
     context.InitFreeThread()
 
     cnt = 0
@@ -193,7 +192,7 @@ def live_thread_code():
         grev = transact.end_transaction()
 
         grev.wait_complete()
-        time.sleep(.1)
+        time.sleep(.01)
         cnt+=1
         pass
     
@@ -201,28 +200,39 @@ def live_thread_code():
 
 
 
-live_thread = threading.Thread(target=live_thread_code)
-live_thread.start()
-
-
-
-def new_probe_posn():
-    transact = recdb.start_transaction()
-
-
+def probepos_thread_code():
     
-    # Figure out probe position from the camera orientations in the probe channel
-    # and the view tracking channel, probe_positioner
-    #probe_campose = main_viewer.viewer.get_camera_pose(probe_model_tree+"/meshed")
-    #probe_campose_inverse = snde.orientation_inverse(probe_campose)
-    #probe_positioner_campose = main_viewer.viewer.get_camera_pose("/probe_positioner")
-    #probe_position = snde.orientation_orientation_multiply(probe_positioner_campose,probe_campose_inverse)
+    context.InitFreeThread()
     
-    orientation = probe_pose_func() # probe_position
     
-    new_probe_posn_in_transaction(orientation)
-
-    
-    transact.end_transaction()
-    
+    while True:
+        transact = recdb.start_transaction()
+        
+        
+        
+        # Figure out probe position from the camera orientations in the probe channel
+        # and the view tracking channel, probe_positioner
+        #probe_campose = main_viewer.viewer.get_camera_pose(probe_model_tree+"/meshed")
+        #probe_campose_inverse = snde.orientation_inverse(probe_campose)
+        #probe_positioner_campose = main_viewer.viewer.get_camera_pose("/probe_positioner")
+        #probe_position = snde.orientation_orientation_multiply(probe_positioner_campose,probe_campose_inverse)
+        
+        orientation = probe_pose_func() # probe_position
+        
+        new_probe_posn_in_transaction(orientation)
+        
+        
+        grev = transact.end_transaction()
+        grev.wait_complete()
+        time.sleep(.01)
+        pass
     pass
+
+
+sensordata_thread = threading.Thread(target=sensordata_thread_code,daemon=True)
+sensordata_thread.start()
+
+probepos_thread = threading.Thread(target=probepos_thread_code,daemon=True)
+probepos_thread.start()
+
+

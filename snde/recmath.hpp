@@ -315,7 +315,7 @@ namespace snde {
     bool execution_demanded; // even once all prereqs are satisfied, do we need to actually execute? This is only set if at least one of our non-self dependencies has changed and we are not disabled (or ondemand in a regular globalrev) and !!!*** the execfunc was generated for this revision
     bool ready_to_execute;
     // bool metadataonly_complete; // if we are only executing to metadataonly, this is the complete flag.... move to execfunc->
-    bool complete; // set to true once fully executed; Note that this can shift from true back to false for a formerly metadataonly math function where the full data has been requested
+    bool complete; // set to true once fully executed OR once we decide execution is not demanded; Note that this can shift from true back to false for a formerly metadataonly math function where the full data has been requested
 
     math_function_status(bool self_dependent);
   };

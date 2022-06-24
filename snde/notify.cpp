@@ -411,13 +411,13 @@ namespace snde {
 	notify_about_this_channel_ready->emplace(shared_from_this());
 	chanstate.end_atomic_notify_about_this_channel_ready_update(notify_about_this_channel_ready);
       }
-    }
 
       
-    if (criteria.recordingset_complete) {
-      rss->recordingset_complete_notifiers.emplace(shared_from_this());
+      if (criteria.recordingset_complete) {
+	rss->recordingset_complete_notifiers.emplace(shared_from_this());
+      }
+      
     }
-    
     
     if (generate_notify) {
       perform_notify();
