@@ -201,12 +201,7 @@ namespace snde {
 
   void execution_complete_notify_single_referencing_rss(std::shared_ptr<recdatabase> recdb,std::shared_ptr<math_function_execution> execfunc,bool mdonly,bool possibly_redundant,std::shared_ptr<recording_set_state> prerequisite_state,std::shared_ptr<recording_set_state> single_referencing_rss)
   {
-    for (auto && result_channel_path_ptr: execfunc->inst->result_channel_paths) {
-      channel_state &chanstate = single_referencing_rss->recstatus.channel_map.at(recdb_path_join(execfunc->inst->channel_path_context,*result_channel_path_ptr));
-      //chanstate.issue_math_notifications(recdb,ready_rss); // taken care of by notify_math_function_executed(), below
-      chanstate.issue_nonmath_notifications(single_referencing_rss);
-      
-    }
+    snde_debug(SNDE_DC_NOTIFY,"execution_complete_notify_single_referencing_rss on rss 0x%llx execfunc 0x%llx %s",(unsigned long long)single_referencing_rss.get(),(unsigned long long)execfunc.get(),execfunc->inst->definition->definition_command.c_str());
     
     //snde_debug(SNDE_DC_RECMATH,"qc: already finished rss notify %lx",(unsigned long)referencing_rss_strong.get());
     //snde_debug(SNDE_DC_RECMATH|SNDE_DC_NOTIFY,"pool code: rss notify %lx",(unsigned long)referencing_rss_strong.get());
@@ -219,7 +214,14 @@ namespace snde {
     if (recdb) {
       single_referencing_rss->mathstatus.notify_math_function_executed(recdb,single_referencing_rss,execfunc->inst,mdonly,possibly_redundant,prerequisite_state); 
     }
-    
+
+    for (auto && result_channel_path_ptr: execfunc->inst->result_channel_paths) {
+      channel_state &chanstate = single_referencing_rss->recstatus.channel_map.at(recdb_path_join(execfunc->inst->channel_path_context,*result_channel_path_ptr));
+      //chanstate.issue_math_notifications(recdb,ready_rss); // taken care of by notify_math_function_executed(), below
+      chanstate.issue_nonmath_notifications(single_referencing_rss);
+      
+    }
+
   }
   
 
@@ -234,6 +236,9 @@ namespace snde {
       
     }
 
+    snde_debug(SNDE_DC_NOTIFY,"_execution_complete_notify on execfunc 0x%llx %s",(unsigned long long)execfunc.get(),execfunc->inst->definition->definition_command.c_str());
+
+    
     for (auto && referencing_rss_weak: referencing_rss_copy) {
       //std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
       std::shared_ptr<recording_set_state> referencing_rss_strong=referencing_rss_weak.lock();
@@ -701,9 +706,9 @@ namespace snde {
     set_thread_name(nullptr,"snde2 acrd dispatch");
 
 
+    std::unique_lock<std::mutex> admin_lock(*admin);
     while(true) {
       
-      std::unique_lock<std::mutex> admin_lock(*admin);
       if (no_actual_dispatch) {
 	snde_debug(SNDE_DC_COMPUTE_DISPATCH,"waiting on computations_added_or_completed");
 	computations_added_or_completed.wait(admin_lock);
@@ -725,6 +730,8 @@ namespace snde {
 	}
 	
       }
+      snde_debug(SNDE_DC_COMPUTE_DISPATCH,"dispatch loop terminated; no_actual_dispatch = %d, todo_list.size()=%u",(int)no_actual_dispatch,(unsigned)todo_list.size());
+
       
     }
   }
@@ -906,7 +913,7 @@ namespace snde {
 	  }
 	  _dispatch_threads_from_pool(recstate,function_to_execute,assigned_cpus,assigned_cpus->assigned_cpu_core_indices.at(0));
 	  
-	  snde_debug(SNDE_DC_COMPUTE_DISPATCH,"CPU Dispatched computation");
+	  snde_debug(SNDE_DC_COMPUTE_DISPATCH,"CPU Dispatched computation for %s rss %llx",function_to_execute->inst->definition->definition_command.c_str(),(unsigned long long)function_to_execute->rss.get());
 	  
 	  return true; // dispatched execution, so don't wait at next iteration. 
 	}
@@ -932,9 +939,9 @@ namespace snde {
 
     
     //printf("pool_code_startup!\n");
+    std::unique_lock<std::mutex> admin_lock(*acrd_admin);
     while(true) {
       
-      std::unique_lock<std::mutex> admin_lock(*acrd_admin);
 
       std::shared_ptr<recording_set_state> recstate;
       std::shared_ptr<math_function_execution> func;

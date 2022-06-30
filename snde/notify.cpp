@@ -211,8 +211,8 @@ namespace snde {
       std::lock_guard<std::mutex> rss_admin(rss->admin);
       std::lock_guard<std::mutex> criteria_admin(criteria.admin);
       
-      // check if all recordings are ready;
-      bool all_ready = !rss->recstatus.defined_recordings.size() && !rss->recstatus.instantiated_recordings.size();      
+      // check if all recordings are ready and all math functions are complete
+      bool all_ready = !rss->recstatus.defined_recordings.size() && !rss->recstatus.instantiated_recordings.size() && !rss->mathstatus.pending_functions.size() && !rss->mathstatus.mdonly_pending_functions.size();      
       //printf("cn::all_ready;\n");
       //fflush(stdout);
       
@@ -635,7 +635,8 @@ namespace snde {
 
     //assert(globalrev->ready);
 
-    globalrev->ready = true; 
+    globalrev->ready = true;
+    assert(!globalrev->mathstatus.pending_functions.size());
     globalrev->atomic_prerequisite_state_clear(); // once we are ready, we no longer care about any prerequisite state, so that can be free'd as needed. 
 
 

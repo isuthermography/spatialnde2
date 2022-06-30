@@ -2584,6 +2584,8 @@ namespace snde {
       math_function_status &ucmf_status = new_rss->mathstatus.function_status.at(unchanged_complete_math_function);
       //ucmf_status.mdonly_executed=true;
 
+      ucmf_status.complete = true; // is this correct if we are mdonly??? 
+
       // reference the prior math_function_execution, although it won't be of much use
       snde_debug(SNDE_DC_RECDB,"ucmf: assigning execfunc");
       
@@ -2629,7 +2631,7 @@ namespace snde {
       
       math_function_status &ucmf_status = new_rss->mathstatus.function_status.at(unchanged_complete_math_function);
       
-      ucmf_status.complete = true;
+      ucmf_status.complete = true; // is this correct if we are mdonly??? 
 
       // reference the prior math_function_execution; we may still need to execute past mdonly
       snde_debug(SNDE_DC_RECDB,"ucmfm: assigning execfunc");
@@ -3061,9 +3063,17 @@ namespace snde {
 	std::shared_ptr<math_function_execution> execfunc = new_rss->mathstatus.function_status.at(inst_ptr_dep_set.first).execfunc;
 
 	if (execfunc) {
-	
+	  std::set<std::weak_ptr<recording_set_state>,std::owner_less<std::weak_ptr<recording_set_state>>>::iterator junk_it;
+	  bool did_emplace=false;
+	    
 	  std::lock_guard<std::mutex> ef_admin(execfunc->admin);
-	  execfunc->referencing_rss.emplace(new_rss);
+	  std::tie(junk_it,did_emplace) = execfunc->referencing_rss.emplace(new_rss);
+
+	  if (did_emplace) {
+	    // it's possible that this math function has already completed since we checked above. So add it to need_to_check_if_ready
+	    need_to_check_if_ready.emplace(inst_ptr_dep_set.first);
+	    
+	  }
 	}
       }
     }
