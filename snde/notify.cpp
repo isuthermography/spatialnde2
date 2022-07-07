@@ -243,7 +243,7 @@ namespace snde {
 
     snde_debug(SNDE_DC_NOTIFY,"channel_notify::_check_all_criteria_locked(0x%lx)",(unsigned long)(rss.get()));
     for (auto && md_channelname: criteria.metadataonly_channels) {
-      channel_state & chanstate = rss->recstatus.channel_map.at(md_channelname);
+      channel_state & chanstate = rss->recstatus.channel_map->at(md_channelname);
       
       if (chanstate.recording_is_complete(true)) {
 	if (notifies_already_applied_to_rss) {
@@ -256,7 +256,7 @@ namespace snde {
     }
     
     for (auto && fr_channelname: criteria.fullyready_channels) {
-      channel_state & chanstate = rss->recstatus.channel_map.at(fr_channelname);
+      channel_state & chanstate = rss->recstatus.channel_map->at(fr_channelname);
       
       if (chanstate.recording_is_complete(false)) {
 	if (notifies_already_applied_to_rss) {
@@ -394,7 +394,7 @@ namespace snde {
       
 
       for (auto && md_channelname: criteria.metadataonly_channels) {
-	channel_state & chanstate = rss->recstatus.channel_map.at(md_channelname);
+	channel_state & chanstate = rss->recstatus.channel_map->at(md_channelname);
       
 	std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_metadataonly = chanstate.begin_atomic_notify_about_this_channel_metadataonly_update();	  
 	notify_about_this_channel_metadataonly->emplace(shared_from_this());
@@ -404,7 +404,7 @@ namespace snde {
 
       
       for (auto && fr_channelname: criteria.fullyready_channels) {
-	channel_state & chanstate = rss->recstatus.channel_map.at(fr_channelname);
+	channel_state & chanstate = rss->recstatus.channel_map->at(fr_channelname);
       
 	std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_ready = chanstate.begin_atomic_notify_about_this_channel_ready_update();
 	  
@@ -589,7 +589,7 @@ namespace snde {
 
     std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
     if (recdb_strong) {
-      sg_channelstate.issue_math_notifications(recdb_strong,subsequent_globalrev,current_globalrev);
+      sg_channelstate.issue_math_notifications(recdb_strong,subsequent_globalrev);
     }
   }
 
@@ -636,7 +636,14 @@ namespace snde {
     //assert(globalrev->ready);
 
     globalrev->ready = true;
-    assert(!globalrev->mathstatus.pending_functions.size());
+
+    // Note that this next assert is not actually correct.
+    // We can legitimately get here when the last math function
+    // has marked all its outputs as ready, but before the math
+    // function has exited, which is what would remove it from
+    // pending_functions
+    //assert(!globalrev->mathstatus.pending_functions.size());
+    
     globalrev->atomic_prerequisite_state_clear(); // once we are ready, we no longer care about any prerequisite state, so that can be free'd as needed. 
 
 

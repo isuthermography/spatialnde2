@@ -1,3 +1,16 @@
+// override __setitem__ from std::map definition within Swig's python/std_map.i
+// because otherwise this calls the copy assignment operator on snde::channel_state, which
+// doesn't exist
+//%extend std::map<std::string,snde::channel_state> {
+//  
+//  std::map<std::string,snde::channel_state>(const std::map< std::string,snde::channel_state >  &) = delete; // explicitly delete copy constructor
+//   
+//    void __setitem__(const key_type& key, const mapped_type& x) throw (std::out_of_range) {
+//      throw snde::snde_error("Attempt to modify immutable channel map");
+//    } // This line should generate a warning because it intentionally overrides the definition from std/std_map.i 
+//
+//};
+
 %shared_ptr(snde::recording_base);
 snde_rawaccessible(snde::recording_base);
 %shared_ptr(snde::recording_group);
@@ -28,6 +41,9 @@ snde_rawaccessible(snde::instantiated_math_function);
 snde_rawaccessible(snde::active_transaction);
 %shared_ptr(snde::transaction);
 snde_rawaccessible(snde::transaction);
+//%shared_ptr(std::map<std::string,snde::channel_state>);
+//snde_rawaccessible(std::map<std::string,snde::channel_state>);
+
 
 %{
 #include "snde/recstore.hpp"
@@ -647,11 +663,18 @@ namespace snde {
 
     channel_state(const channel_state &orig); // copy constructor used for initializing channel_map from prototype defined in end_transaction()
 
+    // Copy assignment operator deleted
+    channel_state& operator=(const channel_state &) = delete;
+
+    // default destructor
+    ~channel_state() = default; 
+
+
     std::shared_ptr<recording_base> rec() const;
     //std::shared_ptr<uint64_t> revision() const;
     std::shared_ptr<recording_base> recording_is_complete(bool mdonly); // uses only atomic members so safe to call in all circumstances. Set to mdonly if you only care that the metadata is complete. Normally call recording_is_complete(false). Returns recording pointer if recording is complete to the requested condition, otherwise nullptr. 
     void issue_nonmath_notifications(std::shared_ptr<recording_set_state> rss); // Must be called without anything locked. Issue notifications requested in _notify* and remove those notification requests
-    void issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<recording_set_state> prerequisite_rss); // Must be called without anything locked. Check for any math updates from the new status of this recording
+    void issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss); // Must be called without anything locked. Check for any math updates from the new status of this recording
     
     void end_atomic_rec_update(std::shared_ptr<recording_base> new_recording);
 
@@ -666,10 +689,16 @@ namespace snde {
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_ready();
   };
 
+};
+// Make channel_map type accessible from python (marked as shared_ptr, above)
+//%template(ChannelMap) std::map<std::string,snde::channel_state>;
 
+
+namespace snde {
+  
   class recording_status {
   public:
-    std::map<std::string,channel_state> channel_map; // key is full channel path... The map itself (not the embedded states) is immutable once the recording_set_state is published
+    //std::shared_ptr<std::map<std::string,channel_state>> channel_map; // key is full channel path... The map itself (not the embedded states) is immutable once the recording_set_state is published
     
     /// all of these are indexed by their their full path. Every entry in channel_map should be in exactly one of these. Locked by rss admin mutex per above
     // The index is the shared_ptr in globalrev_channel.config
@@ -1076,6 +1105,13 @@ namespace snde {
 #define create_recording_size_t create_recording
    %}
 
+  // template for one extra recording argument that is an unsigned
+  template <class T>
+    std::shared_ptr<T> create_recording_unsigned(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned);
+  %{
+#define create_recording_unsigned create_recording
+   %}
+
   
     // template for one extra recording argument that is a const vector of string-orientation pairs
   template <class T> 
@@ -1114,6 +1150,7 @@ namespace snde {
   %template(create_null_recording) snde::create_recording_noargs<snde::null_recording>;
   %template(create_recording_group) snde::create_recording_ptr_to_string<snde::recording_group>;
   %template(create_multi_ndarray_recording) snde::create_recording_size_t<snde::multi_ndarray_recording>;
+  %template(create_fusion_ndarray_recording) snde::create_recording_unsigned<snde::fusion_ndarray_recording>;
 
   
 };

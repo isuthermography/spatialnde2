@@ -405,7 +405,7 @@ namespace snde {
     std::string fullpath = recdb_path_join(channel_path_context,channel_name);
     {
       //std::lock_guard<std::mutex> rsslock(rss->admin); // Think this locking is actually unnecessary
-      rec=rss->recstatus.channel_map.at(fullpath).rec();
+      rec=rss->recstatus.channel_map->at(fullpath).rec();
     }
     return rec; 
   }

@@ -39,6 +39,8 @@ namespace snde {
   class compute_code; // defined in recstore.hpp
   class recording_set_state; // defined in recstore.hpp
   class recdatabase; // defined in recstore.hpp
+  class recording_base; // defined in recstore.hpp
+  class channel_state; // defined in recstore.hpp
   class instantiated_math_function; // defined in recmath.hpp
   class executing_math_function; // defined in recmath.hpp
   class math_function_execution; // defined in recmath.hpp

@@ -207,9 +207,15 @@ int main(int argc, char **argv)
   //   return 1;
   //  }
 
-  std::shared_ptr<channelconfig> x3dchan_config = globalrev->recstatus.channel_map.at("/x3d0").config;
-  //std::shared_ptr<channelconfig> x3dchan_config = globalrev->recstatus.channel_map.at("/x3d_meshed0").config;
-  
+  auto x3dchan_it = globalrev->recstatus.channel_map->find("/loaded_x3d/texed");
+  if (x3dchan_it==globalrev->recstatus.channel_map->end()) {
+    x3dchan_it = globalrev->recstatus.channel_map->find("/loaded_x3d/meshed");
+    if (x3dchan_it==globalrev->recstatus.channel_map->end()) {
+      throw snde_error("Did not successfully load textured or meshed part from x3d file");
+    }
+  }
+
+  x3dchan_config = x3dchan_it->second.config;
 
   rendercache = std::make_shared<osg_rendercache>();
   

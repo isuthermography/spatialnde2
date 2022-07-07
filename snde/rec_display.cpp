@@ -394,13 +394,13 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
     //std::vector<std::string>::reverse_iterator cl_next_iter;
     
     //for (auto cl_name_iter=channel_layer_order.rbegin();cl_name_iter != channel_layer_order.rend();cl_name_iter=cl_next_iter) {
-    for (auto channel_map_iter = globalrev_param->recstatus.channel_map.rbegin();channel_map_iter != globalrev_param->recstatus.channel_map.rend();channel_map_iter++) {
+    for (auto channel_map_iter = globalrev_param->recstatus.channel_map->rbegin();channel_map_iter != globalrev_param->recstatus.channel_map->rend();channel_map_iter++) {
       const std::string &cl_name = channel_map_iter->first;
       
       auto ci_iter = channel_info.find(cl_name);
-      //auto reciter = current_globalrev->recstatus.channel_map.find(cl_name);
+      //auto reciter = current_globalrev->recstatus.channel_map->find(cl_name);
 
-      //if (reciter==current_globalrev->recstatus.channel_map.end()) {
+      //if (reciter==current_globalrev->recstatus.channel_map->end()) {
       // // channel is gone; remove from channel_info
       //channel_info.erase(cl_name);
 

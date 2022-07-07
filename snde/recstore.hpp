@@ -876,11 +876,17 @@ namespace snde {
 
     channel_state(const channel_state &orig); // copy constructor used for initializing channel_map from prototype defined in end_transaction()
 
+    // Copy assignment operator deleted
+    channel_state& operator=(const channel_state &) = delete;
+
+    // default destructor
+    ~channel_state() = default; 
+
     std::shared_ptr<recording_base> rec() const;
     std::shared_ptr<uint64_t> revision() const;
     std::shared_ptr<recording_base> recording_is_complete(bool mdonly); // uses only atomic members so safe to call in all circumstances. Set to mdonly if you only care that the metadata is complete. Normally call recording_is_complete(false). Returns recording pointer if recording is complete to the requested condition, otherwise nullptr. 
     void issue_nonmath_notifications(std::shared_ptr<recording_set_state> rss); // Must be called without anything locked. Issue notifications requested in _notify* and remove those notification requests
-    void issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<recording_set_state> prerequisite_state); // Must be called without anything locked. Check for any math updates from the new status of this recording
+    void issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss); // Must be called without anything locked. Check for any math updates from the new status of this recording
     
     void end_atomic_rec_update(std::shared_ptr<recording_base> new_recording); // also updates revision
     void end_atomic_revision_update(uint64_t new_revision);
@@ -899,13 +905,18 @@ namespace snde {
 
   class recording_status {
   public:
-    std::map<std::string,channel_state> channel_map; // key is full channel path... The map itself (not the embedded states) is immutable once the recording_set_state is published
+    std::shared_ptr<std::map<std::string,channel_state>> channel_map; // key is full channel path... The map itself (not the embedded states) is immutable once the recording_set_state is published. The map itself may also outlive the enclosing recording_set_state.
     
     /// all of these are indexed by their their full path. Every entry in channel_map should be in exactly one of these. Locked by rss admin mutex per above
     // The index is the shared_ptr in globalrev_channel.config
     // primary use for these is determining when our globalrev/rss is
     // complete: Once call recordings are in metadataonly or completed,
     // then it should be complete
+    // NOTE: ***!!! This doesn't work as cleanly as we would like because ideally
+    // the channel would move around atomically once instantiated, etc. but that's not
+    // really possible because it would require excessive locking (in math functions the
+    // output can affect multiple RSS's and the timing of when notifications get added is
+    // tricky, so there is catch-up logic in various places). 
     std::unordered_map<std::shared_ptr<channelconfig>,channel_state *> defined_recordings;
     std::unordered_map<std::shared_ptr<channelconfig>,channel_state *> instantiated_recordings;
     std::unordered_map<std::shared_ptr<channelconfig>,channel_state *> metadataonly_recordings; // only move recordings to here if they are mdonly recordings
@@ -1664,7 +1675,7 @@ namespace snde {
     std::shared_ptr<transaction> defining_transact = (std::dynamic_pointer_cast<globalrevision>(calc_rss)) ? (std::dynamic_pointer_cast<globalrevision>(calc_rss)->defining_transact):nullptr;
     uint64_t new_revision=0;
 
-    channel_state &state = calc_rss->recstatus.channel_map.at(chanpath);
+    channel_state &state = calc_rss->recstatus.channel_map->at(chanpath);
     state.updated = true; // mark as updated but ONLY in the RSS of the calculation itself (not in subsequent referencing rss's)
     
     if (std::dynamic_pointer_cast<globalrevision>(calc_rss)) {
