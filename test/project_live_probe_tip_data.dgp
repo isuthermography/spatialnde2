@@ -13,6 +13,7 @@ include(snde,"recdb.dpi",enable_opencl=True)
 include(snde,"recdb_gui.dpi")
 
 specimen_model_file = "Plate_uv.x3d"
+specimen_model_scaling = snde.x3d_texture_scaling(.142478,.14246) # from x3d_estimate_meters_per_texunit.py
 specimen_model_tree = "/graphics/specimen/"
 specimen_pose_channel = "/specimen_pose"
 projection_channel="/graphics/projection"
@@ -32,7 +33,7 @@ transact = recdb.start_transaction()
 
 graphicsgroup = recdb.define_channel("/graphics/","main",recdb.raw(),False,graphman)
 
-plate_recording = snde.x3d_load_geometry(recdb,graphman,specimen_model_file,0,"main",recdb.raw(),specimen_model_tree,None,[ "reindex_vertices","reindex_tex_vertices"] + snde.project_onto_parameterization_processing_tags)
+plate_recording = snde.x3d_load_geometry(recdb,graphman,specimen_model_file,0,"main",recdb.raw(),specimen_model_tree,specimen_model_scaling,[ "reindex_vertices","reindex_tex_vertices"] + snde.project_onto_parameterization_processing_tags)
 
 
 probe_recording = snde.x3d_load_geometry(recdb,graphman,probe_model_file,0,"main",recdb.raw(),probe_model_tree,None,[ "reindex_vertices","reindex_tex_vertices" ])

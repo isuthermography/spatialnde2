@@ -54,7 +54,10 @@ namespace snde {
     double pixelsize_vert;
     double pixels_per_texunit_horiz;
     double pixels_per_texunit_vert;
-    */    
+    */
+
+    x3d_texture_scaling(double meters_per_texunit_horiz, double meters_per_texunit_vert);
+
   };
 
 
