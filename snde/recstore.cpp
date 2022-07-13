@@ -1239,6 +1239,10 @@ namespace snde {
   std::shared_ptr<ndarray_recording_ref> multi_ndarray_recording::reference_ndarray(size_t index)
   {
 
+    if (index >= layouts.size()) {
+      throw snde_error("multi_ndarray_recording::reference_ndarray(): Array index %llu does not exist (size=%llu)",(unsigned long long)index,(unsigned long long)layouts.size());
+    }
+    
     // ***!!! Should look up maker method in a runtime-addable database ***!!!
     std::shared_ptr<ndarray_recording_ref> ref;
     unsigned typenum=mndinfo()->arrays[index].typenum;
@@ -1448,7 +1452,13 @@ namespace snde {
 
   std::shared_ptr<ndarray_recording_ref> multi_ndarray_recording::reference_ndarray(const std::string &array_name)
   {
-    return reference_ndarray(name_mapping.at(array_name));
+    auto name_mapping_it = name_mapping.find(array_name);
+    
+    if (name_mapping_it == name_mapping.end()) {
+      throw snde_error("multi_ndarray_recording::reference_ndarray(): Array name %s does not exist",array_name.c_str());
+    }
+    
+    return reference_ndarray(name_mapping_it->second);
   }
   
 
@@ -1830,6 +1840,12 @@ namespace snde {
   {
     rec->allocate_storage(rec_index,dimlen,fortran_order);
   }
+
+  std::shared_ptr<recording_storage> ndarray_recording_ref::allocate_storage_in_named_array(std::string storage_array_name,const std::vector<snde_index> &dimlen, bool fortran_order)
+  {
+    return rec->allocate_storage_in_named_array(rec_index,storage_array_name,dimlen,fortran_order);
+  }
+
 
   std::shared_ptr<ndarray_recording_ref> ndarray_recording_ref::assign_recording_type(unsigned typenum)
   // returns a new fully-typed reference. 

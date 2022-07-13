@@ -252,6 +252,7 @@ namespace snde {
     // returns the storage in case you want it. 
     
     virtual std::shared_ptr<recording_storage> allocate_storage(size_t array_index,std::vector<snde_index> dimlen, bool fortran_order=false);
+    virtual std::shared_ptr<recording_storage> allocate_storage_in_named_array(size_t array_index,std::string storage_array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
     virtual std::shared_ptr<recording_storage> allocate_storage(std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
 
     // alternative to allocating storage: Referencing an existing recording
@@ -319,6 +320,9 @@ namespace snde {
 
     virtual void allocate_storage(std::vector<snde_index> dimlen);
     virtual void allocate_storage(std::vector<snde_index> dimlen, bool fortran_order);
+    virtual std::shared_ptr<recording_storage> allocate_storage_in_named_array(std::string storage_array_name,const std::vector<snde_index> &dimlen);
+    virtual std::shared_ptr<recording_storage> allocate_storage_in_named_array(std::string storage_array_name,const std::vector<snde_index> &dimlen, bool fortran_order);
+
 
     
     inline snde_multi_ndarray_recording *mndinfo() {return (snde_multi_ndarray_recording *)rec->info;}

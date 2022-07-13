@@ -572,6 +572,7 @@ namespace snde {
     virtual ~ndarray_recording_ref();
 
     virtual void allocate_storage(std::vector<snde_index> dimlen, bool fortran_order=false);
+    virtual std::shared_ptr<recording_storage> allocate_storage_in_named_array(std::string storage_array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
 
     
     inline snde_multi_ndarray_recording *mndinfo() {return (snde_multi_ndarray_recording *)rec->info;}
