@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); 
   
   std::shared_ptr<snde::channel> testchan = recdb->define_channel("/test channel", "main", (void *)recdb.get());
-  std::shared_ptr<snde::ndarray_recording_ref> test_ref = snde::create_recording_ref(recdb,testchan,(void *)recdb.get(),SNDE_RTN_FLOAT32);
+  std::shared_ptr<snde::ndarray_recording_ref> test_ref = snde::create_ndarray_ref(recdb,testchan,(void *)recdb.get(),SNDE_RTN_FLOAT32);
   std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
 
   std::shared_ptr<snde::constructible_metadata> test_rec_metadata = std::make_shared<snde::constructible_metadata>();

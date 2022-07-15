@@ -309,8 +309,8 @@ namespace snde {
     // e.g. finishing a synchronous process such as a render.
 
     // This constructor is to be called via create_recording<>() or create_recording_math<>
-    // or create_recording_ref() or create_recording_ref_math(),
-    // or create_typed_recording_ref<>() or create_typed_recording_ref_math<>().
+    // or create_ndarray_ref() or create_ndarray_ref_math(),
+    // or create_typed_ndarray_ref<>() or create_typed_ndarray_ref_math<>().
     
     //  * Should be called by the owner of the given channel, as verified by owner_id
     //  * Should be called within a transaction (i.e. the recdb transaction_lock is held by the existance of the transaction) or part of a math calculation
@@ -1712,7 +1712,7 @@ namespace snde {
   
   // for non math-functions operating in a transaction
   template <typename T>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum=rtn_typemap.at(typeid(T)))
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum=rtn_typemap.at(typeid(T)))
   {
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
@@ -1723,7 +1723,7 @@ namespace snde {
   }
 
     template <typename T>
-    std::shared_ptr<ndtyped_recording_ref<T>> create_typed_named_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string arrayname,unsigned typenum=rtn_typemap.at(typeid(T)))
+    std::shared_ptr<ndtyped_recording_ref<T>> create_typed_named_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string arrayname,unsigned typenum=rtn_typemap.at(typeid(T)))
   {
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
@@ -1735,7 +1735,7 @@ namespace snde {
 
   
   template <typename S,typename T,typename ... Args>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_subclass_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,Args && ... args)
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_subclass_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,Args && ... args)
   {
 
     unsigned typenum=rtn_typemap.at(typeid(T));
@@ -1750,7 +1750,7 @@ namespace snde {
 
 
   template <typename T>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum=rtn_typemap.at(typeid(T))) // purpose is used for naming the shared memory objects used for the underlying storage
+  std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum=rtn_typemap.at(typeid(T))) // purpose is used for naming the shared memory objects used for the underlying storage
   {
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
@@ -1761,7 +1761,7 @@ namespace snde {
   }
 
   template <typename T>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_named_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,std::string arrayname, unsigned typenum=rtn_typemap.at(typeid(T))) // purpose is used for naming the shared memory objects used for the underlying storage
+  std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_named_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,std::string arrayname, unsigned typenum=rtn_typemap.at(typeid(T))) // purpose is used for naming the shared memory objects used for the underlying storage
   {
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
@@ -1773,7 +1773,7 @@ namespace snde {
 
   
   template <typename S,typename T,typename ... Args>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_subclass_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,Args && ... args) // purpose is used for naming shared memory objects
+  std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_subclass_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,Args && ... args) // purpose is used for naming shared memory objects
   {
     unsigned typenum=rtn_typemap.at(typeid(T));
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
@@ -1788,7 +1788,7 @@ namespace snde {
   
   // for math_recordings_only (no transaction)
   template <typename T>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum=rtn_typemap.at(typeid(T)))
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_ndarray_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum=rtn_typemap.at(typeid(T)))
   {
     std::shared_ptr<recdatabase> recdb = calc_rss->recdb_weak.lock();
     if (!recdb) return nullptr;
@@ -1801,7 +1801,7 @@ namespace snde {
 
   // for math_recordings_only (no transaction)
   template <typename T>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_named_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,std::string arrayname,unsigned typenum=rtn_typemap.at(typeid(T)))
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_named_ndarray_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,std::string arrayname,unsigned typenum=rtn_typemap.at(typeid(T)))
   {
     std::shared_ptr<recdatabase> recdb = calc_rss->recdb_weak.lock();
     if (!recdb) return nullptr;
@@ -1814,7 +1814,7 @@ namespace snde {
 
   
   template <typename S,typename T,typename ... Args>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_subclass_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,Args && ... args)
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_subclass_ndarray_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,Args && ... args)
   {
     unsigned typenum=rtn_typemap.at(typeid(T));
     std::shared_ptr<recdatabase> recdb = calc_rss->recdb_weak.lock();
@@ -1830,12 +1830,12 @@ namespace snde {
   // static factory methods for creating recordings with single runtime-determined types
   // for regular (non-math) use. Automatically registers the new recording
   // ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
-  std::shared_ptr<ndarray_recording_ref> create_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
+  std::shared_ptr<ndarray_recording_ref> create_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
 
-  std::shared_ptr<ndarray_recording_ref> create_named_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string arrayname,unsigned typenum);
+  std::shared_ptr<ndarray_recording_ref> create_named_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string arrayname,unsigned typenum);
 
   template <typename S,typename ... Args> 
-  std::shared_ptr<ndarray_recording_ref> create_subclass_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum,Args && ... args)
+  std::shared_ptr<ndarray_recording_ref> create_subclass_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum,Args && ... args)
   {
     std::shared_ptr<multi_ndarray_recording> rec;
     std::shared_ptr<ndarray_recording_ref> ref;
@@ -1849,12 +1849,12 @@ namespace snde {
     return ref;
   }
   
-  std::shared_ptr<ndarray_recording_ref> create_anonymous_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum); // purpose is used for naming shared memory objects
+  std::shared_ptr<ndarray_recording_ref> create_anonymous_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum); // purpose is used for naming shared memory objects
 
-  std::shared_ptr<ndarray_recording_ref> create_anonymous_named_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,std::string arrayname,unsigned typenum); // purpose is used for naming shared memory objects
+  std::shared_ptr<ndarray_recording_ref> create_anonymous_named_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,std::string arrayname,unsigned typenum); // purpose is used for naming shared memory objects
 
   template <typename S,typename ... Args> 
-  std::shared_ptr<ndarray_recording_ref> create_anonymous_subclass_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum, Args && ... args) // purpose is used for naming shared memory objects
+  std::shared_ptr<ndarray_recording_ref> create_anonymous_subclass_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum, Args && ... args) // purpose is used for naming shared memory objects
   {
     std::shared_ptr<multi_ndarray_recording> rec;
     std::shared_ptr<ndarray_recording_ref> ref;
@@ -1869,13 +1869,13 @@ namespace snde {
 
   }
 
-  std::shared_ptr<ndarray_recording_ref> create_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
+  std::shared_ptr<ndarray_recording_ref> create_ndarray_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
 
-  std::shared_ptr<ndarray_recording_ref> create_named_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,std::string arrayname,unsigned typenum); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
+  std::shared_ptr<ndarray_recording_ref> create_named_ndarray_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,std::string arrayname,unsigned typenum); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
 
   
   template <typename S,typename ... Args>
-  std::shared_ptr<ndarray_recording_ref> create_subclass_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum,Args && ... args) // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
+  std::shared_ptr<ndarray_recording_ref> create_subclass_ndarray_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum,Args && ... args) // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
   {
     std::shared_ptr<multi_ndarray_recording> rec;
     std::shared_ptr<ndarray_recording_ref> ref;

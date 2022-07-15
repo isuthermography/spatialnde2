@@ -330,9 +330,9 @@ namespace snde {
     return std::dynamic_pointer_cast<pose_channel_recording>(rec);
   }
 
-  std::shared_ptr<ndarray_recording_ref> create_pose_channel_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string channel_to_reorient_name)
+  std::shared_ptr<ndarray_recording_ref> create_pose_channel_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string channel_to_reorient_name)
   {
-    return create_subclass_recording_ref<pose_channel_recording>(recdb,chan,owner_id,SNDE_RTN_SNDE_ORIENTATION3,channel_to_reorient_name);
+    return create_subclass_ndarray_ref<pose_channel_recording>(recdb,chan,owner_id,SNDE_RTN_SNDE_ORIENTATION3,channel_to_reorient_name);
   }
 
   
