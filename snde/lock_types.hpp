@@ -459,8 +459,15 @@ namespace snde {
 
     std::mutex mio_lock;
     std::condition_variable mio_cond;
+
+    movable_mutex() :
+      mutex_is_owned(false)
+    {
+
+    }
     
-    void lock() {
+    void lock()
+    {
       std::unique_lock<std::mutex> mio_lock_holder(mio_lock);
       
       mio_cond.wait(mio_lock_holder,[ this ] {return !mutex_is_owned;});
@@ -468,7 +475,8 @@ namespace snde {
       mutex_is_owned = true; 
     }
 
-    void unlock() {
+    void unlock()
+    {
       std::lock_guard<std::mutex> mio_lock_holder(mio_lock);
       assert(mutex_is_owned);
       mutex_is_owned = false;
