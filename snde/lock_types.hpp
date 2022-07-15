@@ -449,6 +449,34 @@ namespace snde {
     return copy;
   }
 
+
+  class movable_mutex {
+    // This class acts like a mutex, but once locked
+    // can be unlocked from another thread without an error
+    // meets the BasicLockable named requirement
+  public:
+    bool mutex_is_owned;
+
+    std::mutex mio_lock;
+    std::condition_variable mio_cond;
+    
+    void lock() {
+      std::unique_lock<std::mutex> mio_lock_holder(mio_lock);
+      
+      mio_cond.wait(mio_lock_holder,[ this ] {return !mutex_is_owned;});
+
+      mutex_is_owned = true; 
+    }
+
+    void unlock() {
+      std::lock_guard<std::mutex> mio_lock_holder(mio_lock);
+      assert(mutex_is_owned);
+      mutex_is_owned = false;
+
+      mio_cond.notify_all();
+    }
+  };
+  
 };
 
 #endif /* LOCK_TYPES_HPP */

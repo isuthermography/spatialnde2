@@ -758,7 +758,7 @@ namespace snde {
     // transaction and then reacquire after you have the
     // transaction lock.
   public:
-    std::unique_lock<std::mutex> transaction_lock_holder;
+    std::unique_lock<movable_mutex> transaction_lock_holder;
     std::weak_ptr<recdatabase> recdb;
     std::shared_ptr<globalrevision> previous_globalrev;
     bool transaction_ended;
@@ -1085,7 +1085,9 @@ namespace snde {
 
     std::atomic<bool> started;
 
-    std::mutex transaction_lock; // ***!!! Before any dataguzzler-python module context locks, etc. Before the recdb admin lock
+    // transaction_lock is a movable_mutex so we have the freedom to unlock
+    // it from a different thread than we used to lock it.
+    movable_mutex transaction_lock; // ***!!! Before any dataguzzler-python module context locks, etc. Before the recdb admin lock
     std::shared_ptr<transaction> current_transaction; // only valid while transaction_lock is held. But changing/accessing also requires the recdb admin lock
 
 

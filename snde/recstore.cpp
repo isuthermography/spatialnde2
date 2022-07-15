@@ -2062,7 +2062,7 @@ namespace snde {
     recdb(recdb),
     transaction_ended(false)
   {
-    std::unique_lock<std::mutex> tr_lock_acquire(recdb->transaction_lock);;
+    std::unique_lock<movable_mutex> tr_lock_acquire(recdb->transaction_lock);;
 
     tr_lock_acquire.swap(transaction_lock_holder); // transfer lock into holder
     //recdb->_transaction_raii_holder=shared_from_this();
