@@ -76,7 +76,6 @@ namespace snde {
 #define SNDE_SRG_POINTCLOUDCOLORMAP "SNDE_SRG_POINTCLOUDCOLORMAP" // goal is to render a point cloud colormap
 
 #define SNDE_SRG_PHASEPLANE "SNDE_SRG_PHASEPLANE" // goal is to render a phase plane diagram
-
 #define SNDE_SRG_PHASEPLANE_LINE_TRIANGLE_VERTICES_ALPHAS "SNDE_SRG_PHASEPLANE_LINE_TRIANGLE_VERTICES_ALPHAS"
   
   //#define SNDE_SRG_CLASSSPECIFIC 1006 // render in a way that is specific to the particular recording_type indexed in the rendermode
