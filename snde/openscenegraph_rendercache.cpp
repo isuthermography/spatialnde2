@@ -976,7 +976,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       // std::shared_ptr<osg_cachedcoloredtransparentlines> coloredtransparentlines; (included in class definition)
       coloredtransparentlines = std::dynamic_pointer_cast<osg_cachedcoloredtransparentlines>(raw_entry);
       if (!coloredtransparentlines) {
-          throw snde_error("osg_cachedwaveform: Unable to get colored transparent lines cache entry for %s", display_req->sub_requirements.at(0)->renderable_channelpath->c_str());
+          throw snde_error("osg_cachedwaveform: Unable to get colored transparent lines cache entry for %s", display_req->renderable_channelpath->c_str());
       }
 
 

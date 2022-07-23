@@ -728,6 +728,9 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
     return nullptr;
   } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && NDim==1) {
+
+      /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     // goal is to render 1D recording
 
       std::shared_ptr<display_spatial_position> posn;
@@ -749,19 +752,23 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
           DC_ColorIdx = displaychan->ColorIdx;
 
           std::shared_ptr<display_axis> a = display->GetAmplAxisLocked(chanpath);
+          std::shared_ptr<display_axis> t = display->GetFirstAxisLocked(chanpath);
 
           double xcenter;
           double xunitscale;
           double yunitscale;
           {
-              std::lock_guard<std::mutex> axisadminlock(a->admin);
+              std::lock_guard<std::mutex> axisadminlocka(a->admin);
+              std::lock_guard<std::mutex> axisadminlockt(t->admin);
               xcenter = a->CenterCoord; /* in units */
 
-              std::shared_ptr<display_unit> u = a->unit;
-              std::lock_guard<std::mutex> unitadminlock(u->admin);
+              std::shared_ptr<display_unit> u = t->unit;
+              std::shared_ptr<display_unit> v = a->unit;
+              std::lock_guard<std::mutex> unitadminlocku(u->admin);
+              std::lock_guard<std::mutex> unitadminlockv(v->admin);
 
               xunitscale = u->scale;
-              yunitscale = u->scale;
+              yunitscale = v->scale;
           }
 
 
@@ -800,12 +807,14 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
           return nullptr;
       }
 
-      retval = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_COLOREDTRANSPARENTLINES, typeid(*this), color_renderparams), rec, shared_from_this()); // display_requirement
+      retval = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_WAVEFORM, typeid(*this), color_renderparams), rec, shared_from_this()); // display_requirement
       retval->renderer_type = SNDE_DRRT_2D;
 
       retval->spatial_position = posn;
       retval->spatial_transform = xform;
       retval->spatial_bounds = bounds;
+
+      std::shared_ptr<snde::display_requirement> subreq = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_COLOREDTRANSPARENTLINES, typeid(*this), color_renderparams), rec, shared_from_this());
 
       std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_available_math_function("spatialnde2.waveform_line_triangle_vertices_alphas")->instantiate({
       std::make_shared<math_parameter_recording>(chanpath),
@@ -827,12 +836,14 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 
       
 
-      retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
-      retval->renderable_function = renderable_function;
+      subreq->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
+      subreq->renderable_function = renderable_function;
+
+      retval->sub_requirements.push_back(subreq);
 
       return retval;
 
-
+      /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
 
