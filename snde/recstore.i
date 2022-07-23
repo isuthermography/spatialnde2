@@ -68,6 +68,7 @@ namespace snde {
   class instantiated_math_function;
   class math_definition;
   class image_reference;
+  class recording_class_info;
 
   class channel_notify; // from notify.hpp
   class repetitive_channel_notify; // from notify.hpp
@@ -96,7 +97,32 @@ namespace snde {
   //%typecheck(SWIG_TYPECHECK_POINTER) (std::shared_ptr<lockmanager>) {
   //  $1 = SWIG_CheckState(SWIG_ConvertPtr($input, 0, SWIGTYPE_p_std__shared_ptrT_snde__lockmanager_t, 0));
   //}
-  
+
+  // output typemap for rec_classes
+  %typemap(out) std::vector<recording_class_info> (size_t cnt){
+    $result = PyList_New($1.size());
+    for (cnt=0;cnt < $1.size();cnt++) {
+      PyList_SetItem($result,(Py_ssize_t)cnt,PyUnicode_FromString($1.at(cnt).c_str()));
+    }    
+  }
+
+  // downcasting typemap for recording_base
+  %typemap(out) std::shared_ptr<recording_base> (int derivation_level){
+
+    // try classes from deepest to shallowest until we find something SWIG-wrapped
+    for (derivation_level = ((int)$1->rec_classes.size())-1;derivation_level >= 0; derivation_level--) {
+      const snde::recording_class_info &classinfo = $1->rec_classes.at(derivation_level);
+      const std::string swig_typename = std::string("std::shared_ptr <")+classinfo.classname+std::string("> *");
+      swig_type_info *const rettype = SWIG_TypeQuery(swig_typename.c_str());
+      if (rettype) {
+	void *smartresult = classinfo.ptr_to_new_shared($1);
+	$result = SWIG_NewPointerObj(smartresult, rettype, SWIG_POINTER_OWN);
+	break;
+      } else {
+	snde::snde_warning("recording_base output typemap: typequery for %s failed.",swig_typename.c_str());
+      }
+    }    
+  }
 
   std::shared_ptr<recording_storage_manager> select_storage_manager_for_recording_during_transaction(std::shared_ptr<recdatabase> recdb,std::string chanpath);
 
@@ -115,6 +141,9 @@ namespace snde {
     %immutable;
     /*std::atomic_int*/ int info_state; // atomic mirror of info->state
     %mutable;
+
+    std::vector<recording_class_info> rec_classes; // ordered inheritance: First entry is recording_base, then subclasses in order. Must be filled out by constructors then immutable after that.
+
     std::shared_ptr<constructible_metadata> pending_metadata; 
     std::shared_ptr<immutable_metadata> metadata; // pointer may not be changed once info_state reaches METADATADONE. The pointer in info is the .get() value of this pointer. 
 

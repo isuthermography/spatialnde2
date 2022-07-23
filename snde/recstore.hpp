@@ -271,6 +271,28 @@ namespace snde {
 
   std::shared_ptr<recording_storage_manager> select_storage_manager_for_recording(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> rss);
 
+  template <typename T>
+  void *ptr_to_new_shared_impl(std::shared_ptr<recording_base> baseptr)
+  {
+    std::shared_ptr<T> *new_shared_ptr = new std::shared_ptr<T>(std::dynamic_pointer_cast<T>(baseptr));
+
+    return const_cast<void *>(static_cast<const void *>(new_shared_ptr)); // like SWIG_as_voidptr
+  }
+
+  class recording_class_info {
+  public:
+    std::string classname;
+    std::type_index index;
+    std::function<void *(std::shared_ptr<recording_base> baseptr)> ptr_to_new_shared; // used for SWIG downcasting
+    
+    recording_class_info(std::string classname,std::type_index index,std::function<void *(std::shared_ptr<recording_base> baseptr)> ptr_to_new_shared) :
+      classname(classname),
+      index(index),
+      ptr_to_new_shared(ptr_to_new_shared)
+    {
+
+    }
+  };
   
   class recording_base: public std::enable_shared_from_this<recording_base>  {
     // may be subclassed by creator
@@ -280,9 +302,14 @@ namespace snde {
     // you are single threaded and the information you are writing is for a subsequent state (info->state/info_state);
     // last lock in the locking order except for Python GIL
   public:
-    std::mutex admin; 
+    std::mutex admin;
+    
     struct snde_recording_base *info; // owned by this class and allocated with malloc; often actually a sublcass such as snde_multi_ndarray_recording
     std::atomic_int info_state; // atomic mirror of info->state ***!!! This is referenced by the ndarray_recording_ref->info_state
+
+    // class inheritance info (managed by constructors of this and derived classes)
+    std::vector<recording_class_info> rec_classes; // ordered inheritance: First entry is recording_base, then subclasses in order. Must be filled out by constructors then immutable after that.
+    
     std::shared_ptr<constructible_metadata> pending_metadata; 
     std::shared_ptr<immutable_metadata> metadata; // pointer may not be changed once info_state ALLMETADATAREADY flag set. The pointer in info is the .get() value of this pointer. This is really the only metadata field that matters, and it is build from the combination of metadata, pending_metadata, and pending_dynamic_metadata in _merge_static_and_dynamic_metadata_admin_locked()
 

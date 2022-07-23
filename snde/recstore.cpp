@@ -373,6 +373,8 @@ namespace snde {
         .immutable = true,
     };
     *info = info_prototype;
+
+    rec_classes.push_back(recording_class_info("snde::recording_base",typeid(recording_base),ptr_to_new_shared_impl<recording_base>));
     
   }
 
@@ -1029,7 +1031,9 @@ namespace snde {
   null_recording::null_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize/*=0*/) :
     recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,recording_default_info_structsize(info_structsize,sizeof(snde_recording_base)))
   {
-    
+    rec_classes.push_back(recording_class_info("snde::null_recording",typeid(null_recording),ptr_to_new_shared_impl<null_recording>));
+
+
   }
   
 
@@ -1037,6 +1041,9 @@ namespace snde {
     recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,recording_default_info_structsize(info_structsize,sizeof(snde_recording_base))),
     path_to_primary(path_to_primary)
   {
+    rec_classes.push_back(recording_class_info("snde::recording_group",typeid(recording_group),ptr_to_new_shared_impl<recording_group>));
+
+
     if (!chanpath.size() || chanpath.at(chanpath.size()-1) != '/') {
       throw snde_error("Recording group %s does not end with a trailing slash",chanpath.c_str());
     }
@@ -1050,6 +1057,8 @@ namespace snde {
     layouts(std::vector<arraylayout>(num_ndarrays)),
     storage(std::vector<std::shared_ptr<recording_storage>>(num_ndarrays))
   {
+    rec_classes.push_back(recording_class_info("snde::multi_ndarray_recording",typeid(multi_ndarray_recording),ptr_to_new_shared_impl<multi_ndarray_recording>));
+
 
     mndinfo()->dims_valid=false;
     mndinfo()->data_valid=false;
@@ -1946,6 +1955,7 @@ namespace snde {
     multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,2 /* 2 ndarrays */)
     
   {
+    rec_classes.push_back(recording_class_info("snde::fusion_ndarray_recording",typeid(fusion_ndarray_recording),ptr_to_new_shared_impl<fusion_ndarray_recording>));
     
     define_array(0,typenum,"accumulator");
 
