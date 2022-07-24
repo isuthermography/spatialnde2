@@ -748,7 +748,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
           // this is interpreted by qtrecviewer for how the controls should work
           // as distinct from renderer_type in display_requirement, which is used to select the actual renderer.
           // Should these be unified somehow? 
-          displaychan->render_mode = SNDE_DCRM_PHASEPLANE;
+          displaychan->render_mode = SNDE_DCRM_WAVEFORM;
           DC_ColorIdx = displaychan->ColorIdx;
 
           std::shared_ptr<display_axis> a = display->GetAmplAxisLocked(chanpath);
@@ -760,7 +760,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
           {
               std::lock_guard<std::mutex> axisadminlocka(a->admin);
               std::lock_guard<std::mutex> axisadminlockt(t->admin);
-              xcenter = a->CenterCoord; /* in units */
+              xcenter = t->CenterCoord; /* in units */
 
               std::shared_ptr<display_unit> u = t->unit;
               std::shared_ptr<display_unit> v = a->unit;

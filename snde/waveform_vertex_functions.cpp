@@ -256,7 +256,7 @@ namespace snde {
 						}
 						else {
 #endif // SNDE_OPENCL
-							snde_warning("Performing waveform vertex calculation on CPU. ");
+							//snde_warning("Performing waveform vertex calculation on CPU. ");
 
 							T previous_value = 0.0;
 
