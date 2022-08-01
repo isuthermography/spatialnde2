@@ -1037,9 +1037,9 @@ namespace snde {
   }
   
 
-  recording_group::recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::shared_ptr<std::string> path_to_primary) :
-    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,recording_default_info_structsize(info_structsize,sizeof(snde_recording_base))),
-    path_to_primary(path_to_primary)
+  recording_group::recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize/*,std::shared_ptr<std::string> path_to_primary*/) :
+    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,recording_default_info_structsize(info_structsize,sizeof(snde_recording_base))) //,
+    //path_to_primary(path_to_primary)
   {
     rec_classes.push_back(recording_class_info("snde::recording_group",typeid(recording_group),ptr_to_new_shared_impl<recording_group>));
 

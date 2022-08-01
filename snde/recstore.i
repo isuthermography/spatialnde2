@@ -221,10 +221,10 @@ namespace snde {
     // group name (including trailing slash) and iterating forward until
     // you get an entry not within the group. 
 
-    std::shared_ptr<std::string> path_to_primary; // nullptr or the path (generally relative to this group) to the primary content of the group, which should be displayed when the user asks to view the content represented by the group. 
+    //std::shared_ptr<std::string> path_to_primary; // nullptr or the path (generally relative to this group) to the primary content of the group, which should be displayed when the user asks to view the content represented by the group. 
 
 
-    recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::shared_ptr<std::string> path_to_primary);
+    recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize); // ,std::shared_ptr<std::string> path_to_primary);
     
     
     // rule of 3
@@ -1186,7 +1186,8 @@ namespace snde {
 
   
   %template(create_null_recording) snde::create_recording_noargs<snde::null_recording>;
-  %template(create_recording_group) snde::create_recording_ptr_to_string<snde::recording_group>;
+  //%template(create_recording_group) snde::create_recording_ptr_to_string<snde::recording_group>;
+  %template(create_recording_group) snde::create_recording_noargs<snde::recording_group>;
   %template(create_multi_ndarray_recording) snde::create_recording_size_t<snde::multi_ndarray_recording>;
   %template(create_fusion_ndarray_recording) snde::create_recording_unsigned<snde::fusion_ndarray_recording>;
 
