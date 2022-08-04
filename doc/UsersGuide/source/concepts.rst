@@ -48,7 +48,7 @@ Recording Database
 ------------------
 
 The recording database holds information about versioned collections
-of recordings in *channels*. The recording database keep tracks of how
+of recordings in *channels*. The recording database keeps track of how
 the channel contents are updated (*globalrevisions*). All updates are
 performed via *transactions*. The recording database is implemented in
 the ``recdatabase`` class that is usually stored as a shared pointer
@@ -143,6 +143,18 @@ The ``multi_ndarray_recording`` has C++ STL vector members ``layouts`` and
 ``storage`` representing the memory layout and underlying memory storage
 for each n-dimensional array. An optional set of ``name_mapping`` and ``name_reverse_mapping`` hash tables can be used to define names for the contained
 n-dimensional arrays rather than just using indices. 
+
+One subclass of the ``multi_ndarray_recording`` is the ``fusion_ndarray_recording``. 
+This subclass is meant to represent the circumstance where the meaningful value is
+represented as a weighted average: ``(sum_i value_i*weight_i)/(sum_i weight_i)``.
+The ``"accumulator"`` array represents ``sum_i value_i*weight_i``
+and the ``"totals"`` array represents ``sum_i weight_i``.
+This recording class can be used for projecting 2-dimensional data onto the surface of 
+a 3-dimensional object, and consists of two components.  The first ``ndarray_recording_ref``
+(index 0) is the ``accumulator`` channel and is a complex64-typed numpy array.  The 
+second reference (index 1) is the ``totals`` channel of numpy float32 datatype.  These channels are represented
+within SNDE datatypes as ``SNDE_COMPLEXFLOAT32`` and ``SNDE_FLOAT32``, respectively.
+ 
 
 For access by C code, the ``info`` member of a
 ``multi_ndarray_recording`` points to an extended C structure ``struct

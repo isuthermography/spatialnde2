@@ -576,5 +576,23 @@ scripted from Python such as when using Dataguzzler-Python.
     that owns the mutex. A deadlock is almost certainly a locking order
     violation. The `gdb-automatic-deadlock-detector <https://github.com/DamZiobro/gdb-automatic-deadlock-detector>`_ automates deadlock detection
     using GDB and Python.
+
+Startup error common fixes:
+
+* Is the correct (anaconda) terminal open?
+* Have dataguzzler-python and SNDE been installed and loaded?
+* If changes have been made, have they been saved before re-running the dataguzzler-python file?
+
+Common mistakes with storing data into recordings:
+
+* Has the program been told to start and end the transaction at the appropriate time?
+* When a new recording is created, have the correct recording and datatypes been assigned?
+* Is the data being loaded into the correct channel
+* If your script is unable to access a recording from the latest globalrevision data from a previous section of the script, was wait_complete used within that transaction to make sure the data allocation was finished before pulling the data from the latest globalrevision?
+
+
+
+
+
     
   
