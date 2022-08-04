@@ -373,6 +373,8 @@ namespace snde {
         .immutable = true,
     };
     *info = info_prototype;
+
+    rec_classes.push_back(recording_class_info("snde::recording_base",typeid(recording_base),ptr_to_new_shared_impl<recording_base>));
     
   }
 
@@ -1029,14 +1031,19 @@ namespace snde {
   null_recording::null_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize/*=0*/) :
     recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,recording_default_info_structsize(info_structsize,sizeof(snde_recording_base)))
   {
-    
+    rec_classes.push_back(recording_class_info("snde::null_recording",typeid(null_recording),ptr_to_new_shared_impl<null_recording>));
+
+
   }
   
 
-  recording_group::recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::shared_ptr<std::string> path_to_primary) :
-    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,recording_default_info_structsize(info_structsize,sizeof(snde_recording_base))),
-    path_to_primary(path_to_primary)
+  recording_group::recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize/*,std::shared_ptr<std::string> path_to_primary*/) :
+    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,recording_default_info_structsize(info_structsize,sizeof(snde_recording_base))) //,
+    //path_to_primary(path_to_primary)
   {
+    rec_classes.push_back(recording_class_info("snde::recording_group",typeid(recording_group),ptr_to_new_shared_impl<recording_group>));
+
+
     if (!chanpath.size() || chanpath.at(chanpath.size()-1) != '/') {
       throw snde_error("Recording group %s does not end with a trailing slash",chanpath.c_str());
     }
@@ -1050,6 +1057,8 @@ namespace snde {
     layouts(std::vector<arraylayout>(num_ndarrays)),
     storage(std::vector<std::shared_ptr<recording_storage>>(num_ndarrays))
   {
+    rec_classes.push_back(recording_class_info("snde::multi_ndarray_recording",typeid(multi_ndarray_recording),ptr_to_new_shared_impl<multi_ndarray_recording>));
+
 
     mndinfo()->dims_valid=false;
     mndinfo()->data_valid=false;
@@ -1946,6 +1955,7 @@ namespace snde {
     multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,2 /* 2 ndarrays */)
     
   {
+    rec_classes.push_back(recording_class_info("snde::fusion_ndarray_recording",typeid(fusion_ndarray_recording),ptr_to_new_shared_impl<fusion_ndarray_recording>));
     
     define_array(0,typenum,"accumulator");
 
@@ -2062,7 +2072,7 @@ namespace snde {
     recdb(recdb),
     transaction_ended(false)
   {
-    std::unique_lock<std::mutex> tr_lock_acquire(recdb->transaction_lock);;
+    std::unique_lock<movable_mutex> tr_lock_acquire(recdb->transaction_lock);;
 
     tr_lock_acquire.swap(transaction_lock_holder); // transfer lock into holder
     //recdb->_transaction_raii_holder=shared_from_this();
@@ -3410,7 +3420,7 @@ namespace snde {
 	// new recording should be required but not present; create one
 	assert(recdb_strong->current_transaction->new_recording_required.at(config->channelpath) && new_recording_it==recdb_strong->current_transaction->new_recordings.end());
 	//new_rec = std::make_shared<recording_base>(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32); // constructor adds itself to current transaction
-	//new_rec_ref = create_recording_ref(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32);
+	//new_rec_ref = create_ndarray_ref(recdb_strong,updated_chan,config->owner_id,SNDE_RTN_FLOAT32);
 	new_rec = std::make_shared<null_recording>(recdb_strong,select_storage_manager_for_recording_during_transaction(recdb_strong,config->channelpath.c_str()),recdb_strong->current_transaction,config->channelpath,globalrev,++updated_chan->latest_revision);
 	//recordings_needing_finalization.emplace(new_rec); // Since we provided this, we need to make it ready, below
 	
@@ -5173,7 +5183,7 @@ namespace snde {
     return param;
   }
 
-  std::shared_ptr<ndarray_recording_ref> create_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum)
+  std::shared_ptr<ndarray_recording_ref> create_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum)
   {
     std::shared_ptr<multi_ndarray_recording> rec;
     std::shared_ptr<ndarray_recording_ref> ref;
@@ -5187,7 +5197,7 @@ namespace snde {
     return ref;
   }
 
-  std::shared_ptr<ndarray_recording_ref> create_named_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string arrayname,unsigned typenum)
+  std::shared_ptr<ndarray_recording_ref> create_named_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string arrayname,unsigned typenum)
   {
     std::shared_ptr<multi_ndarray_recording> rec;
     std::shared_ptr<ndarray_recording_ref> ref;
@@ -5201,7 +5211,7 @@ namespace snde {
     return ref;
   }
 
-  std::shared_ptr<ndarray_recording_ref> create_anonymous_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum)
+  std::shared_ptr<ndarray_recording_ref> create_anonymous_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum)
   {
     std::shared_ptr<multi_ndarray_recording> rec;
     std::shared_ptr<ndarray_recording_ref> ref;
@@ -5217,7 +5227,7 @@ namespace snde {
   }
 
 
-  std::shared_ptr<ndarray_recording_ref> create_anonymous_named_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,std::string arrayname,unsigned typenum)
+  std::shared_ptr<ndarray_recording_ref> create_anonymous_named_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,std::string arrayname,unsigned typenum)
   {
     std::shared_ptr<multi_ndarray_recording> rec;
     std::shared_ptr<ndarray_recording_ref> ref;
@@ -5233,7 +5243,7 @@ namespace snde {
   }
 
   
-  std::shared_ptr<ndarray_recording_ref> create_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum)
+  std::shared_ptr<ndarray_recording_ref> create_ndarray_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum)
   {
     std::shared_ptr<multi_ndarray_recording> rec;
     std::shared_ptr<ndarray_recording_ref> ref;
@@ -5250,7 +5260,7 @@ namespace snde {
   }
 
 
-  std::shared_ptr<ndarray_recording_ref> create_named_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,std::string arrayname,unsigned typenum)
+  std::shared_ptr<ndarray_recording_ref> create_named_ndarray_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,std::string arrayname,unsigned typenum)
   {
     std::shared_ptr<multi_ndarray_recording> rec;
     std::shared_ptr<ndarray_recording_ref> ref;

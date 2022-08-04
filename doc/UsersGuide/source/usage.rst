@@ -100,14 +100,14 @@ Channels and recordings need to be defined within a transaction. For example (C+
   
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction();  
   std::shared_ptr<snde::channel> testchan = recdb->define_channel("/test channel", "main", (void *)recdb.get());
-  std::shared_ptr<snde::ndarray_recording_ref> test_ref = snde::create_recording_ref(recdb,testchan,(void *)recdb.get(),SNDE_RTN_FLOAT32);
+  std::shared_ptr<snde::ndarray_recording_ref> test_ref = snde::create_ndarray_ref(recdb,testchan,(void *)recdb.get(),SNDE_RTN_FLOAT32);
   std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
 
 or (Python)::
 
   transact = recdb.start_transaction();
   testchan = recdb.define_channel("/test channel", "main", recdb.raw());
-  test_ref = snde.create_recording_ref(recdb,testchan,recdb.raw(),snde.SNDE_RTN_FLOAT32)
+  test_ref = snde.create_ndarray_ref(recdb,testchan,recdb.raw(),snde.SNDE_RTN_FLOAT32)
   globalrev = transact.end_transaction()
 
 Each channel has a *path*, given as the first parameter to the
@@ -126,7 +126,7 @@ to use the raw pointer to the recording database. This is accessed in
 C++ from the shared pointer by the ``get()`` method or in Python from
 the wrapped object by the ``raw()`` method.
 
-The call to the ``create_recording_ref()`` function defines a new
+The call to the ``create_ndarray_ref()`` function defines a new
 ``multi_ndarray_recording`` on ``/test channel`` containing a single
 n-dimensional array with index 0 that is intended to hold 32 bit
 floating point numbers (base type number identifiers are defined in

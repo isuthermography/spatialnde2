@@ -517,7 +517,7 @@ namespace snde {
       std::shared_ptr<multi_ndarray_recording> result_rec;
       //result_rec = create_recording_math<multi_ndarray_recording>(get_result_channel_path(0),rss,1);      
       //result_rec->define_array(0,SNDE_RTN_SNDE_KDNODE,"vertex_kdtree");
-      std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref = create_typed_recording_ref_math<snde_index>(this->get_result_channel_path(0),this->rss);
+      std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref = create_typed_ndarray_ref_math<snde_index>(this->get_result_channel_path(0),this->rss);
       
       
       return std::make_shared<metadata_function_override_type>([ this,result_ref,vertices,kdtree,search_points ]() {

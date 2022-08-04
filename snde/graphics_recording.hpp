@@ -211,7 +211,7 @@ namespace snde {
     std::string channel_to_reorient; // Name of the channel to render with the given pose, potentially relative to the parent of the pose_channel_recording
     std::shared_ptr<std::string> component_name; // nullptr, or name of the channel to render untransformed, potentially relative to the parent of the pose_channel_recording
     
-    pose_channel_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays,std::string channel_to_reorient); // must have num_ndarrays parameter for compatibility with create_subclass_recording_ref<S,T>...
+    pose_channel_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays,std::string channel_to_reorient); // must have num_ndarrays parameter for compatibility with create_subclass_ndarray_ref<S,T>...
 
     void set_untransformed_render_channel(std::string component_name_str); // only call during initialization
 
@@ -221,7 +221,7 @@ namespace snde {
   };
 
   // convenience function for SWIG
-  std::shared_ptr<ndarray_recording_ref> create_pose_channel_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner,std::string channel_to_reorient_name);
+  std::shared_ptr<ndarray_recording_ref> create_pose_channel_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner,std::string channel_to_reorient_name);
   
   
 };

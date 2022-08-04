@@ -24,8 +24,8 @@ pointcloudchan_config=snde.channelconfig("/pointcloud channel", "main", recdb,Fa
 testchan = recdb.reserve_channel(testchan_config);
 pointcloudchan = recdb.reserve_channel(pointcloudchan_config);
 
-test_rec = snde.create_recording_ref(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT32)
-pointcloud_rec = snde.create_recording_ref(recdb,pointcloudchan,recdb,snde.SNDE_RTN_SNDE_COORD3)
+test_rec = snde.create_ndarray_ref(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT32)
+pointcloud_rec = snde.create_ndarray_ref(recdb,pointcloudchan,recdb,snde.SNDE_RTN_SNDE_COORD3)
 
 globalrev = transact.end_transaction()
 

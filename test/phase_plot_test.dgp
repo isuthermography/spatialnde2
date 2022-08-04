@@ -48,7 +48,7 @@ def live_thread_code():
     while True: 
 
         transact = recdb.start_transaction()	
-        live_recording = snde.create_recording_ref(recdb,live_channel,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
+        live_recording = snde.create_ndarray_ref(recdb,live_channel,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
         metadata = snde.constructible_metadata()
         metadata.AddMetaDatum(snde.metadatum("snde_render_goal","SNDE_SRG_PHASEPLANE"))
         metadata.AddMetaDatum(snde.metadatum("snde_phase_plane_historical_fade",True))

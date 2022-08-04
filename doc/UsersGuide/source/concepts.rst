@@ -36,12 +36,12 @@ New recordings are created with the ``create_recording<T>()``,
 math function execution) template functions.
 
 Simple n-dimensional array recordings can also be created with the
-``create_typed_recording_ref<T>()``,
-``create_anonymous_typed_recording_ref<T>()``, or
-``create_anonymous_typed_recording_math<T>()`` template functions; or
-with the ``create_recording_ref()``,
-``create_anonymous_recording_ref()``, or
-``create_anonymous_recording_math()`` non-template functions.
+``create_typed_ndarray_ref<T>()``,
+``create_anonymous_typed_ndarray_ref<T>()``, or
+``create_anonymous_typed_ndarray_ref_math<T>()`` template functions; or
+with the ``create_ndarray_ref()``,
+``create_anonymous_ndarray_ref()``, or
+``create_anonymous_ndarray_ref_math()`` non-template functions.
 
 
 Recording Database

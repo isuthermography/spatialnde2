@@ -97,7 +97,7 @@ namespace snde {
       // define_recs code
       //printf("define_recs()\n");
       std::shared_ptr<ndtyped_recording_ref<snde_coord>> result_ref;
-      result_ref = create_typed_named_recording_ref_math<snde_coord>(get_result_channel_path(0),rss,"trianglearea");
+      result_ref = create_typed_named_ndarray_ref_math<snde_coord>(get_result_channel_path(0),rss,"trianglearea");
       
       return std::make_shared<metadata_function_override_type>([ this,result_ref,recording ]() {
 	// metadata code moved to exec function so we can get max depth info 
@@ -324,7 +324,7 @@ namespace snde {
       // define_recs code
       //printf("define_recs()\n");
       std::shared_ptr<ndtyped_recording_ref<snde_coord>> result_ref;
-      result_ref = create_typed_named_recording_ref_math<snde_coord>(get_result_channel_path(0),rss,"vertexarea");
+      result_ref = create_typed_named_ndarray_ref_math<snde_coord>(get_result_channel_path(0),rss,"vertexarea");
       
       return std::make_shared<metadata_function_override_type>([ this,result_ref,recording,ref_trianglearea ]() {
 	// metadata code moved to exec function so we can get max depth info 

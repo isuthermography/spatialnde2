@@ -76,7 +76,7 @@ public:
     // define_recs code
     printf("define_recs()\n");
     std::shared_ptr<ndtyped_recording_ref<snde_float32>> result_rec;
-    result_rec = create_typed_recording_ref_math<snde_float32>(get_result_channel_path(0),rss);
+    result_rec = create_typed_ndarray_ref_math<snde_float32>(get_result_channel_path(0),rss);
     // ***!!! Should provide means to set allocation manager !!!***
     
     return std::make_shared<metadata_function_override_type>([ this,result_rec,recording,multiplier ]() {
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
   std::shared_ptr<snde::channelconfig> testchan_config=std::make_shared<snde::channelconfig>("/test_channel", "main", (void *)&main,false);
   
   std::shared_ptr<snde::channel> testchan = recdb->reserve_channel(testchan_config);
-  test_rec = create_recording_ref(recdb,testchan,(void *)&main,SNDE_RTN_FLOAT32);
+  test_rec = create_ndarray_ref(recdb,testchan,(void *)&main,SNDE_RTN_FLOAT32);
   std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
 
   test_rec->rec->metadata=std::make_shared<snde::immutable_metadata>();

@@ -80,7 +80,12 @@ public:
       
     }
     
-    
+      //constructible_metadata(const constructible_metadata &orig);
+      
+    constructible_metadata(std::shared_ptr<const constructible_metadata> orig);
+
+
+      
     int64_t GetMetaDatumInt(std::string Name,int64_t defaultval) const
     {
       std::unordered_map<std::string,metadatum>::const_iterator mditer; 
