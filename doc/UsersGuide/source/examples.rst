@@ -80,10 +80,10 @@ dataguzzler-python as well as SpatialNDE2 to your chosen anaconda environment.
 
 Simple usage can be done in the following steps:
 
-	1. Open your anaconda terminal and make sure that your SpatialNDE2 anaconda environment is activated.
+	1. Make sure that SpatialNDE2 is installed in whatever python environment you are using.
 	2. Navigate to the folder where SpatialNDE2 is installed.
 	3. Navigate to the ``test`` folder in your source folder. This is where the ``project_probe_tip_data.dgp`` file is stored.
-	4. Run the file in the anaconda terminal using: ``dataguzzler-python project_probe_tip_data.dgp``
+	4. Run the file in your environment using: ``dataguzzler-python project_probe_tip_data.dgp``
 	5. The ``"/probe_positioner"`` channel allows you to view the position of the probe relative to the specimen.
 	6. You can move the probe around the specimen and save its positions.  Calling the ``new_probe_posn()`` function in the anaconda terminal saves a probe position each time you use it.
 	7. You can look at a map of your probe positions using the ``"/graphics/projection"`` channel. You will need to zoom out to see the full picture.
@@ -114,10 +114,8 @@ Channel Documentation:
 
 The following channels contain data on the geometric object post-processing tags for the 
 loaded specimen. Data is not rendered by default for most of these channels. Refer to
-``doc/UserGuide/build/html/concepts.html`` for more information on these post-processing
-tags:
+:ref:`GeometricObjects` for more information on these post-processing tags:
 
-* ``"/graphics/specimen/uv"``
 * ``"/graphics/specimen/trinormals"``
 * ``"/graphics/specimen/projinfo"``
 * ``"/graphics/specimen/meshed"`` - Will render a view of the specimen. 
@@ -127,6 +125,7 @@ tags:
 
 Graphics channels that are not post-processing tags:
 
+* ``"/graphics/specimen/uv"`` - The channel where the uv map of the specimen texture is stored.
 * ``"/graphics/specimen/"`` - Channel for specimen model tree data. Not rendered by default.
 * ``"/graphics/projection_specimen"`` - Channel for viewing the projection data on the specimen.
 * ``"/graphics/projection"`` - Channel for viewing a projection of the history of your probe locations.

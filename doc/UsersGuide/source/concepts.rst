@@ -1,3 +1,6 @@
+..module:: sphinx.ext.mathbase
+    :synopsis:
+
 SpatialNDE2 Concepts
 ====================
 
@@ -27,7 +30,14 @@ array; the recording data structure is generally treated as fixed once
 the recording is marked as ready). The most common type of recording
 is the ``multi_ndarray_recording`` discussed below. Often single
 arrays within a ``multi_ndarray_recording`` are referenced using the
-``ndarray_recording_ref`` class.
+``ndarray_recording_ref`` class. The class inheritance structure of
+a recording is shown below:
+
+.. image:: class_inheritance.png
+    :width: 400
+    :alt: NDE Class Inheritance Diagram, shows the classes contained 
+        within an nde_recording class. There are both nde_arrays and 
+        nde_groups, these nde_groups can be specialized for UT.
 
 New recordings are created with the ``create_recording<T>()``,
 ``create_anonymous_recording<T>()`` (used for recordings not part of a
@@ -146,14 +156,9 @@ n-dimensional arrays rather than just using indices.
 
 One subclass of the ``multi_ndarray_recording`` is the ``fusion_ndarray_recording``. 
 This subclass is meant to represent the circumstance where the meaningful value is
-represented as a weighted average: ``(sum_i value_i*weight_i)/(sum_i weight_i)``.
+represented as a weighted average :math:`\frac{\Sigma_{i}^{n}X_{i}w_{i}}{\Sigma_{i}^{n}w_{i}}`
 The ``"accumulator"`` array represents ``sum_i value_i*weight_i``
 and the ``"totals"`` array represents ``sum_i weight_i``.
-This recording class can be used for projecting 2-dimensional data onto the surface of 
-a 3-dimensional object, and consists of two components.  The first ``ndarray_recording_ref``
-(index 0) is the ``accumulator`` channel and is a complex64-typed numpy array.  The 
-second reference (index 1) is the ``totals`` channel of numpy float32 datatype.  These channels are represented
-within SNDE datatypes as ``SNDE_COMPLEXFLOAT32`` and ``SNDE_FLOAT32``, respectively.
  
 
 For access by C code, the ``info`` member of a
@@ -162,6 +167,8 @@ snde_multi_ndarray_recording`` that starts with the ``struct
 snde_recording_base`` base structure.  The ``struct
 snde_multi_ndarray_recording`` then points to multiple ``struct
 snde_ndarray_info`` representing the indivdual arrays.
+
+.. _GeometricObjects:
 
 Geometric Objects such as Parts and CAD Models
 ----------------------------------------------

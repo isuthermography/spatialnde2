@@ -259,7 +259,7 @@ method to obtain a writeable reference::
 
 In Python, vectorized (numpy) access is also possible::
 
-  test_ref.data()[:] = np.sin(np.arange(rec_len),dtype='d')) 
+  test_ref.data()[:] = np.sin(np.arange(rec_len),dtype='d') 
 
 Unlocking the Array
 -------------------
@@ -577,9 +577,18 @@ scripted from Python such as when using Dataguzzler-Python.
     violation. The `gdb-automatic-deadlock-detector <https://github.com/DamZiobro/gdb-automatic-deadlock-detector>`_ automates deadlock detection
     using GDB and Python.
 
-Startup error common fixes:
+Troubleshooting in Anaconda:
 
-* Is the correct (anaconda) terminal open?
+Common Errors and Fixes:
+
+`'dataguzzler-python' is not recognized as an internal or external command,
+operable program or batch file.`
+
+- This implies that dataguzzler is not installed in your anaconda environment. Make sure
+that dataguzzler-python is installed and your environment has been activated.
+
+
+
 * Have dataguzzler-python and SNDE been installed and loaded?
 * If changes have been made, have they been saved before re-running the dataguzzler-python file?
 
