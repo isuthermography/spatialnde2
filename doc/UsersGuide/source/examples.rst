@@ -67,50 +67,61 @@ Python examples:
 
 Dataguzzler-Python examples (require Dataguzzler-Python to be installed for operation; run them with ``dataguzzler-python example.dgp``):
   * ``x3d_objectfollower.dgp``:  Demonstrates use of the qt_osg_compositor_view_tracking_pose_recording to define a view that can hold a particular object fixed relative to the camera. 
-  * ``project_probe_tip_data.dgp``: Simulates an eddy current probe and allows the user to track and save probe positions and then project them onto a specimen.
+  * ``project_live_probe_tip_data.dgp``: Simulates an eddy current probe and allows the user to track and save probe positions and then project them onto a specimen.
 
 
 Project Probe Tip Data User Guide
 ---------------------------------
 
-The purpose of the ``project_probe_tip_data.dgp`` module is to
+The purpose of the ``project_live_probe_tip_data.dgp`` module is to
 track and record the position of an eddy current probe as it moves around a 
-specimen. This guide assumes that you have built and installed both
-dataguzzler-python as well as SpatialNDE2 to your chosen anaconda environment. 
+specimen. This guide assumes that the user has built and installed both
+dataguzzler-python as well as SpatialNDE2 to their chosen python environment. 
 
 Simple usage can be done in the following steps:
 
-	1. Make sure that SpatialNDE2 is installed in whatever python environment you are using.
-	2. Navigate to the folder where SpatialNDE2 is installed.
-	3. Navigate to the ``test`` folder in your source folder. This is where the ``project_probe_tip_data.dgp`` file is stored.
-	4. Run the file in your environment using: ``dataguzzler-python project_probe_tip_data.dgp``
-	5. The ``"/probe_positioner"`` channel allows you to view the position of the probe relative to the specimen.
-	6. You can move the probe around the specimen and save its positions.  Calling the ``new_probe_posn()`` function in the anaconda terminal saves a probe position each time you use it.
-	7. You can look at a map of your probe positions using the ``"/graphics/projection"`` channel. You will need to zoom out to see the full picture.
-	8. To see your probe positions mapped onto the specimen, select the ``"/graphics/projection_specimen"`` channel.
+	1. Run the file in a python environment with SpatialNDE2 using: ``dataguzzler-python project_live_probe_tip_data.dgp``
+	2. Use the ``"/probe_positioner"`` channel to view and record the orientation of the probe relative to the specimen. A new probe position is (updated after a certain amount of time).
+	3. A map of probe positions can be inspected using the ``"/graphics/projection"`` channel.
+	4. To see the map of probe positions projected onto the specimen, select the ``"/graphics/projection_specimen"`` channel.
 
-Include Statements:
+The following ``.dpi`` files are included within this script:
+	
+Core Files for ``.dgp`` Configurations:
+	
+	* ``dgpy_startup.dpi``
+	* ``Qt.dpi``
+	* ``recdb.dpi``
+	* ``recdb_gui.dpi``
 
-There are 7 include statements within this script:
+Refer to :ref:`SNDEinDGPY` for a review on their functionality.
 
-	* ``include(dgpy,"dgpy_startup.dpi")``: This dataguzzler-python include file performs basic imports and runs ``check_dgpython`` to make sure the config file is being run within the dataguzzler-python context.
-	* ``include(dgpy,"Qt.dpi",prefer_pyqt=False)``: Checks if Qt is in the global variables. If not, brings it into the script. Sets the configurations for the display window, uses desktop OpenGL. Handles threading.
-	* ``include(dgpy,"matplotlib.dpi")``: Enables matplotlib for multi-threaded, interactive context in dataguzzler. 
-	* ``nclude(snde,"recdb.dpi",enable_opencl=True)``: Sets up the recording database if it does not exist in globals. Checks if opencl is enabled or not. Displays a warning about processing speed if ``enable_openCL`` is set to ``false``.
-	* ``include(snde,"recdb_gui.dpi")``: Checks to see if a display window is open already. If not, uses Qt to initialize and display the snde interactive window.
-	* ``include(snde,"manual_positioner_in_transaction.dpi",...)``: Sets up the probe positioner channel, using an osg compositor view tracking pose recording and sets the view for the interactive probe positioner. From here, new probe positions can be saved.
-	* ``include(snde,"project_probe_tip_data_in_transaction.dpi",...)``: Takes the specimen model and projection data and renders a projection of probe positions onto the surface of the 3-dimensional specimen.
 
+Graphics Files:
+
+	* ``matplotlib.dpi``: Enables support for interactive plotting with matplotlib.
+	* ``manual_positioner_in_transaction.dpi``: Defines the ``/probe_positioner`` channel using the ``/specimen_pose`` and ``/probe_pose`` channels using the SpatialNDE2 ``create_qt_osg_compositor_view_tracking_pose_recording`` method. 
+	* ``project_probe_tip_data_in_transaction.dpi``: Defines the ``/graphics/projection`` channel using a history of probe poses from the ``/probe_positioner`` channel with the ``instantiate`` method of the SpatialNDE2 ``project_point_onto_parameterization`` class. Defines the ``/graphics/projection_specimen`` channel using the ``create_textured_part_recording`` method of SpatialNDE2. This copies the data from the ``/gaphics/projection`` channel and converts it from a 2-dimensional uv map to a texture on the surface of the 3-dimensional specimen.
 
 Channel Documentation:
 
-* ``"/synthetic_probe_impedance"`` - This channel simulates data including probe phase, impedance, and resistnace from a synthetic probe based on ``phase_plot_test.dgp``. Not rendered by default.
-* ``"/synthetic_probe_history"`` - Records the history of our synthetic probe data over time.
-* ``"/specimen_pose"`` - A specimen-only view where you can rotate/translate the specimen for a proper view.
-* ``"/probe_positioner"`` - Channel shows the position of the probe relative to the specimen.  This channel is where the probe position values can be assigned for projection mapping.
-* ``"/probe_pose"`` - Probe position channel. Not rendered by default. 
-* ``"/loaded_projection"`` - Recently added channel for loading the saved projection data. Do not call without loading the data. When loading the projection channels, make sure to zoom out so the whole projection can be seen.
+Note: some of these channels contain data that may not be necessary to render. The rendering of these channels is not done in the example and is up to user discretion.
 
+Synthetic Probe Channels:
+
+* ``"/synthetic_probe_impedance"`` - This channel simulates data including probe phase, impedance, and resistance from a synthetic probe based on ``phase_plot_test.dgp``.
+* ``"/synthetic_probe_history"`` - Records the history of our synthetic probe data over time.
+
+Orientation Channels:
+
+These channels contain the orientation data of the probe and the specimen as well as the relation between them. See :ref:`OrientationsAndPoses` for information about their data types. Neither the probe nor specimen poses can be altered in their respective
+pose channels. This can only be done through the probe positioner, or by assigning their poses as new data using the script or interactive commmand line.
+
+* ``"/specimen_pose"``
+* ``"/probe_positioner"`` - In this channel, the ``/specimen_pose`` channel becomes the background, and the probe becomes movable so the user can create recordings of its position relative to the specimen.
+* ``"/probe_pose"`` - This channel is useful for checking the probe's location and changing the viewing angle of the probe and specimen without changing their position.
+
+Post-Processing Tags:
 
 The following channels contain data on the geometric object post-processing tags for the 
 loaded specimen. Data is not rendered by default for most of these channels. Refer to
@@ -118,24 +129,59 @@ loaded specimen. Data is not rendered by default for most of these channels. Ref
 
 * ``"/graphics/specimen/trinormals"``
 * ``"/graphics/specimen/projinfo"``
-* ``"/graphics/specimen/meshed"`` - Will render a view of the specimen. 
+* ``"/graphics/specimen/meshed"``
 * ``"/graphics/specimen/inplanemat"``
 * ``"/graphics/specimen/boxes3d"``
 * ``"/graphics/specimen/boxes2d"``
 
-Graphics channels that are not post-processing tags:
+Graphics channels excluding post-processing tags:
 
 * ``"/graphics/specimen/uv"`` - The channel where the uv map of the specimen texture is stored.
-* ``"/graphics/specimen/"`` - Channel for specimen model tree data. Not rendered by default.
+* ``"/graphics/specimen/"`` - Channel for specimen model tree data. 
+* ``"/graphics/projection"`` - Channel for viewing a history of probe locations. Can be projected onto the specimen by opening the ``"graphics/projection_specimen"`` channel.
 * ``"/graphics/projection_specimen"`` - Channel for viewing the projection data on the specimen.
-* ``"/graphics/projection"`` - Channel for viewing a projection of the history of your probe locations.
 * ``"/graphics/probe/uv"`` - uv mapping data for the probe model?
-* ``"graphics/probe/meshed"`` - Pulls up a view that only includes the probe. Can not change the viewing angle of this channel.
-* ``"/graphics/probe/"`` - Contains the probe model tree. Not rendered by default.
-* ``"/graphics/loaded_projection_specimen"`` - Channel for projecting the ``"/loaded_projection"`` data onto the specimen.
-* ``"/graphics/"`` - Graphman graphics storage manager channel. Not rendered by default.
+* ``"graphics/probe/meshed"`` - Surface mesh of the probe model.
+* ``"/graphics/probe/"`` - Probe model tree
+* ``"/graphics/"`` - Graphman graphics storage manager channel.
 
-Troubleshooting:
+"!!! This probably belongs in the usage section!!!"
+
+How to make a custom manual positioner ``.dgp`` module:
+
+1. Import the following modules into the custom ``.dgp`` file::
+
+	from dataguzzler_python import dgpy
+	from dataguzzler_python import context
+	import spatialnde2 as snde
+	import threading
+	import time
+
+2. Make sure to include the core ``.dpi`` files listed in the section above.
+
+3. Specify the 3d model files to be loaded in. Should have the ``.x3d`` file extension. It is good practice here to lay out the names of the channels and any necessary metadata associated with the probe and specimen models (such as texture scaling).
+
+4. Define your orientation data-type:
+
+	``orient_dtype = [('offset', '<f4', (4,)), ('quat', '<f4', (4,))]``
+
+5. Initialize the graphics storage manager ``snde.graphics_storage_manager("graph")`` class to store arrays from the loaded geometric objects. Refer to the program reference for more information about the arguments to be passed through the graphics storage manager. 
+
+6. Start the transaction using ``<transaction_name> = recdb.start_transaction``.
+
+6. Load your 3-d geometry files into the recording database using the ``x3d_load_geometry`` SpatialNDE2 method.
+
+7. Where does the main viewer come from?
+
+8. Define your specimen pose channel and create a pose array reference using the ``create_pose_channel_ndarray_ref`` SpatialNDE2 function. What are the inputs on this function? Then allocate storage and assign the position data. Pose channel array references 
+can be tested using a trivial specimen position: ``np.array(((0,0,0,0),(.4,.3,.625,.6)),dtype=orient_dtype)`` 
+
+9. Next include the ``manual_positioner_in_transaction.dpi`` file. Make sure to pass the output channel, the specimen channel, and the probe model channel as arguments.
+
+10. Make sure to end the transaction using ``<transaction_name>.end_transaction``
+
+
+Windows Anaconda Troubleshooting:
 
 * If a specimen projection is not showing what is expected, have the correct data and metadata been assigned within the transaction?
 * Projection data can be checked using using ``/snde/rec_display_colormap.cpp``. This script generates a colormap for the projection image based on the fusion_ndarray recording references passed through it. Using your debugger, find ``ndarray_recording_ref`` type variables, set a breakpoint near the variable of interest and use ``ndarray_recording_ref->shifted_arrayptr()`` method of the ``ndarray_recording_ref`` class to view the data within the array.

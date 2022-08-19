@@ -339,6 +339,7 @@ or the available array recording references with
 a recording or an array reference with ``globalrev.get_recording()``
 or ``globalrev.get_recording_ref()`` respectively. 
 
+.. _SNDEinDGPY:
 
 Using SpatialNDE2 in Dataguzzler-Python
 ---------------------------------------
@@ -385,6 +386,15 @@ The GUI configuration ``recdb_gui.dpi`` defines four more globals:
 The QT windows operate in the main GUI thread and access from other
 threads (including interactive consoles) is delegated to the main GUI
 thread.
+
+Running in Anaconda:
+
+To run SpatialNDE2 examples with dataguzzler-python in Anaconda ensure that 
+your evnironment has dataguzzler-python as well as SpatialNDE2 installed. 
+Navigate to the folder that has the ``.dgp`` file that you want to run and
+call ``dataguzzler-python <yourexample.dgp>``. Check for error messages.
+If <dgpy> becomes the line header, then dataguzzler-python has started
+successfully.
     
 
 Creating an Interactive Viewer
@@ -577,7 +587,7 @@ scripted from Python such as when using Dataguzzler-Python.
     violation. The `gdb-automatic-deadlock-detector <https://github.com/DamZiobro/gdb-automatic-deadlock-detector>`_ automates deadlock detection
     using GDB and Python.
 
-Troubleshooting in Anaconda:
+In Anaconda:
 
 Common Errors and Fixes:
 

@@ -156,9 +156,11 @@ n-dimensional arrays rather than just using indices.
 
 One subclass of the ``multi_ndarray_recording`` is the ``fusion_ndarray_recording``. 
 This subclass is meant to represent the circumstance where the meaningful value is
-represented as a weighted average :math:`\frac{\Sigma_{i}^{n}X_{i}w_{i}}{\Sigma_{i}^{n}w_{i}}`
-The ``"accumulator"`` array represents ``sum_i value_i*weight_i``
-and the ``"totals"`` array represents ``sum_i weight_i``.
+represented as a weighted average :math:`\sum\limits_{i=0}^{n}\frac{X_{i}w_{i}}{w_{i}}`
+The ``"accumulator"`` array stores the terms within the numerator
+and the ``"totals"`` array stores the terms within the denominator of this fraction. This 
+datatype can be rendered in the viewer similar to the ``multi_darray_recording``, but the image
+represents the output of this weighted average.
  
 
 For access by C code, the ``info`` member of a
@@ -235,6 +237,7 @@ representation (the various triangles and vertices fields).
 A more detailed discussion of graphics and geometric objects
 is planned for another chapter. 
 
+.. _OrientationsAndPoses: 
 
 Orientations and Object Poses
 -----------------------------
