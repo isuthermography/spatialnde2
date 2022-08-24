@@ -1160,6 +1160,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
       retval->renderable_function = renderable_function;
     } else {
+
       retval->renderable_channelpath = std::make_shared<std::string>(chanpath); // no colormapping needed because data is RGBA to begin with
     }
   

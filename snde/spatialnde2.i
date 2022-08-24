@@ -488,6 +488,7 @@ template <typename T>
 %include "boxes_calculation.i"
 %include "area_calculation.i"
 %include "averaging_downsampler.i"
+%include "NumPY_BGRtoRGBA.i"
 %include "batched_live_accumulator.i"
 %include "project_onto_parameterization.i"
 %include "quaternion.i"

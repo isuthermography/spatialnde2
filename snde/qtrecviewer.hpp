@@ -82,6 +82,8 @@ namespace snde {
     void Darken(bool checked);
     void ResetIntensity(bool checked);
     void Brighten(bool checked);
+    void NextFrame(bool checked);
+    void PreviousFrame(bool checked);
     void LessContrast(bool checked);
     void MoreContrast(bool checked);
     void RotateColormap(bool checked);

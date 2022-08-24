@@ -947,6 +947,48 @@ namespace snde {
     
     emit NeedRedraw();
   }
+
+  void QTRecViewer::NextFrame(bool checked) 
+  {
+	  if (posmgr->selected_channel) {
+		  
+		  std::shared_ptr<recdatabase> recdb_strong = recdb.lock();
+		  std::shared_ptr<globalrevision> rev = recdb_strong->latest_globalrev();
+		  std::shared_ptr<recording_base> rec = rev->get_recording(posmgr->selected_channel->FullName);
+
+		  std::shared_ptr<multi_ndarray_recording> array_rec = std::dynamic_pointer_cast<multi_ndarray_recording>(rec);
+		  assert(array_rec);
+
+		  if (array_rec->layouts.at(posmgr->selected_channel->DisplaySeq).dimlen.size() >= 3)
+		  {
+			  std::lock_guard<std::mutex> selchan_admin(posmgr->selected_channel->admin);
+			  if (posmgr->selected_channel->DisplayFrame < array_rec->layouts.at(posmgr->selected_channel->DisplaySeq).dimlen.at(2) - 1) {
+				  posmgr->selected_channel->DisplayFrame++;
+			  }
+		  }
+	  }
+  }
+
+  void QTRecViewer::PreviousFrame(bool checked)
+  {
+	  if (posmgr->selected_channel) {
+
+		  std::shared_ptr<recdatabase> recdb_strong = recdb.lock();
+		  std::shared_ptr<globalrevision> rev = recdb_strong->latest_globalrev();
+		  std::shared_ptr<recording_base> rec = rev->get_recording(posmgr->selected_channel->FullName);
+
+		  std::shared_ptr<multi_ndarray_recording> array_rec = std::dynamic_pointer_cast<multi_ndarray_recording>(rec);
+		  assert(array_rec);
+
+		  if (array_rec->layouts.at(posmgr->selected_channel->DisplaySeq).dimlen.size() >= 3)
+		  {
+			  std::lock_guard<std::mutex> selchan_admin(posmgr->selected_channel->admin);
+			  if (posmgr->selected_channel->DisplayFrame > 0) {
+				  posmgr->selected_channel->DisplayFrame++;
+			  }
+		  }
+	  }
+  }
   
   void QTRecViewer::MoreContrast(bool checked)
   {

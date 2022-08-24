@@ -100,8 +100,7 @@ namespace snde {
 	return std::make_shared<lock_alloc_function_override_type>([ this,result_rec,recording,colormap_type,offset,unitsperintensity,base_position,u_dim,v_dim ]() {
 	  // lock_alloc code
 	  result_rec->rec->assign_storage_manager(this->recdb->default_storage_manager); // Force default storage manager so that we DON'T go to the graphics storage (which is unnecessary for temporary output such as this)
-	  result_rec->allocate_storage(recording->layout.dimlen,true); // Note fortran order flag -- required by renderer
-	   
+	  result_rec->allocate_storage(recording->layout.dimlen,true); // Note fortran order flag -- required by renderer  
 	  
 #ifdef SNDE_OPENCL
 	  std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(this->compute_resource);
@@ -140,8 +139,19 @@ namespace snde {
 	      
 	      OpenCLBuffers Buffers(opencl_resource->oclcache,opencl_resource->context,opencl_resource->devices.at(0),locktokens);
 	      
-	      assert(recording->ndinfo()->base_index==0); // we don't support a shift (at least not currently)
-	      Buffers.AddBufferAsKernelArg(recording,colormap_kern,0,false,false);
+		  //assert(recording->ndinfo()->base_index==0); // we don't support a shift (at least not currently)
+	      /*if (base_position.size() >= 3) {
+			  Buffers.AddBufferPortionAsKernelArg(recording, 
+										   base_position.at(2) * recording->ndinfo()->dimlen[0] * recording->ndinfo()->dimlen[1],
+										   recording->ndinfo()->dimlen[0] * recording->ndinfo()->dimlen[1],
+				                           colormap_kern, 
+				                           0, 
+				                           false, 
+				                           false);
+	      }
+		  else {*/
+			  Buffers.AddBufferAsKernelArg(recording, colormap_kern, 0, false, false);
+		  //}	      
 	      Buffers.AddBufferAsKernelArg(result_rec,colormap_kern,1,true,true);
 
 	      snde_index stride_u=recording->layout.strides.at(u_dim);

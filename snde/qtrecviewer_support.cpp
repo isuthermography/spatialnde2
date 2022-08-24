@@ -102,6 +102,22 @@ namespace snde {
 	
 	// else fprintf(stderr,"Release right\n");
 	return true;
+
+
+      case '.':
+    if (event->type() == QEvent::KeyPress) {
+      Viewer->NextFrame(false);
+    }
+
+    return true;
+
+
+      case ',':
+    if (event->type() == QEvent::KeyPress) {
+      Viewer->PreviousFrame(false);
+    }
+    
+    return true;
 	
 	
       case Qt::Key_Down:
