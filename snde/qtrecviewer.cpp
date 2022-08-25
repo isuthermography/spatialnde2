@@ -467,7 +467,7 @@ namespace snde {
     std::string statusline="";
     bool needjoin=false;
 
-    //std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
+    std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
 
     //if (!recdb_strong) return;
 
@@ -507,7 +507,7 @@ namespace snde {
 	{
 	  std::lock_guard<std::mutex> adminlock(a->admin);
 	  
-	  statusline += a->abbrev+"0=" + PrintWithSIPrefix(a->CenterCoord,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(horizscale,a->unit->unit.print(false),3);
+	  statusline += a->abbrev+"=" + PrintWithSIPrefix(a->CenterCoord,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(horizscale,a->unit->unit.print(false),3);
 	}
 	if (horizpixelflag) {
 	  statusline += "/px";
@@ -558,7 +558,7 @@ namespace snde {
 	    //std::stringstream vertscalestr;
 	    //vertscalestr << std::defaultfloat << std::setprecision(6) << scalefactor;
 	    
-	    statusline += a->abbrev+"0=" + PrintWithSIPrefix(inipos,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3);
+	    statusline += a->abbrev+"=" + PrintWithSIPrefix(inipos,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3);
 	    //statusline += a->abbrev+"0=" + inipos.str() + " " + vertscalestr.str() + a->unit->unit.print(false);
 	  }
 	  if (horizpixelflag) {
@@ -613,7 +613,7 @@ namespace snde {
 	  
 	  //statusline += a->abbrev+"0=" + inipos.str() + " " + vertscalestr.str() + a->unit->unit.print(false);
 	  std::lock_guard<std::mutex> adminlock(a->admin);
-	  statusline += a->abbrev+"0=" + PrintWithSIPrefix(inipos,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3);
+	  statusline += a->abbrev+"=" + PrintWithSIPrefix(inipos,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3);
 	  
 	  if (horizpixelflag) {
 	    statusline += "/px";
@@ -623,6 +623,53 @@ namespace snde {
 	  needjoin=true;
 	  
 	  
+	}
+
+	// Try to Add Third Axis if it Exists
+	if (recdb_strong->latest_globalrev()->get_recording_ref(posmgr->selected_channel->FullName, 0)->ndinfo()->ndim >= 3) {
+		a = display->GetThirdAxis(posmgr->selected_channel->FullName);
+		if (a) {
+			if (needjoin) {
+				statusline += " | ";
+			}
+			double scalefactor;
+			double vertunitsperdiv;
+			bool pixelflag = false;
+
+			{
+				std::lock_guard<std::mutex> adminlock(a->unit->admin);
+				scalefactor = a->unit->scale;
+				vertunitsperdiv = scalefactor;
+
+				pixelflag = a->unit->pixelflag;
+				snde_debug(SNDE_DC_VIEWER, "Image: Vertical axis: a=%s", a->axis.c_str());
+
+			}
+
+			{
+				std::lock_guard<std::mutex> adminlock(display->admin);
+				if (pixelflag) vertunitsperdiv *= display->pixelsperdiv;
+			}
+
+			//std::stringstream inipos;
+			double inipos;
+			{
+				std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+				inipos = posmgr->selected_channel->DisplayFrame * vertunitsperdiv;
+			}
+
+			//std::stringstream vertscalestr;
+			//vertscalestr << std::defaultfloat << std::setprecision(6) << scalefactor;
+
+			//statusline += a->abbrev+"0=" + inipos.str() + " " + vertscalestr.str() + a->unit->unit.print(false);
+			std::lock_guard<std::mutex> adminlock(a->admin);
+			statusline += a->abbrev + "=" + PrintWithSIPrefix(inipos, a->unit->unit.print(false), 3);
+
+			needjoin = true;
+
+
+		}
+
 	}
 	
 	double scalefactor;
@@ -635,24 +682,31 @@ namespace snde {
 	
 	a=display->GetAmplAxis(posmgr->selected_channel->FullName);
 	
-	if (a) {
-	  if (needjoin) {
-	    statusline += " | ";
-	  }
-	  //double intensityunitsperdiv=scalefactor;
-	  
-	  //if (a->unit->pixelflag) vertunitsperdiv*=display->pixelsperdiv;
-	  
-	  std::lock_guard<std::mutex> adminlock(a->admin);
-	  //statusline += a->abbrev+"0=" + inipos.str() + " " + intscalestr.str() + a->unit->unit.print(false) + "/intensity";
-	  snde_debug(SNDE_DC_VIEWER,"Image: Amplitude axis: a=%s",a->axis.c_str());
+	// Only Show Amplitude If It Can Be Adjusted -- Not Colormapping with RGBA Image Directly
+	if (recdb_strong->latest_globalrev()->get_recording_ref(posmgr->selected_channel->FullName, 0)->storage->typenum != SNDE_RTN_SNDE_RGBA) {
 
-	  statusline += a->abbrev+"0=" + PrintWithSIPrefix(posmgr->selected_channel->Offset,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3) + "/intensity";
-	  
-	  needjoin=true;
-	  
-	  
+		if (a) {
+			if (needjoin) {
+				statusline += " | ";
+			}
+			//double intensityunitsperdiv=scalefactor;
+
+			//if (a->unit->pixelflag) vertunitsperdiv*=display->pixelsperdiv;
+
+			std::lock_guard<std::mutex> adminlock(a->admin);
+			//statusline += a->abbrev+"0=" + inipos.str() + " " + intscalestr.str() + a->unit->unit.print(false) + "/intensity";
+			snde_debug(SNDE_DC_VIEWER, "Image: Amplitude axis: a=%s", a->axis.c_str());
+
+			statusline += a->abbrev + "=" + PrintWithSIPrefix(posmgr->selected_channel->Offset, a->unit->unit.print(false), 3) + " " + PrintWithSIPrefix(scalefactor, a->unit->unit.print(false), 3) + "/intensity";
+
+			needjoin = true;
+
+
+		}
+
+
 	}
+
       } else if (render_mode == SNDE_DCRM_GEOMETRY) {
 
 	double scalefactor;
@@ -677,7 +731,7 @@ namespace snde {
 	  //statusline += a->abbrev+"0=" + inipos.str() + " " + intscalestr.str() + a->unit->unit.print(false) + "/intensity";
 	  snde_debug(SNDE_DC_VIEWER,"Image: Amplitude axis: a=%s",a->axis.c_str());
 
-	  statusline += a->abbrev+"0=" + PrintWithSIPrefix(posmgr->selected_channel->Offset,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3) + "/intensity";
+	  statusline += a->abbrev+"=" + PrintWithSIPrefix(posmgr->selected_channel->Offset,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3) + "/intensity";
 	  
 	  needjoin=true;
 	  
@@ -735,7 +789,7 @@ namespace snde {
 	  
 	  //statusline += a->abbrev+"0=" + inipos.str() + " " + vertscalestr.str() + a->unit->unit.print(false);
 	  std::lock_guard<std::mutex> adminlock(a->admin);
-	  statusline += a->abbrev+"0=" + PrintWithSIPrefix(inipos,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3);
+	  statusline += a->abbrev+"=" + PrintWithSIPrefix(inipos,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(scalefactor,a->unit->unit.print(false),3);
 	  
 	  if (pixelflag) {
 	    statusline += "/px";
@@ -951,42 +1005,26 @@ namespace snde {
   void QTRecViewer::NextFrame(bool checked) 
   {
 	  if (posmgr->selected_channel) {
-		  
-		  std::shared_ptr<recdatabase> recdb_strong = recdb.lock();
-		  std::shared_ptr<globalrevision> rev = recdb_strong->latest_globalrev();
-		  std::shared_ptr<recording_base> rec = rev->get_recording(posmgr->selected_channel->FullName);
-
-		  std::shared_ptr<multi_ndarray_recording> array_rec = std::dynamic_pointer_cast<multi_ndarray_recording>(rec);
-		  assert(array_rec);
-
-		  if (array_rec->layouts.at(posmgr->selected_channel->DisplaySeq).dimlen.size() >= 3)
 		  {
 			  std::lock_guard<std::mutex> selchan_admin(posmgr->selected_channel->admin);
-			  if (posmgr->selected_channel->DisplayFrame < array_rec->layouts.at(posmgr->selected_channel->DisplaySeq).dimlen.at(2) - 1) {
-				  posmgr->selected_channel->DisplayFrame++;
-			  }
+		      posmgr->selected_channel->DisplayFrame++; // No need to get a lock here to check we can increment -- it'll be stopped later
 		  }
+		  UpdateViewerStatus();
+		  emit NeedRedraw();
 	  }
   }
 
   void QTRecViewer::PreviousFrame(bool checked)
   {
 	  if (posmgr->selected_channel) {
-
-		  std::shared_ptr<recdatabase> recdb_strong = recdb.lock();
-		  std::shared_ptr<globalrevision> rev = recdb_strong->latest_globalrev();
-		  std::shared_ptr<recording_base> rec = rev->get_recording(posmgr->selected_channel->FullName);
-
-		  std::shared_ptr<multi_ndarray_recording> array_rec = std::dynamic_pointer_cast<multi_ndarray_recording>(rec);
-		  assert(array_rec);
-
-		  if (array_rec->layouts.at(posmgr->selected_channel->DisplaySeq).dimlen.size() >= 3)
 		  {
 			  std::lock_guard<std::mutex> selchan_admin(posmgr->selected_channel->admin);
 			  if (posmgr->selected_channel->DisplayFrame > 0) {
-				  posmgr->selected_channel->DisplayFrame++;
+				  posmgr->selected_channel->DisplayFrame--;
 			  }
 		  }
+		  UpdateViewerStatus();
+		  emit NeedRedraw();
 	  }
   }
   

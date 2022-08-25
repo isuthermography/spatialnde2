@@ -25,7 +25,19 @@ namespace snde {
 
 			return std::make_shared<metadata_function_override_type>([this, result_rec, rec]() {
 				// metadata code
-				std::unordered_map<std::string, metadatum> metadata;
+				constructible_metadata metadata;
+				metadata.AddMetaDatum(metadatum_str("nde_array-axis0_coord", rec->metadata->GetMetaDatumStr("nde_array-axis1_coord", "X Position")));
+				metadata.AddMetaDatum(metadatum_str("nde_array-axis1_coord", rec->metadata->GetMetaDatumStr("nde_array-axis0_coord", "Y Position")));
+				metadata.AddMetaDatum(metadatum_str("nde_array-ampl_coord", rec->metadata->GetMetaDatumStr("nde_array-ampl_coord", "Intensity")));
+				metadata.AddMetaDatum(metadatum_str("nde_array-ampl_units", rec->metadata->GetMetaDatumStr("nde_array-ampl_units", "Arb")));
+				std::pair<double, std::string> firstaxismdata = rec->metadata->GetMetaDatumDblUnits("nde_array-axis1_inival", (double)rec->layouts.at(0).dimlen.at(1) / (-2), "pixels");
+				std::pair<double, std::string> secondaxismdata = rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_inival", (double)rec->layouts.at(0).dimlen.at(0) / (-2), "pixels");
+				std::pair<double, std::string> firstaxisstep = rec->metadata->GetMetaDatumDblUnits("nde_array-axis1_step", 1.0, "pixels");
+				std::pair<double, std::string> secondaxisstep = rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_step", 1.0, "pixels");
+				metadata.AddMetaDatum(metadatum_dblunits("nde_array-axis0_inival", firstaxismdata.first, firstaxismdata.second));
+				metadata.AddMetaDatum(metadatum_dblunits("nde_array-axis1_inival", secondaxismdata.first, secondaxismdata.second));
+				metadata.AddMetaDatum(metadatum_dblunits("nde_array-axis0_step", firstaxisstep.first, firstaxisstep.second));
+				metadata.AddMetaDatum(metadatum_dblunits("nde_array-axis1_step", secondaxisstep.first, secondaxisstep.second));
 
 				result_rec->metadata = std::make_shared<immutable_metadata>(metadata);
 				result_rec->mark_metadata_done();

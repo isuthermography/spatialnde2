@@ -140,33 +140,30 @@ namespace snde {
 	      OpenCLBuffers Buffers(opencl_resource->oclcache,opencl_resource->context,opencl_resource->devices.at(0),locktokens);
 	      
 		  //assert(recording->ndinfo()->base_index==0); // we don't support a shift (at least not currently)
-	      /*if (base_position.size() >= 3) {
-			  Buffers.AddBufferPortionAsKernelArg(recording, 
-										   base_position.at(2) * recording->ndinfo()->dimlen[0] * recording->ndinfo()->dimlen[1],
-										   recording->ndinfo()->dimlen[0] * recording->ndinfo()->dimlen[1],
-				                           colormap_kern, 
-				                           0, 
-				                           false, 
-				                           false);
-	      }
-		  else {*/
-			  Buffers.AddBufferAsKernelArg(recording, colormap_kern, 0, false, false);
-		  //}	      
+		  Buffers.AddBufferAsKernelArg(recording, colormap_kern, 0, false, false);      
 	      Buffers.AddBufferAsKernelArg(result_rec,colormap_kern,1,true,true);
 
 	      snde_index stride_u=recording->layout.strides.at(u_dim);
-	      snde_index stride_v=recording->layout.strides.at(v_dim);	      
+	      snde_index stride_v=recording->layout.strides.at(v_dim);	
+		  snde_index stride_w = 0;
+		  snde_index DisplayFrame = 0;
 	      colormap_kern.setArg(2,sizeof(stride_u),&stride_u);
 	      colormap_kern.setArg(3,sizeof(stride_v),&stride_v);
+		  if (base_position.size() >= 3) {
+			  DisplayFrame = base_position.at(2);
+			  stride_w = recording->layout.strides.at(2);
+		  }
+		  colormap_kern.setArg(4, sizeof(stride_w), &stride_w);
+		  colormap_kern.setArg(5, sizeof(DisplayFrame), &DisplayFrame);
 
 	      snde_float32 ocl_offset = (snde_float32)offset;
-	      colormap_kern.setArg(4,sizeof(ocl_offset),&ocl_offset);
+	      colormap_kern.setArg(6,sizeof(ocl_offset),&ocl_offset);
 	      uint8_t ocl_alpha = 255;
-	      colormap_kern.setArg(5,sizeof(ocl_alpha),&ocl_alpha);
+	      colormap_kern.setArg(7,sizeof(ocl_alpha),&ocl_alpha);
 	      uint32_t ocl_colormap_type = colormap_type;
-	      colormap_kern.setArg(6,sizeof(ocl_colormap_type),&ocl_colormap_type);
+	      colormap_kern.setArg(8,sizeof(ocl_colormap_type),&ocl_colormap_type);
 	      snde_float32 ocl_intensityperunits = (snde_float32)(1.0/unitsperintensity);
-	      colormap_kern.setArg(7,sizeof(ocl_intensityperunits),&ocl_intensityperunits);
+	      colormap_kern.setArg(9,sizeof(ocl_intensityperunits),&ocl_intensityperunits);
 	      
 	      cl::Event kerndone;
 	      std::vector<cl::Event> FillEvents=Buffers.FillEvents();
