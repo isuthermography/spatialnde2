@@ -1115,11 +1115,20 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     // goal is to obtain a texture from the channel data
     // ***!!! We really should be able to accommodate a frame or sequence axis being multiple ndarrays with consistent_layout_f !!!***
 
+   
+      
+
     assert(array_rec);
     assert(array_rec->layouts.size()==1);
     
     // Simple ndarray recording
     std::shared_ptr<ndarray_recording_ref> ref = array_rec->reference_ndarray();
+
+    // Make sure the data type is valid -- if not, we need to stop this here or else things get weird later
+    if (ref->storage->typenum == SNDE_RTN_UNASSIGNED) {
+        snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Could not set up colormap for undefined data type on channel %s", chanpath.c_str());
+        return nullptr;
+    }
 
 
     std::shared_ptr<rgbacolormapparams> colormap_params = std::dynamic_pointer_cast<rgbacolormapparams>(params_from_parent);

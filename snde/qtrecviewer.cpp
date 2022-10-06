@@ -287,22 +287,25 @@ namespace snde {
   }
 
 	
+  std::shared_ptr<display_channel> QTRecViewer::FindDisplayChan(std::string channame) {
+
+	  auto ci_iter = display->channel_info.find(channame);
+	  if (ci_iter != display->channel_info.end()) {
+		  auto& displaychan = ci_iter->second;
+
+		  if (displaychan->FullName == channame) {
+			  //auto selector_iter = Selectors.find(displaychan->FullName);
+				//if (selector_iter != Selectors.end() && selector_iter->second==Selector) {
+			  return displaychan;
+		  }
+	  }
+	  return nullptr;
+  }
+
   std::shared_ptr<display_channel> QTRecViewer::FindDisplayChan(QTRecSelector *Selector)
   {
-    
-    if (!Selector) return nullptr;
-    
-    auto ci_iter = display->channel_info.find(Selector->Name);
-    if (ci_iter != display->channel_info.end()) {
-      auto & displaychan = ci_iter->second;
-      
-      if (displaychan->FullName==Selector->Name) {
-	//auto selector_iter = Selectors.find(displaychan->FullName);
-	  //if (selector_iter != Selectors.end() && selector_iter->second==Selector) {
-	return displaychan;
-      }
-    }
-    return nullptr; 
+	  if (!Selector) return nullptr;
+	  return FindDisplayChan(Selector->Name);
   }
     
   
@@ -925,6 +928,59 @@ namespace snde {
     
   }
   
+
+  float QTRecViewer::GetChannelContrast(std::string channelpath) {
+	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(channelpath);
+	  if (!displaychan) {
+		  throw snde_error("QTRecViewer::GetChannelContrast -- Channel %s not found", channelpath.c_str());
+	  }
+	  float retval;
+	  {
+		  std::lock_guard<std::mutex> adminlock(displaychan->admin);
+		  retval = displaychan->Scale;
+	  }
+	  return retval;
+  }
+
+  void QTRecViewer::SetChannelContrast(std::string channelpath, float contrast) {
+	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(channelpath);
+	  if (!displaychan) {
+		  throw snde_error("QTRecViewer::GetChannelContrast -- Channel %s not found", channelpath.c_str());
+	  }
+	  {
+		  std::lock_guard<std::mutex> adminlock(displaychan->admin);
+		  displaychan->Scale = contrast;
+	  }
+	  UpdateViewerStatus();
+	  emit NeedRedraw();
+  }
+
+
+  float QTRecViewer::GetChannelBrightness(std::string channelpath) {
+	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(channelpath);
+	  if (!displaychan) {
+		  throw snde_error("QTRecViewer::GetChannelBrightness -- Channel %s not found", channelpath.c_str());
+	  }
+	  float retval;
+	  {
+		  std::lock_guard<std::mutex> adminlock(displaychan->admin);
+		  retval = displaychan->Offset;
+	  }
+	  return retval;
+  }
+
+  void QTRecViewer::SetChannelBrightness(std::string channelpath, float brightness) {
+	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(channelpath);
+	  if (!displaychan) {
+		  throw snde_error("QTRecViewer::GetChannelBrightness -- Channel %s not found", channelpath.c_str());
+	  }
+	  {
+		  std::lock_guard<std::mutex> adminlock(displaychan->admin);
+		  displaychan->Offset = brightness;
+	  }
+	  UpdateViewerStatus();
+	  emit NeedRedraw();
+  }
 
 
   void QTRecViewer::LessContrast(bool checked)
