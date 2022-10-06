@@ -209,7 +209,7 @@ namespace snde {
   };
 
 
-  std::shared_ptr<ndarray_recording_ref> create_pose_channel_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string channel_to_reorient_name);
+  std::shared_ptr<ndarray_recording_ref> create_pose_channel_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string channel_to_reorient_name);
 
   // moved from recstore.i...
   template <class T>
@@ -240,6 +240,6 @@ namespace snde {
   %template(create_pose_channel_tracking_pose_recording) create_recording_three_strings<pose_channel_tracking_pose_recording>;
 
   // template for instantiation of a recording_ref to a pose_channel .... replaced by explict function, above
-  //%template(create_pose_channel_recording_ref) snde::create_subclass_recording_ref_string<snde::pose_channel_recording>;
+  //%template(create_pose_channel_ndarray_ref) snde::create_subclass_ndarray_ref_string<snde::pose_channel_recording>;
 
 };

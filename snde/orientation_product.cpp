@@ -41,7 +41,7 @@ namespace snde {
     // define_recs code
     //printf("define_recs()\n");
     std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> result_ref;
-    result_ref = create_typed_subclass_recording_ref_math<pose_channel_recording,snde_orientation3>(get_result_channel_path(0),rss,recdb_path_join(recdb_path_context(right->info->name),right->channel_to_reorient));
+    result_ref = create_typed_subclass_ndarray_ref_math<pose_channel_recording,snde_orientation3>(get_result_channel_path(0),rss,recdb_path_join(recdb_path_context(right->info->name),right->channel_to_reorient));
     if (untransformed.size() > 0) {
       std::dynamic_pointer_cast<pose_channel_recording>(result_ref->rec)->set_untransformed_render_channel(untransformed);
     }
@@ -134,7 +134,7 @@ namespace snde {
     }
     
     std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> result_ref;
-    result_ref = create_typed_subclass_recording_ref_math<pose_channel_recording,snde_orientation3>(get_result_channel_path(0),rss,transformed);
+    result_ref = create_typed_subclass_ndarray_ref_math<pose_channel_recording,snde_orientation3>(get_result_channel_path(0),rss,transformed);
     if (left->component_name) {
       std::string untransformed_full_name = recdb_path_join(recdb_path_context(left->info->name),*left->component_name);
       
@@ -227,7 +227,7 @@ namespace snde {
     // define_recs code
     //printf("define_recs()\n");
     std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> result_ref;
-    result_ref = create_typed_subclass_recording_ref_math<pose_channel_recording,snde_orientation3>(get_result_channel_path(0),rss,recdb_path_join(recdb_path_context(right->info->name),right->channel_to_reorient));
+    result_ref = create_typed_subclass_ndarray_ref_math<pose_channel_recording,snde_orientation3>(get_result_channel_path(0),rss,recdb_path_join(recdb_path_context(right->info->name),right->channel_to_reorient));
     if (untransformed.size() > 0) {
       std::dynamic_pointer_cast<pose_channel_recording>(result_ref->rec)->set_untransformed_render_channel(untransformed);
     }
@@ -316,7 +316,7 @@ namespace snde {
     // define_recs code
     //printf("define_recs()\n");
     std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> result_ref;
-    result_ref = create_typed_subclass_recording_ref_math<pose_channel_recording,snde_orientation3>(get_result_channel_path(0),rss,recdb_path_join(inst->channel_path_context,follower_content));
+    result_ref = create_typed_subclass_ndarray_ref_math<pose_channel_recording,snde_orientation3>(get_result_channel_path(0),rss,recdb_path_join(inst->channel_path_context,follower_content));
     if (untransformed.size() > 0) {
       std::dynamic_pointer_cast<pose_channel_recording>(result_ref->rec)->set_untransformed_render_channel(untransformed);
     }

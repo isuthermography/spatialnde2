@@ -1,6 +1,9 @@
 %shared_ptr(snde::ndefile_readrecording_base);
 snde_rawaccessible(snde::ndefile_readrecording_base);
 
+%shared_ptr(snde::nde_loadrecording_map);
+snde_rawaccessible(snde::nde_loadrecording_map);
+
 %shared_ptr(snde::ndefile_readarray);
 snde_rawaccessible(snde::ndefile_readarray);
 
@@ -20,11 +23,27 @@ namespace snde {
   //extern SNDE_API std::unordered_map<std::string,std::pair<H5::DataType,unsigned>> nde_file_nativetype_mappings;
 
 
-  typedef std::map<std::string,std::pair<std::shared_ptr<ndefile_readrecording_base>,std::shared_ptr<recording_base>>> nde_recording_map;
+  typedef std::map<std::string,std::pair<std::shared_ptr<ndefile_readrecording_base>,std::shared_ptr<recording_base>>> nde_loadrecording_map;
 
-  typedef std::function<std::shared_ptr<ndefile_readrecording_base>(const std::set<std::string> &nde_classes,std::string h5path, H5::Group &group, std::string recpath,std::shared_ptr<nde_recording_map> filemap)> ndefile_loaderfunc;
+  typedef std::function<std::shared_ptr<ndefile_readrecording_base>(const std::set<std::string> &nde_classes,std::string h5path, H5::Group &group, std::string recpath,std::shared_ptr<nde_loadrecording_map> filemap)> ndefile_loaderfunc;
+  typedef std::map<std::string,std::pair<unsigned,ndefile_loaderfunc>> ndefile_loader_map;
+
+    typedef std::function<std::map<std::string,channel_state>::iterator(std::shared_ptr<std::map<std::string,channel_state>> *channel_map,std::map<std::string,channel_state>::iterator starting_iterator,std::shared_ptr<recording_base> recording_to_save,std::string saveclass,H5::H5File *H5Obj,std::vector<std::string> *pathstack,std::vector<H5::Group> *groupstack,std::string writepath)> ndefile_saverfunc;
+
+  typedef std::function<void(std::shared_ptr<recording_base> recording_to_save,H5::H5File *H5Obj,std::vector<std::string> *pathstack,std::vector<H5::Group> *groupstack,std::string writepath,H5::Group recgroup)> ndefile_writerfunc;
   
-  
+  typedef std::map<std::string,std::pair<ndefile_saverfunc,ndefile_writerfunc>> ndefile_saver_map;
+
+  //std::shared_ptr<std::unordered_map<std::string,std::pair<std::function<H5::DataType()>,unsigned>>> nde_file_map_by_nativetype();
+  //std::shared_ptr<std::unordered_map<unsigned,std::pair<std::function<H5::DataType()>,std::string>>> nde_file_map_by_typenum();
+
+  //std::shared_ptr<ndefile_loader_map> ndefile_loader_registry();
+  //std::shared_ptr<ndefile_saver_map> ndefile_saver_registry();
+
+  //int register_ndefile_loader(std::string classname,unsigned depth,ndefile_loaderfunc loaderfunc); // depth of 1 = recording_base, depth of 2 = immediate subclass of recording_base, etc. 
+
+  //int register_ndefile_saver_function(std::string classname,ndefile_saverfunc function);
+
   class ndefile_readrecording_base {
   public:
     
@@ -98,10 +117,32 @@ namespace snde {
     
   };
 
+  //ndefile_writerfunc ndefile_lookup_writer_function(std::shared_ptr<recording_base> rec_to_write);
+  //ndefile_writerfunc ndefile_lookup_writer_function_by_class(std::string classname);
+  //std::pair<ndefile_saverfunc,std::string> ndefile_lookup_saver_function(std::shared_ptr<recording_base> rec_to_write);
+  //void ndefile_write_superclass(std::shared_ptr<recording_base> recording_to_save,H5::H5File *H5Obj,std::vector<std::string> *pathstack,std::vector<H5::Group> *groupstack,std::string writepath,H5::Group recgroup, std::string classname);
+
+  //void ndefile_write_recording_base(std::shared_ptr<recording_base> recording_to_save,H5::H5File *H5Obj,std::vector<std::string> *pathstack,std::vector<H5::Group> *groupstack,std::string writepath,H5::Group recgroup);
+  //void ndefile_write_recording_group(std::shared_ptr<recording_base> recording_to_save,H5::H5File *H5Obj,std::vector<std::string> *pathstack,std::vector<H5::Group> *groupstack,std::string writepath,H5::Group recgroup);
+  //void ndefile_write_multi_ndarray_recording(std::shared_ptr<recording_base> recording_to_save,H5::H5File *H5Obj,std::vector<std::string> *pathstack,std::vector<H5::Group> *groupstack,std::string writepath,H5::Group recgroup);
+
+  //std::map<std::string,channel_state>::iterator ndefile_save_generic_recording(std::shared_ptr<std::map<std::string,channel_state>> *channel_map,std::map<std::string,channel_state>::iterator starting_iterator,std::shared_ptr<recording_base> recording_to_save,std::string saveclass,H5::H5File *H5Obj,std::vector<std::string> *pathstack,std::vector<H5::Group> *groupstack,std::string writepath);
+  //std::map<std::string,channel_state>::iterator ndefile_save_generic_group(std::shared_ptr<std::map<std::string,channel_state>> *channel_map,std::map<std::string,channel_state>::iterator starting_iterator,std::shared_ptr<recording_base> recording_to_save,std::string saveclass,H5::H5File *H5Obj,std::vector<std::string> *pathstack,std::vector<H5::Group> *groupstack,std::string writepath);
+
+
   
   //std::shared_ptr<ndefile_readrecording_base> ndefile_loadrecording(std::string h5path,H5::Group group,std::string recpath,std::shared_ptr<nde_recording_map> filemap);
   
-  std::shared_ptr<nde_recording_map> ndefile_loadfile(std::shared_ptr<recdatabase> recdb,std::string ownername,void *owner_id,std::string filename,std::string recpath="/"); // add filter function parameter or specific recording to request to limit what is loaded? 
+  std::shared_ptr<nde_loadrecording_map> ndefile_loadfile(std::shared_ptr<recdatabase> recdb,std::string ownername,void *owner_id,std::string filename,std::string recpath="/"); // add filter function parameter or specific recording to request to limit what is loaded? 
+
+
+  //bool ndefile_savefile_pathstack_top_is_start_of(std::vector<std::string> *pathstack,const std::string &writepath_group);
+  
+  //void ndefile_savefile_pop_to_common(std::vector<std::string> *pathstack,std::vector<H5::Group> *groupstack,const std::string &writepath);
+
+  //void ndefile_savefile_push_to_group(H5::H5File *H5Obj,std::vector<std::string> *pathstack,std::vector<H5::Group> *groupstack,const std::string &writepath);
+
+  void ndefile_savefile(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss_or_globalrev,std::string filename,std::string grouppath="/");
   
 };
 

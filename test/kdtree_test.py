@@ -50,7 +50,7 @@ num_raw_vertices = 2000
 #num_raw_vertices = 13
 vertices_config=snde.channelconfig("/match_vertices", "main", recdb,False)
 vertices_chan = recdb.reserve_channel(vertices_config);
-vertices = snde.create_recording_ref(recdb,vertices_chan,recdb,snde.SNDE_RTN_SNDE_COORD3)
+vertices = snde.create_ndarray_ref(recdb,vertices_chan,recdb,snde.SNDE_RTN_SNDE_COORD3)
 vertices.rec.metadata=snde.immutable_metadata()
 vertices.rec.mark_metadata_done()
 vertices.allocate_storage([ num_raw_vertices ]);
@@ -65,7 +65,7 @@ num_search_points = 10000
 #num_search_points = 1
 search_points_config=snde.channelconfig("/search_points", "main", recdb,False)
 search_points_chan = recdb.reserve_channel(search_points_config);
-search_points = snde.create_recording_ref(recdb,search_points_chan,recdb,snde.SNDE_RTN_SNDE_COORD3)
+search_points = snde.create_ndarray_ref(recdb,search_points_chan,recdb,snde.SNDE_RTN_SNDE_COORD3)
 search_points.rec.metadata=snde.immutable_metadata()
 search_points.rec.mark_metadata_done()
 search_points.allocate_storage([ num_search_points ]);
@@ -94,7 +94,7 @@ assert((knn==by_numpy).all()) # Note: infintesimal possibility of a transient fa
 # and verify that case works as well
 
 transact2 = recdb.start_transaction(); # Transaction RAII holder
-search_points2 = snde.create_recording_ref(recdb,search_points_chan,recdb,snde.SNDE_RTN_SNDE_COORD3)
+search_points2 = snde.create_ndarray_ref(recdb,search_points_chan,recdb,snde.SNDE_RTN_SNDE_COORD3)
 search_points2.rec.metadata=snde.immutable_metadata()
 search_points2.rec.mark_metadata_done()
 search_points2.allocate_storage([ num_raw_vertices ]);

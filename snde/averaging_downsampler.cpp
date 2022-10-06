@@ -208,7 +208,7 @@ namespace snde {
 	    // define_recs code
 	    std::shared_ptr<ndtyped_recording_ref<T>> result_ref;
 	    
-	    result_ref = create_typed_recording_ref_math<T>(this->get_result_channel_path(0),this->rss);
+	    result_ref = create_typed_ndarray_ref_math<T>(this->get_result_channel_path(0),this->rss);
 	    
 	    return std::make_shared<metadata_function_override_type>([ this, creator_data, numavgs, usedouble, result_ref ]() {
 	      // metadata code

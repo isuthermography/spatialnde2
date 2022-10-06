@@ -44,7 +44,7 @@ main_viewer.viewer.set_rotation_center_dist(snde.recdb_path_join(probe_model_tre
 
 
 specimen_pose_chan = recdb.define_channel(specimen_pose_channel,"main",recdb.raw())
-specimen_pose_ref = snde.create_pose_channel_recording_ref(recdb,specimen_pose_chan,recdb.raw(),snde.recdb_path_join(specimen_model_tree,"meshed"))
+specimen_pose_ref = snde.create_pose_channel_ndarray_ref(recdb,specimen_pose_chan,recdb.raw(),snde.recdb_path_join(specimen_model_tree,"meshed"))
 specimen_pose_ref.allocate_storage([1])
 specimen_position = np.array(((0,0,0,0),(.4, .3, .625, .6)),dtype=orient_dtype)
 # Temporarily use trivial specimen position
@@ -64,7 +64,7 @@ probe_pose_chan = recdb.define_channel(probe_pose_channel,"main",recdb.raw())
 
 def new_probe_posn_in_transaction(orientation):
     
-    probe_pose_ref = snde.create_pose_channel_recording_ref(recdb,probe_pose_chan,recdb.raw(),snde.recdb_path_join(probe_model_tree,"meshed"))
+    probe_pose_ref = snde.create_pose_channel_ndarray_ref(recdb,probe_pose_chan,recdb.raw(),snde.recdb_path_join(probe_model_tree,"meshed"))
     probe_pose_ref.allocate_storage([1])
 
     probe_pose_rec = snde.pose_channel_recording.from_ndarray_recording(probe_pose_ref.rec)
@@ -104,7 +104,7 @@ synthetic_probe_impedance_chan = recdb.define_channel("/synthetic_probe_impedanc
 def new_synthetic_probe_impedance_rec_in_transaction(value):
     """This function is used within a transaction to create a new 
 recording with a new value (NOTE: Not particularly necessary to have this abstracted out)"""
-    synthetic_probe_imp_ref = snde.create_recording_ref(recdb,synthetic_probe_impedance_chan,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
+    synthetic_probe_imp_ref = snde.create_ndarray_ref(recdb,synthetic_probe_impedance_chan,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
     metadata = snde.constructible_metadata()
     metadata.AddMetaDatum(snde.metadatum("snde_render_goal","SNDE_SRG_PHASEPLANE"))
     metadata.AddMetaDatum(snde.metadatum("snde_phase_plane_historical_fade",True))
