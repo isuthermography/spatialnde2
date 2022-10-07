@@ -557,7 +557,14 @@ namespace snde {
     // Get texture correpsonding to this same channel
     bool modified;
     std::shared_ptr<osg_rendercacheentry> raw_entry;
-    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(0),&locks_required);
+
+    std::shared_ptr<display_requirement> subreq = display_req->sub_requirements.at(0);
+
+    if (!subreq) {
+        throw snde_error("osg_cachedimage: Unable to get subrequirement for %s", display_req->renderable_channelpath->c_str());
+    }
+
+    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,subreq,&locks_required);
 
     texture = std::dynamic_pointer_cast<osg_rendercachetextureentry>(raw_entry);
 
