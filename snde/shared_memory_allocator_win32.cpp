@@ -6,9 +6,10 @@
 #include "snde/shared_memory_allocator_win32.hpp"
 #include "snde/snde_error.hpp"
 
-#ifndef SNDE_WIN32_SHMEM_SIZE
-#define SNDE_WIN32_SHMEM_SIZE 4294967296ull
-#endif
+// Removing preallocation in lieu of just allocating the requested amount
+//#ifndef SNDE_WIN32_SHMEM_SIZE
+//#define SNDE_WIN32_SHMEM_SIZE 4294967296ull
+//#endif
 
 namespace snde {
 
@@ -135,7 +136,7 @@ namespace snde {
 				    base_shm_name(recording_path,recrevision,originating_rss_unique_id).c_str(),
 				    (unsigned long long)id);
     
-    size_t memtoalloc = (nbytes > SNDE_WIN32_SHMEM_SIZE ? nbytes : SNDE_WIN32_SHMEM_SIZE);
+    size_t memtoalloc = nbytes; //(nbytes > SNDE_WIN32_SHMEM_SIZE ? nbytes : SNDE_WIN32_SHMEM_SIZE);  //Removing preallocation in lieu of just allocating the requested amount
     DWORD memHigh = static_cast<DWORD>((memtoalloc >> 32) & 0xFFFFFFFFul);
     DWORD memLow = static_cast<DWORD>(memtoalloc & 0xFFFFFFFFul);
 
