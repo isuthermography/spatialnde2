@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
   globalrev2->wait_complete();
 
   snde_debug(SNDE_DC_APP,"wait_complete() done");
-  std::shared_ptr<ndarray_recording_ref> scaled_rec_32 = globalrev->get_recording_ref("/scaled channel");
+  std::shared_ptr<ndarray_recording_ref> scaled_rec_32 = globalrev->get_ndarray_ref("/scaled channel");
 
   
   // verify it is OK to read these channels without locking
@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
   }
 
   
-  std::shared_ptr<ndarray_recording_ref> scaled_rec_64 = globalrev2->get_recording_ref("/scaled channel");
+  std::shared_ptr<ndarray_recording_ref> scaled_rec_64 = globalrev2->get_ndarray_ref("/scaled channel");
 
   // verify it is OK to read these channels without locking
   assert(!scaled_rec_64->ndinfo()->requires_locking_read);

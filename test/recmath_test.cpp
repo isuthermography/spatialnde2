@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
 
   printf("wait_complete() done\n");
   fflush(stdout);
-  std::shared_ptr<ndarray_recording_ref> scaled_rec = globalrev->get_recording_ref("/scaled channel");
+  std::shared_ptr<ndarray_recording_ref> scaled_rec = globalrev->get_ndarray_ref("/scaled channel");
     
   // verify it is OK to read these channels without locking
   assert(!scaled_rec->ndinfo()->requires_locking_read);
