@@ -768,7 +768,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
               std::lock_guard<std::mutex> unitadminlockv(v->admin);
 
               xunitscale = u->scale;
-              yunitscale = v->scale;
+              yunitscale = displaychan->Scale;
           }
 
 
@@ -823,7 +823,8 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       std::make_shared<math_parameter_double_const>(color_renderparams->color.B),
       std::make_shared<math_parameter_double_const>(color_renderparams->overall_alpha),
       std::make_shared<math_parameter_double_const>(color_renderparams->linewidth_x),
-      std::make_shared<math_parameter_double_const>(color_renderparams->linewidth_y)
+      std::make_shared<math_parameter_double_const>(color_renderparams->linewidth_y),
+      std::make_shared<math_parameter_double_const>(horiz_pixels_per_chanunit)
 
           },
           { std::make_shared<std::string>(renderable_channelpath) },

@@ -806,7 +806,7 @@ namespace snde {
 	
 	  
 	
-      } else {
+      }  else {
 	if (chan_enabled) {
 	  snde_warning("qtrecviewer: invalid render_mode: %d on channel %s (0x%llx)",render_mode,posmgr->selected_channel->FullName.c_str(),(unsigned long long)((uintptr_t)posmgr->selected_channel.get()));
 	}

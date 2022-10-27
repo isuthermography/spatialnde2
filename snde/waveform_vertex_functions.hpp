@@ -7,7 +7,7 @@
 
 namespace snde {
 
-  extern SNDE_OCL_API std::shared_ptr<math_function> waveform_line_triangle_vertices_alphas_function;;
+  extern SNDE_OCL_API std::shared_ptr<math_function> waveform_line_triangle_vertices_alphas_function;
   
 };
 
