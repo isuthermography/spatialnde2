@@ -1,6 +1,7 @@
 #include <osg/Group>
 #include <osg/MatrixTransform>
 #include <osg/BlendFunc>
+#include <osg/Point>
 #include <iostream>
 
 
@@ -976,7 +977,28 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       endpoint_vertcoord_osg_array = new OSGFPArray(endpoint_vertcoord_array, 3, 3); // 3 for 3d point coordinates
 
       */
+      bool drawpoints = true;
+      std::shared_ptr<ndarray_recording_ref> pointcoord_array;
+      std::shared_ptr<ndarray_recording_ref> pointcoordcolor_array;
 
+      try {
+          std::shared_ptr<multi_ndarray_recording> cached_subreq_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->sub_requirements.at(0)->renderable_channelpath));
+          pointcoord_array = cached_subreq_recording->reference_ndarray("pointcoord");
+          pointcoordcolor_array = cached_subreq_recording->reference_ndarray("pointcoord_color");
+      }
+      catch (...) {
+          drawpoints = false;
+      }
+
+      if (drawpoints)
+      {
+          locks_required.push_back({ pointcoord_array,false }); // accmulate locks needed for lockmanager::lock_recording_refs()
+          locks_required.push_back({ pointcoordcolor_array,false }); // accmulate locks needed for lockmanager::lock_recording_refs()
+
+          pointcoord_osg_array = new OSGFPArray(pointcoord_array, 3, 3); // 3 for 3d point coordinates    
+          pointcoordcolor_osg_array = new OSGFPArray(pointcoordcolor_array, 1, 4); // 4 for RGBA entries    
+
+      }
 
 
       bool modified;
@@ -1018,10 +1040,53 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       pp_lines_geom->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
       osg::ref_ptr<osg::StateSet> pp_lines_ss = pp_lines_geom->getOrCreateStateSet();
       pp_lines_ss->setMode(GL_BLEND, osg::StateAttribute::ON);
+      //pp_lines_ss->setAttribute(new osg::Point(3.0f), osg::StateAttribute::ON);
       osg::ref_ptr<osg::BlendFunc> pp_lines_bf = new osg::BlendFunc(osg::BlendFunc::SRC_ALPHA, osg::BlendFunc::ONE_MINUS_SRC_ALPHA);
       pp_lines_ss->setAttributeAndModes(pp_lines_bf.get());
       pp_lines_ss->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
       pp_geode->addDrawable(pp_lines_geom);
+
+
+
+      if (drawpoints) {
+          pp_points_geom = new osg::Geometry();
+          pp_points_points = new osg::DrawArrays(osg::PrimitiveSet::POINTS, 0, 0);
+
+          pp_points_geom->addPrimitiveSet(pp_points_points);
+          if (!coloredtransparentlines->cached_recording->info->immutable) {
+              pp_points_geom->setDataVariance(osg::Object::DYNAMIC);
+              pp_points_points->setDataVariance(osg::Object::DYNAMIC);
+          }
+          else {
+              pp_points_geom->setDataVariance(osg::Object::STATIC);
+              pp_points_points->setDataVariance(osg::Object::STATIC);
+          }
+
+          pp_points_geom->setUseVertexBufferObjects(true);
+          // At least on Linux/Intel graphics we get nasty messages
+      // from the driver if we dont set the VBO in DYNAMIC_DRAW mode
+          pp_points_geom->getOrCreateVertexBufferObject()->setUsage(GL_DYNAMIC_DRAW);
+          pp_points_points->setCount(pointcoord_osg_array->nvec);
+          pp_points_geom->setVertexArray(pointcoord_osg_array); // (vertex coordinates)
+
+          pp_points_geom->setColorArray(pointcoordcolor_osg_array, osg::Array::BIND_PER_VERTEX);
+          pp_points_geom->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
+          pp_points_stateset = pp_points_geom->getOrCreateStateSet();
+          pp_points_stateset->setMode(GL_BLEND, osg::StateAttribute::ON);
+          pp_points_stateset->setAttribute(new osg::Point(4.0f), osg::StateAttribute::ON);
+          osg::ref_ptr<osg::BlendFunc> pp_points_bf = new osg::BlendFunc(osg::BlendFunc::SRC_ALPHA, osg::BlendFunc::ONE_MINUS_SRC_ALPHA);
+          pp_points_stateset->setAttributeAndModes(pp_points_bf.get());
+          pp_points_stateset->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
+          pp_geode->addDrawable(pp_points_geom);
+
+      }
+      
+
+
+
+
+
+      //osg::DisplaySettings::instance()->setNumMultiSamples(4);
 
       /*
 

@@ -224,45 +224,45 @@ namespace snde {
     GraticuleThickGeom->setColorBinding(osg::Geometry::BIND_OVERALL);
     
     // Units in these coordinates are 5 per division
-    osg::ref_ptr<osg::Vec3dArray> ThinGridLineCoords=new osg::Vec3dArray();
+    osg::ref_ptr<osg::Vec3Array> ThinGridLineCoords=new osg::Vec3Array();
       // horizontal thin grid lines
     for (size_t cnt=0; cnt <= display->vertical_divisions;cnt++) {
       double Pos;
       Pos = -1.0*display->vertical_divisions*5.0/2.0 + cnt*5.0;
-      ThinGridLineCoords->push_back(osg::Vec3d(-1.0*display->horizontal_divisions*5.0/2.0,Pos,0));
-      ThinGridLineCoords->push_back(osg::Vec3d(display->horizontal_divisions*5.0/2.0,Pos,0));
+      ThinGridLineCoords->push_back(osg::Vec3(-1.0*display->horizontal_divisions*5.0/2.0,Pos,0));
+      ThinGridLineCoords->push_back(osg::Vec3(display->horizontal_divisions*5.0/2.0,Pos,0));
     }
     // vertical thin grid lines
     for (size_t cnt=0; cnt <= display->horizontal_divisions;cnt++) {
       double Pos;
       Pos = -1.0*display->horizontal_divisions*5.0/2.0 + cnt*5.0;
-      ThinGridLineCoords->push_back(osg::Vec3d(Pos,-1.0*display->vertical_divisions*5.0/2.0,0));
-      ThinGridLineCoords->push_back(osg::Vec3d(Pos,display->vertical_divisions*5.0/2.0,0));
+      ThinGridLineCoords->push_back(osg::Vec3(Pos,-1.0*display->vertical_divisions*5.0/2.0,0));
+      ThinGridLineCoords->push_back(osg::Vec3(Pos,display->vertical_divisions*5.0/2.0,0));
     }
     
     // horizontal thin minidiv lines
     for (size_t cnt=0; cnt <= display->vertical_divisions*5;cnt++) {
       double Pos;
       Pos = -1.0*display->vertical_divisions*5.0/2.0 + cnt;
-      ThinGridLineCoords->push_back(osg::Vec3d(-0.5,Pos,0));
-      ThinGridLineCoords->push_back(osg::Vec3d(0.5,Pos,0));
+      ThinGridLineCoords->push_back(osg::Vec3(-0.5,Pos,0));
+      ThinGridLineCoords->push_back(osg::Vec3(0.5,Pos,0));
     }
     // vertical thin minidiv lines
     for (size_t cnt=0; cnt <= display->horizontal_divisions*5;cnt++) {
       double Pos;
       Pos = -1.0*display->horizontal_divisions*5.0/2.0 + cnt;
-      ThinGridLineCoords->push_back(osg::Vec3d(Pos,-0.5,0));
-      ThinGridLineCoords->push_back(osg::Vec3d(Pos,0.5,0));
+      ThinGridLineCoords->push_back(osg::Vec3(Pos,-0.5,0));
+      ThinGridLineCoords->push_back(osg::Vec3(Pos,0.5,0));
     }
     
-    osg::ref_ptr<osg::Vec3dArray> ThickGridLineCoords=new osg::Vec3dArray();
+    osg::ref_ptr<osg::Vec3Array> ThickGridLineCoords=new osg::Vec3Array();
     // horizontal main cross line
-    ThickGridLineCoords->push_back(osg::Vec3d(-1.0*display->horizontal_divisions*5.0/2.0,0.0,0.0));
-    ThickGridLineCoords->push_back(osg::Vec3d(display->horizontal_divisions*5.0/2.0,0.0,0.0));
+    ThickGridLineCoords->push_back(osg::Vec3(-1.0*display->horizontal_divisions*5.0/2.0,0.0,0.0));
+    ThickGridLineCoords->push_back(osg::Vec3(display->horizontal_divisions*5.0/2.0,0.0,0.0));
     
     // vertical main cross line
-    ThickGridLineCoords->push_back(osg::Vec3d(0.0,-1.0*display->vertical_divisions*5.0/2.0,0.0));
-    ThickGridLineCoords->push_back(osg::Vec3d(0.0,display->vertical_divisions*5.0/2.0,0.0));
+    ThickGridLineCoords->push_back(osg::Vec3(0.0,-1.0*display->vertical_divisions*5.0/2.0,0.0));
+    ThickGridLineCoords->push_back(osg::Vec3(0.0,display->vertical_divisions*5.0/2.0,0.0));
     
     
     
@@ -858,12 +858,21 @@ namespace snde {
 	bordergeode->getOrCreateStateSet()->setAttributeAndModes(new osg::LineWidth(borderwidthpixels),osg::StateAttribute::ON);
 	group->addChild(bordergeode);
 
-
-	osg::ref_ptr<osg::Vec4Array> BorderColorArray=new osg::Vec4Array();
+    osg::ref_ptr<osg::Vec4Array> BorderColorArray=new osg::Vec4Array();
 	size_t ColorIdx = ColorIdx_by_channelpath.at(displaychan->FullName);
 	BorderColorArray->push_back(osg::Vec4(RecColorTable[ColorIdx].R,RecColorTable[ColorIdx].G,RecColorTable[ColorIdx].B,1.0));
 	bordergeom->setColorArray(BorderColorArray,osg::Array::BIND_OVERALL);
 	bordergeom->setColorBinding(osg::Geometry::BIND_OVERALL);
+
+    // Add Graticule
+    double horizontal_padding = (compositor_width - display->horizontal_divisions * display->pixelsperdiv) / 2.0;
+    double vertical_padding = (compositor_height - display->vertical_divisions * display->pixelsperdiv) / 2.0;
+    GraticuleTransform->setMatrix(osg::Matrixd(display->pixelsperdiv / 5.0, 0, 0, 0,
+        0, display->pixelsperdiv / 5.0, 0, 0,
+        0, 0, 1, 0,
+        horizontal_padding + display->pixelsperdiv * display->horizontal_divisions / 2.0 - 0.5, vertical_padding + display->pixelsperdiv * display->vertical_divisions / 2.0 - 0.5, 0, 1)); // ***!!! are -0.5's and negative sign in front of layer_index correct?  .... fix here and in transformmtx, above. 
+    //group->addChild(GraticuleTransform);
+
 	
 	// Image coordinates, from actual corners, counterclockwise,
 	// Two triangles    

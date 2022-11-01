@@ -52,27 +52,46 @@ namespace snde {
 		throw snde_error("waveform_as_vertlines not implemented for type %s", typeid(T).name());
 	}
 
+	template <typename T>
+	void waveform_as_points(OCL_GLOBAL_ADDR T* inputs,
+		OCL_GLOBAL_ADDR snde_coord3* tri_vertices,
+		OCL_GLOBAL_ADDR snde_float32* trivert_colors,
+		snde_index pos, // within these inputs and these outputs,
+		double inival,
+		double step,
+		snde_float32 R,
+		snde_float32 G,
+		snde_float32 B,
+		snde_float32 A)
+	{
+		throw snde_error("waveform_as_points not implemented for type %s", typeid(T).name());
+	}
+
+
 	// Specializations implemented by including C file with an appropriate define
 #define WAVEFORM_DECL template<>
 
 #define waveform_intype snde_float32
 #define waveform_as_interplines waveform_as_interplines<snde_float32>
 #define waveform_as_vertlines waveform_as_vertlines<snde_float32>
+#define waveform_as_points waveform_as_points<snde_float32>
 #include "waveform_vertex_calcs.c"  
 #undef waveform_intype
 #undef waveform_as_interplines  
 #undef waveform_as_vertlines
+#undef waveform_as_points
 
 
 #define waveform_intype snde_float64
 #define waveform_as_interplines waveform_as_interplines<snde_float64>
 #define waveform_as_vertlines waveform_as_vertlines<snde_float64>
+#define waveform_as_points waveform_as_points<snde_float64>
 #include "waveform_vertex_calcs.c"
 #undef waveform_intype
 #undef waveform_vertices_alphas_one  
 #undef waveform_as_interplines  
 #undef waveform_as_vertlines
-
+#undef waveform_as_points
 
 
 	template <typename T>  // template for different floating point number classes 
@@ -116,12 +135,15 @@ namespace snde {
 
 			T junk = 0.0;
 
+			snde_index additional = 0;
+
+			bool plotpoints = false;
 
 			std::tie(step, step_units) = recording->metadata->GetMetaDatumDblUnits("nde_array-axis0_step", 1.0, "pixels");
 
 			double samplesperpixel = 1 / (horiz_pixels_per_chanunit * step);
 
-			if (samplesperpixel <= 1) {
+			if (samplesperpixel <= 0.5) {
 				// Plenty of Pixels -- plot the interpolated line
 				Npx = dimlen;
 			}
@@ -130,18 +152,23 @@ namespace snde {
 				Npx = static_cast<snde_index>(floor(dimlen / samplesperpixel));
 			}
 
+			if (samplesperpixel <= 0.2) {
+				additional = Npx * sizeof(snde_coord) * 3 * 2;
+				plotpoints = true;
+			}
+
 
 			std::vector<std::shared_ptr<compute_resource_option>> option_list =
 			{
 			  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
-									Npx * sizeof(snde_coord) * 3 * 6 * 2, // data_bytes for transfer
+									Npx * sizeof(snde_coord) * 3 * 6 * 2 + additional, // data_bytes for transfer
 									0.0, // flops
 									1, // max effective cpu cores
 									1), // useful_cpu_cores (min # of cores to supply
 
 		#ifdef SNDE_OPENCL_DISABLEDFORNOW
 			  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
-									   dimlen * sizeof(snde_coord) * 3 * 6 * 2,
+									   Npx * sizeof(snde_coord) * 3 * 6 * 2 + additional,
 									   0.0, // cpu_flops
 									   0.0, // gpuflops
 									   1, // max effective cpu cores
@@ -149,16 +176,23 @@ namespace snde {
 									   sizeof(junk) > 4), // requires_doubleprec 
 		#endif // SNDE_OPENCL
 			};
-			return std::make_pair(option_list, std::make_shared<define_recs_function_override_type>([this, recording, R, G, B, A, dimlen, Npx, samplesperpixel, step, linewidth_horiz, linewidth_vert, horiz_pixels_per_chanunit]() {
+			return std::make_pair(option_list, std::make_shared<define_recs_function_override_type>([this, recording, R, G, B, A, plotpoints, dimlen, Npx, samplesperpixel, step, linewidth_horiz, linewidth_vert, horiz_pixels_per_chanunit]() {
 
 				// define_recs code
 				//snde_debug(SNDE_DC_APP,"define_recs()");
 				// Use of "this" in the next line for the same reason as the typedefs, above
-				std::shared_ptr<multi_ndarray_recording> result_rec = create_recording_math<multi_ndarray_recording>(this->get_result_channel_path(0), this->rss, 2);
+				snde_index numvecs = plotpoints ? 4 : 2;
+				std::shared_ptr<multi_ndarray_recording> result_rec = create_recording_math<multi_ndarray_recording>(this->get_result_channel_path(0), this->rss, numvecs);
 				result_rec->define_array(0, SNDE_RTN_SNDE_COORD3, "vertcoord");
 				result_rec->define_array(1, SNDE_RTN_FLOAT32, "vertcoord_color");
+				if (plotpoints)
+				{
+					result_rec->define_array(2, SNDE_RTN_SNDE_COORD3, "pointcoord");
+					result_rec->define_array(3, SNDE_RTN_FLOAT32, "pointcoord_color");
+				}
 
-				return std::make_shared<metadata_function_override_type>([this, result_rec, recording, R, G, B, A, dimlen, Npx, samplesperpixel, step, linewidth_horiz, linewidth_vert, horiz_pixels_per_chanunit]() {
+
+				return std::make_shared<metadata_function_override_type>([this, result_rec, recording, R, G, B, A, plotpoints, dimlen, Npx, samplesperpixel, step, linewidth_horiz, linewidth_vert, horiz_pixels_per_chanunit]() {
 					// metadata code
 					//std::unordered_map<std::string,metadatum> metadata;
 					//snde_debug(SNDE_DC_APP,"metadata()");
@@ -167,11 +201,16 @@ namespace snde {
 					result_rec->metadata = std::make_shared<immutable_metadata>();
 					result_rec->mark_metadata_done();
 
-					return std::make_shared<lock_alloc_function_override_type>([this, result_rec, recording, R, G, B, A, dimlen, Npx, samplesperpixel, step, linewidth_horiz, linewidth_vert, horiz_pixels_per_chanunit]() {
+					return std::make_shared<lock_alloc_function_override_type>([this, result_rec, recording, R, G, B, A, plotpoints, dimlen, Npx, samplesperpixel, step, linewidth_horiz, linewidth_vert, horiz_pixels_per_chanunit]() {
 						// lock_alloc code
 
-						result_rec->allocate_storage("vertcoord", { (Npx - 1) * 6 }, false);
-						result_rec->allocate_storage("vertcoord_color", { (Npx - 1) * 6 * 4 }, false);
+						result_rec->allocate_storage("vertcoord", { (Npx - 2) * 6 }, false);
+						result_rec->allocate_storage("vertcoord_color", { (Npx - 2) * 6 * 4 }, false);
+
+						if (plotpoints) {
+							result_rec->allocate_storage("pointcoord", { (Npx - 2) }, false);
+							result_rec->allocate_storage("pointcoord_color", { (Npx - 2) * 4 }, false);
+						}
 
 
 						// locking is only required for certain recordings
@@ -184,8 +223,12 @@ namespace snde {
 						std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>, std::pair<size_t, bool>>> recrefs_to_lock = {
 						  { result_rec, { 0, true } }, // vertcoord
 						  { result_rec, { 1, true } }, // vertcoord_color
-
 						};
+
+						if (plotpoints) {
+							recrefs_to_lock.emplace_back(std::make_pair(result_rec, std::make_pair(2, true)));
+							recrefs_to_lock.emplace_back(std::make_pair(result_rec, std::make_pair(3, true)));
+						}
 
 						// ... and all the input arrays. 
 						for (size_t arraynum = 0; arraynum < recording->mndinfo()->num_arrays; arraynum++) {
@@ -200,7 +243,7 @@ namespace snde {
 #endif
 						);
 
-						return std::make_shared<exec_function_override_type>([this, locktokens, result_rec, recording, R, G, B, A, dimlen, Npx, samplesperpixel, step, linewidth_horiz, linewidth_vert, horiz_pixels_per_chanunit]() {
+						return std::make_shared<exec_function_override_type>([this, locktokens, result_rec, recording, R, G, B, A, plotpoints, dimlen, Npx, samplesperpixel, step, linewidth_horiz, linewidth_vert, horiz_pixels_per_chanunit]() {
 							// exec code
 							//snde_index flattened_length = recording->layout.flattened_length();
 							//for (snde_index pos=0;pos < flattened_length;pos++){
@@ -320,7 +363,7 @@ namespace snde {
 									// Plot Vertical Lines
 									snde_index pxstep = static_cast<snde_index>(round(samplesperpixel));
 
-									for (snde_index cnt = 1; cnt < Npx; cnt++) {
+									for (snde_index cnt = 1; cnt < Npx-1; cnt++) {
 										waveform_as_vertlines<T>(((T*)recording->void_shifted_arrayptr(0)),
 											((snde_coord3*)result_rec->void_shifted_arrayptr("vertcoord")),
 											((snde_float32*)result_rec->void_shifted_arrayptr("vertcoord_color")),
@@ -330,6 +373,22 @@ namespace snde {
 											pxstep,
 											linewidth_horiz,
 											linewidth_vert,
+											R,
+											G,
+											B,
+											A);
+									}
+								}
+
+								if (plotpoints) {
+									// Plot Normal Lines
+									for (snde_index cnt = 0; cnt < dimlen; cnt++) {
+										waveform_as_points<T>(((T*)recording->void_shifted_arrayptr(0)),
+											((snde_coord3*)result_rec->void_shifted_arrayptr("pointcoord")),
+											((snde_float32*)result_rec->void_shifted_arrayptr("pointcoord_color")),
+											cnt,
+											inival,
+											step,
 											R,
 											G,
 											B,
