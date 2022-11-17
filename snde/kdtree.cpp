@@ -398,7 +398,7 @@ namespace snde {
     
 #ifdef SNDE_OPENCL
     std::shared_ptr<assigned_compute_resource_opencl> opencl_resource=std::dynamic_pointer_cast<assigned_compute_resource_opencl>(compute_resource);
-    if (opencl_resource) {
+    if (opencl_resource && search_point_indices->layout.flattened_length() > 0) {
       cl::Device knn_dev = opencl_resource->devices.at(0);
 
       OpenCLBuffers Buffers(opencl_resource->oclcache,opencl_resource->context,knn_dev,locktokens);
