@@ -51,6 +51,7 @@ namespace snde {
     QTRecViewer & operator=(const QTRecViewer &) = delete;
     virtual ~QTRecViewer();
     
+    std::shared_ptr<display_channel> FindDisplayChan(std::string channame);
     std::shared_ptr<display_channel> FindDisplayChan(QTRecSelector *Selector);
     
     void set_selected(QTRecSelector *Selector);
@@ -61,7 +62,10 @@ namespace snde {
 
     snde_coord get_rotation_center_dist(std::string channelpath);
     void set_rotation_center_dist(std::string channelpath,snde_coord newcenterdist);
-
+    float GetChannelContrast(std::string channelpath);
+    void SetChannelContrast(std::string channelpath, float contrast);
+    float GetChannelBrightness(std::string channelpath);
+    void SetChannelBrightness(std::string channelpath, float brightness);
 				  
 
     //public slots:

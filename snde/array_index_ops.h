@@ -216,7 +216,10 @@ snde_array_flattened_size(
   snde_index dimnum;
 
   for (dimnum=0;dimnum < ndim;dimnum++) {
-    assert(dimlen[dimnum] > 0);
+    //assert(dimlen[dimnum] > 0);
+    if (dimlen[dimnum]==0) {
+      return 0;
+    }
     last_element += strides[dimnum]*(dimlen[dimnum]-1);
   }
 

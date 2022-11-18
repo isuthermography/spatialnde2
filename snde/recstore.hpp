@@ -987,13 +987,13 @@ namespace snde {
     std::shared_ptr<recording_base> get_recording(const std::string &fullpath);
     std::shared_ptr<recording_base> check_for_recording(const std::string &fullpath);
     
-    std::shared_ptr<ndarray_recording_ref> get_recording_ref(const std::string &fullpath,size_t array_index=0);
-    std::shared_ptr<ndarray_recording_ref> get_recording_ref(const std::string &fullpath,std::string array_name);
+    std::shared_ptr<ndarray_recording_ref> get_ndarray_ref(const std::string &fullpath,size_t array_index=0);
+    std::shared_ptr<ndarray_recording_ref> get_ndarray_ref(const std::string &fullpath,std::string array_name);
 
     template <typename T>
     std::shared_ptr<ndarray_recording_ref> get_typed_recording_ref(const std::string &fullpath,size_t array_index=0)
     {
-      std::shared_ptr<ndarray_recording_ref> rawref = get_recording_ref(fullpath,array_index);
+      std::shared_ptr<ndarray_recording_ref> rawref = get_ndarray_ref(fullpath,array_index);
       std::shared_ptr<ndtyped_recording_ref<T>> retval = std::dynamic_pointer_cast<ndtyped_recording_ref<T>>(rawref);
       if (!retval) {
 	throw snde_error("Recording channel %s array index %llu has type %s which appears not to match %s",fullpath.c_str(),(unsigned long long)array_index,rtn_typenamemap.at(rawref->typenum).c_str(),rtn_typenamemap.at(rtn_typemap.at(typeid(T))).c_str());
@@ -1004,7 +1004,7 @@ namespace snde {
     template <typename T>
     std::shared_ptr<ndarray_recording_ref> get_typed_recording_ref(const std::string &fullpath,std::string array_name)
     {
-      std::shared_ptr<ndarray_recording_ref> rawref = get_recording_ref(fullpath,array_name);
+      std::shared_ptr<ndarray_recording_ref> rawref = get_ndarray_ref(fullpath,array_name);
       std::shared_ptr<ndtyped_recording_ref<T>> retval = std::dynamic_pointer_cast<ndtyped_recording_ref<T>>(rawref);
       if (!retval) {
 	throw snde_error("Recording channel %s array name %s has type %s which appears not to match %s",fullpath.c_str(),array_name.c_str(),rtn_typenamemap.at(rawref->typenum).c_str(),rtn_typenamemap.at(rtn_typemap.at(typeid(T))).c_str());

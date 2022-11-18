@@ -976,6 +976,16 @@ namespace snde {
     throw snde_error("This function does not support vectors of type %s",typeid(T).name());
   }
   template<>
+  inline size_t cppfunc_vector_multiplicity<uint8_t>()
+  {
+      return 1;
+  }
+  template<>
+  inline size_t cppfunc_vector_multiplicity<uint16_t>()
+  {
+      return 1;
+  }
+  template<>
   inline size_t cppfunc_vector_multiplicity<snde_float32>()
   {
     return 1;

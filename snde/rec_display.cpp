@@ -522,7 +522,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -547,7 +547,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxisLocked("Time","seconds");
@@ -571,7 +571,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -598,7 +598,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -622,7 +622,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -645,7 +645,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -667,7 +667,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -690,7 +690,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -714,7 +714,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -735,7 +735,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -919,7 +919,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return 0.0; 
     }
     try {
-      chan_data = recdb_strong->latest_globalrev()->get_recording_ref(chan_name);
+      chan_data = recdb_strong->latest_globalrev()->get_ndarray_ref(chan_name);
     } catch (snde_error &) {
       // no such reference
       return 0.0;

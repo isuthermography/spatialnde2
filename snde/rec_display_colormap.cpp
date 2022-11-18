@@ -100,8 +100,7 @@ namespace snde {
 	return std::make_shared<lock_alloc_function_override_type>([ this,result_rec,recording,colormap_type,offset,unitsperintensity,base_position,u_dim,v_dim ]() {
 	  // lock_alloc code
 	  result_rec->rec->assign_storage_manager(this->recdb->default_storage_manager); // Force default storage manager so that we DON'T go to the graphics storage (which is unnecessary for temporary output such as this)
-	  result_rec->allocate_storage(recording->layout.dimlen,true); // Note fortran order flag -- required by renderer
-	   
+	  result_rec->allocate_storage(recording->layout.dimlen,true); // Note fortran order flag -- required by renderer  
 	  
 #ifdef SNDE_OPENCL
 	  std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(this->compute_resource);
@@ -140,23 +139,31 @@ namespace snde {
 	      
 	      OpenCLBuffers Buffers(opencl_resource->oclcache,opencl_resource->context,opencl_resource->devices.at(0),locktokens);
 	      
-	      assert(recording->ndinfo()->base_index==0); // we don't support a shift (at least not currently)
-	      Buffers.AddBufferAsKernelArg(recording,colormap_kern,0,false,false);
+		  //assert(recording->ndinfo()->base_index==0); // we don't support a shift (at least not currently)
+		  Buffers.AddBufferAsKernelArg(recording, colormap_kern, 0, false, false);      
 	      Buffers.AddBufferAsKernelArg(result_rec,colormap_kern,1,true,true);
 
 	      snde_index stride_u=recording->layout.strides.at(u_dim);
-	      snde_index stride_v=recording->layout.strides.at(v_dim);	      
+	      snde_index stride_v=recording->layout.strides.at(v_dim);	
+		  snde_index stride_w = 0;
+		  snde_index DisplayFrame = 0;
 	      colormap_kern.setArg(2,sizeof(stride_u),&stride_u);
 	      colormap_kern.setArg(3,sizeof(stride_v),&stride_v);
+		  if (base_position.size() >= 3) {
+			  DisplayFrame = base_position.at(2);
+			  stride_w = recording->layout.strides.at(2);
+		  }
+		  colormap_kern.setArg(4, sizeof(stride_w), &stride_w);
+		  colormap_kern.setArg(5, sizeof(DisplayFrame), &DisplayFrame);
 
 	      snde_float32 ocl_offset = (snde_float32)offset;
-	      colormap_kern.setArg(4,sizeof(ocl_offset),&ocl_offset);
+	      colormap_kern.setArg(6,sizeof(ocl_offset),&ocl_offset);
 	      uint8_t ocl_alpha = 255;
-	      colormap_kern.setArg(5,sizeof(ocl_alpha),&ocl_alpha);
+	      colormap_kern.setArg(7,sizeof(ocl_alpha),&ocl_alpha);
 	      uint32_t ocl_colormap_type = colormap_type;
-	      colormap_kern.setArg(6,sizeof(ocl_colormap_type),&ocl_colormap_type);
+	      colormap_kern.setArg(8,sizeof(ocl_colormap_type),&ocl_colormap_type);
 	      snde_float32 ocl_intensityperunits = (snde_float32)(1.0/unitsperintensity);
-	      colormap_kern.setArg(7,sizeof(ocl_intensityperunits),&ocl_intensityperunits);
+	      colormap_kern.setArg(9,sizeof(ocl_intensityperunits),&ocl_intensityperunits);
 	      
 	      cl::Event kerndone;
 	      std::vector<cl::Event> FillEvents=Buffers.FillEvents();
