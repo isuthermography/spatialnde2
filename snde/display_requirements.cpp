@@ -728,10 +728,126 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
     return nullptr;
   } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && NDim==1) {
+
+      /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     // goal is to render 1D recording
-    snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): 1D recording rendering not yet implemented");
+
+      std::shared_ptr<display_spatial_position> posn;
+      std::shared_ptr<display_spatial_transform> xform;
+      std::shared_ptr<display_channel_rendering_bounds> bounds;
+      size_t DC_ColorIdx;
+
+      std::shared_ptr<rgbacolormapparams> colormap_params;
+      {
+          std::lock_guard<std::mutex> di_lock(display->admin);
+          std::lock_guard<std::mutex> dc_lock(displaychan->admin);
+          std::vector<snde_index> other_indices({ 0,0 });
+
+          // !!!*** displaychan updates should be more formally assigned and passed around
+          // this is interpreted by qtrecviewer for how the controls should work
+          // as distinct from renderer_type in display_requirement, which is used to select the actual renderer.
+          // Should these be unified somehow? 
+          displaychan->render_mode = SNDE_DCRM_WAVEFORM;
+          DC_ColorIdx = displaychan->ColorIdx;
+
+          std::shared_ptr<display_axis> a = display->GetAmplAxisLocked(chanpath);
+          std::shared_ptr<display_axis> t = display->GetFirstAxisLocked(chanpath);
+
+          double xcenter;
+          double xunitscale;
+          double yunitscale;
+          {
+              std::lock_guard<std::mutex> axisadminlocka(a->admin);
+              std::lock_guard<std::mutex> axisadminlockt(t->admin);
+              xcenter = t->CenterCoord; /* in units */
+
+              std::shared_ptr<display_unit> u = t->unit;
+              std::shared_ptr<display_unit> v = a->unit;
+              std::lock_guard<std::mutex> unitadminlocku(u->admin);
+              std::lock_guard<std::mutex> unitadminlockv(v->admin);
+
+              xunitscale = u->scale;
+              yunitscale = displaychan->Scale;
+          }
+
+
+
+
+          snde_debug(SNDE_DC_DISPLAY, "spatial_transforms_for_waveform_channel: xunitscale=%f, yunitscale=%f", xunitscale, yunitscale);
+          std::tie(posn, xform, bounds) = spatial_transforms_for_waveform_channel(display->drawareawidth, display->drawareaheight,
+              display->horizontal_divisions, display->vertical_divisions,
+              xcenter, -displaychan->Position, displaychan->VertZoomAroundAxis,
+              displaychan->VertCenterCoord,
+              xunitscale, yunitscale, display->pixelsperdiv,
+              false, false,
+              displaychan->VertZoomAroundAxis);
+
+
+      } // release displaychan lock
+
+
+      // pull scaling out of display transform
+      double horiz_pixels_per_chanunit = xform->renderarea_coords_over_channel_coords(0, 0);
+      double vert_pixels_per_chanunit = xform->renderarea_coords_over_channel_coords(1, 1);
+
+      // should colormap_params really be in the rendermode_ext key for this one or just the next one?
+      // I think the answer is both because the nested requirement won't be looked at
+      // if the parent just pulls from the cache
+      std::shared_ptr<color_linewidth_params> color_renderparams = std::make_shared<color_linewidth_params>(RecColorTable[DC_ColorIdx], 1.0f, 2.0f / horiz_pixels_per_chanunit, 2.0f / vert_pixels_per_chanunit);
+
+     
+      //retval->imgref = std::make_shared<image_reference>(chanpath,u_dimnum,v_dimnum,other_indices);
+
+
+      std::string renderable_channelpath = recdb_path_join(recdb_path_as_group(chanpath), "_snde_waveform_vertices" + std::to_string(display->unique_index));
+
+      std::shared_ptr<recdatabase> recdb = base_rss->recdb_weak.lock();
+      if (!recdb) {
+          return nullptr;
+      }
+
+      retval = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_WAVEFORM, typeid(*this), color_renderparams), rec, shared_from_this()); // display_requirement
+      retval->renderer_type = SNDE_DRRT_2D;
+
+      retval->spatial_position = posn;
+      retval->spatial_transform = xform;
+      retval->spatial_bounds = bounds;
+
+      std::shared_ptr<snde::display_requirement> subreq = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_COLOREDTRANSPARENTLINES, typeid(*this), color_renderparams), rec, shared_from_this());
+
+      std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_available_math_function("spatialnde2.waveform_line_triangle_vertices_alphas")->instantiate({
+      std::make_shared<math_parameter_recording>(chanpath),
+      std::make_shared<math_parameter_double_const>(color_renderparams->color.R),
+      std::make_shared<math_parameter_double_const>(color_renderparams->color.G),
+      std::make_shared<math_parameter_double_const>(color_renderparams->color.B),
+      std::make_shared<math_parameter_double_const>(color_renderparams->overall_alpha),
+      std::make_shared<math_parameter_double_const>(color_renderparams->linewidth_x),
+      std::make_shared<math_parameter_double_const>(color_renderparams->linewidth_y),
+      std::make_shared<math_parameter_double_const>(horiz_pixels_per_chanunit)
+
+          },
+          { std::make_shared<std::string>(renderable_channelpath) },
+          recdb_path_as_group(chanpath),
+          false, // is_mutable
+          true, // ondemand
+          false, // mdonly
+          std::make_shared<math_definition>("c++ definition of waveform line triangle vertices and alphas"),
+          nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
+
+      
+
+      subreq->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
+      subreq->renderable_function = renderable_function;
+
+      retval->sub_requirements.push_back(subreq);
+
+      return retval;
+
+      /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
-    return nullptr;
+
   } else if ((simple_goal == SNDE_SRG_PHASEPLANE) && NDim==1) {
     // goal is to render 1D recording in a phase plane diagram
 
@@ -1000,11 +1116,20 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     // goal is to obtain a texture from the channel data
     // ***!!! We really should be able to accommodate a frame or sequence axis being multiple ndarrays with consistent_layout_f !!!***
 
+   
+      
+
     assert(array_rec);
     assert(array_rec->layouts.size()==1);
     
     // Simple ndarray recording
     std::shared_ptr<ndarray_recording_ref> ref = array_rec->reference_ndarray();
+
+    // Make sure the data type is valid -- if not, we need to stop this here or else things get weird later
+    if (ref->storage->typenum == SNDE_RTN_UNASSIGNED) {
+        snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Could not set up colormap for undefined data type on channel %s", chanpath.c_str());
+        return nullptr;
+    }
 
 
     std::shared_ptr<rgbacolormapparams> colormap_params = std::dynamic_pointer_cast<rgbacolormapparams>(params_from_parent);
@@ -1045,6 +1170,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
       retval->renderable_function = renderable_function;
     } else {
+
       retval->renderable_channelpath = std::make_shared<std::string>(chanpath); // no colormapping needed because data is RGBA to begin with
     }
   

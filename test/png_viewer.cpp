@@ -27,6 +27,10 @@
 #include "snde/recstore_display_transforms.hpp"
 #include "snde/openscenegraph_2d_renderer.hpp"
 
+#ifdef SNDE_OPENCL
+#include "snde/recstore_setup_opencl.hpp"
+#endif
+
 using namespace snde;
 
 std::shared_ptr<snde::recdatabase> recdb;
@@ -184,6 +188,10 @@ int main(int argc, char **argv)
   
   recdb=std::make_shared<snde::recdatabase>();
   setup_cpu(recdb,std::thread::hardware_concurrency());
+#ifdef SNDE_OPENCL
+  setup_opencl(recdb, false, 8, nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
+  //#warning "GPU acceleration temporarily disabled for viewer."
+#endif
   setup_storage_manager(recdb);
   setup_math_functions(recdb, {});
   recdb->startup();

@@ -76,7 +76,6 @@ namespace snde {
 #define SNDE_SRG_POINTCLOUDCOLORMAP "SNDE_SRG_POINTCLOUDCOLORMAP" // goal is to render a point cloud colormap
 
 #define SNDE_SRG_PHASEPLANE "SNDE_SRG_PHASEPLANE" // goal is to render a phase plane diagram
-
 #define SNDE_SRG_PHASEPLANE_LINE_TRIANGLE_VERTICES_ALPHAS "SNDE_SRG_PHASEPLANE_LINE_TRIANGLE_VERTICES_ALPHAS"
   
   //#define SNDE_SRG_CLASSSPECIFIC 1006 // render in a way that is specific to the particular recording_type indexed in the rendermode
@@ -129,7 +128,8 @@ namespace snde {
   };
   
 #define SNDE_SRM_INVALID "SNDE_SRM_INVALID" // undetermined/invalid display mode
-#define SNDE_SRM_RAW "SNDE_SRM_RAW" // raw data OK (used for passing 1D waveforms to the renderer)
+#define SNDE_SRM_RAW "SNDE_SRM_RAW" // raw data OK (used for passing 1D waveforms to the renderer)   --- NOTE:  This may not be needed?  I don't think we want to pass raw data to the renderer, we need to generate a new set of arrays and dynamically choose which one to use depending on the zoom level.
+#define SNDE_SRM_WAVEFORM "SNDE_SRM_WAVEFORM" //  1D waveform
 #define SNDE_SRM_RGBAIMAGEDATA "SNDE_SRM_RGBAIMAGEDATA" // render as an RGBA texture
 #define SNDE_SRM_RGBAIMAGE "SNDE_SRM_RGBAIMAGE" // render as an RGBA image
 #define SNDE_SRM_MESHEDNORMALS "SNDE_SRM_MESHEDNORMALS" // collect array of meshed normals

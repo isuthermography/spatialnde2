@@ -9,7 +9,8 @@
 
 __kernel void scale_colormap(__global const sc_intype *inarray,
 			     __global snde_rgba *outimage,
-			     snde_index stride_u,snde_index stride_v,
+			     snde_index stride_u,snde_index stride_v,snde_index stride_w,
+	             snde_index DisplayFrame,
 			     snde_float32 offset,
 			     uint8_t alpha,
 			     uint32_t colormap_type,
@@ -18,7 +19,7 @@ __kernel void scale_colormap(__global const sc_intype *inarray,
   snde_index uidx=get_global_id(0);
   snde_index vidx=get_global_id(1);
   snde_rgba out;
-  float scaledval=(inarray[stride_u*uidx + stride_v*vidx]-offset)*intensityperunits;
+  float scaledval=(inarray[stride_u*uidx + stride_v*vidx + stride_w*DisplayFrame]-offset)*intensityperunits;
 
   outimage[uidx + get_global_size(0)*vidx] = snde_colormap(colormap_type,scaledval,alpha);
 }

@@ -52,24 +52,24 @@ namespace snde {
   };
   
   template <typename T>
-  class averaging_temporal_downsampler: public recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t> {
+  class averaging_temporal_downsampler: public recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t,snde_bool> {
   public:
     averaging_temporal_downsampler(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) :
-      recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t>(rss,inst)
+      recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t,snde_bool>(rss,inst)
     {
       
     }
 
     // These typedefs are regrettably necessary and will need to be updated according to the parameter signature of your function
     // https://stackoverflow.com/questions/1120833/derived-template-class-access-to-base-class-member-data
-    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t>::compute_options_function_override_type compute_options_function_override_type;
-    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t>::define_recs_function_override_type define_recs_function_override_type;
-    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t>::metadata_function_override_type metadata_function_override_type;
-    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t>::lock_alloc_function_override_type lock_alloc_function_override_type;
-    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t>::exec_function_override_type exec_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t,snde_bool>::compute_options_function_override_type compute_options_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t,snde_bool>::define_recs_function_override_type define_recs_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t,snde_bool>::metadata_function_override_type metadata_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t,snde_bool>::lock_alloc_function_override_type lock_alloc_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t,snde_bool>::exec_function_override_type exec_function_override_type;
 
     
-    std::pair<bool,std::shared_ptr<compute_options_function_override_type>> decide_execution(std::shared_ptr<ndtyped_recording_ref<T>> to_avg, uint64_t numavgs)
+    std::pair<bool,std::shared_ptr<compute_options_function_override_type>> decide_execution(std::shared_ptr<ndtyped_recording_ref<T>> to_avg,uint64_t numavgs,snde_bool usedouble)
     {
 
       bool just_starting = false;
@@ -131,7 +131,7 @@ namespace snde {
       }
       //snde_warning("avg: decide_new_revision, just_starting=%d new_recording=%d",(int)just_starting,(int)new_recording);
       if (just_starting) {
-	return std::make_pair(true,std::make_shared<compute_options_function_override_type>([ this, just_starting, to_avg, numavgs ] {
+	return std::make_pair(true,std::make_shared<compute_options_function_override_type>([ this, just_starting, to_avg, numavgs, usedouble] {
 
 	  //snde_warning("avg: compute_options just_starting");
 
@@ -146,7 +146,7 @@ namespace snde {
 	    };
 	  
 	  
-	  return std::make_pair(option_list,std::make_shared<define_recs_function_override_type>([this, to_avg, numavgs ] { 
+	  return std::make_pair(option_list,std::make_shared<define_recs_function_override_type>([this, to_avg, numavgs, usedouble] { 
 	    
 	    // define_recs code
 	    std::shared_ptr<null_recording> starting_result;
@@ -154,7 +154,7 @@ namespace snde {
 	  
 	    
 	    starting_result = create_recording_math<null_recording>(this->get_result_channel_path(0),this->rss);
-	    return std::make_shared<metadata_function_override_type>([ this, to_avg, numavgs, starting_result ]() {
+	    return std::make_shared<metadata_function_override_type>([ this, to_avg, numavgs, usedouble, starting_result ]() {
 	      // metadata code
 
 	      //snde_warning("avg: metadata just_starting");
@@ -162,11 +162,11 @@ namespace snde {
 	      starting_result->metadata=std::make_shared<immutable_metadata>();
 	      starting_result->mark_metadata_done();
 	      
-	      return std::make_shared<lock_alloc_function_override_type>([ this,to_avg, numavgs, starting_result ]() {
+	      return std::make_shared<lock_alloc_function_override_type>([ this,to_avg, numavgs, usedouble, starting_result ]() {
 		// lock_alloc code
 	       
 		
-		return std::make_shared<exec_function_override_type>([ this, to_avg, numavgs, starting_result ]() {
+		return std::make_shared<exec_function_override_type>([ this, to_avg, numavgs, usedouble, starting_result ]() {
 		  // exec code
 
 		  std::shared_ptr<averaging_downsampler_creator_data<T>> new_creator_data = std::make_shared<averaging_downsampler_creator_data<T>>();
@@ -185,7 +185,7 @@ namespace snde {
       } else {
 	// Not just starting
 	assert(creator_data);
-	return std::make_pair(new_recording,std::make_shared<compute_options_function_override_type>([ this, to_avg, creator_data, numavgs ] {
+	return std::make_pair(new_recording,std::make_shared<compute_options_function_override_type>([ this, to_avg, creator_data, numavgs, usedouble ] {
 	  snde_index num_elements = 1;
 	  for (size_t dimnum=0;dimnum < to_avg->layout.dimlen.size();dimnum++) {
 	    num_elements *= to_avg->layout.dimlen.at(dimnum);
@@ -202,7 +202,7 @@ namespace snde {
 	    };
 	  
 	  
-	  return std::make_pair(option_list,std::make_shared<define_recs_function_override_type>([this, creator_data, numavgs ] {
+	  return std::make_pair(option_list,std::make_shared<define_recs_function_override_type>([this, creator_data, numavgs, usedouble ] {
 	    
 	    
 	    // define_recs code
@@ -210,13 +210,13 @@ namespace snde {
 	    
 	    result_ref = create_typed_ndarray_ref_math<T>(this->get_result_channel_path(0),this->rss);
 	    
-	    return std::make_shared<metadata_function_override_type>([ this, creator_data, numavgs, result_ref ]() {
+	    return std::make_shared<metadata_function_override_type>([ this, creator_data, numavgs, usedouble, result_ref ]() {
 	      // metadata code
 	      
 	      result_ref->rec->metadata=std::make_shared<immutable_metadata>(*creator_data->pending_recs.at(0)->rec->metadata);
 	      result_ref->rec->mark_metadata_done();
 	      
-	      return std::make_shared<lock_alloc_function_override_type>([ this, creator_data,numavgs,result_ref ]() {
+	      return std::make_shared<lock_alloc_function_override_type>([ this, creator_data, numavgs, usedouble, result_ref ]() {
 		// lock_alloc code
 		
 		result_ref->allocate_storage(creator_data->pending_recs.at(0)->layout.dimlen,creator_data->pending_recs.at(0)->layout.is_f_contiguous()); 
@@ -232,53 +232,68 @@ namespace snde {
 		
 		rwlock_token_set locktokens = this->lockmgr->lock_recording_refs(to_lock);
 		
-		return std::make_shared<exec_function_override_type>([ this, creator_data, numavgs, result_ref, locktokens ]() {
-		  // exec code		    
-		  std::vector<typename cppfunc_vector_underlying_type<T>::underlying_type* > input_pointers;
 
-		  for (size_t inpnum = 0; inpnum < numavgs; inpnum++) {
-		    input_pointers.push_back((typename cppfunc_vector_underlying_type<T>::underlying_type *)creator_data->pending_recs.at(inpnum)->void_shifted_arrayptr());
 
-		    if ((inpnum > 0 && creator_data->pending_recs.at(inpnum)->layout != creator_data->pending_recs.at(inpnum-1)->layout) ||
-			!creator_data->pending_recs.at(inpnum)->layout.is_contiguous()) {
-		      throw snde_error("averaging_downsampler(%s): Requires all inputs to have the same contiguous layout",this->get_result_channel_path(0).c_str());
-		    }
-		    
-		  }
-		  snde_index numelem = creator_data->pending_recs.at(0)->layout.flattened_length()*cppfunc_vector_multiplicity<T>();
-		  typename cppfunc_vector_underlying_type<T>::underlying_type ** raw_input_pointers;
-		  typename cppfunc_vector_underlying_type<T>::underlying_type * raw_output_pointer; 
-		  raw_input_pointers=input_pointers.data();
-		  raw_output_pointer= (typename cppfunc_vector_underlying_type<T>::underlying_type *)result_ref->void_shifted_arrayptr();
-		  if (creator_data->pending_recs.at(0)->layout != result_ref->layout) {
-		    throw snde_error("averaging_downsampler(%s): Requires input and output to have the same contiguous layout",this->get_result_channel_path(0).c_str());
-		  }
+			return std::make_shared<exec_function_override_type>([this, creator_data, numavgs, usedouble, result_ref, locktokens]() {
+				// exec code		    
+				std::vector<typename cppfunc_vector_underlying_type<T>::underlying_type* > input_pointers;
 
-		  snde_index elnum;
-		  for (elnum=0;elnum < numelem;elnum++) {
-		    typename cppfunc_vector_underlying_type<T>::underlying_type accum=0.0;
-		    for (size_t inpnum = 0; inpnum < numavgs; inpnum++) {
-		      accum += raw_input_pointers[inpnum][elnum];		      
-		    }
-		    raw_output_pointer[elnum] = accum/numavgs;
-		  } 
-		  unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready()
+				for (size_t inpnum = 0; inpnum < numavgs; inpnum++) {
+					input_pointers.push_back((typename cppfunc_vector_underlying_type<T>::underlying_type*)creator_data->pending_recs.at(inpnum)->void_shifted_arrayptr());
 
-		  // clear out previous recording's creator data so that references within can go away		  
-		  {
-		    std::shared_ptr<recording_base> previous_recording = this->self_dependent_recordings.at(0);
-		    
-		    std::lock_guard<std::mutex> prevrec_admin(previous_recording->admin);
-		    previous_recording->creator_data = nullptr;
-		  }
-		  
-		  // Create new creator data for the next averaging. 
-		  std::shared_ptr<averaging_downsampler_creator_data<T>> new_creator_data = std::make_shared<averaging_downsampler_creator_data<T>>();
-		  result_ref->rec->creator_data = new_creator_data;
-		  
-		  result_ref->rec->mark_data_ready();
-		  //snde_warning("avg: Generated new result (rev %llu)",(unsigned long long)result_ref->rec->info->revision);
-		}); 
+					if ((inpnum > 0 && creator_data->pending_recs.at(inpnum)->layout != creator_data->pending_recs.at(inpnum - 1)->layout) ||
+						!creator_data->pending_recs.at(inpnum)->layout.is_contiguous()) {
+						throw snde_error("averaging_downsampler(%s): Requires all inputs to have the same contiguous layout", this->get_result_channel_path(0).c_str());
+					}
+
+				}
+				snde_index numelem = creator_data->pending_recs.at(0)->layout.flattened_length() * cppfunc_vector_multiplicity<T>();
+				typename cppfunc_vector_underlying_type<T>::underlying_type** raw_input_pointers;
+				typename cppfunc_vector_underlying_type<T>::underlying_type* raw_output_pointer;
+				raw_input_pointers = input_pointers.data();
+				raw_output_pointer = (typename cppfunc_vector_underlying_type<T>::underlying_type*)result_ref->void_shifted_arrayptr();
+				if (creator_data->pending_recs.at(0)->layout != result_ref->layout) {
+					throw snde_error("averaging_downsampler(%s): Requires input and output to have the same contiguous layout", this->get_result_channel_path(0).c_str());
+				}
+
+				snde_index elnum;
+				if (usedouble) {
+					for (elnum = 0; elnum < numelem; elnum++) {
+						snde_float64 accum = 0.0;
+						for (size_t inpnum = 0; inpnum < numavgs; inpnum++) {
+							// Convert all types to float32 for averaging -- should this be double or should we make it an option to be double?
+							accum += (snde_float64)raw_input_pointers[inpnum][elnum];
+						}
+						raw_output_pointer[elnum] = accum / numavgs;
+					}
+				}
+				else {
+					for (elnum = 0; elnum < numelem; elnum++) {
+						snde_float32 accum = 0.0;
+						for (size_t inpnum = 0; inpnum < numavgs; inpnum++) {
+							// Convert all types to float32 for averaging -- should this be double or should we make it an option to be double?
+							accum += (snde_float32)raw_input_pointers[inpnum][elnum];
+						}
+						raw_output_pointer[elnum] = accum / numavgs;
+					}
+				}			
+				unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready()
+
+				// clear out previous recording's creator data so that references within can go away		  
+				{
+					std::shared_ptr<recording_base> previous_recording = this->self_dependent_recordings.at(0);
+
+					std::lock_guard<std::mutex> prevrec_admin(previous_recording->admin);
+					previous_recording->creator_data = nullptr;
+				}
+
+				// Create new creator data for the next averaging. 
+				std::shared_ptr<averaging_downsampler_creator_data<T>> new_creator_data = std::make_shared<averaging_downsampler_creator_data<T>>();
+				result_ref->rec->creator_data = new_creator_data;
+
+				result_ref->rec->mark_data_ready();
+				//snde_warning("avg: Generated new result (rev %llu)",(unsigned long long)result_ref->rec->info->revision);
+				});
 	      });
 	      
 	    });
@@ -298,7 +313,10 @@ namespace snde {
     std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       std::shared_ptr<executing_math_function> executing;
       
+	  executing = make_cppfuncexec_integertypes<averaging_temporal_downsampler>(rss, inst);
+	  if (!executing) {
       executing = make_cppfuncexec_floatingtypes<averaging_temporal_downsampler>(rss,inst);
+	  }
       if (!executing) {
 	executing = make_cppfuncexec_vectortypes<averaging_temporal_downsampler>(rss,inst);
       }

@@ -4292,7 +4292,7 @@ namespace snde {
   }
 
   
-  std::shared_ptr<ndarray_recording_ref> recording_set_state::get_recording_ref(const std::string &fullpath,size_t array_index)
+  std::shared_ptr<ndarray_recording_ref> recording_set_state::get_ndarray_ref(const std::string &fullpath,size_t array_index)
   {
     std::shared_ptr<recording_base> rec = get_recording(fullpath);
     if (!rec) {
@@ -4309,7 +4309,7 @@ namespace snde {
    
   }
 
-  std::shared_ptr<ndarray_recording_ref> recording_set_state::get_recording_ref(const std::string &fullpath,std::string array_name)
+  std::shared_ptr<ndarray_recording_ref> recording_set_state::get_ndarray_ref(const std::string &fullpath,std::string array_name)
   {
     std::shared_ptr<recording_base> rec = get_recording(fullpath);
     if (!rec) {
