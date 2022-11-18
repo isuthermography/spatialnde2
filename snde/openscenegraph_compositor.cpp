@@ -786,6 +786,15 @@ namespace snde {
 
     group->getOrCreateStateSet()->setMode(GL_DEPTH_TEST,osg::StateAttribute::OFF);
 
+    // Add Graticule
+    double horizontal_padding = (compositor_width - display->horizontal_divisions * display->pixelsperdiv) / 2.0;
+    double vertical_padding = (compositor_height - display->vertical_divisions * display->pixelsperdiv) / 2.0;
+    GraticuleTransform->setMatrix(osg::Matrixd(display->pixelsperdiv / 5.0, 0, 0, 0,
+        0, display->pixelsperdiv / 5.0, 0, 0,
+        0, 0, 1, 0,
+        horizontal_padding + display->pixelsperdiv * display->horizontal_divisions / 2.0 - 0.5, vertical_padding + display->pixelsperdiv * display->vertical_divisions / 2.0 - 0.5, depth - 0.5, 1)); // ***!!! are -0.5's and negative sign in front of layer_index correct?  .... fix here and in transformmtx, above. 
+    group->addChild(GraticuleTransform);
+
     std::vector<osg::ref_ptr<osg::Texture2D>> temporary_texture_references;
     
     for (auto && displaychan: channels_to_display) {
@@ -962,15 +971,7 @@ namespace snde {
       
     }
 
-    // Add Graticule
-    double horizontal_padding = (compositor_width - display->horizontal_divisions * display->pixelsperdiv) / 2.0;
-    double vertical_padding = (compositor_height - display->vertical_divisions * display->pixelsperdiv) / 2.0;
-    GraticuleTransform->setMatrix(osg::Matrixd(display->pixelsperdiv / 5.0, 0, 0, 0,
-        0, display->pixelsperdiv / 5.0, 0, 0,
-        0, 0, 1, 0,
-        horizontal_padding + display->pixelsperdiv * display->horizontal_divisions / 2.0 - 0.5, vertical_padding + display->pixelsperdiv * display->vertical_divisions / 2.0 - 0.5, -2, 1)); // ***!!! are -0.5's and negative sign in front of layer_index correct?  .... fix here and in transformmtx, above. 
-    group->addChild(GraticuleTransform);
-    
+        
     //snde_warning("perform_compositing2: Empty=%d",(int)GraphicsWindow->getEventQueue()->empty());
 
     //Viewer->setSceneData(group); setSceneData() seems to clear our event queue, so instead we swap out the contents of a persistent group (RootGroup) that was set as the scene data in the constructor
