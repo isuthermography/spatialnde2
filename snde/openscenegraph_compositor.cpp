@@ -285,6 +285,10 @@ namespace snde {
     GraticuleThinGeom->setVertexArray(ThinGridLineCoords);
     GraticuleThickGeom->setVertexArray(ThickGridLineCoords);
     SetPickerCrossHairs();
+
+
+    RootGroup->getOrCreateStateSet()->setMode(GL_BLEND, osg::StateAttribute::ON);
+    RootGroup->getOrCreateStateSet()->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
     
     
     
@@ -913,7 +917,6 @@ namespace snde {
 	if (image_ytop > compositor_height) {
 	  image_ytop = compositor_height;
 	}
-
 	
 	(*ImageCoords)[0]=osg::Vec3(image_xleft,
 				     image_ybot,
