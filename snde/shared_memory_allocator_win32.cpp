@@ -6,10 +6,6 @@
 #include "snde/shared_memory_allocator_win32.hpp"
 #include "snde/snde_error.hpp"
 
-#ifndef SNDE_WIN32_SHMEM_SIZE
-#define SNDE_WIN32_SHMEM_SIZE 4294967296ull
-#endif
-
 namespace snde {
 
   std::string win32shm_encode_recpath(std::string recpath)
@@ -94,8 +90,11 @@ namespace snde {
 
   }
 
-  shared_memory_allocator_win32::shared_memory_allocator_win32() :
-    memallocator(false,false)
+  // Adding initialization parameter to allow override later to allocate more virtual memory than actually required in anticipation of later growing.
+  // Set to 0 by default to ensure we only allocate what is actually needed on the call to calloc
+  shared_memory_allocator_win32::shared_memory_allocator_win32(size_t bytestoalloc /* = 0*/) :
+    memallocator(false,false),
+    bytestoalloc(bytestoalloc)
   {
 
     
@@ -135,7 +134,7 @@ namespace snde {
 				    base_shm_name(recording_path,recrevision,originating_rss_unique_id).c_str(),
 				    (unsigned long long)id);
     
-    size_t memtoalloc = (nbytes > SNDE_WIN32_SHMEM_SIZE ? nbytes : SNDE_WIN32_SHMEM_SIZE);
+    size_t memtoalloc = (nbytes > bytestoalloc ? nbytes : bytestoalloc);
     DWORD memHigh = static_cast<DWORD>((memtoalloc >> 32) & 0xFFFFFFFFul);
     DWORD memLow = static_cast<DWORD>(memtoalloc & 0xFFFFFFFFul);
 

@@ -224,45 +224,55 @@ namespace snde {
     GraticuleThickGeom->setColorBinding(osg::Geometry::BIND_OVERALL);
     
     // Units in these coordinates are 5 per division
-    osg::ref_ptr<osg::Vec3dArray> ThinGridLineCoords=new osg::Vec3dArray();
+    osg::ref_ptr<osg::Vec3Array> ThinGridLineCoords=new osg::Vec3Array();
       // horizontal thin grid lines
+    double xpos = display->horizontal_divisions * 5.0 / 2.0;
     for (size_t cnt=0; cnt <= display->vertical_divisions;cnt++) {
       double Pos;
       Pos = -1.0*display->vertical_divisions*5.0/2.0 + cnt*5.0;
-      ThinGridLineCoords->push_back(osg::Vec3d(-1.0*display->horizontal_divisions*5.0/2.0,Pos,0));
-      ThinGridLineCoords->push_back(osg::Vec3d(display->horizontal_divisions*5.0/2.0,Pos,0));
+      ThinGridLineCoords->push_back(osg::Vec3(-1.0*display->horizontal_divisions*5.0/2.0,Pos,0));
+      ThinGridLineCoords->push_back(osg::Vec3(display->horizontal_divisions*5.0/2.0,Pos,0));
+
+      /*
+      ThinGridLineCoords->push_back(osg::Vec3(-xpos - display->borderwidthpixels, Pos - display->borderwidthpixels, 0));
+      ThinGridLineCoords->push_back(osg::Vec3(xpos - display->borderwidthpixels, Pos - display->borderwidthpixels, 0));
+      ThinGridLineCoords->push_back(osg::Vec3(-xpos + display->borderwidthpixels, Pos + display->borderwidthpixels, 0));
+      ThinGridLineCoords->push_back(osg::Vec3(-xpos + display->borderwidthpixels, Pos + display->borderwidthpixels, 0));
+      ThinGridLineCoords->push_back(osg::Vec3(xpos - display->borderwidthpixels, Pos - display->borderwidthpixels, 0));
+      ThinGridLineCoords->push_back(osg::Vec3(xpos + display->borderwidthpixels, Pos + display->borderwidthpixels, 0));    
+      */
     }
     // vertical thin grid lines
     for (size_t cnt=0; cnt <= display->horizontal_divisions;cnt++) {
       double Pos;
       Pos = -1.0*display->horizontal_divisions*5.0/2.0 + cnt*5.0;
-      ThinGridLineCoords->push_back(osg::Vec3d(Pos,-1.0*display->vertical_divisions*5.0/2.0,0));
-      ThinGridLineCoords->push_back(osg::Vec3d(Pos,display->vertical_divisions*5.0/2.0,0));
+      ThinGridLineCoords->push_back(osg::Vec3(Pos,-1.0*display->vertical_divisions*5.0/2.0,0));
+      ThinGridLineCoords->push_back(osg::Vec3(Pos,display->vertical_divisions*5.0/2.0,0));
     }
     
     // horizontal thin minidiv lines
     for (size_t cnt=0; cnt <= display->vertical_divisions*5;cnt++) {
       double Pos;
       Pos = -1.0*display->vertical_divisions*5.0/2.0 + cnt;
-      ThinGridLineCoords->push_back(osg::Vec3d(-0.5,Pos,0));
-      ThinGridLineCoords->push_back(osg::Vec3d(0.5,Pos,0));
+      ThinGridLineCoords->push_back(osg::Vec3(-0.5,Pos,0));
+      ThinGridLineCoords->push_back(osg::Vec3(0.5,Pos,0));
     }
     // vertical thin minidiv lines
     for (size_t cnt=0; cnt <= display->horizontal_divisions*5;cnt++) {
       double Pos;
       Pos = -1.0*display->horizontal_divisions*5.0/2.0 + cnt;
-      ThinGridLineCoords->push_back(osg::Vec3d(Pos,-0.5,0));
-      ThinGridLineCoords->push_back(osg::Vec3d(Pos,0.5,0));
+      ThinGridLineCoords->push_back(osg::Vec3(Pos,-0.5,0));
+      ThinGridLineCoords->push_back(osg::Vec3(Pos,0.5,0));
     }
     
-    osg::ref_ptr<osg::Vec3dArray> ThickGridLineCoords=new osg::Vec3dArray();
+    osg::ref_ptr<osg::Vec3Array> ThickGridLineCoords=new osg::Vec3Array();
     // horizontal main cross line
-    ThickGridLineCoords->push_back(osg::Vec3d(-1.0*display->horizontal_divisions*5.0/2.0,0.0,0.0));
-    ThickGridLineCoords->push_back(osg::Vec3d(display->horizontal_divisions*5.0/2.0,0.0,0.0));
+    ThickGridLineCoords->push_back(osg::Vec3(-1.0*display->horizontal_divisions*5.0/2.0,0.0,0.0));
+    ThickGridLineCoords->push_back(osg::Vec3(display->horizontal_divisions*5.0/2.0,0.0,0.0));
     
     // vertical main cross line
-    ThickGridLineCoords->push_back(osg::Vec3d(0.0,-1.0*display->vertical_divisions*5.0/2.0,0.0));
-    ThickGridLineCoords->push_back(osg::Vec3d(0.0,display->vertical_divisions*5.0/2.0,0.0));
+    ThickGridLineCoords->push_back(osg::Vec3(0.0,-1.0*display->vertical_divisions*5.0/2.0,0.0));
+    ThickGridLineCoords->push_back(osg::Vec3(0.0,display->vertical_divisions*5.0/2.0,0.0));
     
     
     
@@ -275,6 +285,10 @@ namespace snde {
     GraticuleThinGeom->setVertexArray(ThinGridLineCoords);
     GraticuleThickGeom->setVertexArray(ThickGridLineCoords);
     SetPickerCrossHairs();
+
+
+    RootGroup->getOrCreateStateSet()->setMode(GL_BLEND, osg::StateAttribute::ON);
+    RootGroup->getOrCreateStateSet()->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
     
     
     
@@ -776,6 +790,15 @@ namespace snde {
 
     group->getOrCreateStateSet()->setMode(GL_DEPTH_TEST,osg::StateAttribute::OFF);
 
+    // Add Graticule
+    double horizontal_padding = (compositor_width - display->horizontal_divisions * display->pixelsperdiv) / 2.0;
+    double vertical_padding = (compositor_height - display->vertical_divisions * display->pixelsperdiv) / 2.0;
+    GraticuleTransform->setMatrix(osg::Matrixd(display->pixelsperdiv / 5.0, 0, 0, 0,
+        0, display->pixelsperdiv / 5.0, 0, 0,
+        0, 0, 1, 0,
+        horizontal_padding + display->pixelsperdiv * display->horizontal_divisions / 2.0 - 0.5, vertical_padding + display->pixelsperdiv * display->vertical_divisions / 2.0 - 0.5, depth - 0.5, 1)); // ***!!! are -0.5's and negative sign in front of layer_index correct?  .... fix here and in transformmtx, above. 
+    group->addChild(GraticuleTransform);
+
     std::vector<osg::ref_ptr<osg::Texture2D>> temporary_texture_references;
     
     for (auto && displaychan: channels_to_display) {
@@ -787,85 +810,89 @@ namespace snde {
      
       if (tex_it != layer_rendering_rendered_textures->end() && dispreq_it != display_reqs.end()) {
 
-	std::shared_ptr<display_requirement> dispreq = dispreq_it->second;
-	
-	// see https://stackoverflow.com/questions/63992608/displaying-qt-quick-content-inside-openscenegraph-scene
-	// and https://github.com/samdavydov/qtquick-osg/blob/master/widget.cpp
-	// for an apparently working example of creating an osg::Texture2D from a shared context texture
-	
-	// Create the texture based on the shared ID.
- 
-	osg::ref_ptr<osg::Texture2D> tex = new osg::Texture2D();
-	snde_debug(SNDE_DC_RENDERING,"Compositor: using layer texture object ID #%u",(unsigned)tex_it->second.second);
-	osg::ref_ptr<osg::Texture::TextureObject> texobj = new osg::Texture::TextureObject(tex, tex_it->second.second, GL_TEXTURE_2D);
-	
-	texobj->setAllocated();
-	tex->setTextureObject(GraphicsWindow->getState()->getContextID(),texobj);
-	temporary_texture_references.push_back(tex); // store the reference so we can clear it prior to deletion and avoid the annoying message
-	
-	snde_debug(SNDE_DC_RENDERING,"borderbox: width=%d,height=%d",compositor_width,compositor_height);
-	/* !!!*** NOTE: Apparently had trouble previously with double precision vs single precision arrays (?) */
-	
-	// Z position of border is -0.5 relative to image, so it appears on top
-	// around edge
+          std::shared_ptr<display_requirement> dispreq = dispreq_it->second;
 
-	snde_debug(SNDE_DC_RENDERING,"borderbox: spatial x = %d; y = %d; width = %d; height = %d",dispreq->spatial_position->x,dispreq->spatial_position->y,dispreq->spatial_position->width,dispreq->spatial_position->height);
-	
-	float borderbox_xleft = dispreq->spatial_position->x-borderwidthpixels/2.0;
-	if (borderbox_xleft < 0.5) {
-	  borderbox_xleft = 0.5;
-	}
+          // see https://stackoverflow.com/questions/63992608/displaying-qt-quick-content-inside-openscenegraph-scene
+          // and https://github.com/samdavydov/qtquick-osg/blob/master/widget.cpp
+          // for an apparently working example of creating an osg::Texture2D from a shared context texture
 
-	float borderbox_xright = dispreq->spatial_position->x+dispreq->spatial_position->width+borderwidthpixels/2.0;
-	if (borderbox_xright > compositor_width-0.5) {
-	  borderbox_xright = compositor_width-0.5;
-	}
+          // Create the texture based on the shared ID.
 
-	float borderbox_ybot = dispreq->spatial_position->y-borderwidthpixels/2.0;
-	if (borderbox_ybot < 0.5) {
-	  borderbox_ybot = 0.5;
-	}
+          osg::ref_ptr<osg::Texture2D> tex = new osg::Texture2D();
+          snde_debug(SNDE_DC_RENDERING, "Compositor: using layer texture object ID #%u", (unsigned)tex_it->second.second);
+          osg::ref_ptr<osg::Texture::TextureObject> texobj = new osg::Texture::TextureObject(tex, tex_it->second.second, GL_TEXTURE_2D);
 
-	float borderbox_ytop = dispreq->spatial_position->y+dispreq->spatial_position->height+borderwidthpixels/2.0;
-	if (borderbox_ytop > compositor_height-0.5) {
-	  borderbox_ytop = compositor_height-0.5;
-	}
+          texobj->setAllocated();
+          tex->setTextureObject(GraphicsWindow->getState()->getContextID(), texobj);
+          temporary_texture_references.push_back(tex); // store the reference so we can clear it prior to deletion and avoid the annoying message
 
 
-	snde_debug(SNDE_DC_RENDERING,"borderbox: xleft=%f,ybot=%f,xright=%f,ytop=%f",borderbox_xleft,borderbox_ybot,borderbox_xright,borderbox_ytop);
-		
-	osg::ref_ptr<osg::Vec3Array> BorderCoords=new osg::Vec3Array(8);
-	(*BorderCoords)[0]=osg::Vec3(borderbox_xleft,borderbox_ybot,depth+0.5);
-	(*BorderCoords)[1]=osg::Vec3(borderbox_xright,borderbox_ybot,depth+0.5);
-	
-	(*BorderCoords)[2]=osg::Vec3(borderbox_xright,borderbox_ybot,depth+0.5);
-	(*BorderCoords)[3]=osg::Vec3(borderbox_xright,borderbox_ytop,depth+0.5);
-	
-	(*BorderCoords)[4]=osg::Vec3(borderbox_xright,borderbox_ytop,depth+0.5);
-	(*BorderCoords)[5]=osg::Vec3(borderbox_xleft,borderbox_ytop,depth+0.5);
-	
-	(*BorderCoords)[6]=osg::Vec3(borderbox_xleft,borderbox_ytop,depth+0.5);
-	(*BorderCoords)[7]=osg::Vec3(borderbox_xleft,borderbox_ybot,depth+0.5);
+          if (displaychan->render_mode == SNDE_DCRM_IMAGE)
+          {
+              snde_debug(SNDE_DC_RENDERING, "borderbox: width=%d,height=%d", compositor_width, compositor_height);
+              /* !!!*** NOTE: Apparently had trouble previously with double precision vs single precision arrays (?) */
 
-	osg::ref_ptr<osg::Geode> bordergeode = new osg::Geode();
-	osg::ref_ptr<osg::Geometry> bordergeom = new osg::Geometry();
+              // Z position of border is -0.5 relative to image, so it appears on top
+              // around edge
 
-	osg::ref_ptr<osg::DrawArrays> borderdraw = new osg::DrawArrays(osg::PrimitiveSet::LINES,0,8); // # is number of lines * number of coordinates per line
-	bordergeom->setVertexArray(BorderCoords);
-	bordergeom->addPrimitiveSet(borderdraw);
-	bordergeode->addDrawable(bordergeom);
-	bordergeode->getOrCreateStateSet()->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
-	bordergeode->getOrCreateStateSet()->setAttributeAndModes(new osg::LineWidth(borderwidthpixels),osg::StateAttribute::ON);
-	group->addChild(bordergeode);
+              snde_debug(SNDE_DC_RENDERING, "borderbox: spatial x = %d; y = %d; width = %d; height = %d", dispreq->spatial_position->x, dispreq->spatial_position->y, dispreq->spatial_position->width, dispreq->spatial_position->height);
+
+              float borderbox_xleft = dispreq->spatial_position->x - borderwidthpixels / 2.0;
+              if (borderbox_xleft < 0.5) {
+                  borderbox_xleft = 0.5;
+              }
+
+              float borderbox_xright = dispreq->spatial_position->x + dispreq->spatial_position->width + borderwidthpixels / 2.0;
+              if (borderbox_xright > compositor_width - 0.5) {
+                  borderbox_xright = compositor_width - 0.5;
+              }
+
+              float borderbox_ybot = dispreq->spatial_position->y - borderwidthpixels / 2.0;
+              if (borderbox_ybot < 0.5) {
+                  borderbox_ybot = 0.5;
+              }
+
+              float borderbox_ytop = dispreq->spatial_position->y + dispreq->spatial_position->height + borderwidthpixels / 2.0;
+              if (borderbox_ytop > compositor_height - 0.5) {
+                  borderbox_ytop = compositor_height - 0.5;
+              }
 
 
-	osg::ref_ptr<osg::Vec4Array> BorderColorArray=new osg::Vec4Array();
-	size_t ColorIdx = ColorIdx_by_channelpath.at(displaychan->FullName);
-	BorderColorArray->push_back(osg::Vec4(RecColorTable[ColorIdx].R,RecColorTable[ColorIdx].G,RecColorTable[ColorIdx].B,1.0));
-	bordergeom->setColorArray(BorderColorArray,osg::Array::BIND_OVERALL);
-	bordergeom->setColorBinding(osg::Geometry::BIND_OVERALL);
-	
-	// Image coordinates, from actual corners, counterclockwise,
+              snde_debug(SNDE_DC_RENDERING, "borderbox: xleft=%f,ybot=%f,xright=%f,ytop=%f", borderbox_xleft, borderbox_ybot, borderbox_xright, borderbox_ytop);
+
+              osg::ref_ptr<osg::Vec3Array> BorderCoords = new osg::Vec3Array(8);
+              (*BorderCoords)[0] = osg::Vec3(borderbox_xleft, borderbox_ybot, depth + 0.5);
+              (*BorderCoords)[1] = osg::Vec3(borderbox_xright, borderbox_ybot, depth + 0.5);
+
+              (*BorderCoords)[2] = osg::Vec3(borderbox_xright, borderbox_ybot, depth + 0.5);
+              (*BorderCoords)[3] = osg::Vec3(borderbox_xright, borderbox_ytop, depth + 0.5);
+
+              (*BorderCoords)[4] = osg::Vec3(borderbox_xright, borderbox_ytop, depth + 0.5);
+              (*BorderCoords)[5] = osg::Vec3(borderbox_xleft, borderbox_ytop, depth + 0.5);
+
+              (*BorderCoords)[6] = osg::Vec3(borderbox_xleft, borderbox_ytop, depth + 0.5);
+              (*BorderCoords)[7] = osg::Vec3(borderbox_xleft, borderbox_ybot, depth + 0.5);
+
+              osg::ref_ptr<osg::Geode> bordergeode = new osg::Geode();
+              osg::ref_ptr<osg::Geometry> bordergeom = new osg::Geometry();
+
+              osg::ref_ptr<osg::DrawArrays> borderdraw = new osg::DrawArrays(osg::PrimitiveSet::LINES, 0, 8); // # is number of lines * number of coordinates per line
+              bordergeom->setVertexArray(BorderCoords);
+              bordergeom->addPrimitiveSet(borderdraw);
+              bordergeode->addDrawable(bordergeom);
+              bordergeode->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+              bordergeode->getOrCreateStateSet()->setAttributeAndModes(new osg::LineWidth(borderwidthpixels), osg::StateAttribute::ON);
+              group->addChild(bordergeode);
+
+              osg::ref_ptr<osg::Vec4Array> BorderColorArray = new osg::Vec4Array();
+              size_t ColorIdx = ColorIdx_by_channelpath.at(displaychan->FullName);
+              BorderColorArray->push_back(osg::Vec4(RecColorTable[ColorIdx].R, RecColorTable[ColorIdx].G, RecColorTable[ColorIdx].B, 1.0));
+              bordergeom->setColorArray(BorderColorArray, osg::Array::BIND_OVERALL);
+              bordergeom->setColorBinding(osg::Geometry::BIND_OVERALL);
+
+          }
+
+    // Image coordinates, from actual corners, counterclockwise,
 	// Two triangles    
 	osg::ref_ptr<osg::Vec3Array> ImageCoords=new osg::Vec3Array(6);
 	osg::ref_ptr<osg::Vec2Array> ImageTexCoords=new osg::Vec2Array(6);
@@ -890,7 +917,6 @@ namespace snde {
 	if (image_ytop > compositor_height) {
 	  image_ytop = compositor_height;
 	}
-
 	
 	(*ImageCoords)[0]=osg::Vec3(image_xleft,
 				     image_ybot,
@@ -947,7 +973,8 @@ namespace snde {
       }
       
     }
-    
+
+        
     //snde_warning("perform_compositing2: Empty=%d",(int)GraphicsWindow->getEventQueue()->empty());
 
     //Viewer->setSceneData(group); setSceneData() seems to clear our event queue, so instead we swap out the contents of a persistent group (RootGroup) that was set as the scene data in the constructor

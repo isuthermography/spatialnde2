@@ -69,7 +69,7 @@ namespace snde {
     std::unordered_map<std::tuple<std::string,uint64_t,uint64_t,memallocator_regionid>,shared_memory_info_win32,memkey_hash/*,memkey_equal*/> _shm_info;
 
     
-    shared_memory_allocator_win32();
+    shared_memory_allocator_win32(size_t bytestoalloc = 0);
 
     std::string base_shm_name(std::string recpath, uint64_t recrevision,uint64_t originating_rss_unique_id);
 
@@ -82,6 +82,9 @@ namespace snde {
     virtual void free(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void *ptr);
 
     virtual ~shared_memory_allocator_win32();
+
+  protected:
+    size_t bytestoalloc;
     
   };
   

@@ -39,7 +39,7 @@ namespace snde {
       return std::make_pair("/","");
     }
     
-    return std::make_pair(full_path.substr(0,sz-backpos+1),full_path.substr(sz-backpos+1,backpos-1));
+    return std::make_pair(full_path.substr(0,sz-backpos),full_path.substr(sz-backpos+1,backpos-1));
       
   }
   

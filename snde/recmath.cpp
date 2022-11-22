@@ -898,7 +898,7 @@ namespace snde {
       } else {
 	for (auto &&result_channel_path_ptr: inst->result_channel_paths) {
 	  if (result_channel_path_ptr) {
-	    channel_state &chanstate = prereq_state->recstatus.channel_map->at(*result_channel_path_ptr);
+	    channel_state &chanstate = prereq_state->recstatus.channel_map->at(recdb_path_join(inst->channel_path_context, *result_channel_path_ptr));
 	    self_dependent_recordings.push_back(chanstate.rec());
 	  } else {
 	    self_dependent_recordings.push_back(null_rec);
