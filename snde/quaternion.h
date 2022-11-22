@@ -282,7 +282,13 @@ static QUATERNION_INLINE void rotmtx_build_orientation(const snde_coord4 *rotmtx
   }
 }
 
-
+static QUATERNION_INLINE int orientation_valid(const snde_orientation3 orient)
+{
+  if (isnan(orient.offset.coord[0]) || isnan(orient.quat.coord[0])) {
+    return FALSE;
+  }
+  return TRUE;
+}
 
 static QUATERNION_INLINE void orientation_inverse(const snde_orientation3 orient,snde_orientation3 *inverse)
 {
