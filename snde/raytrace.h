@@ -593,7 +593,10 @@ static RAYTRACE_INLINE void raytrace_find_first_intersection(snde_coord4 raystar
     // we need to do the inverse operation on raystart and rayvec to get them into part coordinates.
     // so we can find triangles.
     //orientation_inverse(instances[instancecnt].orientation,&orient_inv);
-
+    
+    if (!orientation_valid(instances[instancecnt].orientation_inverse)) {
+      continue;
+    }
     // transform ray into part coordinates
     orientation_apply_position(instances[instancecnt].orientation_inverse,raystartproj,&raystartproj_part);
     orientation_apply_vector(instances[instancecnt].orientation_inverse,rayvecproj,&rayvecproj_part);
