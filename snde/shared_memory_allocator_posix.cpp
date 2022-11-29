@@ -106,14 +106,14 @@ namespace snde {
 
   }
   
-  void *shared_memory_allocator_posix::malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes)
+  void *shared_memory_allocator_posix::malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t membytes,std::size_t addressbytes)
   {
     // POSIX shm always zeros empty space, so we just use calloc
     
-    return calloc(recording_path,recrevision,originating_rss_unique_id,id,nbytes); 
+    return calloc(recording_path,recrevision,originating_rss_unique_id,id,nbytes,addressbytes);
   }
   
-  void *shared_memory_allocator_posix::calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes)
+  void *shared_memory_allocator_posix::calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t membytes,std::size_t addressbytes)
   {
 
     std::string shm_name = ssprintf("%s_%llx.dat",

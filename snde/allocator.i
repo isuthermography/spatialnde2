@@ -73,6 +73,8 @@ namespace snde {
     
   public: 
     snde_index _totalnchunks;
+    size_t maxaddressbytes;
+    size_t _elemsize;
 
     std::shared_ptr<memallocator> _memalloc;
     std::shared_ptr<lockmanager> _locker; // could be NULL if there is no locker
@@ -114,7 +116,7 @@ namespace snde {
     rangetracker<allocation> allocations_unmerged;
     snde_index _allocchunksize; // size of chunks we allocate, in numbers of elements
   
-    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes);
+    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes,size_t maxaddressbytes);
 
     allocator(const allocator &)=delete; /* copy constructor disabled */
     allocator& operator=(const allocator &)=delete; /* assignment disabled */

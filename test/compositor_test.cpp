@@ -159,7 +159,7 @@ int main(int argc, char **argv)
   setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
 #endif // SNDE_OPENCL
   setup_storage_manager(recdb);
-  std::shared_ptr<graphics_storage_manager> graphman=std::make_shared<graphics_storage_manager>("/",recdb->lowlevel_alloc,recdb->alignment_requirements,recdb->lockmgr,1e-8);
+  std::shared_ptr<graphics_storage_manager> graphman=std::make_shared<graphics_storage_manager>("/",recdb->lowlevel_alloc,recdb->alignment_requirements,recdb->lockmgr,1e-8,2e9);
   //recdb->default_storage_manager = graphman;
   
   setup_math_functions(recdb,{});

@@ -226,6 +226,8 @@ namespace snde {
     
   public: 
     snde_index _totalnchunks;
+    size_t maxaddressbytes;
+    size_t _elemsize;
 
     std::shared_ptr<memallocator> _memalloc;
     std::shared_ptr<lockmanager> _locker; // could be NULL if there is no locker
@@ -271,11 +273,13 @@ namespace snde {
     
     snde_index _allocchunksize; // size of chunks we allocate, in numbers of elements
   
-    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes) :
+    allocator(std::shared_ptr<memallocator> memalloc,std::shared_ptr<lockmanager> locker,std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::shared_ptr<allocator_alignment> alignment,void **arrayptr,size_t elemsize,snde_index totalnelem,const std::set<snde_index>& follower_elemsizes,size_t maxaddressbytes) :
       recording_path(recording_path),
       recrevision(recrevision),
       originating_rss_unique_id(originating_rss_unique_id),
-      id(id)
+      id(id),
+      maxaddressbytes(maxaddressbytes),
+      _elemsize(elemsize)
     {
       // must hold writelock on array
 
@@ -379,7 +383,7 @@ namespace snde {
 	_totalnchunks=2;
       }
       // Perform memory allocation 
-      *(*arrays()).at(0).arrayptr = _memalloc->malloc(recording_path,recrevision,originating_rss_unique_id,id,_totalnchunks * _allocchunksize * elemsize);
+      *(*arrays()).at(0).arrayptr = _memalloc->malloc(recording_path,recrevision,originating_rss_unique_id,id,_totalnchunks * _allocchunksize * elemsize, maxaddressbytes);
 
       if (_locker) {
 	_locker->set_array_size((*arrays()).at(0).arrayptr,(*arrays()).at(0).elemsize,_totalnchunks*_allocchunksize);
@@ -435,9 +439,12 @@ namespace snde {
       size_t retval=new_arrays->size();
       new_arrays->push_back(arrayinfo {arrayptr,elsize,other_array_id,false});
 
+      size_t newmaxbytes = (size_t)((double)maxaddressbytes * (double)elsize / (double)_elemsize);
+
       if (*(*new_arrays)[0].arrayptr) {
 	/* if main array already allocated */
-	*arrayptr=_memalloc->calloc(recording_path,recrevision,originating_rss_unique_id,other_array_id,_totalnchunks*_allocchunksize * elsize);
+          //snde_warning("Allocating %ull and reserving %ull for base el size %ull and other el size %ull", _totalnchunks * _allocchunksize * elsize, newmaxbytes, elsize, _elemsize);
+	*arrayptr=_memalloc->calloc(recording_path,recrevision,originating_rss_unique_id,other_array_id,_totalnchunks*_allocchunksize * elsize,newmaxbytes);
       } else {
         *arrayptr = nullptr;
       }
@@ -485,7 +492,7 @@ namespace snde {
       // Must hold write lock on entire array
       // must hold allocatormutex... therefore arrays() won't change although it's still unsafe to read _arrays directly
       _totalnchunks = newnchunks;
-      //*arrays[0].arrayptr = _memalloc->realloc(*arrays.at(0).arrayptr,_totalnchunks * _allocchunksize * _elemsize);
+      //*arrays[0].arrayptr = _memalloc->realloc(*arrays.at(0).arrayptr,_totalnchunks * _allocchunksize * _elemsize,0);
 
       /* resize all arrays  */
       for (size_t cnt=0;cnt < arrays()->size();cnt++) {

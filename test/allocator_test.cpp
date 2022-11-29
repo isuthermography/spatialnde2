@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
   std::shared_ptr<allocator_alignment> alignment=std::make_shared<allocator_alignment>();
 
   // Allocate 10,000 size data storage
-  std::shared_ptr<allocator> test_allocator=std::make_shared<allocator>(lowlevel_alloc,nullptr,"/test_allocator",0,0,0,alignment,(void **)&test_array,sizeof(*test_array),70000,std::set<snde_index>());
+  std::shared_ptr<allocator> test_allocator=std::make_shared<allocator>(lowlevel_alloc,nullptr,"/test_allocator",0,0,0,alignment,(void **)&test_array,sizeof(*test_array),70000,std::set<snde_index>(),0);
 
 
   // allocate 7739 element array
