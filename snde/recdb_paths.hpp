@@ -23,7 +23,23 @@ namespace snde {
     // so  backpos = full_path.size()-endpos i.e. backpos starts with 1
     // endpos >= 0 --> full_path.size()-backpos >= 0
     // so full_path.size() >= backpos
-    for (backpos=1;backpos <= sz;backpos++) {
+    if (sz == 0) {
+        return std::make_pair("", "");
+        //throw snde_error("recdb_path_split(): full_path must not be empty");   // This needs to return empty in this scenario to cause the calling loop to break
+    }
+
+    if (full_path.at(0) != '/') {
+        throw snde_error("recdb_path_split(): full_path '%s' must begin with /", full_path.c_str());
+    }
+
+    if (sz < 2) {
+        // Size is 1
+        if (full_path == "/") {
+            return std::make_pair("/", "");
+        }
+    }
+
+    for (backpos=2;backpos <= sz;backpos++) {
       if (full_path.at(sz-backpos)=='/') {
 	break; 
       }
@@ -32,11 +48,6 @@ namespace snde {
     if (backpos > sz) {
       // loop ran through, never found a '/'
       return std::make_pair("",full_path);
-    }
-
-    if (backpos==sz && sz==1) {
-      // just bare leading slash: return ("/","")
-      return std::make_pair("/","");
     }
     
     return std::make_pair(full_path.substr(0,sz-backpos+1),full_path.substr(sz-backpos+1,backpos-1));
