@@ -353,7 +353,7 @@ static inline  std::tuple<std::vector<UnitFactor>,double> sortunits(std::vector<
   
   static const std::regex findpower_right("(.*?)(\\^)([-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?)$");
   static const std::regex findfloat_right("(.*?)([-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?)$");
-  static const std::regex findunitname_right("(.*?)([a-zA-Z%]+)$");
+  static const std::regex findunitname_right("(.*?)([a-zA-Z%_]+)$"); // should add foreign language characters.
   
   class units {
   public:
