@@ -1,5 +1,7 @@
+#include <iomanip>
 #include "snde/rec_display.hpp"
 #include "snde/recstore.hpp"
+
 
 namespace snde {
   display_unit::display_unit(units unit,
