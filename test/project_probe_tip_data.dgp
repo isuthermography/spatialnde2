@@ -26,7 +26,7 @@ probe_pose_channel = "/probe_pose"
 
 orient_dtype = [('offset', '<f4', (4,)), ('quat', '<f4', (4,))]
 
-graphman=snde.graphics_storage_manager("/graphics/",recdb.lowlevel_alloc,recdb.alignment_requirements,recdb.lockmgr,1e-8);
+graphman=snde.graphics_storage_manager("/graphics/",recdb.lowlevel_alloc,recdb.alignment_requirements,recdb.lockmgr,1e-8,2000000000);
 
 transact = recdb.start_transaction()
 

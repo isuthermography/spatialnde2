@@ -320,12 +320,13 @@ namespace snde {
 
   
 
-  graphics_storage_manager::graphics_storage_manager(const std::string &graphics_recgroup_path,std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> lockmgr,double tol):
+  graphics_storage_manager::graphics_storage_manager(const std::string &graphics_recgroup_path,std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> lockmgr,double tol,size_t maxaddressbytes):
     recording_storage_manager(), // superclass
-    manager(std::make_shared<arraymanager>(memalloc,alignment_requirements,lockmgr)),
+    manager(std::make_shared<arraymanager>(memalloc,alignment_requirements,maxaddressbytes,lockmgr)),
     graphics_recgroup_path(graphics_recgroup_path),
     geom(), // Triggers value-initialization of .data which zero-initializes all members
-    base_rss_unique_id(rss_get_unique())
+    base_rss_unique_id(rss_get_unique()),
+    maxaddressbytes(maxaddressbytes)
   {
     std::atomic_store(&_follower_cachemanagers,std::make_shared<std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>>>());
 

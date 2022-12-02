@@ -104,8 +104,8 @@ namespace snde {
     // virtual destructor required so we can be subclassed
     virtual ~memallocator()=default;
 
-    virtual void *malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes)=0;
-    virtual void *calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes)=0;
+    virtual void *malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t membytes,std::size_t addressbytes)=0;
+    virtual void *calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t membytes,std::size_t addressbytes)=0;
     virtual void *realloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void *ptr,std::size_t newsize)=0;
     virtual bool supports_nonmoving_reference()=0; // returns true if this allocator can return a nonmoving reference rather than a copy. The nonmoving reference will stay coherent with the original. 
     virtual std::shared_ptr<nonmoving_copy_or_reference> obtain_nonmoving_copy_or_reference(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id, void **basearray,void *ptr, std::size_t offset, std::size_t length)=0; // Note: May (generally should be) called with the underlying data array locked for read to prevent ptr from being modified under us
@@ -130,12 +130,12 @@ namespace snde {
 
     }
 
-    void *malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes) {
-      return std::malloc(nbytes);
+    void *malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t membytes,std::size_t addressbytes) {
+      return std::malloc(membytes);
     }
   
-    void *calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes) {
-      return std::calloc(nbytes,1);
+    void *calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t membytes,std::size_t addressbytes) {
+      return std::calloc(membytes,1);
     }
 
     void *realloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void *ptr,std::size_t newsize) {

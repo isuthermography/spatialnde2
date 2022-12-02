@@ -255,7 +255,7 @@ namespace snde {
       alignment_extra=alignment_requirements->get_alignment();
     }
     
-    void *allocated_baseptr = lowlevel_alloc->calloc(recording_path,recrevision,originating_rss_unique_id,(memallocator_regionid)multiarray_index,nelem*elementsize+alignment_extra);  // freed in destructor for recording_storage_simple
+    void *allocated_baseptr = lowlevel_alloc->calloc(recording_path,recrevision,originating_rss_unique_id,(memallocator_regionid)multiarray_index,nelem*elementsize+alignment_extra,0);  // freed in destructor for recording_storage_simple
     // enforce alignment requirements
     void *baseptr = allocator_alignment::alignment_shift(allocated_baseptr,alignment_extra);
 

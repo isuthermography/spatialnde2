@@ -79,6 +79,7 @@ namespace snde {
     std::shared_ptr<snde::memallocator> _memalloc;
     std::shared_ptr<snde::lockmanager> locker;
     std::shared_ptr<allocator_alignment> alignment_requirements;
+    std::size_t maxaddressbytes;
 
     //std::mutex admin; /* serializes access to caches */
     //std::unordered_map<void **,void **> allocation_arrays; // look up the arrays used for allocation
@@ -88,7 +89,7 @@ namespace snde {
     //std::unordered_map<std::string,std::shared_ptr<snde::cachemanager>> _caches;
 
 
-    arraymanager(std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> locker=null);
+    arraymanager(std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,size_t maxaddressbytes,std::shared_ptr<lockmanager> locker=null);
 
     // accessor methods
     // virtual std::shared_ptr<std::unordered_map<void **,allocationinfo>> allocators(); // don't wrap allocators because of swig bug

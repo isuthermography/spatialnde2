@@ -106,14 +106,14 @@ namespace snde {
 
   }
   
-  void *shared_memory_allocator_posix::malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes)
+  void *shared_memory_allocator_posix::malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t membytes,std::size_t addressbytes)
   {
     // POSIX shm always zeros empty space, so we just use calloc
     
-    return calloc(recording_path,recrevision,originating_rss_unique_id,id,nbytes); 
+    return calloc(recording_path,recrevision,originating_rss_unique_id,id,membytes,addressbytes);
   }
   
-  void *shared_memory_allocator_posix::calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes)
+  void *shared_memory_allocator_posix::calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t membytes,std::size_t addressbytes)
   {
 
     std::string shm_name = ssprintf("%s_%llx.dat",
@@ -133,14 +133,14 @@ namespace snde {
       throw posix_error("shared_memory_allocator_posix::calloc shm_open(%s)",shm_name.c_str());
     }
 
-    if (ftruncate(fd,nbytes) < 0) {
+    if (ftruncate(fd,membytes) < 0) {
       close(fd);
-      throw posix_error("shared_memory_allocator_posix::calloc ftruncate(%llu)",(unsigned long long)nbytes);
+      throw posix_error("shared_memory_allocator_posix::calloc ftruncate(%llu)",(unsigned long long)membytes);
     }
-    void *addr = mmap(nullptr,nbytes,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+    void *addr = mmap(nullptr,membytes,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
     if (addr==MAP_FAILED) {
       close(fd);
-      throw posix_error("shared_memory_allocator_posix::calloc mmap(%s,%llu)",shm_name.c_str(),(unsigned long long)nbytes);
+      throw posix_error("shared_memory_allocator_posix::calloc mmap(%s,%llu)",shm_name.c_str(),(unsigned long long)membytes);
       
     }
 
@@ -148,13 +148,13 @@ namespace snde {
       std::lock_guard<std::mutex> lock(_admin);    
       assert(_shm_info.find(std::make_tuple(recording_path,recrevision,originating_rss_unique_id,id))==_shm_info.end()); // 
 
-      // shared_memory_info_posix(id,shm_name,fd,addr,nbytes);
+      // shared_memory_info_posix(id,shm_name,fd,addr,membytes);
       _shm_info.emplace(std::piecewise_construct,
 			std::forward_as_tuple(std::make_tuple(recording_path,recrevision,originating_rss_unique_id,id)), // index
-			std::forward_as_tuple(id,shm_name,fd,addr,nbytes)); // parameters to shared_memory_info_posix constructor
+			std::forward_as_tuple(id,shm_name,fd,addr,membytes)); // parameters to shared_memory_info_posix constructor
     }
 
-    //fprintf(stderr,"calloc 0x%lx: %d\n",(unsigned long)addr,(int)nbytes);
+    //fprintf(stderr,"calloc 0x%lx: %d\n",(unsigned long)addr,(int)membytes);
     
 
     return addr;

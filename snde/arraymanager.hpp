@@ -134,6 +134,7 @@ namespace snde {
     std::shared_ptr<memallocator> _memalloc; /* must be fixed and unchanged after initialization (reason for leading underscore is unclear (?))*/
     std::shared_ptr<lockmanager> locker; /* must be fixed and unchanged after initialization */
     std::shared_ptr<allocator_alignment> alignment_requirements; /* must be fixed and unchanged after initialization */
+    std::size_t maxaddressbytes;
 
     std::mutex admin; /* serializes  write access (but not read 
 			 access) to _allocators, _allocation_arrays, 
@@ -164,7 +165,8 @@ namespace snde {
 
     
 
-    arraymanager(std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> locker=nullptr)
+    arraymanager(std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,size_t maxaddressbytes,std::shared_ptr<lockmanager> locker=nullptr) :
+        maxaddressbytes(maxaddressbytes)
     {
       std::atomic_store(&_allocators,std::make_shared<std::unordered_map<void **,allocationinfo>>());
       std::atomic_store(&_allocation_arrays,std::make_shared<std::unordered_map<void **,void **>>());
@@ -289,7 +291,7 @@ namespace snde {
 	//allocators[arrayptr]=std::make_shared<allocator>(_memalloc,locker,arrayptr,elemsize,totalnelem);
 	
 	
-	(*new_allocators)[arrayptr]=allocationinfo(std::make_shared<allocator>(_memalloc,locker,recording_path,recrevision,originating_rss_unique_id,id,alignment_requirements,arrayptr,elemsize,0,follower_elemsizes),elemsize,totalnelem,0);
+	(*new_allocators)[arrayptr]=allocationinfo(std::make_shared<allocator>(_memalloc,locker,recording_path,recrevision,originating_rss_unique_id,id,alignment_requirements,arrayptr,elemsize,0,follower_elemsizes,maxaddressbytes),elemsize,totalnelem,0);
 	
 	(*new_allocation_arrays)[arrayptr]=arrayptr;
 	new_arrays_managed_by_allocator->emplace(std::make_pair(arrayptr,arrayptr));

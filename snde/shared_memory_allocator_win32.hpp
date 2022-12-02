@@ -42,15 +42,15 @@ namespace snde {
     std::string shm_name;
     HANDLE hFile;
     void *addr;
-    size_t nbytes; 
-    size_t bytesalloc;
+    size_t membytes; 
+    size_t addressbytes;
 
     shared_memory_info_win32(memallocator_regionid id,
 			     std::string shm_name,
 			     HANDLE hFile,
 			     LPVOID addr,
-			     size_t nbytes,
-                 size_t bytesalloc);
+			     size_t membytes,
+                 size_t addressbytes);
   };
 
   //memkey_equal
@@ -69,12 +69,12 @@ namespace snde {
     std::unordered_map<std::tuple<std::string,uint64_t,uint64_t,memallocator_regionid>,shared_memory_info_win32,memkey_hash/*,memkey_equal*/> _shm_info;
 
     
-    shared_memory_allocator_win32(size_t bytestoalloc = 0);
+    shared_memory_allocator_win32();
 
     std::string base_shm_name(std::string recpath, uint64_t recrevision,uint64_t originating_rss_unique_id);
 
-    virtual void *malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes);
-    virtual void *calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes);
+    virtual void *malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t membytes,std::size_t addressbytes);
+    virtual void *calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t membytes,std::size_t addressbytes);
     virtual void *realloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void *ptr,std::size_t newsize);
     virtual bool supports_nonmoving_reference(); // returns true if this allocator can return a nonmoving reference rather than a copy. The nonmoving reference will stay coherent with the original.
     
@@ -83,8 +83,6 @@ namespace snde {
 
     virtual ~shared_memory_allocator_win32();
 
-  protected:
-    size_t bytestoalloc;
     
   };
   

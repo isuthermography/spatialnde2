@@ -78,23 +78,22 @@ namespace snde {
 						     std::string shm_name,
 						     HANDLE hFile,
 						     LPVOID addr,
-						     size_t nbytes,
-                             size_t bytesalloc) :
+						     size_t membytes,
+                             size_t addressbytes) :
     id(id),
     shm_name(shm_name),
     hFile(hFile),
     addr(addr),
-    nbytes(nbytes),
-    bytesalloc(bytesalloc)
+    membytes(membytes),
+    addressbytes(addressbytes)
   {
 
   }
 
   // Adding initialization parameter to allow override later to allocate more virtual memory than actually required in anticipation of later growing.
   // Set to 0 by default to ensure we only allocate what is actually needed on the call to calloc
-  shared_memory_allocator_win32::shared_memory_allocator_win32(size_t bytestoalloc /* = 0*/) :
-    memallocator(false,false),
-    bytestoalloc(bytestoalloc)
+  shared_memory_allocator_win32::shared_memory_allocator_win32() :
+    memallocator(false,false)
   {
 
     
@@ -120,21 +119,21 @@ namespace snde {
 
   }
   
-  void *shared_memory_allocator_win32::malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes)
+  void *shared_memory_allocator_win32::malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t membytes,size_t addressbytes)
   {
     // win32 shm always zeros empty space, so we just use calloc
     
-    return calloc(recording_path,recrevision,originating_rss_unique_id,id,nbytes); 
+    return calloc(recording_path,recrevision,originating_rss_unique_id,id,membytes,addressbytes); 
   }
   
-  void *shared_memory_allocator_win32::calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes)
+  void *shared_memory_allocator_win32::calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t membytes, size_t addressbytes)
   {
 
     std::string shm_name = ssprintf("%s_%llx",
 				    base_shm_name(recording_path,recrevision,originating_rss_unique_id).c_str(),
 				    (unsigned long long)id);
     
-    size_t memtoalloc = (nbytes > bytestoalloc ? nbytes : bytestoalloc);
+    size_t memtoalloc = (membytes > addressbytes ? membytes : addressbytes);
     DWORD memHigh = static_cast<DWORD>((memtoalloc >> 32) & 0xFFFFFFFFul);
     DWORD memLow = static_cast<DWORD>(memtoalloc & 0xFFFFFFFFul);
 
@@ -166,10 +165,10 @@ namespace snde {
       
     }
 
-    if (VirtualAlloc(addr, nbytes, MEM_COMMIT, PAGE_READWRITE) == NULL) {
+    if (VirtualAlloc(addr, membytes, MEM_COMMIT, PAGE_READWRITE) == NULL) {
         CloseHandle(hMapFile);
         UnmapViewOfFile(addr);
-        throw win32_error("shared_memory_allocator_win32::calloc MapViewOfFile(%s,%llu)", shm_name.c_str(), (unsigned long long)nbytes);
+        throw win32_error("shared_memory_allocator_win32::calloc MapViewOfFile(%s,%llu)", shm_name.c_str(), (unsigned long long)membytes);
     }
 
  
@@ -179,7 +178,7 @@ namespace snde {
     // shared_memory_info_win32(id,shm_name,fd,addr,nbytes);
     _shm_info.emplace(std::piecewise_construct,
 			std::forward_as_tuple(std::make_tuple(recording_path,recrevision,originating_rss_unique_id,id)), // index
-			std::forward_as_tuple(id,shm_name,hMapFile,addr,nbytes,memtoalloc)); // parameters to shared_memory_info_win32 constructor
+			std::forward_as_tuple(id,shm_name,hMapFile,addr,membytes,memtoalloc)); // parameters to shared_memory_info_win32 constructor
     
 
     //fprintf(stderr,"calloc 0x%llx (%s): %d\n",(unsigned long long)addr, shm_name.c_str(), (int)nbytes);
@@ -199,8 +198,8 @@ namespace snde {
     }*/
 
     // MAKE SURE THERE'S ENOUGH MEMORY FIRST
-    if (newsize > this_info.bytesalloc)
-        throw snde_error("shared_memory_allocator_win32::realloc Attempting to realloc more than originally allocated is not implemented (newsize = %llu, allocated = %llu)", (unsigned long long)newsize, (unsigned long long)this_info.bytesalloc);
+    if (newsize > this_info.addressbytes)
+        throw snde_error("shared_memory_allocator_win32::realloc Attempting to realloc more than originally allocated is not implemented (newsize = %llu, allocated = %llu)", (unsigned long long)newsize, (unsigned long long)this_info.addressbytes);
     
     //this_info.addr = mmap(nullptr,newsize,PROT_READ|PROT_WRITE,MAP_SHARED,this_info.fd,0);
 
@@ -213,7 +212,7 @@ namespace snde {
       throw win32_error("shared_memory_allocator_win32::realloc VirtualAlloc(%s,%llu)",this_info.shm_name.c_str(),(unsigned long long)newsize);
       
     }
-    this_info.nbytes=newsize;
+    this_info.membytes=newsize;
     //fprintf(stderr,"realloc 0x%llx (%s): %d\n",(unsigned long long)this_info.addr, this_info.shm_name.c_str(), (int)newsize);
     return this_info.addr;
   }
