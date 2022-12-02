@@ -98,9 +98,11 @@ public:
     std::shared_ptr<std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>>> _follower_cachemanagers; // atomic shared pointer: Access with follower_cachemanagers()
 
     uint64_t base_rss_unique_id; // initialized from rss_get_unique() in constructor; helps prevent collsions in shared memory object naming
+
+    std::size_t maxaddressbytes;
     
     
-    graphics_storage_manager(const std::string &graphics_recgroup_path,std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> lockmngr,double tol);
+    graphics_storage_manager(const std::string &graphics_recgroup_path,std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> lockmngr,double tol,std::size_t maxaddressbytes);
     // Rule of 3
     graphics_storage_manager(const graphics_storage_manager &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
     graphics_storage_manager& operator=(const graphics_storage_manager &) = delete; 

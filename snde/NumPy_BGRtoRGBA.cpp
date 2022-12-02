@@ -3,7 +3,7 @@
 
 #include "snde/recmath_cppfunction.hpp"
 
-#include "snde/numpy_bgrtorgba.hpp"
+#include "snde/NumPy_BGRtoRGBA.hpp"
 
 namespace snde {
 
