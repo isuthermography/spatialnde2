@@ -737,6 +737,8 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       std::shared_ptr<display_spatial_transform> xform;
       std::shared_ptr<display_channel_rendering_bounds> bounds;
       size_t DC_ColorIdx;
+      double xcenter;
+      double ycenter;
 
       std::shared_ptr<rgbacolormapparams> colormap_params;
       {
@@ -754,13 +756,14 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
           std::shared_ptr<display_axis> a = display->GetAmplAxisLocked(chanpath);
           std::shared_ptr<display_axis> t = display->GetFirstAxisLocked(chanpath);
 
-          double xcenter;
+          
           double xunitscale;
           double yunitscale;
           {
               std::lock_guard<std::mutex> axisadminlocka(a->admin);
               std::lock_guard<std::mutex> axisadminlockt(t->admin);
               xcenter = t->CenterCoord; /* in units */
+              ycenter = a->CenterCoord;
 
               std::shared_ptr<display_unit> u = t->unit;
               std::shared_ptr<display_unit> v = a->unit;
@@ -824,8 +827,11 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       std::make_shared<math_parameter_double_const>(color_renderparams->overall_alpha),
       std::make_shared<math_parameter_double_const>(color_renderparams->linewidth_x),
       std::make_shared<math_parameter_double_const>(color_renderparams->linewidth_y),
-      std::make_shared<math_parameter_double_const>(horiz_pixels_per_chanunit)
-
+      std::make_shared<math_parameter_double_const>(horiz_pixels_per_chanunit),
+      std::make_shared<math_parameter_double_const>(bounds->left),
+      std::make_shared<math_parameter_double_const>(bounds->right),
+      std::make_shared<math_parameter_double_const>(bounds->top),
+      std::make_shared<math_parameter_double_const>(bounds->bottom)
           },
           { std::make_shared<std::string>(renderable_channelpath) },
           recdb_path_as_group(chanpath),
