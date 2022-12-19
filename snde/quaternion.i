@@ -40,6 +40,72 @@
   }
   // free castedarrayobj
   Py_DecRef((PyObject *)castedarrayobj);
+
+  {
+    // verify that the rotmtx is indeed a rotation plus offset.
+    snde_coord *arrayptr;
+    arrayptr = &($1)[0].coord[0];
+    // verify the last row of the 4x4 matrix.
+    if (arrayptr[3]!=0 || arrayptr[7]!=0 || arrayptr[11]!=0 || arrayptr[15]!=1) {
+      //free($1);
+      SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			  "$argnum"" input typemap: 4x4 (16-element) snde_coord matrix should have last row matching [0,0,0,1].");
+      SWIG_fail;
+    }
+    // verify that the upper 3x3 submatrix is orthogonal
+    int rowidx,colidx,sumidx;
+    float accum;
+    for (colidx=0;colidx<3;colidx++){ // column of R*R'
+      for (rowidx=0;rowidx<3;rowidx++){ // row of R*R'
+	accum = 0;
+	for (sumidx=0;sumidx<3;sumidx++){
+	  // calculating R_ik*R_jk, summing over k
+	  // with i = rowidx and j = colidx and k = sumidx
+	  accum+=arrayptr[rowidx + 4*sumidx]*arrayptr[colidx + 4*sumidx];
+	}
+	if ((rowidx == colidx && fabs(accum-1.0)>1e-6) ||
+	    (rowidx != colidx && fabs(accum)>1e-6)) {
+	  //free($1);
+	  SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			      "$argnum"" input typemap: 4x4 (16-element) snde_coord matrix should have an upper 3x3 submatrix that is orthogonal.");
+	  SWIG_fail;
+	}
+      }
+    }
+    // verify the upper 3x3 submatrix is a rotation not a reflection, i.e. its determinant is 1 not -1.
+    int startcol, pos, row, col;
+    float detaccum = 0.0,detel;
+    // multiply and add diagonals down and to the right.
+    for (startcol=0;startcol<3;startcol++){
+      detel=1.0;
+      for(row=0;row<3;row++){
+	col = (startcol + row)%3;
+	detel*=arrayptr[row + 4*col];
+      }
+      detaccum+=detel;
+    }
+    // multiply and add diagonals down and to the left.
+    for (startcol=0;startcol<3;startcol++){
+      detel=1.0;
+      for(row=0;row<3;row++){
+	col = (startcol + 3 - row)%3;
+	detel*=arrayptr[row + 4*col];
+      }
+      detaccum-=detel;
+    }
+    if (fabs(detaccum-1)>1e-5) {
+      //free($1);
+      SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			  "$argnum"" input typemap: 4x4 (16-element) snde_coord matrix should have an upper 3x3 submatrix that is a rotation, not a reflection.");
+      SWIG_fail;
+    }
+    if (isnan(detaccum) || isnan(arrayptr[12]) || isnan(arrayptr[13]) || isnan(arrayptr[14]) || isinf(arrayptr[12]) || isinf(arrayptr[13]) || isinf(arrayptr[14])){
+      //free($1);
+      SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			  "$argnum"" input typemap: 4x4 (16-element) snde_coord matrix should be finite and not contain nan.");
+      SWIG_fail;
+    }
+  }
 }
 
 %typemap(freearg) const snde_coord4 *rotmtx // free orientation from const snde_cpptype & input typemap, above
@@ -48,9 +114,21 @@
 }
 
 
+// input typemap for const snde_coord4 quat
+//%typemap(in) const snde_coord4 quat {
+//  if (isnan($input.coord[0]) || isnan($input.coord[1]) || isnan($input.coord[2]) || isnan($input.coord[3])) {
+//    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+//			"$argnum"" quat parameter contains nan");
+//    SWIG_fail;
+//  } 
+//  $1=$input;
+// }
 
 
 
+// note: many of the parameters of these functions are checked against nan
+// by the numpy_rtm_input_typemaps calls in geometry_types.i and defined in
+// snde_types.i based on the check_nan parameter to the SWIG macro
 void snde_null_orientation3(snde_orientation3 *OUTPUT);
 
 void snde_invalid_orientation3(snde_orientation3 *OUTPUT);
@@ -60,7 +138,7 @@ snde_bool quaternion_equal(const snde_coord4 a, const snde_coord4 b);
 snde_bool orientation3_equal(const snde_orientation3 a, const snde_orientation3 b);
 
 
-void quaternion_normalize(const snde_coord4 unnormalized,snde_coord4 *OUTPUT);
+void quaternion_normalize(const snde_coord4 quat,snde_coord4 *OUTPUT);
   
 void quaternion_product(const snde_coord4 quat1, const snde_coord4 quat2,snde_coord4 *OUTPUT);
 

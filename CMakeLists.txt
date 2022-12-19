@@ -262,7 +262,7 @@ IF (Python3_FOUND)
     message(STATUS "Python3: " ${Python3_VERSION})
 ENDIF (Python3_FOUND)
 
-set(SPATIALNDE2_LIBS spatialnde2 ${CMAKE_THREAD_LIBS_INIT} ${HDF5_LIBRARIES})
+set(SPATIALNDE2_LIBS spatialnde2 ${CMAKE_THREAD_LIBS_INIT} )
 set(SPATIALNDE2_OCL_LIBS spatialnde2_ocl )
 set(SPATIALNDE2_OSG_LIBS spatialnde2_osg )
 set(SPATIALNDE2_QT_LIBS spatialnde2_qt )
@@ -729,7 +729,7 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	set_property(SOURCE snde/spatialnde2.i PROPERTY SWIG_MODULE_NAME spatialnde2_python)
 
 	
-	set(SWIG_SPATIALNDE2_LINK_TARGETS Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools PNG::PNG OpenCL::OpenCL) # Libraries needed by swig_spatialnde2 that are swig targets
+	set(SWIG_SPATIALNDE2_LINK_TARGETS Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools PNG::PNG OpenCL::OpenCL hdf5::hdf5 hdf5::hdf5_cpp) # Libraries needed by swig_spatialnde2 that are swig targets
 	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${Python3_LIBRARIES} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${SPATIALNDE2_QT_LIBS} )
 
 	#IF(NOT WIN32)
