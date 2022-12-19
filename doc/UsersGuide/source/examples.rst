@@ -25,7 +25,7 @@ selecting and loading additional functionality at run time. You would use
 LoadLibrary() on Windows or dlopen() on Linux/Apple.
 
 Instead we can load external C++ code by wrapping it in a Python
-module.  This an additional advantage: The use of the Python
+module.  This provides an additional advantage: The use of the Python
 package/module naming scheme for accessing the external code. An
 example of this is given in the ``spatialnde2_example_cpp_function``
 subdirectory, which contains an entire "external" C++ SpatialNDE2 math
@@ -67,36 +67,36 @@ Python examples:
 
 Dataguzzler-Python examples (require Dataguzzler-Python to be installed for operation; run them with ``dataguzzler-python example.dgp``):
   * ``x3d_objectfollower.dgp``:  Demonstrates use of the qt_osg_compositor_view_tracking_pose_recording to define a view that can hold a particular object fixed relative to the camera. 
-  * ``project_live_probe_tip_data.dgp``: Demonstrates CAD registration capability by tracking eddy-current data over space and time and registering it to a 3-dimensional specimen.
+  * ``project_live_probe_tip_data.dgp``: Demonstrates CAD registration capability by tracking simulated eddy-current data over space and time and registering it to a 3-dimensional specimen.
 
 
 Project Probe Tip Data User Guide
 ---------------------------------
 
 The purpose of the ``project_live_probe_tip_data.dgp`` module is to
-track and record impedance data of an eddy current probe as it moves around a 
-specimen and return a three-dimensional interactive map of the probe history on the specimen. This guide assumes that the user has installed SpatialNDE2 and is familiar with its concepts. 
-If the software was installed correctly, all necessary ``.x3d`` files should be within the test folder.
+track and record simulated impedance data of an eddy current probe as it moves around a 
+specimen and returns a map of accumulated data projected onto the surface of a 3-dimensional test specimen. 
+This module can be found in the test directory of the SpatialNDE2 source tree.
 
 Simple usage can be done in the following steps:
 
-1. Use the ``"/probe_positioner"`` channel to track probe impedance data over time and position to be registered to specimen. 
+1. Use the ``"/probe_positioner"`` channel to move the probe in a context where the probe is fixed and the specimen can move relative to the probe. A live visualization of simulated data from the probe can be found 
+in the ``/synthetic_probe_impedance`` channnel, which displays the phase of a simulated signal, rotating in the complex plane, that would come from an eddy current probe. 
 
 .. image:: ProbePositioner_Screenshot.png
   :width: 800
   :alt: Image of probe and plate together with the ``/probe_positioner`` channel selected.
 	
-2. A time-domain fusion surface-parameterization map of probe position history can be viewed using the ``"/graphics/projection"`` channel. Numerical probe impedance history data is stored in the ``"/synthetic_probe_history"`` channel.
+2. A surface-parameterization map of accumulated probe impedance data can be viewed using the ``"/graphics/projection"`` channel; the channel is shown in the first image below. A numerical history of probe impedance data is stored in the 
+``"/synthetic_probe_history"`` channel. To see the parameterization projected onto the 3d model's surface, shown in the second image below, select the ``"/graphics/projection_specimen"`` channel. 
 
 .. image:: GraphicsProjection_Channel.png
   :width: 800
   :alt: Sample image of the surface-parameterization.
-
-3. To see the parameterization of probe positions projected onto the 3d specimen model's surface, select the ``"/graphics/projection_specimen"`` channel.
   
 .. image:: GraphicsProjection_Specimen.png
   :width: 800
-  :alt: Map of probe history projected onto the specimen.
+  :alt: Map of accumulated probe simulation data projected onto the specimen.
 
 
 

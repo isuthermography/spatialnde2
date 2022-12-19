@@ -386,15 +386,6 @@ The GUI configuration ``recdb_gui.dpi`` defines four more globals:
 The QT windows operate in the main GUI thread and access from other
 threads (including interactive consoles) is delegated to the main GUI
 thread.
-
-Running in Anaconda:
-
-To run SpatialNDE2 examples with dataguzzler-python in Anaconda ensure that 
-your evnironment has dataguzzler-python as well as SpatialNDE2 installed. 
-Navigate to the folder that has the ``.dgp`` file that you want to run and
-call ``dataguzzler-python <yourexample.dgp>``. Check for error messages.
-If <dgpy> becomes the line header, then dataguzzler-python has started
-successfully.
     
 
 Creating an Interactive Viewer
@@ -586,29 +577,6 @@ scripted from Python such as when using Dataguzzler-Python.
     that owns the mutex. A deadlock is almost certainly a locking order
     violation. The `gdb-automatic-deadlock-detector <https://github.com/DamZiobro/gdb-automatic-deadlock-detector>`_ automates deadlock detection
     using GDB and Python.
-
-In Anaconda:
-
-Common Errors and Fixes:
-
-`'dataguzzler-python' is not recognized as an internal or external command,
-operable program or batch file.`
-
-- This implies that dataguzzler is not installed in your anaconda environment. Make sure
-that dataguzzler-python is installed and your environment has been activated.
-
-
-
-* Have dataguzzler-python and SNDE been installed and loaded?
-* If changes have been made, have they been saved before re-running the dataguzzler-python file?
-
-Common mistakes with storing data into recordings:
-
-* Has the program been told to start and end the transaction at the appropriate time?
-* When a new recording is created, have the correct recording and datatypes been assigned?
-* Is the data being loaded into the correct channel
-* If your script is unable to access a recording from the latest globalrevision data from a previous section of the script, was wait_complete used within that transaction to make sure the data allocation was finished before pulling the data from the latest globalrevision?
-
 
 
 

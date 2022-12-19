@@ -30,14 +30,7 @@ array; the recording data structure is generally treated as fixed once
 the recording is marked as ready). The most common type of recording
 is the ``multi_ndarray_recording`` discussed below. Often single
 arrays within a ``multi_ndarray_recording`` are referenced using the
-``ndarray_recording_ref`` class. The class inheritance structure of
-a recording is shown below:
-
-.. image:: class_inheritance.png
-    :width: 400
-    :alt: NDE Class Inheritance Diagram, shows the classes contained 
-        within an nde_recording class. There are both nde_arrays and 
-        nde_groups, these nde_groups can be specialized for UT.
+``ndarray_recording_ref`` class. 
 
 New recordings are created with the ``create_recording<T>()``,
 ``create_anonymous_recording<T>()`` (used for recordings not part of a
@@ -157,10 +150,12 @@ n-dimensional arrays rather than just using indices.
 One subclass of the ``multi_ndarray_recording`` is the ``fusion_ndarray_recording``. 
 This subclass is meant to represent the circumstance where the meaningful value is
 represented as a weighted average :math:`\sum\limits_{i=0}^{n}\frac{X_{i}w_{i}}{w_{i}}`
-The ``"accumulator"`` array stores the terms within the numerator
-and the ``"totals"`` array stores the terms within the denominator of this fraction. This 
-datatype can be rendered in the viewer similar to the ``multi_darray_recording``, but the image
-represents the output of this weighted average.
+The ``"accumulator"`` array stores an array of data to be averaged over multiple scan iterations. 
+The ``"totals"`` array stores the total quantity of iterations to be averaged.
+Both channels consider the weighting factor for the values in each scan iteration. This datatype can be rendered in the 
+viewer similar to the ``multi_ndarray_recording``, but the resulting image represents the output of this 
+weighted average. This recording subclass is useful for cases where there exist data across 
+multiple locations and scans with varying levels of influence on a unified representation of data mapped to the surfaces of specimen geometries.
  
 
 For access by C code, the ``info`` member of a
