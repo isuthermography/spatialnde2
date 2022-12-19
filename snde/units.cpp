@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cmath>
 #include <regex>
+#include <sstream>
 
 #include "snde/stringtools.hpp"
 
