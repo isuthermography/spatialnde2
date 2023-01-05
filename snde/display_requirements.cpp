@@ -794,14 +794,42 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       double horiz_pixels_per_chanunit = xform->renderarea_coords_over_channel_coords(0, 0);
       double vert_pixels_per_chanunit = xform->renderarea_coords_over_channel_coords(1, 1);
 
+      /////////////////////
+
+      snde_index startidx = 0;
+      snde_index endidx = DimLen1-1;
+      snde_index nstep = 1;
+      // Let's do some math and figure out exactly what needs to be rendered and how.
+      // We'll then use that info to make a decision about what parameters to pass to the math functions
+      // and which math functions even need to be called.
+      snde_index Npx = 0;
+      double step = 1.0;
+      std::string step_units;
+
+      bool plotpoints = false;
+
+      std::tie(step, step_units) = array_rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_step", 1.0, "pixels");
+
+      double samplesperpixel = 1 / (horiz_pixels_per_chanunit * step);
+
+      if (samplesperpixel <= 0.5) {
+	// Plenty of Pixels -- plot the interpolated line
+	Npx = DimLen1;
+      }
+      else {
+	// More data than pixels -- plot vertical lines
+	Npx = static_cast<snde_index>(floor(DimLen1 / samplesperpixel));
+      }
+
+
+
+      //////////////////////
+
+
       // should colormap_params really be in the rendermode_ext key for this one or just the next one?
       // I think the answer is both because the nested requirement won't be looked at
       // if the parent just pulls from the cache
       std::shared_ptr<color_linewidth_params> color_renderparams = std::make_shared<color_linewidth_params>(RecColorTable[DC_ColorIdx], 1.0f, 2.0f / horiz_pixels_per_chanunit, 2.0f / vert_pixels_per_chanunit);
-
-     
-      //retval->imgref = std::make_shared<image_reference>(chanpath,u_dimnum,v_dimnum,other_indices);
-
 
       std::string renderable_channelpath = recdb_path_join(recdb_path_as_group(chanpath), "_snde_waveform_vertices" + std::to_string(display->unique_index));
 
