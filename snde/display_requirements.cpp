@@ -822,6 +822,25 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       }
 
 
+      size_t startidx = 0;
+      size_t endidx = Npx;
+
+      double inival;
+      std::string inival_units;
+
+      std::tie(inival, inival_units) = array_rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_inival", 0.0, "pixels");
+
+      if (inival + step * (DimLen1-1) > bounds->right)
+      {
+	endidx = ceil((bounds->right - inival) / step);
+      }
+
+      if (inival < bounds->left)
+      {
+	startidx = floor((bounds->left - inival) / step);
+      }
+
+
 
       //////////////////////
 
