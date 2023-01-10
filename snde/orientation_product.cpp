@@ -72,7 +72,14 @@ namespace snde {
 	return std::make_shared<exec_function_override_type>([ this, result_ref, left, right, right_ref, locktokens ]() {
 	  // exec code
 	  
-	  orientation_orientation_multiply(left,right_ref->element(0),&result_ref->element(0));
+	  snde_orientation3 right_orient = right_ref->element(0);
+	  if (orientation_valid(left) && orientation_valid(right_orient)) {
+	    orientation_orientation_multiply(left, right_orient, &result_ref->element(0));
+	  }
+	  else {
+	    snde_invalid_orientation3(&result_ref->element(0));
+	  }
+	  
 	  unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
 	  result_ref->rec->mark_data_ready();
 	  
@@ -166,8 +173,16 @@ namespace snde {
 	
 	return std::make_shared<exec_function_override_type>([ this, result_ref, left, left_ref, right, locktokens ]() {
 	  // exec code
+	  	  
+	  snde_orientation3 left_orient = left_ref->element(0);
+	  if (orientation_valid(left_orient) && orientation_valid(right)) {
+	    orientation_orientation_multiply(left_orient,right,&result_ref->element(0));
+	  }
+	  else {
+	    snde_invalid_orientation3(&result_ref->element(0));
+	  }
 	  
-	  orientation_orientation_multiply(left_ref->element(0),right,&result_ref->element(0));
+
 	  unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
 	  result_ref->rec->mark_data_ready();
 	  
@@ -257,8 +272,16 @@ namespace snde {
 	
 	return std::make_shared<exec_function_override_type>([ this, result_ref, left, right, right_ref, locktokens ]() {
 	  // exec code
+
+	  snde_orientation3 left_orient = left->element(0);
+	  snde_orientation3 right_orient = right_ref->element(0);
+	  if (orientation_valid(left_orient) && orientation_valid(right_orient)) {
+	    orientation_orientation_multiply(left_orient, right_orient, &result_ref->element(0));
+	  }
+	  else {
+	    snde_invalid_orientation3(&result_ref->element(0));
+	  }
 	  
-	  orientation_orientation_multiply(left->element(0),right_ref->element(0),&result_ref->element(0));
 	  unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
 	  result_ref->rec->mark_data_ready();
 	  
