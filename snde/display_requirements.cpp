@@ -803,14 +803,14 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       // We'll then use that info to make a decision about what parameters to pass to the math functions
       // and which math functions even need to be called.
       snde_index Npx = 0;
-      double step = 1.0;
+      double datastep = 1.0;
       std::string step_units;
 
       bool plotpoints = false;
 
-      std::tie(step, step_units) = array_rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_step", 1.0, "pixels");
+      std::tie(datastep, step_units) = array_rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_step", 1.0, "pixels");
 
-      double samplesperpixel = 1 / (horiz_pixels_per_chanunit * step);
+      double samplesperpixel = 1 / (horiz_pixels_per_chanunit * datastep);
 
       if (samplesperpixel <= 0.5) {
 	// Plenty of Pixels -- plot the interpolated line
@@ -824,6 +824,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 
       size_t startidx = 0;
       size_t endidx = Npx;
+      size_t step = 1;
 
       double inival;
       std::string inival_units;
@@ -832,12 +833,12 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 
       if (inival + step * (DimLen1-1) > bounds->right)
       {
-	endidx = ceil((bounds->right - inival) / step);
+	endidx = ceil((bounds->right - inival) / datastep);
       }
 
       if (inival < bounds->left)
       {
-	startidx = floor((bounds->left - inival) / step);
+	startidx = floor((bounds->left - inival) / datastep);
       }
 
 
