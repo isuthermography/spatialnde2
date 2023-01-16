@@ -9,7 +9,8 @@ void waveform_as_vertlines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 	OCL_GLOBAL_ADDR snde_coord3* tri_vertices,
 	OCL_GLOBAL_ADDR snde_float32* trivert_colors,
 	snde_index cnt, // within these inputs and these outputs,
-	snde_index pos,
+	snde_index startidx,
+	snde_index endidx,
 	double inival,
 	double step,
 	snde_index pxstep,
@@ -21,21 +22,25 @@ void waveform_as_vertlines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 	snde_float32 A)
 {
 
-	snde_index stidx = cnt * pxstep;
+	
+        snde_index endpt = (startidx + (cnt+1) * pxstep) + 1;
+	if (((startidx + (cnt + 2) * pxstep) + 1) > endidx)
+	  endpt = endidx;
+
 	waveform_intype minval = -log(0.0);
 	waveform_intype maxval = -minval;
-	for (snde_index i = stidx - 1; i < stidx + pxstep + 1; ++i) {
-		if (inputs[pos+i] > maxval) {
+	for (snde_index i = (startidx + cnt*pxstep); i <= endpt; ++i) {
+		if (inputs[i] > maxval) {
 			maxval = inputs[i];
 		}
-		if (inputs[pos+i] < minval) {
+		if (inputs[i] < minval) {
 			minval = inputs[i];
 		}
 	}
 
 	waveform_intype priorx, priory, curx, cury;
 
-	priorx = pxstep * (waveform_intype)(pos + cnt) + inival + 0.5 * step;
+	priorx = pxstep * (waveform_intype)(cnt) + inival + step * (waveform_intype)(startidx) + 0.5 * step;
 	curx = priorx;
 	priory = minval;	
 	cury = maxval;

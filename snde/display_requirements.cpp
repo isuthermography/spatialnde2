@@ -798,47 +798,61 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 
       snde_index startidx = 0;
       snde_index endidx = DimLen1-1;
-      snde_index nstep = 1;
-      // Let's do some math and figure out exactly what needs to be rendered and how.
-      // We'll then use that info to make a decision about what parameters to pass to the math functions
-      // and which math functions even need to be called.
-      snde_index Npx = 0;
+      snde_index idxstep = 1;
       double datastep = 1.0;
-      std::string step_units;
+      double datainival = 0.0;
 
-      bool plotpoints = false;
+      std::string step_units;      
+      std::string inival_units;
+      std::string funcname = "";
+      std::string funcdescr = "";
 
       std::tie(datastep, step_units) = array_rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_step", 1.0, "pixels");
 
       double samplesperpixel = 1 / (horiz_pixels_per_chanunit * datastep);
 
+      std::tie(datainival, inival_units) = array_rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_inival", 0.0, "pixels");
+
+      if (datainival + idxstep * (DimLen1-1) > bounds->right)
+      {
+	endidx = ceil((bounds->right - datainival) / datastep);
+      }
+
+      if (datainival < bounds->left)
+      {
+	startidx = floor((bounds->left - datainival) / datastep);
+      }
+
       if (samplesperpixel <= 0.5) {
 	// Plenty of Pixels -- plot the interpolated line
-	Npx = DimLen1;
+	funcname = "spatialnde2.waveform_interplines";
+	funcdescr = "c++ definition of waveform_interplines";
       }
       else {
 	// More data than pixels -- plot vertical lines
-	Npx = static_cast<snde_index>(floor(DimLen1 / samplesperpixel));
+	funcname = "spatialnde2.waveform_vertlines";
+	funcdescr = "c++ definition of waveform_vertlines";
+
+	idxstep = round(samplesperpixel);
+	if (!((endidx - startidx) % static_cast<snde_index>(round(samplesperpixel)))){
+	  endidx = endidx + idxstep;
+	}
       }
 
-
-      size_t startidx = 0;
-      size_t endidx = Npx;
-      size_t step = 1;
-
-      double inival;
-      std::string inival_units;
-
-      std::tie(inival, inival_units) = array_rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_inival", 0.0, "pixels");
-
-      if (inival + step * (DimLen1-1) > bounds->right)
-      {
-	endidx = ceil((bounds->right - inival) / datastep);
+      // Deal with corner cases
+      if (endidx > DimLen1 - 1) {
+	endidx = DimLen1 - 1;
+      }
+      if (startidx < 0) {
+	startidx = 0;
       }
 
-      if (inival < bounds->left)
-      {
-	startidx = floor((bounds->left - inival) / datastep);
+      if (endidx < startidx) {
+	return nullptr;
+      }
+
+      if (endidx - startidx <= 1) {
+	return nullptr;
       }
 
 
@@ -849,7 +863,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       // should colormap_params really be in the rendermode_ext key for this one or just the next one?
       // I think the answer is both because the nested requirement won't be looked at
       // if the parent just pulls from the cache
-      std::shared_ptr<color_linewidth_params> color_renderparams = std::make_shared<color_linewidth_params>(RecColorTable[DC_ColorIdx], 1.0f, 2.0f / horiz_pixels_per_chanunit, 2.0f / vert_pixels_per_chanunit);
+      std::shared_ptr<waveform_params> renderparams = std::make_shared<waveform_params>(RecColorTable[DC_ColorIdx], 1.0f, 2.0f / horiz_pixels_per_chanunit, 2.0f / vert_pixels_per_chanunit, 6.0f, startidx, endidx, idxstep, datainival, datastep);
 
       std::string renderable_channelpath = recdb_path_join(recdb_path_as_group(chanpath), "_snde_waveform_vertices" + std::to_string(display->unique_index));
 
@@ -858,35 +872,35 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
           return nullptr;
       }
 
-      retval = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_WAVEFORM, typeid(*this), color_renderparams), rec, shared_from_this()); // display_requirement
+      retval = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_WAVEFORM, typeid(*this), renderparams), rec, shared_from_this()); // display_requirement
       retval->renderer_type = SNDE_DRRT_2D;
 
       retval->spatial_position = posn;
       retval->spatial_transform = xform;
       retval->spatial_bounds = bounds;
 
-      std::shared_ptr<snde::display_requirement> subreq = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_COLOREDTRANSPARENTLINES, typeid(*this), color_renderparams), rec, shared_from_this());
+      std::shared_ptr<snde::display_requirement> subreq = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_COLOREDTRANSPARENTLINES, typeid(*this), renderparams), rec, shared_from_this());
 
-      std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_available_math_function("spatialnde2.waveform_line_triangle_vertices_alphas")->instantiate({
+      std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_available_math_function(funcname)->instantiate({
       std::make_shared<math_parameter_recording>(chanpath),
-      std::make_shared<math_parameter_double_const>(color_renderparams->color.R),
-      std::make_shared<math_parameter_double_const>(color_renderparams->color.G),
-      std::make_shared<math_parameter_double_const>(color_renderparams->color.B),
-      std::make_shared<math_parameter_double_const>(color_renderparams->overall_alpha),
-      std::make_shared<math_parameter_double_const>(color_renderparams->linewidth_x),
-      std::make_shared<math_parameter_double_const>(color_renderparams->linewidth_y),
-      std::make_shared<math_parameter_double_const>(horiz_pixels_per_chanunit),
-      std::make_shared<math_parameter_double_const>(bounds->left),
-      std::make_shared<math_parameter_double_const>(bounds->right),
-      std::make_shared<math_parameter_double_const>(bounds->top),
-      std::make_shared<math_parameter_double_const>(bounds->bottom)
+      std::make_shared<math_parameter_double_const>(renderparams->color.R),
+      std::make_shared<math_parameter_double_const>(renderparams->color.G),
+      std::make_shared<math_parameter_double_const>(renderparams->color.B),
+      std::make_shared<math_parameter_double_const>(renderparams->overall_alpha),
+      std::make_shared<math_parameter_double_const>(renderparams->linewidth_horiz),
+      std::make_shared<math_parameter_double_const>(renderparams->linewidth_vert),
+      std::make_shared<math_parameter_sndeindex_const>(renderparams->startidx),
+      std::make_shared<math_parameter_sndeindex_const>(renderparams->endidx),
+      std::make_shared<math_parameter_sndeindex_const>(renderparams->idxstep),
+      std::make_shared<math_parameter_double_const>(renderparams->datainival),
+      std::make_shared<math_parameter_double_const>(renderparams->datastep)
           },
           { std::make_shared<std::string>(renderable_channelpath) },
           recdb_path_as_group(chanpath),
           false, // is_mutable
           true, // ondemand
           false, // mdonly
-          std::make_shared<math_definition>("c++ definition of waveform line triangle vertices and alphas"),
+          std::make_shared<math_definition>(funcdescr),
           nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
 
       
@@ -895,6 +909,41 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       subreq->renderable_function = renderable_function;
 
       retval->sub_requirements.push_back(subreq);
+
+      if (samplesperpixel <= 0.1) {
+	std::string renderable_channelpath2 = recdb_path_join(recdb_path_as_group(chanpath), "_snde_waveform_points" + std::to_string(display->unique_index));
+	
+	std::shared_ptr<snde::display_requirement> subreq2 = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_COLOREDTRANSPARENTPOINTS, typeid(*this), renderparams), rec, shared_from_this());
+
+	std::shared_ptr<instantiated_math_function> renderable_function2 = recdb->lookup_available_math_function("spatialnde2.waveform_points")->instantiate({
+	std::make_shared<math_parameter_recording>(chanpath),
+	std::make_shared<math_parameter_double_const>(renderparams->color.R),
+	std::make_shared<math_parameter_double_const>(renderparams->color.G),
+	std::make_shared<math_parameter_double_const>(renderparams->color.B),
+	std::make_shared<math_parameter_double_const>(renderparams->overall_alpha),
+	std::make_shared<math_parameter_double_const>(renderparams->linewidth_horiz),
+	std::make_shared<math_parameter_double_const>(renderparams->linewidth_vert),
+	std::make_shared<math_parameter_sndeindex_const>(renderparams->startidx),
+	std::make_shared<math_parameter_sndeindex_const>(renderparams->endidx),
+	std::make_shared<math_parameter_sndeindex_const>(renderparams->idxstep),
+	std::make_shared<math_parameter_double_const>(renderparams->datainival),
+	std::make_shared<math_parameter_double_const>(renderparams->datastep)
+	  },
+	  { std::make_shared<std::string>(renderable_channelpath2) },
+	  recdb_path_as_group(chanpath),
+	  false, // is_mutable
+	  true, // ondemand
+	  false, // mdonly
+	  std::make_shared<math_definition>("c++ definition of waveform_points"),
+	  nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
+
+
+
+	subreq2->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath2);
+	subreq2->renderable_function = renderable_function2;
+
+	retval->sub_requirements.push_back(subreq2);
+      }
 
       return retval;
 
