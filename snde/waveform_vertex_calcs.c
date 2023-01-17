@@ -40,7 +40,7 @@ void waveform_as_vertlines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 
 	waveform_intype priorx, priory, curx, cury;
 
-	priorx = pxstep * (waveform_intype)(cnt) + inival + step * (waveform_intype)(startidx) + 0.5 * step;
+	priorx = step * pxstep * (waveform_intype)(cnt)+inival + step * (waveform_intype)(startidx)+0.5 * step;
 	curx = priorx;
 	priory = minval;	
 	cury = maxval;
@@ -117,6 +117,45 @@ void waveform_as_vertlines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 
 }
 
+#ifdef __OPENCL_VERSION__
+
+	__kernel void waveform_vertlines(OCL_GLOBAL_ADDR waveform_intype* inputs,
+	  OCL_GLOBAL_ADDR snde_coord3* tri_vertices,
+	  OCL_GLOBAL_ADDR snde_float32* trivert_colors,
+	  snde_index startidx,
+	  snde_index endidx,
+	  double inival,
+	  double step,
+	  snde_index pxstep,
+	  snde_float32 linewidth_horiz,
+	  snde_float32 linewidth_vert,
+	  snde_float32 R,
+	  snde_float32 G,
+	  snde_float32 B,
+	  snde_float32 A)
+	{
+	  snde_index cnt = get_global_id(0);
+
+	  waveform_as_vertlines(inputs,
+	    tri_vertices,
+	    trivert_colors,
+	    cnt, // within these inputs and these outputs,
+	    startidx,
+	    endidx,
+	    inival,
+	    step,
+	    pxstep,
+	    linewidth_horiz,
+	    linewidth_vert,
+	    R,
+	    G,
+	    B,
+	    A);
+	}
+
+
+#endif // __OPENCL_VERSION__
+
 
 WAVEFORM_DECL
 void waveform_as_interplines(OCL_GLOBAL_ADDR waveform_intype* inputs,
@@ -166,7 +205,7 @@ void waveform_as_interplines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 	waveform_intype width_directionx, width_directiony;
 	width_directionx = -y0;
 	width_directiony = x0;
-	assert(!isnan(width_directionx));
+	//assert(!isnan(width_directionx));   // Not allowed in OpenCL
 
 	//printf("ppvao: width_direction.real=%f;linewidth_horiz=%f\n",width_direction.real,linewidth_horiz);
 	//printf("ppvao: tvout.coord[0]=%f\n",priorx - linewidth_horiz*width_direction.real/2.0);
@@ -229,6 +268,42 @@ void waveform_as_interplines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 }
 
 
+#ifdef __OPENCL_VERSION__
+
+	__kernel void waveform_interplines(OCL_GLOBAL_ADDR waveform_intype* inputs,
+	  OCL_GLOBAL_ADDR snde_coord3* tri_vertices,
+	  OCL_GLOBAL_ADDR snde_float32* trivert_colors,
+	  snde_index pos,
+	  double inival,
+	  double step,
+	  snde_float32 linewidth_horiz,
+	  snde_float32 linewidth_vert,
+	  snde_float32 R,
+	  snde_float32 G,
+	  snde_float32 B,
+	  snde_float32 A)
+	{
+	  snde_index cnt = get_global_id(0);
+
+	  waveform_as_interplines(inputs,
+	    tri_vertices,
+	    trivert_colors,
+	    cnt,
+	    pos,
+	    inival,
+	    step,
+	    linewidth_horiz,
+	    linewidth_vert,
+	    R,
+	    G,
+	    B,
+	    A);
+	}
+
+
+#endif // __OPENCL_VERSION__
+
+
 
 
 	WAVEFORM_DECL
@@ -250,22 +325,6 @@ void waveform_as_interplines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 		curx = step * (waveform_intype)(pos+cnt)+inival;
 		cury = inputs[pos+cnt];
 
-		// draw line from prior_coords to complex_inputs[cnt] via 2 CCW triangles
-
-		// x to the right, y up; z is pointing at us.
-		// want to select width_direction such that length_direction x width_direction = z ; i.e. width is like y. 
-		// or equivalently z x length_direction = width_direction
-
-		//                    |   i     j     k   |
-		// width_direction =  |   0     0     1   |
-		//                    |  lx0   ly0    0   |
-		// (where lx0, ly0 presumed normalized)
-		// Therefore width_direction = -i*l0y + j*l0x
-
-		//printf("ppvao: width_direction.real=%f;linewidth_horiz=%f\n",width_direction.real,linewidth_horiz);
-		//printf("ppvao: tvout.coord[0]=%f\n",priorx - linewidth_horiz*width_direction.real/2.0);
-
-		//printf("ppvao: totalcnt=%u; totallen=%u\n",(unsigned)totalcnt,(unsigned)totallen);
 		tri_vertices[cnt].coord[0] = curx;
 		tri_vertices[cnt].coord[1] = cury;
 		tri_vertices[cnt].coord[2] = 0.0f;
@@ -278,43 +337,33 @@ void waveform_as_interplines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 	}
 
 
+#ifdef __OPENCL_VERSION__
 
+	__kernel void waveform_points(OCL_GLOBAL_ADDR waveform_intype* inputs,
+	  OCL_GLOBAL_ADDR snde_coord3* tri_vertices,
+	  OCL_GLOBAL_ADDR snde_float32* trivert_colors,
+	  snde_index pos,
+	  double inival,
+	  double step,
+	  snde_float32 R,
+	  snde_float32 G,
+	  snde_float32 B,
+	  snde_float32 A)
+	{
+	  snde_index cnt = get_global_id(0);
 
-
-
-#ifdef __OPENCL_VERSION__DISABLED
-
-__kernel void waveform_vertices_alphas(OCL_GLOBAL_ADDR waveform_intype* complex_inputs,
-	OCL_GLOBAL_ADDR snde_coord3* tri_vertices,
-	OCL_GLOBAL_ADDR snde_float32* trivert_colors,
-	waveform_intype previous_coords,
-	snde_index totalcnt, // for historical_fade, with 0 representing the previous_coords for the first call (whih we would never supply)
-	snde_index totallen, // for historical_fade
-	snde_float32 linewidth_horiz,
-	snde_float32 linewidth_vert,
-	snde_float32 R
-	snde_float32 G,
-	snde_float32 B,
-	snde_float32 A,
-	snde_bool historical_fade)
-{
-	snde_index cnt = get_global_id(0);
-
-	waveform_vertices_alphas_one(complex_inputs,
-		tri_vertices,
-		trivert_colors,
-		previous_coords,
-		cnt,
-		totalcnt + cnt,
-		totallen,
-		linewidth_horiz,
-		linewidth_vert,
-		R,
-		G,
-		B,
-		A,
-		historical_fade);
-}
+	  waveform_as_points(inputs,
+	    tri_vertices,
+	    trivert_colors,
+	    cnt,
+	    pos,
+	    inival,
+	    step,
+	    R,
+	    G,
+	    B,
+	    A);
+	}
 
 
 #endif // __OPENCL_VERSION__

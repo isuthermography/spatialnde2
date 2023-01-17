@@ -3,13 +3,14 @@
 #include "snde/waveform_vertex_functions.hpp"
 #include "snde/recmath_cppfunction.hpp"
 
-#ifdef SNDE_OPENCL_DISABLEDFORNOW
+#ifdef SNDE_OPENCL
 #include "snde/opencl_utils.hpp"
 #include "snde/openclcachemanager.hpp"
 #include "snde/recmath_compute_resource_opencl.hpp"
 #endif
 
 #include "snde/snde_types_h.h"
+#include "snde/geometry_types_h.h"
 #include "snde/waveform_vertex_calcs_c.h"
 
 
@@ -133,14 +134,14 @@ namespace snde {
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
       {
 	std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
-						      outlen * sizeof(snde_coord) * 3 * 6 * 2, // data_bytes for transfer
+						      outlen * sizeof(snde_coord) * 3 * 6 + outlen * sizeof(snde_coord) * 3 * 6 * 4, // data_bytes for transfer
 						      0.0, // flops
 						      1, // max effective cpu cores
 						      1), // useful_cpu_cores (min # of cores to supply
 
-#ifdef SNDE_OPENCL_DISABLEDFORNOW
+#ifdef SNDE_OPENCL
 	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
-							   outlen * sizeof(snde_coord) * 3 * 6 * 2,
+							   outlen * sizeof(snde_coord) * 3 * 6 + outlen * sizeof(snde_coord) * 3 * 6 * 4,
 							   0.0, // cpu_flops
 							   0.0, // gpuflops
 							   1, // max effective cpu cores
@@ -190,7 +191,7 @@ namespace snde {
 	    }
 
 	    rwlock_token_set locktokens = this->lockmgr->lock_recording_arrays(recrefs_to_lock,
-#ifdef SNDE_OPENCL_DISABLEDFORNOW
+#ifdef SNDE_OPENCL
 	      true
 #else
 	      false
@@ -206,21 +207,20 @@ namespace snde {
 
 
 
-#ifdef SNDE_OPENCL_DISABLEDFORNOW
+#ifdef SNDE_OPENCL
 	      std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(compute_resource);
 	      if (opencl_resource && recording->mndinfo()->num_arrays > 0) {
 
 		//fprintf(stderr,"Executing in OpenCL!\n");
 
-		cl::Kernel phase_plane_vert_kern = build_typed_opencl_program<T>("spatialnde2.colormap", [](std::string ocltypename) {
+		cl::Kernel waveform_interplines_vert_kern = build_typed_opencl_program<T>("spatialnde2.waveform_interplines", [](std::string ocltypename) {
 		  // OpenCL templating via a typedef....
-		  return std::make_shared<opencl_program>("waveform_vertices_alphas", std::vector<std::string>({ snde_types_h, "\ntypedef " + ocltypename + " waveform_intype;\n", waveform_vertex_calcs_c }));
+		  return std::make_shared<opencl_program>("waveform_interplines", std::vector<std::string>({ snde_types_h, geometry_types_h, "\ntypedef " + ocltypename + " waveform_intype;\n", waveform_vertex_calcs_c }));
 		  })->get_kernel(opencl_resource->context, opencl_resource->devices.at(0));
 
 		  OpenCLBuffers Buffers(opencl_resource->oclcache, opencl_resource->context, opencl_resource->devices.at(0), locktokens);
 
-		  snde_index output_pos = 0;
-		  T previous_coords = { 0,0 };
+		  snde_index curpos = (snde_index)(startidx + 1);
 		  snde_float32 R_fl = (snde_float32)R;
 		  snde_float32 G_fl = (snde_float32)G;
 		  snde_float32 B_fl = (snde_float32)B;
@@ -230,50 +230,33 @@ namespace snde {
 
 		  std::vector<cl::Event> kerndoneevents;
 
-		  for (size_t arraynum = 0; arraynum < recording->mndinfo()->num_arrays; arraynum++) {
-		    snde_index input_pos = 0;
-		    snde_index input_length = recording->layouts.at(arraynum).dimlen.at(0);
-		    snde_index output_length = input_length * 6;
-		    snde_index totalpos = output_pos + 1;
-		    snde_index totallen = dimlen * 6;
-		    if (!output_pos) {
-		      // first iteration: Use first element as previous value
-		      input_length -= 1;
-		      output_length -= 6;
-		      input_pos += 1;
+		  
+		  Buffers.AddBufferPortionAsKernelArg(recording, 0, 0, recording->layouts.at(0).dimlen.at(0), waveform_interplines_vert_kern, 0, false, false);
+		  Buffers.AddBufferPortionAsKernelArg(result_rec, "vertcoord", 0, outlen * 6, waveform_interplines_vert_kern, 1, true, true);
+		  Buffers.AddBufferPortionAsKernelArg(result_rec, "vertcoord_color", 0, outlen * 6 * 4, waveform_interplines_vert_kern, 2, true, true);
+		  //waveform_interplines_vert_kern.setArg(3, sizeof(cnt), &cnt);
+		  waveform_interplines_vert_kern.setArg(3, sizeof(curpos), &curpos);
+		  waveform_interplines_vert_kern.setArg(4, sizeof(datainival), &datainival);
+		  waveform_interplines_vert_kern.setArg(5, sizeof(datastep), &datastep);
+		  waveform_interplines_vert_kern.setArg(6, sizeof(linewidth_horiz_fl), &linewidth_horiz_fl);
+		  waveform_interplines_vert_kern.setArg(7, sizeof(linewidth_vert_fl), &linewidth_vert_fl);
+		  waveform_interplines_vert_kern.setArg(8, sizeof(R_fl), &R_fl);
+		  waveform_interplines_vert_kern.setArg(9, sizeof(G_fl), &G_fl);
+		  waveform_interplines_vert_kern.setArg(10, sizeof(B_fl), &B_fl);
+		  waveform_interplines_vert_kern.setArg(11, sizeof(A_fl), &A_fl);
 
-		      previous_coords = recording->reference_typed_ndarray<T>(arraynum)->element(0);
-		    }
-		    Buffers.AddBufferPortionAsKernelArg(recording, arraynum, input_pos, input_length, phase_plane_vert_kern, 0, false, false);
-		    Buffers.AddBufferPortionAsKernelArg(result_rec, "vertcoord", output_pos, output_length, phase_plane_vert_kern, 1, true, true);
-		    Buffers.AddBufferPortionAsKernelArg(result_rec, "vertcoord_color", output_pos * 4, output_length * 4, phase_plane_vert_kern, 2, true, true);
-		    phase_plane_vert_kern.setArg(3, sizeof(previous_coords), &previous_coords);
-		    phase_plane_vert_kern.setArg(4, sizeof(totalpos), &totalpos);
-		    phase_plane_vert_kern.setArg(5, sizeof(totallen), &totallen);
-		    phase_plane_vert_kern.setArg(6, sizeof(linewidth_horiz_fl), &linewidth_horiz_fl);
-		    phase_plane_vert_kern.setArg(7, sizeof(linewidth_vert_fl), &linewidth_vert_fl);
-		    phase_plane_vert_kern.setArg(8, sizeof(R_fl), &R_fl);
-		    phase_plane_vert_kern.setArg(9, sizeof(G_fl), &G_fl);
-		    phase_plane_vert_kern.setArg(10, sizeof(B_fl), &B_fl);
-		    phase_plane_vert_kern.setArg(11, sizeof(A_fl), &A_fl);
-		    phase_plane_vert_kern.setArg(12, sizeof(phase_plane_historical_fade), &phase_plane_historical_fade);
+		  cl::Event kerndone;
+		  std::vector<cl::Event> FillEvents = Buffers.FillEvents();
 
-		    cl::Event kerndone;
-		    std::vector<cl::Event> FillEvents = Buffers.FillEvents();
-
-		    cl_int err = opencl_resource->queues.at(0).enqueueNDRangeKernel(phase_plane_vert_kern, {}, { input_length }, {}, &FillEvents, &kerndone);
-		    if (err != CL_SUCCESS) {
-		      throw openclerror(err, "Error enqueueing kernel");
-		    }
-
-		    Buffers.BufferPortionDirty(result_rec, "vertcoord", output_pos, output_length);
-		    Buffers.BufferPortionDirty(result_rec, "vertcoord_color", output_pos, output_length);
-		    kerndoneevents.push_back(kerndone);
-
-
-		    previous_coords = recording->reference_typed_ndarray<T>(arraynum)->element(recording->layouts.at(arraynum).dimlen.at(0) - 1);
-		    output_pos += output_length;
+		  cl_int err = opencl_resource->queues.at(0).enqueueNDRangeKernel(waveform_interplines_vert_kern, {}, { outlen }, {}, &FillEvents, &kerndone);
+		  if (err != CL_SUCCESS) {
+		    throw openclerror(err, "Error enqueueing kernel");
 		  }
+
+		  Buffers.BufferPortionDirty(result_rec, "vertcoord", 0, outlen * 6);
+		  Buffers.BufferPortionDirty(result_rec, "vertcoord_color", 0, outlen * 6 * 4);
+		  kerndoneevents.push_back(kerndone);
+
 
 		  opencl_resource->queues.at(0).flush(); /* trigger execution */
 		  // mark that the kernel has modified result_rec
@@ -285,7 +268,7 @@ namespace snde {
 	      }
 	      else {
 #endif // SNDE_OPENCL
-		//snde_warning("Performing waveform vertex calculation on CPU. ");
+		snde_warning("Performing waveform vertex calculation on CPU. ");
 
 		std::vector<cl::Event> kerndoneevents;
 
@@ -307,7 +290,7 @@ namespace snde {
 		    B,
 		    A);
 		}
-#ifdef SNDE_OPENCL_DISABLEDFORNOW
+#ifdef SNDE_OPENCL
 	      }
 #endif // SNDE_OPENCL
 
@@ -375,14 +358,14 @@ namespace snde {
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
       {
 	std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
-						      outlen * sizeof(snde_coord) * 3 * 6 * 2, // data_bytes for transfer
+						      outlen * sizeof(snde_coord) * 3 * 6 + outlen * sizeof(snde_coord) * 3 * 6 * 4, // data_bytes for transfer
 						      0.0, // flops
 						      1, // max effective cpu cores
 						      1), // useful_cpu_cores (min # of cores to supply
 
-#ifdef SNDE_OPENCL_DISABLEDFORNOW
+#ifdef SNDE_OPENCL
 	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
-							   outlen * sizeof(snde_coord) * 3 * 6 * 2,
+							   outlen * sizeof(snde_coord) * 3 * 6 + outlen * sizeof(snde_coord) * 3 * 6 * 4,
 							   0.0, // cpu_flops
 							   0.0, // gpuflops
 							   1, // max effective cpu cores
@@ -432,7 +415,7 @@ namespace snde {
 	    }
 
 	    rwlock_token_set locktokens = this->lockmgr->lock_recording_arrays(recrefs_to_lock,
-#ifdef SNDE_OPENCL_DISABLEDFORNOW
+#ifdef SNDE_OPENCL
 	      true
 #else
 	      false
@@ -448,21 +431,20 @@ namespace snde {
 
 
 
-#ifdef SNDE_OPENCL_DISABLEDFORNOW
+#ifdef SNDE_OPENCL
 	      std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(compute_resource);
 	      if (opencl_resource && recording->mndinfo()->num_arrays > 0) {
 
 		//fprintf(stderr,"Executing in OpenCL!\n");
 
-		cl::Kernel phase_plane_vert_kern = build_typed_opencl_program<T>("spatialnde2.colormap", [](std::string ocltypename) {
+		cl::Kernel waveform_vertlines_vert_kern = build_typed_opencl_program<T>("spatialnde2.waveform_vertlines", [](std::string ocltypename) {
 		  // OpenCL templating via a typedef....
-		  return std::make_shared<opencl_program>("waveform_vertices_alphas", std::vector<std::string>({ snde_types_h, "\ntypedef " + ocltypename + " waveform_intype;\n", waveform_vertex_calcs_c }));
+		  return std::make_shared<opencl_program>("waveform_vertlines", std::vector<std::string>({ snde_types_h, geometry_types_h, "\ntypedef " + ocltypename + " waveform_intype;\n", waveform_vertex_calcs_c }));
 		  })->get_kernel(opencl_resource->context, opencl_resource->devices.at(0));
 
 		  OpenCLBuffers Buffers(opencl_resource->oclcache, opencl_resource->context, opencl_resource->devices.at(0), locktokens);
 
-		  snde_index output_pos = 0;
-		  T previous_coords = { 0,0 };
+		  snde_index curpos = (snde_index)(startidx + 1);
 		  snde_float32 R_fl = (snde_float32)R;
 		  snde_float32 G_fl = (snde_float32)G;
 		  snde_float32 B_fl = (snde_float32)B;
@@ -472,50 +454,35 @@ namespace snde {
 
 		  std::vector<cl::Event> kerndoneevents;
 
-		  for (size_t arraynum = 0; arraynum < recording->mndinfo()->num_arrays; arraynum++) {
-		    snde_index input_pos = 0;
-		    snde_index input_length = recording->layouts.at(arraynum).dimlen.at(0);
-		    snde_index output_length = input_length * 6;
-		    snde_index totalpos = output_pos + 1;
-		    snde_index totallen = dimlen * 6;
-		    if (!output_pos) {
-		      // first iteration: Use first element as previous value
-		      input_length -= 1;
-		      output_length -= 6;
-		      input_pos += 1;
 
-		      previous_coords = recording->reference_typed_ndarray<T>(arraynum)->element(0);
-		    }
-		    Buffers.AddBufferPortionAsKernelArg(recording, arraynum, input_pos, input_length, phase_plane_vert_kern, 0, false, false);
-		    Buffers.AddBufferPortionAsKernelArg(result_rec, "vertcoord", output_pos, output_length, phase_plane_vert_kern, 1, true, true);
-		    Buffers.AddBufferPortionAsKernelArg(result_rec, "vertcoord_color", output_pos * 4, output_length * 4, phase_plane_vert_kern, 2, true, true);
-		    phase_plane_vert_kern.setArg(3, sizeof(previous_coords), &previous_coords);
-		    phase_plane_vert_kern.setArg(4, sizeof(totalpos), &totalpos);
-		    phase_plane_vert_kern.setArg(5, sizeof(totallen), &totallen);
-		    phase_plane_vert_kern.setArg(6, sizeof(linewidth_horiz_fl), &linewidth_horiz_fl);
-		    phase_plane_vert_kern.setArg(7, sizeof(linewidth_vert_fl), &linewidth_vert_fl);
-		    phase_plane_vert_kern.setArg(8, sizeof(R_fl), &R_fl);
-		    phase_plane_vert_kern.setArg(9, sizeof(G_fl), &G_fl);
-		    phase_plane_vert_kern.setArg(10, sizeof(B_fl), &B_fl);
-		    phase_plane_vert_kern.setArg(11, sizeof(A_fl), &A_fl);
-		    phase_plane_vert_kern.setArg(12, sizeof(phase_plane_historical_fade), &phase_plane_historical_fade);
+		  Buffers.AddBufferPortionAsKernelArg(recording, 0, 0, recording->layouts.at(0).dimlen.at(0), waveform_vertlines_vert_kern, 0, false, false);
+		  Buffers.AddBufferPortionAsKernelArg(result_rec, "vertcoord", 0, outlen * 6, waveform_vertlines_vert_kern, 1, true, true);
+		  Buffers.AddBufferPortionAsKernelArg(result_rec, "vertcoord_color", 0, outlen * 6 * 4, waveform_vertlines_vert_kern, 2, true, true);
+		  //waveform_interplines_vert_kern.setArg(3, sizeof(cnt), &cnt);
+		  waveform_vertlines_vert_kern.setArg(3, sizeof(curpos), &curpos);
+		  waveform_vertlines_vert_kern.setArg(4, sizeof(endidx), &endidx);
+		  waveform_vertlines_vert_kern.setArg(5, sizeof(datainival), &datainival);
+		  waveform_vertlines_vert_kern.setArg(6, sizeof(datastep), &datastep);
+		  waveform_vertlines_vert_kern.setArg(7, sizeof(idxstep), &idxstep);
+		  waveform_vertlines_vert_kern.setArg(8, sizeof(linewidth_horiz_fl), &linewidth_horiz_fl);
+		  waveform_vertlines_vert_kern.setArg(9, sizeof(linewidth_vert_fl), &linewidth_vert_fl);
+		  waveform_vertlines_vert_kern.setArg(10, sizeof(R_fl), &R_fl);
+		  waveform_vertlines_vert_kern.setArg(11, sizeof(G_fl), &G_fl);
+		  waveform_vertlines_vert_kern.setArg(12, sizeof(B_fl), &B_fl);
+		  waveform_vertlines_vert_kern.setArg(13, sizeof(A_fl), &A_fl);
 
-		    cl::Event kerndone;
-		    std::vector<cl::Event> FillEvents = Buffers.FillEvents();
+		  cl::Event kerndone;
+		  std::vector<cl::Event> FillEvents = Buffers.FillEvents();
 
-		    cl_int err = opencl_resource->queues.at(0).enqueueNDRangeKernel(phase_plane_vert_kern, {}, { input_length }, {}, &FillEvents, &kerndone);
-		    if (err != CL_SUCCESS) {
-		      throw openclerror(err, "Error enqueueing kernel");
-		    }
-
-		    Buffers.BufferPortionDirty(result_rec, "vertcoord", output_pos, output_length);
-		    Buffers.BufferPortionDirty(result_rec, "vertcoord_color", output_pos, output_length);
-		    kerndoneevents.push_back(kerndone);
-
-
-		    previous_coords = recording->reference_typed_ndarray<T>(arraynum)->element(recording->layouts.at(arraynum).dimlen.at(0) - 1);
-		    output_pos += output_length;
+		  cl_int err = opencl_resource->queues.at(0).enqueueNDRangeKernel(waveform_vertlines_vert_kern, {}, { outlen }, {}, &FillEvents, &kerndone);
+		  if (err != CL_SUCCESS) {
+		    throw openclerror(err, "Error enqueueing kernel");
 		  }
+
+		  Buffers.BufferPortionDirty(result_rec, "vertcoord", 0, outlen * 6);
+		  Buffers.BufferPortionDirty(result_rec, "vertcoord_color", 0, outlen * 6 * 4);
+		  kerndoneevents.push_back(kerndone);
+
 
 		  opencl_resource->queues.at(0).flush(); /* trigger execution */
 		  // mark that the kernel has modified result_rec
@@ -523,11 +490,10 @@ namespace snde {
 
 		  cl::Event::waitForEvents(kerndoneevents);
 		  Buffers.RemBuffers(*(kerndoneevents.end() - 1), *(kerndoneevents.end() - 1), true);
-
 	      }
 	      else {
 #endif // SNDE_OPENCL
-		//snde_warning("Performing waveform vertex calculation on CPU. ");
+		snde_warning("Performing waveform vertex calculation on CPU. ");
 
 		std::vector<cl::Event> kerndoneevents;
 
@@ -551,7 +517,7 @@ namespace snde {
 		    B,
 		    A);
 		}
-#ifdef SNDE_OPENCL_DISABLEDFORNOW
+#ifdef SNDE_OPENCL
 	      }
 #endif // SNDE_OPENCL
 
@@ -622,14 +588,14 @@ namespace snde {
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
       {
 	std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
-						      outlen * sizeof(snde_coord) * 3 * 2, // data_bytes for transfer
+						      outlen * sizeof(snde_coord) * 3 + outlen * sizeof(snde_coord) * 4, // data_bytes for transfer
 						      0.0, // flops
 						      1, // max effective cpu cores
 						      1), // useful_cpu_cores (min # of cores to supply
 
-#ifdef SNDE_OPENCL_DISABLEDFORNOW
+#ifdef SNDE_OPENCL
 	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
-							   outlen * sizeof(snde_coord) * 3 * 6 * 2,
+							   outlen * sizeof(snde_coord) * 3 + outlen * sizeof(snde_coord) * 4,
 							   0.0, // cpu_flops
 							   0.0, // gpuflops
 							   1, // max effective cpu cores
@@ -679,7 +645,7 @@ namespace snde {
 	    }
 
 	    rwlock_token_set locktokens = this->lockmgr->lock_recording_arrays(recrefs_to_lock,
-#ifdef SNDE_OPENCL_DISABLEDFORNOW
+#ifdef SNDE_OPENCL
 	      true
 #else
 	      false
@@ -695,74 +661,51 @@ namespace snde {
 
 
 
-#ifdef SNDE_OPENCL_DISABLEDFORNOW
+#ifdef SNDE_OPENCL
 	      std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(compute_resource);
 	      if (opencl_resource && recording->mndinfo()->num_arrays > 0) {
 
 		//fprintf(stderr,"Executing in OpenCL!\n");
 
-		cl::Kernel phase_plane_vert_kern = build_typed_opencl_program<T>("spatialnde2.colormap", [](std::string ocltypename) {
+		cl::Kernel waveform_points_vert_kern = build_typed_opencl_program<T>("spatialnde2.waveform_points", [](std::string ocltypename) {
 		  // OpenCL templating via a typedef....
-		  return std::make_shared<opencl_program>("waveform_vertices_alphas", std::vector<std::string>({ snde_types_h, "\ntypedef " + ocltypename + " waveform_intype;\n", waveform_vertex_calcs_c }));
+		  return std::make_shared<opencl_program>("waveform_points", std::vector<std::string>({ snde_types_h, geometry_types_h, "\ntypedef " + ocltypename + " waveform_intype;\n", waveform_vertex_calcs_c }));
 		  })->get_kernel(opencl_resource->context, opencl_resource->devices.at(0));
 
 		  OpenCLBuffers Buffers(opencl_resource->oclcache, opencl_resource->context, opencl_resource->devices.at(0), locktokens);
 
-		  snde_index output_pos = 0;
-		  T previous_coords = { 0,0 };
 		  snde_float32 R_fl = (snde_float32)R;
 		  snde_float32 G_fl = (snde_float32)G;
 		  snde_float32 B_fl = (snde_float32)B;
 		  snde_float32 A_fl = (snde_float32)A;
-		  snde_float32 linewidth_horiz_fl = (snde_float32)linewidth_horiz;
-		  snde_float32 linewidth_vert_fl = (snde_float32)linewidth_vert;
 
 		  std::vector<cl::Event> kerndoneevents;
 
-		  for (size_t arraynum = 0; arraynum < recording->mndinfo()->num_arrays; arraynum++) {
-		    snde_index input_pos = 0;
-		    snde_index input_length = recording->layouts.at(arraynum).dimlen.at(0);
-		    snde_index output_length = input_length * 6;
-		    snde_index totalpos = output_pos + 1;
-		    snde_index totallen = dimlen * 6;
-		    if (!output_pos) {
-		      // first iteration: Use first element as previous value
-		      input_length -= 1;
-		      output_length -= 6;
-		      input_pos += 1;
 
-		      previous_coords = recording->reference_typed_ndarray<T>(arraynum)->element(0);
-		    }
-		    Buffers.AddBufferPortionAsKernelArg(recording, arraynum, input_pos, input_length, phase_plane_vert_kern, 0, false, false);
-		    Buffers.AddBufferPortionAsKernelArg(result_rec, "vertcoord", output_pos, output_length, phase_plane_vert_kern, 1, true, true);
-		    Buffers.AddBufferPortionAsKernelArg(result_rec, "vertcoord_color", output_pos * 4, output_length * 4, phase_plane_vert_kern, 2, true, true);
-		    phase_plane_vert_kern.setArg(3, sizeof(previous_coords), &previous_coords);
-		    phase_plane_vert_kern.setArg(4, sizeof(totalpos), &totalpos);
-		    phase_plane_vert_kern.setArg(5, sizeof(totallen), &totallen);
-		    phase_plane_vert_kern.setArg(6, sizeof(linewidth_horiz_fl), &linewidth_horiz_fl);
-		    phase_plane_vert_kern.setArg(7, sizeof(linewidth_vert_fl), &linewidth_vert_fl);
-		    phase_plane_vert_kern.setArg(8, sizeof(R_fl), &R_fl);
-		    phase_plane_vert_kern.setArg(9, sizeof(G_fl), &G_fl);
-		    phase_plane_vert_kern.setArg(10, sizeof(B_fl), &B_fl);
-		    phase_plane_vert_kern.setArg(11, sizeof(A_fl), &A_fl);
-		    phase_plane_vert_kern.setArg(12, sizeof(phase_plane_historical_fade), &phase_plane_historical_fade);
+		  Buffers.AddBufferPortionAsKernelArg(recording, 0, 0, recording->layouts.at(0).dimlen.at(0), waveform_points_vert_kern, 0, false, false);
+		  Buffers.AddBufferPortionAsKernelArg(result_rec, "pointcoord", 0, outlen, waveform_points_vert_kern, 1, true, true);
+		  Buffers.AddBufferPortionAsKernelArg(result_rec, "pointcoord_color", 0, outlen * 4, waveform_points_vert_kern, 2, true, true);
+		  //waveform_interplines_vert_kern.setArg(3, sizeof(cnt), &cnt);
+		  waveform_points_vert_kern.setArg(3, sizeof(startidx), &startidx);
+		  waveform_points_vert_kern.setArg(4, sizeof(datainival), &datainival);
+		  waveform_points_vert_kern.setArg(5, sizeof(datastep), &datastep);
+		  waveform_points_vert_kern.setArg(6, sizeof(R_fl), &R_fl);
+		  waveform_points_vert_kern.setArg(7, sizeof(G_fl), &G_fl);
+		  waveform_points_vert_kern.setArg(8, sizeof(B_fl), &B_fl);
+		  waveform_points_vert_kern.setArg(9, sizeof(A_fl), &A_fl);
 
-		    cl::Event kerndone;
-		    std::vector<cl::Event> FillEvents = Buffers.FillEvents();
+		  cl::Event kerndone;
+		  std::vector<cl::Event> FillEvents = Buffers.FillEvents();
 
-		    cl_int err = opencl_resource->queues.at(0).enqueueNDRangeKernel(phase_plane_vert_kern, {}, { input_length }, {}, &FillEvents, &kerndone);
-		    if (err != CL_SUCCESS) {
-		      throw openclerror(err, "Error enqueueing kernel");
-		    }
-
-		    Buffers.BufferPortionDirty(result_rec, "vertcoord", output_pos, output_length);
-		    Buffers.BufferPortionDirty(result_rec, "vertcoord_color", output_pos, output_length);
-		    kerndoneevents.push_back(kerndone);
-
-
-		    previous_coords = recording->reference_typed_ndarray<T>(arraynum)->element(recording->layouts.at(arraynum).dimlen.at(0) - 1);
-		    output_pos += output_length;
+		  cl_int err = opencl_resource->queues.at(0).enqueueNDRangeKernel(waveform_points_vert_kern, {}, { outlen }, {}, &FillEvents, &kerndone);
+		  if (err != CL_SUCCESS) {
+		    throw openclerror(err, "Error enqueueing kernel");
 		  }
+
+		  Buffers.BufferPortionDirty(result_rec, "pointcoord", 0, outlen);
+		  Buffers.BufferPortionDirty(result_rec, "pointcoord_color", 0, outlen * 4);
+		  kerndoneevents.push_back(kerndone);
+
 
 		  opencl_resource->queues.at(0).flush(); /* trigger execution */
 		  // mark that the kernel has modified result_rec
@@ -774,7 +717,7 @@ namespace snde {
 	      }
 	      else {
 #endif // SNDE_OPENCL
-		//snde_warning("Performing waveform vertex calculation on CPU. ");
+		snde_warning("Performing waveform vertex calculation on CPU. ");
 
 		std::vector<cl::Event> kerndoneevents;
 
@@ -794,7 +737,7 @@ namespace snde {
 		    B,
 		    A);
 		}
-#ifdef SNDE_OPENCL_DISABLEDFORNOW
+#ifdef SNDE_OPENCL
 	      }
 #endif // SNDE_OPENCL
 
