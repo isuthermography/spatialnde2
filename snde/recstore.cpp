@@ -5083,14 +5083,17 @@ namespace snde {
 
 	transaction_background_end_fcn(recdb_strong,transaction_background_end_params);
 	
-	
-	transaction_background_end_acttrans->end_transaction();
-	
 	transaction_background_end_lockholder.lock();
+	
 	// empty the std::function
-	transaction_background_end_fcn = std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)>();
+	transaction_background_end_fcn = std::function<void(std::shared_ptr<recdatabase> recdb, std::shared_ptr<void> params)>();
 	transaction_background_end_params = nullptr;
 	transaction_background_end_acttrans = nullptr;
+	transaction_background_end_lockholder.unlock();
+
+	transaction_background_end_acttrans->end_transaction();
+	
+	
       }
     }
     //fprintf(stderr,"gmnnc() exit\n");
