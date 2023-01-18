@@ -150,6 +150,7 @@ namespace snde {
 #define SNDE_SRM_PHASE_PLANE_ENDPOINT_WITH_COLOREDTRANSPARENTLINES "SNDE_SRM_PHASE_PLANE_ENDPOINT_WITH_COLOREDTRANSPARENTLINES"
 
 #define SNDE_SRM_COLOREDTRANSPARENTLINES "SNDE_SRM_COLOREDTRANSPARENTLINES"
+#define SNDE_SRM_COLOREDTRANSPARENTPOINTS "SNDE_SRM_COLOREDTRANSPARENTPOINTS"
   
   //#define SNDE_SRM_CLASSSPECIFIC 11 // render in a way that is specific to the particular recording_type indexed in the rendermode
 
@@ -236,6 +237,55 @@ namespace snde {
       }
       return hash;
     }
+  };
+
+
+  class waveform_params : public renderparams_base {
+  public:
+    RecColor color; // each element 0-1
+    float overall_alpha; // 0-1
+    double linewidth_horiz;
+    double linewidth_vert;
+    double pointsize;
+    snde_index startidx;
+    snde_index endidx;
+    snde_index idxstep;
+    double datainival;
+    double datastep;
+
+    waveform_params(RecColor color, float overall_alpha, double linewidth_horiz, double linewidth_vert, double pointsize, snde_index startidx, snde_index endidx, snde_index idxstep, double datainival, double datastep) :
+      color(color),
+      overall_alpha(overall_alpha),
+      linewidth_horiz(linewidth_horiz),
+      linewidth_vert(linewidth_vert),
+      pointsize(pointsize),
+      startidx(startidx),
+      endidx(endidx),
+      idxstep(idxstep),
+      datainival(datainival),
+      datastep(datastep)
+    {
+
+    }
+
+    virtual ~waveform_params() = default;
+    virtual size_t hash()
+    {
+      size_t hashv = std::hash<float>{}(color.R) ^ std::hash<float>{}(color.G) ^ std::hash<float>{}(color.B) ^ std::hash<float>{}(overall_alpha) ^ std::hash<double>{}(linewidth_horiz) ^ std::hash<double>{}(linewidth_vert) ^ std::hash<double>{}(pointsize) ^ std::hash<snde_index>{}(startidx) ^ std::hash<snde_index>{}(endidx) ^ std::hash<snde_index>{}(idxstep) ^ std::hash<double>{}(datainival) ^ std::hash<double>{}(datastep);
+
+      return hashv;
+    }
+
+    virtual bool operator==(const renderparams_base& b)
+    {
+      const waveform_params* bptr = dynamic_cast<const waveform_params*>(&b);
+      if (!bptr) return false;
+
+      return color.R == bptr->color.R && color.G == bptr->color.G && color.B == bptr->color.B && overall_alpha == bptr->overall_alpha && linewidth_horiz == bptr->linewidth_horiz && linewidth_vert == bptr->linewidth_vert && pointsize == bptr->pointsize && startidx == bptr->startidx && endidx == bptr->endidx && idxstep == bptr->idxstep && datainival == bptr->datainival && datastep == bptr->datastep;
+
+    }
+
+
   };
 
 

@@ -217,10 +217,27 @@ namespace snde {
     }
   };
 
+  // Note -- the below templates have been set up to capture all scenarios for the definition of snde_index and uint64_t which may conflict with eachother
+
+  template <>
+  struct rmcfe_tuple_builder_helper<unsigned long> {
+    std::tuple<std::tuple<unsigned long>, std::vector<std::shared_ptr<math_parameter>>::iterator, size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss, std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end, const std::string& channel_path_context, const std::shared_ptr<math_definition>& definition, size_t thisparam_index)
+    {
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam = thisparam;
+      if (thisparam == end) {
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy unsigned integer parameter #%d of %s", (int)thisparam_index, definition->definition_command.c_str());
+      }
+      nextparam++;
+      // return statement implements the following:
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_unsigned(rss, channel_path_context, definition, thisparam_index)), nextparam, thisparam_index + 1);
+    }
+  };
+
 
     template <>
-  struct rmcfe_tuple_builder_helper<uint64_t> {
-    std::tuple<std::tuple<uint64_t>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
+  struct rmcfe_tuple_builder_helper<unsigned long long> {
+    std::tuple<std::tuple<unsigned long long>,std::vector<std::shared_ptr<math_parameter>>::iterator,size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss,std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end,const std::string &channel_path_context,const std::shared_ptr<math_definition> &definition,size_t thisparam_index)
     {
       std::vector<std::shared_ptr<math_parameter>>::iterator nextparam=thisparam;
       if (thisparam==end) {

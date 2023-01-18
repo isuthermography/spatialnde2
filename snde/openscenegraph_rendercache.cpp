@@ -39,6 +39,10 @@ namespace snde {
       return std::make_shared<osg_cachedcoloredtransparentlines>(params,display_req);
     });
 
+  static int osg_registered_cachedcoloredtransparentpoints = osg_register_renderer(rendermode(SNDE_SRM_COLOREDTRANSPARENTPOINTS, typeid(multi_ndarray_recording_display_handler)), [](const osg_renderparams& params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry> {
+    return std::make_shared<osg_cachedcoloredtransparentpoints>(params, display_req);
+    });
+
   static int osg_registered_waveform = osg_register_renderer(rendermode(SNDE_SRM_WAVEFORM, typeid(multi_ndarray_recording_display_handler)), [](const osg_renderparams& params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry> {
       return std::make_shared<osg_cachedwaveform>(params, display_req);
       });
@@ -949,6 +953,41 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
   }
 
 
+  osg_cachedcoloredtransparentpoints::osg_cachedcoloredtransparentpoints(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req)
+  {
+    cached_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+
+    if (!cached_recording) {
+      throw snde_error("osg_cachedcoloredtransparentpoints: Could not get recording for %s", display_req->renderable_channelpath->c_str());
+    }
+
+    std::shared_ptr<ndarray_recording_ref> pointcoord_array = cached_recording->reference_ndarray("pointcoord");
+    std::shared_ptr<ndarray_recording_ref> pointcoordcolor_array = cached_recording->reference_ndarray("pointcoord_color");
+
+    locks_required.push_back({ pointcoord_array,false }); // accmulate locks needed for lockmanager::lock_recording_refs()
+    locks_required.push_back({ pointcoordcolor_array,false }); // accmulate locks needed for lockmanager::lock_recording_refs()
+
+    pointcoord_osg_array = new OSGFPArray(pointcoord_array, 3, 3); // 3 for 3d point coordinates    
+    pointcoordcolor_osg_array = new OSGFPArray(pointcoordcolor_array, 1, 4); // 4 for RGBA entries    
+
+    osg_arrays.push_back(pointcoord_osg_array);
+    osg_arrays.push_back(pointcoordcolor_osg_array);
+
+  }
+
+
+  std::pair<bool, bool> osg_cachedcoloredtransparentpoints::attempt_reuse(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req)
+  {
+    std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    if (!new_recording) {
+      throw snde_error("osg_cachedcoloredtransparentpoints::attempt_reuse: Could not get recording for %s", display_req->renderable_channelpath->c_str());
+    }
+
+    return std::make_pair(new_recording == cached_recording && new_recording->info->immutable, false); // (reusable,modified)
+
+  }
+
+
 
 
   osg_cachedwaveform::osg_cachedwaveform(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req)
@@ -962,9 +1001,9 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       }
 
       /* std::shared_ptr<color_linewidth_params> cached_params */
-      cached_params = std::dynamic_pointer_cast<color_linewidth_params>(display_req->mode.constraint);
+      cached_params = std::dynamic_pointer_cast<waveform_params>(display_req->mode.constraint);
       if (!cached_params) {
-          throw snde_error("osg_cachedwaveform: Could not get color_linewidth_params");
+          throw snde_error("osg_cachedwaveform: Could not get waveform_params");
 
       }
 
@@ -977,28 +1016,6 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       endpoint_vertcoord_osg_array = new OSGFPArray(endpoint_vertcoord_array, 3, 3); // 3 for 3d point coordinates
 
       */
-      bool drawpoints = true;
-      std::shared_ptr<ndarray_recording_ref> pointcoord_array;
-      std::shared_ptr<ndarray_recording_ref> pointcoordcolor_array;
-
-      try {
-          std::shared_ptr<multi_ndarray_recording> cached_subreq_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->sub_requirements.at(0)->renderable_channelpath));
-          pointcoord_array = cached_subreq_recording->reference_ndarray("pointcoord");
-          pointcoordcolor_array = cached_subreq_recording->reference_ndarray("pointcoord_color");
-      }
-      catch (...) {
-          drawpoints = false;
-      }
-
-      if (drawpoints)
-      {
-          locks_required.push_back({ pointcoord_array,false }); // accmulate locks needed for lockmanager::lock_recording_refs()
-          locks_required.push_back({ pointcoordcolor_array,false }); // accmulate locks needed for lockmanager::lock_recording_refs()
-
-          pointcoord_osg_array = new OSGFPArray(pointcoord_array, 3, 3); // 3 for 3d point coordinates    
-          pointcoordcolor_osg_array = new OSGFPArray(pointcoordcolor_array, 1, 4); // 4 for RGBA entries    
-
-      }
 
 
       bool modified;
@@ -1011,6 +1028,17 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       coloredtransparentlines = std::dynamic_pointer_cast<osg_cachedcoloredtransparentlines>(raw_entry);
       if (!coloredtransparentlines) {
           throw snde_error("osg_cachedwaveform: Unable to get colored transparent lines cache entry for %s", display_req->renderable_channelpath->c_str());
+      }
+
+
+      if (display_req->sub_requirements.size() > 1)
+      {
+	// get sub-requirement #1: SNDE_SRM_COLOREDTRANSPARENTPOINTS
+	std::shared_ptr<osg_rendercacheentry> raw_entry2;
+	std::tie(raw_entry2, modified) = params.rendercache->GetEntry(params, display_req->sub_requirements.at(1), &locks_required);
+
+	// std::shared_ptr<osg_cachedcoloredtransparentlines> coloredtransparentlines; (included in class definition)
+	coloredtransparentpoints = std::dynamic_pointer_cast<osg_cachedcoloredtransparentpoints>(raw_entry2);
       }
 
 
@@ -1047,42 +1075,38 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       pp_geode->addDrawable(pp_lines_geom);
 
 
+      if (coloredtransparentpoints) {
+	pp_points_geom = new osg::Geometry();
+	pp_points_points = new osg::DrawArrays(osg::PrimitiveSet::POINTS, 0, 0);
 
-      if (drawpoints) {
-          pp_points_geom = new osg::Geometry();
-          pp_points_points = new osg::DrawArrays(osg::PrimitiveSet::POINTS, 0, 0);
+	pp_points_geom->addPrimitiveSet(pp_points_points);
+	if (!coloredtransparentlines->cached_recording->info->immutable) {
+	  pp_points_geom->setDataVariance(osg::Object::DYNAMIC);
+	  pp_points_points->setDataVariance(osg::Object::DYNAMIC);
+	}
+	else {
+	  pp_points_geom->setDataVariance(osg::Object::STATIC);
+	  pp_points_points->setDataVariance(osg::Object::STATIC);
+	}
 
-          pp_points_geom->addPrimitiveSet(pp_points_points);
-          if (!coloredtransparentlines->cached_recording->info->immutable) {
-              pp_points_geom->setDataVariance(osg::Object::DYNAMIC);
-              pp_points_points->setDataVariance(osg::Object::DYNAMIC);
-          }
-          else {
-              pp_points_geom->setDataVariance(osg::Object::STATIC);
-              pp_points_points->setDataVariance(osg::Object::STATIC);
-          }
+	pp_points_geom->setUseVertexBufferObjects(true);
+	// At least on Linux/Intel graphics we get nasty messages
+    // from the driver if we dont set the VBO in DYNAMIC_DRAW mode
+	pp_points_geom->getOrCreateVertexBufferObject()->setUsage(GL_DYNAMIC_DRAW);
+	pp_points_points->setCount(coloredtransparentpoints->pointcoord_osg_array->nvec);
+	pp_points_geom->setVertexArray(coloredtransparentpoints->pointcoord_osg_array); // (vertex coordinates)
 
-          pp_points_geom->setUseVertexBufferObjects(true);
-          // At least on Linux/Intel graphics we get nasty messages
-      // from the driver if we dont set the VBO in DYNAMIC_DRAW mode
-          pp_points_geom->getOrCreateVertexBufferObject()->setUsage(GL_DYNAMIC_DRAW);
-          pp_points_points->setCount(pointcoord_osg_array->nvec);
-          pp_points_geom->setVertexArray(pointcoord_osg_array); // (vertex coordinates)
-
-          pp_points_geom->setColorArray(pointcoordcolor_osg_array, osg::Array::BIND_PER_VERTEX);
-          pp_points_geom->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
-          pp_points_stateset = pp_points_geom->getOrCreateStateSet();
-          pp_points_stateset->setMode(GL_BLEND, osg::StateAttribute::ON);
-          pp_points_stateset->setAttribute(new osg::Point(4.0f), osg::StateAttribute::ON);
-          osg::ref_ptr<osg::BlendFunc> pp_points_bf = new osg::BlendFunc(osg::BlendFunc::SRC_ALPHA, osg::BlendFunc::ONE_MINUS_SRC_ALPHA);
-          pp_points_stateset->setAttributeAndModes(pp_points_bf.get());
-          pp_points_stateset->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
-          pp_geode->addDrawable(pp_points_geom);
+	pp_points_geom->setColorArray(coloredtransparentpoints->pointcoordcolor_osg_array, osg::Array::BIND_PER_VERTEX);
+	pp_points_geom->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
+	pp_points_stateset = pp_points_geom->getOrCreateStateSet();
+	pp_points_stateset->setMode(GL_BLEND, osg::StateAttribute::ON);
+	pp_points_stateset->setAttribute(new osg::Point(cached_params->pointsize), osg::StateAttribute::ON);
+	osg::ref_ptr<osg::BlendFunc> pp_points_bf = new osg::BlendFunc(osg::BlendFunc::SRC_ALPHA, osg::BlendFunc::ONE_MINUS_SRC_ALPHA);
+	pp_points_stateset->setAttributeAndModes(pp_points_bf.get());
+	pp_points_stateset->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
+	pp_geode->addDrawable(pp_points_geom);
 
       }
-      
-
-
 
 
 
