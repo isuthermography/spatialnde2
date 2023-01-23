@@ -339,7 +339,7 @@ namespace snde {
   {
     power=100.0;
     nsteps=100;
-    nzoomsteps=31; // should be multiple of 6+1, e.g. 2*3*7=42, add 1 -> 43
+    nzoomsteps=43; // should be multiple of 6+1, e.g. 2*3*7=42, add 1 -> 43
     
     
     assert((nzoomsteps-1) % 6 == 0); // enforce multiple of 6+1

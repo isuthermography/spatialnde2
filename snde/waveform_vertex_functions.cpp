@@ -130,6 +130,8 @@ namespace snde {
 
       snde_index outlen = (endidx - startidx);  // Double check this once the code below is written
 
+	  if (outlen < 1)
+		  outlen = 1;
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
       {
@@ -353,6 +355,9 @@ namespace snde {
       T junk = 0.0;
 
       snde_index outlen = (endidx - startidx) / idxstep;  // Double check this once the code below is written
+	  
+	  if (outlen < 1)
+		  outlen = 1;
 
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
@@ -583,6 +588,9 @@ namespace snde {
       T junk = 0.0;
 
       snde_index outlen = (endidx - startidx);  // Double check this once the code below is written
+
+	  if (outlen < 1)
+		  outlen = 1;
 
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
