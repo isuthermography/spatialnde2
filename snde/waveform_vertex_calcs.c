@@ -40,10 +40,16 @@ void waveform_as_vertlines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 
 	waveform_intype priorx, priory, curx, cury;
 
+	if ((maxval - minval) < (linewidth_vert))
+	{
+		minval = minval - linewidth_vert / 2.0;
+		maxval = maxval + linewidth_vert / 2.0;
+	}
+
 	priorx = step * pxstep * (waveform_intype)(cnt)+inival + step * (waveform_intype)(startidx)+0.5 * step;
 	curx = priorx;
 	priory = minval;	
-	cury = maxval;
+	cury = maxval;	
 
 	// draw line from prior_coords to complex_inputs[cnt] via 2 CCW triangles
 

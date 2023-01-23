@@ -233,8 +233,8 @@ namespace snde {
     UnitList.push_back(std::make_shared<display_unit>(units::parseunits("Arbitrary"),10.0,false));
 
     // Define some well-known axes
-    AxisList.push_back(std::make_shared<display_axis>("time","t",FindUnit("seconds"),false,0.0,0.0,1.0));
-    AxisList.push_back(std::make_shared<display_axis>("frequency","f",FindUnit("Hertz"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Time","t",FindUnit("seconds"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Frequency","f",FindUnit("Hertz"),false,0.0,0.0,1.0));
     AxisList.push_back(std::make_shared<display_axis>("X Position","x",FindUnit("meters"),false,0.0,0.0,1.0));
     AxisList.push_back(std::make_shared<display_axis>("Y Position","y",FindUnit("meters"),false,0.0,0.0,1.0));
     AxisList.push_back(std::make_shared<display_axis>("X Position","x",FindUnit("pixels"),false,0.0,0.0,1.0));
