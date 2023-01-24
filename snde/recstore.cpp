@@ -5094,7 +5094,7 @@ namespace snde {
 
 	transaction_background_end_acttrans_copy->end_transaction();
 	
-	
+	transaction_background_end_lockholder.lock();
       }
     }
     //fprintf(stderr,"gmnnc() exit\n");
