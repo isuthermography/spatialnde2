@@ -320,6 +320,30 @@ namespace snde {
     
   };
 
+  class osg_cachedcoloredtransparentpoints : public osg_rendercachearraysentry {
+  public:
+    // inherited from osg_rendercacheentry:
+    //std::weak_ptr<display_info> display; // (or should these be passed every time?)
+    //std::weak_ptr<display_channel> displaychan;
+
+    std::vector<osg::ref_ptr<OSGFPArray>> osg_arrays;
+
+
+    osg::ref_ptr<OSGFPArray> pointcoord_osg_array;
+    osg::ref_ptr<OSGFPArray> pointcoordcolor_osg_array;
+
+    std::shared_ptr<multi_ndarray_recording> cached_recording;
+
+
+    osg_cachedcoloredtransparentpoints(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req);
+    ~osg_cachedcoloredtransparentpoints() = default;
+
+    //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
+    virtual std::pair<bool, bool> attempt_reuse(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req);
+
+  };
+
+
 
   class osg_cachedwaveform : public osg_rendercachegroupentry {
   public:
@@ -329,14 +353,13 @@ namespace snde {
 
       //osg::ref_ptr<osg::Group> osg_group;
 
-      osg::ref_ptr<OSGFPArray> pointcoord_osg_array;
-      osg::ref_ptr<OSGFPArray> pointcoordcolor_osg_array;
-
       std::shared_ptr<multi_ndarray_recording> cached_recording;
-      std::shared_ptr<color_linewidth_params> cached_params;
+      std::shared_ptr<waveform_params> cached_params;
 
 
       std::shared_ptr<osg_cachedcoloredtransparentlines> coloredtransparentlines;
+
+      std::shared_ptr<osg_cachedcoloredtransparentpoints> coloredtransparentpoints;
 
       osg::ref_ptr<osg::Geode> pp_geode;
       osg::ref_ptr<osg::Geometry> pp_lines_geom;

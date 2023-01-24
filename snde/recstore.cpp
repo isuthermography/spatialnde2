@@ -2934,7 +2934,13 @@ namespace snde {
       
       // If mathfunction is unchanged from prior rev, then we don't worry about prerequisites as we will
       // just be copying its value from the prior rev
-      if (unchanged_incomplete_math_functions.find(mathfunction) != unchanged_incomplete_math_functions.end()) {
+
+      if (unchanged_incomplete_math_functions.find(mathfunction) != unchanged_incomplete_math_functions.end() && !mathfunction->self_dependent) {
+	  snde_debug(SNDE_DC_RECMATH, "math function %s is unchanged and incomplete", mathfunction->definition->definition_command.c_str());
+	  std::shared_ptr<globalrevision> new_globalrev = std::dynamic_pointer_cast<globalrevision>(new_rss);
+	  if (new_globalrev) {
+	    snde_debug(SNDE_DC_RECMATH, "unchanged and incomplete is for globalrev% llu", (unsigned long long)new_globalrev->globalrev);
+	  }
 	continue;
       }
 
@@ -5077,14 +5083,18 @@ namespace snde {
 
 	transaction_background_end_fcn(recdb_strong,transaction_background_end_params);
 	
+	transaction_background_end_lockholder.lock();
 	
-	transaction_background_end_acttrans->end_transaction();
+	// empty the std::function
+	transaction_background_end_fcn = std::function<void(std::shared_ptr<recdatabase> recdb, std::shared_ptr<void> params)>();
+	transaction_background_end_params = nullptr;
+	std::shared_ptr<active_transaction> transaction_background_end_acttrans_copy = transaction_background_end_acttrans;
+	transaction_background_end_acttrans = nullptr;
+	transaction_background_end_lockholder.unlock();
+
+	transaction_background_end_acttrans_copy->end_transaction();
 	
 	transaction_background_end_lockholder.lock();
-	// empty the std::function
-	transaction_background_end_fcn = std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)>();
-	transaction_background_end_params = nullptr;
-	transaction_background_end_acttrans = nullptr;
       }
     }
     //fprintf(stderr,"gmnnc() exit\n");

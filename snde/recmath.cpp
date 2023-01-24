@@ -555,6 +555,7 @@ namespace snde {
 	
 	
 	if (dependent_prereq_it != ext_dep_status.missing_external_function_prerequisites.end()) {
+	  snde_debug(SNDE_DC_RECMATH, "Erasing mefp %s from %s",fcn->definition->definition_command.c_str(),ext_dep_fcn->definition->definition_command.c_str());
 	  ext_dep_status.missing_external_function_prerequisites.erase(dependent_prereq_it);
 	}
 	ext_dep_rss->mathstatus.check_dep_fcn_ready(recdb,ext_dep_rss,ext_dep_fcn,&ext_dep_status,ready_to_execute,dep_rss_admin);

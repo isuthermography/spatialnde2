@@ -238,9 +238,10 @@ namespace snde {
   {
     size_t number_of_free_gpus=0;
     size_t job_index=0;
+    size_t num_devices = device_supports_double.size();
 
     for (auto && exec_fcn: functions_using_devices) {
-      if (!exec_fcn && device_supports_double.at(job_index % max_parallel)) {
+      if (!exec_fcn && device_supports_double.at(job_index % num_devices)) {
 	number_of_free_gpus++;
       }
       job_index++;
@@ -254,18 +255,19 @@ namespace snde {
   {
     
     size_t job_index=0;
+    size_t num_devices = opencl_devices.size();
     std::vector<size_t> job_assignments;
     std::vector<cl::Device> device_assignments;
     std::vector<bool> device_double_assignments;
     std::vector<cl::CommandQueue> queue_assignments;
 
     for (auto && exec_fcn: functions_using_devices) {
-      if (!exec_fcn && (!requires_doubleprec || ( device_supports_double.at(job_index % max_parallel) ))) {
+      if (!exec_fcn && (!requires_doubleprec || ( device_supports_double.at(job_index % num_devices) ))) {
 	// this gpu is available
 	// assign it...
 	job_assignments.push_back(job_index);
-	device_assignments.push_back(opencl_devices.at(job_index % max_parallel));
-	device_double_assignments.push_back(device_supports_double.at(job_index % max_parallel));
+	device_assignments.push_back(opencl_devices.at(job_index % num_devices));
+	device_double_assignments.push_back(device_supports_double.at(job_index % num_devices));
 	queue_assignments.push_back(queues.at(job_index));
 	
 	break; 

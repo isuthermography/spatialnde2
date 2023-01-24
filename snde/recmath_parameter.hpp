@@ -105,6 +105,18 @@ namespace snde {
 
   };
 
+  class math_parameter_sndeindex_const : public math_parameter {
+  public:
+    snde_index index_constant;
+
+    math_parameter_sndeindex_const(snde_index index);
+    virtual snde_index get_unsigned(std::shared_ptr<recording_set_state> rss, const std::string& channel_path_context, const std::shared_ptr<math_definition>& fcn_def, size_t parameter_index);
+
+    virtual bool operator==(const math_parameter& ref); // used for comparing parameters to instantiated_math_functions
+    virtual bool operator!=(const math_parameter& ref);
+
+  };
+
   
   class math_parameter_double_const: public math_parameter {
   public:
@@ -157,7 +169,6 @@ namespace snde {
 
   };
 
-  
   class math_parameter_indexvec_const: public math_parameter {
   public:
     std::vector<snde_index> indexvec;
