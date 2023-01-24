@@ -105,8 +105,9 @@ public:
 
     std::size_t maxaddressbytes;
     
+    graphics_storage_manager(const std::string &graphics_recgroup_path,std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> lockmngr,double tol,std::size_t maxaddressbytes/*=2000000000*/);    
+    graphics_storage_manager(const std::string &graphics_recgroup_path,std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> lockmngr,double tol/*,std::size_t maxaddressbytes=2000000000*/);
     
-    graphics_storage_manager(const std::string &graphics_recgroup_path,std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> lockmngr,double tol,std::size_t maxaddressbytes);
     // Rule of 3
     graphics_storage_manager(const graphics_storage_manager &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
     graphics_storage_manager& operator=(const graphics_storage_manager &) = delete; 
