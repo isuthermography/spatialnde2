@@ -1,12 +1,11 @@
 name: Push To Public
 on:
-  pull_request_review:
-    types: [submitted]
+  push:
     branches: ['cleared']
   workflow_dispatch:
 jobs:
   approved:
-    if: github.event.review.state == 'approved'
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
