@@ -20,7 +20,7 @@ namespace snde {
     Camera->setGraphicsContext(GraphicsWindow);
     
     // set background color to blueish
-    Camera->setClearColor(osg::Vec4(.1,.1,.3,1.0));    
+    Camera->setClearColor(osg::Vec4(.1,.1,.3,0.0f));    
     Camera->setClearMask(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     Camera->setCullingMode(osg::CullSettings::NO_CULLING); // otherwise triangles we use for rendering can get culled as we zoom in far enough that their vertices go off-screen?
     

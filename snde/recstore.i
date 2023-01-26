@@ -1,3 +1,16 @@
+// override __setitem__ from std::map definition within Swig's python/std_map.i
+// because otherwise this calls the copy assignment operator on snde::channel_state, which
+// doesn't exist
+//%extend std::map<std::string,snde::channel_state> {
+//  
+//  std::map<std::string,snde::channel_state>(const std::map< std::string,snde::channel_state >  &) = delete; // explicitly delete copy constructor
+//   
+//    void __setitem__(const key_type& key, const mapped_type& x) throw (std::out_of_range) {
+//      throw snde::snde_error("Attempt to modify immutable channel map");
+//    } // This line should generate a warning because it intentionally overrides the definition from std/std_map.i 
+//
+//};
+
 %shared_ptr(snde::recording_base);
 snde_rawaccessible(snde::recording_base);
 %shared_ptr(snde::recording_group);
@@ -28,6 +41,9 @@ snde_rawaccessible(snde::instantiated_math_function);
 snde_rawaccessible(snde::active_transaction);
 %shared_ptr(snde::transaction);
 snde_rawaccessible(snde::transaction);
+//%shared_ptr(std::map<std::string,snde::channel_state>);
+//snde_rawaccessible(std::map<std::string,snde::channel_state>);
+
 
 %{
 #include "snde/recstore.hpp"
@@ -52,6 +68,7 @@ namespace snde {
   class instantiated_math_function;
   class math_definition;
   class image_reference;
+  class recording_class_info;
 
   class channel_notify; // from notify.hpp
   class repetitive_channel_notify; // from notify.hpp
@@ -80,7 +97,32 @@ namespace snde {
   //%typecheck(SWIG_TYPECHECK_POINTER) (std::shared_ptr<lockmanager>) {
   //  $1 = SWIG_CheckState(SWIG_ConvertPtr($input, 0, SWIGTYPE_p_std__shared_ptrT_snde__lockmanager_t, 0));
   //}
-  
+
+  // output typemap for rec_classes
+  %typemap(out) std::vector<recording_class_info> (size_t cnt){
+    $result = PyList_New($1.size());
+    for (cnt=0;cnt < $1.size();cnt++) {
+      PyList_SetItem($result,(Py_ssize_t)cnt,PyUnicode_FromString($1.at(cnt).c_str()));
+    }    
+  }
+
+  // downcasting typemap for recording_base
+  %typemap(out) std::shared_ptr<recording_base> (int derivation_level){
+
+    // try classes from deepest to shallowest until we find something SWIG-wrapped
+    for (derivation_level = ((int)$1->rec_classes.size())-1;derivation_level >= 0; derivation_level--) {
+      const snde::recording_class_info &classinfo = $1->rec_classes.at(derivation_level);
+      const std::string swig_typename = std::string("std::shared_ptr <")+classinfo.classname+std::string("> *");
+      swig_type_info *const rettype = SWIG_TypeQuery(swig_typename.c_str());
+      if (rettype) {
+	void *smartresult = classinfo.ptr_to_new_shared($1);
+	$result = SWIG_NewPointerObj(smartresult, rettype, SWIG_POINTER_OWN);
+	break;
+      } else {
+	snde::snde_warning("recording_base output typemap: typequery for %s failed.",swig_typename.c_str());
+      }
+    }    
+  }
 
   std::shared_ptr<recording_storage_manager> select_storage_manager_for_recording_during_transaction(std::shared_ptr<recdatabase> recdb,std::string chanpath);
 
@@ -99,6 +141,9 @@ namespace snde {
     %immutable;
     /*std::atomic_int*/ int info_state; // atomic mirror of info->state
     %mutable;
+
+    std::vector<recording_class_info> rec_classes; // ordered inheritance: First entry is recording_base, then subclasses in order. Must be filled out by constructors then immutable after that.
+
     std::shared_ptr<constructible_metadata> pending_metadata; 
     std::shared_ptr<immutable_metadata> metadata; // pointer may not be changed once info_state reaches METADATADONE. The pointer in info is the .get() value of this pointer. 
 
@@ -176,10 +221,10 @@ namespace snde {
     // group name (including trailing slash) and iterating forward until
     // you get an entry not within the group. 
 
-    std::shared_ptr<std::string> path_to_primary; // nullptr or the path (generally relative to this group) to the primary content of the group, which should be displayed when the user asks to view the content represented by the group. 
+    //std::shared_ptr<std::string> path_to_primary; // nullptr or the path (generally relative to this group) to the primary content of the group, which should be displayed when the user asks to view the content represented by the group. 
 
 
-    recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::shared_ptr<std::string> path_to_primary);
+    recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize); // ,std::shared_ptr<std::string> path_to_primary);
     
     
     // rule of 3
@@ -236,6 +281,7 @@ namespace snde {
     // returns the storage in case you want it. 
     
     virtual std::shared_ptr<recording_storage> allocate_storage(size_t array_index,std::vector<snde_index> dimlen, bool fortran_order=false);
+    virtual std::shared_ptr<recording_storage> allocate_storage_in_named_array(size_t array_index,std::string storage_array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
     virtual std::shared_ptr<recording_storage> allocate_storage(std::string array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
 
     // alternative to allocating storage: Referencing an existing recording
@@ -303,6 +349,9 @@ namespace snde {
 
     virtual void allocate_storage(std::vector<snde_index> dimlen);
     virtual void allocate_storage(std::vector<snde_index> dimlen, bool fortran_order);
+    virtual std::shared_ptr<recording_storage> allocate_storage_in_named_array(std::string storage_array_name,const std::vector<snde_index> &dimlen);
+    virtual std::shared_ptr<recording_storage> allocate_storage_in_named_array(std::string storage_array_name,const std::vector<snde_index> &dimlen, bool fortran_order);
+
 
     
     inline snde_multi_ndarray_recording *mndinfo() {return (snde_multi_ndarray_recording *)rec->info;}
@@ -639,7 +688,7 @@ namespace snde {
     %immutable;
     /*std::atomic<*/bool/*>*/ updated; // this field is only valid once rec() returns a valid pointer and once rec()->state is READY or METADATAREADY. It is true if this particular recording has a new revision particular to the enclosing recording_set_state
     %mutable;
-    std::shared_ptr<uint64_t> revision; // This is assigned when the channel_state is created from _rec->info->revision for manually created recordings. (For ondemand math recordings this is not meaningful?) For math recordings with the math_function's new_revision_optional (config->math_fcn->fcn->new_revision_optional) flag clear, this is defined during end_transaction() before the channel_state is published. If the new_revision_optional flag is set, this left nullptr; once the math function determines whether a new recording will be instantiated the revision will be assigned when the recording is define, with ordering ensured by the implicit self-dependency implied by the new_revision_optional flag (recmath_compute_resource.cpp)
+    std::shared_ptr<uint64_t> _revision; // This is assigned when the channel_state is created from _rec->info->revision for manually created recordings. (For ondemand math recordings this is not meaningful?) For math recordings with the math_function's new_revision_optional (config->math_fcn->fcn->new_revision_optional) flag clear, this is defined during end_transaction() before the channel_state is published. If the new_revision_optional flag is set, this left nullptr; once the math function determines whether a new recording will be instantiated the revision will be assigned when the recording is define, with ordering ensured by the implicit self-dependency implied by the new_revision_optional flag (recmath_compute_resource.cpp)
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_metadataonly; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes metadataonly; set to nullptr at end of channel becoming metadataonly. 
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_ready; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes ready; set to nullptr at end of channel becoming ready. 
 
@@ -647,10 +696,18 @@ namespace snde {
 
     channel_state(const channel_state &orig); // copy constructor used for initializing channel_map from prototype defined in end_transaction()
 
+    // Copy assignment operator deleted
+    channel_state& operator=(const channel_state &) = delete;
+
+    // default destructor
+    ~channel_state() = default; 
+
+
     std::shared_ptr<recording_base> rec() const;
+    //std::shared_ptr<uint64_t> revision() const;
     std::shared_ptr<recording_base> recording_is_complete(bool mdonly); // uses only atomic members so safe to call in all circumstances. Set to mdonly if you only care that the metadata is complete. Normally call recording_is_complete(false). Returns recording pointer if recording is complete to the requested condition, otherwise nullptr. 
     void issue_nonmath_notifications(std::shared_ptr<recording_set_state> rss); // Must be called without anything locked. Issue notifications requested in _notify* and remove those notification requests
-    void issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<recording_set_state> prerequisite_rss); // Must be called without anything locked. Check for any math updates from the new status of this recording
+    void issue_math_notifications(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss); // Must be called without anything locked. Check for any math updates from the new status of this recording
     
     void end_atomic_rec_update(std::shared_ptr<recording_base> new_recording);
 
@@ -665,10 +722,16 @@ namespace snde {
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_ready();
   };
 
+};
+// Make channel_map type accessible from python (marked as shared_ptr, above)
+//%template(ChannelMap) std::map<std::string,snde::channel_state>;
 
+
+namespace snde {
+  
   class recording_status {
   public:
-    std::map<std::string,channel_state> channel_map; // key is full channel path... The map itself (not the embedded states) is immutable once the recording_set_state is published
+    //std::shared_ptr<std::map<std::string,channel_state>> channel_map; // key is full channel path... The map itself (not the embedded states) is immutable once the recording_set_state is published
     
     /// all of these are indexed by their their full path. Every entry in channel_map should be in exactly one of these. Locked by rss admin mutex per above
     // The index is the shared_ptr in globalrev_channel.config
@@ -714,8 +777,8 @@ namespace snde {
 
     void wait_complete(); // wait for all the math in this recording_set_state or globalrev to reach nominal completion (metadataonly or ready, as configured)
     std::shared_ptr<recording_base> get_recording(const std::string &fullpath);
-    std::shared_ptr<ndarray_recording_ref> get_recording_ref(const std::string &fullpath,size_t array_index=0);
-    std::shared_ptr<ndarray_recording_ref> get_recording_ref(const std::string &fullpath,std::string array_name);
+    std::shared_ptr<ndarray_recording_ref> get_ndarray_ref(const std::string &fullpath,size_t array_index=0);
+    std::shared_ptr<ndarray_recording_ref> get_ndarray_ref(const std::string &fullpath,std::string array_name);
 
     std::shared_ptr<ndarray_recording_ref> check_for_recording_ref(const std::string &fullpath,size_t array_index=0);
     std::shared_ptr<ndarray_recording_ref> check_for_recording_ref(const std::string &fullpath,std::string array_name);
@@ -848,9 +911,12 @@ namespace snde {
 
     std::shared_ptr<globalrevision> latest_globalrev(); // safe to call with or without recdb admin lock held. Returns latest globalrev which is ready and for which all prior globalrevs are ready
 
-    
+    std::shared_ptr<globalrevision> get_globalrev(uint64_t revnum);
+
     // Allocate channel with a specific name; returns nullptr if the name is inuse
     std::shared_ptr<channel> reserve_channel(std::shared_ptr<channelconfig> new_config);
+
+    void release_channel(std::string channelpath, void *owner_id); // must be called within a transaction
 
     // Define a new channel; throws an error if the channel is already in use
     //std::shared_ptr<channel> define_channel(std::string channelpath, std::string owner_name, void *owner_id, bool hidden=false, std::shared_ptr<recording_storage_manager> storage_manager=nullptr);
@@ -996,18 +1062,50 @@ namespace snde {
   
   // for non math-functions operating in a transaction
   template <typename T>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id);
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id);
+
+  template <typename S,typename T,typename ... Args>
+    std::shared_ptr<ndtyped_recording_ref<T>> create_typed_subclass_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,Args && ... args);
+
+
+  // These next two templates are commented out because they
+  // cause SWIG syntax errors for no apparent reason whatsoever (?)
+  
+  //template <typename T>
+  //std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum=rtn_typemap.at(typeid(T))); // purpose is used for naming shared memory objects
+
+  //template <typename S,typename T,typename ... Args>
+  //std::shared_ptr<ndtyped_recording_ref<T>> create_anonymous_typed_subclass_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,Args && ... args); // purpose is used for naming shared memory objects
+
   
   // for math_recordings_only (no transaction)
   template <typename T>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss);
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_ndarray_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss);
 
-  std::shared_ptr<ndarray_recording_ref> create_recording_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
 
-  std::shared_ptr<ndarray_recording_ref> create_anonymous_recording_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum); // purpose is used for naming shared memory objects
+  template <typename S,typename T,typename ... Args>
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_subclass_ndarray_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,Args && ... args);
 
-  std::shared_ptr<ndarray_recording_ref> create_recording_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
+  std::shared_ptr<ndarray_recording_ref> create_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
 
+  std::shared_ptr<ndarray_recording_ref> create_named_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string arrayname,unsigned typenum);
+
+  template <typename S,typename ... Args> 
+  std::shared_ptr<ndarray_recording_ref> create_subclass_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum,Args && ... args);
+
+  std::shared_ptr<ndarray_recording_ref> create_anonymous_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum); // purpose is used for naming shared memory objects
+
+  std::shared_ptr<ndarray_recording_ref> create_anonymous_named_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,std::string arrayname,unsigned typenum); // purpose is used for naming shared memory objects
+
+  template <typename S,typename ... Args> 
+  std::shared_ptr<ndarray_recording_ref> create_anonymous_subclass_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::string purpose,unsigned typenum, Args && ... args); // purpose is used for naming shared memory objects
+
+  
+  std::shared_ptr<ndarray_recording_ref> create_ndarray_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
+  std::shared_ptr<ndarray_recording_ref> create_named_ndarray_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,std::string arrayname,unsigned typenum); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
+
+  template <typename S,typename ... Args>
+  std::shared_ptr<ndarray_recording_ref> create_subclass_ndarray_ref_math(std::string chanpath,std::shared_ptr<recording_set_state> calc_rss,unsigned typenum,Args && ... args); // math use only... ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
 
   // create recording templates
   // Work around SWIG not supporting variadic templates
@@ -1029,11 +1127,27 @@ namespace snde {
 #define create_recording_ptr_to_string create_recording
    %}
 
+
+  // template for one extra recording argument that is a std::string
+  template <class T>
+    std::shared_ptr<T> create_recording_string(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string stringarg);
+  %{
+#define create_recording_string create_recording
+   %}
+
+  
   // template for one extra recording argument that is a size_t
   template <class T>
     std::shared_ptr<T> create_recording_size_t(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,size_t);
   %{
 #define create_recording_size_t create_recording
+   %}
+
+  // template for one extra recording argument that is an unsigned
+  template <class T>
+    std::shared_ptr<T> create_recording_unsigned(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned);
+  %{
+#define create_recording_unsigned create_recording
    %}
 
   
@@ -1062,9 +1176,20 @@ namespace snde {
   // %}
 
   
+  // template for recording ref for a ndarray subclass with one extra recording argument that is a std::string
+  template <class T>
+    std::shared_ptr<ndarray_recording_ref> create_subclass_ndarray_ref_string(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum,std::string stringarg);
+  %{
+#define create_subclass_ndarray_ref_string create_subclass_ndarray_ref
+   %}
+
+
   
-  %template(create_null_recording) snde::create_recording_noargs<null_recording>;
-  %template(create_recording_group) create_recording_ptr_to_string<recording_group>;
-  %template(create_multi_ndarray_recording) create_recording_size_t<multi_ndarray_recording>;
+  %template(create_null_recording) snde::create_recording_noargs<snde::null_recording>;
+  //%template(create_recording_group) snde::create_recording_ptr_to_string<snde::recording_group>;
+  %template(create_recording_group) snde::create_recording_noargs<snde::recording_group>;
+  %template(create_multi_ndarray_recording) snde::create_recording_size_t<snde::multi_ndarray_recording>;
+  %template(create_fusion_ndarray_recording) snde::create_recording_unsigned<snde::fusion_ndarray_recording>;
+
   
 };

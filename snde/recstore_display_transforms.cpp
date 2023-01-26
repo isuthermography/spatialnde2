@@ -155,8 +155,10 @@ namespace snde {
     // assemble the channel_map
     std::map<std::string,channel_state> initial_channel_map;
 
+    auto globalrev_channel_map = globalrev->recstatus.channel_map;
+    
     // First from the current set of channels out of globalrev
-    for (auto && channame_chanstate: globalrev->recstatus.channel_map) {
+    for (auto && channame_chanstate: *globalrev_channel_map) {
       initial_channel_map.emplace(std::piecewise_construct,
 				  std::forward_as_tuple(channame_chanstate.first),
 				  std::forward_as_tuple(channame_chanstate.second._channel,channame_chanstate.second.config,channame_chanstate.second.rec(),false));
@@ -171,8 +173,8 @@ namespace snde {
       // If so it should go into changed_channels_need_dispatch
       // Otherwise should go into unchanged_channels and NOT unknownchanged_channels. 
 
-      auto prev_it = previous_globalrev->recstatus.channel_map.find(channame_chanstate.first);
-      if (prev_it != previous_globalrev->recstatus.channel_map.end() && prev_it->second.rec() == channame_chanstate.second.rec()) {
+      auto prev_it = previous_globalrev->recstatus.channel_map->find(channame_chanstate.first);
+      if (prev_it != previous_globalrev->recstatus.channel_map->end() && prev_it->second.rec() == channame_chanstate.second.rec()) {
 	// channel is unchanged
 	snde_debug(SNDE_DC_DISPLAY,"Channel %s is unchanged",channame_chanstate.first.c_str());
 	unchanged_channels.emplace(channame_chanstate.second.config);
@@ -200,9 +202,9 @@ namespace snde {
 	std::shared_ptr<channelconfig> renderableconfig;
 
 	// search for pre-existing channel in previous_with_transforms
-	auto preexist_it = previous_with_transforms->recstatus.channel_map.find(*dispreq->renderable_channelpath);
+	auto preexist_it = previous_with_transforms->recstatus.channel_map->find(*dispreq->renderable_channelpath);
 	// to reuse, we have to find something of the same name where the math_fcns compare by value, indicating the same function and parameters
-	if (preexist_it != previous_with_transforms->recstatus.channel_map.end() && *preexist_it->second.config->math_fcn == *dispreq->renderable_function) {
+	if (preexist_it != previous_with_transforms->recstatus.channel_map->end() && *preexist_it->second.config->math_fcn == *dispreq->renderable_function) {
 	  
 	  snde_debug(SNDE_DC_DISPLAY,"recstore_display_transforms::update() found old config");
 
@@ -287,10 +289,11 @@ namespace snde {
 
     // For everything we copied in from the globalrev (above),
     // mark it in the completed_recordings map
-    for (auto && channame_chanstate: globalrev->recstatus.channel_map) {
-      auto wdt_chanmap_iter = with_display_transforms->recstatus.channel_map.find(channame_chanstate.first);
+    //auto globalrev_channel_map = globalrev->recstatus.channel_map; // already defined above
+    for (auto && channame_chanstate: *globalrev_channel_map) {
+      auto wdt_chanmap_iter = with_display_transforms->recstatus.channel_map->find(channame_chanstate.first);
 
-      assert(wdt_chanmap_iter != with_display_transforms->recstatus.channel_map.end());
+      assert(wdt_chanmap_iter != with_display_transforms->recstatus.channel_map->end());
 
       if (!wdt_chanmap_iter->second.recording_is_complete(false)) {
 	// must be mdonly
@@ -304,8 +307,8 @@ namespace snde {
     for (auto && dispkey_dispreq: merged_requirements) {
       std::shared_ptr<display_requirement> dispreq=dispkey_dispreq.second;
       if (dispreq->renderable_function) {
-	auto wdt_chanmap_iter = with_display_transforms->recstatus.channel_map.find(*dispreq->renderable_channelpath);
-	assert(wdt_chanmap_iter != with_display_transforms->recstatus.channel_map.end());
+	auto wdt_chanmap_iter = with_display_transforms->recstatus.channel_map->find(*dispreq->renderable_channelpath);
+	assert(wdt_chanmap_iter != with_display_transforms->recstatus.channel_map->end());
 	
 	with_display_transforms->recstatus.defined_recordings.emplace(wdt_chanmap_iter->second.config,&wdt_chanmap_iter->second);
 	
@@ -369,13 +372,13 @@ namespace snde {
 
     snde_debug(SNDE_DC_DISPLAY,"recstore_display_transforms::update build_rss_from_functions_and_channels() complete with %d unknownchanged_math_functions and %d changed_math_functions",unknownchanged_math_functions.size(),changed_math_functions.size());
 
-    // globalrev->_update_recstatus__rss_admin_transaction_admin_locked()
+    // with_display_transforms->_update_recstatus__rss_admin_transaction_admin_locked()
     // isn't needed here because in the math calculations, the resulting
     // rss pointer has been known from the beginning, so the state should
     // be in the correct bin already. 
 
     // Perform notifies that unchanged copied recordings from prior revs are now ready
-    // (and that globalrev is ready if there is nothing pending!)
+    // (and that with_display_transforms is ready if there is nothing pending!)
     for (auto && readychan : ready_channels) { // readychan is a channel_state &
       readychan->issue_nonmath_notifications(with_display_transforms);
     }
@@ -393,8 +396,8 @@ namespace snde {
   
     // Check if everything is done; issue notification
     if (all_ready) {
-      std::unique_lock<std::mutex> rss_admin(globalrev->admin);
-      std::unordered_set<std::shared_ptr<channel_notify>> recordingset_complete_notifiers=std::move(globalrev->recordingset_complete_notifiers);
+      std::unique_lock<std::mutex> rss_admin(with_display_transforms->admin);
+      std::unordered_set<std::shared_ptr<channel_notify>> recordingset_complete_notifiers=std::move(with_display_transforms->recordingset_complete_notifiers);
       with_display_transforms->recordingset_complete_notifiers.clear();
       rss_admin.unlock();
 

@@ -454,7 +454,7 @@ namespace snde {
 
 
   
-  void math_status::notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> recstate,std::shared_ptr<instantiated_math_function> fcn,bool mdonly,bool possibly_redundant,std::shared_ptr<recording_set_state> prerequisite_state)
+  void math_status::notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> recstate,std::shared_ptr<instantiated_math_function> fcn,bool mdonly,bool possibly_redundant)
   // possibly_redundant is set when our notification is a result of
   // an exception or similar and hence might be redundant
   {
@@ -464,6 +464,8 @@ namespace snde {
       std::lock_guard<std::mutex> rss_admin(recstate->admin);
       math_function_status &our_status = recstate->mathstatus.function_status.at(fcn);
 
+
+      our_status.complete = true; // trust that whoever called us knows what they were talking about
       // ***!!!!! Need to refactor the status transfer so that we can
       // explicitly check it; also need to be OK with status transfer
       // being ahead of us (possibly another thread)
@@ -553,6 +555,7 @@ namespace snde {
 	
 	
 	if (dependent_prereq_it != ext_dep_status.missing_external_function_prerequisites.end()) {
+	  snde_debug(SNDE_DC_RECMATH, "Erasing mefp %s from %s",fcn->definition->definition_command.c_str(),ext_dep_fcn->definition->definition_command.c_str());
 	  ext_dep_status.missing_external_function_prerequisites.erase(dependent_prereq_it);
 	}
 	ext_dep_rss->mathstatus.check_dep_fcn_ready(recdb,ext_dep_rss,ext_dep_fcn,&ext_dep_status,ready_to_execute,dep_rss_admin);
@@ -577,18 +580,43 @@ namespace snde {
     // Go through the function's output channels and issue suitable notifications
     for (auto && result_channel_relpath: fcn->result_channel_paths) {
       std::string result_channel_path = recdb_path_join(fcn->channel_path_context,*result_channel_relpath);
-      channel_state &chanstate = recstate->recstatus.channel_map.at(result_channel_path);
+      channel_state &chanstate = recstate->recstatus.channel_map->at(result_channel_path);
       // ***!!!! If we wanted to support math functions that decide
       // not to change their outputs, we could do so here
       // by changing the truth value for each channel receiving
       // the math notification according to whether the channel was
       // updated (would also have to treat function significantly
       // like execution_optional)
-      chanstate.issue_math_notifications(recdb,recstate,prerequisite_state);
+      chanstate.issue_math_notifications(recdb,recstate);
     }
 
-      
-    
+    	    //execution_complete_notify_single_referencing_rss(recdb,execfunc,execfunc->mdonly,false,prior_state,dep_rss);
+
+    /*
+    std::set<std::weak_ptr<recording_set_state>,std::owner_less<std::weak_ptr<recording_set_state>>> referencing_rss_copy; // will have all recording set states that reference this executing_math_function
+
+
+    {
+      std::lock_guard<std::mutex> execfunc_admin(execfunc->admin);
+      referencing_rss_copy = execfunc->referencing_rss;
+    }
+
+    for (auto && referencing_rss_weak: referencing_rss_copy) {
+      //std::shared_ptr<recording_set_state> referencing_rss_strong(referencing_rss_weak);
+      std::shared_ptr<recording_set_state> referencing_rss_strong=referencing_rss_weak.lock();
+      if (!referencing_rss_strong) {
+	//snde_warning("recmath_compute_resource.cpp: _tfrs: referencing_rss is already expired!");
+	continue;
+      }
+
+      if (referencing_rss_strong == execfunc->rss) {
+	// no need for main rss
+	continue
+      }
+
+      join_rss_into_function_result_state(execfunc,execfunc->rss,referencing_rss_strong);
+    }
+    */
   }
 
   void math_status::check_dep_fcn_ready(std::shared_ptr<recdatabase> recdb,
@@ -615,11 +643,35 @@ namespace snde {
   // notification probably can't be issued with dep_rss admin lock held.
     
   {
+    if (dep_rss->ready) return; // unnecessary call
 
 
+    if (mathstatus_ptr->execfunc) {
+      std::unique_lock<std::mutex> execfunc_admin(mathstatus_ptr->execfunc->admin);
+      if (mathstatus_ptr->execfunc->metadata_executed || mathstatus_ptr->execfunc->rss != dep_rss) {
+	// this is already executing or it's someone else's responsibility to execute.
+	// however we can check if it is complete
+
+	if (mathstatus_ptr->execfunc->fully_complete) {
+	  //mathstatus_ptr->complete = true;
+	  
+	  std::shared_ptr<math_function_execution> execfunc=mathstatus_ptr->execfunc;
+	  
+	  execfunc_admin.unlock();
+	  
+	  dep_rss_admin_holder.unlock();
+	  execution_complete_notify_single_referencing_rss(recdb,execfunc,execfunc->mdonly,true,dep_rss); // Used to CRASH HERE... modified execfunc structure to store execution output independent of rss, so that we can pull it in after rss is forgotten. 
+							   
+	  dep_rss_admin_holder.lock();
+	}
+
+	return;
+      }
+    }
+    
     std::shared_ptr<globalrevision> dep_globalrev = std::dynamic_pointer_cast<globalrevision>(dep_rss);
     if (dep_globalrev) {
-      snde_debug(SNDE_DC_RECMATH,"recmath: check_dep_fcn_ready(%s); num_modified_prerequisites=%llu; globalrev=%llu",dep_fcn->definition->definition_command.c_str(),(unsigned long long)mathstatus_ptr->num_modified_prerequisites,(unsigned long long)dep_globalrev->globalrev);
+      snde_debug(SNDE_DC_RECMATH,"recmath: check_dep_fcn_ready(%s); num_modified_prerequisites=%llu; globalrev=%llu; %u missing prereqs, %u mecp %u mefp",dep_fcn->definition->definition_command.c_str(),(unsigned long long)mathstatus_ptr->num_modified_prerequisites,(unsigned long long)dep_globalrev->globalrev,(unsigned)mathstatus_ptr->missing_prerequisites.size(),(unsigned)mathstatus_ptr->missing_external_channel_prerequisites.size(),(unsigned)mathstatus_ptr->missing_external_function_prerequisites.size());
       
     } else {
       snde_debug(SNDE_DC_RECMATH,"recmath: check_dep_fcn_ready(%s); num_modified_prerequisites=%llu",dep_fcn->definition->definition_command.c_str(),(unsigned long long)mathstatus_ptr->num_modified_prerequisites);
@@ -655,8 +707,9 @@ namespace snde {
 	// Note: We know the the math function definition itself is unchanged, because otherwise
 	// execfunc would have been assigned in recstore.cpp end_transaction()
 	// So all we have to check here is the full list of prerequisites
+	
 	std::shared_ptr<recording_set_state> prior_state = dep_rss->prerequisite_state();
-	assert(prior_state);
+	assert(prior_state); 
 
 	
 	bool need_recalc = false; 
@@ -667,16 +720,22 @@ namespace snde {
 	    std::string dep_fcn_param_fullpath = recdb_path_join(dep_fcn->channel_path_context,dep_fcn_rec_param->channel_name);
 	    
 	    // look up the parameter/prerequisite in our current rss
-	    channel_state &paramstate = dep_rss->recstatus.channel_map.at(dep_fcn_param_fullpath);
-	    assert(paramstate.revision);
+	    channel_state &paramstate = dep_rss->recstatus.channel_map->at(dep_fcn_param_fullpath);
+	    assert(paramstate.revision());
 
 
-	    channel_state &parampriorstate = prior_state->recstatus.channel_map.at(dep_fcn_param_fullpath);
-	    assert(parampriorstate.revision);
+	    channel_state &parampriorstate = prior_state->recstatus.channel_map->at(dep_fcn_param_fullpath);
+	    assert(parampriorstate.revision());
 
-	    if ( (*paramstate.revision) != (*parampriorstate.revision)) {
+	    if (paramstate.updated) {
+	      snde_debug(SNDE_DC_RECMATH,"recmath: %s need recalc due to %s updated.",dep_fcn->definition->definition_command.c_str(),dep_fcn_param_fullpath.c_str());
+	      // Alternate conditional
+	      //if ( (*paramstate.revision()) != (*parampriorstate.revision())) {
+	      //snde_debug(SNDE_DC_RECMATH,"recmath: %s need recalc due to changed revision of %s.",dep_fcn->definition->definition_command.c_str(),dep_fcn_param_fullpath.c_str());
+	      
 	      // parameter has changed: Need a recalculation
-	      snde_debug(SNDE_DC_RECMATH,"recmath: %s need recalc due to %s revision mismatch",dep_fcn->definition->definition_command.c_str(),dep_fcn_param_fullpath.c_str());
+	      
+
 	      need_recalc=true;
 	      break;
 	    }
@@ -730,7 +789,6 @@ namespace snde {
 	  // if execfunc is already complete, we need to
 	  // trigger the notifications now.
 
-	  execution_complete_notify_single_referencing_rss(recdb,execfunc,execfunc->mdonly,false,prior_state,dep_rss);
 	  //dep_rss_admin_holder.lock();
 	  /*
 	  if ((mathstatus_ptr->mdonly && execfunc->metadata_executed) ||
@@ -743,7 +801,7 @@ namespace snde {
 	    dep_rss_admin_holder.unlock();
 	    for (auto && result_channel_relpath: dep_fcn->result_channel_paths) {
 	      std::string result_channel_path = recdb_path_join(dep_fcn->channel_path_context,*result_channel_relpath);
-	      channel_state &chanstate = dep_rss->recstatus.channel_map.at(recdb_path_join(dep_fcn->channel_path_context,result_channel_path));
+	      channel_state &chanstate = dep_rss->recstatus.channel_map->at(recdb_path_join(dep_fcn->channel_path_context,result_channel_path));
 	      
 	      //chanstate.issue_math_notifications(recdb,ready_rss); // taken care of by notify_math_function_executed(), below
 	      chanstate.issue_nonmath_notifications(dep_rss);
@@ -753,13 +811,18 @@ namespace snde {
 	  } 
 	  */
 	  //dep_rss_admin_holder.unlock();
+
+	  // Notify that the our channels are all set, in case they weren't already notified
 	  if ((mathstatus_ptr->mdonly && execfunc->metadata_executed) ||
 	      (!mathstatus_ptr->mdonly && execfunc->fully_complete)) {
-	    
+
+	    //execution_complete_notify_single_referencing_rss(recdb,execfunc,execfunc->mdonly,false,dep_rss);
+
 	    // execfunc is already complete so we may have to take care of notifications
 	    // Issue function completion notification
-	    dep_rss->mathstatus.notify_math_function_executed(recdb,dep_rss,execfunc->inst,execfunc->mdonly,true,prior_state); 
-	    
+	    //dep_rss->mathstatus.notify_math_function_executed(recdb,dep_rss,execfunc->inst,execfunc->mdonly,true,prior_state);
+	    execution_complete_notify_single_referencing_rss(recdb,execfunc,execfunc->mdonly,true,dep_rss);
+
 	    
 	  }
 	  dep_rss_admin_holder.lock();
@@ -799,6 +862,7 @@ namespace snde {
 
   math_function_execution::math_function_execution(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,bool mdonly,bool is_mutable) :
     rss(rss),
+    rss_channel_map(rss->recstatus.channel_map),
     inst(inst),
     executing(false),
     is_mutable(is_mutable),
@@ -835,7 +899,7 @@ namespace snde {
       } else {
 	for (auto &&result_channel_path_ptr: inst->result_channel_paths) {
 	  if (result_channel_path_ptr) {
-	    channel_state &chanstate = prereq_state->recstatus.channel_map.at(*result_channel_path_ptr);
+	    channel_state &chanstate = prereq_state->recstatus.channel_map->at(recdb_path_join(inst->channel_path_context, *result_channel_path_ptr));
 	    self_dependent_recordings.push_back(chanstate.rec());
 	  } else {
 	    self_dependent_recordings.push_back(null_rec);

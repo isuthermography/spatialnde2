@@ -17,7 +17,7 @@
 // ***!!!! This should probably have some major rework, using a snapshot of the settings
 // at the start of a rendering pass to inform the rendering pass, and taking the output
 // from the pass (including on-demand waveforms, etc.) to update the settings as appropriate.
-// i.e. all of the get_recording_ref()'s should be eliminated. The locking should be eliminated
+// i.e. all of the get_ndarray_ref()'s should be eliminated. The locking should be eliminated
 // (since once snapshotted it will only be accessed from one thread at a time), etc. 
 
 
@@ -223,7 +223,7 @@ namespace snde {
     std::unordered_map<std::string,std::shared_ptr<display_channel>> channel_info;
     //std::vector<std::string> channel_layer_order; // index is nominal order, string is full channel name
     
-    const std::shared_ptr<math_function> vertnormals_function; // immutable
+    const std::shared_ptr<math_function> vertnormalarray_function; // immutable
     const std::shared_ptr<math_function> colormapping_function; // immutable
     const std::shared_ptr<math_function> fusion_colormapping_function; // immutable
     const std::shared_ptr<math_function> pointcloud_colormapping_function; // immutable

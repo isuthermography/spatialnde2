@@ -211,8 +211,8 @@ namespace snde {
       std::lock_guard<std::mutex> rss_admin(rss->admin);
       std::lock_guard<std::mutex> criteria_admin(criteria.admin);
       
-      // check if all recordings are ready;
-      bool all_ready = !rss->recstatus.defined_recordings.size() && !rss->recstatus.instantiated_recordings.size();      
+      // check if all recordings are ready and all math functions are complete
+      bool all_ready = !rss->recstatus.defined_recordings.size() && !rss->recstatus.instantiated_recordings.size() && !rss->mathstatus.pending_functions.size() && !rss->mathstatus.mdonly_pending_functions.size();      
       //printf("cn::all_ready;\n");
       //fflush(stdout);
       
@@ -243,7 +243,7 @@ namespace snde {
 
     snde_debug(SNDE_DC_NOTIFY,"channel_notify::_check_all_criteria_locked(0x%lx)",(unsigned long)(rss.get()));
     for (auto && md_channelname: criteria.metadataonly_channels) {
-      channel_state & chanstate = rss->recstatus.channel_map.at(md_channelname);
+      channel_state & chanstate = rss->recstatus.channel_map->at(md_channelname);
       
       if (chanstate.recording_is_complete(true)) {
 	if (notifies_already_applied_to_rss) {
@@ -256,7 +256,7 @@ namespace snde {
     }
     
     for (auto && fr_channelname: criteria.fullyready_channels) {
-      channel_state & chanstate = rss->recstatus.channel_map.at(fr_channelname);
+      channel_state & chanstate = rss->recstatus.channel_map->at(fr_channelname);
       
       if (chanstate.recording_is_complete(false)) {
 	if (notifies_already_applied_to_rss) {
@@ -394,7 +394,7 @@ namespace snde {
       
 
       for (auto && md_channelname: criteria.metadataonly_channels) {
-	channel_state & chanstate = rss->recstatus.channel_map.at(md_channelname);
+	channel_state & chanstate = rss->recstatus.channel_map->at(md_channelname);
       
 	std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_metadataonly = chanstate.begin_atomic_notify_about_this_channel_metadataonly_update();	  
 	notify_about_this_channel_metadataonly->emplace(shared_from_this());
@@ -404,20 +404,20 @@ namespace snde {
 
       
       for (auto && fr_channelname: criteria.fullyready_channels) {
-	channel_state & chanstate = rss->recstatus.channel_map.at(fr_channelname);
+	channel_state & chanstate = rss->recstatus.channel_map->at(fr_channelname);
       
 	std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> notify_about_this_channel_ready = chanstate.begin_atomic_notify_about_this_channel_ready_update();
 	  
 	notify_about_this_channel_ready->emplace(shared_from_this());
 	chanstate.end_atomic_notify_about_this_channel_ready_update(notify_about_this_channel_ready);
       }
-    }
 
       
-    if (criteria.recordingset_complete) {
-      rss->recordingset_complete_notifiers.emplace(shared_from_this());
+      if (criteria.recordingset_complete) {
+	rss->recordingset_complete_notifiers.emplace(shared_from_this());
+      }
+      
     }
-    
     
     if (generate_notify) {
       perform_notify();
@@ -524,7 +524,7 @@ namespace snde {
     
       // Pass completed recording from this channel_state to subsequent_globalrev's channelstate
       sg_channelstate.end_atomic_rec_update(current_channelstate.rec());
-
+      
       std::unordered_map<std::shared_ptr<channelconfig>,channel_state *>::iterator recs_it = subsequent_globalrev->recstatus.defined_recordings.find(current_channelstate.config);
       bool in_defined_recordings = true;
       bool in_instantiated_recordings = false;
@@ -539,10 +539,12 @@ namespace snde {
 	  // should be in either defined_recordings or instantiated_recordings prior to the notifications
 	  in_instantiated_recordings = true;
 	} else {
+	  recs_it = subsequent_globalrev->recstatus.metadataonly_recordings.find(current_channelstate.config);
 	  if (recs_it != subsequent_globalrev->recstatus.metadataonly_recordings.end()) {
 	    in_metadataonly_recordings = true;
 	    
 	  } else {
+	    recs_it = subsequent_globalrev->recstatus.completed_recordings.find(current_channelstate.config);
 	    if (recs_it != subsequent_globalrev->recstatus.completed_recordings.end()) {
 	      in_completed_recordings = true;
 	      
@@ -587,7 +589,7 @@ namespace snde {
 
     std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
     if (recdb_strong) {
-      sg_channelstate.issue_math_notifications(recdb_strong,subsequent_globalrev,current_globalrev);
+      sg_channelstate.issue_math_notifications(recdb_strong,subsequent_globalrev);
     }
   }
 
@@ -633,7 +635,15 @@ namespace snde {
 
     //assert(globalrev->ready);
 
-    globalrev->ready = true; 
+    globalrev->ready = true;
+
+    // Note that this next assert is not actually correct.
+    // We can legitimately get here when the last math function
+    // has marked all its outputs as ready, but before the math
+    // function has exited, which is what would remove it from
+    // pending_functions
+    //assert(!globalrev->mathstatus.pending_functions.size());
+    
     globalrev->atomic_prerequisite_state_clear(); // once we are ready, we no longer care about any prerequisite state, so that can be free'd as needed. 
 
 

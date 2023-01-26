@@ -486,11 +486,15 @@ template <typename T>
 %include "inplanemat_calculation.i"
 %include "projinfo_calculation.i"
 %include "boxes_calculation.i"
+%include "area_calculation.i"
 %include "averaging_downsampler.i"
+%include "NumPy_BGRtoRGBA.i"
+%include "NumPy_BGRtoGray16.i"
 %include "batched_live_accumulator.i"
 %include "project_onto_parameterization.i"
 %include "quaternion.i"
 %include "kdtree.i"
+%include "orientation_product.i"
 %include "rendermode.i"
 %include "display_requirements.i"
 %include "snde_qt.i"
@@ -620,8 +624,12 @@ template <typename T>
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_ORIENTATION3,(PyArray_Descr *)orientation3_dtype);
 
   // !!!!!***** This needs to be adjusted to consider the various possible sizes for snde_index and snde_coord
-  PyObject *snde_part_dtype = PyRun_String("dtype([('firstboundary',np.uint64),('numboundaries',np.uint64),('first_topo',np.uint64),('num_topo',np.uint64),('first_topoidx',np.uint64),('num_topoidxs',np.uint64),('firsttri',np.uint64),('numtris',np.uint64),('firstedge',np.uint64),('numedges',np.uint64),('firstvertex',np.uint64),('numvertices',np.uint64),('first_vertex_edgelist',np.uint64),('num_vertex_edgelist',np.uint64),('firstbox',np.uint64),('numboxes',np.uint64),('firstboxpoly',np.uint64),('numboxpolys',np.uint64),('firstboxnurbssurface',np.uint64),('numboxnurbssurfaces',np.uint64),('pivot_point',np.float32,3),('length_scale',np.float32),('bounding_box',[('min',np.float32,3),('max',np.float32,3)]),('solid',np.bool),('has_triangledata',np.bool),('has_curvatures',np.bool),('pad1',np.uint8),('pad2',np.uint8,4)])",Py_eval_input,Globals,Globals);
+  PyObject *snde_part_dtype = PyRun_String("dtype([('firstboundary',np.uint64),('numboundaries',np.uint64),('first_topo',np.uint64),('num_topo',np.uint64),('first_topoidx',np.uint64),('num_topoidxs',np.uint64),('firstface',np.uint64),('num_faces',np.uint64),('firsttri',np.uint64),('numtris',np.uint64),('firstedge',np.uint64),('numedges',np.uint64),('firstvertex',np.uint64),('numvertices',np.uint64),('first_vertex_edgelist',np.uint64),('num_vertex_edgelist',np.uint64),('firstbox',np.uint64),('numboxes',np.uint64),('firstboxpoly',np.uint64),('numboxpolys',np.uint64),('firstboxnurbssurface',np.uint64),('numboxnurbssurfaces',np.uint64),('pivot_point',np.float32,3),('length_scale',np.float32),('bounding_box',[('min',np.float32,3),('max',np.float32,3)]),('first_vertex_kdnode',np.uint64),('num_vertex_kdnodes',np.uint64),('first_triarea',np.uint64),('first_vertarea',np.uint64),('reserved',np.uint8,12),('solid',np.bool_),('has_triangledata',np.bool_),('has_curvatures',np.bool_),('pad1',np.uint8),('pad2',np.uint8,4)])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_PART,(PyArray_Descr *)snde_part_dtype);
+
+  PyObject *snde_parameterization_dtype = PyRun_String("dtype([('first_uv_topo',np.uint64),('num_uv_topos',np.uint64),('first_uv_topoidx',np.uint64),('num_uv_topoidxs',np.uint64),('firstuvtri',np.uint64),('numuvtris',np.uint64),('firstuvface',np.uint64),('numuvfaces',np.uint64),('firstuvedge',np.uint64),('numuvedges',np.uint64),('firstuvvertex',np.uint64),('numuvvertices',np.uint64),('first_uv_vertex_edgelist',np.uint64),('num_uv_vertex_edgelist',np.uint64),('firstuvpatch',np.uint64),('numuvpatches',np.uint64),('reserved',np.uint64,16)])",Py_eval_input,Globals,Globals);
+  snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_PARAMETERIZATION,(PyArray_Descr *)snde_parameterization_dtype);
+
   
 #endif // SNDE_DOUBLEPREC_COORDS
 

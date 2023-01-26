@@ -140,10 +140,12 @@ namespace snde {
   }
 
 
-  void graphics_storage::mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)
+  void graphics_storage::mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem,bool override_finalized_check /*=false*/)
   // pos and numelem are relative to __this_recording__
   {
-    assert(!finalized);
+    if (!override_finalized_check) {
+      assert(!finalized);
+    }
     
     if (numelem==SNDE_INDEX_INVALID) {
       numelem=nelem-pos; // actual number of elements
@@ -318,12 +320,13 @@ namespace snde {
 
   
 
-  graphics_storage_manager::graphics_storage_manager(const std::string &graphics_recgroup_path,std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> lockmgr,double tol):
+  graphics_storage_manager::graphics_storage_manager(const std::string &graphics_recgroup_path,std::shared_ptr<memallocator> memalloc,std::shared_ptr<allocator_alignment> alignment_requirements,std::shared_ptr<lockmanager> lockmgr,double tol,size_t maxaddressbytes):
     recording_storage_manager(), // superclass
-    manager(std::make_shared<arraymanager>(memalloc,alignment_requirements,lockmgr)),
+    manager(std::make_shared<arraymanager>(memalloc,alignment_requirements,maxaddressbytes,lockmgr)),
     graphics_recgroup_path(graphics_recgroup_path),
     geom(), // Triggers value-initialization of .data which zero-initializes all members
-    base_rss_unique_id(rss_get_unique())
+    base_rss_unique_id(rss_get_unique()),
+    maxaddressbytes(maxaddressbytes)
   {
     std::atomic_store(&_follower_cachemanagers,std::make_shared<std::set<std::weak_ptr<cachemanager>,std::owner_less<std::weak_ptr<cachemanager>>>>());
 
@@ -381,15 +384,17 @@ namespace snde {
 		       &geom.trinormals,"trinormals",
 		       &geom.inplanemats,"inplanemats");
 
-    add_grouped_arrays(&next_region_id,&geom.vertnormals,"vertnormals");
     
     add_grouped_arrays(&next_region_id,&geom.edges,"edges");
     
     
     add_grouped_arrays(&next_region_id,&geom.vertices,"vertices",
+		       &geom.vertnormals,"vertnormals",
 		       &geom.principal_curvatures,"principal_curvatures",
 		       &geom.curvature_tangent_axes,"curvature_tangent_axes",
 		       &geom.vertex_edgelist_indices,"vertex_edgelist_indices");
+    
+
 
     add_grouped_arrays(&next_region_id,&geom.vertex_edgelist,"vertex_edgelist");
 
@@ -443,11 +448,14 @@ namespace snde {
 
 
     
-    add_grouped_arrays(&next_region_id,&geom.vertex_arrays,"vertex_arrays");
-    add_grouped_arrays(&next_region_id,&geom.texvertex_arrays,"texvertex_arrays");
+    //add_grouped_arrays(&next_region_id,&geom.vertex_arrays,"vertex_arrays");
+    //add_grouped_arrays(&next_region_id,&geom.texvertex_arrays,"texvertex_arrays");
+    //add_grouped_arrays(&next_region_id,&geom.vertnormal_arrays,"vertnormal_arrays");
     add_grouped_arrays(&next_region_id,&geom.texbuffer,"texbuffer");
 
 
+    add_grouped_arrays(&next_region_id,&geom.trianglearea,"trianglearea");
+    add_grouped_arrays(&next_region_id,&geom.vertexarea,"vertexarea");
 
     // ... need to initialize rest of struct...
     // Probably want an array manager class to handle all of this
@@ -597,6 +605,8 @@ namespace snde {
 
     std::unordered_map<std::string,void **>::iterator arrayaddr_it;
 
+    // NOTE: We never get array_name=="" any more so this
+    // anonymous allocation logic is now non-functional. 
     if (array_name=="" && typenum==SNDE_RTN_SNDE_IMAGEDATA) {
       // redirect anonymous allocation requests to the image projection data buffer
       array_name = "imagebuf"; 

@@ -19,9 +19,25 @@ typedef float snde_imagedata;
 // we get np.uint64's that fail the default swig typecheck
 
 
-numpy_rtm_typemaps(snde_coord3,"snde_coord3",SNDE_RTN_SNDE_COORD3);
-numpy_rtm_typemaps(snde_coord4,"snde_coord4",SNDE_RTN_SNDE_COORD4);
-numpy_rtm_typemaps(snde_orientation3,"snde_orientation3",SNDE_RTN_SNDE_ORIENTATION3);
+numpy_rtm_input_typemaps(snde_coord3, ,"snde_coord3",SNDE_RTN_SNDE_COORD3,0, );
+numpy_rtm_input_typemaps(snde_coord4, ,"snde_coord4",SNDE_RTN_SNDE_COORD4,0, );
+numpy_rtm_input_typemaps(snde_orientation3, ,"snde_orientation3",SNDE_RTN_SNDE_ORIENTATION3,0, );
+
+
+numpy_rtm_output_typemaps(snde_coord3,"snde_coord3",SNDE_RTN_SNDE_COORD3);
+numpy_rtm_output_typemaps(snde_coord4,"snde_coord4",SNDE_RTN_SNDE_COORD4);
+numpy_rtm_output_typemaps(snde_orientation3,"snde_orientation3",SNDE_RTN_SNDE_ORIENTATION3);
+
+// Specialized input type maps that enable nan checking
+numpy_rtm_input_typemaps(snde_coord4,quat,"snde_coord4",SNDE_RTN_SNDE_COORD4,1,snde_coord); 
+numpy_rtm_input_typemaps(snde_coord4,quat1,"snde_coord4",SNDE_RTN_SNDE_COORD4,1,snde_coord); 
+numpy_rtm_input_typemaps(snde_coord4,quat2,"snde_coord4",SNDE_RTN_SNDE_COORD4,1,snde_coord);
+numpy_rtm_input_typemaps(snde_coord4,vec,"snde_coord4",SNDE_RTN_SNDE_COORD4,1,snde_coord);
+numpy_rtm_input_typemaps(snde_orientation3,orient,"snde_orientation3",SNDE_RTN_SNDE_ORIENTATION3,1,snde_coord);
+numpy_rtm_input_typemaps(snde_orientation3,left,"snde_orientation3",SNDE_RTN_SNDE_ORIENTATION3,1,snde_coord);
+numpy_rtm_input_typemaps(snde_orientation3,right,"snde_orientation3",SNDE_RTN_SNDE_ORIENTATION3,1,snde_coord);
+
+
 
 typedef struct _snde_coord3 {
   snde_coord coord[3];
@@ -235,6 +251,7 @@ nt_snde_axis32=np.dtype((nt_snde_coord,(2,3)))
 nt_snde_mat23=np.dtype((nt_snde_coord,(2,3)))
 
 
+# WARNING: OBSOLETE!!!***
 nt_snde_meshedpart=np.dtype([  # ('orientation', nt_snde_orientation3),
 		    ('firsttri', nt_snde_index),
 		    ('numtris', nt_snde_index),

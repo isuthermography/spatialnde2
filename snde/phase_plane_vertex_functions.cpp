@@ -10,7 +10,11 @@
 #include "snde/recmath_compute_resource_opencl.hpp"
 #endif
 
+#include "snde/vecops.h"
+
 #include "snde/snde_types_h.h"
+#include "snde/geometry_types_h.h"
+#include "snde/vecops_h.h"
 #include "snde/phase_plane_vertex_calcs_c.h"
 
   
@@ -198,7 +202,7 @@ namespace snde {
 
 	      cl::Kernel phase_plane_vert_kern = build_typed_opencl_program<T>("spatialnde2.colormap",[] (std::string ocltypename) {
 		// OpenCL templating via a typedef....
-		return std::make_shared<opencl_program>("phase_plane_vertices_alphas", std::vector<std::string>({ snde_types_h, "\ntypedef " + ocltypename + " ppvao_intype;\n", phase_plane_vertex_calcs_c }));
+		return std::make_shared<opencl_program>("phase_plane_vertices_alphas", std::vector<std::string>({ snde_types_h, geometry_types_h,vecops_h,"\ntypedef " + ocltypename + " ppvao_intype;\n", phase_plane_vertex_calcs_c }));
 	      })->get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
 	      
 	      OpenCLBuffers Buffers(opencl_resource->oclcache,opencl_resource->context,opencl_resource->devices.at(0),locktokens);
@@ -220,6 +224,10 @@ namespace snde {
 		snde_index output_length = input_length*6;
 		snde_index totalpos = output_pos+1;
 		snde_index totallen = layout_length*6;
+
+		if (input_length < 2) {
+		  continue; // need at least two points to plot.
+		}
 		if (!output_pos) {
 		  // first iteration: Use first element as previous value
 		  input_length -= 1;
@@ -251,7 +259,7 @@ namespace snde {
 		}
 
 		Buffers.BufferPortionDirty(result_rec,"vertcoord",output_pos,output_length);
-		Buffers.BufferPortionDirty(result_rec,"vertcoord_color",output_pos,output_length);
+		Buffers.BufferPortionDirty(result_rec,"vertcoord_color",output_pos*4,output_length*4);
 		kerndoneevents.push_back(kerndone);
 
 		

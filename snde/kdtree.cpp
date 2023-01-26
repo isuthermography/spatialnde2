@@ -201,6 +201,8 @@ namespace snde {
 	      snde_part &partstruct = meshedpart->reference_typed_ndarray<snde_part>("parts")->element(0);
 	      partstruct.first_vertex_kdnode = result_ref->storage->base_index;
 	      partstruct.num_vertex_kdnodes = result_ref->storage->nelem;
+	      meshedpart->reference_ndarray("parts")->storage->mark_as_modified(nullptr,0,1,true); // indicate that we have modified this first element of "parts", invalidating caches. 
+
 	    }
 	      
 	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready()
@@ -232,15 +234,23 @@ namespace snde {
   static int registered_kdtree_calculation_function = register_math_function("spatialnde2.kdtree_calculation",kdtree_calculation_function);
 
 
-  void instantiate_vertex_kdtree(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  void instantiate_vertex_kdtree(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
+    std::string context = recdb_path_context(loaded_geom->info->name);
+
+    bool withmapping_flag = false;
+
+    //if (all_processing_tags->find("vertex_kdtree_withmapping") != all_processing_tags->end()) {
+    //   withmapping_flag = true; // withmapping flags enables generating a mapping from kdtree index to 
+    //}
+    
     std::shared_ptr<instantiated_math_function> instantiated = kdtree_calculation_function->instantiate( {
 	std::make_shared<math_parameter_recording>("meshed","vertices")
       },
       {
 	std::make_shared<std::string>("vertex_kdtree")
       },
-      std::string(loaded_geom->info->name)+"/",
+      context,
       false, // is_mutable
       false, // ondemand
       false, // mdonly
@@ -249,10 +259,12 @@ namespace snde {
 
 
     recdb->add_math_function(instantiated,true); // kdtree is generally hidden by default
-
+    loaded_geom->processed_relpaths.emplace("kdtree","kdtree");
+    
   }
   
   static int registered_vertex_kdtree_processor = register_geomproc_math_function("vertex_kdtree",instantiate_vertex_kdtree);
+  //static int registered_vertex_kdtree_withmapping_processor = register_geomproc_math_function("vertex_kdtree_withmapping",instantiate_vertex_kdtree);
   
   
 
@@ -263,11 +275,21 @@ namespace snde {
 #endif // SNDE_OPENCL
 
 #ifdef SNDE_OPENCL
-  cl::Event perform_inline_ocl_knn_calculation(std::shared_ptr<assigned_compute_resource_opencl> opencl_resource,rwlock_token_set locktokens, std::shared_ptr<ndtyped_recording_ref<snde_kdnode>> kdtree, std::shared_ptr<ndtyped_recording_ref<snde_coord3>> kdtree_vertices, OpenCLBuffers &Buffers,std::shared_ptr<ndtyped_recording_ref<snde_coord3>> search_points,cl::Event search_points_ready,std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref) // returns event that indicates result is ready (on GPU)
+  cl::Event perform_inline_ocl_knn_calculation(std::shared_ptr<assigned_compute_resource_opencl> opencl_resource,rwlock_token_set locktokens, std::shared_ptr<ndtyped_recording_ref<snde_kdnode>> kdtree, std::shared_ptr<ndtyped_recording_ref<uint32_t>> nodemask,std::shared_ptr<ndtyped_recording_ref<snde_coord3>> kdtree_vertices, OpenCLBuffers &Buffers,std::shared_ptr<ndtyped_recording_ref<snde_index>> search_point_indices,std::shared_ptr<ndtyped_recording_ref<snde_coord3>> search_points,cl::Event search_points_ready,std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref) // returns event that indicates result is ready (on GPU)
   {
     // NOTE: Must keep code parallel with perform_knn_calculation(), below!!!***
     snde_index num_search_points = search_points->layout.flattened_length();
-    
+
+    snde_index num_search_point_indices = num_search_points; // set equal to num_search_points if search_point_indices==nullptr
+    if (search_point_indices) {
+      // iterate over only search_points specified in search_point_indices
+      num_search_point_indices = search_point_indices->layout.flattened_length();
+
+      if (!search_point_indices->layout.is_contiguous()) {
+	throw snde_error("search_point_indices array must be contiguous");
+      }
+    }
+
     if (!kdtree_vertices->layout.is_contiguous()) {
       throw snde_error("vertices array must be contiguous");
     }
@@ -290,32 +312,43 @@ namespace snde {
     size_t bboxstacks_octwords_per_workitem = (stacksize_per_workitem*(sizeof(snde_coord)*2) + 7)/8;
     size_t local_memory_octwords_per_workitem = nodestacks_octwords_per_workitem + statestacks_octwords_per_workitem + bboxstacks_octwords_per_workitem;
     
-    opencl_layout_workgroups_for_localmemory_1D(knn_dev,knn_kern,local_memory_octwords_per_workitem,num_search_points);
+    //opencl_layout_workgroups_for_localmemory_1D(knn_dev,knn_kern,local_memory_octwords_per_workitem,num_search_point_indices);
     
     size_t kern_work_group_size,kernel_global_work_items;
     
     std::tie(kern_work_group_size,kernel_global_work_items) = opencl_layout_workgroups_for_localmemory_1D(knn_dev,
 													  knn_kern,
 													  local_memory_octwords_per_workitem,
-													  num_search_points);
+													  num_search_point_indices);
     
       
     Buffers.AddBufferAsKernelArg(kdtree,knn_kern,0,false,false);
-    Buffers.AddBufferAsKernelArg(kdtree_vertices,knn_kern,1,false,false);
+    if (nodemask) {
+      Buffers.AddBufferAsKernelArg(nodemask,knn_kern,1,false,false);
+    } else {
+      knn_kern.setArg(1,sizeof(cl_mem),nullptr); // pass null for nodemask    
+    }
+    
+    Buffers.AddBufferAsKernelArg(kdtree_vertices,knn_kern,2,false,false);
     // add local memory arrays 
-    knn_kern.setArg(2,nodestacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
-    knn_kern.setArg(3,statestacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
-    knn_kern.setArg(4,bboxstacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
+    knn_kern.setArg(3,nodestacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
+    knn_kern.setArg(4,statestacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
+    knn_kern.setArg(5,bboxstacks_octwords_per_workitem*8*kern_work_group_size,nullptr);
       
-    knn_kern.setArg(5,sizeof(stacksize_per_workitem),&stacksize_per_workitem);
-    Buffers.AddBufferAsKernelArg(search_points,knn_kern,6,false,false);
-    Buffers.AddBufferAsKernelArg(result_ref,knn_kern,7,true,true);
+    knn_kern.setArg(6,sizeof(stacksize_per_workitem),&stacksize_per_workitem);
+    if (search_point_indices) {
+      Buffers.AddBufferAsKernelArg(search_point_indices,knn_kern,7,false,false);
+    } else {
+      knn_kern.setArg(7,sizeof(cl_mem),nullptr);
+    }
+    Buffers.AddBufferAsKernelArg(search_points,knn_kern,8,false,false);
+    Buffers.AddBufferAsKernelArg(result_ref,knn_kern,9,true,true);
     uint32_t opencl_ndim=3;
-    knn_kern.setArg(8,sizeof(opencl_ndim),&opencl_ndim);
+    knn_kern.setArg(10,sizeof(opencl_ndim),&opencl_ndim);
     uint32_t opencl_max_depth=max_depth;
-    knn_kern.setArg(9,sizeof(opencl_max_depth),&opencl_max_depth);
-    snde_index max_index_plus_one = num_search_points;
-    knn_kern.setArg(10,sizeof(max_index_plus_one),&max_index_plus_one);
+    knn_kern.setArg(11,sizeof(opencl_max_depth),&opencl_max_depth);
+    snde_index max_workitem_plus_one = num_search_point_indices; // remember this is set equal to num_search_points if search_point_indices==nullptr
+    knn_kern.setArg(12,sizeof(max_workitem_plus_one),&max_workitem_plus_one);
       
     
       
@@ -339,10 +372,17 @@ namespace snde {
   
 #endif // SNDE_OPENCL
 
-  void perform_knn_calculation(std::shared_ptr<assigned_compute_resource> compute_resource,rwlock_token_set locktokens, std::shared_ptr<ndtyped_recording_ref<snde_kdnode>> kdtree, std::shared_ptr<ndtyped_recording_ref<snde_coord3>> kdtree_vertices, std::shared_ptr<ndtyped_recording_ref<snde_coord3>> search_points,std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref)
+  void perform_knn_calculation(std::shared_ptr<assigned_compute_resource> compute_resource,rwlock_token_set locktokens, std::shared_ptr<ndtyped_recording_ref<snde_kdnode>> kdtree, std::shared_ptr<ndtyped_recording_ref<uint32_t>> nodemask,std::shared_ptr<ndtyped_recording_ref<snde_coord3>> kdtree_vertices, std::shared_ptr<ndtyped_recording_ref<snde_index>> search_point_indices,std::shared_ptr<ndtyped_recording_ref<snde_coord3>> search_points,std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref) // NOTE: nodemask and/or search_point_indices may be nullptr
   {
     // NOTE: Must keep code parallel with perform_inline_ocl_knn_calculation(), above!!!***
     snde_index num_search_points = search_points->layout.flattened_length();
+    
+    if (search_point_indices) {
+
+      if (!search_point_indices->layout.is_contiguous()) {
+	throw snde_error("search_point_indices array must be contiguous");
+      }
+    }
     
     if (!kdtree_vertices->layout.is_contiguous()) {
       throw snde_error("vertices array must be contiguous");
@@ -358,7 +398,7 @@ namespace snde {
     
 #ifdef SNDE_OPENCL
     std::shared_ptr<assigned_compute_resource_opencl> opencl_resource=std::dynamic_pointer_cast<assigned_compute_resource_opencl>(compute_resource);
-    if (opencl_resource) {
+    if (opencl_resource && search_point_indices->layout.flattened_length() > 0) {
       cl::Device knn_dev = opencl_resource->devices.at(0);
 
       OpenCLBuffers Buffers(opencl_resource->oclcache,opencl_resource->context,knn_dev,locktokens);
@@ -366,8 +406,10 @@ namespace snde {
       cl::Event knn_calculation_done = perform_inline_ocl_knn_calculation(opencl_resource,
 									  locktokens,
 									  kdtree,
+									  nodemask,
 									  kdtree_vertices,
 									  Buffers,
+									  search_point_indices,
 									  search_points,
 									  cl::Event(), // pass empty event because the normal buffer load will cover it
 									  result_ref);
@@ -381,18 +423,43 @@ namespace snde {
       snde_index *nodestack=(snde_index *)malloc((max_depth+1)*sizeof(snde_index));
       uint8_t *statestack=(uint8_t *)malloc((max_depth+1)*sizeof(uint8_t));
       snde_coord *bboxstack=(snde_coord *)malloc((max_depth+1)*sizeof(snde_coord)*2);
-      
-      for (snde_index searchidx=0;searchidx < num_search_points;searchidx++) {
-	result_ref->element({searchidx}) = snde_kdtree_knn_one(kdtree->shifted_arrayptr(),
-							       (snde_coord *)kdtree_vertices->shifted_arrayptr(),
-							       nodestack,
-							       statestack,
-							       bboxstack,
-							       &search_points->element(searchidx,false).coord[0],
-							       //nullptr,
-							       3,
-							       max_depth,
-							       searchidx);
+
+      if (search_point_indices) {
+	// iterate over only search_points specified in search_point_indices
+	snde_index num_search_point_indices = search_point_indices->layout.flattened_length();
+	//snde_index *search_point_indices_raw = search_point_indices->shifted_arrayptr();
+	
+	for (snde_index searchidxidx=0;searchidxidx < num_search_point_indices;searchidxidx++) {
+	  snde_index searchidx = search_point_indices->element(searchidxidx);
+	  result_ref->element({searchidxidx}) = snde_kdtree_knn_one(kdtree->shifted_arrayptr(),
+								    nodemask ? nodemask->shifted_arrayptr() : nullptr,
+								    (snde_coord *)kdtree_vertices->shifted_arrayptr(),
+								    nodestack,
+								    statestack,
+								    bboxstack,
+								    &search_points->element(searchidx,false).coord[0],
+								    //nullptr,
+								    3,
+								    max_depth,
+								    searchidx);
+	  
+	}
+	
+      } else {
+	// iterate over all search_points
+	for (snde_index searchidx=0;searchidx < num_search_points;searchidx++) {
+	  result_ref->element({searchidx}) = snde_kdtree_knn_one(kdtree->shifted_arrayptr(),
+								 nodemask ? nodemask->shifted_arrayptr() : nullptr,
+								 (snde_coord *)kdtree_vertices->shifted_arrayptr(),
+								 nodestack,
+								 statestack,
+								 bboxstack,
+								 &search_points->element(searchidx,false).coord[0],
+								 //nullptr,
+								 3,
+								 max_depth,
+								 searchidx);
+	}
       }
       
       free(bboxstack);
@@ -450,7 +517,7 @@ namespace snde {
       std::shared_ptr<multi_ndarray_recording> result_rec;
       //result_rec = create_recording_math<multi_ndarray_recording>(get_result_channel_path(0),rss,1);      
       //result_rec->define_array(0,SNDE_RTN_SNDE_KDNODE,"vertex_kdtree");
-      std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref = create_typed_recording_ref_math<snde_index>(this->get_result_channel_path(0),this->rss);
+      std::shared_ptr<ndtyped_recording_ref<snde_index>> result_ref = create_typed_ndarray_ref_math<snde_index>(this->get_result_channel_path(0),this->rss);
       
       
       return std::make_shared<metadata_function_override_type>([ this,result_ref,vertices,kdtree,search_points ]() {
@@ -493,7 +560,7 @@ namespace snde {
 	  return std::make_shared<exec_function_override_type>([ this,locktokens, result_ref,vertices,kdtree,search_points ]() {
 	    // exec code
 	    //snde_index numvertices = vertices->layout.flattened_length();
-	    perform_knn_calculation(compute_resource,locktokens,kdtree,vertices,search_points,result_ref);
+	    perform_knn_calculation(compute_resource,locktokens,kdtree,nullptr,vertices,nullptr,search_points,result_ref);
 
 	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
 	    result_ref->rec->mark_data_ready();

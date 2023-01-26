@@ -98,7 +98,7 @@ namespace snde {
 
     // ***!!! Need a way to register and notify caches that the data in a mutable array has changed. ***!!!
     // ***!!! It would be nice to be able to mark a "rectangle" as invalid too !!!***
-    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem)=0; // pos and numelem are relative to __this_recording__
+    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem, bool override_finalized_check=false)=0; // pos and numelem are relative to __this_recording__. override_finalized_check should only be set in extreme circumstances where a recording that is nominally finalized actually needs to be changed. This would be true e.g. for the snde_meshedpart structure when other recordings that need to be referenced in the struct snde_meshedpart become ready.  Conceptually those fields are actually part of the other recordings but they are stored as part of the meshedpart
     virtual void ready_notification()=0; // Sent by the recording when it is marked as ready. Used by some recording_storage_managers (e.g. graphics_storage) as an indicator that pending_modified data has probably been modified by the CPU and thus needs to be flushed out to cache managers. Note that multiple ready_ontifications on the same recording_storage are possible (but should be rare) if the storage is reused such as for a mutable recording or a later version with no data change uses the same underlying data store
     virtual void mark_as_finalized()=0;
     virtual std::shared_ptr<recording_storage> get_original_storage();
@@ -140,7 +140,7 @@ namespace snde {
     virtual snde_index lockablenelem();
     virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference();
 
-    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
+    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem,bool override_finalized_check=false); // pos and numelem are relative to __this_recording__
     virtual void ready_notification();
     virtual void mark_as_finalized();
     
@@ -165,7 +165,7 @@ namespace snde {
     virtual void **lockableaddr();
     virtual snde_index lockablenelem();
     virtual std::shared_ptr<recording_storage> obtain_nonmoving_copy_or_reference();
-    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem); // pos and numelem are relative to __this_recording__
+    virtual void mark_as_modified(std::shared_ptr<cachemanager> already_knows,snde_index pos, snde_index numelem,bool override_finalized_check=false); // pos and numelem are relative to __this_recording__
     virtual void ready_notification();
     virtual void mark_as_finalized();
     virtual std::shared_ptr<recording_storage> get_original_storage();

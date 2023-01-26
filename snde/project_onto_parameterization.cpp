@@ -19,10 +19,10 @@
 namespace snde {
 
   template <typename T>
-  class project_point_onto_parameterization: public recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool> {
+  class project_point_onto_parameterization: public recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<recording_base>,std::shared_ptr<recording_base>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool> {
   public:
     project_point_onto_parameterization(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) :
-      recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>(rss,inst)
+      recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<recording_base>,std::shared_ptr<recording_base>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>(rss,inst)
     {
       
     }
@@ -30,13 +30,67 @@ namespace snde {
 
         // These typedefs are regrettably necessary and will need to be updated according to the parameter signature of your function
     // https://stackoverflow.com/questions/1120833/derived-template-class-access-to-base-class-member-data
-    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::define_recs_function_override_type define_recs_function_override_type;
-    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::metadata_function_override_type metadata_function_override_type;
-    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::lock_alloc_function_override_type lock_alloc_function_override_type;
-    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<snde_orientation3>>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::exec_function_override_type exec_function_override_type;
+    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<recording_base>,std::shared_ptr<recording_base>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::compute_options_function_override_type compute_options_function_override_type;
+    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<recording_base>,std::shared_ptr<recording_base>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::define_recs_function_override_type define_recs_function_override_type;
+    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<recording_base>,std::shared_ptr<recording_base>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::metadata_function_override_type metadata_function_override_type;
+    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<recording_base>,std::shared_ptr<recording_base>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::lock_alloc_function_override_type lock_alloc_function_override_type;
+    typedef typename snde::recmath_cppfuncexec<std::shared_ptr<meshed_part_recording>,std::shared_ptr<meshed_parameterization_recording>,std::shared_ptr<meshed_trinormals_recording>,std::shared_ptr<boxes3d_recording>,std::shared_ptr<meshed_projinfo_recording>,std::shared_ptr<meshed_inplanemat_recording>,std::shared_ptr<recording_base>,std::shared_ptr<recording_base>,std::shared_ptr<ndtyped_recording_ref<T>>,double,double,double,snde_index,snde_index,snde_bool>::exec_function_override_type exec_function_override_type;
 
     
-    // use default for decide_new_revision
+    // use default for decide_execution
+    std::pair<bool,std::shared_ptr<compute_options_function_override_type>>
+    decide_execution(std::shared_ptr<meshed_part_recording> part,
+		std::shared_ptr<meshed_parameterization_recording> param,
+		std::shared_ptr<meshed_trinormals_recording> trinormals,
+		std::shared_ptr<boxes3d_recording> boxes3d,
+		std::shared_ptr<meshed_projinfo_recording> projinfo,
+		std::shared_ptr<meshed_inplanemat_recording> inplanemat,
+		std::shared_ptr<recording_base> part_orientation,
+		std::shared_ptr<recording_base> source_orientation,
+		std::shared_ptr<ndtyped_recording_ref<T>> to_project,
+		double min_dist,
+		double max_dist,
+		double radius,
+		snde_index horizontal_pixels,
+		snde_index vertical_pixels, 
+		snde_bool use_surface_normal)
+    {
+      
+      
+      std::shared_ptr<multi_ndarray_recording> part_ndarray=std::dynamic_pointer_cast<multi_ndarray_recording>(part_orientation);
+      if (!part_ndarray) {
+	return std::make_pair(false,nullptr);
+      }
+      std::shared_ptr<ndarray_recording_ref> part_orientation_ref=part_ndarray->reference_ndarray(0);
+      if (!part_orientation_ref) {
+	return std::make_pair(false,nullptr);
+      }
+      std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> part_orientation_tref=std::dynamic_pointer_cast<ndtyped_recording_ref<snde_orientation3>>(part_orientation_ref);
+
+      
+      
+      std::shared_ptr<multi_ndarray_recording> source_ndarray=std::dynamic_pointer_cast<multi_ndarray_recording>(source_orientation);
+      if (!source_ndarray) {
+	return std::make_pair(false,nullptr);
+      }
+      std::shared_ptr<ndarray_recording_ref> source_orientation_ref=source_ndarray->reference_ndarray(0);
+      if (!source_orientation_ref) {
+	return std::make_pair(false,nullptr);
+      }
+      std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> source_orientation_tref=std::dynamic_pointer_cast<ndtyped_recording_ref<snde_orientation3>>(source_orientation_ref);
+
+
+
+      if (!part_orientation_tref) {
+	return std::make_pair(false,nullptr);
+      }
+
+      if (!source_orientation_tref) {
+	return std::make_pair(false,nullptr);
+      }
+      return std::make_pair(true,nullptr);
+    }
+    
     
     std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>>
       compute_options(std::shared_ptr<meshed_part_recording> part,
@@ -45,8 +99,8 @@ namespace snde {
 		      std::shared_ptr<boxes3d_recording> boxes3d,
 		      std::shared_ptr<meshed_projinfo_recording> projinfo,
 		      std::shared_ptr<meshed_inplanemat_recording> inplanemat,
-		      std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> part_orientation,
-		      std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> source_orientation,
+		      std::shared_ptr<recording_base> part_orientation,
+		      std::shared_ptr<recording_base> source_orientation,
 		      std::shared_ptr<ndtyped_recording_ref<T>> to_project,
 		      double min_dist,
 		      double max_dist,
@@ -102,8 +156,8 @@ namespace snde {
 		std::shared_ptr<boxes3d_recording> boxes3d,
 		std::shared_ptr<meshed_projinfo_recording> projinfo,
 		std::shared_ptr<meshed_inplanemat_recording> inplanemat,
-		std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> part_orientation,
-		std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> source_orientation,
+		std::shared_ptr<recording_base> part_orientation,
+		std::shared_ptr<recording_base> source_orientation,
 		std::shared_ptr<ndtyped_recording_ref<T>> to_project,
 		double min_dist,
 		double max_dist,
@@ -352,7 +406,7 @@ namespace snde {
       
 	  if (!build_on_previous) {
 	    result_rec->allocate_storage_in_named_array(0,is_complex ? "compleximagebuf":"imagebuf",dimlen,true); // storage for image
-	    result_rec->allocate_storage(1,dimlen,true); // storage for validity mask 
+	    result_rec->allocate_storage_in_named_array(1,"imagebuf",dimlen,true); // storage for validity mask 
 	  } else {
 	    // accumulate on top of previous recording -- it is mutable storage!
 	    result_rec->assign_storage_strides(previous_ndarray->storage.at(0),0,previous_ndarray->layouts.at(0).dimlen,previous_ndarray->layouts.at(0).strides);
@@ -360,7 +414,8 @@ namespace snde {
 	  }
 	  
 	  
-	  
+	  std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> part_orientation_ref=std::dynamic_pointer_cast<multi_ndarray_recording>(part_orientation)->reference_typed_ndarray<snde_orientation3>(0);
+	  std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> source_orientation_ref=std::dynamic_pointer_cast<multi_ndarray_recording>(source_orientation)->reference_typed_ndarray<snde_orientation3>(0);
 	  
 	  rwlock_token_set locktokens = this->lockmgr->lock_recording_refs({
 	      { part->reference_ndarray("parts"), false }, // first element is recording_ref, 2nd parameter is false for read, true for write
@@ -377,8 +432,8 @@ namespace snde {
 		{ param->reference_ndarray("uv_topos"),false},
 		{ param->reference_ndarray("uv_triangles"),false},
 		{ projinfo->reference_ndarray("inplane2uvcoords"), false},
-		{ part_orientation, false },
-		{ source_orientation, false },
+		{ part_orientation_ref, false },
+		{ source_orientation_ref, false },
 	    
 		// projectionarray_image
 		
@@ -395,8 +450,8 @@ namespace snde {
 								 boxes3d,
 								 projinfo,
 								 inplanemat,
-								 part_orientation,
-								 source_orientation,
+								 part_orientation, part_orientation_ref,
+								 source_orientation, source_orientation_ref,
 								 to_project,
 								 min_dist,
 								 max_dist,
@@ -487,10 +542,10 @@ namespace snde {
 	    
 	    std::vector<snde_partinstance> instances;
 	    snde_orientation3 orient_inv;
-	    orientation_inverse(part_orientation->element(0),&orient_inv);
+	    orientation_inverse(part_orientation_ref->element(0),&orient_inv);
 	    
 	    instances.push_back(snde_partinstance{
-		.orientation = part_orientation->element(0),
+		.orientation = part_orientation_ref->element(0),
 		.orientation_inverse = orient_inv,
 		.partnum=partnum,  
 		.firstuvpatch=0, // only support single patch for now
@@ -498,130 +553,134 @@ namespace snde {
 	      });
 	    
 	    
-	    snde_orientation3 sensorcoords_to_wrlcoords=source_orientation->element(0);
-	    snde_orientation3 wrlcoords_to_sensorcoords;
-	    orientation_inverse(sensorcoords_to_wrlcoords,&wrlcoords_to_sensorcoords);
-	    
-	    snde_image projectionarray_info={
-	      .projectionbufoffset=0,
-	      .weightingbufoffset=0,
-	      .validitybufoffset=0,
-	      .nx=horizontal_pixels,
-	      .ny=vertical_pixels,
-	      .inival={{ (snde_coord)inival0,(snde_coord)inival1 }},
-	      .step={{ (snde_coord)step0,(snde_coord)step1 }},
-	      .projection_strides={ is_complex ? 2u:1u,is_complex ? (2*horizontal_pixels):horizontal_pixels },  // need to multiply by 2 if complex
-	      .weighting_strides={ 0,0 }, // don't use weighting
-	      .validity_strides={ 1,horizontal_pixels },
-	    }; // !!!*** will need an array here if we start supporting multiple (u,v) patches ***!!!
-	    struct rayintersection_properties imagedata_intersectprops;
-	    snde_index *boxnum_stack;
-	    snde_index frin_stacksize=boxes3d->metadata->GetMetaDatumUnsigned("snde_boxes3d_max_depth",10)*8+2;
-	    boxnum_stack = (snde_index *)malloc(frin_stacksize*sizeof(*boxnum_stack));
-	    
-	    raytrace_sensor_evaluate_zdist(
-					   sensorcoords_to_wrlcoords,
-					   wrlcoords_to_sensorcoords,
-					   min_dist,max_dist,
-					   instances.data(),
-					   instances.size(),
-					   (snde_part *)part->void_shifted_arrayptr("parts"),part->ndinfo("parts")->base_index,
-					   (snde_topological *)part->void_shifted_arrayptr("topos"),part->ndinfo("topos")->base_index,
-					   (snde_triangle *)part->void_shifted_arrayptr("triangles"),part->ndinfo("triangles")->base_index,
-					   (snde_coord3 *)trinormals->void_shifted_arrayptr("trinormals"),
-					   (snde_cmat23 *)inplanemat->void_shifted_arrayptr("inplanemats"),
-					   (snde_edge *)part->void_shifted_arrayptr("edges"),part->ndinfo("edges")->base_index,
-					   (snde_coord3 *)part->void_shifted_arrayptr("vertices"),part->ndinfo("vertices")->base_index,
-					   (snde_box3 *)boxes3d->void_shifted_arrayptr("boxes"),boxes3d->ndinfo("boxes")->base_index,
-					   (snde_boxcoord3 *)boxes3d->void_shifted_arrayptr("boxcoord"),
-					   (snde_index *)boxes3d->void_shifted_arrayptr("boxpolys"),boxes3d->ndinfo("boxpolys")->base_index,
-					   (snde_parameterization *)param->void_shifted_arrayptr("uvs"),param->ndinfo("uvs")->base_index,
-					   (snde_triangle *)param->void_shifted_arrayptr("uv_triangles"),param->ndinfo("uv_triangles")->base_index,
-					   (snde_cmat23 *)projinfo->void_shifted_arrayptr("inplane2uvcoords"),
-					   &projectionarray_info, // projectionarray_info, indexed according to the firstuvpatches of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
-					   frin_stacksize,
-					   boxnum_stack,
-					   &imagedata_intersectprops); // JUST the structure for this pixel... we don't index it
-
-	    free(boxnum_stack);
-
-	    //snde_warning("project_onto_parameterization: intersects at u=%f, v=%f",imagedata_intersectprops.uvcoords.coord[0],imagedata_intersectprops.uvcoords.coord[1]);
-	    
-	    snde_imagedata real_pixelval=to_project->element_complexfloat64(0).real;
-	    snde_imagedata pixelweighting=1.0;
-
-	    //snde_coord3 uvcoords = { imagedata_intersectprops.uvcoords.coord[0],imagedata_intersectprops.uvcoords.coord[1],1.0 };
-	    //snde_coord min_radius_uv_pixels = 2.0; // external parameter?
-	    std::shared_ptr<ndtyped_recording_ref<snde_parameterization>> uvs_ref = param->reference_typed_ndarray<snde_parameterization>("uvs");
-
-	    
-	    // debugging
-	    std::shared_ptr<ndtyped_recording_ref<snde_cmat23>> inplanemat_ref = inplanemat->reference_typed_ndarray<snde_cmat23>("inplanemats");
-	    const snde_cmat23 &inplanemat = inplanemat_ref->element(part->reference_typed_ndarray<snde_part>("parts")->element(0).firsttri + imagedata_intersectprops.trinum - part->ndinfo("triangles")->base_index);
-	   
-	    // end debugging
-	    
-	    std::shared_ptr<ndtyped_recording_ref<snde_cmat23>> inplane2uvcoords_ref = projinfo->reference_typed_ndarray<snde_cmat23>("inplane2uvcoords");
-	    const snde_cmat23 &inplane2uvcoords = inplane2uvcoords_ref->element(uvs_ref->element(0).firstuvtri + imagedata_intersectprops.trinum - param->ndinfo("uv_triangles")->base_index);
-	    
-	    // Use the average of the magnitudes of the eigenvalues of the left 2x2 of inplane2uvcoords as an estimate of the scaling between physical in plane coordinates and "meaningful" uv coordinates
-	    snde_coord i2uv_trace = inplane2uvcoords.row[0].coord[0] + inplane2uvcoords.row[1].coord[1];
-	    snde_coord i2uv_det = inplane2uvcoords.row[0].coord[0]*inplane2uvcoords.row[1].coord[1] - inplane2uvcoords.row[1].coord[0]*inplane2uvcoords.row[0].coord[1];
-
-	    // e-vals solutions of: lambda^2 - trace*lambda + det = 0
-	    // lambda = trace/2 +/- (1/2)sqrt(trace^2 - 4*det)
-
-	    // magnitude = sqrt( (trace/2)^2 + (4*det - trace^2)/4
-	    // magnitude = sqrt( (trace)^2/4 + (det - trace^2/4 )
-	    // magnitude = sqrt( det)
-	    snde_coord lambda_magnitude = sqrt(i2uv_det);
-;
-	    assert(lambda_magnitude); // if this fails then inplane2uvcoords could be doing some kind of weird mirroring maybe (!?)
-
-	    snde_coord duvcoords_dinplane = lambda_magnitude;
-	    snde_coord dpixels_duvcoords = 2.0/(step0+step1); // 1/average step size 
-	    
+	    snde_orientation3 sensorcoords_to_wrlcoords=source_orientation_ref->element(0);
+	    if (!isnan(sensorcoords_to_wrlcoords.quat.coord[0])) {
 	      
-	    
-	    snde_coord min_radius_uv_pixels = dpixels_duvcoords * duvcoords_dinplane * radius;
-	    snde_coord min_radius_src_pixels = 0.0; // (has no effect)
-	    snde_coord bandwidth_fraction = .4; // should this be an external parameter? 
+	      snde_orientation3 wrlcoords_to_sensorcoords;
+	      orientation_inverse(sensorcoords_to_wrlcoords,&wrlcoords_to_sensorcoords);
+	      
+	      
+	      snde_image projectionarray_info={
+		.projectionbufoffset=0,
+		.weightingbufoffset=0,
+		.validitybufoffset=0,
+		.nx=horizontal_pixels,
+		.ny=vertical_pixels,
+		.inival={{ (snde_coord)inival0,(snde_coord)inival1 }},
+		.step={{ (snde_coord)step0,(snde_coord)step1 }},
+		.projection_strides={ is_complex ? 2u:1u,is_complex ? (2*horizontal_pixels):horizontal_pixels },  // need to multiply by 2 if complex
+		.weighting_strides={ 0,0 }, // don't use weighting
+		.validity_strides={ 1,horizontal_pixels },
+	      }; // !!!*** will need an array here if we start supporting multiple (u,v) patches ***!!!
+	      struct rayintersection_properties imagedata_intersectprops;
+	      snde_index *boxnum_stack;
+	      snde_index frin_stacksize=boxes3d->metadata->GetMetaDatumUnsigned("snde_boxes3d_max_depth",10)*8+2;
+	      boxnum_stack = (snde_index *)malloc(frin_stacksize*sizeof(*boxnum_stack));
+	      
+	      raytrace_sensor_evaluate_zdist(
+					     sensorcoords_to_wrlcoords,
+					     wrlcoords_to_sensorcoords,
+					     min_dist,max_dist,
+					     instances.data(),
+					     instances.size(),
+					     (snde_part *)part->void_shifted_arrayptr("parts"),part->ndinfo("parts")->base_index,
+					     (snde_topological *)part->void_shifted_arrayptr("topos"),part->ndinfo("topos")->base_index,
+					     (snde_triangle *)part->void_shifted_arrayptr("triangles"),part->ndinfo("triangles")->base_index,
+					     (snde_coord3 *)trinormals->void_shifted_arrayptr("trinormals"),
+					     (snde_cmat23 *)inplanemat->void_shifted_arrayptr("inplanemats"),
+					     (snde_edge *)part->void_shifted_arrayptr("edges"),part->ndinfo("edges")->base_index,
+					     (snde_coord3 *)part->void_shifted_arrayptr("vertices"),part->ndinfo("vertices")->base_index,
+					     (snde_box3 *)boxes3d->void_shifted_arrayptr("boxes"),boxes3d->ndinfo("boxes")->base_index,
+					     (snde_boxcoord3 *)boxes3d->void_shifted_arrayptr("boxcoord"),
+					     (snde_index *)boxes3d->void_shifted_arrayptr("boxpolys"),boxes3d->ndinfo("boxpolys")->base_index,
+					     (snde_parameterization *)param->void_shifted_arrayptr("uvs"),param->ndinfo("uvs")->base_index,
+					     (snde_triangle *)param->void_shifted_arrayptr("uv_triangles"),param->ndinfo("uv_triangles")->base_index,
+					     (snde_cmat23 *)projinfo->void_shifted_arrayptr("inplane2uvcoords"),
+					     &projectionarray_info, // projectionarray_info, indexed according to the firstuvpatches of the partinstance, defines the layout of uvdata_angleofincidence_weighting and uvdata_angleofincidence_weighting_validity uv imagedata arrays
+					     frin_stacksize,
+					     boxnum_stack,
+					     &imagedata_intersectprops); // JUST the structure for this pixel... we don't index it
+	      
+	      free(boxnum_stack);
+	      
+	      //snde_warning("project_onto_parameterization: intersects at u=%f, v=%f",imagedata_intersectprops.uvcoords.coord[0],imagedata_intersectprops.uvcoords.coord[1]);
+	      
+	      snde_imagedata real_pixelval=to_project->element_complexfloat64(0).real;
+	      snde_imagedata pixelweighting=1.0;
+	      
+	      //snde_coord3 uvcoords = { imagedata_intersectprops.uvcoords.coord[0],imagedata_intersectprops.uvcoords.coord[1],1.0 };
+	      //snde_coord min_radius_uv_pixels = 2.0; // external parameter?
+	      std::shared_ptr<ndtyped_recording_ref<snde_parameterization>> uvs_ref = param->reference_typed_ndarray<snde_parameterization>("uvs");
+	      
+	      
+	      //// debugging
+	      //std::shared_ptr<ndtyped_recording_ref<snde_cmat23>> inplanemat_ref = inplanemat->reference_typed_ndarray<snde_cmat23>("inplanemats");
+	      //const snde_cmat23 &inplanemat = inplanemat_ref->element(part->reference_typed_ndarray<snde_part>("parts")->element(0).firsttri + imagedata_intersectprops.trinum - part->ndinfo("triangles")->base_index);
+	      
+	      // end debugging
+	      
+	      std::shared_ptr<ndtyped_recording_ref<snde_cmat23>> inplane2uvcoords_ref = projinfo->reference_typed_ndarray<snde_cmat23>("inplane2uvcoords");
+	      const snde_cmat23 &inplane2uvcoords = inplane2uvcoords_ref->element(uvs_ref->element(0).firstuvtri + imagedata_intersectprops.trinum - param->ndinfo("uv_triangles")->base_index);
+	      
+	      // Use the average of the magnitudes of the eigenvalues of the left 2x2 of inplane2uvcoords as an estimate of the scaling between physical in plane coordinates and "meaningful" uv coordinates
+	      snde_coord i2uv_trace = inplane2uvcoords.row[0].coord[0] + inplane2uvcoords.row[1].coord[1];
+	      snde_coord i2uv_det = inplane2uvcoords.row[0].coord[0]*inplane2uvcoords.row[1].coord[1] - inplane2uvcoords.row[1].coord[0]*inplane2uvcoords.row[0].coord[1];
 
-	    project_to_uv_arrays(real_pixelval,pixelweighting,
-				 imagedata_intersectprops.uvcoords,nullptr,nullptr,
-				 projectionarray_info,
-				 (snde_atomicimagedata *)result_rec->void_shifted_arrayptr("accumulator"),
-				 projectionarray_info.projection_strides,
-				 nullptr, // OCL_GLOBAL_ADDR snde_imagedata *uvdata_weighting_arrays,
-				 projectionarray_info.weighting_strides,
-				 (snde_atomicimagedata *)result_rec->void_shifted_arrayptr("totals"), // OCL_GLOBAL_ADDR snde_atomicimagedata *uvdata_validity_arrays,
-				 projectionarray_info.validity_strides,
-				 min_radius_uv_pixels,min_radius_src_pixels,bandwidth_fraction);
-	    
-
-	    if (is_complex) {
-	      // project imaginary part
-	      snde_imagedata imag_pixelval=to_project->element_complexfloat64(0).imag;
-
-	      project_to_uv_arrays(imag_pixelval,pixelweighting,
+	      // e-vals solutions of: lambda^2 - trace*lambda + det = 0
+	      // lambda = trace/2 +/- (1/2)sqrt(trace^2 - 4*det)
+	      
+	      // magnitude = sqrt( (trace/2)^2 + (4*det - trace^2)/4
+	      // magnitude = sqrt( (trace)^2/4 + (det - trace^2/4 )
+	      // magnitude = sqrt( det)
+	      snde_coord lambda_magnitude = sqrt(i2uv_det);
+	      
+	      assert(lambda_magnitude); // if this fails then inplane2uvcoords could be doing some kind of weird mirroring maybe (!?)
+	      
+	      snde_coord duvcoords_dinplane = lambda_magnitude;
+	      snde_coord dpixels_duvcoords = 2.0/(step0+step1); // 1/average step size 
+	      
+	      
+	      
+	      snde_coord min_radius_uv_pixels = dpixels_duvcoords * duvcoords_dinplane * radius;
+	      snde_coord min_radius_src_pixels = 0.0; // (has no effect)
+	      snde_coord bandwidth_fraction = .4; // should this be an external parameter? 
+	      
+	      project_to_uv_arrays(real_pixelval,pixelweighting,
 				   imagedata_intersectprops.uvcoords,nullptr,nullptr,
 				   projectionarray_info,
-				   ((snde_atomicimagedata *)result_rec->void_shifted_arrayptr("accumulator"))+1, // the +1 switches us from the real part to the imaginary part
+				   (snde_atomicimagedata *)result_rec->void_shifted_arrayptr("accumulator"),
 				   projectionarray_info.projection_strides,
 				   nullptr, // OCL_GLOBAL_ADDR snde_imagedata *uvdata_weighting_arrays,
 				   projectionarray_info.weighting_strides,
-				   nullptr,
+				   (snde_atomicimagedata *)result_rec->void_shifted_arrayptr("totals"), // OCL_GLOBAL_ADDR snde_atomicimagedata *uvdata_validity_arrays,
 				   projectionarray_info.validity_strides,
 				   min_radius_uv_pixels,min_radius_src_pixels,bandwidth_fraction);
 	      
+	      
+	      if (is_complex) {
+		// project imaginary part
+		snde_imagedata imag_pixelval=to_project->element_complexfloat64(0).imag;
+		
+		project_to_uv_arrays(imag_pixelval,pixelweighting,
+				     imagedata_intersectprops.uvcoords,nullptr,nullptr,
+				     projectionarray_info,
+				     ((snde_atomicimagedata *)result_rec->void_shifted_arrayptr("accumulator"))+1, // the +1 switches us from the real part to the imaginary part
+				     projectionarray_info.projection_strides,
+				     nullptr, // OCL_GLOBAL_ADDR snde_imagedata *uvdata_weighting_arrays,
+				     projectionarray_info.weighting_strides,
+				     nullptr,
+				     projectionarray_info.validity_strides,
+				     min_radius_uv_pixels,min_radius_src_pixels,bandwidth_fraction);
+		
+	      }
+	      
+	    
+	      //snde_warning("Project_onto_parameterization calculation complete.");
+	      // Need to mark our modification zone
+	      // !!!*** Would be nice to be able to specify a rectangle here ***!!!
+	      result_rec->storage.at(0)->mark_as_modified(nullptr,0,result_rec->storage.at(0)->nelem);
+	      result_rec->storage.at(1)->mark_as_modified(nullptr,0,result_rec->storage.at(1)->nelem);
 	    }
-	    
-	    
-	    //snde_warning("Project_onto_parameterization calculation complete.");
-	    // Need to mark our modification zone
-	    // !!!*** Would be nice to be able to specify a rectangle here ***!!!
-	    result_rec->storage.at(0)->mark_as_modified(nullptr,0,result_rec->storage.at(0)->nelem);
-	    result_rec->storage.at(1)->mark_as_modified(nullptr,0,result_rec->storage.at(1)->nelem);
 	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
 	    result_rec->mark_data_ready();
 	    
@@ -671,6 +730,7 @@ namespace snde {
 
     newfunc->self_dependent=true;
     newfunc->mandatory_mutable=true;
+    newfunc->new_revision_optional=true;
     return newfunc;
   }
   

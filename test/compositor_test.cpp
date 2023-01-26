@@ -159,8 +159,8 @@ int main(int argc, char **argv)
   setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
 #endif // SNDE_OPENCL
   setup_storage_manager(recdb);
-  std::shared_ptr<graphics_storage_manager> graphman=std::make_shared<graphics_storage_manager>("/",recdb->lowlevel_alloc,recdb->alignment_requirements,recdb->lockmgr,1e-8);
-  recdb->default_storage_manager = graphman;
+  std::shared_ptr<graphics_storage_manager> graphman=std::make_shared<graphics_storage_manager>("/",recdb->lowlevel_alloc,recdb->alignment_requirements,recdb->lockmgr,1e-8,2e9);
+  //recdb->default_storage_manager = graphman;
   
   setup_math_functions(recdb,{});
   recdb->startup();
@@ -169,12 +169,12 @@ int main(int argc, char **argv)
   std::shared_ptr<snde::active_transaction> transact = recdb->start_transaction(); // Transaction RAII holder
 
   
-  std::shared_ptr<loaded_part_geometry_recording> part_recording = x3d_load_geometry(recdb,graphman,argv[1],0,"main",(void *)&main,"/loaded_x3d",nullptr, { /* "reindex_vertices", */ "reindex_tex_vertices" } ); 
+  std::shared_ptr<loaded_part_geometry_recording> part_recording = x3d_load_geometry(recdb,graphman,argv[1],0,"main",(void *)&main,"/loaded_x3d/",nullptr, { /* "reindex_vertices", */ "reindex_tex_vertices" } ); 
   
   pngchan_config=std::make_shared<snde::channelconfig>("/png channel", "main", (void *)&main,false);
   std::shared_ptr<snde::channel> pngchan = recdb->reserve_channel(pngchan_config);
 
-  png_rec = create_recording_ref(recdb,pngchan,(void *)&main,SNDE_RTN_UNASSIGNED);
+  png_rec = create_ndarray_ref(recdb,pngchan,(void *)&main,SNDE_RTN_UNASSIGNED);
 
   std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
   ReadPNG(png_rec,argv[2]);
@@ -210,8 +210,16 @@ int main(int argc, char **argv)
   //   return 1;
   //  }
 
-  std::shared_ptr<channelconfig> x3dchan_config = globalrev->recstatus.channel_map.at("/x3d0").config;
-  //std::shared_ptr<channelconfig> x3dchan_config = globalrev->recstatus.channel_map.at("/x3d_meshed0").config;
+  auto x3dchan_it = globalrev->recstatus.channel_map->find("/loaded_x3d/texed");
+  if (x3dchan_it==globalrev->recstatus.channel_map->end()) {
+    x3dchan_it = globalrev->recstatus.channel_map->find("/loaded_x3d/meshed");
+    if (x3dchan_it==globalrev->recstatus.channel_map->end()) {
+      throw snde_error("Did not successfully load textured or meshed part from x3d file");
+    }
+  }
+  
+  std::shared_ptr<channelconfig> x3dchan_config = x3dchan_it->second.config;
+  //std::shared_ptr<channelconfig> x3dchan_config = globalrev->recstatus.channel_map->at("/loaded_x3d/meshed").config;
   
 
   //rendercache = std::make_shared<osg_rendercache>();

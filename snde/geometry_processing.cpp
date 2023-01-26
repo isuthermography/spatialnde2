@@ -88,34 +88,71 @@ namespace snde {
     
   }
 
+  void geomproc_specify_dependency(std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags,std::string needed_tag)
+  // Specify from within an instantiation routine that the current routine is dependent on some other tag,
+  // which may or may not have already been specified. 
+  {
+    if (all_processing_tags->find(needed_tag)==all_processing_tags->end()) {
+      // not already specified
+      all_processing_tags->emplace(needed_tag);
+      remaining_processing_tags->emplace(needed_tag);
+    }
+  }
   
   // Instantiate the relevant geometry processing math functions according to the specified processing
-  // tags (which are removed from the set)
-  void instantiate_geomproc_math_functions(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom, std::unordered_set<std::string> *processing_tags)
+  // tags (which are removed from the set). NOTE: Must be called while still in the transaction
+  // in which the geometry is defined and loaded, and before meshedcurpart/texedcurpart are marked
+  // as "data ready"
+  void instantiate_geomproc_math_functions(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom, std::shared_ptr<meshed_part_recording> meshedcurpart,std::shared_ptr<textured_part_recording> texedcurpart, std::unordered_set<std::string> *processing_tags)
   {
     std::shared_ptr<geomproc_instantiator_map> instantiator_map = geomproc_instantiator_registry();
 
+    if (meshedcurpart) {
+      loaded_geom->processed_relpaths.emplace("meshed",recdb_relative_path_to(recdb_path_context(loaded_geom->info->name),meshedcurpart->info->name));
+    }
+
+    if (texedcurpart) {
+      loaded_geom->processed_relpaths.emplace("texed",recdb_relative_path_to(recdb_path_context(loaded_geom->info->name),texedcurpart->info->name));
+    }
+    
     std::unordered_set<std::string>::iterator thistag,nexttag;
 
-    for (thistag=processing_tags->begin();thistag != processing_tags->end();thistag=nexttag) {
-      nexttag = thistag;
-      ++nexttag;
-      
-      geomproc_instantiator_map::iterator map_entry = instantiator_map->find(*thistag);
+    std::unordered_set<std::string> remaining_processing_tags = *processing_tags;
+    std::unordered_set<std::string> all_processing_tags = *processing_tags; // copy the list we were provided
+    std::unordered_set<std::string> missing_processing_tags;
+    
+    for (thistag=remaining_processing_tags.begin();thistag != remaining_processing_tags.end();thistag=remaining_processing_tags.begin()) {
+
+      std::string thistag_str = *thistag; 
+      geomproc_instantiator_map::iterator map_entry = instantiator_map->find(thistag_str);
 
       if (map_entry != instantiator_map->end()) {
 	// Found this tag in the instantiator map
 
 	// ... instantiate.
-	map_entry->second(recdb,loaded_geom);
+	map_entry->second(recdb,loaded_geom,&remaining_processing_tags,&all_processing_tags);
 
-	// Remove tag
-	processing_tags->erase(thistag);
+	// Remove tag if still present from remaining_processing_tags
+	remaining_processing_tags.erase(thistag_str);
 	
+      } else {
+	// did not find: Move to missing_processing_tags
+	missing_processing_tags.emplace(thistag_str);
+	remaining_processing_tags.erase(thistag_str);
       }
       
     }
-    
+
+    if (meshedcurpart) {
+      meshedcurpart->processed_relpaths = loaded_geom->processed_relpaths;
+    }
+    if (texedcurpart) {
+      texedcurpart->processed_relpaths = loaded_geom->processed_relpaths;
+    }
+
+    // return just the missing processing tags
+    *processing_tags = missing_processing_tags; 
+      
   }
 
     

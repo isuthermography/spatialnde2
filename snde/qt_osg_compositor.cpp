@@ -572,6 +572,8 @@ namespace snde {
     tracking_pose_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,channel_to_reorient,component_name),
     compositor(compositor)
   {
+    rec_classes.push_back(recording_class_info("snde::qt_osg_compositor_view_tracking_pose_recording",typeid(qt_osg_compositor_view_tracking_pose_recording),ptr_to_new_shared_impl<qt_osg_compositor_view_tracking_pose_recording>));
+
 
   }
   
@@ -593,7 +595,7 @@ namespace snde {
 
     std::string chanpath(info->name);
 
-    std::string channel_to_reorient_fullpath = recdb_join_assembly_and_component_names(chanpath,channel_to_reorient);
+    std::string channel_to_reorient_fullpath = recdb_path_join(chanpath,channel_to_reorient);
 
     snde_orientation3 channel_to_reorient_campose = compositor_strong->get_camera_pose(channel_to_reorient_fullpath);
     // channel_to_reorient_campose represents the orientation of the camera

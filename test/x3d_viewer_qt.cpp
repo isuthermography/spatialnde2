@@ -51,8 +51,8 @@ int main(int argc, char **argv)
   //#warning "GPU acceleration temporarily disabled for viewer."
 #endif
   setup_storage_manager(recdb);
-  std::shared_ptr<graphics_storage_manager> graphman=std::make_shared<graphics_storage_manager>("/",recdb->lowlevel_alloc,recdb->alignment_requirements,recdb->lockmgr,1e-8);
-  recdb->default_storage_manager = graphman;
+  std::shared_ptr<graphics_storage_manager> graphman=std::make_shared<graphics_storage_manager>("/",recdb->lowlevel_alloc,recdb->alignment_requirements,recdb->lockmgr,1e-8,2e9);
+  //recdb->default_storage_manager = graphman;
   
   setup_math_functions(recdb,{});
   recdb->startup();
@@ -60,7 +60,7 @@ int main(int argc, char **argv)
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
 
   
-  std::shared_ptr<loaded_part_geometry_recording> part_recording = x3d_load_geometry(recdb,graphman,argv[1],0,"main",(void *)&main,"/loaded_x3d",nullptr,{ /* "reindex_vertices", */ "reindex_tex_vertices" } ); 
+  std::shared_ptr<loaded_part_geometry_recording> part_recording = x3d_load_geometry(recdb,graphman,argv[1],0,"main",(void *)&main,"/loaded_x3d/",nullptr,{ /* "reindex_vertices", */ "reindex_tex_vertices" } ); 
 
   std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
   

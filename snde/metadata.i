@@ -80,7 +80,12 @@ public:
       
     }
     
-    
+      //constructible_metadata(const constructible_metadata &orig);
+      
+    constructible_metadata(std::shared_ptr<const constructible_metadata> orig);
+
+
+      
     int64_t GetMetaDatumInt(std::string Name,int64_t defaultval) const
     {
       std::unordered_map<std::string,metadatum>::const_iterator mditer; 
@@ -140,7 +145,16 @@ public:
       return (*mditer).second.Dbl(defaultval);
     }
 
-    std::pair<double,std::string> GetMetaDatumDblUnits(std::string Name,double defaultval,std::string defaultunits);
+    std::pair<double, std::string> GetMetaDatumDblUnits(std::string Name, double defaultval, std::string defaultunits) const
+    {
+        std::unordered_map<std::string, metadatum>::const_iterator mditer;
+
+        mditer = metadata.find(Name);
+        if (mditer == metadata.end()) {
+            return std::make_pair(defaultval, defaultunits);
+        }
+        return (*mditer).second.DblUnits(defaultval, defaultunits);
+    }
 
     void AddMetaDatum(metadatum newdatum)
     // Add or update an entry 

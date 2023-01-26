@@ -14,9 +14,8 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
     
-    name_mapping.emplace(std::make_pair("vertices",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"vertices"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.vertices)));
+    define_array(0,rtn_typemap.at(typeid(*dummy.vertices)),"vertices");
+    rec_classes.push_back(recording_class_info("snde::pointcloud_recording",typeid(pointcloud_recording),ptr_to_new_shared_impl<pointcloud_recording));
 
   }
   */
@@ -26,38 +25,24 @@ namespace snde {
     multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,8)
   {
     snde_geometrydata dummy={0};
+
+    rec_classes.push_back(recording_class_info("snde::meshed_part_recording",typeid(meshed_part_recording),ptr_to_new_shared_impl<meshed_part_recording>));
+
+    define_array(0,rtn_typemap.at(typeid(*dummy.parts)),"parts");
+
+    define_array(1,rtn_typemap.at(typeid(*dummy.topos)),"topos");
+
+    define_array(2,rtn_typemap.at(typeid(*dummy.topo_indices)),"topo_indices");
+
+    define_array(3,rtn_typemap.at(typeid(*dummy.triangles)),"triangles");
+
+    define_array(4,rtn_typemap.at(typeid(*dummy.edges)),"edges");
+
+    define_array(5,rtn_typemap.at(typeid(*dummy.vertices)),"vertices");
+
+    define_array(6,rtn_typemap.at(typeid(*dummy.vertex_edgelist_indices)),"vertex_edgelist_indices");
     
-    name_mapping.emplace(std::make_pair("parts",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"parts"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.parts)));
-
-    name_mapping.emplace(std::make_pair("topos",1));
-    name_reverse_mapping.emplace(std::make_pair(1,"topos"));
-    define_array(1,rtn_typemap.at(typeid(*dummy.topos)));
-
-    name_mapping.emplace(std::make_pair("topo_indices",2));
-    name_reverse_mapping.emplace(std::make_pair(2,"topo_indices"));
-    define_array(2,rtn_typemap.at(typeid(*dummy.topo_indices)));
-
-    name_mapping.emplace(std::make_pair("triangles",3));
-    name_reverse_mapping.emplace(std::make_pair(3,"triangles"));
-    define_array(3,rtn_typemap.at(typeid(*dummy.triangles)));
-
-    name_mapping.emplace(std::make_pair("edges",4));
-    name_reverse_mapping.emplace(std::make_pair(4,"edges"));
-    define_array(4,rtn_typemap.at(typeid(*dummy.edges)));
-
-    name_mapping.emplace(std::make_pair("vertices",5));
-    name_reverse_mapping.emplace(std::make_pair(5,"vertices"));
-    define_array(5,rtn_typemap.at(typeid(*dummy.vertices)));
-
-    name_mapping.emplace(std::make_pair("vertex_edgelist_indices",6));
-    name_reverse_mapping.emplace(std::make_pair(6,"vertex_edgelist_indices"));
-    define_array(6,rtn_typemap.at(typeid(*dummy.vertex_edgelist_indices)));
-    
-    name_mapping.emplace(std::make_pair("vertex_edgelist",7));
-    name_reverse_mapping.emplace(std::make_pair(7,"vertex_edgelist"));
-    define_array(7,rtn_typemap.at(typeid(*dummy.vertex_edgelist)));
+    define_array(7,rtn_typemap.at(typeid(*dummy.vertex_edgelist)),"vertex_edgelist");
 
     // NOTE: Final parameter to multi_ndarray_recording() above is number of mapping entries ***!!! 
   }
@@ -65,12 +50,11 @@ namespace snde {
   meshed_vertexarray_recording::meshed_vertexarray_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
     multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
   {
-    snde_geometrydata dummy={0};
+    //snde_geometrydata dummy={0};
     
-    name_mapping.emplace(std::make_pair("vertex_arrays",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"vertex_arrays"));
+    rec_classes.push_back(recording_class_info("snde::meshed_vertexarray_recording",typeid(meshed_vertexarray_recording),ptr_to_new_shared_impl<meshed_vertexarray_recording>));
 
-    define_array(0,rtn_typemap.at(typeid(*dummy.vertex_arrays)));
+    define_array(0,rtn_typemap.at(typeid(snde_rendercoord /**dummy.vertex_arrays*/)),"vertex_arrays");
   }
 
 
@@ -78,10 +62,10 @@ namespace snde {
     multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
   {
     snde_geometrydata dummy={0};
-    
-    name_mapping.emplace(std::make_pair("inplanemats",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"inplanemats"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.inplanemats)));
+
+    rec_classes.push_back(recording_class_info("snde::meshed_inplanemat_recording",typeid(meshed_inplanemat_recording),ptr_to_new_shared_impl<meshed_inplanemat_recording>));
+
+    define_array(0,rtn_typemap.at(typeid(*dummy.inplanemats)),"inplanemats");
   }
 
   
@@ -89,10 +73,10 @@ namespace snde {
     multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
   {
     snde_geometrydata dummy={0};
-    
-    name_mapping.emplace(std::make_pair("texvertex_arrays",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"texvertex_arrays"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.texvertex_arrays)));
+
+    rec_classes.push_back(recording_class_info("snde::meshed_texvertex_recording",typeid(meshed_texvertex_recording),ptr_to_new_shared_impl<meshed_texvertex_recording>));
+
+    define_array(0,rtn_typemap.at(typeid(snde_rendercoord /* *dummy.texvertex_arrays */)),"texvertex_arrays");
 
   }
     
@@ -101,20 +85,32 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
     
-    name_mapping.emplace(std::make_pair("vertnormals",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"vertnormals"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.vertnormals)));
+    rec_classes.push_back(recording_class_info("snde::meshed_vertnormals_recording",typeid(meshed_vertnormals_recording),ptr_to_new_shared_impl<meshed_vertnormals_recording>));
+
+    define_array(0,rtn_typemap.at(typeid(*dummy.vertnormals)),"vertnormals");
 
   }
 
+  meshed_vertnormalarrays_recording::meshed_vertnormalarrays_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
+    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
+  {
+    snde_geometrydata dummy={0};
+
+    rec_classes.push_back(recording_class_info("snde::meshed_vertnormalarrays_recording",typeid(meshed_vertnormalarrays_recording),ptr_to_new_shared_impl<meshed_vertnormalarrays_recording>));
+
+    define_array(0,rtn_typemap.at(typeid(snde_trivertnormals /* *dummy.vertnormal_arrays */)),"vertnormal_arrays");
+
+  }
+
+  
   meshed_trinormals_recording::meshed_trinormals_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
   {
     snde_geometrydata dummy={0};
+    
+    rec_classes.push_back(recording_class_info("snde::meshed_trinormals_recording",typeid(meshed_trinormals_recording),ptr_to_new_shared_impl<meshed_trinormals_recording>));
 
-    name_mapping.emplace(std::make_pair("trinormals",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"trinormals"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.trinormals)));
+    define_array(0,rtn_typemap.at(typeid(*dummy.trinormals)),"trinormals");
 
   }
 
@@ -123,41 +119,26 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
 
-    name_mapping.emplace(std::make_pair("uvs",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"uvs"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.uvs)));
 
-    name_mapping.emplace(std::make_pair("uv_patches",1));
-    name_reverse_mapping.emplace(std::make_pair(1,"uv_patches"));
-    define_array(1,rtn_typemap.at(typeid(*dummy.uv_patches)));
+    rec_classes.push_back(recording_class_info("snde::meshed_parameterization_recording",typeid(meshed_parameterization_recording),ptr_to_new_shared_impl<meshed_parameterization_recording>));
 
-    name_mapping.emplace(std::make_pair("uv_topos",2));
-    name_reverse_mapping.emplace(std::make_pair(2,"uv_topos"));
-    define_array(2,rtn_typemap.at(typeid(*dummy.uv_topos)));
+    define_array(0,rtn_typemap.at(typeid(*dummy.uvs)),"uvs");
 
-    name_mapping.emplace(std::make_pair("uv_topo_indices",3));
-    name_reverse_mapping.emplace(std::make_pair(3,"uv_topo_indices"));
-    define_array(3,rtn_typemap.at(typeid(*dummy.uv_topo_indices)));
+    define_array(1,rtn_typemap.at(typeid(*dummy.uv_patches)),"uv_patches");
 
-    name_mapping.emplace(std::make_pair("uv_triangles",4));
-    name_reverse_mapping.emplace(std::make_pair(4,"uv_triangles"));
-    define_array(4,rtn_typemap.at(typeid(*dummy.uv_triangles)));
+    define_array(2,rtn_typemap.at(typeid(*dummy.uv_topos)),"uv_topos");
 
-    name_mapping.emplace(std::make_pair("uv_edges",5));
-    name_reverse_mapping.emplace(std::make_pair(5,"uv_edges"));
-    define_array(5,rtn_typemap.at(typeid(*dummy.uv_edges)));
+    define_array(3,rtn_typemap.at(typeid(*dummy.uv_topo_indices)),"uv_topo_indices");
 
-    name_mapping.emplace(std::make_pair("uv_vertices",6));
-    name_reverse_mapping.emplace(std::make_pair(6,"uv_vertices"));
-    define_array(6,rtn_typemap.at(typeid(*dummy.uv_vertices)));
+    define_array(4,rtn_typemap.at(typeid(*dummy.uv_triangles)),"uv_triangles");
 
-    name_mapping.emplace(std::make_pair("uv_vertex_edgelist_indices",7));
-    name_reverse_mapping.emplace(std::make_pair(7,"uv_vertex_edgelist_indices"));
-    define_array(7,rtn_typemap.at(typeid(*dummy.uv_vertex_edgelist_indices)));
+    define_array(5,rtn_typemap.at(typeid(*dummy.uv_edges)),"uv_edges");
 
-    name_mapping.emplace(std::make_pair("uv_vertex_edgelist",8));
-    name_reverse_mapping.emplace(std::make_pair(8,"uv_vertex_edgelist"));
-    define_array(8,rtn_typemap.at(typeid(*dummy.uv_vertex_edgelist)));
+    define_array(6,rtn_typemap.at(typeid(*dummy.uv_vertices)),"uv_vertices");
+
+    define_array(7,rtn_typemap.at(typeid(*dummy.uv_vertex_edgelist_indices)),"uv_vertex_edgelist_indices");
+
+    define_array(8,rtn_typemap.at(typeid(*dummy.uv_vertex_edgelist)),"uv_vertex_edgelist");
 
     // NOTE: Final parameter to multi_ndarray_recording() above is number of mapping entries ***!!! 
   }
@@ -168,13 +149,11 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
 
-    name_mapping.emplace(std::make_pair("inplane2uvcoords",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"inplane2uvcoords"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.inplane2uvcoords)));
+    rec_classes.push_back(recording_class_info("snde::meshed_projinfo_recording",typeid(meshed_projinfo_recording),ptr_to_new_shared_impl<meshed_projinfo_recording>));
 
-    name_mapping.emplace(std::make_pair("uvcoords2inplane",1));
-    name_reverse_mapping.emplace(std::make_pair(1,"uvcoords2inplane"));
-    define_array(1,rtn_typemap.at(typeid(*dummy.uvcoords2inplane)));
+    define_array(0,rtn_typemap.at(typeid(*dummy.inplane2uvcoords)),"inplane2uvcoords");
+
+    define_array(1,rtn_typemap.at(typeid(*dummy.uvcoords2inplane)),"uvcoords2inplane");
     
     
     // NOTE: Final parameter to multi_ndarray_recording() above is number of mapping entries ***!!! 
@@ -186,17 +165,14 @@ namespace snde {
   {
     snde_geometrydata dummy={0};
 
-    name_mapping.emplace(std::make_pair("boxes",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"boxes"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.boxes)));
+    rec_classes.push_back(recording_class_info("snde::boxes3d_recording",typeid(boxes3d_recording),ptr_to_new_shared_impl<boxes3d_recording>));
 
-    name_mapping.emplace(std::make_pair("boxcoord",1));
-    name_reverse_mapping.emplace(std::make_pair(1,"boxcoord"));
-    define_array(1,rtn_typemap.at(typeid(*dummy.boxcoord)));
+    
+    define_array(0,rtn_typemap.at(typeid(*dummy.boxes)),"boxes");
 
-    name_mapping.emplace(std::make_pair("boxpolys",2));
-    name_reverse_mapping.emplace(std::make_pair(2,"boxpolys"));
-    define_array(2,rtn_typemap.at(typeid(*dummy.boxpolys)));
+    define_array(1,rtn_typemap.at(typeid(*dummy.boxcoord)),"boxcoord");
+
+    define_array(2,rtn_typemap.at(typeid(*dummy.boxpolys)),"boxpolys");
 
     
     // NOTE: Final parameter to multi_ndarray_recording() above is number of mapping entries ***!!! 
@@ -208,7 +184,9 @@ namespace snde {
    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,0)
   {
     // ***!!!! NOTE: Must call set_num_patches after construction and before assigning storage ***!!!
+    rec_classes.push_back(recording_class_info("snde::boxes2d_recording",typeid(boxes2d_recording),ptr_to_new_shared_impl<boxes2d_recording>));
 
+    
     // NOTE: Final parameter to multi_ndarray_recording() above is number of mapping entries, which we initialize to 0
     // and is updated by set_num_patches()
 
@@ -222,19 +200,13 @@ namespace snde {
     set_num_ndarrays(3*num_patches);
     
     for (snde_index patchnum=0;patchnum < num_patches;patchnum++) {
-      name_mapping.emplace(std::make_pair("uv_boxes"+std::to_string(patchnum),patchnum*3+0));
-      name_reverse_mapping.emplace(std::make_pair(patchnum*3+0,"uv_boxes"+std::to_string(patchnum)));
-      define_array(patchnum*3+0,rtn_typemap.at(typeid(*dummy.uv_boxes)));
+      define_array(patchnum*3+0,rtn_typemap.at(typeid(*dummy.uv_boxes)),"uv_boxes"+std::to_string(patchnum));
 
       
-      name_mapping.emplace(std::make_pair("uv_boxcoord"+std::to_string(patchnum),patchnum*3+1));
-      name_reverse_mapping.emplace(std::make_pair(patchnum*3+1,"uv_boxcoord"+std::to_string(patchnum)));
-      define_array(patchnum*3+1,rtn_typemap.at(typeid(*dummy.uv_boxcoord)));
+      define_array(patchnum*3+1,rtn_typemap.at(typeid(*dummy.uv_boxcoord)),"uv_boxcoord"+std::to_string(patchnum));
 
       
-      name_mapping.emplace(std::make_pair("uv_boxpolys"+std::to_string(patchnum),patchnum*3+2));
-      name_reverse_mapping.emplace(std::make_pair(patchnum*3+2,"uv_boxpolys"+std::to_string(patchnum)));
-      define_array(patchnum*3+2,rtn_typemap.at(typeid(*dummy.uv_boxpolys)));
+      define_array(patchnum*3+2,rtn_typemap.at(typeid(*dummy.uv_boxpolys)),"uv_boxpolys"+std::to_string(patchnum));
       
     }
     
@@ -248,10 +220,10 @@ namespace snde {
     
   {
     snde_geometrydata dummy={0};
-    
-    name_mapping.emplace(std::make_pair("texbuffer",0));
-    name_reverse_mapping.emplace(std::make_pair(0,"texbuffer"));
-    define_array(0,rtn_typemap.at(typeid(*dummy.texbuffer)));
+
+    rec_classes.push_back(recording_class_info("snde::texture_recording",typeid(texture_recording),ptr_to_new_shared_impl<texture_recording>));
+
+    define_array(0,rtn_typemap.at(typeid(*dummy.texbuffer)),"texbuffer");
     
     
   }
@@ -267,18 +239,19 @@ namespace snde {
   }
 
   textured_part_recording::textured_part_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string part_name, std::shared_ptr<std::string> parameterization_name, const std::map<snde_index,std::shared_ptr<image_reference>> &texture_refs) :
-    recording_group(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,nullptr),
+    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize),
     part_name(part_name),
     parameterization_name(parameterization_name),
     texture_refs(texture_refs)
   {
+    rec_classes.push_back(recording_class_info("snde::textured_part_recording",typeid(textured_part_recording),ptr_to_new_shared_impl<textured_part_recording>));
 
   }
 
   
   // This version primarily for Python wrapping
   textured_part_recording::textured_part_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string part_name, std::shared_ptr<std::string> parameterization_name, std::vector<std::pair<snde_index,std::shared_ptr<image_reference>>> texture_refs_vec) :
-    recording_group(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,nullptr),
+    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize),
     part_name(part_name),
     parameterization_name(parameterization_name)
   {
@@ -290,27 +263,31 @@ namespace snde {
 
 
   assembly_recording::assembly_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::vector<std::pair<std::string,snde_orientation3>> &pieces) :
-    recording_group(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,nullptr),
+    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize),
     pieces(pieces)
   {
-    
+    rec_classes.push_back(recording_class_info("snde::assembly_recording",typeid(assembly_recording),ptr_to_new_shared_impl<assembly_recording>));
+
   }
 
 
   loaded_part_geometry_recording::loaded_part_geometry_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::unordered_set<std::string> &processing_tags)
  :
-    recording_group(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,nullptr),
+    recording_group(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize), //,nullptr),
     processing_tags(processing_tags)
   {
+    rec_classes.push_back(recording_class_info("snde::loaded_part_geometry_recording",typeid(loaded_part_geometry_recording),ptr_to_new_shared_impl<loaded_part_geometry_recording>));
     
   }
 
   
   tracking_pose_recording::tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient,std::string component_name):
-    recording_group(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,nullptr),
+    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize),
     channel_to_reorient(channel_to_reorient),
     component_name(component_name)
   {
+    rec_classes.push_back(recording_class_info("snde::tracking_pose_recording",typeid(tracking_pose_recording),ptr_to_new_shared_impl<tracking_pose_recording>));
+
     
   }
 
@@ -324,6 +301,8 @@ namespace snde {
     tracking_pose_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,channel_to_reorient,component_name),
     pose_channel_name(pose_channel_name)
   {
+    rec_classes.push_back(recording_class_info("snde::pose_channel_tracking_pose_recording",typeid(pose_channel_tracking_pose_recording),ptr_to_new_shared_impl<pose_channel_tracking_pose_recording>));
+
     
   }
 
@@ -334,7 +313,7 @@ namespace snde {
     snde_invalid_orientation3(&retval); // invalid orientation
 
     std::string chanpath = info->name;
-    std::string pose_recording_fullpath = recdb_join_assembly_and_component_names(chanpath,pose_channel_name);
+    std::string pose_recording_fullpath = recdb_path_join(chanpath,pose_channel_name);
     std::shared_ptr<recording_base> pose_recording = rss->get_recording(pose_recording_fullpath);
 
     if (!pose_recording)  {
@@ -359,6 +338,36 @@ namespace snde {
   }
 
 
+  pose_channel_recording::pose_channel_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays,std::string channel_to_reorient) :
+    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,num_ndarrays),
+    channel_to_reorient(channel_to_reorient)
+    
+  {
+    rec_classes.push_back(recording_class_info("snde::pose_channel_recording",typeid(pose_channel_recording),ptr_to_new_shared_impl<pose_channel_recording>));
+
+    if (num_ndarrays != 1) {
+      throw snde_error("pose_channel_recording::pose_channel_recording(%s): Error only single ndarray supported",chanpath.c_str());
+    }
+    
+    define_array(0,rtn_typemap.at(typeid(snde_orientation3)),"pose");
+  }
+
   
+  // only call during initialization
+  void pose_channel_recording::set_untransformed_render_channel(std::string component_name_str)
+  {
+    component_name = std::make_shared<std::string>(component_name_str);
+  }
+
+  /* static */ std::shared_ptr<pose_channel_recording> pose_channel_recording::from_ndarray_recording(std::shared_ptr<multi_ndarray_recording> rec)
+  {
+    return std::dynamic_pointer_cast<pose_channel_recording>(rec);
+  }
+
+  std::shared_ptr<ndarray_recording_ref> create_pose_channel_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string channel_to_reorient_name)
+  {
+    return create_subclass_ndarray_ref<pose_channel_recording>(recdb,chan,owner_id,SNDE_RTN_SNDE_ORIENTATION3,channel_to_reorient_name);
+  }
+
   
 };

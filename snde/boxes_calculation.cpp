@@ -433,6 +433,9 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 	  parts->firstboxpoly=firstboxpoly;
 	  parts->numboxpolys=boxpolylist.size();
 	  
+	  part->reference_ndarray("parts")->storage->mark_as_modified(nullptr,0,1,true); // indicate that we have modified this first element of "parts", invalidating caches. 
+
+	  
 	  snde_box3 *boxes=(snde_box3 *)result_rec->void_shifted_arrayptr("boxes");
 	  snde_boxcoord3 *boxcoord=(snde_boxcoord3 *)result_rec->void_shifted_arrayptr("boxcoord");
 	  snde_index *boxpolys=(snde_index *)result_rec->void_shifted_arrayptr("boxpolys");
@@ -486,8 +489,10 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   
   static int registered_boxes_calculation_3d_function = register_math_function("spatialnde2.boxes_calculation_3d",boxes_calculation_3d_function);
 
-  void instantiate_boxes3d(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  void instantiate_boxes3d(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
+    std::string context = recdb_path_context(loaded_geom->info->name);
+
     std::shared_ptr<instantiated_math_function> instantiated = boxes_calculation_3d_function->instantiate( {
 	std::make_shared<math_parameter_recording>("meshed"),
 	std::make_shared<math_parameter_recording>("trinormals"),
@@ -496,7 +501,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
       {
 	std::make_shared<std::string>("boxes3d")
       },
-      std::string(loaded_geom->info->name)+"/",
+      context,
       false, // is_mutable
       false, // ondemand
       false, // mdonly
@@ -505,6 +510,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
 
     recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
+    loaded_geom->processed_relpaths.emplace("boxes3d","boxes3d");
 
   }
 
@@ -934,7 +940,8 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 	      patch->firstuvboxpoly = firstboxpoly;
 	      patch->numuvboxpolys = numboxpolys;
 	      
-	      
+	      //param->reference_ndarray("uv_patches")->storage->mark_as_modified(nullptr,uv_patchnum,1); // indicate that we have modified this first element of "parts", invalidating caches. 
+
 	      snde_box2 *uv_boxes=(snde_box2 *)result_rec->void_shifted_arrayptr("uv_boxes"+std::to_string(patchnum));
 	      snde_boxcoord2 *uv_boxcoord=(snde_boxcoord2 *)result_rec->void_shifted_arrayptr("uv_boxcoord"+std::to_string(patchnum));
 	      snde_index *uv_boxpolys=(snde_index *)result_rec->void_shifted_arrayptr("uv_boxpolys"+std::to_string(patchnum));
@@ -964,6 +971,9 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 	      memcpy((void *)uv_boxpolys,(void *)boxpolylist.data(),sizeof(snde_index)*boxpolylist.size());
 	      
 	    }
+
+	    param->reference_ndarray("uv_patches")->storage->mark_as_modified(nullptr,0,params->numuvpatches,true); // indicate that we have modified this first element of "parts", invalidating caches. 
+
 	    
 	    unlock_rwlock_token_set(all_box_locks); // lock must be released prior to mark_data_ready() 
 	    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
@@ -997,26 +1007,28 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   static int registered_boxes_calculation_2d_function = register_math_function("spatialnde2.boxes_calculation_2d",boxes_calculation_2d_function);
 
 
-  void instantiate_boxes2d(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom)
+  void instantiate_boxes2d(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
+    
+    std::string context = recdb_path_context(loaded_geom->info->name);
     std::shared_ptr<instantiated_math_function> instantiated = boxes_calculation_2d_function->instantiate( {
 	std::make_shared<math_parameter_recording>("uv"),
       },
       {
 	std::make_shared<std::string>("boxes2d")
       },
-      std::string(loaded_geom->info->name)+"/",
+      context,
       false, // is_mutable
       false, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("instantiate_boxes2d()"),
       nullptr);
 
-
+    
     recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
-
+    loaded_geom->processed_relpaths.emplace("boxes2d","boxes2d");
   }
-
+  
   static int registered_boxes2d_processor = register_geomproc_math_function("boxes2d",instantiate_boxes2d);
 
 

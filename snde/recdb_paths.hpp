@@ -23,7 +23,23 @@ namespace snde {
     // so  backpos = full_path.size()-endpos i.e. backpos starts with 1
     // endpos >= 0 --> full_path.size()-backpos >= 0
     // so full_path.size() >= backpos
-    for (backpos=1;backpos <= sz;backpos++) {
+    if (sz == 0) {
+        return std::make_pair("", "");
+        //throw snde_error("recdb_path_split(): full_path must not be empty");   // This needs to return empty in this scenario to cause the calling loop to break
+    }
+
+    if (full_path.at(0) != '/') {
+        throw snde_error("recdb_path_split(): full_path '%s' must begin with /", full_path.c_str());
+    }
+
+    if (sz < 2) {
+        // Size is 1
+        if (full_path == "/") {
+            return std::make_pair("/", "");
+        }
+    }
+
+    for (backpos=2;backpos <= sz;backpos++) {
       if (full_path.at(sz-backpos)=='/') {
 	break; 
       }
@@ -33,13 +49,8 @@ namespace snde {
       // loop ran through, never found a '/'
       return std::make_pair("",full_path);
     }
-
-    if (backpos==sz && sz==1) {
-      // just bare leading slash: return ("/","")
-      return std::make_pair("/","");
-    }
     
-    return std::make_pair(full_path.substr(0,sz-backpos),full_path.substr(sz-backpos+1,backpos-1));
+    return std::make_pair(full_path.substr(0,sz-backpos+1),full_path.substr(sz-backpos+1,backpos-1));
       
   }
   
@@ -65,11 +76,12 @@ namespace snde {
     return full_path.substr(0,endpos+1);
   }
   
-
+  /* recdb_path_as_group should ONLY be used in the display where we add dynamic sub-recordings with
+     temporary render output in our rendering RSS */
     static inline std::string recdb_path_as_group(const std::string &full_path)
   {
     // Interpret a recdb path as a group -- i.e. add a trailing slash
-    // if not already present. 
+    
     
     if (full_path.size() < 1) {
       throw snde_error("recdb_path_as_group(): path is empty!");
@@ -80,12 +92,11 @@ namespace snde {
     endpos=full_path.size()-1;
 
     if (full_path.at(endpos)=='/') {
-      return full_path;
+      throw snde_error("recdb_path_as_group(): Path %s is already a group",full_path.c_str());
     } 
     
     return full_path+"/";
   }
-  
 
   static inline std::string recdb_path_join(std::string context,std::string tojoin)
   {
@@ -227,15 +238,21 @@ namespace snde {
     return *detokenize(std::vector<std::string>(to_tok_deq.begin(),to_tok_deq.end()),'/');
   }
 
+
+  /*
+recdb_join_assembly_and_component_names no longer needed because all groups are supposed to 
+have trailing slashes in their paths now */
+
+  /*
   static std::string recdb_join_assembly_and_component_names(const std::string &assempath, const std::string &compname)
 // compname may be relative to our assembly, interpreted as a group
 {
   assert(assempath.size() > 0);
-  assert(assempath.at(assempath.size()-1) != '/'); // chanpath should not have a trailing '/'
+  assert(assempath.at(assempath.size()-1) == '/'); // chanpath should have a trailing '/'
   
-  return recdb_path_join(recdb_path_as_group(assempath),compname);
+  return recdb_path_join(assempath,compname);
 }
-
+  */
 
   
 }

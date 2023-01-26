@@ -189,16 +189,16 @@ static QUATERNION_INLINE void rotmtx_build_orientation(const snde_coord4 *rotmtx
   // select equation according to which has the largest
   // square root paramter
   // eta4, Shuster eq. 163:
-  snde_coord eta4_sqrt = 1.0 + rotmtx[0].coord[0] + rotmtx[1].coord[1] + rotmtx[2].coord[2];
+  snde_coord eta4_sqrt = 1.0f + rotmtx[0].coord[0] + rotmtx[1].coord[1] + rotmtx[2].coord[2];
 
   // eta1, Shuster eq. 166a
-  snde_coord eta1_sqrt = 1.0 + rotmtx[0].coord[0] - rotmtx[1].coord[1] - rotmtx[2].coord[2];
+  snde_coord eta1_sqrt = 1.0f + rotmtx[0].coord[0] - rotmtx[1].coord[1] - rotmtx[2].coord[2];
 
   // eta2, Schuster eq 167a
-  snde_coord eta2_sqrt = 1.0 - rotmtx[0].coord[0] + rotmtx[1].coord[1] - rotmtx[2].coord[2];
+  snde_coord eta2_sqrt = 1.0f - rotmtx[0].coord[0] + rotmtx[1].coord[1] - rotmtx[2].coord[2];
 
   // eta3, Schuster eq. 168a
-  snde_coord eta3_sqrt = 1.0 - rotmtx[0].coord[0] -rotmtx[1].coord[1] + rotmtx[2].coord[2];
+  snde_coord eta3_sqrt = 1.0f - rotmtx[0].coord[0] -rotmtx[1].coord[1] + rotmtx[2].coord[2];
 
   // Note: eta1, eta2, eta3, eta4 represent quaternion components in order
 
@@ -263,7 +263,7 @@ static QUATERNION_INLINE void rotmtx_build_orientation(const snde_coord4 *rotmtx
   {
     snde_coord4 verify_rotmtx[4];
     unsigned row,col;
-    snde_coord residual=0.0;
+    snde_coord residual=0.0f;
     
     orientation_build_rotmtx(*orient,verify_rotmtx);
     // check match of upper 3x3
@@ -282,7 +282,13 @@ static QUATERNION_INLINE void rotmtx_build_orientation(const snde_coord4 *rotmtx
   }
 }
 
-
+static QUATERNION_INLINE int orientation_valid(const snde_orientation3 orient)
+{
+  if (isnan(orient.offset.coord[0]) || isnan(orient.quat.coord[0])) {
+    return FALSE;
+  }
+  return TRUE;
+}
 
 static QUATERNION_INLINE void orientation_inverse(const snde_orientation3 orient,snde_orientation3 *inverse)
 {
@@ -294,6 +300,11 @@ static QUATERNION_INLINE void orientation_inverse(const snde_orientation3 orient
   // p = q1'p_rotq1 - q1'o1q1
   // Therefore, the orientation inverse
   // is q1', -q1'o1q1
+  if (isnan(orient.quat.coord[0])) {
+    snde_invalid_orientation3(inverse);
+    return;
+  }
+  
   quaternion_inverse(orient.quat,&inverse->quat);
   quaternion_apply_vector(inverse->quat,orient.offset,&inverse->offset);
   inverse->offset.coord[0]=-inverse->offset.coord[0];

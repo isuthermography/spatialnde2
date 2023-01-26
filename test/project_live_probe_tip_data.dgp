@@ -1,0 +1,239 @@
+from dataguzzler_python import dgpy
+from dataguzzler_python import context
+import spatialnde2 as snde
+import threading
+import time
+
+include(dgpy,"dgpy_startup.dpi") # If you get a NameError here, be sure you are executing this file with dataguzzler-python
+
+include(dgpy,"Qt.dpi",prefer_pyqt=False) 
+
+include(dgpy,"matplotlib.dpi")
+include(snde,"recdb.dpi",enable_opencl=True) 
+include(snde,"recdb_gui.dpi")
+
+specimen_model_file = "Plate_uv.x3d"
+specimen_model_scaling = snde.x3d_texture_scaling(.142478,.14246) # from x3d_estimate_meters_per_texunit.py
+specimen_model_tree = "/graphics/specimen/"
+specimen_pose_channel = "/specimen_pose"
+projection_channel="/graphics/projection"
+projection_specimen_channel="/graphics/projection_specimen"
+
+
+probe_model_file = "Probe_uv.x3d"
+probe_model_tree = "/graphics/probe/"
+probe_pose_channel = "/probe_pose"
+
+orient_dtype = [('offset', '<f4', (4,)), ('quat', '<f4', (4,))]
+
+graphman=snde.graphics_storage_manager("/graphics/",recdb.lowlevel_alloc,recdb.alignment_requirements,recdb.lockmgr,1e-8,2000000000);
+
+transact = recdb.start_transaction()
+
+
+graphicsgroup = recdb.define_channel("/graphics/","main",recdb.raw(),False,graphman)
+
+plate_recording = snde.x3d_load_geometry(recdb,graphman,specimen_model_file,0,"main",recdb.raw(),specimen_model_tree,specimen_model_scaling,[ "reindex_vertices","reindex_tex_vertices"] + snde.project_onto_parameterization_processing_tags)
+
+
+probe_recording = snde.x3d_load_geometry(recdb,graphman,probe_model_file,0,"main",recdb.raw(),probe_model_tree,None,[ "reindex_vertices","reindex_tex_vertices" ])
+
+
+main_viewer.viewer.set_camera_pose(snde.recdb_path_join(probe_model_tree,"meshed"),np.array(([0,0,.4,  0.        ], [ 0,0,0,  1]),dtype=[('offset', '<f4', (4,)), ('quat', '<f4', (4,))]))
+main_viewer.viewer.set_rotation_center_dist(snde.recdb_path_join(probe_model_tree,"meshed"),0.4)
+
+
+specimen_pose_chan = recdb.define_channel(specimen_pose_channel,"main",recdb.raw())
+specimen_pose_ref = snde.create_pose_channel_ndarray_ref(recdb,specimen_pose_chan,recdb.raw(),snde.recdb_path_join(specimen_model_tree,"meshed"))
+specimen_pose_ref.allocate_storage([1])
+specimen_position = np.array(((0,0,0,0),(.4, .3, .625, .6)),dtype=orient_dtype)
+# Temporarily use trivial specimen position
+#specimen_position = np.array(((0,0,0,0),(0,0,0,1)),dtype=orient_dtype)
+specimen_pose_ref.data()[0]=specimen_position
+specimen_pose_ref.rec.mark_data_and_metadata_ready()
+
+
+
+probe_pose_func = include(snde,"manual_positioner_in_transaction.dpi",
+                          positioner_channel="/probe_positioner",
+                          background_channel=specimen_pose_channel,
+                          model_channel=snde.recdb_path_join(probe_model_tree,"meshed"))
+
+probe_pose_chan = recdb.define_channel(probe_pose_channel,"main",recdb.raw())
+
+
+def new_probe_posn_in_transaction(orientation):
+    
+    probe_pose_ref = snde.create_pose_channel_ndarray_ref(recdb,probe_pose_chan,recdb.raw(),snde.recdb_path_join(probe_model_tree,"meshed"))
+    probe_pose_ref.allocate_storage([1])
+
+    probe_pose_rec = snde.pose_channel_recording.from_ndarray_recording(probe_pose_ref.rec)
+    probe_pose_rec.set_untransformed_render_channel(specimen_pose_channel)
+    
+    probe_pose_ref.data()[0]=orientation
+    probe_pose_ref.rec.mark_metadata_done()
+    probe_pose_ref.rec.mark_data_ready()
+    pass
+
+# initialize probe_pose with an invalid orientation so we can get an
+# initial empty projection
+new_probe_posn_in_transaction(snde.snde_invalid_orientation3())
+#probe_positioner_chan = recdb.define_channel("/probe_positioner","main",recdb.raw())
+#probe_positioner_rec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,probe_positioner_chan,recdb.raw(),probe_model_tree+"/meshed","/specimen_pose",main_viewer.viewer.OSGWidget)
+#probe_positioner_rec.mark_data_and_metadata_ready()
+
+
+## For nontrivial specimen position 
+main_viewer.viewer.set_camera_pose("/probe_positioner",np.array(([-0.3360842 ,  0.05746431, -0.19362034,  0.        ], [ 0.6163294 ,  0.63233364, -0.2971067 , -0.36334535]),
+      dtype=[('offset', '<f4', (4,)), ('quat', '<f4', (4,))]))
+# For trivial specimen position
+#main_viewer.viewer.set_camera_pose("/probe_positioner",np.array(([ 0.07375578,  0.01429099, -0.39151475,  0.        ], [0.9951329 , 0.08943763, 0.03899188, 0.01382136]),
+#      dtype=[('offset', '<f4', (4,)), ('quat', '<f4', (4,))]))
+main_viewer.viewer.set_rotation_center_dist("/probe_positioner",0.425)
+
+
+
+
+
+
+
+# Synthetic probe based on phase_plot_test.dgp
+
+synthetic_probe_impedance_chan = recdb.define_channel("/synthetic_probe_impedance","main",recdb.raw())
+
+def new_synthetic_probe_impedance_rec_in_transaction(value):
+    """This function is used within a transaction to create a new 
+recording with a new value (NOTE: Not particularly necessary to have this abstracted out)"""
+    synthetic_probe_imp_ref = snde.create_ndarray_ref(recdb,synthetic_probe_impedance_chan,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
+    metadata = snde.constructible_metadata()
+    metadata.AddMetaDatum(snde.metadatum("snde_render_goal","SNDE_SRG_PHASEPLANE"))
+    metadata.AddMetaDatum(snde.metadatum("snde_phase_plane_historical_fade",True))
+    metadata.AddMetaDatum(snde.metadatum("nde_array-ampl_coord","Impedance"))
+    metadata.AddMetaDatum(snde.metadatum("nde_array-ampl_units","Ohms"))
+    
+    synthetic_probe_imp_ref.rec.metadata=metadata;
+    
+    synthetic_probe_imp_ref.rec.mark_metadata_done()
+    synthetic_probe_imp_ref.allocate_storage( [] )
+    
+    synthetic_probe_imp_ref.assign_complexfloat64([],value)
+    synthetic_probe_imp_ref.rec.mark_data_and_metadata_ready()
+    pass
+
+# Provide initial NaN value on the channel so we can create the projection immediately
+new_synthetic_probe_impedance_rec_in_transaction(np.nan)
+
+
+synthetic_probe_history = snde.batched_live_accumulator.instantiate( [ snde.math_parameter_recording("/synthetic_probe_impedance"),
+                                                                       snde.math_parameter_unsigned_const(30),
+                                                                       snde.math_parameter_unsigned_const(10),
+                                                                       snde.math_parameter_bool_const(False),
+                                                                       snde.math_parameter_bool_const(True)],
+                                                                     [ snde.shared_string("/synthetic_probe_history") ],
+                                                                     "/",
+                                                                     False,
+                                                                     False,
+                                                                     False,
+                                                                     snde.math_definition("synthetic_probe_history definition"),
+                                                                     None)
+recdb.add_math_function(synthetic_probe_history,False)
+
+
+include(snde,"project_probe_tip_data_in_transaction.dpi",
+        specimen_model_tree = specimen_model_tree,
+        specimen_pose_channel = specimen_pose_channel,
+        probe_pose_channel=probe_pose_channel,
+        probe_tip_data_channel="/synthetic_probe_impedance",
+        min_dist = -0.2, # starting position for ray tracer, relative to probe tip position, in meters
+        max_dist = 0.3, # ending position for ray tracer, relative to probe tip position, in meters
+        radius = 0.01, # spot size, in nominal parameterization scale, in meters
+        horizontal_pixels = 1282, # horizontal total pixel width in parameterization space
+        vertical_pixels = 1280, # vertical total pixel width in parameterization space
+        projection_channel = projection_channel,
+        projection_specimen_channel = projection_specimen_channel,
+        )
+
+## Create tracking pose recording so we can see the positioned probe
+#positioned_probe_chan = recdb.define_channel("/positioned_probe","main",recdb.raw())
+#snde.create_pose_channel_tracking_pose_recording(recdb,positioned_probe_chan,recdb.raw(),
+#                                                 probe_model_tree+"/meshed",specimen_pose_channel,probe_pose_channel).mark_data_and_metadata_ready()
+
+
+
+transact.end_transaction()
+
+
+
+
+    
+
+def sensordata_thread_code():
+    context.InitFreeThread()
+
+    cnt = 0
+
+    center = 0.1*10
+    radius = 0.2*10
+    
+    while True: 
+
+        transact = recdb.start_transaction()	
+        angle = cnt*15*np.pi/180.0
+
+        value = center + radius*np.exp((0+1j)*angle)
+
+        new_synthetic_probe_impedance_rec_in_transaction(value)
+        
+        #if np.real(value) < 0.0:
+        #    value = np.nan
+        #    pass
+        #print("value=%s" % (str(value)))
+        
+        
+        grev = transact.end_transaction()
+
+        grev.wait_complete()
+        time.sleep(.01)
+        cnt+=1
+        pass
+    
+    pass
+
+
+
+def probepos_thread_code():
+    
+    context.InitFreeThread()
+    
+    
+    while True:
+        transact = recdb.start_transaction()
+        
+        
+        
+        # Figure out probe position from the camera orientations in the probe channel
+        # and the view tracking channel, probe_positioner
+        #probe_campose = main_viewer.viewer.get_camera_pose(probe_model_tree+"/meshed")
+        #probe_campose_inverse = snde.orientation_inverse(probe_campose)
+        #probe_positioner_campose = main_viewer.viewer.get_camera_pose("/probe_positioner")
+        #probe_position = snde.orientation_orientation_multiply(probe_positioner_campose,probe_campose_inverse)
+        
+        orientation = probe_pose_func() # probe_position
+        
+        new_probe_posn_in_transaction(orientation)
+        
+        
+        grev = transact.end_transaction()
+        grev.wait_complete()
+        time.sleep(.01)
+        pass
+    pass
+
+
+sensordata_thread = threading.Thread(target=sensordata_thread_code,daemon=True)
+sensordata_thread.start()
+
+probepos_thread = threading.Thread(target=probepos_thread_code,daemon=True)
+probepos_thread.start()
+
+

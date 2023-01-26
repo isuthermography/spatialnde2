@@ -15,8 +15,11 @@ namespace snde {
 
   class meshed_part_recording: public multi_ndarray_recording {
   public:
-    //std::string part_name; // strings are path names, absolute or relative, treating the path of the assembly_recording with a trailing slash as a group context
+    //std::shared_ptr<std::string> vertnormals_name; // relative path based on recdb_path_context(recording_path)
 
+    std::map<std::string,std::string> processed_relpaths; // indexed by "meshed", "uv", etc.; should be relative to the recdb_path_context(name), copied from the loaded_part_geometry_recording
+
+    
     meshed_part_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize);
 
   };
@@ -44,6 +47,12 @@ namespace snde {
   class meshed_vertnormals_recording: public multi_ndarray_recording {
   public:
     meshed_vertnormals_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize);
+    // has vertnormals field. 
+  };
+
+    class meshed_vertnormalarrays_recording: public multi_ndarray_recording {
+  public:
+    meshed_vertnormalarrays_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize);
     // has vertnormals field. 
   };
 
@@ -108,13 +117,15 @@ namespace snde {
   };
 
   
-  class textured_part_recording: public recording_group {
+  class textured_part_recording: public recording_base {
   public:
     // NOTE: Texture may or may not be actually present (no texture indicated by nullptr parameterization_name and empty texture_refs
-    std::string part_name; // strings are path names, absolute or relative, treating the path of the texured_part_recording with a trailing slash as a group context
+    std::string part_name; // strings are path names, usually relative, treating the recdb_path_context(path of the texured_part_recording) as context
     std::shared_ptr<std::string> parameterization_name;
     std::map<snde_index,std::shared_ptr<image_reference>> texture_refs; // indexed by parameterization face number
-    
+
+    std::map<std::string,std::string> processed_relpaths; // indexed by "meshed", "uv", etc.; should be relative to the recdb_path_context(recording name), copied from the loaded_part_geometry_recording
+
     
     textured_part_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string part_name, std::shared_ptr<std::string> parameterization_name, const std::map<snde_index,std::shared_ptr<image_reference>> &texture_refs);
 
@@ -126,9 +137,9 @@ namespace snde {
   // textured_part_recording -> renderable_textured_part_recording for rendering, which points at the renderable_meshed_part recording, the meshed_texvertex recording, and an rgba_image_reference
 
   
-  class assembly_recording: public recording_group {
+  class assembly_recording: public recording_base {
   public:
-    std::vector<std::pair<std::string,snde_orientation3>> pieces; // strings are path names, absolute or relative, treating the path of the assembly_recording with a trailing slash as a group context
+    std::vector<std::pair<std::string,snde_orientation3>> pieces; // strings are path names, hopefully relative, treating the recdb_path_context() of the assembly_recording's path as the relative context for pieces group context
     
     assembly_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::vector<std::pair<std::string,snde_orientation3>> &pieces);
   };
@@ -138,6 +149,9 @@ namespace snde {
     // represents loaded (or saveable) geometry -- usually a meshed part, a uv, perhaps a texed part and texture, etc. 
   public:
     std::unordered_set<std::string> processing_tags; // processing tags used on load
+
+    std::map<std::string,std::string> processed_relpaths; // indexed by "meshed", "uv", etc.; should be relative to the group
+    
     
     loaded_part_geometry_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::unordered_set<std::string> &processing_tags);
     // Could (should) implement get_meshed_part(), get_texed_part(), get_parameterization(), etc. methods.
@@ -145,11 +159,12 @@ namespace snde {
 
 
 
-  class tracking_pose_recording: public recording_group {
-    // the tracking_pose_recording is like a single-component
-    // assembly with a particular orientation that, when
+  class tracking_pose_recording: public recording_base {
+    // the tracking_pose_recording is like a two-component
+    // assembly with one component (channel_to_reorient) having particular orientation that, when
     // rendered, tracks the pose of something else, as
     // determined by the behavior of the get_channel_to_reorient_pose() virtual method
+    // The channel given by component_name is also rendered but isn't rotated. 
     
     // abstract class: Must subclass! ... Then register your class to use the tracking_pose_recording_display_handler (see display_requirements.cpp)
   public:
@@ -163,16 +178,51 @@ namespace snde {
   };
 
 
+  // Note: pose_channel_tracking_pose recording
+  // is a renderable channel that refers to an external
+  // ndarray pose recording.
+  // It works, but is obsolete and (probably) no longer used.
+  // Replaced by making the ndarray actually an ndarray_pose_recording
+  // so you have one fewer channels. 
   class pose_channel_tracking_pose_recording: public tracking_pose_recording {
   public:
     // Get the orientation of the 
     std::string pose_channel_name;
 
+    // channel_to_reorient will be rotated by the pose stored in the pose channel.
+    // component_name will be included like in the assembly, but unrotated
+    // pose_channel_name is the name of the channel containing the pose. 
     pose_channel_tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient,std::string component_name,std::string pose_channel_name);
     
     virtual snde_orientation3 get_channel_to_reorient_pose(std::shared_ptr<recording_set_state> rss) const;
 
   };
+
+
+
+  // Simpler alternative to a pose_channel ndarray recording + a pose_channel_tracking_pose_recording
+  // but does not support a fixed recording as well
+
+  class pose_channel_recording: public multi_ndarray_recording {
+  public:
+    // should have a single 0D array of type snde_orientation3
+    // with the value representing the orient_world_over_object. 
+    
+    std::string channel_to_reorient; // Name of the channel to render with the given pose, potentially relative to the parent of the pose_channel_recording
+    std::shared_ptr<std::string> component_name; // nullptr, or name of the channel to render untransformed, potentially relative to the parent of the pose_channel_recording
+    
+    pose_channel_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays,std::string channel_to_reorient); // must have num_ndarrays parameter for compatibility with create_subclass_ndarray_ref<S,T>...
+
+    void set_untransformed_render_channel(std::string component_name_str); // only call during initialization
+
+    // this static method is used by Python through the SWIG wrappers to get a pose_channel_recording from the .rec attribute of an ndarray_recording_ref
+    static std::shared_ptr<pose_channel_recording> from_ndarray_recording(std::shared_ptr<multi_ndarray_recording> rec);
+    
+  };
+
+  // convenience function for SWIG
+  std::shared_ptr<ndarray_recording_ref> create_pose_channel_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner,std::string channel_to_reorient_name);
+  
   
 };
 

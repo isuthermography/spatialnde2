@@ -108,14 +108,16 @@ namespace snde {
 	  snde_ndarray_info *rec_tri_info = recording->ndinfo(recording->name_mapping.at("triangles"));
 	  snde_index numtris = rec_tri_info->dimlen[0];
 	  
-	  std::shared_ptr<graphics_storage_manager> graphman = std::dynamic_pointer_cast<graphics_storage_manager>(result_rec->assign_storage_manager());
-	  
-	  if (!graphman) {
-	    throw snde_error("vertexarray_function: Output arrays must be managed by a graphics storage manager");
-	  }
+	  //std::shared_ptr<graphics_storage_manager> graphman = std::dynamic_pointer_cast<graphics_storage_manager>(result_rec->assign_storage_manager());
+	  //// Don't think special storage manager is really necessary for this as it's now just a rendering intermediate!!!***
+	  //if (!graphman) {
+	  //  throw snde_error("vertexarray_function: Output arrays must be managed by a graphics storage manager");
+	  //}
 
 	  //std::shared_ptr<graphics_storage> vertarrays_storage = std::dynamic_pointer_cast<graphics_storage>(graphman->allocate_recording(result_rec->info->name,"vertex_arrays",result_rec->info->revision,sizeof(*graphman->geom.vertex_arrays),rtn_typemap.at(typeid(*graphman->geom.vertex_arrays)),numtris*9,false));
 	  //result_rec->assign_storage(vertarrays_storage,"vertex_arrays",{numtris*9});
+	  result_rec->assign_storage_manager(recdb->default_storage_manager); // Force default storage manager so that we DON'T go to the graphics storage (which is unnecessary for temporary output such as this)
+
 	  result_rec->allocate_storage("vertex_arrays",{numtris*9},false);
 	  
 
@@ -316,14 +318,16 @@ namespace snde {
 	  snde_ndarray_info *rec_tri_info = recording->ndinfo(recording->name_mapping.at("uv_triangles"));
 	  snde_index numtris = rec_tri_info->dimlen[0];
 	  
-	  std::shared_ptr<graphics_storage_manager> graphman = std::dynamic_pointer_cast<graphics_storage_manager>(result_rec->assign_storage_manager());
-	  
-	  if (!graphman) {
-	    throw snde_error("texvertexarray_function: Output arrays must be managed by a graphics storage manager");
-	  }
+	  //std::shared_ptr<graphics_storage_manager> graphman = std::dynamic_pointer_cast<graphics_storage_manager>(result_rec->assign_storage_manager());
+	  //
+	  //if (!graphman) {
+	  //  throw snde_error("texvertexarray_function: Output arrays must be managed by a graphics storage manager");
+	  //}
 
 	  //std::shared_ptr<graphics_storage> vertarrays_storage = std::dynamic_pointer_cast<graphics_storage>(graphman->allocate_recording(result_rec->info->name,"texvertex_arrays",result_rec->info->revision,sizeof(*graphman->geom.texvertex_arrays),rtn_typemap.at(typeid(*graphman->geom.texvertex_arrays)),numtris*6,false));
 	  //result_rec->assign_storage(vertarrays_storage,"texvertex_arrays",{numtris*6});
+	  result_rec->assign_storage_manager(this->recdb->default_storage_manager); // Force default storage manager so that we DON'T go to the graphics storage (which is unnecessary for temporary output such as this)
+
 	  result_rec->allocate_storage("texvertex_arrays",{numtris*6},false);
 
 

@@ -1,6 +1,7 @@
 #include <osg/Group>
 #include <osg/MatrixTransform>
 #include <osg/BlendFunc>
+#include <osg/Point>
 #include <iostream>
 
 
@@ -13,7 +14,7 @@
 namespace snde {
   
   // Lookups in the renderer registry are done per the indexes assigned by the registered recording display handlers defined in rec_display.cpp
-  
+
   static int osg_registered_imagedata = osg_register_renderer(rendermode(SNDE_SRM_RGBAIMAGEDATA,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry> {
       return std::make_shared<osg_cachedimagedata>(params,display_req);
     });
@@ -37,6 +38,14 @@ namespace snde {
   static int osg_registered_cachedcoloredtransparentlines = osg_register_renderer(rendermode(SNDE_SRM_COLOREDTRANSPARENTLINES,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
       return std::make_shared<osg_cachedcoloredtransparentlines>(params,display_req);
     });
+
+  static int osg_registered_cachedcoloredtransparentpoints = osg_register_renderer(rendermode(SNDE_SRM_COLOREDTRANSPARENTPOINTS, typeid(multi_ndarray_recording_display_handler)), [](const osg_renderparams& params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry> {
+    return std::make_shared<osg_cachedcoloredtransparentpoints>(params, display_req);
+    });
+
+  static int osg_registered_waveform = osg_register_renderer(rendermode(SNDE_SRM_WAVEFORM, typeid(multi_ndarray_recording_display_handler)), [](const osg_renderparams& params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry> {
+      return std::make_shared<osg_cachedwaveform>(params, display_req);
+      });
 
   static int osg_registered_cachedphaseplaneendpointwithcoloredtransparentlines = osg_register_renderer(rendermode(SNDE_SRM_PHASE_PLANE_ENDPOINT_WITH_COLOREDTRANSPARENTLINES,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
       return std::make_shared<osg_cachedphaseplaneendpointwithcoloredtransparentlines>(params,display_req);
@@ -76,6 +85,11 @@ namespace snde {
 
   // register our cachedtransformedcomponent as accommodating the tracking_pose_recording_display_handler
   static int osg_registered_transformedcomponent = osg_register_renderer(rendermode(SNDE_SRM_TRANSFORMEDCOMPONENT,typeid(tracking_pose_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedtransformedcomponent>(params,display_req);
+    });
+
+  // register our cachedtransformedcomponent as accommodating the pose_channel_recording_display_handler
+  static int osg_registered_transformedcomponent_posechannel = osg_register_renderer(rendermode(SNDE_SRM_TRANSFORMEDCOMPONENT,typeid(pose_channel_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
       return std::make_shared<osg_cachedtransformedcomponent>(params,display_req);
     });
 
@@ -548,7 +562,14 @@ namespace snde {
     // Get texture correpsonding to this same channel
     bool modified;
     std::shared_ptr<osg_rendercacheentry> raw_entry;
-    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(0),&locks_required);
+
+    std::shared_ptr<display_requirement> subreq = display_req->sub_requirements.at(0);
+
+    if (!subreq) {
+        throw snde_error("osg_cachedimage: Unable to get subrequirement for %s", display_req->renderable_channelpath->c_str());
+    }
+
+    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,subreq,&locks_required);
 
     texture = std::dynamic_pointer_cast<osg_rendercachetextureentry>(raw_entry);
 
@@ -932,6 +953,221 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
   }
 
 
+  osg_cachedcoloredtransparentpoints::osg_cachedcoloredtransparentpoints(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req)
+  {
+    cached_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+
+    if (!cached_recording) {
+      throw snde_error("osg_cachedcoloredtransparentpoints: Could not get recording for %s", display_req->renderable_channelpath->c_str());
+    }
+
+    std::shared_ptr<ndarray_recording_ref> pointcoord_array = cached_recording->reference_ndarray("pointcoord");
+    std::shared_ptr<ndarray_recording_ref> pointcoordcolor_array = cached_recording->reference_ndarray("pointcoord_color");
+
+    locks_required.push_back({ pointcoord_array,false }); // accmulate locks needed for lockmanager::lock_recording_refs()
+    locks_required.push_back({ pointcoordcolor_array,false }); // accmulate locks needed for lockmanager::lock_recording_refs()
+
+    pointcoord_osg_array = new OSGFPArray(pointcoord_array, 3, 3); // 3 for 3d point coordinates    
+    pointcoordcolor_osg_array = new OSGFPArray(pointcoordcolor_array, 1, 4); // 4 for RGBA entries    
+
+    osg_arrays.push_back(pointcoord_osg_array);
+    osg_arrays.push_back(pointcoordcolor_osg_array);
+
+  }
+
+
+  std::pair<bool, bool> osg_cachedcoloredtransparentpoints::attempt_reuse(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req)
+  {
+    std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    if (!new_recording) {
+      throw snde_error("osg_cachedcoloredtransparentpoints::attempt_reuse: Could not get recording for %s", display_req->renderable_channelpath->c_str());
+    }
+
+    return std::make_pair(new_recording == cached_recording && new_recording->info->immutable, false); // (reusable,modified)
+
+  }
+
+
+
+
+  osg_cachedwaveform::osg_cachedwaveform(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req)
+  {
+
+
+      cached_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+
+      if (!cached_recording) {
+          throw snde_error("osg_cachedwaveform: Could not get recording for %s", display_req->renderable_channelpath->c_str());
+      }
+
+      /* std::shared_ptr<color_linewidth_params> cached_params */
+      cached_params = std::dynamic_pointer_cast<waveform_params>(display_req->mode.constraint);
+      if (!cached_params) {
+          throw snde_error("osg_cachedwaveform: Could not get waveform_params");
+
+      }
+
+
+      /*
+      std::shared_ptr<ndarray_recording_ref> endpoint_vertcoord_array = cached_recording->reference_ndarray("vertcoord");
+
+      locks_required.push_back({ endpoint_vertcoord_array,false }); // accmulate locks needed for lockmanager::lock_recording_refs()
+
+      endpoint_vertcoord_osg_array = new OSGFPArray(endpoint_vertcoord_array, 3, 3); // 3 for 3d point coordinates
+
+      */
+
+
+      bool modified;
+
+      // get sub-requirement #0: SNDE_SRM_COLOREDTRANSPARENTLINES
+      std::shared_ptr<osg_rendercacheentry> raw_entry;
+      std::tie(raw_entry, modified) = params.rendercache->GetEntry(params, display_req->sub_requirements.at(0), &locks_required);
+
+      // std::shared_ptr<osg_cachedcoloredtransparentlines> coloredtransparentlines; (included in class definition)
+      coloredtransparentlines = std::dynamic_pointer_cast<osg_cachedcoloredtransparentlines>(raw_entry);
+      if (!coloredtransparentlines) {
+          throw snde_error("osg_cachedwaveform: Unable to get colored transparent lines cache entry for %s", display_req->renderable_channelpath->c_str());
+      }
+
+
+      if (display_req->sub_requirements.size() > 1)
+      {
+	// get sub-requirement #1: SNDE_SRM_COLOREDTRANSPARENTPOINTS
+	std::shared_ptr<osg_rendercacheentry> raw_entry2;
+	std::tie(raw_entry2, modified) = params.rendercache->GetEntry(params, display_req->sub_requirements.at(1), &locks_required);
+
+	// std::shared_ptr<osg_cachedcoloredtransparentlines> coloredtransparentlines; (included in class definition)
+	coloredtransparentpoints = std::dynamic_pointer_cast<osg_cachedcoloredtransparentpoints>(raw_entry2);
+      }
+
+
+
+      pp_geode = new osg::Geode();
+      pp_lines_geom = new osg::Geometry();
+      pp_lines_tris = new osg::DrawArrays(osg::PrimitiveSet::TRIANGLES, 0, 0);
+
+      pp_lines_geom->addPrimitiveSet(pp_lines_tris);
+      if (!coloredtransparentlines->cached_recording->info->immutable) {
+          pp_lines_geom->setDataVariance(osg::Object::DYNAMIC);
+          pp_lines_tris->setDataVariance(osg::Object::DYNAMIC);
+      }
+      else {
+          pp_lines_geom->setDataVariance(osg::Object::STATIC);
+          pp_lines_tris->setDataVariance(osg::Object::STATIC);
+      }
+
+      pp_lines_geom->setUseVertexBufferObjects(true);
+      // At least on Linux/Intel graphics we get nasty messages
+  // from the driver if we dont set the VBO in DYNAMIC_DRAW mode
+      pp_lines_geom->getOrCreateVertexBufferObject()->setUsage(GL_DYNAMIC_DRAW);
+      pp_lines_tris->setCount(coloredtransparentlines->vertcoord_osg_array->nvec);
+      pp_lines_geom->setVertexArray(coloredtransparentlines->vertcoord_osg_array); // (vertex coordinates)
+
+      pp_lines_geom->setColorArray(coloredtransparentlines->vertcoordcolor_osg_array, osg::Array::BIND_PER_VERTEX);
+      pp_lines_geom->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
+      osg::ref_ptr<osg::StateSet> pp_lines_ss = pp_lines_geom->getOrCreateStateSet();
+      pp_lines_ss->setMode(GL_BLEND, osg::StateAttribute::ON);
+      //pp_lines_ss->setAttribute(new osg::Point(3.0f), osg::StateAttribute::ON);
+      osg::ref_ptr<osg::BlendFunc> pp_lines_bf = new osg::BlendFunc(osg::BlendFunc::SRC_ALPHA, osg::BlendFunc::ONE_MINUS_SRC_ALPHA);
+      pp_lines_ss->setAttributeAndModes(pp_lines_bf.get());
+      pp_lines_ss->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
+      pp_geode->addDrawable(pp_lines_geom);
+
+
+      if (coloredtransparentpoints) {
+	pp_points_geom = new osg::Geometry();
+	pp_points_points = new osg::DrawArrays(osg::PrimitiveSet::POINTS, 0, 0);
+
+	pp_points_geom->addPrimitiveSet(pp_points_points);
+	if (!coloredtransparentlines->cached_recording->info->immutable) {
+	  pp_points_geom->setDataVariance(osg::Object::DYNAMIC);
+	  pp_points_points->setDataVariance(osg::Object::DYNAMIC);
+	}
+	else {
+	  pp_points_geom->setDataVariance(osg::Object::STATIC);
+	  pp_points_points->setDataVariance(osg::Object::STATIC);
+	}
+
+	pp_points_geom->setUseVertexBufferObjects(true);
+	// At least on Linux/Intel graphics we get nasty messages
+    // from the driver if we dont set the VBO in DYNAMIC_DRAW mode
+	pp_points_geom->getOrCreateVertexBufferObject()->setUsage(GL_DYNAMIC_DRAW);
+	pp_points_points->setCount(coloredtransparentpoints->pointcoord_osg_array->nvec);
+	pp_points_geom->setVertexArray(coloredtransparentpoints->pointcoord_osg_array); // (vertex coordinates)
+
+	pp_points_geom->setColorArray(coloredtransparentpoints->pointcoordcolor_osg_array, osg::Array::BIND_PER_VERTEX);
+	pp_points_geom->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
+	pp_points_stateset = pp_points_geom->getOrCreateStateSet();
+	pp_points_stateset->setMode(GL_BLEND, osg::StateAttribute::ON);
+	pp_points_stateset->setAttribute(new osg::Point(cached_params->pointsize), osg::StateAttribute::ON);
+	osg::ref_ptr<osg::BlendFunc> pp_points_bf = new osg::BlendFunc(osg::BlendFunc::SRC_ALPHA, osg::BlendFunc::ONE_MINUS_SRC_ALPHA);
+	pp_points_stateset->setAttributeAndModes(pp_points_bf.get());
+	pp_points_stateset->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
+	pp_geode->addDrawable(pp_points_geom);
+
+      }
+
+
+
+      //osg::DisplaySettings::instance()->setNumMultiSamples(4);
+
+      /*
+
+      pp_endpoint_geom = new osg::Geometry();
+      pp_endpoint_tris = new osg::DrawArrays(osg::PrimitiveSet::TRIANGLES, 0, 0);
+      pp_endpoint_geom->addPrimitiveSet(pp_endpoint_tris);
+      if (!cached_recording->info->immutable) {
+          pp_endpoint_geom->setDataVariance(osg::Object::DYNAMIC);
+          pp_endpoint_tris->setDataVariance(osg::Object::DYNAMIC);
+      }
+      else {
+          pp_endpoint_geom->setDataVariance(osg::Object::STATIC);
+          pp_endpoint_tris->setDataVariance(osg::Object::STATIC);
+      }
+
+      pp_endpoint_geom->setUseVertexBufferObjects(true);
+      // At least on Linux/Intel graphics we get nasty messages
+  // from the driver if we dont set the VBO in DYNAMIC_DRAW mode
+      pp_endpoint_geom->getOrCreateVertexBufferObject()->setUsage(GL_DYNAMIC_DRAW);
+      pp_endpoint_tris->setCount(endpoint_vertcoord_osg_array->nvec);
+      pp_endpoint_geom->setVertexArray(endpoint_vertcoord_osg_array); // (vertex coordinates)
+
+      osg::ref_ptr<osg::Vec4Array> EndpointColorArray = new osg::Vec4Array();
+
+      EndpointColorArray->push_back(osg::Vec4(cached_params->color.R * 1.2, cached_params->color.G * 1.2, cached_params->color.B * 1.2, cached_params->overall_alpha)); // Setting the first 3 to less than 1.0 will dim the output. Setting the last one would probably add alpha transparency (?)
+
+      pp_endpoint_geom->setColorArray(EndpointColorArray, osg::Array::BIND_OVERALL);
+      pp_endpoint_geom->setColorBinding(osg::Geometry::BIND_OVERALL);
+      pp_geode->addDrawable(pp_endpoint_geom);
+      */
+
+      osg_group = pp_geode;
+  }
+
+  std::pair<bool, bool> osg_cachedwaveform::attempt_reuse(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req)
+  {
+      std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+      if (!new_recording) {
+          throw snde_error("osg_cachedwaveform::attempt_reuse: Could not get recording for %s", display_req->renderable_channelpath->c_str());
+      }
+
+      return std::make_pair(new_recording == cached_recording && new_recording->info->immutable && display_req->mode.constraint == cached_params, false); // (reusable,modified)
+
+  }
+
+
+  void osg_cachedwaveform::clear_potentially_obsolete()
+  {
+      potentially_obsolete = false;
+      coloredtransparentlines->clear_potentially_obsolete();
+  }
+
+
+
+
+
+
 
   osg_cachedphaseplaneendpointwithcoloredtransparentlines::osg_cachedphaseplaneendpointwithcoloredtransparentlines(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
   {
@@ -1117,24 +1353,24 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     osg_rendercachearrayentry()
   {
     
-    cached_recording = std::dynamic_pointer_cast<meshed_vertnormals_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    cached_recording = std::dynamic_pointer_cast<meshed_vertnormalarrays_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!cached_recording) {
       throw snde_error("osg_cachedmeshednormals: Could not get recording for %s",display_req->renderable_channelpath->c_str()); 
       
     }
     
-    std::shared_ptr<ndarray_recording_ref> vertnormals_array = cached_recording->reference_ndarray("vertnormals");
+    std::shared_ptr<ndarray_recording_ref> vertnormal_array = cached_recording->reference_ndarray("vertnormal_arrays");
     
-    locks_required.push_back( { vertnormals_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
+    locks_required.push_back( { vertnormal_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
 
-    osg_array = new OSGFPArray(vertnormals_array,9,3); // SNDE groups them by 9 (per triangle), OSG by 3 (per vertex)for 3d coordinates
+    osg_array = new OSGFPArray(vertnormal_array,9,3); // SNDE groups them by 9 (per triangle), OSG by 3 (per vertex)for 3d coordinates
     
   }
 
 
   std::pair<bool,bool> osg_cachedmeshednormals::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
   {
-    std::shared_ptr<meshed_vertnormals_recording> new_recording = std::dynamic_pointer_cast<meshed_vertnormals_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    std::shared_ptr<meshed_vertnormalarrays_recording> new_recording = std::dynamic_pointer_cast<meshed_vertnormalarrays_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedmeshedvertexarray::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
@@ -1542,20 +1778,24 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     if (!channel_to_reorient) {
       throw snde_error("osg:cachedtransformedcomponent(): Cache entry for channeltotrack %s not convertible to a group",channeltotrack_requirement->renderable_channelpath->c_str());	
     }   
-    // sub-requirement 2 is our component in rendering mode
-    std::shared_ptr<display_requirement> subcomponent_requirement=display_req->sub_requirements.at(1);
-    std::shared_ptr<osg_rendercacheentry> subcomponent_entry;
+    // sub-requirement 2, if present, is our component in rendering mode
+    if (display_req->sub_requirements.size() > 1) {
+      std::shared_ptr<display_requirement> subcomponent_requirement=display_req->sub_requirements.at(1);
+      std::shared_ptr<osg_rendercacheentry> subcomponent_entry;
     
-    bool sc_modified;
+      bool sc_modified;
 
-    std::tie(subcomponent_entry,sc_modified) = params.rendercache->GetEntry(params,subcomponent_requirement,&locks_required);
-    if (!subcomponent_entry) {
-      throw snde_error("osg_cachedtransformedcomponent(): Could not get cache entry for sub-component %s",subcomponent_requirement->renderable_channelpath->c_str());
+      std::tie(subcomponent_entry,sc_modified) = params.rendercache->GetEntry(params,subcomponent_requirement,&locks_required);
+      if (!subcomponent_entry) {
+	throw snde_error("osg_cachedtransformedcomponent(): Could not get cache entry for sub-component %s",subcomponent_requirement->renderable_channelpath->c_str());
+      }
+
+      // sub_component is a class member
+      sub_component = std::dynamic_pointer_cast<osg_rendercachegroupentry>(subcomponent_entry);
+      if (!sub_component) {
+	throw snde_error("osg:cachedtransformedcomponent(): Cache entry for sub-component %s not convertible to a group",subcomponent_requirement->renderable_channelpath->c_str());	
+      }   
     }
-    sub_component = std::dynamic_pointer_cast<osg_rendercachegroupentry>(subcomponent_entry);
-    if (!sub_component) {
-      throw snde_error("osg:cachedtransformedcomponent(): Cache entry for sub-component %s not convertible to a group",subcomponent_requirement->renderable_channelpath->c_str());	
-    }   
     
     osg_group = new osg::Group();
 
@@ -1572,7 +1812,10 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       //std::cout << "ChannelToTrackTransform:\n " << Eigen::Map<const Eigen::Matrix4d>(xform->getMatrix().ptr()) << "\n";
       xform->addChild(channel_to_reorient->osg_group);
       osg_group->addChild(xform);
-      osg_group->addChild(sub_component->osg_group);
+
+      if (sub_component) {
+	osg_group->addChild(sub_component->osg_group);
+      }
     }
     
   }
@@ -1592,9 +1835,10 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
   void osg_cachedtransformedcomponent::clear_potentially_obsolete()
   {
     potentially_obsolete=false;
-    
-    sub_component->clear_potentially_obsolete();
-    
+
+    if (sub_component) {
+      sub_component->clear_potentially_obsolete();
+    }
   }
   
 

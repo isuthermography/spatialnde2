@@ -1,5 +1,7 @@
+#include <iomanip>
 #include "snde/rec_display.hpp"
 #include "snde/recstore.hpp"
+
 
 namespace snde {
   display_unit::display_unit(units unit,
@@ -191,7 +193,7 @@ namespace snde {
       nullptr,
       0.0,
     }),
-    vertnormals_function(recdb->lookup_available_math_function("spatialnde2.vertnormals")),
+    vertnormalarray_function(recdb->lookup_available_math_function("spatialnde2.vertnormalarray")),
     colormapping_function(recdb->lookup_available_math_function("spatialnde2.colormap")),
     fusion_colormapping_function(recdb->lookup_available_math_function("spatialnde2.fusion_colormapping")),
     pointcloud_colormapping_function(recdb->lookup_available_math_function("spatialnde2.pointcloud_colormap")),
@@ -231,8 +233,8 @@ namespace snde {
     UnitList.push_back(std::make_shared<display_unit>(units::parseunits("Arbitrary"),10.0,false));
 
     // Define some well-known axes
-    AxisList.push_back(std::make_shared<display_axis>("time","t",FindUnit("seconds"),false,0.0,0.0,1.0));
-    AxisList.push_back(std::make_shared<display_axis>("frequency","f",FindUnit("Hertz"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Time","t",FindUnit("seconds"),false,0.0,0.0,1.0));
+    AxisList.push_back(std::make_shared<display_axis>("Frequency","f",FindUnit("Hertz"),false,0.0,0.0,1.0));
     AxisList.push_back(std::make_shared<display_axis>("X Position","x",FindUnit("meters"),false,0.0,0.0,1.0));
     AxisList.push_back(std::make_shared<display_axis>("Y Position","y",FindUnit("meters"),false,0.0,0.0,1.0));
     AxisList.push_back(std::make_shared<display_axis>("X Position","x",FindUnit("pixels"),false,0.0,0.0,1.0));
@@ -394,13 +396,13 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
     //std::vector<std::string>::reverse_iterator cl_next_iter;
     
     //for (auto cl_name_iter=channel_layer_order.rbegin();cl_name_iter != channel_layer_order.rend();cl_name_iter=cl_next_iter) {
-    for (auto channel_map_iter = globalrev_param->recstatus.channel_map.rbegin();channel_map_iter != globalrev_param->recstatus.channel_map.rend();channel_map_iter++) {
+    for (auto channel_map_iter = globalrev_param->recstatus.channel_map->rbegin();channel_map_iter != globalrev_param->recstatus.channel_map->rend();channel_map_iter++) {
       const std::string &cl_name = channel_map_iter->first;
       
       auto ci_iter = channel_info.find(cl_name);
-      //auto reciter = current_globalrev->recstatus.channel_map.find(cl_name);
+      //auto reciter = current_globalrev->recstatus.channel_map->find(cl_name);
 
-      //if (reciter==current_globalrev->recstatus.channel_map.end()) {
+      //if (reciter==current_globalrev->recstatus.channel_map->end()) {
       // // channel is gone; remove from channel_info
       //channel_info.erase(cl_name);
 
@@ -522,7 +524,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -547,7 +549,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxisLocked("Time","seconds");
@@ -571,7 +573,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -598,7 +600,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -622,7 +624,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -645,7 +647,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -667,7 +669,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -690,7 +692,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -714,7 +716,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -735,7 +737,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return nullptr; 
     }
     try {
-      rec = recdb_strong->latest_globalrev()->get_recording_ref(fullname);
+      rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
       return FindAxis("Time","seconds");
@@ -919,7 +921,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
       return 0.0; 
     }
     try {
-      chan_data = recdb_strong->latest_globalrev()->get_recording_ref(chan_name);
+      chan_data = recdb_strong->latest_globalrev()->get_ndarray_ref(chan_name);
     } catch (snde_error &) {
       // no such reference
       return 0.0;

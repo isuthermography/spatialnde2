@@ -293,7 +293,7 @@ namespace snde {
   public:
     // Should this next map be replaced by a map of general purpose notifies that trigger when all missing prerequisites are satisified? (probably not but we still need the notification functionality)
     std::set<std::shared_ptr<channelconfig>> missing_prerequisites; // all missing (non-ready -- or !!!*** non-mdonly as appropriate) local (in this recording_set_state/globalrev) prerequisites of this function. Remove entries from the set as they become ready. When the set is empty, the math function represented by the key is dispatchable and should be marked as ready_to_execute
-    size_t num_modified_prerequisites; // count of the number of prerequisites no longer (or never) listed in missing_prerequisites that have indeed been modified. Used to determine whether execution is actually needed. Anybody modifying missing_prerequisites is responsible for updating this. Pre-initialize to 1 to always force execution. 
+    size_t num_modified_prerequisites; // count of the number of prerequisites no longer (or never) listed in missing_prerequisites that have indeed been modified. Used solely to determine whether execution is actually needed. Anybody modifying missing_prerequisites is responsible for updating this. Pre-initialize to 1 to always force execution.  Should not include self-dependencies
     
     // !!!*** Do we need to list out potentially-missing prerequisites based on channels determined by math functions that may or may not execute !!!***???
     // !!!*** A math function that decides not to execute needs to define its outputs as ready, referencing the previous state !!!***
@@ -315,7 +315,7 @@ namespace snde {
     bool execution_demanded; // even once all prereqs are satisfied, do we need to actually execute? This is only set if at least one of our non-self dependencies has changed and we are not disabled (or ondemand in a regular globalrev) and !!!*** the execfunc was generated for this revision
     bool ready_to_execute;
     // bool metadataonly_complete; // if we are only executing to metadataonly, this is the complete flag.... move to execfunc->
-    bool complete; // set to true once fully executed; Note that this can shift from true back to false for a formerly metadataonly math function where the full data has been requested
+    bool complete; // set to true once fully executed OR once we decide execution is not demanded; Note that this can shift from true back to false for a formerly metadataonly math function where the full data has been requested
 
     math_function_status(bool self_dependent);
   };
@@ -357,7 +357,7 @@ namespace snde {
     void end_atomic_extra_internal_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> newextdep);
     std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>> extra_internal_dependencies_on_channel();
 
-    void notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> fcn,bool mdonly,bool possibly_redundant,std::shared_ptr<recording_set_state> prerequisite_state);
+    void notify_math_function_executed(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> fcn,bool mdonly,bool possibly_redundant);
     
     // check_dep_fcn_ready() assumes dep_rss admin lock is already held
     void check_dep_fcn_ready(std::shared_ptr<recdatabase> recdb,
@@ -385,7 +385,8 @@ namespace snde {
   public:
     std::mutex admin; // guards referencing_rss and groups operations on the bools. Also acquire this before clearing rss. Last in the locking order except python GIL
 
-    std::shared_ptr<recording_set_state> rss; // recording set state in which we are executing. Set to nullptr by owner of execution ticket after metadata phase to avoid a reference loop that will keep old recordings in memory. 
+    std::shared_ptr<recording_set_state> rss; // recording set state in which we are executing. Set to nullptr by owner of execution ticket after metadata phase to avoid a reference loop that will keep old recordings in memory.
+    std::shared_ptr<std::map<std::string,channel_state>> rss_channel_map; // channel_map from rss; outlives rss pointer
     std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
 
     std::set<std::weak_ptr<recording_set_state>,std::owner_less<std::weak_ptr<recording_set_state>>> referencing_rss; // all recording set states that reference this executing_math_function
@@ -404,6 +405,9 @@ namespace snde {
     inline bool try_execution_ticket()
     // if this returns true, you have the execution ticket. Don't forget to assign executing=false when you are done. 
     {
+      if (fully_complete) {
+	return false;
+      }
       bool expected=false;
       return executing.compare_exchange_strong(expected,true);
     }
@@ -430,6 +434,7 @@ namespace snde {
   public:
     std::shared_ptr<recording_set_state> rss; // recording set state in which we are executing. Set to nullptr by owner of parent's execution ticket after metadata phase to avoid a reference loop that will keep old recordings in memory. 
     std::shared_ptr<instantiated_math_function> inst;     // This attribute is immutable once published
+    std::shared_ptr<recdatabase> recdb; // to avoid reference loops, this is only to be read by the function code itself, managed by the executing thread (recomath_compute_resource pool_code), and set to nullptr when execution is not actually occuring. 
     std::shared_ptr<lockmanager> lockmgr;
 
     // should also have parameter values, references, etc. here

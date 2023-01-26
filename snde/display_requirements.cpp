@@ -728,10 +728,229 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
     return nullptr;
   } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && NDim==1) {
+
+      /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     // goal is to render 1D recording
-    snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): 1D recording rendering not yet implemented");
+
+      std::shared_ptr<display_spatial_position> posn;
+      std::shared_ptr<display_spatial_transform> xform;
+      std::shared_ptr<display_channel_rendering_bounds> bounds;
+      size_t DC_ColorIdx;
+      double xcenter;
+      double ycenter;
+
+      std::shared_ptr<rgbacolormapparams> colormap_params;
+      {
+          std::lock_guard<std::mutex> di_lock(display->admin);
+          std::lock_guard<std::mutex> dc_lock(displaychan->admin);
+          std::vector<snde_index> other_indices({ 0,0 });
+
+          // !!!*** displaychan updates should be more formally assigned and passed around
+          // this is interpreted by qtrecviewer for how the controls should work
+          // as distinct from renderer_type in display_requirement, which is used to select the actual renderer.
+          // Should these be unified somehow? 
+          displaychan->render_mode = SNDE_DCRM_WAVEFORM;
+          DC_ColorIdx = displaychan->ColorIdx;
+
+          std::shared_ptr<display_axis> a = display->GetAmplAxisLocked(chanpath);
+          std::shared_ptr<display_axis> t = display->GetFirstAxisLocked(chanpath);
+
+          
+          double xunitscale;
+          double yunitscale;
+          {
+              std::lock_guard<std::mutex> axisadminlocka(a->admin);
+              std::lock_guard<std::mutex> axisadminlockt(t->admin);
+              xcenter = t->CenterCoord; /* in units */
+              ycenter = a->CenterCoord;
+
+              std::shared_ptr<display_unit> u = t->unit;
+              std::shared_ptr<display_unit> v = a->unit;
+              std::lock_guard<std::mutex> unitadminlocku(u->admin);
+              std::lock_guard<std::mutex> unitadminlockv(v->admin);
+
+              xunitscale = u->scale;
+              yunitscale = displaychan->Scale;
+          }
+
+
+
+
+          snde_debug(SNDE_DC_DISPLAY, "spatial_transforms_for_waveform_channel: xunitscale=%f, yunitscale=%f", xunitscale, yunitscale);
+          std::tie(posn, xform, bounds) = spatial_transforms_for_waveform_channel(display->drawareawidth, display->drawareaheight,
+              display->horizontal_divisions, display->vertical_divisions,
+              xcenter, -displaychan->Position, displaychan->VertZoomAroundAxis,
+              displaychan->VertCenterCoord,
+              xunitscale, yunitscale, display->pixelsperdiv,
+              false, false,
+              displaychan->VertZoomAroundAxis);
+
+
+      } // release displaychan lock
+
+
+      // pull scaling out of display transform
+      double horiz_pixels_per_chanunit = xform->renderarea_coords_over_channel_coords(0, 0);
+      double vert_pixels_per_chanunit = xform->renderarea_coords_over_channel_coords(1, 1);
+
+      /////////////////////
+
+      snde_index startidx = 0;
+      snde_index endidx = DimLen1-1;
+      snde_index idxstep = 1;
+      double datastep = 1.0;
+      double datainival = 0.0;
+
+      std::string step_units;      
+      std::string inival_units;
+      std::string funcname = "";
+      std::string funcdescr = "";
+
+      std::tie(datastep, step_units) = array_rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_step", 1.0, "pixels");
+
+      double samplesperpixel = 1 / (horiz_pixels_per_chanunit * datastep);
+
+      std::tie(datainival, inival_units) = array_rec->metadata->GetMetaDatumDblUnits("nde_array-axis0_inival", 0.0, "pixels");
+
+      if (datainival + idxstep * (DimLen1-1) > bounds->right)
+      {
+	endidx = ceil((bounds->right - datainival) / datastep);
+      }
+
+      if (datainival < bounds->left)
+      {
+	startidx = floor((bounds->left - datainival) / datastep);
+      }
+
+      if (samplesperpixel <= 0.5) {
+	// Plenty of Pixels -- plot the interpolated line
+	funcname = "spatialnde2.waveform_interplines";
+	funcdescr = "c++ definition of waveform_interplines";
+      }
+      else {
+	// More data than pixels -- plot vertical lines
+	funcname = "spatialnde2.waveform_vertlines";
+	funcdescr = "c++ definition of waveform_vertlines";
+
+	idxstep = round(samplesperpixel);
+	if (!((endidx - startidx) % static_cast<snde_index>(round(samplesperpixel)))){
+	  endidx = endidx + idxstep;
+	}
+      }
+
+      // Deal with corner cases
+      if (endidx > DimLen1 - 1) {
+	endidx = DimLen1 - 1;
+      }
+      if (startidx < 0) {
+	startidx = 0;
+      }
+
+      if (endidx < startidx) {
+	return nullptr;
+      }
+
+      if (endidx - startidx <= 1) {
+	return nullptr;
+      }
+
+
+
+      //////////////////////
+
+
+      // should colormap_params really be in the rendermode_ext key for this one or just the next one?
+      // I think the answer is both because the nested requirement won't be looked at
+      // if the parent just pulls from the cache
+      std::shared_ptr<waveform_params> renderparams = std::make_shared<waveform_params>(RecColorTable[DC_ColorIdx], 1.0f, 2.0f / horiz_pixels_per_chanunit, 2.0f / vert_pixels_per_chanunit, 6.0f, startidx, endidx, idxstep, datainival, datastep);
+
+      std::string renderable_channelpath = recdb_path_join(recdb_path_as_group(chanpath), "_snde_waveform_vertices" + std::to_string(display->unique_index));
+
+      std::shared_ptr<recdatabase> recdb = base_rss->recdb_weak.lock();
+      if (!recdb) {
+          return nullptr;
+      }
+
+      retval = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_WAVEFORM, typeid(*this), renderparams), rec, shared_from_this()); // display_requirement
+      retval->renderer_type = SNDE_DRRT_2D;
+
+      retval->spatial_position = posn;
+      retval->spatial_transform = xform;
+      retval->spatial_bounds = bounds;
+
+      std::shared_ptr<snde::display_requirement> subreq = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_COLOREDTRANSPARENTLINES, typeid(*this), renderparams), rec, shared_from_this());
+
+      std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_available_math_function(funcname)->instantiate({
+      std::make_shared<math_parameter_recording>(chanpath),
+      std::make_shared<math_parameter_double_const>(renderparams->color.R),
+      std::make_shared<math_parameter_double_const>(renderparams->color.G),
+      std::make_shared<math_parameter_double_const>(renderparams->color.B),
+      std::make_shared<math_parameter_double_const>(renderparams->overall_alpha),
+      std::make_shared<math_parameter_double_const>(renderparams->linewidth_horiz),
+      std::make_shared<math_parameter_double_const>(renderparams->linewidth_vert),
+      std::make_shared<math_parameter_sndeindex_const>(renderparams->startidx),
+      std::make_shared<math_parameter_sndeindex_const>(renderparams->endidx),
+      std::make_shared<math_parameter_sndeindex_const>(renderparams->idxstep),
+      std::make_shared<math_parameter_double_const>(renderparams->datainival),
+      std::make_shared<math_parameter_double_const>(renderparams->datastep)
+          },
+          { std::make_shared<std::string>(renderable_channelpath) },
+          recdb_path_as_group(chanpath),
+          false, // is_mutable
+          true, // ondemand
+          false, // mdonly
+          std::make_shared<math_definition>(funcdescr),
+          nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
+
+      
+
+      subreq->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
+      subreq->renderable_function = renderable_function;
+
+      retval->sub_requirements.push_back(subreq);
+
+      if (samplesperpixel <= 0.1) {
+	std::string renderable_channelpath2 = recdb_path_join(recdb_path_as_group(chanpath), "_snde_waveform_points" + std::to_string(display->unique_index));
+	
+	std::shared_ptr<snde::display_requirement> subreq2 = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_COLOREDTRANSPARENTPOINTS, typeid(*this), renderparams), rec, shared_from_this());
+
+	std::shared_ptr<instantiated_math_function> renderable_function2 = recdb->lookup_available_math_function("spatialnde2.waveform_points")->instantiate({
+	std::make_shared<math_parameter_recording>(chanpath),
+	std::make_shared<math_parameter_double_const>(renderparams->color.R),
+	std::make_shared<math_parameter_double_const>(renderparams->color.G),
+	std::make_shared<math_parameter_double_const>(renderparams->color.B),
+	std::make_shared<math_parameter_double_const>(renderparams->overall_alpha),
+	std::make_shared<math_parameter_double_const>(renderparams->linewidth_horiz),
+	std::make_shared<math_parameter_double_const>(renderparams->linewidth_vert),
+	std::make_shared<math_parameter_sndeindex_const>(renderparams->startidx),
+	std::make_shared<math_parameter_sndeindex_const>(renderparams->endidx),
+	std::make_shared<math_parameter_sndeindex_const>(renderparams->idxstep),
+	std::make_shared<math_parameter_double_const>(renderparams->datainival),
+	std::make_shared<math_parameter_double_const>(renderparams->datastep)
+	  },
+	  { std::make_shared<std::string>(renderable_channelpath2) },
+	  recdb_path_as_group(chanpath),
+	  false, // is_mutable
+	  true, // ondemand
+	  false, // mdonly
+	  std::make_shared<math_definition>("c++ definition of waveform_points"),
+	  nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
+
+
+
+	subreq2->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath2);
+	subreq2->renderable_function = renderable_function2;
+
+	retval->sub_requirements.push_back(subreq2);
+      }
+
+      return retval;
+
+      /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
-    return nullptr;
+
   } else if ((simple_goal == SNDE_SRG_PHASEPLANE) && NDim==1) {
     // goal is to render 1D recording in a phase plane diagram
 
@@ -1000,11 +1219,20 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     // goal is to obtain a texture from the channel data
     // ***!!! We really should be able to accommodate a frame or sequence axis being multiple ndarrays with consistent_layout_f !!!***
 
+   
+      
+
     assert(array_rec);
     assert(array_rec->layouts.size()==1);
     
     // Simple ndarray recording
     std::shared_ptr<ndarray_recording_ref> ref = array_rec->reference_ndarray();
+
+    // Make sure the data type is valid -- if not, we need to stop this here or else things get weird later
+    if (ref->storage->typenum == SNDE_RTN_UNASSIGNED) {
+        snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Could not set up colormap for undefined data type on channel %s", chanpath.c_str());
+        return nullptr;
+    }
 
 
     std::shared_ptr<rgbacolormapparams> colormap_params = std::dynamic_pointer_cast<rgbacolormapparams>(params_from_parent);
@@ -1045,6 +1273,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
       retval->renderable_function = renderable_function;
     } else {
+
       retval->renderable_channelpath = std::make_shared<std::string>(chanpath); // no colormapping needed because data is RGBA to begin with
     }
   
@@ -1543,7 +1772,7 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
 //     SUB meshed_part_recording:SNDE_SRG_VERTEXARRAYS
 //       -> MAIN meshed_part_recording_display_handler:SNDE_SRM_VERTEXARRAYS:meshed_vertexarray_recording -> osg_cachedmeshedvertexarray
 //     SUB meshed_part_recording:SNDE_SRG_VERTNORMALS
-//       -> MAIN meshed_part_recording_display_handler:SNDE_SRM_VERTNORMALS:meshed_vertnormals_recording -> osg_cachedmeshednormals
+//       -> MAIN meshed_part_recording_display_handler:SNDE_SRM_VERTNORMALS:meshed_vertnormalarrays_recording -> osg_cachedmeshednormals
 // 
 {
 
@@ -1557,7 +1786,7 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
     assert(meshedpart_rec);
     
     
-    std::string normals_chanpath = recdb_path_join(recdb_path_as_group(chanpath),"normals");
+    //std::string normals_chanpath = recdb_path_join(recdb_path_as_group(chanpath),"normals");
     
     //std::shared_ptr<recording_base> normals_rec = base_rss->get_recording(normals_chanpath);
     
@@ -1648,10 +1877,18 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
     assert(meshedpart_rec);
     
     retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_MESHEDNORMALS,typeid(*this),nullptr),rec,shared_from_this());
+
+    //if (!meshedpart_rec->vertnormals_name) {
+    //  throw snde_error("meshed_part_recording_display_handler::get_display_requirement SNDE_SRG_VERTNORMALS: vertnormals_name attribute is not set on recording %s",meshedpart_rec->info->name);
+    //}
+
+    //std::string vertnormals_name = *meshedpart_rec->vertnormals_name;
     
-    std::string renderable_channelpath = recdb_path_join(recdb_path_as_group(chanpath),"vertnormals");
+    //retval->renderable_channelpath = std::make_shared<std::string>(recdb_path_join(recdb_path_context(rec->info->name),vertnormals_name));
     
-    std::shared_ptr<instantiated_math_function> renderable_function = display->vertnormals_function->instantiate({
+    std::string renderable_channelpath = recdb_path_join(recdb_path_as_group(chanpath),"_snde_rec_vertnormalarray"+std::to_string(display->unique_index));
+    
+    std::shared_ptr<instantiated_math_function> renderable_function = display->vertnormalarray_function->instantiate({
 	std::make_shared<math_parameter_recording>(chanpath)
       },
       { std::make_shared<std::string>(renderable_channelpath) },
@@ -1706,7 +1943,7 @@ std::shared_ptr<display_requirement> meshed_parameterization_recording_display_h
 
 
   retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_MESHED2DPARAMETERIZATION,typeid(*this),nullptr),rec,shared_from_this());
-  retval->renderable_channelpath = std::make_shared<std::string>(recdb_path_join(recdb_path_as_group(chanpath),"texvertex_arrays"));
+  retval->renderable_channelpath = std::make_shared<std::string>(recdb_path_join(recdb_path_context(chanpath),"texvertex_arrays"));
 
 
   std::shared_ptr<instantiated_math_function> renderable_function = display->texvertexarray_function->instantiate({
@@ -1756,7 +1993,7 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
 //         SUB meshed_part_recording:SNDE_SRG_VERTEXARRAYS
 //           -> MAIN meshed_part_recording_display_handler:SNDE_SRM_VERTEXARRAYS:meshed_vertexarray_recording -> osg_cachedmeshedvertexarray
 //         SUB meshed_part_recording:SNDE_SRG_VERTNORMALS
-//           -> MAIN meshed_part_recording_display_handler:SNDE_SRM_MESHEDNORMALS:meshed_vertnormals_recording -> osg_cachedmeshednormals
+//           -> MAIN meshed_part_recording_display_handler:SNDE_SRM_MESHEDNORMALS:meshed_vertnormalarrays_recording -> osg_cachedmeshednormals
 //         SUB meshed_parameterization_recording: SNDE_SRG_RENDERING
 //           -> MAIN meshed_parameterization_recording_display_handler:SNDE_SRM_MESHED2DPARAMETERIZATION:meshed_texvertex_recording -> osg_cachedparameterizationdata
 //     SUB multi_ndarray_recording:SNDE_SRG_TEXTURE
@@ -1812,7 +2049,7 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
     // Iterate over the texture_refs. They become the fourth and beyond sub-requirements
     for (auto && facenum_imgref: texedpart_rec->texture_refs) {
       if (facenum_imgref.second->image_path.size() > 0) {
-	std::string texture_path = recdb_path_join(recdb_path_as_group(chanpath),facenum_imgref.second->image_path);
+	std::string texture_path = recdb_path_join(recdb_path_context(chanpath),facenum_imgref.second->image_path);
 	std::shared_ptr<display_channel> texchan = display->lookup_channel(texture_path);
 	std::shared_ptr<recording_base> tex_rec = base_rss->get_recording(texture_path);
 	
@@ -1885,7 +2122,7 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
     
     // have a nested display_requirement for the meshed_part, which we transform into vertex arrays,
     // the normals, and the parameterization,
-    std::string part_name = recdb_path_join(recdb_path_as_group(chanpath),texedpart_rec->part_name);
+    std::string part_name = recdb_path_join(recdb_path_context(chanpath),texedpart_rec->part_name);
   
     std::shared_ptr<recording_base> part_rec = base_rss->get_recording(part_name);
     if (!part_rec) {
@@ -1917,7 +2154,7 @@ std::shared_ptr<display_requirement> textured_part_recording_display_handler::ge
     //retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,lookup_channel(part_name),SNDE_SRG_RENDER,nullptr));
     
     // We add a third sub-requirement for the parameterization,
-    std::string parameterization_name = recdb_path_join(recdb_path_as_group(chanpath),*texedpart_rec->parameterization_name);
+    std::string parameterization_name = recdb_path_join(recdb_path_context(chanpath),*texedpart_rec->parameterization_name);
     retval->sub_requirements.push_back(traverse_display_requirement(display,base_rss,display->lookup_channel(parameterization_name),SNDE_SRG_RENDERING_3D,nullptr));
     
 
@@ -2008,8 +2245,9 @@ std::shared_ptr<display_requirement> assembly_recording_display_handler::get_dis
   
   
   for (auto && relpath_orientation: assempart_rec->pieces) {
-
-    std::string abspath = recdb_join_assembly_and_component_names(chanpath,std::get<0>(relpath_orientation));
+    
+    //std::string abspath = recdb_join_assembly_and_component_names(chanpath,std::get<0>(relpath_orientation));
+    std::string abspath = recdb_path_join(recdb_path_context(chanpath),std::get<0>(relpath_orientation));
     
     std::shared_ptr<display_requirement> sub_requirement = traverse_display_requirement(display,base_rss,display->lookup_channel(abspath),SNDE_SRG_DEFAULT_3D,nullptr);
     retval->sub_requirements.push_back(sub_requirement);
@@ -2105,8 +2343,8 @@ std::shared_ptr<display_requirement> tracking_pose_recording_display_handler::ge
 
   
   // reuse assembly code to determine absolute path to channel_to_reorient and component
-  std::string channel_to_reorient_abspath = recdb_join_assembly_and_component_names(chanpath,trackingpose_rec->channel_to_reorient);
-  std::string component_abspath = recdb_join_assembly_and_component_names(chanpath,trackingpose_rec->component_name);
+  std::string channel_to_reorient_abspath = recdb_path_join(recdb_path_context(chanpath),trackingpose_rec->channel_to_reorient);
+  std::string component_abspath = recdb_path_join(recdb_path_context(chanpath),trackingpose_rec->component_name);
 
   std::shared_ptr<recording_base> channel_to_reorient_rec = base_rss->get_recording(channel_to_reorient_abspath);
   
@@ -2147,6 +2385,150 @@ std::shared_ptr<display_requirement> tracking_pose_recording_display_handler::ge
   
   return retval; 
 }
+
+
+
+
+pose_channel_recording_display_handler::pose_channel_recording_display_handler(std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) :
+  recording_display_handler_base(display,displaychan,base_rss)
+{
+  
+}
+
+
+// Register this handler for mode SNDE_SRG_RENDERING and SNDE_SRG_RENDERING_3D
+static int register_pcr_display_handler = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(pose_channel_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+    return std::make_shared<pose_channel_recording_display_handler>(display,displaychan,base_rss);
+    }));
+static int register_pcr_display_handler_3d = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING_3D,typeid(pose_channel_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+      return std::make_shared<pose_channel_recording_display_handler>(display,displaychan,base_rss);
+    }));
+
+std::shared_ptr<display_requirement> pose_channel_recording_display_handler::get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent)
+// pose_channel_recording:SNDE_SRG_RENDERING
+//  -> MAIN pose_channel_recording_display_handler:SNDE_SRM_TRANSFORMEDCOMPONENT
+//     SUB... textured_part_recording:SNDE_SRG_RENDERING or meshed_part_recording:SNDE_SRG_RENDERING 
+{
+  assert(simple_goal == SNDE_SRG_RENDERING || simple_goal == SNDE_SRG_RENDERING_3D);
+
+  const std::string &chanpath = displaychan->FullName;
+
+  {
+    
+    std::lock_guard<std::mutex> displaychan_admin(displaychan->admin);
+    // !!!*** displaychan updates should be more formally passed around,
+    // and perhaps this update should not occur unless this was actually a render goal (?)
+    displaychan->render_mode = SNDE_DCRM_GEOMETRY;
+  }
+  
+  
+  std::shared_ptr<recording_base> rec = base_rss->get_recording(chanpath);
+  
+  std::shared_ptr<pose_channel_recording> pose_channel_rec=std::dynamic_pointer_cast<pose_channel_recording>(rec);
+  assert(pose_channel_rec);
+
+
+
+
+  std::shared_ptr<display_spatial_position> posn;
+  std::shared_ptr<display_spatial_transform> xform;
+  std::shared_ptr<display_channel_rendering_bounds> bounds;
+  
+  
+  {
+    std::lock_guard<std::mutex> di_lock(display->admin);
+    std::lock_guard<std::mutex> dc_lock(displaychan->admin);
+    
+    // !!!*** displaychan updates should be more formally passed around,
+    // and perhaps this update should not occur unless this was actually a render goal (?)
+    displaychan->render_mode = SNDE_DCRM_GEOMETRY;
+    std::tie(posn,xform,bounds) = spatial_transforms_for_3d_channel(display->drawareawidth,display->drawareaheight,
+								    displaychan->HorizPosition,displaychan->Position,
+								    1.0/displaychan->RenderScale,display->pixelsperdiv);	  // magnification comes from the scale
+    
+  } // release displaychan lock
+
+  
+  // From the low-level rendering perspective we just treat this as an assembly
+  // with one element and the given pose
+  std::shared_ptr<poseparams> pose_params=std::make_shared<poseparams>(); // will be filled in below
+  
+  
+  std::shared_ptr<display_requirement> retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_TRANSFORMEDCOMPONENT,typeid(*this),pose_params),rec,shared_from_this());
+  retval->renderer_type = SNDE_DRRT_GEOMETRY;
+  retval->spatial_position = posn;
+  retval->spatial_transform = xform;
+  retval->spatial_bounds = bounds;
+  
+  retval->renderable_channelpath = std::make_shared<std::string>(chanpath);
+  
+  
+  // reuse assembly code to determine absolute path to channel_to_reorient and component
+  std::string channel_to_reorient_abspath = recdb_path_join(recdb_path_context(chanpath),pose_channel_rec->channel_to_reorient);
+
+  std::shared_ptr<recording_base> channel_to_reorient_rec = base_rss->get_recording(channel_to_reorient_abspath);
+  
+  // sub-requirement 1 is our channel_to_reorient in rendering mode
+  std::shared_ptr<display_requirement> sub_requirement1 = traverse_display_requirement(display,base_rss,display->lookup_channel(channel_to_reorient_abspath),SNDE_SRG_DEFAULT_3D,nullptr);
+  retval->sub_requirements.push_back(sub_requirement1);
+  
+  std::shared_ptr<renderparams_base> channel_to_reorient_params = sub_requirement1->mode.constraint;
+  pose_params->channel_to_reorient_params=channel_to_reorient_params;
+  pose_params->component_params = nullptr;
+
+  if (pose_channel_rec->storage.at(0)->requires_locking_read) {
+    // with only a few bytes there's no reason a pose channel should ever need a locking storage manager.
+    // It would probably be OK here just to go ahead and lock, but that would require properly thinking
+    // through the locking order implications, which are probably fine. Having not done that we
+    // just throw an exception
+    throw snde_error("pose_channel_recording_display_handler::get_display_requirement(): pose channel recording storage requires locking read; switch it to a storage manager that does not require locking read");
+  }
+  
+
+  std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> pose_channel_ref = pose_channel_rec->reference_typed_ndarray<snde_orientation3>();
+
+  if (!pose_channel_ref) {
+    throw snde_error("pose_channel_recording_display_handler::get_display_requirement(): pose channel data should be of type snde_orientation3");
+  }
+  
+  pose_params->channel_to_reorient_orientation = pose_channel_ref->element(0);
+
+  
+  //// this assertion is temporary for debugging purposes and needs to be removed!!!***
+  //assert(isnan(pose_params->channel_to_reorient_orientation.quat.coord[3]) || pose_params->channel_to_reorient_orientation.quat.coord[3] != 0.0);
+  //{
+  //  snde_coord4 rotmtx[4];
+  //  orientation_build_rotmtx(pose_params->channel_to_reorient_orientation,rotmtx);
+  //  std::cout << "ChannelToTrackOrientation:\n ";
+  //  std::cout << "ChannelToTrack: " << channel_to_reorient_abspath << "\n";
+  //  for (int row=0;row < 4;row++) {
+  //    for (int col=0;col < 4;col++) {
+  //	std::cout << std::to_string(rotmtx[col].coord[row]) << " ";
+  //	
+  //    }
+  //    std::cout << "\n";
+  //  }
+  //}
+  
+  
+  // sub-requirement 2 is our component in rendering mode (if present)
+  if (pose_channel_rec->component_name) {
+    std::string component_abspath = recdb_path_join(recdb_path_context(chanpath),*pose_channel_rec->component_name);
+
+    std::shared_ptr<display_requirement> sub_requirement2 = traverse_display_requirement(display,base_rss,display->lookup_channel(component_abspath),SNDE_SRG_DEFAULT_3D,nullptr);
+    retval->sub_requirements.push_back(sub_requirement2);
+
+    std::shared_ptr<renderparams_base> component_params = sub_requirement2->mode.constraint;
+    pose_params->component_params=component_params;
+    //pose_params->component_orientation = null_orientation;
+    
+  }
+  
+  return retval; 
+}
+
+
+
 
 
 std::shared_ptr<display_requirement> traverse_display_requirement(std::shared_ptr<display_info> display,std::shared_ptr<recording_set_state> base_rss,std::shared_ptr<display_channel> displaychan, std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent) // simple_goal such as SNDE_SRG_DEFAULT or SNDE_SRG_RENDERING

@@ -42,15 +42,15 @@ namespace snde {
     std::string shm_name;
     HANDLE hFile;
     void *addr;
-    size_t nbytes; 
-    size_t bytesalloc;
+    size_t membytes; 
+    size_t addressbytes;
 
     shared_memory_info_win32(memallocator_regionid id,
 			     std::string shm_name,
 			     HANDLE hFile,
 			     LPVOID addr,
-			     size_t nbytes,
-                 size_t bytesalloc);
+			     size_t membytes,
+                 size_t addressbytes);
   };
 
   //memkey_equal
@@ -73,8 +73,8 @@ namespace snde {
 
     std::string base_shm_name(std::string recpath, uint64_t recrevision,uint64_t originating_rss_unique_id);
 
-    virtual void *malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes);
-    virtual void *calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t nbytes);
+    virtual void *malloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t membytes,std::size_t addressbytes);
+    virtual void *calloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,std::size_t membytes,std::size_t addressbytes);
     virtual void *realloc(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void *ptr,std::size_t newsize);
     virtual bool supports_nonmoving_reference(); // returns true if this allocator can return a nonmoving reference rather than a copy. The nonmoving reference will stay coherent with the original.
     
@@ -82,6 +82,7 @@ namespace snde {
     virtual void free(std::string recording_path,uint64_t recrevision,uint64_t originating_rss_unique_id,memallocator_regionid id,void *ptr);
 
     virtual ~shared_memory_allocator_win32();
+
     
   };
   

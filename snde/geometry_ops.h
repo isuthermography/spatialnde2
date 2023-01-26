@@ -6,9 +6,106 @@
 extern "C" {
 #endif
 
+#ifdef _MSC_VER
+#define GEOMOPS_INLINE  __inline
+#else
+#define GEOMOPS_INLINE  inline
+#endif
 
+static GEOMOPS_INLINE void snde_part_initialize(OCL_GLOBAL_ADDR struct snde_part *part)
+{
+  part->firstboundary = SNDE_INDEX_INVALID;
+  part->numboundaries = 0;
 
-static inline void tricentroid3(snde_coord3 *verts, snde_coord3 *centroid_out)
+  part->first_topo = SNDE_INDEX_INVALID;
+  part->num_topo = 0;
+
+  part->first_topoidx = SNDE_INDEX_INVALID;
+  part->num_topoidxs = 0;
+
+  part->first_face = SNDE_INDEX_INVALID;
+  part->num_faces = 0;
+
+  part->firsttri = SNDE_INDEX_INVALID;
+  part->numtris = 0;
+
+  part->firstedge = SNDE_INDEX_INVALID;
+  part->numedges = 0;
+
+  part->firstvertex = SNDE_INDEX_INVALID;
+  part->numvertices = 0;
+
+  part->first_vertex_edgelist = SNDE_INDEX_INVALID;
+  part->num_vertex_edgelist = 0;
+
+  part->firstbox = SNDE_INDEX_INVALID;
+  part->numboxes = 0;
+
+  part->firstboxpoly = SNDE_INDEX_INVALID;
+  part->numboxpolys = 0;
+
+  part->firstboxnurbssurface = SNDE_INDEX_INVALID;
+  part->numboxnurbssurfaces = 0;
+
+  part->pivot_point.coord[0]=snde_infnan(0);
+  part->pivot_point.coord[1]=snde_infnan(0);
+  part->pivot_point.coord[2]=snde_infnan(0);
+
+  part->length_scale = snde_infnan(0);
+
+  part->bounding_box.min.coord[0]=snde_infnan(0);
+  part->bounding_box.min.coord[1]=snde_infnan(0);
+  part->bounding_box.min.coord[2]=snde_infnan(0);
+  part->bounding_box.max.coord[0]=snde_infnan(0);
+  part->bounding_box.max.coord[1]=snde_infnan(0);
+  part->bounding_box.max.coord[2]=snde_infnan(0);
+
+  part->first_vertex_kdnode = SNDE_INDEX_INVALID;
+  part->num_vertex_kdnodes = 0;
+  part->first_triarea = SNDE_INDEX_INVALID;
+  part->first_vertarea = SNDE_INDEX_INVALID;
+  snde_memset(&part->reserved[0],0xff,sizeof(part->reserved));
+
+  part->solid = FALSE;
+  part->has_triangledata = FALSE;
+  part->has_curvatures = FALSE;
+  part->pad1 = 0;
+  snde_memset(&part->pad2[0],0x0,sizeof(part->pad2));
+  
+}
+
+static GEOMOPS_INLINE void snde_parameterization_initialize(OCL_GLOBAL_ADDR struct snde_parameterization *uv)
+{
+  uv->first_uv_topo = SNDE_INDEX_INVALID;
+  uv->num_uv_topos = 0;
+  uv->first_uv_topoidx=SNDE_INDEX_INVALID;
+  uv->num_uv_topoidxs=0;
+  uv->firstuvtri=SNDE_INDEX_INVALID;
+  uv->numuvtris=0;
+  uv->firstuvface=SNDE_INDEX_INVALID;
+  uv->numuvfaces=0;
+  uv->firstuvedge=SNDE_INDEX_INVALID;
+  uv->numuvedges=0;
+  uv->firstuvvertex=SNDE_INDEX_INVALID;
+  uv->numuvvertices=0;
+  uv->first_uv_vertex_edgelist=SNDE_INDEX_INVALID;
+  uv->num_uv_vertex_edgelist=0;
+  uv->firstuvpatch=SNDE_INDEX_INVALID;
+  uv->numuvpatches=0;
+
+  snde_memset(&uv->reserved[0],0xff,sizeof(uv->reserved));
+  
+	//.firstuvbox=SNDE_INDEX_INVALID,
+	//.numuvboxes=SNDE_INDEX_INVALID,
+	//.firstuvboxpoly=SNDE_INDEX_INVALID,
+	//.numuvboxpolys=SNDE_INDEX_INVALID,
+	//.firstuvboxcoord=SNDE_INDEX_INVALID,
+	//.numuvboxcoords=SNDE_INDEX_INVALID
+      //};
+
+}
+
+static GEOMOPS_INLINE void tricentroid3(snde_coord3 *verts, snde_coord3 *centroid_out)
 {
   size_t vertcnt,axcnt;
 
@@ -27,7 +124,7 @@ static inline void tricentroid3(snde_coord3 *verts, snde_coord3 *centroid_out)
   
 }
 
-static inline void polycentroid3(snde_coord3 *verts, uint32_t numvertices, snde_coord3 *centroid_out)
+static GEOMOPS_INLINE void polycentroid3(snde_coord3 *verts, uint32_t numvertices, snde_coord3 *centroid_out)
 {
   size_t vertcnt,axcnt;
 
@@ -47,7 +144,7 @@ static inline void polycentroid3(snde_coord3 *verts, uint32_t numvertices, snde_
 }
 
 
-  static inline snde_coord polymaxradius_sq3(snde_coord3 *verts, uint32_t numvertices,snde_coord3 refpoint)
+  static GEOMOPS_INLINE snde_coord polymaxradius_sq3(snde_coord3 *verts, uint32_t numvertices,snde_coord3 refpoint)
 // evaluate max(radius squared) of radii of verts measured from refpoint
 {
   size_t vertcnt,axcnt;
@@ -71,7 +168,7 @@ static inline void polycentroid3(snde_coord3 *verts, uint32_t numvertices, snde_
 
 
   
-static inline void get_we_triverts_3d(OCL_GLOBAL_ADDR const snde_triangle *part_triangles, snde_index trianglenum,OCL_GLOBAL_ADDR const snde_edge *part_edges, OCL_GLOBAL_ADDR const snde_coord3 *part_vertices,snde_coord3 *tri_vertices)
+static GEOMOPS_INLINE void get_we_triverts_3d(OCL_GLOBAL_ADDR const snde_triangle *part_triangles, snde_index trianglenum,OCL_GLOBAL_ADDR const snde_edge *part_edges, OCL_GLOBAL_ADDR const snde_coord3 *part_vertices,snde_coord3 *tri_vertices)
 {
   snde_index edgecnt;
   snde_index thisedge;
@@ -120,7 +217,7 @@ static inline void get_we_triverts_3d(OCL_GLOBAL_ADDR const snde_triangle *part_
 }
 
 
-  static inline void get_we_trivert_3d(OCL_GLOBAL_ADDR const snde_triangle *part_triangles, snde_index trianglenum,OCL_GLOBAL_ADDR const snde_edge *part_edges, OCL_GLOBAL_ADDR const snde_coord3 *part_vertices,snde_coord3 *tri_vertex)
+  static GEOMOPS_INLINE void get_we_trivert_3d(OCL_GLOBAL_ADDR const snde_triangle *part_triangles, snde_index trianglenum,OCL_GLOBAL_ADDR const snde_edge *part_edges, OCL_GLOBAL_ADDR const snde_coord3 *part_vertices,snde_coord3 *tri_vertex)
   // returns a vertex from the given triangle
 {
   snde_index thisedge;
@@ -135,7 +232,7 @@ static inline void get_we_triverts_3d(OCL_GLOBAL_ADDR const snde_triangle *part_
 
 
   
-static inline void get_we_tricentroid_3d(OCL_GLOBAL_ADDR const snde_triangle *part_triangles, snde_index trianglenum,OCL_GLOBAL_ADDR const snde_edge *part_edges, OCL_GLOBAL_ADDR const snde_coord3 *part_vertices,snde_coord3 *tricentroid)
+static GEOMOPS_INLINE void get_we_tricentroid_3d(OCL_GLOBAL_ADDR const snde_triangle *part_triangles, snde_index trianglenum,OCL_GLOBAL_ADDR const snde_edge *part_edges, OCL_GLOBAL_ADDR const snde_coord3 *part_vertices,snde_coord3 *tricentroid)
 {
   snde_coord3 tri_vertices[3];
   
@@ -144,7 +241,7 @@ static inline void get_we_tricentroid_3d(OCL_GLOBAL_ADDR const snde_triangle *pa
   
 }
 
-  static inline void get_we_triverts_2d(OCL_GLOBAL_ADDR const snde_triangle *uv_triangles, snde_index trianglenum,OCL_GLOBAL_ADDR const snde_edge *uv_edges, OCL_GLOBAL_ADDR const snde_coord2 *uv_vertices,snde_coord2 *tri_vertices)
+  static GEOMOPS_INLINE void get_we_triverts_2d(OCL_GLOBAL_ADDR const snde_triangle *uv_triangles, snde_index trianglenum,OCL_GLOBAL_ADDR const snde_edge *uv_edges, OCL_GLOBAL_ADDR const snde_coord2 *uv_vertices,snde_coord2 *tri_vertices)
 {
   snde_index edgecnt;
   snde_index thisedge;
@@ -194,7 +291,7 @@ static inline void get_we_tricentroid_3d(OCL_GLOBAL_ADDR const snde_triangle *pa
 
   
 
-static inline int point_in_polygon_2d_c(snde_coord2 *vertices_rel_point,snde_index numvertices)
+static GEOMOPS_INLINE int point_in_polygon_2d_c(snde_coord2 *vertices_rel_point,snde_index numvertices)
 { 
       
   //# Apply winding number algorithm.
@@ -310,7 +407,7 @@ static inline int point_in_polygon_2d_c(snde_coord2 *vertices_rel_point,snde_ind
   return FALSE;
 }
 
-static inline int point_in_polygon_3d_c(snde_coord3 *vertices, snde_coord2 *vertbuf2d_vert2d_rel_point,snde_index nvertices,snde_coord3 point, snde_cmat23 inplanemat)
+static GEOMOPS_INLINE int point_in_polygon_3d_c(snde_coord3 *vertices, snde_coord2 *vertbuf2d_vert2d_rel_point,snde_index nvertices,snde_coord3 point, snde_cmat23 inplanemat)
 {
   snde_coord3 vert3d_rel_point;
   //snde_coord2 vert2d_rel_point;
@@ -331,7 +428,7 @@ static inline int point_in_polygon_3d_c(snde_coord3 *vertices, snde_coord2 *vert
 
 
 
-static inline int vertices_in_box_2d(snde_coord2 *vertices,size_t numvertices,snde_coord2 box_v0,snde_coord2 box_v1)
+static GEOMOPS_INLINE int vertices_in_box_2d(snde_coord2 *vertices,size_t numvertices,snde_coord2 box_v0,snde_coord2 box_v1)
 /* v0 must have lower coordinates than v1 */
 /* returns whether all vertices are inside or on the edge of the specified box */
 {
@@ -351,7 +448,7 @@ static inline int vertices_in_box_2d(snde_coord2 *vertices,size_t numvertices,sn
   return TRUE;
 }
 
-static inline int vertices_in_box_3d(snde_coord3 *vertices,size_t numvertices,snde_coord3 box_v0,snde_coord3 box_v1)
+static GEOMOPS_INLINE int vertices_in_box_3d(snde_coord3 *vertices,size_t numvertices,snde_coord3 box_v0,snde_coord3 box_v1)
 /* v0 must have lower coordinates than v1 */
 /* returns whether all vertices are inside or on the edge of the specified box */
 {
@@ -375,7 +472,7 @@ static inline int vertices_in_box_3d(snde_coord3 *vertices,size_t numvertices,sn
 
 
 
-static inline int segment_intersects_box_c(snde_coord3 box_v0,snde_coord3 box_v1,snde_coord3 seg_v0, snde_coord3 seg_v1)
+static GEOMOPS_INLINE int segment_intersects_box_c(snde_coord3 box_v0,snde_coord3 box_v1,snde_coord3 seg_v0, snde_coord3 seg_v1)
 {
   snde_coord3 original_center;
   snde_coord3 segvec;
@@ -440,7 +537,7 @@ static inline int segment_intersects_box_c(snde_coord3 box_v0,snde_coord3 box_v1
 // box-polygon intersection algorithm similar to 
 // discussed in Graphics Gems ch 7-2
  
-static inline int polygon_intersects_box_3d_c(snde_coord3 box_v0, snde_coord3 box_v1, snde_coord3 *vertices, snde_coord2 *vertbuf2d, size_t nvertices, snde_cmat23 inplanemat, snde_coord3 facetnormal)
+static GEOMOPS_INLINE int polygon_intersects_box_3d_c(snde_coord3 box_v0, snde_coord3 box_v1, snde_coord3 *vertices, snde_coord2 *vertbuf2d, size_t nvertices, snde_cmat23 inplanemat, snde_coord3 facetnormal)
 // vertbuf2d should be big enough for nvertices 2d coordinates
 {
   size_t startvertex,endvertex;
@@ -495,7 +592,7 @@ static inline int polygon_intersects_box_3d_c(snde_coord3 box_v0, snde_coord3 bo
 
 
 
-static inline int CCW(snde_coord2 a,snde_coord2 b,snde_coord2 c)
+static GEOMOPS_INLINE int CCW(snde_coord2 a,snde_coord2 b,snde_coord2 c)
 {
   // 2D in-plane: are a,b,c in CCW order?
   snde_coord2 b_minus_a,c_minus_a;
@@ -505,7 +602,7 @@ static inline int CCW(snde_coord2 a,snde_coord2 b,snde_coord2 c)
   return (crosscoordcoord2(b_minus_a,c_minus_a) > 0.0f);
 }
 
-static inline int check_lineseg_intersection(snde_coord2 a,snde_coord2 b,snde_coord2 c,snde_coord2 d)
+static GEOMOPS_INLINE int check_lineseg_intersection(snde_coord2 a,snde_coord2 b,snde_coord2 c,snde_coord2 d)
 {
   // Check if the planar (2D) line segments ab and cd intersect
   // Per http://jeffe.cs.illinois.edu/teaching/373/notes/x06-sweepline.pdf
@@ -528,7 +625,7 @@ static inline int check_lineseg_intersection(snde_coord2 a,snde_coord2 b,snde_co
 }
 
 
-static inline int polygon_intersects_box_2d_c(snde_coord2 box_v0,snde_coord2 box_v1,snde_coord2 *vertices,size_t numvertices)
+static GEOMOPS_INLINE int polygon_intersects_box_2d_c(snde_coord2 box_v0,snde_coord2 box_v1,snde_coord2 *vertices,size_t numvertices)
 {
   snde_coord2 box_v0b;
   snde_coord2 box_v1b;
