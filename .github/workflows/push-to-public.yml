@@ -5,7 +5,7 @@ on:
     branches: ['cleared']
   workflow_dispatch:
 jobs:
-  approved:
+  Push-To-Public:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
@@ -17,13 +17,16 @@ jobs:
         with:
           ref: 'cleared'
       - name: Push to public repo
-        id: push_directory
-        uses: isuthermography/github-action-push-to-another-repository@main
         env:
           SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
-        with:
-          source-directory: .
-          destination-github-username: 'isuthermography'
-          destination-repository-name: 'spatialnde2'
-          user-email: noreply@noreply
-          target-branch: master
+        run: |
+          mkdir --parents "$HOME/.ssh"
+          echo "$SSH_DEPLOY_KEY" > $HOME/.ssh/id_ed25519
+          chmod 600 $HOME/.ssh/id_ed25519
+          ssh-keyscan -H github.com > $HOME/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/id_ed25519 -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          git config --global user.email "noreply@noreply"
+          git config --global user.name "AutoPush"
+          git remote add public git@github.com:isuthermography/spatialnde2.git
+          git fetch --unshallow origin
+          git push public cleared:master
