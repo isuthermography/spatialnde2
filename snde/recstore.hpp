@@ -981,6 +981,9 @@ namespace snde {
     virtual ~recording_set_state()=default;
 
     void wait_complete(); // wait for all the math in this recording_set_state or globalrev to reach nominal completion (metadataonly or ready, as configured)
+    
+    std::string print_math_status(bool verbose=false);
+    std::string print_recording_status(bool verbose=false);
 
     // get_xxxx throws an exception if the recording is not present
     // check_for_xxxx returns nullptr if the recording is not present

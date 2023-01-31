@@ -398,13 +398,126 @@ namespace snde {
       
     }
   }
+  
+  std::string math_status::print_math_status(std::shared_ptr<recording_set_state> rss, bool verbose)
+  {
+    std::string print_buf;
+    std::lock_guard<std::mutex> rss_lock(rss->admin);
 
+    print_buf += ssprintf("\n");
+    print_buf += ssprintf("math function status\n");
+    print_buf += ssprintf("--------------------\n");
+
+    for (auto && fcn_fcn_status: function_status) {
+      std::shared_ptr<instantiated_math_function> fcn = std::get<0>(fcn_fcn_status);
+      math_function_status &fcn_status = std::get<1>(fcn_fcn_status);
+
+      if (verbose || !fcn_status.complete){
+	print_buf += ssprintf("function %s: %lu modified prerequisites\n",fcn->definition->definition_command.c_str(),(unsigned long)fcn_status.num_modified_prerequisites);
+	print_buf += ssprintf("---------------------------------\n");
+	print_buf += ssprintf("mdonly=%d; self_dep=%d; exec_demand=%d; ready=%d; complete=%d\n",(int)fcn_status.mdonly,(int)fcn_status.self_dependent,(int)fcn_status.execution_demanded,(int)fcn_status.ready_to_execute,(int)fcn_status.complete);
+	for (auto && prereq: fcn_status.missing_prerequisites){
+	  print_buf += ssprintf("prerequisite %s missing\n",prereq->channelpath.c_str());
+	}
+	
+	for (auto && extchan_prereq: fcn_status.missing_external_channel_prerequisites){
+	  std::shared_ptr<recording_set_state> extchan_prereq_rss;
+	  std::shared_ptr<channelconfig> extchan_prereq_chan;
+	  std::tie(extchan_prereq_rss,extchan_prereq_chan)=extchan_prereq;
+	  
+	  std::shared_ptr<globalrevision> globalrev = std::dynamic_pointer_cast<globalrevision>(extchan_prereq_rss);
+	  if (globalrev) {
+	    print_buf += ssprintf("external prerequisite globalrev %llu channel %s missing\n",(unsigned long long)globalrev->globalrev,extchan_prereq_chan->channelpath.c_str());
+	  }
+	  else {
+	    print_buf += ssprintf("external prerequisite non-globalrev channel %s missing\n",extchan_prereq_chan->channelpath.c_str());
+	  }
+	}
+
+	for (auto && extfunc_prereq: fcn_status.missing_external_function_prerequisites){
+	  std::shared_ptr<recording_set_state> extfunc_prereq_rss;
+	  std::shared_ptr<instantiated_math_function> extfunc_prereq_fcn;
+	  std::tie(extfunc_prereq_rss,extfunc_prereq_fcn)=extfunc_prereq;
+	  
+	  std::shared_ptr<globalrevision> globalrev = std::dynamic_pointer_cast<globalrevision>(extfunc_prereq_rss);
+	  if (globalrev) {
+	    print_buf += ssprintf("external prerequisite globalrev %llu function %s missing\n",(unsigned long long)globalrev->globalrev,extfunc_prereq_fcn->definition->definition_command.c_str());
+	  }
+	  else {
+	    print_buf += ssprintf("external prerequisite non-globalrev function %s missing\n",extfunc_prereq_fcn->definition->definition_command.c_str());
+	  }
+	}
+	print_buf += ssprintf("\n");
+      }
+      
+    }
+    
+    print_buf += ssprintf("total functions: %lu; %lu accounted for\n",(unsigned long)function_status.size(),(unsigned long)(pending_functions.size() + mdonly_pending_functions.size() + completed_functions.size() + completed_mdonly_functions.size()));
+
+    if (pending_functions.size() > 0) {
+      print_buf += ssprintf("pending functions (%lu)\n",(unsigned long)pending_functions.size());
+      print_buf += ssprintf("-------------------------\n");
+      for (auto && fcn: pending_functions) {
+	print_buf += ssprintf("  %s\n",fcn->definition->definition_command.c_str());
+      }
+    }
+
+    print_buf += ssprintf("\n");
+    
+    if (mdonly_pending_functions.size() > 0) {
+      print_buf += ssprintf("mdonly pending functions (%lu)\n",(unsigned long)mdonly_pending_functions.size());
+      print_buf += ssprintf("-----------------------------\n");
+      
+      for (auto && fcn: mdonly_pending_functions) {
+	print_buf += ssprintf("  %s\n",fcn->definition->definition_command.c_str());
+      }
+    }
+
+    print_buf += ssprintf("\n");
+
+    if (completed_functions.size() > 0) {
+      if (verbose) {
+	
+	print_buf += ssprintf("completed functions (%lu)\n",(unsigned long)completed_functions.size());
+	print_buf += ssprintf("-------------------------------\n");
+	
+	for (auto && fcn: completed_functions) {
+	  print_buf += ssprintf("  %s\n",fcn->definition->definition_command.c_str());
+	}
+      }
+      else {
+	print_buf += ssprintf("%lu completed functions\n",(unsigned long)completed_functions.size());
+      }
+    }
+
+    print_buf += ssprintf("\n");
+
+    if (completed_mdonly_functions.size() > 0) {
+      if (verbose) {
+	
+	print_buf += ssprintf("completed mdonly functions (%lu)\n",(unsigned long)completed_mdonly_functions.size());
+	print_buf += ssprintf("--------------------------------\n");
+	
+	for (auto && fcn: completed_mdonly_functions) {
+	  print_buf += ssprintf("  %s\n",fcn->definition->definition_command.c_str());
+	}
+      }
+      else {
+	print_buf += ssprintf("%lu completed mdonly functions\n",(unsigned long)completed_mdonly_functions.size());
+      }
+    }
+
+    print_buf += ssprintf("\n");
+    return print_buf;
+  }
   
   std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> math_status::begin_atomic_external_dependencies_on_channel_update() // must be called with recording_set_state's admin lock held
   {
     std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> orig = external_dependencies_on_channel(); 
     return std::make_shared<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>>(*orig);    
   }
+
+  
   
   void math_status::end_atomic_external_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep)
 // must be called with recording_set_state's admin lock held
