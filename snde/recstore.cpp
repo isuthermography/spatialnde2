@@ -2731,6 +2731,10 @@ namespace snde {
 	}
       }
       cmf_status.mdonly = mdonly;
+      std::shared_ptr<globalrevision> new_globalrev = std::dynamic_pointer_cast<globalrevision>(new_rss);
+      if (new_globalrev) {
+	snde_debug(SNDE_DC_RECMATH,"build_rss_from_functions_and_channels(): creating math_function_execution for globalrev %llu for %s",(unsigned long long)new_globalrev->globalrev,changed_math_function->definition->definition_command.c_str());
+      }
       cmf_status.execfunc = std::make_shared<math_function_execution>(new_rss,changed_math_function,mdonly,changed_math_function->is_mutable);
       
       snde_debug(SNDE_DC_RECDB,"make execfunc=0x%llx for %s; new_rss=0x%lx",(unsigned long long)cmf_status.execfunc.get(),changed_math_function->definition->definition_command.c_str(),(unsigned long long )new_rss.get());
