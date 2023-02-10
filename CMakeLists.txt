@@ -353,6 +353,9 @@ add_dependencies(spatialnde2 OpenGL::GL )
 target_compile_definitions(spatialnde2 PRIVATE SPATIALNDE2_SHAREDLIB_EXPORT)
 target_link_libraries(spatialnde2 hdf5::hdf5 hdf5::hdf5_cpp )
 
+IF (NOT WIN32)
+  target_link_libraries(spatialnde2 rt)
+ENDIF()
 
 IF (OpenCL_FOUND)
   add_library(spatialnde2_ocl SHARED ${SPATIALNDE2_OCL_SOURCES} )
