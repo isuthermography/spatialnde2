@@ -168,7 +168,7 @@ namespace snde {
 
     std::set<std::weak_ptr<recording_set_state>,std::owner_less<std::weak_ptr<recording_set_state>>> referencing_rss_copy; // will have all recording set states that reference this executing_math_function
 
-    snde_debug(SNDE_DC_RECMATH,"_transfer_function_result_state(execfunc=0x%llx,ignore_rss=0x%llx,ToResultState=%d)",(unsigned long long)execfunc.get(),(unsigned long long)ignore_rss.get(),(int)ToResultState);
+    snde_debug(SNDE_DC_RECMATH,"_transfer_function_result_state(execfunc=0x%llx,ignore_rss=0x%llx,FromResultState=%d,ToResultState=%d)",(unsigned long long)execfunc.get(),(unsigned long long)ignore_rss.get(),(int)FromResultState,(int)ToResultState);
 
     
     {
@@ -218,13 +218,13 @@ namespace snde {
   {
     snde_debug(SNDE_DC_NOTIFY,"execution_complete_notify_single_referencing_rss on rss 0x%llx execfunc 0x%llx %s",(unsigned long long)single_referencing_rss.get(),(unsigned long long)execfunc.get(),execfunc->inst->definition->definition_command.c_str());
     
-    //snde_debug(SNDE_DC_RECMATH,"qc: already finished rss notify %lx",(unsigned long)referencing_rss_strong.get());
-    //snde_debug(SNDE_DC_RECMATH|SNDE_DC_NOTIFY,"pool code: rss notify %lx",(unsigned long)referencing_rss_strong.get());
+    //snde_debug(SNDE_DC_RECMATH,"qc: already finished rss notify %llx",(unsigned long long)referencing_rss_strong.get());
+    //snde_debug(SNDE_DC_RECMATH|SNDE_DC_NOTIFY,"pool code: rss notify %llx",(unsigned long long)referencing_rss_strong.get());
     std::string math_function_channel0_name="(nullptr)";
     if (execfunc->inst->result_channel_paths.at(0)) {
       math_function_channel0_name=*execfunc->inst->result_channel_paths.at(0);
     }
-    snde_debug(SNDE_DC_RECMATH|SNDE_DC_NOTIFY,"math function %s rss notify %lx",math_function_channel0_name.c_str(),(unsigned long)single_referencing_rss.get());
+    snde_debug(SNDE_DC_RECMATH|SNDE_DC_NOTIFY,"math function %s rss notify %llx",math_function_channel0_name.c_str(),(unsigned long long)single_referencing_rss.get());
     // Issue function completion notification
     if (recdb) {
       single_referencing_rss->mathstatus.notify_math_function_executed(recdb,single_referencing_rss,execfunc->inst,mdonly,possibly_redundant); 
@@ -236,7 +236,9 @@ namespace snde {
       chanstate.issue_nonmath_notifications(single_referencing_rss);
       
     }
-
+    
+    snde_debug(SNDE_DC_NOTIFY,"execution_complete_notify_single_referencing_rss complete on rss 0x%llx execfunc 0x%llx %s",(unsigned long long)single_referencing_rss.get(),(unsigned long long)execfunc.get(),execfunc->inst->definition->definition_command.c_str());
+    
   }
   
 
@@ -265,7 +267,7 @@ namespace snde {
       execution_complete_notify_single_referencing_rss(recdb,execfunc,mdonly,possibly_redundant,referencing_rss_strong);
     }
     
-    
+    snde_debug(SNDE_DC_NOTIFY,"_execution_complete_notify complete on execfunc 0x%llx %s",(unsigned long long)execfunc.get(),execfunc->inst->definition->definition_command.c_str());
 
   }
   
@@ -562,7 +564,7 @@ namespace snde {
       
       execfunc = ready_rss_status.execfunc;
       
-      snde_debug(SNDE_DC_RECMATH,"execfunc=0x%lx; rss=0x%lx",(unsigned long)execfunc.get(),(unsigned long)ready_rss.get());
+      snde_debug(SNDE_DC_RECMATH,"execfunc=0x%llx; rss=0x%llx",(unsigned long long)execfunc.get(),(unsigned long long)ready_rss.get());
       snde_debug(SNDE_DC_RECMATH,"ready_to_execute:%d",(int)ready_rss_status.ready_to_execute);
       if (ready_rss_status.ready_to_execute && execfunc->try_execution_ticket()) {
 	// we are taking care of execution -- we have the execution ticket!
@@ -1225,6 +1227,8 @@ namespace snde {
       
       // Need to do notifications that the math function finished in all referencing rss's
       _execution_complete_notify(recdb_strong,func,mdonly,false); // false is possibly_redundant
+
+      snde_debug(SNDE_DC_RECMATH,"Pool code completed notifictions for math function %s",func->inst->definition->definition_command.c_str());
       
       //printf("Pool code completed notification\n");
       //fflush(stdout);
