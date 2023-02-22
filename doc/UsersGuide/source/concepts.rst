@@ -147,11 +147,10 @@ The ``multi_ndarray_recording`` has C++ STL vector members ``layouts`` and
 for each n-dimensional array. An optional set of ``name_mapping`` and ``name_reverse_mapping`` hash tables can be used to define names for the contained
 n-dimensional arrays rather than just using indices. 
 
-One subclass of the ``multi_ndarray_recording`` is the ``fusion_ndarray_recording``. 
-This subclass is meant to represent the circumstance where the meaningful value is
-represented as a weighted average :math:`\sum\limits_{i=0}^{n}\frac{X_{i}w_{i}}{w_{i}}`
-The ``"accumulator"`` array stores an array of data to be averaged over multiple scan iterations. 
-The ``"totals"`` array stores the total quantity of iterations to be averaged.
+One subclass of the ``multi_ndarray_recording`` is the ``fusion_ndarray_recording``. This subclass is useful for input data that needs to be averaged spatially or interpolated, and is
+represented as the weighted average :math:`\sum\nolimits_{i=0}^{n}X_{i}w_{i}/\sum\nolimits_{i=0}^{n}w_{i}`. The ``fusion_ndarray_recording`` is comprised of two sub-arrays called ``"accumulator"`` and ``"totals"``.
+The ``"accumulator"`` sub-array, which represents the elements to be summed in the numerator of this equation, stores an array of data to be averaged over multiple scan iterations. 
+The ``"totals"`` sub-array, which represents the elements to be summed in the denominator, stores the total quantity of iterations to be averaged.
 Both channels consider the weighting factor for the values in each scan iteration. This datatype can be rendered in the 
 viewer similar to the ``multi_ndarray_recording``, but the resulting image represents the output of this 
 weighted average. This recording subclass is useful for cases where there exist data across 
