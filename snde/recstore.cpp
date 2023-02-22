@@ -2731,6 +2731,10 @@ namespace snde {
 	}
       }
       cmf_status.mdonly = mdonly;
+      std::shared_ptr<globalrevision> new_globalrev = std::dynamic_pointer_cast<globalrevision>(new_rss);
+      if (new_globalrev) {
+	snde_debug(SNDE_DC_RECMATH,"build_rss_from_functions_and_channels(): creating math_function_execution for globalrev %llu for %s",(unsigned long long)new_globalrev->globalrev,changed_math_function->definition->definition_command.c_str());
+      }
       cmf_status.execfunc = std::make_shared<math_function_execution>(new_rss,changed_math_function,mdonly,changed_math_function->is_mutable);
       
       snde_debug(SNDE_DC_RECDB,"make execfunc=0x%llx for %s; new_rss=0x%lx",(unsigned long long)cmf_status.execfunc.get(),changed_math_function->definition->definition_command.c_str(),(unsigned long long )new_rss.get());
@@ -4273,7 +4277,103 @@ namespace snde {
     promise_notify->wait_interruptable();
     
   }
+  
+  std::string recording_set_state::print_math_status(bool verbose/*=false*/)
+  {
+    return mathstatus.print_math_status(shared_from_this(),verbose);
+  }
 
+  
+  std::string recording_set_state::print_recording_status(bool verbose/*=false*/)
+  {
+    std::string print_buf;
+    std::lock_guard<std::mutex> rss_admin(admin);
+    
+    print_buf += ssprintf("\n");
+    print_buf += ssprintf("recording status: \n");
+    print_buf += ssprintf("=================\n");
+    std::shared_ptr<std::map<std::string,channel_state>> chanmap = recstatus.channel_map;
+    for (auto && chan_state: *chanmap) {
+      std::string chan = chan_state.first;
+      channel_state &state = chan_state.second;
+      if (verbose || !state.recording_is_complete(false)) {
+	print_buf += ssprintf("channel %s\n",chan.c_str());
+	print_buf += ssprintf("-------------------------\n");
+	print_buf += ssprintf("updated = %d; revision = %llu; recording present = %d\n",(int)state.updated,(unsigned long long)*state.revision(),(int)((bool)state.rec()));
+	if (state.rec()) {
+	  bool got_stateflag = false;
+	  int recstate = state.rec()->info_state;
+	  print_buf += ssprintf("state = ");
+	  if (recstate & SNDE_RECF_STATICMETADATAREADY) {
+	    print_buf += ssprintf("STATICMETADATAREADY ");
+	    got_stateflag = true;
+	  }
+	  if (recstate & SNDE_RECF_DYNAMICMETADATAREADY) {
+	    print_buf += ssprintf("DYNAMICMETADATAREADY ");
+	    got_stateflag = true;
+	  }
+	  if (recstate & SNDE_RECF_ALLMETADATAREADY) {
+	    print_buf += ssprintf("ALLMETADATAREADY ");
+	    got_stateflag = true;
+	  }
+	  if (recstate & SNDE_RECF_OBSOLETE) {
+	    print_buf += ssprintf("OBSOLETE");
+	    got_stateflag = true;
+	  }
+	  if (!got_stateflag) {
+	    print_buf += ssprintf("INITIALIZING");
+	  }
+	  print_buf += ssprintf("\n");
+	  
+	  
+	}
+	print_buf += ssprintf("\n");
+	 
+      }
+    }
+    print_buf += ssprintf("%u total recordings; %u accounted for\n",(unsigned)chanmap->size(),(unsigned)(recstatus.defined_recordings.size()+recstatus.instantiated_recordings.size()+recstatus.metadataonly_recordings.size()+recstatus.completed_recordings.size()));
+    if (recstatus.defined_recordings.size() > 0) {
+      print_buf += ssprintf("defined recordings\n");
+      print_buf += ssprintf("------------------\n");
+      for (auto && chan_chanstate: recstatus.defined_recordings) {
+	print_buf += ssprintf("  %s\n",chan_chanstate.first->channelpath.c_str());
+      }
+    }
+    if (recstatus.instantiated_recordings.size() > 0) {
+      print_buf += ssprintf("instantiated recordings\n");
+      print_buf += ssprintf("-----------------------\n");
+      for (auto && chan_chanstate: recstatus.instantiated_recordings) {
+	print_buf += ssprintf("  %s\n",chan_chanstate.first->channelpath.c_str());
+      }
+    }
+    if (recstatus.metadataonly_recordings.size() > 0) {
+      if (verbose) {
+	print_buf += ssprintf("metadataonly recordings\n");
+	print_buf += ssprintf("------------------------\n");
+	for (auto && chan_chanstate: recstatus.metadataonly_recordings) {
+	  print_buf += ssprintf("  %s\n",chan_chanstate.first->channelpath.c_str());
+	}
+      }
+      else {
+        print_buf += ssprintf("%u metadataonly recordings\n",(unsigned)recstatus.metadataonly_recordings.size());
+      }
+    }
+    
+    if (recstatus.completed_recordings.size() > 0) {
+      if (verbose) {
+	print_buf += ssprintf("completed recordings\n");
+	print_buf += ssprintf("------------------------\n");
+	for (auto && chan_chanstate: recstatus.completed_recordings) {
+	  print_buf += ssprintf("  %s\n",chan_chanstate.first->channelpath.c_str());
+	}
+      }
+      else {
+        print_buf += ssprintf("%u completed recordings\n",(unsigned)recstatus.completed_recordings.size());
+      }
+    }
+    return print_buf;
+  }
+  
   std::shared_ptr<recording_base> recording_set_state::get_recording(const std::string &fullpath)
   { // safe to call with or without rss locked
     std::map<std::string,channel_state>::iterator cm_it;

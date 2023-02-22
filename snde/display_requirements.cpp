@@ -2252,7 +2252,14 @@ std::shared_ptr<display_requirement> assembly_recording_display_handler::get_dis
     std::shared_ptr<display_requirement> sub_requirement = traverse_display_requirement(display,base_rss,display->lookup_channel(abspath),SNDE_SRG_DEFAULT_3D,nullptr);
     retval->sub_requirements.push_back(sub_requirement);
 
-    std::shared_ptr<renderparams_base> sub_params = sub_requirement->mode.constraint;
+    std::shared_ptr<renderparams_base> sub_params;
+    if (sub_requirement) {
+      sub_params = sub_requirement->mode.constraint;
+    }
+
+    else {
+      sub_params = std::make_shared<renderparams_base>();
+    }
     assembly_params->push_back(sub_params);
   }
 
