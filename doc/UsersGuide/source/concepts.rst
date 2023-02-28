@@ -147,16 +147,6 @@ The ``multi_ndarray_recording`` has C++ STL vector members ``layouts`` and
 for each n-dimensional array. An optional set of ``name_mapping`` and ``name_reverse_mapping`` hash tables can be used to define names for the contained
 n-dimensional arrays rather than just using indices. 
 
-One subclass of the ``multi_ndarray_recording`` is the ``fusion_ndarray_recording``. This subclass is useful for input data that needs to be averaged spatially or interpolated, and is
-represented as the weighted average :math:`\sum\nolimits_{i=0}^{n}X_{i}w_{i}/\sum\nolimits_{i=0}^{n}w_{i}`. The ``fusion_ndarray_recording`` is comprised of two sub-arrays called ``"accumulator"`` and ``"totals"``.
-The ``"accumulator"`` sub-array, which represents the elements to be summed in the numerator of this equation, stores an array of data to be averaged over multiple scan iterations. 
-The ``"totals"`` sub-array, which represents the elements to be summed in the denominator, stores the total quantity of iterations to be averaged.
-Both channels consider the weighting factor for the values in each scan iteration. This datatype can be rendered in the 
-viewer similar to the ``multi_ndarray_recording``, but the resulting image represents the output of this 
-weighted average. This recording subclass is useful for cases where there exist data across 
-multiple locations and scans with varying levels of influence on a unified representation of data mapped to the surfaces of specimen geometries.
- 
-
 For access by C code, the ``info`` member of a
 ``multi_ndarray_recording`` points to an extended C structure ``struct
 snde_multi_ndarray_recording`` that starts with the ``struct
@@ -164,6 +154,18 @@ snde_recording_base`` base structure.  The ``struct
 snde_multi_ndarray_recording`` then points to multiple ``struct
 snde_ndarray_info`` representing the indivdual arrays.
 
+Fusion-N-Dimensional-Array Recordings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+One subclass of the ``multi_ndarray_recording`` is the ``fusion_ndarray_recording``. This subclass is useful for input data that is stored sequentially in the form of a weighted average.
+The data in this subclass is represented by the equation: 
+:math:`\sum\nolimits_{i=0}^{n-1}X_{i}w_{i}/\sum\nolimits_{i=0}^{n-1}w_{i}`.
+The variable :math:`X_i` represents some measured input for scan iteration `i`, :math:`w_i`
+represents the weight assgined to that input, and `n` represents the current total number of scans collected. The ``fusion_ndarray_recording`` is comprised of two sub-arrays called ``"accumulator"`` and ``"totals"``.
+The ``"accumulator"`` sub-array, which represents the numerator of this equation, contains the sum of all measured values to be stored in the recording, multiplied by their associated weights, carried out to element `i` within the array. 
+The ``"totals"`` sub-array, which represents the denominator of this equation, stores the values of the sum to element i of the weights assigned to each previous scan iteration.
+The rendering of this datatype is specially handled in the QT recording viewer, where the resulting image represents the quotient of this 
+weighted average.
+ 
 .. _GeometricObjects:
 
 Geometric Objects such as Parts and CAD Models
