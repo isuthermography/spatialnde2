@@ -1436,7 +1436,13 @@ namespace snde {
   // register data types
   static int added_float = add_nde_file_nativetype_mapping("H5T_NATIVE_FLOAT",  [] { return H5::PredType::NATIVE_FLOAT; }, SNDE_RTN_FLOAT32);
   static int added_double = add_nde_file_nativetype_mapping("H5T_NATIVE_DOUBLE", [] { return H5::PredType::NATIVE_DOUBLE; }, SNDE_RTN_FLOAT64);
+  static int added_uint64 = add_nde_file_nativetype_mapping("H5T_NATIVE_UINT64", [] { return H5::PredType::NATIVE_UINT64; }, SNDE_RTN_UINT64);
+  static int added_int64 = add_nde_file_nativetype_mapping("H5T_NATIVE_INT64", [] { return H5::PredType::NATIVE_INT64; }, SNDE_RTN_INT64);
+  static int added_uint32 = add_nde_file_nativetype_mapping("H5T_NATIVE_UINT32", [] { return H5::PredType::NATIVE_UINT32; }, SNDE_RTN_UINT32);
+  static int added_int32 = add_nde_file_nativetype_mapping("H5T_NATIVE_INT32", [] { return H5::PredType::NATIVE_INT32; }, SNDE_RTN_INT32);
+  static int added_uint16 = add_nde_file_nativetype_mapping("H5T_NATIVE_UINT16", [] { return H5::PredType::NATIVE_UINT16; }, SNDE_RTN_UINT16);
+  static int added_int16 = add_nde_file_nativetype_mapping("H5T_NATIVE_INT16", [] { return H5::PredType::NATIVE_INT16; }, SNDE_RTN_INT16);
+  static int added_uint8 = add_nde_file_nativetype_mapping("H5T_NATIVE_UINT8", [] { return H5::PredType::NATIVE_UINT8; }, SNDE_RTN_UINT8);
   static int added_int8 = add_nde_file_nativetype_mapping("H5T_NATIVE_INT8",  [] { return H5::PredType::NATIVE_INT8; }, SNDE_RTN_INT8);
-  
 
 };
