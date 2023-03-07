@@ -943,7 +943,10 @@ namespace snde {
 	  return;
 	} else {
 	  // execution is demanded and we are ready to go... or at least set-up the execfunc
-	  
+	  std::shared_ptr<globalrevision> dep_globalrev = std::dynamic_pointer_cast<globalrevision>(dep_rss);
+	  if (dep_globalrev) {
+	    snde_debug(SNDE_DC_RECMATH,"check_dep_fcn_ready(): creating math_function_execution for globalrev %llu for %s",(unsigned long long)dep_globalrev->globalrev,dep_fcn->definition->definition_command.c_str());
+	  }
 	  mathstatus_ptr->execfunc = std::make_shared<math_function_execution>(dep_rss,dep_fcn,mathstatus_ptr->mdonly,dep_fcn->is_mutable);
 
 	}
