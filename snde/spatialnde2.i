@@ -504,6 +504,7 @@ template <typename T>
 %include "x3d.i"
 %include "utils.i"
 %include "nde_file.i"
+%include "polynomial_transform.i"
 
 #ifdef SNDE_OPENCL
 %include "opencl_utils.i"
