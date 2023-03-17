@@ -738,6 +738,42 @@ namespace snde {
 					math_function_status *mathstatus_ptr,
 					std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute_appendvec,
 					std::unique_lock<std::mutex> &dep_rss_admin_holder)
+  //check_dep_fcn_ready() is called from issue_math_notifications_check_dependent_channel()
+  // via issue_math_notifications() for math dependencies within the rss, and also directly
+  // for external_dependencies_on_channel to evaluate whether a math function that is
+  // dependent on something that just changed state is now ready to execute.
+
+  // check_dep_fcn_ready() accumulates these in the ready_to_execute_append_vec
+  // It is also called by build_rss_from_functions_and_channels()
+  // (which is part of end_transaction()) in recstore.cpp to likewise determine
+  // what math functions can be immediately executed.
+
+  // check_dep_fcn_ready() is also called by notify_math_function_executed()
+  // to help accumulate a vector for external_dependencies_on_function.
+  // Recall that (as of this writing) external_dependencies_on_function is
+  // used solely for self dependencies, because self dependencies are not
+  // really compatible with external_dependencies_on_channel.
+
+  // We have a recursive loop because check_dep_fcn_ready() can call
+  // execution_complete_notify_single_referencing_rss(), which in turn, can
+  // call the notify_math_function_executed() method of mathstatus that in
+  // turn calls check_dep_fcn_ready() both directly and inderectly via
+  // chanstate.issue_math_notifications()
+
+  // check_dep_fcn_ready()'s calls to execution_complete_notify_single_referencing_rss()
+  // are done in part to address a race condition whereby the execution_function
+  // might have been marked as complete but perhaps the result is not fully transfered
+  // (?). The notify_single_referencing_rss() is also done
+  // when it is determined that the function does not
+  // actually need to run and the pre-existing result
+  // can be copied in.
+
+  // One possible solution would be to queue up
+  // calls to execution_complete_notify_single_referencing_rss()
+  // so that they only get called once at the end.
+  // The queue should be done similar to the
+  // ready_to_execute queue.
+
   // assumes dep_rss admin lock is already held
   // checks if prerequisites are done and thus this function is ready to
   // execute.
