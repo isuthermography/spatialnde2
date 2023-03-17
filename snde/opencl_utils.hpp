@@ -12,6 +12,8 @@
 
 #include <typeindex>
 
+#include <initializer_list>
+
 #ifndef CL_USE_DEPRECATED_OPENCL_1_2_APIS
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 #endif
@@ -272,8 +274,17 @@ namespace snde {
 
   };
 
+  struct OpenCLProgramDatabaseHash {
+    size_t operator()(const std::vector<std::type_index>& V) const {
+      size_t hash = 1234;
+      for (auto& i : V) {
+	hash = ((hash << 3) + hash) ^ i.hash_code();
+      }
+      return hash;
+    }
+  };
 
-  typedef std::unordered_map<std::string,std::unordered_map<std::type_index,std::shared_ptr<opencl_program>>> typed_opencl_program_database;
+  typedef std::unordered_map<std::string,std::unordered_map<std::vector<std::type_index>,std::shared_ptr<opencl_program>,OpenCLProgramDatabaseHash>> typed_opencl_program_database;
 
   std::shared_ptr<typed_opencl_program_database> _typed_opencl_program_registry_reglocked();
 
@@ -283,8 +294,13 @@ namespace snde {
   template <typename T> 
   std::shared_ptr<opencl_program> build_typed_opencl_program(std::string category,std::function<std::shared_ptr<opencl_program>(std::string ocltypename)> buildfunc)
   {
-    std::mutex &regmutex = _typed_opencl_program_mutex();
+    
+    std::vector<std::type_index> typevec;
+    
+    typevec.push_back(typeid(T));
 
+    std::mutex &regmutex = _typed_opencl_program_mutex();
+    
     {
       std::lock_guard<std::mutex> reglock(regmutex);
       
@@ -294,13 +310,15 @@ namespace snde {
       typed_opencl_program_database::iterator reg_it = reg->find(category);
       
       if (reg_it != reg->end()) {
-	std::unordered_map<std::type_index,std::shared_ptr<opencl_program>>::iterator typemap_it = reg_it->second.find(typeid(T));
+	std::unordered_map<std::vector<std::type_index>,std::shared_ptr<opencl_program>,OpenCLProgramDatabaseHash>::iterator typemap_it = reg_it->second.find(typevec);
 	
 	if (typemap_it != reg_it->second.end()) {
 	  return typemap_it->second; // return program 
 	}
       }
     }
+
+    
     // if we made it here we did not find a suitable program already. 
     
     auto typemap_it = rtn_typemap.find(typeid(T));
@@ -326,17 +344,92 @@ namespace snde {
       typed_opencl_program_database::iterator reg_it = new_reg->find(category);
       
       if (reg_it == new_reg->end()) {
-	reg_it = std::get<0>(new_reg->emplace(category,std::unordered_map<std::type_index,std::shared_ptr<opencl_program>>()));
+	reg_it = std::get<0>(new_reg->emplace(category,std::unordered_map<std::vector<std::type_index>,std::shared_ptr<opencl_program>,OpenCLProgramDatabaseHash>()));
 	
       }
       
       
-      reg_it->second.emplace(std::type_index(typeid(T)),new_program);
+      reg_it->second.emplace(typevec,new_program);
       *_typed_opencl_program_registry = new_reg;
 
-      return reg_it->second.at(std::type_index(typeid(T))); 
+      return reg_it->second.at(typevec); 
     }
   }
+
+  
+  template <typename... Args>
+  std::shared_ptr<opencl_program> build_typed_opencl_program(std::string category, std::function<std::shared_ptr<opencl_program>(std::vector<std::string> ocltypenames)> buildfunc)
+  {
+
+    std::vector<std::type_index> typevec;
+
+    //Iterate all of the template arguments and populate the vector with the typeid for each argument
+    // https://stackoverflow.com/questions/31368699/iterating-variadic-template-types
+    int dummy[] = { 0, (void(typevec.push_back(typeid(Args))), 0)... };
+
+
+    std::mutex& regmutex = _typed_opencl_program_mutex();
+
+    {
+      std::lock_guard<std::mutex> reglock(regmutex);
+
+      std::shared_ptr<typed_opencl_program_database> reg = _typed_opencl_program_registry_reglocked();
+
+      
+
+      typed_opencl_program_database::iterator reg_it = reg->find(category);
+
+      if (reg_it != reg->end()) {
+	std::unordered_map<std::vector<std::type_index>,std::shared_ptr<opencl_program>,OpenCLProgramDatabaseHash>::iterator typemap_it = reg_it->second.find(typevec);
+
+	if (typemap_it != reg_it->second.end()) {
+	  return typemap_it->second; // return program 
+	}
+      }
+    }
+    // if we made it here we did not find a suitable program already. 
+    std::vector<std::string> ocltypenames;
+
+    // Loop all the templates and build the type name map
+    for (const auto p : typevec ) {
+
+      auto typemap_it = rtn_typemap.find(p);
+      if (typemap_it == rtn_typemap.end()) {
+	throw snde_error("Can't dynamically build typed opencl programs typemap entry");
+      }
+      auto ocltypemap_it = rtn_ocltypemap.find(typemap_it->second);
+      if (ocltypemap_it == rtn_ocltypemap.end()) {
+	throw snde_error("Can't dynamically build typed opencl programs without OpenCL typemap entry");
+      }
+
+      ocltypenames.push_back(ocltypemap_it->second);
+
+    }
+
+    // OpenCL templating via a typedef....
+    std::shared_ptr<opencl_program> new_program = buildfunc(ocltypenames);
+
+    {
+      std::lock_guard<std::mutex> reglock(regmutex);
+
+      // construct new database (so that old one is still safe to use in background)
+      std::shared_ptr<typed_opencl_program_database> new_reg = std::make_shared<typed_opencl_program_database>(*_typed_opencl_program_registry_reglocked());
+
+      typed_opencl_program_database::iterator reg_it = new_reg->find(category);
+
+      if (reg_it == new_reg->end()) {
+	reg_it = std::get<0>(new_reg->emplace(category, std::unordered_map<std::vector<std::type_index>,std::shared_ptr<opencl_program>,OpenCLProgramDatabaseHash>()));
+
+      }
+
+
+      reg_it->second.emplace(typevec, new_program);
+      *_typed_opencl_program_registry = new_reg;
+
+      return reg_it->second.at(typevec);
+    }
+  }
+
 
 }
 

@@ -2,7 +2,6 @@
 #include "snde/recstore.hpp"
 #include "snde/recmath.hpp"
 
-
 namespace snde {
   compute_resource_option::compute_resource_option(unsigned type, size_t metadata_bytes,size_t data_bytes) :
     type(type),
@@ -1156,7 +1155,7 @@ namespace snde {
 	func->execution_tracker->recdb = nullptr; // eliminate reference loop
 	
 #ifndef SNDE_RCR_DISABLE_EXCEPTION_HANDLING
-      } catch(const std::exception &exc) {
+      }  catch(const std::exception &exc) {
 	// Only consider exceptions derived from std::exception because there's no general way to print anything else, so we might as well just crash in that case. 
 	// func is our math_function_execution
 	snde_warning("Exception class %s caught in math thread pool: %s (function %s)",typeid(exc).name(),exc.what(),func->inst->definition->definition_command.c_str());
