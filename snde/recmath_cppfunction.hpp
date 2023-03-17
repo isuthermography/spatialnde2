@@ -840,12 +840,12 @@ namespace snde {
   // This template allows you to write a math function once
   // that auto-detects whether its first input is snde_float32 or
   // snde_float64 and runs the correct version automatically
-  template <template<class> class CppFuncClass>
+  template <template <typename...> class CppFuncClass, typename... Args>  
   std::shared_ptr<executing_math_function> make_cppfuncexec_floatingtypes(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst)
   {
     if (!inst) {
       // initial call with no instantiation to probe parameters; just use float32 case
-      return std::make_shared<CppFuncClass<snde_float32>>(rss,inst);
+      return std::make_shared<CppFuncClass<snde_float32,Args...>>(rss,inst);
 
     }
     
@@ -865,14 +865,14 @@ namespace snde {
 
     switch (firstparam_rec_val->ndinfo()->typenum) {
     case SNDE_RTN_FLOAT32:
-      return std::make_shared<CppFuncClass<snde_float32>>(rss,inst);
+      return std::make_shared<CppFuncClass<snde_float32,Args...>>(rss,inst);
 
     case SNDE_RTN_FLOAT64:
-      return std::make_shared<CppFuncClass<snde_float64>>(rss,inst);
+      return std::make_shared<CppFuncClass<snde_float64,Args...>>(rss,inst);
 
 #ifdef SNDE_HAVE_FLOAT16
     case SNDE_RTN_FLOAT16:
-      return std::make_shared<CppFuncClass<snde_float16>>(rss,inst);    
+      return std::make_shared<CppFuncClass<snde_float16,Args...>>(rss,inst);
 #endif
       
     default:
@@ -886,12 +886,12 @@ namespace snde {
   // This template allows you to write a math function once
   // that auto-detects whether its first input is int32_t or
   // int64_t and runs the correct version automatically
-  template <template<class> class CppFuncClass>
+  template <template <typename...> class CppFuncClass, typename... Args>
   std::shared_ptr<executing_math_function> make_cppfuncexec_integertypes(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst)
   {
     if (!inst) {
       // initial call with no instantiation to probe parameters; just use int32 case
-      return std::make_shared<CppFuncClass<int32_t>>(rss,inst);
+      return std::make_shared<CppFuncClass<int32_t,Args...>>(rss,inst);
 
     }
     
@@ -911,28 +911,28 @@ namespace snde {
 
     switch (firstparam_rec_val->ndinfo()->typenum) {
     case SNDE_RTN_UINT64:
-      return std::make_shared<CppFuncClass<uint64_t>>(rss,inst);
+      return std::make_shared<CppFuncClass<uint64_t, Args...>>(rss,inst);
 
     case SNDE_RTN_INT64:
-      return std::make_shared<CppFuncClass<int64_t>>(rss,inst);
+      return std::make_shared<CppFuncClass<int64_t, Args...>>(rss,inst);
 
     case SNDE_RTN_UINT32:
-      return std::make_shared<CppFuncClass<uint32_t>>(rss,inst);    
+      return std::make_shared<CppFuncClass<uint32_t, Args...>>(rss,inst);
 
     case SNDE_RTN_INT32:
-      return std::make_shared<CppFuncClass<int32_t>>(rss,inst);    
+      return std::make_shared<CppFuncClass<int32_t, Args...>>(rss,inst);
 
     case SNDE_RTN_UINT16:
-      return std::make_shared<CppFuncClass<uint16_t>>(rss,inst);    
+      return std::make_shared<CppFuncClass<uint16_t, Args...>>(rss,inst);
       
     case SNDE_RTN_INT16:
-      return std::make_shared<CppFuncClass<int16_t>>(rss,inst);    
+      return std::make_shared<CppFuncClass<int16_t, Args...>>(rss,inst);
 
     case SNDE_RTN_UINT8:
-      return std::make_shared<CppFuncClass<uint8_t>>(rss,inst);    
+      return std::make_shared<CppFuncClass<uint8_t, Args...>>(rss,inst);
 
     case SNDE_RTN_INT8:
-      return std::make_shared<CppFuncClass<int8_t>>(rss,inst);    
+      return std::make_shared<CppFuncClass<int8_t, Args...>>(rss,inst);
 
     default:
       //throw snde_error("In attempting to call math function %s, first parameter %s has non-floating point type %s",inst->definition->definition_command.c_str(),firstparam_rec->channel_name.c_str(),rtn_typenamemap.at(firstparam_rec_val->ndinfo()->typenum).c_str());
@@ -944,12 +944,12 @@ namespace snde {
   // This template allows you to write a math function once
   // that auto-detects whether its first input is complex float32 or
   // complex float64 and runs the correct version automatically
-  template <template<class> class CppFuncClass>
+  template <template <typename...> class CppFuncClass, typename... Args>
   std::shared_ptr<executing_math_function> make_cppfuncexec_complextypes(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst)
   {
     if (!inst) {
       // initial call with no instantiation to probe parameters; just use int32 case
-      return std::make_shared<CppFuncClass<snde_complexfloat32>>(rss,inst);
+      return std::make_shared<CppFuncClass<snde_complexfloat32,Args...>>(rss,inst);
 
     }
     
@@ -969,13 +969,13 @@ namespace snde {
 
     switch (firstparam_rec_val->ndinfo()->typenum) {
     case SNDE_RTN_COMPLEXFLOAT32:
-      return std::make_shared<CppFuncClass<snde_complexfloat32>>(rss,inst);
+      return std::make_shared<CppFuncClass<snde_complexfloat32, Args...>>(rss,inst);
 
     case SNDE_RTN_COMPLEXFLOAT64:
-      return std::make_shared<CppFuncClass<snde_complexfloat64>>(rss,inst);
+      return std::make_shared<CppFuncClass<snde_complexfloat64, Args...>>(rss,inst);
 
     case SNDE_RTN_SNDE_COMPLEXIMAGEDATA:
-      return std::make_shared<CppFuncClass<snde_compleximagedata>>(rss,inst);
+      return std::make_shared<CppFuncClass<snde_compleximagedata, Args...>>(rss,inst);
 
       
     default:
@@ -1041,12 +1041,12 @@ namespace snde {
   // snde_float64 or one of our vector types and runs the correct version automatically
   // see also the vector evaluation templates immediately above as they may be convenient
   // (see averaging_downsampler.cpp for an example)
-  template <template<class> class CppFuncClass>
+  template <template <typename...> class CppFuncClass, typename... Args>
   std::shared_ptr<executing_math_function> make_cppfuncexec_vectortypes(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst)
   {
     if (!inst) {
       // initial call with no instantiation to probe parameters; just use float32 case
-      return std::make_shared<CppFuncClass<snde_float32>>(rss,inst);
+      return std::make_shared<CppFuncClass<snde_float32,Args...>>(rss,inst);
 
     }
     
@@ -1066,10 +1066,10 @@ namespace snde {
 
     switch (firstparam_rec_val->ndinfo()->typenum) {
     case SNDE_RTN_SNDE_COORD2:
-      return std::make_shared<CppFuncClass<snde_coord2>>(rss,inst);
+      return std::make_shared<CppFuncClass<snde_coord2, Args...>>(rss,inst);
 
     case SNDE_RTN_SNDE_COORD3:
-      return std::make_shared<CppFuncClass<snde_coord3>>(rss,inst);
+      return std::make_shared<CppFuncClass<snde_coord3, Args...>>(rss,inst);
 
       
     default:
