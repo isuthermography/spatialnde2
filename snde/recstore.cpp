@@ -2366,8 +2366,10 @@ namespace snde {
 					     std::unordered_set<std::shared_ptr<channelconfig>> *explicitly_updated_channels,
     std::unordered_set<channel_state *> *ready_channels, // references into the new_rss->recstatus.channel_map
 					     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> *ready_to_execute,
+					     std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>>,mncn_lessthan> *may_need_completion_notification,
 					     bool *all_ready,
 					     bool ondemand_only) // ondemand_only enables the ondemand mode, not worrying about math calculations that have don't have the ondemand flag set, and yes worrying about math calculations that do have the ondemand flag set
+  
   {
 
 
@@ -3184,7 +3186,8 @@ namespace snde {
       std::unique_lock<std::mutex> new_rss_admin(new_rss->admin);
       math_function_status &readycheck_status = new_rss->mathstatus.function_status.at(readycheck);
 
-      new_rss->mathstatus.check_dep_fcn_ready(recdb,new_rss,readycheck,&readycheck_status,*ready_to_execute,new_rss_admin);
+      new_rss->mathstatus.check_dep_fcn_ready(recdb,new_rss,readycheck,&readycheck_status,*ready_to_execute,*may_need_completion_notification,new_rss_admin);
+      
     }
     
     // Go through unchanged_incomplete_channels and unchanged_incomplete_mdonly_channels and get notifies when these become complete
@@ -3468,6 +3471,7 @@ namespace snde {
     std::unordered_set<channel_state *> ready_channels; // references into the new_rss->recstatus.channel_map
 
     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> ready_to_execute;
+    std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>>,mncn_lessthan> may_need_completion_notification;
     bool all_ready=false;
 
     std::unordered_set<std::shared_ptr<channelconfig>> unchanged_channels;
@@ -3490,7 +3494,9 @@ namespace snde {
 					  &changed_math_functions,
 					  &explicitly_updated_channels,
 					  &ready_channels,
-					  &ready_to_execute,&all_ready,
+					  &ready_to_execute,
+					  &may_need_completion_notification,
+					  &all_ready,
 					  false); // ondemand_only
 
     
@@ -3573,7 +3579,15 @@ namespace snde {
       std::tie(ready_rss,ready_fcn) = ready_rss_ready_fcn;
       recdb_strong->compute_resources->queue_computation(recdb_strong,ready_rss,ready_fcn);
     }
+    
+    // Run any possibly needed completion notifications
+    for (auto && complete_rss_complete_execfunc: may_need_completion_notification) {
+      std::shared_ptr<recording_set_state> complete_rss;
+      std::shared_ptr<math_function_execution> complete_execfunc;
 
+      std::tie(complete_rss,complete_execfunc) = complete_rss_complete_execfunc;
+      execution_complete_notify_single_referencing_rss(recdb_strong,complete_execfunc,complete_execfunc->mdonly,true,complete_rss);
+    }
   
     // Check if everything is done; issue notification
     if (all_ready) {
@@ -3837,7 +3851,7 @@ namespace snde {
 
 
 
-  static void issue_math_notifications_check_dependent_channel(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> dep_fcn,std::shared_ptr<channelconfig> config,std::shared_ptr<recording_base> new_rec, bool got_mdonly, bool got_fullyready,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute)
+  static void issue_math_notifications_check_dependent_channel(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> dep_fcn,std::shared_ptr<channelconfig> config,std::shared_ptr<recording_base> new_rec, bool got_mdonly, bool got_fullyready,std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute,std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>>,mncn_lessthan> &may_need_completion_notification)
   {
     // dep_fcn is a shared_ptr to an instantiated_math_function
     std::unique_lock<std::mutex> rss_admin(rss->admin);
@@ -3878,7 +3892,7 @@ namespace snde {
 
 
 	
-      rss->mathstatus.check_dep_fcn_ready(recdb,rss,dep_fcn,&dep_fcn_status,ready_to_execute,rss_admin);
+      rss->mathstatus.check_dep_fcn_ready(recdb,rss,dep_fcn,&dep_fcn_status,ready_to_execute,may_need_completion_notification,rss_admin);
       
 
     }
@@ -3891,6 +3905,7 @@ namespace snde {
   {
 
     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> ready_to_execute;
+    std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>>,mncn_lessthan> may_need_completion_notification;
     std::shared_ptr<recording_base> new_rec = rec();
     // Issue metadataonly notifications    
     bool got_mdonly = (bool)recording_is_complete(true);
@@ -3907,7 +3922,7 @@ namespace snde {
       if (dep_it != rss->mathstatus.math_functions->all_dependencies_of_channel.end()) {
 	for (auto && dep_fcn: dep_it->second) {
     	  // dep_fcn is a shared_ptr to an instantiated_math_function
-	  issue_math_notifications_check_dependent_channel(recdb,rss,dep_fcn,config,new_rec,got_mdonly,got_fullyready,ready_to_execute);
+	  issue_math_notifications_check_dependent_channel(recdb,rss,dep_fcn,config,new_rec,got_mdonly,got_fullyready,ready_to_execute,may_need_completion_notification);
 	}
       }
 
@@ -3919,7 +3934,7 @@ namespace snde {
       if (ext_internal_dep_it != ext_internal_dep->end()) {
 	// found extra internal dependencies
 	for (auto && rss_extintdepfcn: ext_internal_dep_it->second ) {
-	  issue_math_notifications_check_dependent_channel(recdb,rss,rss_extintdepfcn,config,new_rec,got_mdonly,got_fullyready,ready_to_execute);
+	  issue_math_notifications_check_dependent_channel(recdb,rss,rss_extintdepfcn,config,new_rec,got_mdonly,got_fullyready,ready_to_execute,may_need_completion_notification);
 	}
       }
       
@@ -3942,7 +3957,7 @@ namespace snde {
 	      function_status.missing_external_channel_prerequisites.erase(dependent_prereq_it);
 	      
 	    }
-	    dependent_rss->mathstatus.check_dep_fcn_ready(recdb,dependent_rss,dependent_func,&function_status,ready_to_execute,dependent_rss_admin);
+	    dependent_rss->mathstatus.check_dep_fcn_ready(recdb,dependent_rss,dependent_func,&function_status,ready_to_execute,may_need_completion_notification,dependent_rss_admin);
 	  }
 	}
       }
@@ -3957,6 +3972,16 @@ namespace snde {
       std::tie(ready_rss,ready_fcn) = ready_rss_ready_fcn;
       recdb->compute_resources->queue_computation(recdb,ready_rss,ready_fcn);
     }
+
+    // Run any possibly needed completion notifications
+    for (auto && complete_rss_complete_execfunc: may_need_completion_notification) {
+      std::shared_ptr<recording_set_state> complete_rss;
+      std::shared_ptr<math_function_execution> complete_execfunc;
+
+      std::tie(complete_rss,complete_execfunc) = complete_rss_complete_execfunc;
+      execution_complete_notify_single_referencing_rss(recdb,complete_execfunc,complete_execfunc->mdonly,true,complete_rss);
+    }
+    
   }
 
   void channel_state::end_atomic_rec_update(std::shared_ptr<recording_base> new_recording)

@@ -774,6 +774,7 @@ namespace snde {
 					     std::unordered_set<std::shared_ptr<channelconfig>> *explicitly_updated_channels,
     std::unordered_set<channel_state *> *ready_channels, // references into the new_rss->recstatus.channel_map
 					     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> *ready_to_execute,
+					     std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>>,mncn_lessthan> *may_need_completion_notification,
 					     bool *all_ready,
 					     bool ondemand_only);
 
