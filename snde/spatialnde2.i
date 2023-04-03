@@ -504,7 +504,7 @@ template <typename T>
 %include "recstore_setup.i"
 %include "x3d.i"
 %include "utils.i"
-%include "nde_file.i"
+%include "ande_file.i"
 %include "polynomial_transform.i"
 
 #ifdef SNDE_OPENCL

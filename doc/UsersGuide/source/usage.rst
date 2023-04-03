@@ -167,14 +167,14 @@ the metadata is no longer mutable. Next the recording is marked as
 having its metadata done (C++)::
    
   std::shared_ptr<snde::constructible_metadata> test_rec_metadata = std::make_shared<snde::constructible_metadata>();
-  test_rec_metadata->AddMetaDatum(snde::metadatum("nde_array-axis0_inival",0.0));
+  test_rec_metadata->AddMetaDatum(snde::metadatum("ande_array-axis0_inival",0.0));
   test_ref->rec->metadata = test_rec_metadata;
   test_ref->rec->mark_metadata_done();
 
 or (Python)::
   
   test_rec_metadata = snde.constructible_metadata()
-  test_rec_metadata.AddMetaDatum(snde.metadatum_dbl("nde_array-axis0_inival",0.0));
+  test_rec_metadata.AddMetaDatum(snde.metadatum_dbl("ande_array-axis0_inival",0.0));
   
   test_ref.rec.metadata = test_rec_metadata;
   test_ref.rec.mark_metadata_done()

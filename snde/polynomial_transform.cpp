@@ -120,8 +120,8 @@ namespace snde {
 	  result_ref->rec->metadata = snde::MergeMetadata(result_ref->rec->metadata, input->rec->metadata);
 
 	  std::shared_ptr<snde::constructible_metadata> mergemdata = std::make_shared<snde::constructible_metadata>();
-	  mergemdata->AddMetaDatum(snde::metadatum("nde_array-ampl_units", poly->rec->metadata->GetMetaDatumStr("nde_array-ampl_units", "Arb")));
-	  mergemdata->AddMetaDatum(snde::metadatum("nde_array-ampl_coord", poly->rec->metadata->GetMetaDatumStr("nde_array-ampl_coord", "Intensity")));
+	  mergemdata->AddMetaDatum(snde::metadatum("ande_array-ampl_units", poly->rec->metadata->GetMetaDatumStr("ande_array-ampl_units", "Arb")));
+	  mergemdata->AddMetaDatum(snde::metadatum("ande_array-ampl_coord", poly->rec->metadata->GetMetaDatumStr("ande_array-ampl_coord", "Intensity")));
 	  result_ref->rec->metadata = snde::MergeMetadata(result_ref->rec->metadata, mergemdata);
 	  
 	  result_ref->rec->mark_metadata_done();

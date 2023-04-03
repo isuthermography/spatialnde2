@@ -8,7 +8,7 @@
 #include "snde/recstore_setup_opencl.hpp"
 #endif
 
-#include "snde/nde_file.hpp"
+#include "snde/ande_file.hpp"
 
 using namespace snde;
 
@@ -39,7 +39,7 @@ int main(int argc, char **argv)
   
 
   if (argc < 2) {
-    fprintf(stderr,"USAGE: %s <nde_file.nde>\n", argv[0]);
+    fprintf(stderr,"USAGE: %s <ande_file.ande>\n", argv[0]);
     exit(1);
   }
        
@@ -57,7 +57,7 @@ int main(int argc, char **argv)
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
 
   
-  std::shared_ptr<nde_loadrecording_map> recmap = ndefile_loadfile(recdb,"main",(void *)&main,argv[1],"/"); 
+  std::shared_ptr<ande_loadrecording_map> recmap = andefile_loadfile(recdb,"main",(void *)&main,argv[1],"/"); 
 
   std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
   globalrev->wait_complete();
