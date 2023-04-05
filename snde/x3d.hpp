@@ -1470,12 +1470,12 @@ namespace snde {
       double Step1;
       std::string Step1Units;
 	
-      std::tie(Step1,Step1Units) = texture_ref->rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_step",1.0,"pixels");
+      std::tie(Step1,Step1Units) = texture_ref->rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_scale",1.0,"pixels");
       assert(Step1 > 0.0); 
       double Step2;
       std::string Step2Units;
 
-      std::tie(Step2,Step2Units) = texture_ref->rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_step",1.0,"pixels");
+      std::tie(Step2,Step2Units) = texture_ref->rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_scale",1.0,"pixels");
 
       //double IniVal1 = texture_ref->rec->metadata->GetMetaDatumDbl("IniVal1",-texture_ref->layout.dimlen[0]/2.0);
       //double IniVal2 = texture_ref->rec->metadata->GetMetaDatumDbl("IniVal2",texture_ref->layout.dimlen[1]/2.0);
@@ -1483,7 +1483,7 @@ namespace snde {
       double IniVal1;
       std::string IniVal1Units;
 	
-      std::tie(IniVal1,IniVal1Units) = texture_ref->rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_inival",0.0,"pixels");
+      std::tie(IniVal1,IniVal1Units) = texture_ref->rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_offset",0.0,"pixels");
       double IniVal2;
       std::string IniVal2Units;
       //if (Step2 < 0.0) {
@@ -1491,7 +1491,7 @@ namespace snde {
       //} else {
       //  IniVal2 = texture_ref->rec->metadata->GetMetaDatumDbl("IniVal2",0.0+Step2/2.0);
       //}
-      std::tie(IniVal2,IniVal2Units) = texture_ref->rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_inival",0.0,"pixels");
+      std::tie(IniVal2,IniVal2Units) = texture_ref->rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_offset",0.0,"pixels");
 
 	
       TexCoordsToParameterizationCoords(0,0)=fabs(Step1)*texture_ref->layout.dimlen[0];

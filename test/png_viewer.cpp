@@ -65,10 +65,10 @@ void png_viewer_display()
     // or ordered map, and then locking them in the proepr order. 
 
     /*
-    double left = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_step",1.0)/2.0;
-    double right = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_step",1.0)*(png_rec->layout.dimlen.at(0)-0.5);
-    double bottom = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_step",1.0)/2.0;
-    double top = png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_step",1.0)*(png_rec->layout.dimlen.at(1)-0.5);
+    double left = png_rec->rec->metadata->GetMetaDatumDbl("ande_axis0_offset",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("ande_axis0_scale",1.0)/2.0;
+    double right = png_rec->rec->metadata->GetMetaDatumDbl("ande_axis0_offset",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("ande_axis0_scale",1.0)*(png_rec->layout.dimlen.at(0)-0.5);
+    double bottom = png_rec->rec->metadata->GetMetaDatumDbl("ande_axis1_offset",0.0)-png_rec->rec->metadata->GetMetaDatumDbl("ande_axis1_scale",1.0)/2.0;
+    double top = png_rec->rec->metadata->GetMetaDatumDbl("ande_axis1_offset",0.0)+png_rec->rec->metadata->GetMetaDatumDbl("ande_axis1_scale",1.0)*(png_rec->layout.dimlen.at(1)-0.5);
 
     double tmp;
     if (bottom > top) {

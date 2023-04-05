@@ -136,6 +136,8 @@ namespace snde {
 	    uint8_t accum_mode = 0;
 	    snde_index accumulated_increment = 1;
 
+	    to_accum->assert_no_scale_or_offset(this->inst->definition->definition_command);
+	    
 	    // Let's determine mode of operation -- this should probably get cached in creator_data
 	    if (axis == -2) {					    // Accumulate as new arrays at the beginning
 	      if (just_starting) {

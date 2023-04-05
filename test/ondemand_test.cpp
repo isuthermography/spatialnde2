@@ -64,27 +64,7 @@ void test_viewer_display()
     // and either verifying that none of them have require_locking
     // or by accumulating needed lock specs into an ordered set
     // or ordered map, and then locking them in the proepr order. 
-    /*
-    double left = test_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)-test_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_step",1.0)/2.0;
-    double right = test_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_inival",0.0)+test_rec->rec->metadata->GetMetaDatumDbl("nde_axis0_step",1.0)*(test_rec->layout.dimlen.at(0)-0.5);
-    double bottom = test_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)-test_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_step",1.0)/2.0;
-    double top = test_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_inival",0.0)+test_rec->rec->metadata->GetMetaDatumDbl("nde_axis1_step",1.0)*(test_rec->layout.dimlen.at(1)-0.5);
-
-    double tmp;
-    if (bottom > top) {
-      // bottom should always be less than top as y increases up
-      tmp=bottom;
-      bottom=top;
-      top=tmp;
-    }
-
-    if (left > right) {
-      // left should always be less than right as x increases to the right
-      tmp=left;
-      left=right;
-      right=tmp;
-    }
-    */
+    
     fprintf(stderr,"perform_render()\n");
 
     std::shared_ptr<osg_rendercacheentry> cacheentry;

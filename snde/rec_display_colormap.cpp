@@ -86,6 +86,8 @@ namespace snde {
       // define_recs code
       //snde_debug(SNDE_DC_APP,"define_recs()");
       // Use of "this" in the next line for the same reason as the typedefs, above
+      recording->assert_no_scale_or_offset(this->inst->definition->definition_command);
+
       std::shared_ptr<ndtyped_recording_ref<snde_rgba>> result_rec = create_typed_ndarray_ref_math<snde_rgba>(this->get_result_channel_path(0),this->rss);
       
       return std::make_shared<metadata_function_override_type>([ this,result_rec,recording,colormap_type,offset,unitsperintensity,base_position,u_dim,v_dim ]() {
@@ -293,6 +295,8 @@ namespace snde {
       // define_recs code
       //snde_debug(SNDE_DC_APP,"define_recs()");
       // Use of "this" in the next line for the same reason as the typedefs, above
+      recording->assert_no_scale_or_offset(this->inst->definition->definition_command);
+
       std::shared_ptr<ndtyped_recording_ref<snde_float32>> result_rec = create_typed_ndarray_ref_math<snde_float32>(this->get_result_channel_path(0),this->rss);
       
       return std::make_shared<metadata_function_override_type>([ this,result_rec,recording,colormap_type,offset,unitsperintensity ]() {
@@ -557,6 +561,8 @@ namespace snde {
       // define_recs code
       //snde_debug(SNDE_DC_APP,"define_recs()");
       // Use of "this" in the next line for the same reason as the typedefs, above
+      accumulator->assert_no_scale_or_offset(this->inst->definition->definition_command);
+
       std::shared_ptr<ndtyped_recording_ref<snde_rgba>> result_rec = create_typed_ndarray_ref_math<snde_rgba>(this->get_result_channel_path(0),this->rss);
       
       return std::make_shared<metadata_function_override_type>([ this,result_rec,accumulator,fusion,colormap_type,offset,unitsperintensity,base_position,u_dim,v_dim ]() {

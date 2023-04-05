@@ -185,8 +185,8 @@ namespace snde {
     std::string IniValXUnits;
     std::string StepSzXUnits;
     
-    std::tie(*IniValX,IniValXUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_inival",0.0,"pixels"); /* in units  */
-    std::tie(*StepSzX,StepSzXUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_step",1.0,"pixels");  /* in units/index */
+    std::tie(*IniValX,IniValXUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_offset",0.0,"pixels"); /* in units  */
+    std::tie(*StepSzX,StepSzXUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_scale",1.0,"pixels");  /* in units/index */
     
     if (datastore->layout.dimlen.size() >= 1) {
       *dimlenx=datastore->layout.dimlen.at(0);
@@ -197,8 +197,8 @@ namespace snde {
     std::string IniValYUnits;
     std::string StepSzYUnits;
     
-    std::tie(*IniValY,IniValYUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_inival",0.0,"pixels"); /* in units */
-    std::tie(*StepSzY,IniValYUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_step",1.0,"pixels"); /* in units/index */
+    std::tie(*IniValY,IniValYUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_offset",0.0,"pixels"); /* in units */
+    std::tie(*StepSzY,IniValYUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_scale",1.0,"pixels"); /* in units/index */
     
     if (datastore->layout.dimlen.size() >= 2) {
       *dimleny=datastore->layout.dimlen.at(1);
@@ -209,8 +209,8 @@ namespace snde {
     std::string IniValZUnits;
     std::string StepSzZUnits;
 
-    std::tie(*IniValZ,IniValZUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis2_inival",0.0,"pixels"); /* in units */
-    std::tie(*StepSzZ,IniValZUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis2_step",1.0,"pixels"); /* in units/index */
+    std::tie(*IniValZ,IniValZUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis2_offset",0.0,"pixels"); /* in units */
+    std::tie(*StepSzZ,IniValZUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis2_scale",1.0,"pixels"); /* in units/index */
     if (datastore->layout.dimlen.size() >= 3) {
       *dimlenz=datastore->layout.dimlen.at(2);
     } else {
@@ -220,8 +220,8 @@ namespace snde {
     std::string IniValWUnits;
     std::string StepSzWUnits;
     
-    std::tie(*IniValW,IniValWUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis3_inival",0.0,"pixels"); /* in units */
-    std::tie(*StepSzW,StepSzWUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis3_step",1.0,"pixels"); /* in units/index */
+    std::tie(*IniValW,IniValWUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis3_offset",0.0,"pixels"); /* in units */
+    std::tie(*StepSzW,StepSzWUnits)=datastore->rec->metadata->GetMetaDatumDblUnits("ande_array-axis3_scale",1.0,"pixels"); /* in units/index */
     if (datastore->layout.dimlen.size() >= 4) {
       *dimlenw=datastore->layout.dimlen.at(3);
     } else {

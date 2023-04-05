@@ -20,6 +20,8 @@ namespace snde {
 		{
 			// define_recs code
 			//printf("define_recs()\n");
+			rec->assert_no_scale_or_offset(this->inst->definition->definition_command);
+
 			std::shared_ptr<multi_ndarray_recording> result_rec = create_recording_math<multi_ndarray_recording>(this->get_result_channel_path(0), this->rss, 1);
 			result_rec->define_array(0, SNDE_RTN_UINT16, "grayimage");
 
@@ -30,14 +32,14 @@ namespace snde {
 				metadata.AddMetaDatum(metadatum_str("ande_array-axis1_coord", rec->metadata->GetMetaDatumStr("ande_array-axis0_coord", "Y Position")));
 				metadata.AddMetaDatum(metadatum_str("ande_array-ampl_coord", rec->metadata->GetMetaDatumStr("ande_array-ampl_coord", "Intensity")));
 				metadata.AddMetaDatum(metadatum_str("ande_array-ampl_units", rec->metadata->GetMetaDatumStr("ande_array-ampl_units", "Arb")));
-				std::pair<double, std::string> firstaxismdata = rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_inival", (double)rec->layouts.at(0).dimlen.at(1) / (-2), "pixels");
-				std::pair<double, std::string> secondaxismdata = rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_inival", (double)rec->layouts.at(0).dimlen.at(0) / (-2), "pixels");
-				std::pair<double, std::string> firstaxisstep = rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_step", 1.0, "pixels");
-				std::pair<double, std::string> secondaxisstep = rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_step", 1.0, "pixels");
-				metadata.AddMetaDatum(metadatum_dblunits("ande_array-axis0_inival", firstaxismdata.first, firstaxismdata.second));
-				metadata.AddMetaDatum(metadatum_dblunits("ande_array-axis1_inival", secondaxismdata.first, secondaxismdata.second));
-				metadata.AddMetaDatum(metadatum_dblunits("ande_array-axis0_step", firstaxisstep.first, firstaxisstep.second));
-				metadata.AddMetaDatum(metadatum_dblunits("ande_array-axis1_step", secondaxisstep.first, secondaxisstep.second));
+				std::pair<double, std::string> firstaxismdata = rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_offset", (double)rec->layouts.at(0).dimlen.at(1) / (-2), "pixels");
+				std::pair<double, std::string> secondaxismdata = rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_offset", (double)rec->layouts.at(0).dimlen.at(0) / (-2), "pixels");
+				std::pair<double, std::string> firstaxisstep = rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_scale", 1.0, "pixels");
+				std::pair<double, std::string> secondaxisstep = rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_scale", 1.0, "pixels");
+				metadata.AddMetaDatum(metadatum_dblunits("ande_array-axis0_offset", firstaxismdata.first, firstaxismdata.second));
+				metadata.AddMetaDatum(metadatum_dblunits("ande_array-axis1_offset", secondaxismdata.first, secondaxismdata.second));
+				metadata.AddMetaDatum(metadatum_dblunits("ande_array-axis0_scale", firstaxisstep.first, firstaxisstep.second));
+				metadata.AddMetaDatum(metadatum_dblunits("ande_array-axis1_scale", secondaxisstep.first, secondaxisstep.second));
 
 				result_rec->metadata = std::make_shared<immutable_metadata>(metadata);
 				result_rec->mark_metadata_done();

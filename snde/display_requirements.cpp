@@ -807,11 +807,11 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       std::string funcname = "";
       std::string funcdescr = "";
 
-      std::tie(datastep, step_units) = array_rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_step", 1.0, "pixels");
+      std::tie(datastep, step_units) = array_rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_scale", 1.0, "pixels");
 
       double samplesperpixel = 1 / (horiz_pixels_per_chanunit * datastep);
 
-      std::tie(datainival, inival_units) = array_rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_inival", 0.0, "pixels");
+      std::tie(datainival, inival_units) = array_rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_offset", 0.0, "pixels");
 
       if (datainival + idxstep * (DimLen1-1) > bounds->right)
       {
@@ -1141,15 +1141,15 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       double stepx,stepy;
       std::string stepx_units,stepy_units;
       
-      std::tie(stepx,stepx_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_step",1.0,"pixels");
-      std::tie(stepy,stepy_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_step",1.0,"pixels");
+      std::tie(stepx,stepx_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_scale",1.0,"pixels");
+      std::tie(stepy,stepy_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_scale",1.0,"pixels");
 
 
       double inivalx,inivaly;
       std::string inivalx_units,inivaly_units;
       
-      std::tie(inivalx,inivalx_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_inival",1.0,"pixels");
-      std::tie(inivaly,inivaly_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_inival",1.0,"pixels");
+      std::tie(inivalx,inivalx_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_offset",1.0,"pixels");
+      std::tie(inivaly,inivaly_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_offset",1.0,"pixels");
       
       double left,right,bottom,top;
       
@@ -1604,14 +1604,14 @@ std::shared_ptr<display_requirement> fusion_ndarray_recording_display_handler::g
       double stepx,stepy;      
       std::string stepx_units,stepy_units;
       
-      std::tie(stepx,stepx_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_step",1.0,"pixels");
-      std::tie(stepy,stepy_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_step",1.0,"pixels");
+      std::tie(stepx,stepx_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_scale",1.0,"pixels");
+      std::tie(stepy,stepy_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_scale",1.0,"pixels");
       
       double inivalx,inivaly;
       std::string inivalx_units,inivaly_units;
       
-      std::tie(inivalx,inivalx_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_inival",1.0,"pixels");
-      std::tie(inivaly,inivaly_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_inival",1.0,"pixels");
+      std::tie(inivalx,inivalx_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_offset",1.0,"pixels");
+      std::tie(inivaly,inivaly_units) = rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_offset",1.0,"pixels");
       
       double left,right,bottom,top;
       

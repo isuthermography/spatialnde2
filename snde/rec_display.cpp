@@ -532,9 +532,9 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
     
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("ande_array-axis0_coord","Time");
     std::string UnitName;
-    double inival0;
+    double offset0;
 
-    std::tie(inival0,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_inival",0.0,"seconds");
+    std::tie(offset0,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_offset",0.0,"seconds");
     
     return FindAxis(AxisName,UnitName);
   }
@@ -557,8 +557,8 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
     
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("ande_array-axis0_coord","Time");
     std::string UnitName;
-    double inival0;
-    std::tie(inival0,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_inival",0.0,"seconds");
+    double offset0;
+    std::tie(offset0,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis0_offset",0.0,"seconds");
 
     return FindAxisLocked(AxisName,UnitName);
   }
@@ -584,8 +584,8 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
     //snde_warning("Full metadata=%s\n",rec->rec->metadata->to_string().c_str());
     
     std::string UnitName;
-    double inival1;
-    std::tie(inival1,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_inival",0.0,"seconds");
+    double offset1;
+    std::tie(offset1,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_offset",0.0,"seconds");
 
 
     return FindAxis(AxisName,UnitName);
@@ -609,8 +609,8 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
 
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("ande_array-axis1_coord","Time");
     std::string UnitName;
-    double inival1;
-    std::tie(inival1,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_inival",0.0,"seconds");
+    double offset1;
+    std::tie(offset1,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis1_offset",0.0,"seconds");
 
     return FindAxisLocked(AxisName,UnitName);
   }
@@ -632,8 +632,8 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
 
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("ande_array-axis2_coord","Time");
     std::string UnitName;
-    double inival2;
-    std::tie(inival2,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis2_inival",0.0,"seconds");
+    double offset2;
+    std::tie(offset2,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis2_offset",0.0,"seconds");
 
     return FindAxis(AxisName,UnitName);
   }
@@ -655,8 +655,8 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
 
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("ande_array-axis2_coord","Time");
     std::string UnitName;
-    double inival2;
-    std::tie(inival2,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis2_inival",0.0,"seconds");
+    double offset2;
+    std::tie(offset2,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis2_offset",0.0,"seconds");
 
     return FindAxisLocked(AxisName,UnitName);
   }
@@ -677,8 +677,8 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
 
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("ande_array-axis3_coord","Time");
     std::string UnitName;
-    double inival3;
-    std::tie(inival3,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis3_inival",0.0,"seconds");
+    double offset3;
+    std::tie(offset3,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis3_offset",0.0,"seconds");
 
     return FindAxis(AxisName,UnitName);
   }
@@ -700,8 +700,8 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
 
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("ande_array-axis3_coord","Time");
     std::string UnitName;
-    double inival3;
-    std::tie(inival3,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis3_inival",0.0,"seconds");
+    double offset3;
+    std::tie(offset3,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis3_offset",0.0,"seconds");
 
     return FindAxisLocked(AxisName,UnitName);
   }

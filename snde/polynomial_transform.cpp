@@ -107,6 +107,8 @@ namespace snde {
 	//snde_debug(SNDE_DC_APP,"define_recs()");
 	// Use of "this" in the next line for the same reason as the typedefs, above
 	//std::shared_ptr<multi_ndarray_recording> result_rec = create_recording_math<multi_ndarray_recording>(this->get_result_channel_path(0), this->rss, 1);
+	input->assert_no_scale_or_offset(this->inst->definition->definition_command);
+
 	std::shared_ptr<ndtyped_recording_ref<OutputType>> result_ref;
 	result_ref = create_typed_ndarray_ref_math<OutputType>(this->get_result_channel_path(0), this->rss);
 

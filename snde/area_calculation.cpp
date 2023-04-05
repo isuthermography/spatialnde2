@@ -97,6 +97,10 @@ namespace snde {
       // define_recs code
       //printf("define_recs()\n");
       std::shared_ptr<ndtyped_recording_ref<snde_coord>> result_ref;
+      
+      recording->assert_no_scale_or_offset(this->inst->definition->definition_command);
+	    
+
       result_ref = create_typed_named_ndarray_ref_math<snde_coord>(get_result_channel_path(0),rss,"trianglearea");
       
       return std::make_shared<metadata_function_override_type>([ this,result_ref,recording ]() {
@@ -324,6 +328,10 @@ namespace snde {
       // define_recs code
       //printf("define_recs()\n");
       std::shared_ptr<ndtyped_recording_ref<snde_coord>> result_ref;
+      
+      recording->assert_no_scale_or_offset(this->inst->definition->definition_command);
+	    
+
       result_ref = create_typed_named_ndarray_ref_math<snde_coord>(get_result_channel_path(0),rss,"vertexarea");
       
       return std::make_shared<metadata_function_override_type>([ this,result_ref,recording,ref_trianglearea ]() {

@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
   std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
 
   std::shared_ptr<snde::constructible_metadata> test_rec_metadata = std::make_shared<snde::constructible_metadata>();
-  test_rec_metadata->AddMetaDatum(snde::metadatum_dbl("nde_array-axis0_inival",0.0));
+  test_rec_metadata->AddMetaDatum(snde::metadatum_dbl("ande_array-axis0_offset",0.0));
     
   test_ref->rec->metadata = test_rec_metadata;
   test_ref->rec->mark_metadata_done();

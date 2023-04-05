@@ -82,7 +82,9 @@ namespace snde {
       bool just_starting = false;
       bool got_empty = false; 
       std::shared_ptr<multi_ndarray_recording> previous_recording_ndarray;
-      
+
+      to_accum->assert_no_scale_or_offset(this->inst->definition->definition_command);
+
       std::shared_ptr<recording_base> previous_recording = this->self_dependent_recordings.at(0);
 
       std::vector<snde_index> accum_dimlen; // dimlen of arrays we are accumulating (may be length 0 for scalars)

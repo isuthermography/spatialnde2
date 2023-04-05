@@ -173,6 +173,7 @@ namespace snde {
 	snde_warning("project_onto_parameterization(): define_recs on globalrev %llu",(unsigned long long)std::dynamic_pointer_cast<globalrevision>(this->rss)->globalrev);
       }
       */
+      to_project->assert_no_scale_or_offset(this->inst->definition->definition_command);
 
       // determine real vs. complex
       bool is_complex; 
@@ -279,13 +280,13 @@ namespace snde {
 	double inival0 = min_u + step0/2.0;
 	double inival1 = min_v + step1/2.0;
 
-	metadata->AddMetaDatum(metadatum("ande_array-axis0_step",step0,units0));
-	metadata->AddMetaDatum(metadatum("ande_array-axis0_inival",inival0,units0));
+	metadata->AddMetaDatum(metadatum("ande_array-axis0_scale",step0,units0));
+	metadata->AddMetaDatum(metadatum("ande_array-axis0_offset",inival0,units0));
 	metadata->AddMetaDatum(metadatum("ande_array-axis0_coord",coord0));
 	//metadata->AddMetaDatum(metadatum("ande_array-axis0_units",units0));
 
-	metadata->AddMetaDatum(metadatum("ande_array-axis1_step",step1,units1));
-	metadata->AddMetaDatum(metadatum("ande_array-axis1_inival",inival1,units1));
+	metadata->AddMetaDatum(metadatum("ande_array-axis1_scale",step1,units1));
+	metadata->AddMetaDatum(metadatum("ande_array-axis1_offset",inival1,units1));
 	metadata->AddMetaDatum(metadatum("ande_array-axis1_coord",coord1));
 	//metadata->AddMetaDatum(metadatum("ande_array-axis1_units",units1));
 
@@ -369,19 +370,19 @@ namespace snde {
 		  
 		  double previous_step0;
 		  std::string previous_step0_units;
-		  std::tie(previous_step0,previous_step0_units)=previous_ndarray->metadata->GetMetaDatumDblUnits("ande_array-axis0_step",1.0,"meters");
+		  std::tie(previous_step0,previous_step0_units)=previous_ndarray->metadata->GetMetaDatumDblUnits("ande_array-axis0_scale",1.0,"meters");
 		  
 		  double previous_step1;
 		  std::string previous_step1_units;
-		  std::tie(previous_step1,previous_step1_units)=previous_ndarray->metadata->GetMetaDatumDblUnits("ande_array-axis1_step",1.0,"meters");
+		  std::tie(previous_step1,previous_step1_units)=previous_ndarray->metadata->GetMetaDatumDblUnits("ande_array-axis1_scale",1.0,"meters");
 		  
 		  double previous_inival0;
 		  std::string previous_inival0_units;
-		  std::tie(previous_inival0,previous_inival0_units)=previous_ndarray->metadata->GetMetaDatumDblUnits("ande_array-axis0_inival",0.0,"meters");
+		  std::tie(previous_inival0,previous_inival0_units)=previous_ndarray->metadata->GetMetaDatumDblUnits("ande_array-axis0_offset",0.0,"meters");
 
 		  double previous_inival1;
 		  std::string previous_inival1_units;		  
-		  std::tie(previous_inival1,previous_inival1_units)=previous_ndarray->metadata->GetMetaDatumDblUnits("ande_array-axis1_inival",0.0,"meters");
+		  std::tie(previous_inival1,previous_inival1_units)=previous_ndarray->metadata->GetMetaDatumDblUnits("ande_array-axis1_offset",0.0,"meters");
 		  
 		  std::string previous_coord0 = previous_ndarray->metadata->GetMetaDatumStr("ande_array-axis0_coord","X Position");
 		  std::string previous_coord1 = previous_ndarray->metadata->GetMetaDatumStr("ande_array-axis1_coord","Y Position");

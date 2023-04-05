@@ -464,7 +464,19 @@ namespace snde {
     void define_array(size_t index,unsigned typenum,std::string name);   // should be called exactly once for each index < mndinfo()->num_arrays
 
     std::shared_ptr<std::vector<std::string>> list_arrays();
-    
+
+    // Throw an snde_error exception if the recording specifies a scale
+    // or offset. This should be used whenever interpreting array data
+    // in a context that does not include multiplying by the scale and
+    // then adding the offset (ande_array-ampl_scale and
+    // ande_array-ampl_offset metadata entries, respectively)
+    // The identifier parameter should identify the e.g. math function
+    // or similar so that the source of the problem is readily
+    // identifiable
+    void assert_no_scale_or_offset(std::string identifier);
+
+    // return (scale,offset) tuple from metadata
+    std::tuple<snde_float64,snde_float64> get_ampl_scale_offset();
     
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(size_t index=0);
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(const std::string &array_name);
@@ -605,6 +617,26 @@ namespace snde {
     inline snde_multi_ndarray_recording *mndinfo() {return (snde_multi_ndarray_recording *)rec->info;}
     inline snde_ndarray_info *ndinfo() {return &((snde_multi_ndarray_recording *)rec->info)->arrays[rec_index];}
 
+    
+    // Throw an snde_error exception if the recording specifies a scale
+    // or offset. This should be used whenever interpreting array data
+    // in a context that does not include multiplying by the scale and
+    // then adding the offset (ande_array-ampl_scale and
+    // ande_array-ampl_offset metadata entries, respectively)
+    // The identifier parameter should identify the e.g. math function
+    // or similar so that the source of the problem is readily
+    // identifiable
+    inline void assert_no_scale_or_offset(std::string identifier)
+    {
+      rec->assert_no_scale_or_offset(identifier);
+    }
+    
+    // return (scale,offset) tuple from metadata
+    inline std::tuple<snde_float64,snde_float64> get_ampl_scale_offset()
+    {
+      return rec->get_ampl_scale_offset();
+    }
+    
 
     inline void *void_shifted_arrayptr()
     {
