@@ -5,7 +5,7 @@ About SpatialNDE2
 evaluation (NDE). It provides a framework to facilitate:
 
   * Storage of acquired or loaded NDE data, typically in the form of
-    n-dimensional arrays (*nde_recordings*)
+    n-dimensional arrays (*snde_recordings*)
   * Tracking of metadata such as axis definitions, units, scales,
     etc. that is attached to that NDE data. 
   * Consistent snapshots (*globalrevisions*) of that NDE data in a live
@@ -23,7 +23,7 @@ evaluation (NDE). It provides a framework to facilitate:
   * Rendering, visualization, and interactive viewing of the loaded
     NDE data.
   * Storing the NDE data, metadata, 3D models, etc. in an open an
-    accessible format.
+    accessible format (.ande).
 
 SpatialNDE2 does not attempt on its own to be an interactive data
 acquisition, manipulation, or analysis platform. That role is taken by

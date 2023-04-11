@@ -152,6 +152,7 @@ namespace snde {
 	    std::shared_ptr<null_recording> starting_result;
 	    //snde_warning("avg: define_recs just_starting");
 	  
+	    to_avg->assert_no_scale_or_offset(this->inst->definition->definition_command);
 	    
 	    starting_result = create_recording_math<null_recording>(this->get_result_channel_path(0),this->rss);
 	    return std::make_shared<metadata_function_override_type>([ this, to_avg, numavgs, usedouble, starting_result ]() {
@@ -207,7 +208,8 @@ namespace snde {
 	    
 	    // define_recs code
 	    std::shared_ptr<ndtyped_recording_ref<T>> result_ref;
-	    
+	    creator_data->pending_recs.at(0)->assert_no_scale_or_offset(this->inst->definition->definition_command);
+
 	    result_ref = create_typed_ndarray_ref_math<T>(this->get_result_channel_path(0),this->rss);
 	    
 	    return std::make_shared<metadata_function_override_type>([ this, creator_data, numavgs, usedouble, result_ref ]() {

@@ -132,13 +132,15 @@ namespace snde {
       bool consistent_layout_c=true; // consistent_layout_c means multiple arrays but all with the same layout except for the first axis which is implicitly concatenated
       bool consistent_layout_f=true; // consistent_layout_f means multiple arrays but all with the same layout except for the last axis which is implicitly concatenated
       bool consistent_ndim=true; 
-      
+      recording->assert_no_scale_or_offset(this->inst->definition->definition_command);
+
       std::tie(consistent_ndim,consistent_layout_c,consistent_layout_f,layout_dims,layout_length)
 	= analyze_potentially_batched_multi_ndarray_layout(recording);
  
       // define_recs code
       //snde_debug(SNDE_DC_APP,"define_recs()");
       // Use of "this" in the next line for the same reason as the typedefs, above
+
       std::shared_ptr<multi_ndarray_recording> result_rec = create_recording_math<multi_ndarray_recording>(this->get_result_channel_path(0),this->rss,2);
       result_rec->define_array(0,SNDE_RTN_SNDE_COORD3,"vertcoord");
       result_rec->define_array(1,SNDE_RTN_FLOAT32,"vertcoord_color");
@@ -382,6 +384,7 @@ namespace snde {
     {
       // define_recs code
       //printf("define_recs()\n");
+      rec->assert_no_scale_or_offset(this->inst->definition->definition_command);
 
       std::shared_ptr<multi_ndarray_recording> result_rec = create_recording_math<multi_ndarray_recording>(this->get_result_channel_path(0),this->rss,1);
       result_rec->define_array(0,SNDE_RTN_SNDE_COORD3,"vertcoord");

@@ -1244,7 +1244,32 @@ namespace snde {
     return retval;
   }
 
-  
+  // Throw an snde_error exception if the recording specifies a scale
+  // or offset. This should be used whenever interpreting array data
+  // in a context that does not include multiplying by the scale and
+  // then adding the offset (ande_array-ampl_scale and
+  // ande_array-ampl_offset metadata entries, respectively)
+  // The identifier parameter should identify the e.g. math function
+  // or similar so that the source of the problem is readily
+  // identifiable
+  void multi_ndarray_recording::assert_no_scale_or_offset(std::string identifier)
+  {
+    snde_float64 scale=metadata->GetMetaDatumDbl("ande_array-ampl_scale", 1.0);
+    snde_float64 offset=metadata->GetMetaDatumDbl("ande_array-ampl_offset", 0.0);
+    if (scale != 1.0 || offset != 0.0) {
+
+      throw snde_error("Attempting to use recording %s with a scale or offset in a context (%s) that does not support it.", info->name,identifier.c_str());
+    }
+  }
+
+  // return (scale,offset) tuple from metadata
+  std::tuple<snde_float64,snde_float64> multi_ndarray_recording::get_ampl_scale_offset()
+  {
+    snde_float64 scale=metadata->GetMetaDatumDbl("ande_array-ampl_scale", 1.0);
+    snde_float64 offset=metadata->GetMetaDatumDbl("ande_array-ampl_offset", 0.0);
+    return std::make_tuple(scale,offset);
+  }
+    
   std::shared_ptr<ndarray_recording_ref> multi_ndarray_recording::reference_ndarray(size_t index)
   {
 

@@ -30,8 +30,18 @@ namespace snde2_fn_ex {
     {
       // define_recs code
       snde::snde_debug(SNDE_DC_APP,"define_recs()");
+
+      // recordings can contain scale and offset metadata. If these
+      // are provided, you must either properly scale and offset
+      // the recording when you use it, or assert that the scale
+      // is 1.0 and the offset is 0.0 with the
+      // assert_no_scale_or_offset() method, which will throw an
+      // exception otherwise, e.g.
+      //  recording->assert_no_scale_or_offset(this->inst->definition->definition_command);
+      // (In this case, we do proper scaling using the
+      // get_ampl_scale_offset() method below)
       // Use of "this" in the next line for the same reason as the typedefs, above
-      std::shared_ptr<snde::ndtyped_recording_ref<T>> result_rec = snde::create_typed_recording_ref_math<T>(this->get_result_channel_path(0),this->rss);
+      std::shared_ptr<snde::ndtyped_recording_ref<T>> result_rec = snde::create_typed_ndarray_ref_math<T>(this->get_result_channel_path(0),this->rss);
       // ***!!! Should provide means to set allocation manager !!!***
       
       return std::make_shared<metadata_function_override_type>([ this,result_rec,recording,multiplier ]() {
@@ -62,8 +72,11 @@ namespace snde2_fn_ex {
 	  
 	  return std::make_shared<exec_function_override_type>([ this,locktokens,result_rec,recording,multiplier ]() {
 	    // exec code
+
+	    snde_float64 scale,offset;
+	    std::tie(scale,offset)=recording->get_ampl_scale_offset();
 	    for (snde_index pos=0;pos < recording->layout.dimlen.at(0);pos++){
-	      result_rec->element({pos}) = recording->element({pos}) * multiplier;
+	      result_rec->element({pos}) = (recording->element({pos})*scale + offset) * multiplier;
 	    }
 	    
 	    snde::unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready() 
