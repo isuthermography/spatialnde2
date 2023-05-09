@@ -25,7 +25,8 @@ live_channel = recdb.define_channel("/live","main",recdb.raw())
 
 accumulator_fortran_newaxis = snde.accumulate_once.instantiate( [ snde.math_parameter_recording("/live"),
                                                                   snde.math_parameter_unsigned_const(10),
-                                                                  snde.math_parameter_int_const(2)],
+                                                                  snde.math_parameter_int_const(2), 
+								  snde.math_parameter_bool_const(False)],
                                                                 [ snde.shared_string("/accum_newaxis_fortran") ],
                                                                 "/",
                                                                 False,
@@ -38,7 +39,8 @@ recdb.add_math_function(accumulator_fortran_newaxis,False)
 
 accumulator_c_newaxis = snde.accumulate_once.instantiate(       [ snde.math_parameter_recording("/live"),
                                                                   snde.math_parameter_unsigned_const(10),
-                                                                  snde.math_parameter_int_const(-1)],
+                                                                  snde.math_parameter_int_const(-1),
+								  snde.math_parameter_bool_const(False)],
                                                                 [ snde.shared_string("/accum_newaxis_c") ],
                                                                 "/",
                                                                 False,
@@ -50,7 +52,8 @@ recdb.add_math_function(accumulator_c_newaxis ,False)
 
 accumulator_fortran_concat = snde.accumulate_once.instantiate( [  snde.math_parameter_recording("/live"),
                                                                   snde.math_parameter_unsigned_const(9),
-                                                                  snde.math_parameter_int_const(1)],
+                                                                  snde.math_parameter_int_const(1),
+								  snde.math_parameter_bool_const(False)],
                                                                 [ snde.shared_string("/accum_concat_fortran") ],
                                                                 "/",
                                                                 False,
@@ -63,7 +66,8 @@ recdb.add_math_function(accumulator_fortran_concat,False)
 
 accumulator_c_concat = snde.accumulate_once.instantiate(        [ snde.math_parameter_recording("/live"),
                                                                   snde.math_parameter_unsigned_const(9),
-                                                                  snde.math_parameter_int_const(0)],
+                                                                  snde.math_parameter_int_const(0),
+								  snde.math_parameter_bool_const(False)],
                                                                 [ snde.shared_string("/accum_concat_c") ],
                                                                 "/",
                                                                 False,

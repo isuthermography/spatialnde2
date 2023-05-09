@@ -156,6 +156,7 @@ namespace snde {
   class math_definition;
   template <typename T> class ndtyped_recording_ref;
 
+  class math_instance_parameter; // from recmath.hpp
   class channel_notify; // from notify.hpp
   class repetitive_channel_notify; // from notify.hpp
   class promise_channel_notify;
@@ -730,6 +731,7 @@ namespace snde {
     //Keep track of whether a new recording is required for the channel (e.g. if it has a new owner) (use false for math recordings)
     std::map<std::string,bool> new_recording_required; // index is channel name for updated channels
     std::unordered_map<std::string,std::shared_ptr<recording_base>> new_recordings;
+    std::unordered_map<std::shared_ptr<instantiated_math_function>, std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>>> math_messages;
 
     // end of transaction propagates this structure into an update of recdatabase._channels
     // and a new globalrevision
@@ -1168,6 +1170,8 @@ namespace snde {
     std::shared_ptr<instantiated_math_function> lookup_math_function(std::string fullpath);
     
     void delete_math_function(std::shared_ptr<instantiated_math_function> fcn);
+
+    void send_math_message(std::shared_ptr<instantiated_math_function> func, std::string name, std::shared_ptr<math_instance_parameter> msg);
     
     void add_math_function_storage_manager(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager);
     

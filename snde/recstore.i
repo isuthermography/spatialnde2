@@ -45,6 +45,22 @@ snde_rawaccessible(snde::transaction);
 //snde_rawaccessible(std::map<std::string,snde::channel_state>);
 
 
+// These really belong in recmath.i but they were moved here so that they are fully defined
+// earlier in the order
+%shared_ptr(snde::math_instance_parameter);
+snde_rawaccessible(snde::math_instance_parameter);
+%shared_ptr(snde::list_math_instance_parameter);
+snde_rawaccessible(snde::list_math_instance_parameter);
+%shared_ptr(snde::dict_math_instance_parameter);
+snde_rawaccessible(snde::dict_math_instance_parameter);
+%shared_ptr(snde::string_math_instance_parameter);
+snde_rawaccessible(snde::string_math_instance_parameter);
+%shared_ptr(snde::int_math_instance_parameter);                  
+snde_rawaccessible(snde::int_math_instance_parameter);
+%shared_ptr(snde::double_math_instance_parameter);
+snde_rawaccessible(snde::double_math_instance_parameter);
+
+
 %{
 #include "snde/recstore.hpp"
 
@@ -69,6 +85,7 @@ namespace snde {
   class math_definition;
   class image_reference;
   class recording_class_info;
+  class math_instance_parameter;
 
   class channel_notify; // from notify.hpp
   class repetitive_channel_notify; // from notify.hpp
@@ -906,6 +923,7 @@ namespace snde {
     std::shared_ptr<instantiated_math_function> lookup_math_function(std::string fullpath);
     void delete_math_function(std::shared_ptr<instantiated_math_function> fcn);
     void add_math_function_storage_manager(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager);
+    void send_math_message(std::shared_ptr<instantiated_math_function> func, std::string name, std::shared_ptr<math_instance_parameter> msg);
 
     void register_new_rec(std::shared_ptr<recording_base> new_rec);
     void register_new_math_rec(void *owner_id,std::shared_ptr<recording_set_state> calc_rss,std::shared_ptr<recording_base> new_rec); // registers newly created math recording in the given rss (and extracts mutable flag for the given channel into the recording structure)).

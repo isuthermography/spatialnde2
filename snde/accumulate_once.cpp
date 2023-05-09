@@ -25,6 +25,9 @@ namespace snde {
     // Explicitly Keep first recording to track shape and data type
     std::shared_ptr<ndtyped_recording_ref<T>> first_rec;
 
+    // Vector to hold pointers in emit only at end mode
+    std::vector<std::shared_ptr<ndtyped_recording_ref<T>>> pending_recs;
+
     // Keep track of accumulated count
     uint64_t accumulated = 0;
 
@@ -41,70 +44,103 @@ namespace snde {
 
 
   template <typename T>
-  class accumulate_once: public recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t,int64_t> {
+  class accumulate_once : public recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool> {
   public:
-    accumulate_once(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) :
-      recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>,uint64_t,int64_t>(rss,inst)
+    accumulate_once(std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) :
+      recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool>(rss, inst)
     {
-      
+
     }
 
     // These typedefs are regrettably necessary and will need to be updated according to the parameter signature of your function
     // https://stackoverflow.com/questions/1120833/derived-template-class-access-to-base-class-member-data
-    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t>::compute_options_function_override_type compute_options_function_override_type;
-    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t>::define_recs_function_override_type define_recs_function_override_type;
-    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t>::metadata_function_override_type metadata_function_override_type;
-    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t>::lock_alloc_function_override_type lock_alloc_function_override_type;
-    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t>::exec_function_override_type exec_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool>::compute_options_function_override_type compute_options_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool>::define_recs_function_override_type define_recs_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool>::metadata_function_override_type metadata_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool>::lock_alloc_function_override_type lock_alloc_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool>::exec_function_override_type exec_function_override_type;
 
-    
+
     // Recording to Accumulate, Number of Recordings to Accumulate, Axis to Accumulate Along 
     // Axis to accumulate along can be -2, -1, 0, to_accum->layout.dimlen.size() - 1, or to_accum->layout.dimlen.size(), to_accum->layout.dimlen.size() + 1
     // Using -1 or to_accum->layout.dimlen.size() will add an additional axis to accumulate along
     // Using 0 or to_accum->layout.dimlen.size() - 1 will concatenate along the first or last axis
     // Using -2 or to_accum->layout.dimlen.size() + 1 will place all incoming recordings into new arrays instead
-    std::pair<bool, std::shared_ptr<compute_options_function_override_type>> decide_execution(std::shared_ptr<ndtyped_recording_ref<T>> to_accum, uint64_t numaccum, int64_t axis) {
+    std::pair<bool, std::shared_ptr<compute_options_function_override_type>> decide_execution(std::shared_ptr<ndtyped_recording_ref<T>> to_accum, uint64_t numaccum, int64_t axis, snde_bool emit_when_complete_only) {
       std::shared_ptr<recording_base> previous_recording = this->self_dependent_recordings.at(0);
       std::shared_ptr<recording_creator_data> previous_recording_creator_data;
       std::shared_ptr<accumulate_once_creator_data<T>> creator_data;
       bool just_starting = false;
       bool will_run = true;
 
-      // Is there a previous recording
-      if (!previous_recording) {  // No - flag that we are just starting
+      auto clearcheck = executing_math_function::msgs.find("clear");
+      if (clearcheck != executing_math_function::msgs.end()) {
+	// Add check here for bool = True
 	just_starting = true;
       }
-      else {  // Yes -- there is a previous recording, let's check it
-	{
-	  // Get handle to creator data for previous recording
-	  std::lock_guard<std::mutex> prevrec_admin(previous_recording->admin);
-	  previous_recording_creator_data = previous_recording->creator_data;
-	}
-	// Did we get previous recording creator data
-	if (!previous_recording_creator_data) { // No -- This shouldn't happen -- but if it did, restart
+      else {
+	// Is there a previous recording
+	if (!previous_recording) {  // No - flag that we are just starting
 	  just_starting = true;
 	}
-	else { // Yes -- let's check it out
-
-	  // Get the creator_data type casted and set up
-	  creator_data = std::dynamic_pointer_cast<accumulate_once_creator_data<T>>(previous_recording_creator_data);
-
-	  // Check if the finished flag is set -- then we shouldn't run
-	  if (creator_data->finished) {
-	    will_run = false;
+	else {  // Yes -- there is a previous recording, let's check it
+	  {
+	    // Get handle to creator data for previous recording
+	    std::lock_guard<std::mutex> prevrec_admin(previous_recording->admin);
+	    previous_recording_creator_data = previous_recording->creator_data;
 	  }
-	  else {  // No finished flag -- let's check for incoming recording
-	    if (!to_accum) {
+	  // Did we get previous recording creator data
+	  if (!previous_recording_creator_data) { // No
+	    just_starting = true;
+	  }
+	  else { // Yes -- let's check it out
+
+	    // Get the creator_data type casted and set up
+	    creator_data = std::dynamic_pointer_cast<accumulate_once_creator_data<T>>(previous_recording_creator_data);
+
+	    // Check if the finished flag is set -- then we shouldn't run
+	    if (creator_data->finished) {
 	      will_run = false;
 	    }
-	    else {  // Got a recording, let's check it's dimensions and data type for consistency
-	      if (to_accum->layout.dimlen != creator_data->first_rec->layout.dimlen || to_accum->ndinfo()->typenum != creator_data->first_rec->ndinfo()->typenum) {
-		just_starting = true; // Something has changed -- let's restart
-	      }
-	      //else { // Everything looks good -- we should run and continue previous accumulation
+	    else {  // No finished flag -- let's check for incoming recording
+	      
+	      // There are two modes of operation -- emitting while accumulating or only emitting when complete
+	      // let's do a quick check here first to determine the mode of operation
+	      if (emit_when_complete_only) {
 		
-	      //}
-	    }	    
+		  if (creator_data->pending_recs.size() > 0) {
+		    // confirm compatibility
+		    // Type matches inherently because of the way this is templated.
+		    // Need to check the shape
+		    if (to_accum->layout.dimlen != creator_data->pending_recs.at(creator_data->pending_recs.size() - 1)->layout.dimlen) {
+		      // mismatch: clear out creator data
+		      creator_data->pending_recs.clear();
+		    }
+		  }
+		  creator_data->pending_recs.push_back(to_accum);
+		  will_run = false;
+
+		  if (creator_data->pending_recs.size() >= numaccum) { // we are finishing here -- we should run
+		    will_run = true;
+		    just_starting = true;
+		  }
+		  
+		
+	      }
+	      else {
+		if (!to_accum) {
+		  will_run = false;
+		}
+		else {  // Got a recording, let's check it's dimensions and data type for consistency
+		  if (to_accum->layout.dimlen != creator_data->first_rec->layout.dimlen || to_accum->ndinfo()->typenum != creator_data->first_rec->ndinfo()->typenum) {
+		    just_starting = true; // Something has changed -- let's restart
+		  }
+		  //else { // Everything looks good -- we should run and continue previous accumulation
+
+		  //}
+		}
+	      }	      
+	    }
 	  }
 	}
       }
@@ -113,7 +149,7 @@ namespace snde {
 	return std::make_pair(false, nullptr);
       }
       else { // We are going to run
-	return std::make_pair(true, std::make_shared<compute_options_function_override_type>([this, just_starting, previous_recording, creator_data, to_accum, numaccum, axis]() {
+	return std::make_pair(true, std::make_shared<compute_options_function_override_type>([this, just_starting, previous_recording, creator_data, to_accum, numaccum, axis, emit_when_complete_only]() {
 
 	  snde_index nbytes = to_accum->layout.flattened_length() * to_accum->storage->elementsize * numaccum;
 
@@ -126,7 +162,7 @@ namespace snde {
 							  1), // useful_cpu_cores (min # of cores to supply
 
 	  };
-	  return std::make_pair(option_list, std::make_shared<define_recs_function_override_type>([this, just_starting, previous_recording, creator_data, to_accum, numaccum, axis]() {
+	  return std::make_pair(option_list, std::make_shared<define_recs_function_override_type>([this, just_starting, previous_recording, creator_data, to_accum, numaccum, axis, emit_when_complete_only]() {
 	    // define_recs code
 
 	    std::shared_ptr<multi_ndarray_recording> result;
@@ -143,6 +179,9 @@ namespace snde {
 	      }
 	      else {
 		num_arrays = creator_data->accumulated + 1;
+	      }
+	      if (emit_when_complete_only) {
+		num_arrays = creator_data->pending_recs.size();
 	      }
 	      fortran_mode = false;
 	      accum_mode = SNDE_ACCUM_NEW_NDARRAY;
@@ -191,6 +230,9 @@ namespace snde {
 	      else {
 		num_arrays = creator_data->accumulated + 1;
 	      }
+	      if (emit_when_complete_only) {
+		num_arrays = creator_data->pending_recs.size();
+	      }
 	      fortran_mode = true;
 	      accum_mode = SNDE_ACCUM_NEW_NDARRAY;
 	      accum_dimlen = std::vector<snde_index>(to_accum->layout.dimlen.begin(), to_accum->layout.dimlen.end());
@@ -201,7 +243,7 @@ namespace snde {
 
 	    result = create_recording_math<multi_ndarray_recording>(this->get_result_channel_path(0), this->rss, num_arrays);
 
-	    return std::make_shared<metadata_function_override_type>([this, result, num_arrays, accumulated_increment, fortran_mode, accum_mode, accum_dimlen, just_starting, previous_recording, creator_data, to_accum, numaccum, axis]() {
+	    return std::make_shared<metadata_function_override_type>([this, result, num_arrays, accumulated_increment, fortran_mode, accum_mode, accum_dimlen, just_starting, previous_recording, creator_data, to_accum, numaccum, axis, emit_when_complete_only]() {
 	      // metadata code 
 
 	      //snde_warning("avg: metadata just_starting");
@@ -222,7 +264,7 @@ namespace snde {
 	      result->metadata = metadata;
 	      result->mark_metadata_done();
 
-	      return std::make_shared<lock_alloc_function_override_type>([this, result, num_arrays, accumulated_increment, fortran_mode, accum_mode, accum_dimlen, just_starting, previous_recording, previous_recording_ndarray, creator_data, to_accum, numaccum, axis]() {
+	      return std::make_shared<lock_alloc_function_override_type>([this, result, num_arrays, accumulated_increment, fortran_mode, accum_mode, accum_dimlen, just_starting, previous_recording, previous_recording_ndarray, creator_data, to_accum, numaccum, axis, emit_when_complete_only]() {
 		// lock_alloc code
 
 		std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>, bool>> to_lock;
@@ -249,9 +291,19 @@ namespace snde {
 		}
 		else { // Multiple ND Arrays
 		  if (just_starting) { // Just getting started -- allocate a new ndarray
-		    result->define_array(0, to_accum->typenum);
-		    result->allocate_storage(0, accum_dimlen, fortran_mode);
-		    to_lock.push_back(std::make_pair(result->reference_ndarray(0), true));
+		    if (emit_when_complete_only) {
+		      // we need to loop over all of the arrays to be created
+		      for (snde_index i = 0; i < creator_data->pending_recs.size(); i++) {
+			result->define_array(i, to_accum->typenum);
+			result->allocate_storage(i, accum_dimlen, fortran_mode);
+			to_lock.push_back(std::make_pair(result->reference_ndarray(i), true));
+		      }
+		    }
+		    else {
+		      result->define_array(0, to_accum->typenum);
+		      result->allocate_storage(0, accum_dimlen, fortran_mode);
+		      to_lock.push_back(std::make_pair(result->reference_ndarray(0), true));
+		    }
 		  }
 		  else { // Previous data exists
 		    snde_index cnt = 0;
@@ -279,78 +331,144 @@ namespace snde {
 
 		rwlock_token_set locktokens = this->lockmgr->lock_recording_refs(to_lock, false); // (false -> non_gpu) 
 
+		if (emit_when_complete_only) {
+		  return std::make_shared<exec_function_override_type>([this, locktokens, result, num_arrays, accumulated_increment, fortran_mode, accum_mode, accum_dimlen, just_starting, previous_recording, previous_recording_ndarray, creator_data, numaccum, axis]() {
+		    
+		    // exec code -- we need to loop over all accumulated arrays and copy the data
+		    snde_index accumindex = 0;
 
-		return std::make_shared<exec_function_override_type>([this, locktokens, result, arraynum, num_arrays, accumulated_increment, fortran_mode, accum_mode, accum_dimlen, just_starting, previous_recording, previous_recording_ndarray, creator_data, to_accum, numaccum, axis]() {
-		  // exec code
-
-		  snde_index accumindex = 0;
-		  if (!just_starting) {
-		    accumindex = creator_data->accumulated;
-		  }
-
-		  snde_index elements_in_single_entry = 1;
-		  for (auto&& axislen : to_accum->layout.dimlen) {
-		    elements_in_single_entry *= axislen;
-		  }
-		  snde_index bytes_in_single_entry = elements_in_single_entry * to_accum->ndinfo()->elementsize;
-
-		  std::vector<snde_index> element_addr(accum_dimlen.size(), 0);
-
-		  if (accum_mode == SNDE_ACCUM_NEW_NDARRAY) {
-		    accumindex += 1;
-		  }
-		  else if (accum_mode == SNDE_ACCUM_NEW_AXIS || accum_mode == SNDE_ACCUM_CONCATENATE) {
-		    snde_index newaxis = 0;  //c mode
-		    if (fortran_mode) {
-		      newaxis = accum_dimlen.size() - 1;  // fortran mode
+		    snde_index elements_in_single_entry = 1;
+		    for (auto&& axislen : creator_data->first_rec->layout.dimlen) {
+		      elements_in_single_entry *= axislen;
 		    }
-		    element_addr.at(newaxis) = accumindex;		    
-		  }
+		    snde_index bytes_in_single_entry = elements_in_single_entry * creator_data->first_rec->ndinfo()->elementsize;
 
-		  // Copy data
-		  memcpy(result->element_dataptr(arraynum, element_addr), to_accum->void_shifted_arrayptr(), bytes_in_single_entry);
 
-		  // Unlock all refs
-		  unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready()
+		    for (auto&& to_accum : creator_data->pending_recs) {
+		      
+		      std::vector<snde_index> element_addr(accum_dimlen.size(), 0);
 
-		  // Create new creator_data
-		  std::shared_ptr<accumulate_once_creator_data<T>> new_creator_data = std::make_shared<accumulate_once_creator_data<T>>();
-		  if (just_starting) {
-		    new_creator_data->accumulated = accumulated_increment;
-		    new_creator_data->first_rec = to_accum;
-		  }
-		  else {
-		    new_creator_data->accumulated = creator_data->accumulated + accumulated_increment;
-		    new_creator_data->first_rec = creator_data->first_rec;
-		  }		  
+		      if (accum_mode == SNDE_ACCUM_NEW_NDARRAY) {
+			//accumindex += 1;
+		      }
+		      else if (accum_mode == SNDE_ACCUM_NEW_AXIS || accum_mode == SNDE_ACCUM_CONCATENATE) {
+			snde_index newaxis = 0;  //c mode
+			if (fortran_mode) {
+			  newaxis = accum_dimlen.size() - 1;  // fortran mode
+			}
+			element_addr.at(newaxis) = accumindex;
+			
+		      }
 
-		  // Check if finished
-		  if (new_creator_data->accumulated >= numaccum) {
+		      // Copy data
+		      if (accum_mode == SNDE_ACCUM_NEW_NDARRAY)
+		      {
+			memcpy(result->element_dataptr(accumindex, element_addr), to_accum->void_shifted_arrayptr(), bytes_in_single_entry);
+		      }
+		      else {
+			memcpy(result->element_dataptr(0, element_addr), to_accum->void_shifted_arrayptr(), bytes_in_single_entry);
+		      }
+
+		      accumindex += 1;
+
+		    }
+
+		    // Unlock all refs
+		    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready()
+
+		    // Create new creator_data
+		    std::shared_ptr<accumulate_once_creator_data<T>> new_creator_data = std::make_shared<accumulate_once_creator_data<T>>();
+		    new_creator_data->accumulated = creator_data->pending_recs.size();
+		    new_creator_data->first_rec = creator_data->first_rec;    
+
+		    // Set finished		    
 		    new_creator_data->finished = true;
-		  }
+		   
 
-		  // Assign creator_data
-		  result->creator_data = new_creator_data;
+		    // Assign creator_data
+		    result->creator_data = new_creator_data;
 
-		  // clear out previous recording's creator data so that references within can go away		  
-		  {
-		    std::lock_guard<std::mutex> prevrec_admin(previous_recording->admin);
-		    previous_recording->creator_data = nullptr;
-		  }
+		    // clear out previous recording's creator data so that references within can go away		  
+		    {
+		      std::lock_guard<std::mutex> prevrec_admin(previous_recording->admin);
+		      previous_recording->creator_data = nullptr;
+		    }
 
-		  result->mark_data_ready();
+		    result->mark_data_ready();
+
 
 		  });
-		});
+		}
+		else {
+		  return std::make_shared<exec_function_override_type>([this, locktokens, result, arraynum, num_arrays, accumulated_increment, fortran_mode, accum_mode, accum_dimlen, just_starting, previous_recording, previous_recording_ndarray, creator_data, to_accum, numaccum, axis]() {
+		    // exec code
 
-	      });   
-	    
-	  }));
-	  
+		    snde_index accumindex = 0;
+		    if (!just_starting) {
+		      accumindex = creator_data->accumulated;
+		    }
+
+		    snde_index elements_in_single_entry = 1;
+		    for (auto&& axislen : to_accum->layout.dimlen) {
+		      elements_in_single_entry *= axislen;
+		    }
+		    snde_index bytes_in_single_entry = elements_in_single_entry * to_accum->ndinfo()->elementsize;
+
+		    std::vector<snde_index> element_addr(accum_dimlen.size(), 0);
+
+		    if (accum_mode == SNDE_ACCUM_NEW_NDARRAY) {
+		      accumindex += 1;
+		    }
+		    else if (accum_mode == SNDE_ACCUM_NEW_AXIS || accum_mode == SNDE_ACCUM_CONCATENATE) {
+		      snde_index newaxis = 0;  //c mode
+		      if (fortran_mode) {
+			newaxis = accum_dimlen.size() - 1;  // fortran mode
+		      }
+		      element_addr.at(newaxis) = accumindex;		    
+		    }
+
+		    // Copy data
+		    memcpy(result->element_dataptr(arraynum, element_addr), to_accum->void_shifted_arrayptr(), bytes_in_single_entry);
+
+		    // Unlock all refs
+		    unlock_rwlock_token_set(locktokens); // lock must be released prior to mark_data_ready()
+
+		    // Create new creator_data
+		    std::shared_ptr<accumulate_once_creator_data<T>> new_creator_data = std::make_shared<accumulate_once_creator_data<T>>();
+		    if (just_starting) {
+		      new_creator_data->accumulated = accumulated_increment;
+		      new_creator_data->first_rec = to_accum;
+		    }
+		    else {
+		      new_creator_data->accumulated = creator_data->accumulated + accumulated_increment;
+		      new_creator_data->first_rec = creator_data->first_rec;
+		    }		  
+
+		    // Check if finished
+		    if (new_creator_data->accumulated >= numaccum) {
+		      new_creator_data->finished = true;
+		    }
+
+		    // Assign creator_data
+		    result->creator_data = new_creator_data;
+
+		    // clear out previous recording's creator data so that references within can go away		  
+		    {
+		      std::lock_guard<std::mutex> prevrec_admin(previous_recording->admin);
+		      previous_recording->creator_data = nullptr;
+		    }
+
+		    result->mark_data_ready();
+
+		    });
+		  
+		}
+		});
+	      });  
+	  })); 
 	}));
       }
     }
-
   };
     
   

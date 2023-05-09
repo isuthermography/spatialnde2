@@ -3352,6 +3352,19 @@ namespace snde {
       
       
     }
+
+
+    // Check for math messages -- erase from unknownchanged_channels see 3372/3373
+    // also add to new globalrev->math_status
+    for (auto mathfcn : recdb_strong->current_transaction->math_messages) {
+      changed_math_functions.emplace(mathfcn.first);
+      unknownchanged_math_functions.erase(mathfcn.first);
+    }
+    globalrev->mathstatus.math_messages = recdb_strong->current_transaction->math_messages;
+
+
+
+
     for (auto && updated_chan: recdb_strong->current_transaction->updated_channels) {
       std::shared_ptr<channelconfig> config = updated_chan->config();
 
@@ -4799,6 +4812,37 @@ namespace snde {
     }
 
     
+  }
+
+  void recdatabase::send_math_message(std::shared_ptr<instantiated_math_function> func, std::string name, std::shared_ptr<math_instance_parameter> msg)
+  {
+
+    // Check and throw if not in transaction 
+    if (!current_transaction) {
+      throw snde_error("send_math_message: must be called in a transaction");
+    }
+    
+    // add to the current transaction
+    {
+      std::lock_guard<std::mutex> curtrans_lock(current_transaction->admin);
+      auto msgs = current_transaction->math_messages.find(func);
+      if (msgs != current_transaction->math_messages.end()) {
+
+	auto check = msgs->second.find(name);
+	if (check != msgs->second.end()) {
+	  throw snde_error("send_math_message:  can only send specified message '%s' once in transaction", name);
+	}
+	else {
+	  msgs->second.emplace(std::make_pair(name, msg));
+	}	
+      }
+      else {
+	std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>> new_msgs;
+	new_msgs.emplace(std::make_pair(name, msg));
+	current_transaction->math_messages.emplace(std::make_pair(func, new_msgs));
+      }     	
+    }
+
   }
 
   void recdatabase::add_math_function_storage_manager(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager) 

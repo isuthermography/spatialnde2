@@ -41,6 +41,7 @@ namespace snde {
 #define SNDE_MFPT_VECTOR 6
 #define SNDE_MFPT_ORIENTATION 7
 #define SNDE_MFPT_INDEXVEC 8 // vector of indices
+#define SNDE_MFPT_MAP 9 // map
 
   // forward declarations
   class channelconfig; // defined in recstore.hpp
@@ -58,45 +59,65 @@ namespace snde {
   
   class math_instance_parameter {
   public:
-    // this is a recursive dictionary/list structure -- this is just the abstract base class
-    
+    unsigned paramtype; // SNDE_MFPT_XXX from above
+
+    math_instance_parameter(unsigned paramtype);
+
+    // Rule of 3
+    math_instance_parameter(const math_instance_parameter &) = delete;
+    math_instance_parameter& operator=(const math_instance_parameter &) = delete;
+    virtual ~math_instance_parameter()=default;  // virtual destructor required so we can be subclassed
+
     virtual bool operator==(const math_instance_parameter &ref)=0; // used for comparing extra parameters to instantiated_math_functions
     virtual bool operator!=(const math_instance_parameter &ref)=0;
-
   };
   
-  class list_math_instance_parameter {
+  class list_math_instance_parameter : public math_instance_parameter {
   public:
     std::vector<std::shared_ptr<math_instance_parameter>> list;
+
+    list_math_instance_parameter(std::vector<std::shared_ptr<math_instance_parameter>> list);
+    
     virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
     virtual bool operator!=(const math_instance_parameter &ref);
-
   };
     
-  class dict_math_instance_parameter {
+  class dict_math_instance_parameter : public math_instance_parameter {
   public:
-    std::unordered_map<std::string,std::shared_ptr<math_instance_parameter>> dict;
+    std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>> dict;
+
+    dict_math_instance_parameter(std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>> dict);
+    
     virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
     virtual bool operator!=(const math_instance_parameter &ref);
   };
   
-  class string_math_instance_parameter {
+  class string_math_instance_parameter : public math_instance_parameter {
   public:
     std::string value;
+
+    string_math_instance_parameter(std::string value);
+
     virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
     virtual bool operator!=(const math_instance_parameter &ref);
   };
   
-  class int_math_instance_parameter {
+  class int_math_instance_parameter : public math_instance_parameter {
   public:
     int64_t value;
+
+    int_math_instance_parameter(int64_t value);
+
     virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
     virtual bool operator!=(const math_instance_parameter &ref);
   };
   
-  class double_math_instance_parameter {
+  class double_math_instance_parameter : public math_instance_parameter {
   public:
     double value;
+
+    double_math_instance_parameter(double value);
+    
     virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
     virtual bool operator!=(const math_instance_parameter &ref);
   };
@@ -328,7 +349,6 @@ namespace snde {
     std::shared_ptr<instantiated_math_database> math_functions; // immutable once copied in on construction
     std::unordered_map<std::shared_ptr<instantiated_math_function>,math_function_status> function_status; // lookup dependency and status info on this instantiated_math_function in our recording_set_state/globalrev. You must hold the recording_set_state's admin lock to mess with the function_status, but the map itself is only modified during construction so it is safe to do lookups on this map and keep pointers to the math_function_status without holding any locks. 
 
-
     // NOTE: an entry in either _external_dependencies_on_channel or _external_dependencies_on_function is sufficient to get you the needed callback. 
     std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> _external_dependencies_on_channel; // Lookup external math functions that are dependent on this channel -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your recording_set_state's admin lock. 
 
@@ -342,6 +362,7 @@ namespace snde {
     std::unordered_set<std::shared_ptr<instantiated_math_function>> completed_functions;  // completed functions with full result
     std::unordered_set<std::shared_ptr<instantiated_math_function>> completed_mdonly_functions; // pending functions where goal is metadata only and metadata is done (note that it is possible for fully ready functions to be in this list in some circumstances, for example if the full result was requested in another globalrev that references the same recording structure. 
     
+    std::unordered_map<std::shared_ptr<instantiated_math_function>, std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>>> math_messages; // Messages to dispatch to math functions in this rss only
     
     math_status(std::shared_ptr<instantiated_math_database> math_functions,const std::map<std::string,channel_state> & channel_map);
 
@@ -416,7 +437,7 @@ namespace snde {
     
   };
 
-  
+ 
   class executing_math_function {
     // generated to track the execution of a math function
     // each executing_math_function has a single unique math_function_execution. It
@@ -439,6 +460,9 @@ namespace snde {
     std::shared_ptr<recdatabase> recdb; // to avoid reference loops, this is only to be read by the function code itself, managed by the executing thread (recomath_compute_resource pool_code), and set to nullptr when execution is not actually occuring. 
     std::shared_ptr<lockmanager> lockmgr;
 
+    std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>> msgs;
+    
+
     // should also have parameter values, references, etc. here
     
     // parameter values should include bounding_hyperboxes of the domains that actually matter,
@@ -447,6 +471,7 @@ namespace snde {
 
     // self_dependent_recordings is auto-created by the constructor
     std::vector<std::shared_ptr<recording_base>> self_dependent_recordings; // only valid (size() > 0) with implicit/explict self dependency. entries will be nullptr first time through anyway. Entries may also be nullptr if the function output is being ignored rather than stored in the recording database. ***!!! Must be cleared to nullptr after execution to avoid keeping old recordings alive ***!!!  -- read access OK by the holder of the execution ticket; Otherwise accesses should be protected by the math_function_execution's admin lock
+
 
     // compute_resource is assigned post-creation and will be compatible with the selected_compute_option
     // These should be finalized and safe to read from any thread once we are in the define_recs function.

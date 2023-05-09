@@ -3,6 +3,19 @@
 
 namespace snde {
 
+  math_instance_parameter::math_instance_parameter(unsigned paramtype) :
+    paramtype(paramtype)
+  {
+
+  }
+
+  list_math_instance_parameter::list_math_instance_parameter(std::vector<std::shared_ptr<math_instance_parameter>> list) :
+    math_instance_parameter(SNDE_MFPT_VECTOR),
+    list(list)
+  {
+
+  }
+
   bool list_math_instance_parameter::operator==(const math_instance_parameter &ref) // used for comparing extra parameters to instantiated_math_functions
   {
 
@@ -30,6 +43,13 @@ namespace snde {
     return !(*this==ref);
   }
   
+  dict_math_instance_parameter::dict_math_instance_parameter(std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>> dict) :
+    math_instance_parameter(SNDE_MFPT_MAP),
+    dict(dict)
+  {
+    
+  }
+
   bool dict_math_instance_parameter::operator==(const math_instance_parameter &ref) // used for comparing extra parameters to instantiated_math_functions
   {
 
@@ -60,6 +80,13 @@ namespace snde {
   {
     return !(*this==ref);
   }
+
+  string_math_instance_parameter::string_math_instance_parameter(std::string value) :
+    math_instance_parameter(SNDE_MFPT_STR),
+    value(value)
+  {
+
+  }
   
   bool string_math_instance_parameter::operator==(const math_instance_parameter &ref) // used for comparing extra parameters to instantiated_math_functions
   {
@@ -77,6 +104,13 @@ namespace snde {
     return !(*this==ref);
   }
   
+  int_math_instance_parameter::int_math_instance_parameter(int64_t value) :
+    math_instance_parameter(SNDE_MFPT_INT),
+    value(value)
+  {
+    
+  }
+
   bool int_math_instance_parameter::operator==(const math_instance_parameter &ref) // used for comparing extra parameters to instantiated_math_functions
   {
 
@@ -92,6 +126,13 @@ namespace snde {
   bool int_math_instance_parameter::operator!=(const math_instance_parameter &ref)
   {
     return !(*this==ref);
+  }
+
+  double_math_instance_parameter::double_math_instance_parameter(double value) :
+    math_instance_parameter(SNDE_MFPT_DBL),
+    value(value)
+  {
+
   }
   
   bool double_math_instance_parameter::operator==(const math_instance_parameter &ref) // used for comparing extra parameters to instantiated_math_functions
@@ -1098,6 +1139,5 @@ namespace snde {
     *_math_function_registry = new_map;
     return 0;
   }
-
 
 };
