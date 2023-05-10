@@ -399,6 +399,17 @@ public:
       return (*mditer).second.DblUnits(defaultval,defaultunits);
     }
 
+    const metadatum *FindMetaDatum(std::string Name)
+    {
+      std::unordered_map<std::string,metadatum>::const_iterator mditer; 
+      
+      mditer = metadata.find(Name);
+      if (mditer == metadata.end()) {
+	return nullptr;
+      }
+
+      return &(*mditer).second;
+    }
     void AddMetaDatum(metadatum newdatum)
     // Add or update an entry 
     {

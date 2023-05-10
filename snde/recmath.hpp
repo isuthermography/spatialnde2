@@ -55,6 +55,13 @@ namespace snde {
   class instantiated_math_database;
   class instantiated_math_function;
   class math_definition;
+
+  struct mncn_lessthan { // less than operator for may_need_completion_notification so it can be used in a std::set
+    // std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>>,mncn_lessthan> 
+    bool operator()( const std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>> & lhs,
+                 const std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>> & rhs ) const noexcept;
+  };
+
   
   class math_instance_parameter {
   public:
@@ -345,6 +352,8 @@ namespace snde {
     
     math_status(std::shared_ptr<instantiated_math_database> math_functions,const std::map<std::string,channel_state> & channel_map);
 
+    std::string print_math_status(std::shared_ptr<recording_set_state> rss, bool verbose=false);
+    
     std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> begin_atomic_external_dependencies_on_channel_update(); // must be called with recording_set_state's admin lock held
     void end_atomic_external_dependencies_on_channel_update(std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> newextdep);
     std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_channel();
@@ -365,6 +374,7 @@ namespace snde {
 			     std::shared_ptr<instantiated_math_function> dep_fcn,
 			     math_function_status *mathstatus_ptr,
 			     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute_appendvec,
+			     std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>>,mncn_lessthan> &may_need_completion_notification,
 			     std::unique_lock<std::mutex> &dep_rss_admin_holder);
 
   };

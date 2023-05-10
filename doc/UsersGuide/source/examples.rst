@@ -40,12 +40,13 @@ directory demonstrates the use of this external C++ function.
 Specific tests/examples
 -----------------------
 
-C++ examples:
+C++ examples (the source files are in the test/ directory and corresponding binaries are constructed in the build directory):
 
+  * ``ande_viewer.cpp``: Simple general purpose viewer for the ``.ande`` advanced NDE file format. It can be run using "open with" on a .ande file, or from the command line. 
   * ``allocator_test.cpp``: Basic functional test of some of the memory
     allocator classes.
   * ``compositor_test.cpp``: Verify functionality of the
-    OpenSceneGraph-based graphics compositor.
+    OpenSceneGraph-based graphics compositor. 
   * ``matrixsolve_test.cpp``: Verify correct operation of the ``fmatrixsolve()`` function
   * ``ondemand_test.cpp``: Verify correct functionality of "ondemand" math functions
   * ``osg_layerwindow_test.cpp``: Verify correct functionality of the openscenegraph_layerwindow class used to feed rendered graphics to the display compositor.

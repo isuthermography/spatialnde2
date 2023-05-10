@@ -464,7 +464,19 @@ namespace snde {
     void define_array(size_t index,unsigned typenum,std::string name);   // should be called exactly once for each index < mndinfo()->num_arrays
 
     std::shared_ptr<std::vector<std::string>> list_arrays();
-    
+
+    // Throw an snde_error exception if the recording specifies a scale
+    // or offset. This should be used whenever interpreting array data
+    // in a context that does not include multiplying by the scale and
+    // then adding the offset (ande_array-ampl_scale and
+    // ande_array-ampl_offset metadata entries, respectively)
+    // The identifier parameter should identify the e.g. math function
+    // or similar so that the source of the problem is readily
+    // identifiable
+    void assert_no_scale_or_offset(std::string identifier);
+
+    // return (scale,offset) tuple from metadata
+    std::tuple<snde_float64,snde_float64> get_ampl_scale_offset();
     
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(size_t index=0);
     std::shared_ptr<ndarray_recording_ref> reference_ndarray(const std::string &array_name);
@@ -605,6 +617,26 @@ namespace snde {
     inline snde_multi_ndarray_recording *mndinfo() {return (snde_multi_ndarray_recording *)rec->info;}
     inline snde_ndarray_info *ndinfo() {return &((snde_multi_ndarray_recording *)rec->info)->arrays[rec_index];}
 
+    
+    // Throw an snde_error exception if the recording specifies a scale
+    // or offset. This should be used whenever interpreting array data
+    // in a context that does not include multiplying by the scale and
+    // then adding the offset (ande_array-ampl_scale and
+    // ande_array-ampl_offset metadata entries, respectively)
+    // The identifier parameter should identify the e.g. math function
+    // or similar so that the source of the problem is readily
+    // identifiable
+    inline void assert_no_scale_or_offset(std::string identifier)
+    {
+      rec->assert_no_scale_or_offset(identifier);
+    }
+    
+    // return (scale,offset) tuple from metadata
+    inline std::tuple<snde_float64,snde_float64> get_ampl_scale_offset()
+    {
+      return rec->get_ampl_scale_offset();
+    }
+    
 
     inline void *void_shifted_arrayptr()
     {
@@ -774,6 +806,7 @@ namespace snde {
 					     std::unordered_set<std::shared_ptr<channelconfig>> *explicitly_updated_channels,
     std::unordered_set<channel_state *> *ready_channels, // references into the new_rss->recstatus.channel_map
 					     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> *ready_to_execute,
+					     std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>>,mncn_lessthan> *may_need_completion_notification,
 					     bool *all_ready,
 					     bool ondemand_only);
 
@@ -981,6 +1014,9 @@ namespace snde {
     virtual ~recording_set_state()=default;
 
     void wait_complete(); // wait for all the math in this recording_set_state or globalrev to reach nominal completion (metadataonly or ready, as configured)
+    
+    std::string print_math_status(bool verbose=false);
+    std::string print_recording_status(bool verbose=false);
 
     // get_xxxx throws an exception if the recording is not present
     // check_for_xxxx returns nullptr if the recording is not present

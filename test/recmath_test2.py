@@ -80,7 +80,7 @@ test_rec_64.rec.mark_data_ready()
 globalrev.wait_complete();
 globalrev2.wait_complete();
 
-scaled_rec_32 = globalrev.get_recording_ref("/scaled_channel")
+scaled_rec_32 = globalrev.get_ndarray_ref("/scaled_channel")
 
 # verify it is OK to read these channels without locking
 assert(not scaled_rec_32.ndinfo().requires_locking_read)
@@ -95,7 +95,7 @@ for cnt in range(rec_len):
     assert(abs(math_function_value-recalc_value) < 1e-4) # No functionality in Python to do single precision calculation for comparison
     pass
 
-scaled_rec_64 = globalrev2.get_recording_ref("/scaled_channel")
+scaled_rec_64 = globalrev2.get_ndarray_ref("/scaled_channel")
 assert(not scaled_rec_64.ndinfo().requires_locking_read)
 assert(not test_rec_64.ndinfo().requires_locking_read)
 

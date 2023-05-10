@@ -175,8 +175,29 @@ namespace snde {
     renderparams_base(const renderparams_base &orig) = default;
     renderparams_base & operator=(const renderparams_base &) = delete; // shouldn't need this...
     virtual ~renderparams_base() = default;
-    virtual size_t hash()=0;
-    virtual bool operator==(const renderparams_base &b)=0;
+    virtual size_t hash() {
+      if (typeid(*this) == typeid(renderparams_base)) {
+	return 0xF0F0F0F0F0;
+      }
+
+      else {
+	throw snde_error("renderparams_base::hash(): hash function not overidden but it should be");
+      }
+    }
+    virtual bool operator==(const renderparams_base& b) {
+      if (typeid(*this) == typeid(renderparams_base)) {
+	if (typeid(b) == typeid(renderparams_base)) {
+	  return true;
+	}
+	else {
+	  return false;
+	}
+      }
+
+      else {
+	throw snde_error("renderparams_base::operator==(): equality operator not overidden but it should be");
+      }
+    }
   };
 
 

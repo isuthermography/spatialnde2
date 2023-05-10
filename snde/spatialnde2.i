@@ -491,6 +491,7 @@ template <typename T>
 %include "NumPy_BGRtoRGBA.i"
 %include "NumPy_BGRtoGray16.i"
 %include "batched_live_accumulator.i"
+%include "accumulate_once.i"
 %include "project_onto_parameterization.i"
 %include "quaternion.i"
 %include "kdtree.i"
@@ -503,7 +504,8 @@ template <typename T>
 %include "recstore_setup.i"
 %include "x3d.i"
 %include "utils.i"
-%include "nde_file.i"
+%include "ande_file.i"
+%include "polynomial_transform.i"
 
 #ifdef SNDE_OPENCL
 %include "opencl_utils.i"
