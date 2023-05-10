@@ -15,82 +15,82 @@ namespace snde {
   
   // Lookups in the renderer registry are done per the indexes assigned by the registered recording display handlers defined in rec_display.cpp
 
-  static int osg_registered_imagedata = osg_register_renderer(rendermode(SNDE_SRM_RGBAIMAGEDATA,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry> {
-      return std::make_shared<osg_cachedimagedata>(params,display_req);
+  static int osg_registered_imagedata = osg_register_renderer(rendermode(SNDE_SRM_RGBAIMAGEDATA,typeid(multi_ndarray_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry> {
+      return std::make_shared<osg_cachedimagedata>(all_locks_required,params,display_req);
     });
   
-  static int osg_registered_image = osg_register_renderer(rendermode(SNDE_SRM_RGBAIMAGE,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
-      return std::make_shared<osg_cachedimage>(params,display_req);
+  static int osg_registered_image = osg_register_renderer(rendermode(SNDE_SRM_RGBAIMAGE,typeid(multi_ndarray_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedimage>(all_locks_required,params,display_req);
     });
   
-  static int osg_registered_pointcloudvertices = osg_register_renderer(rendermode(SNDE_SRM_POINTCLOUDVERTICES,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
-      return std::make_shared<osg_cachedpointcloudvertices>(params,display_req);
+  static int osg_registered_pointcloudvertices = osg_register_renderer(rendermode(SNDE_SRM_POINTCLOUDVERTICES,typeid(multi_ndarray_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedpointcloudvertices>(all_locks_required,params,display_req);
     });
 
-  static int osg_registered_pointcloudcolormap = osg_register_renderer(rendermode(SNDE_SRM_POINTCLOUDCOLORMAP,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
-      return std::make_shared<osg_cachedpointcloudcolormap>(params,display_req);
+  static int osg_registered_pointcloudcolormap = osg_register_renderer(rendermode(SNDE_SRM_POINTCLOUDCOLORMAP,typeid(multi_ndarray_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedpointcloudcolormap>(all_locks_required,params,display_req);
     });
 
-  static int osg_registered_pointcloud = osg_register_renderer(rendermode(SNDE_SRM_POINTCLOUD,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
-      return std::make_shared<osg_cachedpointcloud>(params,display_req);
+  static int osg_registered_pointcloud = osg_register_renderer(rendermode(SNDE_SRM_POINTCLOUD,typeid(multi_ndarray_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedpointcloud>(all_locks_required,params,display_req);
     });
 
-  static int osg_registered_cachedcoloredtransparentlines = osg_register_renderer(rendermode(SNDE_SRM_COLOREDTRANSPARENTLINES,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
-      return std::make_shared<osg_cachedcoloredtransparentlines>(params,display_req);
+  static int osg_registered_cachedcoloredtransparentlines = osg_register_renderer(rendermode(SNDE_SRM_COLOREDTRANSPARENTLINES,typeid(multi_ndarray_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedcoloredtransparentlines>(all_locks_required,params,display_req);
     });
 
-  static int osg_registered_cachedcoloredtransparentpoints = osg_register_renderer(rendermode(SNDE_SRM_COLOREDTRANSPARENTPOINTS, typeid(multi_ndarray_recording_display_handler)), [](const osg_renderparams& params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry> {
-    return std::make_shared<osg_cachedcoloredtransparentpoints>(params, display_req);
+  static int osg_registered_cachedcoloredtransparentpoints = osg_register_renderer(rendermode(SNDE_SRM_COLOREDTRANSPARENTPOINTS, typeid(multi_ndarray_recording_display_handler)), [](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams& params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry> {
+      return std::make_shared<osg_cachedcoloredtransparentpoints>(all_locks_required,params, display_req);
     });
 
-  static int osg_registered_waveform = osg_register_renderer(rendermode(SNDE_SRM_WAVEFORM, typeid(multi_ndarray_recording_display_handler)), [](const osg_renderparams& params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry> {
-      return std::make_shared<osg_cachedwaveform>(params, display_req);
+  static int osg_registered_waveform = osg_register_renderer(rendermode(SNDE_SRM_WAVEFORM, typeid(multi_ndarray_recording_display_handler)), [](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams& params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry> {
+      return std::make_shared<osg_cachedwaveform>(all_locks_required,params, display_req);
       });
 
-  static int osg_registered_cachedphaseplaneendpointwithcoloredtransparentlines = osg_register_renderer(rendermode(SNDE_SRM_PHASE_PLANE_ENDPOINT_WITH_COLOREDTRANSPARENTLINES,typeid(multi_ndarray_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
-      return std::make_shared<osg_cachedphaseplaneendpointwithcoloredtransparentlines>(params,display_req);
+  static int osg_registered_cachedphaseplaneendpointwithcoloredtransparentlines = osg_register_renderer(rendermode(SNDE_SRM_PHASE_PLANE_ENDPOINT_WITH_COLOREDTRANSPARENTLINES,typeid(multi_ndarray_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedphaseplaneendpointwithcoloredtransparentlines>(all_locks_required,params,display_req);
     });
 
 
   
-  static int osg_registered_meshednormals = osg_register_renderer(rendermode(SNDE_SRM_MESHEDNORMALS,typeid(meshed_part_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
-      return std::make_shared<osg_cachedmeshednormals>(params,display_req);
+  static int osg_registered_meshednormals = osg_register_renderer(rendermode(SNDE_SRM_MESHEDNORMALS,typeid(meshed_part_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedmeshednormals>(all_locks_required,params,display_req);
     });
-  static int osg_registered_meshedvertexarray = osg_register_renderer(rendermode(SNDE_SRM_VERTEXARRAYS,typeid(meshed_part_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
-      return std::make_shared<osg_cachedmeshedvertexarray>(params,display_req);
+  static int osg_registered_meshedvertexarray = osg_register_renderer(rendermode(SNDE_SRM_VERTEXARRAYS,typeid(meshed_part_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedmeshedvertexarray>(all_locks_required,params,display_req);
     });
 
 
-  static int osg_registered_parameterizationdata = osg_register_renderer(rendermode(SNDE_SRM_MESHED2DPARAMETERIZATION,typeid(meshed_parameterization_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
-      return std::make_shared<osg_cachedparameterizationdata>(params,display_req);
+  static int osg_registered_parameterizationdata = osg_register_renderer(rendermode(SNDE_SRM_MESHED2DPARAMETERIZATION,typeid(meshed_parameterization_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedparameterizationdata>(all_locks_required,params,display_req);
     });
   
-  static int osg_registered_meshedpart = osg_register_renderer(rendermode(SNDE_SRM_MESHEDPARAMLESS3DPART,typeid(meshed_part_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
-      return std::make_shared<osg_cachedmeshedpart>(params,display_req);
+  static int osg_registered_meshedpart = osg_register_renderer(rendermode(SNDE_SRM_MESHEDPARAMLESS3DPART,typeid(meshed_part_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedmeshedpart>(all_locks_required,params,display_req);
     });
 
-  static int osg_registered_texedmeshedgeom = osg_register_renderer(rendermode(SNDE_SRM_TEXEDMESHED3DGEOM,typeid(textured_part_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
-      return std::make_shared<osg_cachedtexedmeshedgeom>(params,display_req);
+  static int osg_registered_texedmeshedgeom = osg_register_renderer(rendermode(SNDE_SRM_TEXEDMESHED3DGEOM,typeid(textured_part_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedtexedmeshedgeom>(all_locks_required,params,display_req);
     });
   
-  static int osg_registered_texedmeshedpart = osg_register_renderer(rendermode(SNDE_SRM_TEXEDMESHEDPART,typeid(textured_part_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
-      return std::make_shared<osg_cachedtexedmeshedpart>(params,display_req);
+  static int osg_registered_texedmeshedpart = osg_register_renderer(rendermode(SNDE_SRM_TEXEDMESHEDPART,typeid(textured_part_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedtexedmeshedpart>(all_locks_required,params,display_req);
     });
   
 
-  static int osg_registered_assembly = osg_register_renderer(rendermode(SNDE_SRM_ASSEMBLY,typeid(assembly_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
-      return std::make_shared<osg_cachedassembly>(params,display_req);
+  static int osg_registered_assembly = osg_register_renderer(rendermode(SNDE_SRM_ASSEMBLY,typeid(assembly_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedassembly>(all_locks_required,params,display_req);
     });
   
 
   // register our cachedtransformedcomponent as accommodating the tracking_pose_recording_display_handler
-  static int osg_registered_transformedcomponent = osg_register_renderer(rendermode(SNDE_SRM_TRANSFORMEDCOMPONENT,typeid(tracking_pose_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
-      return std::make_shared<osg_cachedtransformedcomponent>(params,display_req);
+  static int osg_registered_transformedcomponent = osg_register_renderer(rendermode(SNDE_SRM_TRANSFORMEDCOMPONENT,typeid(tracking_pose_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedtransformedcomponent>(all_locks_required,params,display_req);
     });
 
   // register our cachedtransformedcomponent as accommodating the pose_channel_recording_display_handler
-  static int osg_registered_transformedcomponent_posechannel = osg_register_renderer(rendermode(SNDE_SRM_TRANSFORMEDCOMPONENT,typeid(pose_channel_recording_display_handler)),[](const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
-      return std::make_shared<osg_cachedtransformedcomponent>(params,display_req);
+  static int osg_registered_transformedcomponent_posechannel = osg_register_renderer(rendermode(SNDE_SRM_TRANSFORMEDCOMPONENT,typeid(pose_channel_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry>  {
+      return std::make_shared<osg_cachedtransformedcomponent>(all_locks_required,params,display_req);
     });
 
   
@@ -126,7 +126,7 @@ namespace snde {
 
     
 
-  int osg_register_renderer(rendermode mode,std::function<std::shared_ptr<osg_rendercacheentry>(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)> factory)
+  int osg_register_renderer(rendermode mode,std::function<std::shared_ptr<osg_rendercacheentry>(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)> factory)
   {
 
     osg_renderer_registry(); // Ensure that the registry poiter exists
@@ -233,8 +233,13 @@ namespace snde {
   
 
   
-  std::pair<std::shared_ptr<osg_rendercacheentry>,bool> osg_rendercache::GetEntry(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *locks_required)   // mode from rendermode.hpp
-  // mode from rendermode.hpp
+  std::pair<std::shared_ptr<osg_rendercacheentry>,bool> osg_rendercache::GetEntry(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)   // mode from rendermode.hpp
+  // how all_locks_required works: each cache entry adds its own locks
+  // to the all_locks_required vector as it is traversed in the tree
+  // of calls either to attempt_reuse() or recursive GetEntry().
+  // each entry in all_locks_required consists of the ndarray_recording_ref
+  // that needs to be locked, alongside a bool that represents whether a
+  // write lock (true) or read lock (false) is required (i.e. almost always false)
   {
     const std::string &channel_path = display_req->channelpath;
     const rendermode_ext &mode = display_req->mode;
@@ -247,12 +252,14 @@ namespace snde {
     
     if (cache_it != cache.end()) {
       bool reusable,modified;
-      std::tie(reusable,modified) = cache_it->second->attempt_reuse(params,display_req);
+      std::tie(reusable,modified) = cache_it->second->attempt_reuse(params,display_req,all_locks_required);
       if (reusable) {
 
-	for (auto && required_lock: cache_it->second->locks_required) {
+	// don't need to modify all_locks_required because attempt_reuse is
+	// required to add any locks to it.
+	/*for (auto && required_lock: cache_it->second->locks_required) {
 	  locks_required->push_back(required_lock);
-	}
+	  }*/
 	
 	cache_it->second->clear_potentially_obsolete(); // not an obsolete entry
 	return std::make_pair(cache_it->second,modified);	
@@ -278,15 +285,15 @@ namespace snde {
     //}
     
     
-    std::shared_ptr<osg_rendercacheentry> retval = renderer_it->second(params,display_req);
+    std::shared_ptr<osg_rendercacheentry> retval = renderer_it->second(all_locks_required,params,display_req);
     cache.erase(std::make_pair(channel_path,mode));
     cache.emplace(std::make_pair(channel_path,mode),retval);
 
 
-    
-    for (auto && required_lock: retval->locks_required) {
-      locks_required->push_back(required_lock);
-    }
+    // constructor now required to add locks to all_locks_required
+    //for (auto && required_lock: retval->locks_required) {
+    //  locks_required->push_back(required_lock);
+    //}
     
     return std::make_pair(retval,true);
     
@@ -318,12 +325,20 @@ namespace snde {
     }
   }
 
-  osg_rendercacheentry::osg_rendercacheentry() :
+  osg_rendercacheentry::osg_rendercacheentry(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required) :
     potentially_obsolete(false)
   {
     
   }
 
+  void osg_rendercacheentry::accumulate_locks_required(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
+  {
+    // accumulate all entries from this instance's locks_required element
+    // into the all_locks_required vector.
+    for (auto && required_lock: locks_required) {
+      all_locks_required->push_back(required_lock);
+    }
+  }
   //bool osg_rendercacheentry::attempt_reuse(const osg_renderparams &params,const std::string &channel_path,const rendermode & mode)
   //{
   //  return false;
@@ -334,11 +349,42 @@ namespace snde {
     potentially_obsolete=false;
   }
 
+  osg_rendercachegroupentry::osg_rendercachegroupentry(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required) :
+    osg_rendercacheentry(all_locks_required)
+  {
+    
+  }
+
+  osg_rendercachedrawableentry::osg_rendercachedrawableentry(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required) :
+    osg_rendercacheentry(all_locks_required)
+  {
+    
+  }
+
+  osg_rendercachetextureentry::osg_rendercachetextureentry(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required) :
+    osg_rendercacheentry(all_locks_required)
+  {
+
+  }
+
+  osg_rendercachearrayentry::osg_rendercachearrayentry(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required) :
+    osg_rendercacheentry(all_locks_required)
+  {
+    
+  }
+
+  osg_rendercachearraysentry::osg_rendercachearraysentry(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required) :
+    osg_rendercacheentry(all_locks_required)
+  {
+
+  }
+      
+
   
 
   
-  osg_cachedimagedata::osg_cachedimagedata(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
-    osg_rendercachetextureentry()
+  osg_cachedimagedata::osg_cachedimagedata(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachetextureentry(all_locks_required)
   {
     size_t ndim;
     double IniValX,IniValY,IniValZ,IniValW;
@@ -388,7 +434,7 @@ namespace snde {
       throw snde_error("Error displaying image from channel %s as texture: Textures must be indexed fortran-order",cached_ndarray_rec->info->name);
     }
     
-
+    locks_required.push_back({cached_ndarray_rec->reference_ndarray(),false});
     image->setImage(dimlenx,dimleny,1,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE,(unsigned char *)cached_ndarray_rec->void_shifted_arrayptr(0),osg::Image::AllocationMode::NO_DELETE);
     imagetexture->setInternalFormat(GL_RGBA);
     imagetexture->setInternalFormatMode(osg::Texture::USE_IMAGE_DATA_FORMAT);
@@ -514,10 +560,10 @@ namespace snde {
     }
     fflush(stdout);
     */
-    
+    accumulate_locks_required(all_locks_required);
   }
   
-  std::pair<bool,bool> osg_cachedimagedata::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedimagedata::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
   {
     // only reuse if the recording pointer is the same; everything else here is
     // trivial enough it's pointless to try to reuse.
@@ -530,13 +576,18 @@ namespace snde {
 
     bool reusable = (new_recording == cached_recording && new_recording->info->immutable); // ***!!! For mutable recordings if we wanted we could verify that the pointer remains the same and just mark the array as dirty in OSG
 
-    return std::make_pair(reusable,false); // second element is modified: if it is resuable, it is not modified. 
+    if (reusable) {
+      accumulate_locks_required(all_locks_required);
+    }
+    
+    return std::make_pair(reusable,false); // second element is modified: if it is resuable, it is not modified.
+    
   }
 
 
 
-  osg_cachedimage::osg_cachedimage(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req):
-    osg_rendercachegroupentry()
+  osg_cachedimage::osg_cachedimage(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req):
+    osg_rendercachegroupentry(all_locks_required)
   {
     size_t ndim;
     double IniValX,IniValY,IniValZ,IniValW;
@@ -569,7 +620,7 @@ namespace snde {
         throw snde_error("osg_cachedimage: Unable to get subrequirement for %s", display_req->renderable_channelpath->c_str());
     }
 
-    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,subreq,&locks_required);
+    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,subreq,all_locks_required);
 
     texture = std::dynamic_pointer_cast<osg_rendercachetextureentry>(raw_entry);
 
@@ -718,7 +769,7 @@ namespace snde {
     imagegeom->setTexCoordArray(0,ImageTexCoords);
     imagetris->setCount(6);
     
-    
+    accumulate_locks_required(all_locks_required);
     
   }
 
@@ -731,7 +782,7 @@ namespace snde {
   }
 
 
-  std::pair<bool,bool> osg_cachedimage::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedimage::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
   {
     // only reuse if the recording pointer is the same; everything else here is
     // trivial enough it's pointless to try to reuse.
@@ -742,12 +793,28 @@ namespace snde {
       throw snde_error("osg_cachedimage::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return std::make_pair(new_recording == cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+    std::shared_ptr<display_requirement> subreq = display_req->sub_requirements.at(0);
+
+    if (!subreq) {
+        throw snde_error("osg_cachedimage: Unable to get subrequirement for %s", display_req->renderable_channelpath->c_str());
+    }
+
+    bool texture_reusable, texture_modified;
+    
+
+    std::tie(texture_reusable,texture_modified) = texture->attempt_reuse(params,subreq,all_locks_required);
+    
+    if (texture_reusable && new_recording == cached_recording && new_recording->info->immutable) {
+      accumulate_locks_required(all_locks_required);
+      return std::make_pair(true,texture_modified); // reusable, modified
+    }
+
+    return std::make_pair(false,false); // (reusable,modified)
   }
 
 
-  osg_cachedpointcloudvertices::osg_cachedpointcloudvertices(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
-    osg_rendercachearrayentry()
+  osg_cachedpointcloudvertices::osg_cachedpointcloudvertices(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachearrayentry(all_locks_required)
   {
     cached_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
 
@@ -758,24 +825,30 @@ namespace snde {
     std::shared_ptr<ndarray_recording_ref> point_cloud_vertices_array = cached_recording->reference_ndarray();
     
     locks_required.push_back( { point_cloud_vertices_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
-    osg_array = new OSGFPArray(point_cloud_vertices_array,3,3); // 3 for 3d point coordinates    
+    osg_array = new OSGFPArray(point_cloud_vertices_array,3,3); // 3 for 3d point coordinates
+    accumulate_locks_required(all_locks_required);
   }
 
 
-  std::pair<bool,bool> osg_cachedpointcloudvertices::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedpointcloudvertices::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
   {
     std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedpointcloudvertices::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
-
-    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+    
+    if (new_recording==cached_recording && new_recording->info->immutable) {
+      accumulate_locks_required(all_locks_required);
+      return std::make_pair(true,false);
+    }
+    
+    return std::make_pair(false,false); // (reusable,modified)
   }
 
 
 
-  osg_cachedpointcloudcolormap::osg_cachedpointcloudcolormap(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
-    osg_rendercachearrayentry()
+  osg_cachedpointcloudcolormap::osg_cachedpointcloudcolormap(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachearrayentry(all_locks_required)
   {
     cached_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
 
@@ -789,24 +862,31 @@ namespace snde {
     locks_required.push_back( { point_cloud_colormap_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
     osg_array = new OSGFPArray(point_cloud_colormap_array,1,4); // 4 for RGB&A components
     osg_array->setBinding(osg::Array::BIND_PER_VERTEX);
+
+    accumulate_locks_required(all_locks_required);
   }
 
 
-  std::pair<bool,bool> osg_cachedpointcloudcolormap::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedpointcloudcolormap::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
   {
     std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedpointcloudcolormap::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+    if (new_recording==cached_recording && new_recording->info->immutable){
+      accumulate_locks_required(all_locks_required);
+      return std::make_pair(true,false);
+    }
+    
+    return std::make_pair(false,false); // (reusable,modified)
   }
 
 
 
 
-    osg_cachedpointcloud::osg_cachedpointcloud(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
-    osg_rendercachegroupentry()
+  osg_cachedpointcloud::osg_cachedpointcloud(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachegroupentry(all_locks_required)
   {
     cached_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     
@@ -819,7 +899,7 @@ namespace snde {
 
     // get sub-requirement #0: SNDE_SRM_POINTCLOUDCOLORMAP
     std::shared_ptr<osg_rendercacheentry> raw_entry;
-    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(0),&locks_required);
+    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(0),all_locks_required);
     
     // std::shared_ptr<osg_cachedpointcloudcolormap> colormap; (included in class definition)
     colormap = std::dynamic_pointer_cast<osg_cachedpointcloudcolormap>(raw_entry);
@@ -830,7 +910,7 @@ namespace snde {
     
     
     // get sub-requirement #1: SNDE_SRM_POINTCLOUDVERTICES
-    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(1),&locks_required);
+    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(1),all_locks_required);
     //std::shared_ptr<osg_cachedpointcloudvertices> vertices; (included in class definition)
     vertices = std::dynamic_pointer_cast<osg_cachedpointcloudvertices>(raw_entry);
     if (!vertices) {
@@ -893,6 +973,8 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 
     snde_warning("bbox minx=%f miny=%f minz=%f bbox maxx=%f bbox maxy=%f bbox maxz=%f",bbox._min.x(),bbox._min.y(),bbox._min.z(),bbox._max.x(),bbox._max.y(),bbox._max.z());
     */
+
+    accumulate_locks_required(all_locks_required);
   }
 
   void osg_cachedpointcloud::clear_potentially_obsolete()
@@ -906,19 +988,29 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 
 
 
-  std::pair<bool,bool> osg_cachedpointcloud::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedpointcloud::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
   {
     std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedpointcloudcolormap::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+    bool colormap_reusable,colormap_modified,vertices_reusable,vertices_modified;
+    
+    std::tie(colormap_reusable,colormap_modified) = colormap->attempt_reuse(params,display_req->sub_requirements.at(0),all_locks_required);
+    std::tie(vertices_reusable,vertices_modified) = vertices->attempt_reuse(params,display_req->sub_requirements.at(1),all_locks_required);
+
+    if (colormap_reusable && vertices_reusable && new_recording==cached_recording && new_recording->info->immutable) {
+      return std::make_pair(true,colormap_modified || vertices_modified);
+    }
+    
+    return std::make_pair(false,false); // (reusable,modified)
   }
 
 
 
-  osg_cachedcoloredtransparentlines::osg_cachedcoloredtransparentlines(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  osg_cachedcoloredtransparentlines::osg_cachedcoloredtransparentlines(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachearraysentry(all_locks_required)
   {
     cached_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
 
@@ -937,23 +1029,30 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 
     osg_arrays.push_back(vertcoord_osg_array);
     osg_arrays.push_back(vertcoordcolor_osg_array);
-    
+
+    accumulate_locks_required(all_locks_required);
   }
 
 
-  std::pair<bool,bool> osg_cachedcoloredtransparentlines::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedcoloredtransparentlines::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
   {
     std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedcoloredtransparentlines::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+    if (new_recording==cached_recording && new_recording->info->immutable) {
+      accumulate_locks_required(all_locks_required);
+      std::make_pair(true,false);
+    }
+
+    return std::make_pair(false,false); // (reusable,modified)
     
   }
 
 
-  osg_cachedcoloredtransparentpoints::osg_cachedcoloredtransparentpoints(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req)
+  osg_cachedcoloredtransparentpoints::osg_cachedcoloredtransparentpoints(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams& params, std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachearraysentry(all_locks_required)
   {
     cached_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
 
@@ -973,24 +1072,31 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     osg_arrays.push_back(pointcoord_osg_array);
     osg_arrays.push_back(pointcoordcolor_osg_array);
 
+    accumulate_locks_required(all_locks_required);
   }
 
 
-  std::pair<bool, bool> osg_cachedcoloredtransparentpoints::attempt_reuse(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req)
+  std::pair<bool, bool> osg_cachedcoloredtransparentpoints::attempt_reuse(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
   {
     std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedcoloredtransparentpoints::attempt_reuse: Could not get recording for %s", display_req->renderable_channelpath->c_str());
     }
 
-    return std::make_pair(new_recording == cached_recording && new_recording->info->immutable, false); // (reusable,modified)
+    if (new_recording == cached_recording && new_recording->info->immutable) {
+      accumulate_locks_required(all_locks_required);
+      return std::make_pair(true,false);
+    }
+
+    return std::make_pair(false, false); // (reusable,modified)
 
   }
 
 
 
 
-  osg_cachedwaveform::osg_cachedwaveform(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req)
+  osg_cachedwaveform::osg_cachedwaveform(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams& params, std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachegroupentry(all_locks_required)
   {
 
 
@@ -1022,7 +1128,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 
       // get sub-requirement #0: SNDE_SRM_COLOREDTRANSPARENTLINES
       std::shared_ptr<osg_rendercacheentry> raw_entry;
-      std::tie(raw_entry, modified) = params.rendercache->GetEntry(params, display_req->sub_requirements.at(0), &locks_required);
+      std::tie(raw_entry, modified) = params.rendercache->GetEntry(params, display_req->sub_requirements.at(0), all_locks_required);
 
       // std::shared_ptr<osg_cachedcoloredtransparentlines> coloredtransparentlines; (included in class definition)
       coloredtransparentlines = std::dynamic_pointer_cast<osg_cachedcoloredtransparentlines>(raw_entry);
@@ -1035,7 +1141,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       {
 	// get sub-requirement #1: SNDE_SRM_COLOREDTRANSPARENTPOINTS
 	std::shared_ptr<osg_rendercacheentry> raw_entry2;
-	std::tie(raw_entry2, modified) = params.rendercache->GetEntry(params, display_req->sub_requirements.at(1), &locks_required);
+	std::tie(raw_entry2, modified) = params.rendercache->GetEntry(params, display_req->sub_requirements.at(1), all_locks_required);
 
 	// std::shared_ptr<osg_cachedcoloredtransparentlines> coloredtransparentlines; (included in class definition)
 	coloredtransparentpoints = std::dynamic_pointer_cast<osg_cachedcoloredtransparentpoints>(raw_entry2);
@@ -1143,16 +1249,38 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       */
 
       osg_group = pp_geode;
+      accumulate_locks_required(all_locks_required);
   }
 
-  std::pair<bool, bool> osg_cachedwaveform::attempt_reuse(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req)
+  std::pair<bool, bool> osg_cachedwaveform::attempt_reuse(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
   {
       std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
       if (!new_recording) {
           throw snde_error("osg_cachedwaveform::attempt_reuse: Could not get recording for %s", display_req->renderable_channelpath->c_str());
       }
+      bool coloredtransparentlines_reusable, coloredtransparentlines_modified;
+      bool coloredtransparentpoints_reusable=true, coloredtransparentpoints_modified=false;
+      std::tie(coloredtransparentlines_reusable,
+	       coloredtransparentlines_modified) =
+	coloredtransparentlines->attempt_reuse(params,display_req->sub_requirements.at(0),all_locks_required);
+      if (display_req->sub_requirements.size() > 1) {
+	if (coloredtransparentpoints) {
 
-      return std::make_pair(new_recording == cached_recording && new_recording->info->immutable && display_req->mode.constraint == cached_params, false); // (reusable,modified)
+	
+	  std::tie(coloredtransparentpoints_reusable, coloredtransparentpoints_modified) = coloredtransparentpoints->attempt_reuse(params,display_req->sub_requirements.at(1),all_locks_required);
+	}
+	else {
+	  coloredtransparentpoints_reusable = false;
+	}
+      }
+
+      if (coloredtransparentlines_reusable && coloredtransparentpoints_reusable && new_recording == cached_recording && new_recording->info->immutable && display_req->mode.constraint == cached_params) {
+
+	accumulate_locks_required(all_locks_required);
+	return std::make_pair(true,coloredtransparentlines_modified || coloredtransparentpoints_modified);
+      }
+      
+      return std::make_pair(false, false); // (reusable,modified)
 
   }
 
@@ -1169,7 +1297,8 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 
 
 
-  osg_cachedphaseplaneendpointwithcoloredtransparentlines::osg_cachedphaseplaneendpointwithcoloredtransparentlines(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  osg_cachedphaseplaneendpointwithcoloredtransparentlines::osg_cachedphaseplaneendpointwithcoloredtransparentlines(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachegroupentry(all_locks_required)
   {
 
     
@@ -1200,7 +1329,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 
     // get sub-requirement #0: SNDE_SRM_COLOREDTRANSPARENTLINES
     std::shared_ptr<osg_rendercacheentry> raw_entry;
-    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(0),&locks_required);
+    std::tie(raw_entry,modified) = params.rendercache->GetEntry(params,display_req->sub_requirements.at(0),all_locks_required);
     
     // std::shared_ptr<osg_cachedcoloredtransparentlines> coloredtransparentlines; (included in class definition)
     coloredtransparentlines = std::dynamic_pointer_cast<osg_cachedcoloredtransparentlines>(raw_entry);
@@ -1269,16 +1398,26 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     
  
     osg_group = pp_geode;
+    accumulate_locks_required(all_locks_required);
   }
 
-  std::pair<bool,bool> osg_cachedphaseplaneendpointwithcoloredtransparentlines::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedphaseplaneendpointwithcoloredtransparentlines::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
   {
     std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedphaseplaneendpointwithcoloredtransparentlines::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable && display_req->mode.constraint == cached_params,false); // (reusable,modified)
+    bool coloredtransparentlines_reusable, coloredtransparentlines_modified;
+
+    std::tie(coloredtransparentlines_reusable, coloredtransparentlines_modified) = coloredtransparentlines->attempt_reuse(params,display_req->sub_requirements.at(0),all_locks_required);
+
+    if (coloredtransparentlines_reusable && new_recording==cached_recording && new_recording->info->immutable && display_req->mode.constraint == cached_params) {
+      accumulate_locks_required(all_locks_required);
+      return std::make_pair(true,coloredtransparentlines_modified);
+    }
+
+    return std::make_pair(false,false); // (reusable,modified)
     
   }
 
@@ -1288,69 +1427,12 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     potentially_obsolete = false;
     coloredtransparentlines->clear_potentially_obsolete();
   }
-  
-  osg_cachedparameterizationdata::osg_cachedparameterizationdata(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
-    osg_rendercachearrayentry()
-  {
-
-    cached_recording = std::dynamic_pointer_cast<meshed_texvertex_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
-    if (!cached_recording) {
-      throw snde_error("osg_cachedparameterizationdata: Could not get recording for %s",display_req->renderable_channelpath->c_str()); 
-      
-    }
-    std::shared_ptr<ndarray_recording_ref> parameterization_texvertices_array = cached_recording->reference_ndarray("texvertex_arrays");
-
-    locks_required.push_back( { parameterization_texvertices_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
-
-    osg_array = new OSGFPArray(parameterization_texvertices_array,1,2); // 2 for 2d texture coordinates
-    
-  }
-
-  std::pair<bool,bool> osg_cachedparameterizationdata::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
-  {
-    std::shared_ptr<meshed_texvertex_recording> new_recording = std::dynamic_pointer_cast<meshed_texvertex_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
-    if (!new_recording) {
-      throw snde_error("osg_cachedparameterizationdata::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
-    }
-
-    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
-  }
-  
 
 
-  osg_cachedmeshedvertexarray::osg_cachedmeshedvertexarray(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
-    osg_rendercachearrayentry()
-  {
-    
-    cached_recording = std::dynamic_pointer_cast<meshed_vertexarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
-    if (!cached_recording) {
-      throw snde_error("osg_cachedmeshedvertexarray: Could not get recording for %s",display_req->renderable_channelpath->c_str()); 
-      
-    }
-
-    
-    std::shared_ptr<ndarray_recording_ref> meshed_vertices_array = cached_recording->reference_ndarray("vertex_arrays");
-    
-    locks_required.push_back( { meshed_vertices_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
-    osg_array = new OSGFPArray(meshed_vertices_array,1,3); // 3 for 3d coordinates
-    
-  }
-
-  std::pair<bool,bool> osg_cachedmeshedvertexarray::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
-  {
-    std::shared_ptr<meshed_vertexarray_recording> new_recording = std::dynamic_pointer_cast<meshed_vertexarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
-    if (!new_recording) {
-      throw snde_error("osg_cachedmeshedvertexarray::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
-    }
-
-    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
-  }
-  
 
   
-
-  osg_cachedmeshednormals::osg_cachedmeshednormals(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
-    osg_rendercachearrayentry()
+  osg_cachedmeshednormals::osg_cachedmeshednormals(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachearrayentry(all_locks_required)
   {
     
     cached_recording = std::dynamic_pointer_cast<meshed_vertnormalarrays_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
@@ -1364,24 +1446,101 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     locks_required.push_back( { vertnormal_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
 
     osg_array = new OSGFPArray(vertnormal_array,9,3); // SNDE groups them by 9 (per triangle), OSG by 3 (per vertex)for 3d coordinates
+
+    accumulate_locks_required(all_locks_required);
     
   }
 
 
-  std::pair<bool,bool> osg_cachedmeshednormals::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedmeshednormals::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
   {
     std::shared_ptr<meshed_vertnormalarrays_recording> new_recording = std::dynamic_pointer_cast<meshed_vertnormalarrays_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedmeshedvertexarray::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
-    
-    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+
+    if (new_recording==cached_recording && new_recording->info->immutable){
+      accumulate_locks_required(all_locks_required);
+      return std::make_pair(true,false);
+    }
+    return std::make_pair(false,false); // (reusable,modified)
   }
 
+
+  
+  
+  osg_cachedparameterizationdata::osg_cachedparameterizationdata(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachearrayentry(all_locks_required)
+  {
+
+    cached_recording = std::dynamic_pointer_cast<meshed_texvertex_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    if (!cached_recording) {
+      throw snde_error("osg_cachedparameterizationdata: Could not get recording for %s",display_req->renderable_channelpath->c_str()); 
+      
+    }
+    std::shared_ptr<ndarray_recording_ref> parameterization_texvertices_array = cached_recording->reference_ndarray("texvertex_arrays");
+
+    locks_required.push_back( { parameterization_texvertices_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
+
+    osg_array = new OSGFPArray(parameterization_texvertices_array,1,2); // 2 for 2d texture coordinates
+
+    accumulate_locks_required(all_locks_required);
+    
+  }
+
+  std::pair<bool,bool> osg_cachedparameterizationdata::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
+  {
+    std::shared_ptr<meshed_texvertex_recording> new_recording = std::dynamic_pointer_cast<meshed_texvertex_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    if (!new_recording) {
+      throw snde_error("osg_cachedparameterizationdata::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
+    }
+
+    if (new_recording==cached_recording && new_recording->info->immutable) {
+      accumulate_locks_required(all_locks_required);
+      return std::make_pair(true,false);
+    }
+    
+    return std::make_pair(false,false); // (reusable,modified)
+  }
   
 
-  osg_cachedmeshedpart::osg_cachedmeshedpart(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
-    osg_rendercachegroupentry()
+
+  osg_cachedmeshedvertexarray::osg_cachedmeshedvertexarray(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachearrayentry(all_locks_required)
+  {
+    
+    cached_recording = std::dynamic_pointer_cast<meshed_vertexarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    if (!cached_recording) {
+      throw snde_error("osg_cachedmeshedvertexarray: Could not get recording for %s",display_req->renderable_channelpath->c_str()); 
+      
+    }
+
+    
+    std::shared_ptr<ndarray_recording_ref> meshed_vertices_array = cached_recording->reference_ndarray("vertex_arrays");
+    
+    locks_required.push_back( { meshed_vertices_array,false } ); // accmulate locks needed for lockmanager::lock_recording_refs()
+    osg_array = new OSGFPArray(meshed_vertices_array,1,3); // 3 for 3d coordinates
+
+    accumulate_locks_required(all_locks_required);
+  }
+
+  std::pair<bool,bool> osg_cachedmeshedvertexarray::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
+  {
+    std::shared_ptr<meshed_vertexarray_recording> new_recording = std::dynamic_pointer_cast<meshed_vertexarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    if (!new_recording) {
+      throw snde_error("osg_cachedmeshedvertexarray::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
+    }
+
+    if (new_recording == cached_recording && new_recording->info->immutable){
+      accumulate_locks_required(all_locks_required);
+      return std::make_pair(true,false);
+    }
+
+    return std::make_pair(false,false); // (reusable,modified)
+  }
+
+  osg_cachedmeshedpart::osg_cachedmeshedpart(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachegroupentry(all_locks_required)
   {
     
     cached_recording = std::dynamic_pointer_cast<meshed_part_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
@@ -1394,7 +1553,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     std::shared_ptr<osg_rendercacheentry> vertexarrays_entry;
     bool modified;
     
-    std::tie(vertexarrays_entry,modified) = params.rendercache->GetEntry(params,vertexarrays_requirement,&locks_required);
+    std::tie(vertexarrays_entry,modified) = params.rendercache->GetEntry(params,vertexarrays_requirement,all_locks_required);
     if (!vertexarrays_entry) {
       throw snde_error("osg_cachedmeshedpart(): Could not get cache entry for vertex arrays channel %s",vertexarrays_requirement->renderable_channelpath->c_str());
     }
@@ -1407,7 +1566,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     
     std::shared_ptr<osg_rendercacheentry> normals_entry;
 
-    std::tie(normals_entry,modified) = params.rendercache->GetEntry(params,normals_requirement,&locks_required);
+    std::tie(normals_entry,modified) = params.rendercache->GetEntry(params,normals_requirement,all_locks_required);
     if (!normals_entry) {
       throw snde_error("osg_cachedmeshedpart(): Could not get cache entry for normals channel %s",normals_requirement->renderable_channelpath->c_str());
     }
@@ -1456,6 +1615,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 
     
     osg_group = geode;
+    accumulate_locks_required(all_locks_required);
   }
 
   void osg_cachedmeshedpart::clear_potentially_obsolete()
@@ -1469,18 +1629,29 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 
 
   
-  std::pair<bool,bool> osg_cachedmeshedpart::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedmeshedpart::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
   {
     std::shared_ptr<meshed_part_recording> new_recording = std::dynamic_pointer_cast<meshed_part_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedmeshedpart::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+    bool vertexarrays_reusable, vertexarrays_modified;
+    bool normals_reusable, normals_modified;
+
+    std::tie(vertexarrays_reusable,vertexarrays_modified)=vertexarrays_cache->attempt_reuse(params,display_req->sub_requirements.at(0),all_locks_required);
+    std::tie(normals_reusable,normals_modified)=normals_cache->attempt_reuse(params,display_req->sub_requirements.at(1),all_locks_required);
+
+    if (vertexarrays_reusable && normals_reusable && new_recording == cached_recording && new_recording->info->immutable) {
+      accumulate_locks_required(all_locks_required);
+      return std::make_pair(true,vertexarrays_modified || normals_modified);
+    }
+
+    return std::make_pair(false,false); // (reusable,modified)
   }
 
-  osg_cachedtexedmeshedgeom::osg_cachedtexedmeshedgeom(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
-    osg_rendercachedrawableentry()
+  osg_cachedtexedmeshedgeom::osg_cachedtexedmeshedgeom(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachedrawableentry(all_locks_required)
   {
     
     cached_recording = std::dynamic_pointer_cast<textured_part_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
@@ -1493,7 +1664,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     std::shared_ptr<osg_rendercacheentry> vertexarrays_entry;
     bool modified;
 
-    std::tie(vertexarrays_entry,modified) = params.rendercache->GetEntry(params,vertexarrays_requirement,&locks_required);
+    std::tie(vertexarrays_entry,modified) = params.rendercache->GetEntry(params,vertexarrays_requirement,all_locks_required);
     if (!vertexarrays_entry) {
       throw snde_error("osg_cachedtexedmeshedgeom(): Could not get cache entry for vertex arrays channel %s",vertexarrays_requirement->renderable_channelpath->c_str());
     }
@@ -1506,7 +1677,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 
     std::shared_ptr<osg_rendercacheentry> normals_entry;
 
-    std::tie(normals_entry,modified) = params.rendercache->GetEntry(params,normals_requirement,&locks_required);
+    std::tie(normals_entry,modified) = params.rendercache->GetEntry(params,normals_requirement,all_locks_required);
     if (!normals_entry) {
       throw snde_error("osg_cachedtexedmeshedgeom(): Could not get cache entry for normals channel %s",normals_requirement->renderable_channelpath->c_str());
     }
@@ -1519,7 +1690,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     std::shared_ptr<display_requirement> parameterization_requirement=display_req->sub_requirements.at(2);
     std::shared_ptr<osg_rendercacheentry> parameterization_entry;
     
-    std::tie(parameterization_entry,modified) = params.rendercache->GetEntry(params,parameterization_requirement,&locks_required);
+    std::tie(parameterization_entry,modified) = params.rendercache->GetEntry(params,parameterization_requirement,all_locks_required);
     if (!parameterization_entry) {
       throw snde_error("osg_cachedtexedmeshedgeom(): Could not get cache entry for parameterization channel %s",parameterization_requirement->renderable_channelpath->c_str());
     }
@@ -1563,7 +1734,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     geom->setTexCoordArray(0,TexCoordArray,osg::Array::BIND_PER_VERTEX); // !!!*** Do we need to mark multiple texture units to support multiple images in the parameterization space? probably...
 
     osg_drawable = geom; // the osg::Geometry IS our drawable. 
-    
+    accumulate_locks_required(all_locks_required);
   }
   
 
@@ -1578,20 +1749,33 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
   }
 
   
-  std::pair<bool,bool> osg_cachedtexedmeshedgeom::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedtexedmeshedgeom::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
   {
     std::shared_ptr<textured_part_recording> new_recording = std::dynamic_pointer_cast<textured_part_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedmeshedpart::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+    bool vertexarrays_reusable, vertexarrays_modified;
+    bool normals_reusable, normals_modified;
+    bool parameterization_reusable, parameterization_modified;
+
+    std::tie(vertexarrays_reusable,vertexarrays_modified) = vertexarrays_cache->attempt_reuse(params,display_req->sub_requirements.at(0),all_locks_required);
+    std::tie(normals_reusable,normals_modified) = normals_cache->attempt_reuse(params,display_req->sub_requirements.at(1),all_locks_required);
+    std::tie(parameterization_reusable,parameterization_modified) = parameterization_cache->attempt_reuse(params,display_req->sub_requirements.at(2),all_locks_required);
+
+    if (vertexarrays_reusable && normals_reusable && parameterization_reusable && new_recording==cached_recording && new_recording->info->immutable) {
+      accumulate_locks_required(all_locks_required);
+      return std::make_pair(true,vertexarrays_modified || normals_modified || parameterization_modified);
+    }
+    
+      return std::make_pair(false,false); // (reusable,modified)
   }
 
 
 
-  osg_cachedtexedmeshedpart::osg_cachedtexedmeshedpart(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
-    osg_rendercachegroupentry()
+  osg_cachedtexedmeshedpart::osg_cachedtexedmeshedpart(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachegroupentry(all_locks_required)
   {
     
     cached_recording = std::dynamic_pointer_cast<textured_part_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
@@ -1604,7 +1788,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     std::shared_ptr<osg_rendercacheentry> geometry_entry;
     bool modified;
 
-    std::tie(geometry_entry,modified) = params.rendercache->GetEntry(params,geometry_requirement,&locks_required);
+    std::tie(geometry_entry,modified) = params.rendercache->GetEntry(params,geometry_requirement,all_locks_required);
     if (!geometry_entry) {
       throw snde_error("osg_cachedtexedmeshedpart(): Could not get cache entry for geometry channel %s",geometry_requirement->renderable_channelpath->c_str());
     }
@@ -1620,7 +1804,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       std::shared_ptr<osg_rendercacheentry> texture_entry;
       bool modified;
 
-      std::tie(texture_entry,modified) = params.rendercache->GetEntry(params,texture_requirement,&locks_required);
+      std::tie(texture_entry,modified) = params.rendercache->GetEntry(params,texture_requirement,all_locks_required);
       if (!texture_entry) {
 	throw snde_error("osg_cachedtexedmeshedpart(): Could not get cache entry for texture channel %s",texture_requirement->renderable_channelpath->c_str());
       }
@@ -1650,6 +1834,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     //geode->setStateSet(texture_state_set)
 
     osg_group = geode;
+    accumulate_locks_required(all_locks_required);
   }
 
 
@@ -1666,14 +1851,34 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     
   }
 
-  std::pair<bool,bool> osg_cachedtexedmeshedpart::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedtexedmeshedpart::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
   {
     std::shared_ptr<textured_part_recording> new_recording = std::dynamic_pointer_cast<textured_part_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedtexedmeshedpart::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+    bool geometry_reusable, geometry_modified;
+    bool all_textures_reusable=true, any_texture_modified=false;
+
+    std::tie(geometry_reusable,geometry_modified) = geometry_cache->attempt_reuse(params,display_req->sub_requirements.at(0),all_locks_required);
+    for (size_t req_num=1; req_num < display_req->sub_requirements.size(); req_num++) {
+      bool this_texture_reusable, this_texture_modified;
+      if (req_num-1 >= texture_caches.size()) {
+	all_textures_reusable = false;
+	break;
+      }
+      std::tie(this_texture_reusable,this_texture_modified)=texture_caches.at(req_num-1)->attempt_reuse(params,display_req->sub_requirements.at(req_num),all_locks_required);
+      all_textures_reusable = all_textures_reusable && this_texture_reusable;
+      any_texture_modified = any_texture_modified || this_texture_modified;
+    }
+
+    if (geometry_reusable && all_textures_reusable && new_recording == cached_recording && new_recording->info->immutable) {
+      accumulate_locks_required(all_locks_required);
+      return std::make_pair(true,geometry_modified || any_texture_modified);
+    }
+    
+    return std::make_pair(false,false); // (reusable,modified)
   }
 
 
@@ -1681,8 +1886,8 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 
 
 
-  osg_cachedassembly::osg_cachedassembly(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
-    osg_rendercachegroupentry()
+  osg_cachedassembly::osg_cachedassembly(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachegroupentry(all_locks_required)
   {
     
     cached_recording = std::dynamic_pointer_cast<assembly_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
@@ -1699,7 +1904,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       std::shared_ptr<osg_rendercacheentry> component_entry;
       bool modified;
 
-      std::tie(component_entry,modified) = params.rendercache->GetEntry(params,component_requirement,&locks_required);
+      std::tie(component_entry,modified) = params.rendercache->GetEntry(params,component_requirement,all_locks_required);
       if (!component_entry) {
 	throw snde_error("osg_cachedassembly(): Could not get cache entry for sub-component %s",component_requirement->renderable_channelpath->c_str());
       }
@@ -1724,17 +1929,36 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       xform->addChild(sub_components.at(component_index)->osg_group);
       osg_group->addChild(xform);
     }
+
+    accumulate_locks_required(all_locks_required);
   }
 
 
-  std::pair<bool,bool> osg_cachedassembly::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedassembly::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
   {
     std::shared_ptr<assembly_recording> new_recording = std::dynamic_pointer_cast<assembly_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
     if (!new_recording) {
       throw snde_error("osg_cachedassembly::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
 
-    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+    bool all_sub_components_reusable=true,any_sub_components_modified = false;
+    for (size_t reqnum = 0; reqnum < display_req->sub_requirements.size(); reqnum++) {
+      bool this_sub_component_reusable, this_sub_component_modified;
+      if (reqnum >= sub_components.size()) {
+	all_sub_components_reusable=false;
+	break;
+      }
+      std::tie(this_sub_component_reusable, this_sub_component_modified) = sub_components.at(reqnum)->attempt_reuse(params,display_req->sub_requirements.at(reqnum),all_locks_required);
+      all_sub_components_reusable = all_sub_components_reusable && this_sub_component_reusable;
+      any_sub_components_modified = any_sub_components_modified || this_sub_component_modified;
+    }
+
+    if (all_sub_components_reusable && new_recording == cached_recording && new_recording->info->immutable) {
+      accumulate_locks_required(all_locks_required);
+      return std::make_pair(true,any_sub_components_modified);
+    }
+    
+    return std::make_pair(false,false); // (reusable,modified)
   }
   
 
@@ -1754,8 +1978,8 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 
   
 
-  osg_cachedtransformedcomponent::osg_cachedtransformedcomponent(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
-    osg_rendercachegroupentry()
+  osg_cachedtransformedcomponent::osg_cachedtransformedcomponent(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachegroupentry(all_locks_required)
   {
     
     cached_recording = params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath);
@@ -1770,7 +1994,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     
     bool ctt_modified;
 
-    std::tie(channeltotrack_entry,ctt_modified) = params.rendercache->GetEntry(params,channeltotrack_requirement,&locks_required);
+    std::tie(channeltotrack_entry,ctt_modified) = params.rendercache->GetEntry(params,channeltotrack_requirement,all_locks_required);
     if (!channeltotrack_entry) {
       throw snde_error("osg_cachedtransformedcomponent(): Could not get cache entry for channeltotrack %s",channeltotrack_requirement->renderable_channelpath->c_str());
     }
@@ -1785,7 +2009,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     
       bool sc_modified;
 
-      std::tie(subcomponent_entry,sc_modified) = params.rendercache->GetEntry(params,subcomponent_requirement,&locks_required);
+      std::tie(subcomponent_entry,sc_modified) = params.rendercache->GetEntry(params,subcomponent_requirement,all_locks_required);
       if (!subcomponent_entry) {
 	throw snde_error("osg_cachedtransformedcomponent(): Could not get cache entry for sub-component %s",subcomponent_requirement->renderable_channelpath->c_str());
       }
@@ -1817,18 +2041,36 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
 	osg_group->addChild(sub_component->osg_group);
       }
     }
-    
+    accumulate_locks_required(all_locks_required);
   }
   
   
-  std::pair<bool,bool> osg_cachedtransformedcomponent::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)
+  std::pair<bool,bool> osg_cachedtransformedcomponent::attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)
   {
     std::shared_ptr<recording_base> new_recording = params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath);
     if (!new_recording) {
       throw snde_error("osg_cachedtransformedcomponent::attempt_reuse: Could not get recording for %s",display_req->renderable_channelpath->c_str());       
     }
+    bool channel_to_reorient_reusable, channel_to_reorient_modified;
+    bool sub_component_reusable=true, sub_component_modified=false;
+
+    std::tie(channel_to_reorient_reusable,channel_to_reorient_modified) = channel_to_reorient->attempt_reuse(params,display_req->sub_requirements.at(0),all_locks_required);
+
+    if (display_req->sub_requirements.size() > 1) {
+      if (sub_component) {
+	std::tie(sub_component_reusable,sub_component_modified)=sub_component->attempt_reuse(params,display_req->sub_requirements.at(1),all_locks_required);
+      }
+      else {
+	sub_component_reusable = false;
+      }
+    }
+
+    if (sub_component_reusable && new_recording == cached_recording && new_recording->info->immutable) {
+      accumulate_locks_required(all_locks_required);
+      return std::make_pair(true,sub_component_modified);
+    }
     
-    return std::make_pair(new_recording==cached_recording && new_recording->info->immutable,false); // (reusable,modified)
+    return std::make_pair(false,false); // (reusable,modified)
   }
   
 
