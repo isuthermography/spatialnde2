@@ -421,9 +421,14 @@ add_executable(recdb_test
         test/recdb_test.cpp)
 target_link_libraries(recdb_test ${SPATIALNDE2_LIBS})
 
+
 add_executable(recmath_test
         test/recmath_test.cpp)
-target_link_libraries(recmath_test ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} )
+target_link_libraries(recmath_test ${SPATIALNDE2_LIBS} )
+IF(OpenCL_FOUND)
+	target_link_libraries(recmath_test ${SPATIALNDE2_OCL_LIBS})
+ENDIF()
+
 
 add_executable(recmath_test2
         test/recmath_test2.cpp)
@@ -523,11 +528,9 @@ IF (Python3_FOUND)
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_ocl${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_osg${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2.lib ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_ocl.lib ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_osg.lib ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt.lib ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy  ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py
@@ -541,6 +544,15 @@ IF (Python3_FOUND)
     
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
     )
+    IF(OpenCL_FOUND)
+        add_custom_command(OUTPUT ${PYTHONPKGFILES}
+    	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_ocl${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_ocl.lib ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+	WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+	APPEND
+    )
+    ENDIF()
+
   ELSE()
     add_custom_command(OUTPUT ${PYTHONPKGFILES}
     DEPENDS compile_configuration python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES}
@@ -555,7 +567,6 @@ IF (Python3_FOUND)
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_ocl${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_osg${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy  ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py
@@ -569,6 +580,13 @@ IF (Python3_FOUND)
     
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
     )
+    IF(OpenCL_FOUND)
+	add_custom_command(OUTPUT ${PYTHONPKGFILES}
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_ocl${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+	WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+	APPEND
+    	)
+    ENDIF()
   ENDIF(WIN32)
   add_custom_target(Python_Create_Setup ALL DEPENDS ${PYTHONPKGFILES})
   #add_custom_command(Python_Create_Setup DEPENDS ${PYTHONPKGFILES})
@@ -607,8 +625,10 @@ IF (GLUT_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   add_executable(png_viewer test/png_viewer.cpp)
   #add_dependencies(png_viewer OpenCL_Headers)
   add_dependencies(png_viewer OpenGL::GL )
-  target_link_libraries(png_viewer ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
-
+  target_link_libraries(png_viewer ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
+IF(OpenCL_FOUND)
+        target_link_libraries(png_viewer ${SPATIALNDE2_OCL_LIBS})
+ENDIF()
 ENDIF()
 
 
@@ -616,28 +636,40 @@ IF (GLUT_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   add_executable(osg_layerwindow_test test/osg_layerwindow_test.cpp)
   #add_dependencies(png_viewer OpenCL_Headers)
   add_dependencies(osg_layerwindow_test OpenGL::GL )
-  target_link_libraries(osg_layerwindow_test -lGL ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}  )
+  target_link_libraries(osg_layerwindow_test -lGL ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}  )
+  IF(OpenCL_FOUND)
+        target_link_libraries(osg_layerwindow_test ${SPATIALNDE2_OCL_LIBS})
+  ENDIF()
 ENDIF()
 
 IF (GLUT_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   add_executable(compositor_test test/compositor_test.cpp)
   #add_dependencies(png_viewer OpenCL_Headers)
   add_dependencies(compositor_test OpenGL::GL )
-  target_link_libraries(compositor_test -lGL ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}  )
+  target_link_libraries(compositor_test -lGL ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}  )
+  IF(OpenCL_FOUND)
+        target_link_libraries(compositor_test ${SPATIALNDE2_OCL_LIBS})
+  ENDIF()
 ENDIF()
 
 
 IF (GLUT_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   add_executable(x3d_viewer test/x3d_viewer.cpp)
   add_dependencies(x3d_viewer OpenGL::GL )
-  target_link_libraries(x3d_viewer ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
+  target_link_libraries(x3d_viewer ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
+  IF(OpenCL_FOUND)
+        target_link_libraries(x3d_viewer ${SPATIALNDE2_OCL_LIBS})
+  ENDIF()
 ENDIF()
 
 
 IF (GLUT_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   add_executable(ondemand_test test/ondemand_test.cpp)
   add_dependencies(ondemand_test OpenGL::GL )
-  target_link_libraries(ondemand_test ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${CMAKE_THREAD_LIBS_INIT} )
+  target_link_libraries(ondemand_test ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${CMAKE_THREAD_LIBS_INIT} )
+  IF(OpenCL_FOUND)
+        target_link_libraries(ondemand_test ${SPATIALNDE2_OCL_LIBS})
+  ENDIF()
 ENDIF()
 
 IF (Qt5_FOUND AND OpenCL_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
@@ -646,17 +678,23 @@ IF (Qt5_FOUND AND OpenCL_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenScene
   #target_link_libraries(png_viewer_qt ${SPATIALNDE2_QT_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${OpenCL_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
 ENDIF()
 
-IF (Qt5_FOUND AND Python3_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND OpenCL_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PNG_FOUND)
+IF (Qt5_FOUND AND Python3_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PNG_FOUND)
   add_executable(x3d_viewer_qt test/x3d_viewer_qt.cpp)
   add_dependencies(x3d_viewer_qt OpenGL::GL )
-  target_link_libraries(x3d_viewer_qt ${SPATIALNDE2_QT_LIBS} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS}  ${OPENSCENEGRAPH_LIBRARIES} ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
+  target_link_libraries(x3d_viewer_qt ${SPATIALNDE2_QT_LIBS} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS}  ${OPENSCENEGRAPH_LIBRARIES} ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
+  IF (OpenCL_FOUND)
+	  target_link_libraries(x3d_viewer_qt ${SPATIALNDE2_OCL_LIBS})
+  ENDIF()
 ENDIF()
 
 
 IF (Qt5_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND )
   add_executable(ande_viewer test/ande_viewer.cpp)
   add_dependencies(ande_viewer OpenGL::GL )
-  target_link_libraries(ande_viewer ${SPATIALNDE2_QT_LIBS} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS}  ${OPENSCENEGRAPH_LIBRARIES}  ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
+  target_link_libraries(ande_viewer ${SPATIALNDE2_QT_LIBS} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS}  ${OPENSCENEGRAPH_LIBRARIES}  ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
+  IF(OpenCL_FOUND)
+        target_link_libraries(ande_viewer ${SPATIALNDE2_OCL_LIBS})
+  ENDIF()
 ENDIF()
 
 
@@ -732,9 +770,14 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	set(SPATIALNDE2_SWIG_SOURCES snde/spatialnde2.i  )
 	set_property(SOURCE snde/spatialnde2.i PROPERTY SWIG_MODULE_NAME spatialnde2_python)
 
-	
-	set(SWIG_SPATIALNDE2_LINK_TARGETS Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools PNG::PNG OpenCL::OpenCL hdf5::hdf5 hdf5::hdf5_cpp) # Libraries needed by swig_spatialnde2 that are swig targets
-	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${Python3_LIBRARIES} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OCL_LIBS} ${SPATIALNDE2_OSG_LIBS} ${SPATIALNDE2_QT_LIBS} )
+        	
+	set(SWIG_SPATIALNDE2_LINK_TARGETS Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools PNG::PNG hdf5::hdf5 hdf5::hdf5_cpp) # Libraries needed by swig_spatialnde2 that are swig targets
+	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${Python3_LIBRARIES} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${SPATIALNDE2_QT_LIBS} )
+
+	IF (OpenCL_FOUND)
+            set(SWIG_SPATIALNDE2_LINK_TARGETS ${SWIG_SPATIALNDE2_LINK_TARGETS} OpenCL::OpenCL)
+	    set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${SPATIALNDE2_OCL_LIBS})
+	ENDIF()
 
 	#IF(NOT WIN32)
 	#  set(SPATIALNDE2_SWIG_SOURCES ${SPATIALNDE2_SWIG_SOURCES} snde/shared_memory_allocator_posix.cpp )
