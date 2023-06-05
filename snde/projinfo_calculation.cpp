@@ -30,7 +30,11 @@
 
 namespace snde {
 
+#ifdef SNDE_OPENCL
+
   static opencl_program projinfo_opencl_program("snde_projinfo_calc", { snde_types_h, geometry_types_h, vecops_h, geometry_ops_h, projinfo_calc_c });
+
+#endif //SNDE_OPENCL
 
 
 

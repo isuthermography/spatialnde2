@@ -1,6 +1,5 @@
 #include <math.h>
 
-#include "snde/waveform_vertex_functions.hpp"
 #include "snde/recmath_cppfunction.hpp"
 
 #ifdef SNDE_OPENCL
@@ -11,6 +10,10 @@
 
 #include "snde/snde_types_h.h"
 #include "snde/geometry_types_h.h"
+
+
+#include "snde/waveform_vertex_functions.hpp"
+
 #include "snde/waveform_vertex_calcs_c.h"
 
 
@@ -270,9 +273,7 @@ namespace snde {
 	      }
 	      else {
 #endif // SNDE_OPENCL
-		snde_warning("Performing waveform vertex calculation on CPU. ");
-
-		std::vector<cl::Event> kerndoneevents;
+		//snde_warning("Performing waveform vertex calculation on CPU. ");
 
 		T junk = 0.0;
 
@@ -498,9 +499,7 @@ namespace snde {
 	      }
 	      else {
 #endif // SNDE_OPENCL
-		snde_warning("Performing waveform vertex calculation on CPU. ");
-
-		std::vector<cl::Event> kerndoneevents;
+		//snde_warning("Performing waveform vertex calculation on CPU. ");
 
 		T junk = 0.0;
 
@@ -725,9 +724,7 @@ namespace snde {
 	      }
 	      else {
 #endif // SNDE_OPENCL
-		snde_warning("Performing waveform vertex calculation on CPU. ");
-
-		std::vector<cl::Event> kerndoneevents;
+		//snde_warning("Performing waveform vertex calculation on CPU. ");
 
 		T junk = 0.0;
 
