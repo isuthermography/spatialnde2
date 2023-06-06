@@ -44,21 +44,21 @@ namespace snde {
 
 
   template <typename T>
-  class accumulate_once : public recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool> {
+  class accumulate_once : public recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool, snde_bool> {
   public:
     accumulate_once(std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) :
-      recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool>(rss, inst)
+      recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool, snde_bool>(rss, inst)
     {
 
     }
 
     // These typedefs are regrettably necessary and will need to be updated according to the parameter signature of your function
     // https://stackoverflow.com/questions/1120833/derived-template-class-access-to-base-class-member-data
-    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool>::compute_options_function_override_type compute_options_function_override_type;
-    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool>::define_recs_function_override_type define_recs_function_override_type;
-    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool>::metadata_function_override_type metadata_function_override_type;
-    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool>::lock_alloc_function_override_type lock_alloc_function_override_type;
-    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool>::exec_function_override_type exec_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool, snde_bool>::compute_options_function_override_type compute_options_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool, snde_bool>::define_recs_function_override_type define_recs_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool, snde_bool>::metadata_function_override_type metadata_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool, snde_bool>::lock_alloc_function_override_type lock_alloc_function_override_type;
+    typedef typename recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<T>>, uint64_t, int64_t, snde_bool, snde_bool>::exec_function_override_type exec_function_override_type;
 
 
     // Recording to Accumulate, Number of Recordings to Accumulate, Axis to Accumulate Along 
@@ -66,7 +66,7 @@ namespace snde {
     // Using -1 or to_accum->layout.dimlen.size() will add an additional axis to accumulate along
     // Using 0 or to_accum->layout.dimlen.size() - 1 will concatenate along the first or last axis
     // Using -2 or to_accum->layout.dimlen.size() + 1 will place all incoming recordings into new arrays instead
-    std::pair<bool, std::shared_ptr<compute_options_function_override_type>> decide_execution(std::shared_ptr<ndtyped_recording_ref<T>> to_accum, uint64_t numaccum, int64_t axis, snde_bool emit_when_complete_only) {
+    std::pair<bool, std::shared_ptr<compute_options_function_override_type>> decide_execution(std::shared_ptr<ndtyped_recording_ref<T>> to_accum, uint64_t numaccum, int64_t axis, snde_bool emit_when_complete_only, snde_bool auto_reset) {
       std::shared_ptr<recording_base> previous_recording = this->self_dependent_recordings.at(0);
       std::shared_ptr<recording_creator_data> previous_recording_creator_data;
       std::shared_ptr<accumulate_once_creator_data<T>> creator_data;
@@ -89,14 +89,80 @@ namespace snde {
 	    std::lock_guard<std::mutex> prevrec_admin(previous_recording->admin);
 	    previous_recording_creator_data = previous_recording->creator_data;
 	  }
+
+	  // First check if we have auto_reset and we're finished
+	  if (previous_recording_creator_data) {
+	    creator_data = std::dynamic_pointer_cast<accumulate_once_creator_data<T>>(previous_recording_creator_data);
+	    if (auto_reset && creator_data->finished) {
+	      creator_data = nullptr;
+	      previous_recording_creator_data = nullptr;
+	    }
+	  }
+
 	  // Did we get previous recording creator data
 	  if (!previous_recording_creator_data) { // No
+
 	    just_starting = true;
+
+	    // If we are in emit only when complete mode, we need to return null recording with creator_data
+	    if (emit_when_complete_only) {
+	      return std::make_pair(true, std::make_shared<compute_options_function_override_type>([this, just_starting, to_accum, numaccum, axis, emit_when_complete_only] {
+
+		std::vector<std::shared_ptr<compute_resource_option>> option_list =
+		{
+		  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+								0, // data_bytes for transfer
+								0.0, // flops
+								1, // max effective cpu cores
+								1), // useful_cpu_cores (min # of cores to supply
+
+		};
+
+		return std::make_pair(option_list, std::make_shared<define_recs_function_override_type>([this, just_starting, to_accum, numaccum, axis, emit_when_complete_only] {
+
+		  // define_recs code
+		  std::shared_ptr<null_recording> starting_result;
+		  //snde_warning("avg: define_recs just_starting");
+
+
+		  starting_result = create_recording_math<null_recording>(this->get_result_channel_path(0), this->rss);
+		  return std::make_shared<metadata_function_override_type>([this, just_starting, to_accum, numaccum, axis, emit_when_complete_only, starting_result]() {
+		    // metadata code
+
+		    //snde_warning("avg: metadata just_starting");
+
+		    starting_result->metadata = std::make_shared<immutable_metadata>();
+		    starting_result->mark_metadata_done();
+
+		    return std::make_shared<lock_alloc_function_override_type>([this, just_starting, to_accum, numaccum, axis, emit_when_complete_only, starting_result]() {
+		      // lock_alloc code
+
+
+		      return std::make_shared<exec_function_override_type>([this, just_starting, to_accum, numaccum, axis, emit_when_complete_only, starting_result]() {
+			// exec code
+
+			std::shared_ptr<accumulate_once_creator_data<T>> new_creator_data = std::make_shared<accumulate_once_creator_data<T>>();
+			//snde_warning("avg: exec just_starting");
+
+			new_creator_data->first_rec = to_accum;
+			new_creator_data->pending_recs.push_back(to_accum);
+			new_creator_data->accumulated = 1;
+			starting_result->creator_data = new_creator_data;
+			starting_result->mark_data_ready();
+
+			});
+		      });
+
+		    });
+		  }));
+		}));
+	    } 
+	    
 	  }
 	  else { // Yes -- let's check it out
 
-	    // Get the creator_data type casted and set up
-	    creator_data = std::dynamic_pointer_cast<accumulate_once_creator_data<T>>(previous_recording_creator_data);
+	    // Get the creator_data type casted and set up -- done above
+	    // creator_data = std::dynamic_pointer_cast<accumulate_once_creator_data<T>>(previous_recording_creator_data);
 
 	    // Check if the finished flag is set -- then we shouldn't run
 	    if (creator_data->finished) {
@@ -293,6 +359,7 @@ namespace snde {
 		  if (just_starting) { // Just getting started -- allocate a new ndarray
 		    if (emit_when_complete_only) {
 		      // we need to loop over all of the arrays to be created
+		      // This is wrong -- it needs to deal with all three scenarios
 		      for (snde_index i = 0; i < creator_data->pending_recs.size(); i++) {
 			result->define_array(i, to_accum->typenum);
 			result->allocate_storage(i, accum_dimlen, fortran_mode);
