@@ -223,8 +223,8 @@ or (Python)::
   ])
 
 You provide a sequence of (recording reference, read/write) pairs
-where the second element is false for read and true for right.  It is
-important to lock all recordings in a single method call because at
+where the second element is false for read and true for write.  It is
+important to lock all recordings in a single method call because that
 way the locking code can ensure a consistent locking order is
 followed. Multiple simultaneous read locks on a given array are
 possible. Only one write lock can be held for a given array at a time,
@@ -282,17 +282,17 @@ is not implemented as of this writing.
 Marking the Recording as Ready
 ------------------------------
 
-The recording is marked as ready with the ``mark_as_ready()`` method of
+The recording is marked as ready with the ``mark_data_ready()`` method of
 the recording (C++)::
   
-  test_ref->rec->mark_as_ready();
+  test_ref->rec->mark_data_ready();
 
 or (Python)::
   
-  test_ref.rec.mark_as_ready()
+  test_ref.rec.mark_data_ready()
 
 Make sure all locks are released prior to calling the
-``mark_as_ready()`` method.
+``mark_data_ready()`` method.
 
 Waiting for Globalrevision Completion
 -------------------------------------
