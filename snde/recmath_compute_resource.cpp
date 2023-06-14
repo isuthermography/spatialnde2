@@ -1241,7 +1241,7 @@ namespace snde {
       // Need to do notifications that the math function finished in all referencing rss's
       _execution_complete_notify(recdb_strong,func,mdonly,false); // false is possibly_redundant
 
-      snde_debug(SNDE_DC_RECMATH,"Pool code completed notifictions for math function %s",func->inst->definition->definition_command.c_str());
+      snde_debug(SNDE_DC_RECMATH,"Pool code completed notifications for math function %s",func->inst->definition->definition_command.c_str());
       
       //printf("Pool code completed notification\n");
       //fflush(stdout);

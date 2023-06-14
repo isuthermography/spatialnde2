@@ -2,7 +2,28 @@
 #include "snde/recstore.hpp"
 
 namespace snde {
+  // std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>>>
+  bool mncn_lessthan::operator()( const std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>> & lhs,
+				  const std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>> & rhs ) const noexcept
+  {
+    // std::shared_ptr<recording_set_state> l_rss, r_rss;
+    // std::shared_ptr<math_function_execution> l_execfunc, r_execfunc;
 
+    // std::tie(l_rss, l_execfunc)=lhs;
+
+    if (std::owner_less<std::shared_ptr<recording_set_state>>()(std::get<0>(lhs),std::get<0>(rhs))){
+      return true;
+    }
+    if (std::owner_less<std::shared_ptr<recording_set_state>>()(std::get<0>(rhs),std::get<0>(lhs))){
+      return false;
+    }
+    if (std::owner_less<std::shared_ptr<math_function_execution>>()(std::get<1>(lhs),std::get<1>(rhs))){
+      return true;
+    }
+    return false;
+  }
+  
+  
   math_instance_parameter::math_instance_parameter(unsigned paramtype) :
     paramtype(paramtype)
   {
@@ -671,7 +692,7 @@ namespace snde {
 
     
     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> ready_to_execute;
-
+    std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>>,mncn_lessthan> may_need_completion_notification;
     // Search for external dependencies on this function; accumulate in ready_to_execute
     
     std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>::iterator ext_dep_it = external_dependencies_on_function->find(fcn);    
@@ -712,7 +733,7 @@ namespace snde {
 	  snde_debug(SNDE_DC_RECMATH, "Erasing mefp %s from %s",fcn->definition->definition_command.c_str(),ext_dep_fcn->definition->definition_command.c_str());
 	  ext_dep_status.missing_external_function_prerequisites.erase(dependent_prereq_it);
 	}
-	ext_dep_rss->mathstatus.check_dep_fcn_ready(recdb,ext_dep_rss,ext_dep_fcn,&ext_dep_status,ready_to_execute,dep_rss_admin);
+	ext_dep_rss->mathstatus.check_dep_fcn_ready(recdb,ext_dep_rss,ext_dep_fcn,&ext_dep_status,ready_to_execute,may_need_completion_notification,dep_rss_admin);
 	if (ext_dep_globalrev) {
 	  snde_debug(SNDE_DC_RECMATH,"After checking if %s in globalrev %llu can now execute, rte size=%llu",ext_dep_fcn->definition->definition_command.c_str(),(unsigned long long)ext_dep_globalrev->globalrev,(unsigned long long)ready_to_execute.size());
 	}
@@ -729,7 +750,14 @@ namespace snde {
       std::tie(ready_rss,ready_fcn) = ready_rss_ready_fcn;
       recdb->compute_resources->queue_computation(recdb,ready_rss,ready_fcn); // will only queue if we got the execution ticket
     }
+    // Run any possibly needed completion notifications
+    for (auto && complete_rss_complete_execfunc: may_need_completion_notification) {
+      std::shared_ptr<recording_set_state> complete_rss;
+      std::shared_ptr<math_function_execution> complete_execfunc;
 
+      std::tie(complete_rss,complete_execfunc) = complete_rss_complete_execfunc;
+      execution_complete_notify_single_referencing_rss(recdb,complete_execfunc,complete_execfunc->mdonly,true,complete_rss);
+    }
 
     // Go through the function's output channels and issue suitable notifications
     for (auto && result_channel_relpath: fcn->result_channel_paths) {
@@ -778,7 +806,44 @@ namespace snde {
 					std::shared_ptr<instantiated_math_function> dep_fcn,
 					math_function_status *mathstatus_ptr,
 					std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute_appendvec,
+					std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>>,mncn_lessthan> &may_need_completion_notification_set,
 					std::unique_lock<std::mutex> &dep_rss_admin_holder)
+  //check_dep_fcn_ready() is called from issue_math_notifications_check_dependent_channel()
+  // via issue_math_notifications() for math dependencies within the rss, and also directly
+  // for external_dependencies_on_channel to evaluate whether a math function that is
+  // dependent on something that just changed state is now ready to execute.
+
+  // check_dep_fcn_ready() accumulates these in the ready_to_execute_append_vec
+  // It is also called by build_rss_from_functions_and_channels()
+  // (which is part of end_transaction()) in recstore.cpp to likewise determine
+  // what math functions can be immediately executed.
+
+  // check_dep_fcn_ready() is also called by notify_math_function_executed()
+  // to help accumulate a vector for external_dependencies_on_function.
+  // Recall that (as of this writing) external_dependencies_on_function is
+  // used solely for self dependencies, because self dependencies are not
+  // really compatible with external_dependencies_on_channel.
+
+  // We have a recursive loop because check_dep_fcn_ready() can call
+  // execution_complete_notify_single_referencing_rss(), which in turn, can
+  // call the notify_math_function_executed() method of mathstatus that in
+  // turn calls check_dep_fcn_ready() both directly and inderectly via
+  // chanstate.issue_math_notifications()
+
+  // check_dep_fcn_ready()'s calls to execution_complete_notify_single_referencing_rss()
+  // are done in part to address a race condition whereby the execution_function
+  // might have been marked as complete but perhaps the result is not fully transfered
+  // (?). The notify_single_referencing_rss() is also done
+  // when it is determined that the function does not
+  // actually need to run and the pre-existing result
+  // can be copied in.
+
+  // One possible solution would be to queue up
+  // calls to execution_complete_notify_single_referencing_rss()
+  // so that they only get called once at the end.
+  // The queue should be done similar to the
+  // ready_to_execute queue.
+
   // assumes dep_rss admin lock is already held
   // checks if prerequisites are done and thus this function is ready to
   // execute.
@@ -808,15 +873,16 @@ namespace snde {
 
 	if (mathstatus_ptr->execfunc->fully_complete) {
 	  //mathstatus_ptr->complete = true;
+	  may_need_completion_notification_set.emplace(std::make_tuple(dep_rss,mathstatus_ptr->execfunc));
 	  
-	  std::shared_ptr<math_function_execution> execfunc=mathstatus_ptr->execfunc;
+	  // std::shared_ptr<math_function_execution> execfunc=mathstatus_ptr->execfunc;
 	  
-	  execfunc_admin.unlock();
+	  //  execfunc_admin.unlock();
 	  
-	  dep_rss_admin_holder.unlock();
-	  execution_complete_notify_single_referencing_rss(recdb,execfunc,execfunc->mdonly,true,dep_rss); // Used to CRASH HERE... modified execfunc structure to store execution output independent of rss, so that we can pull it in after rss is forgotten. 
+	  // dep_rss_admin_holder.unlock();
+	  // execution_complete_notify_single_referencing_rss(recdb,execfunc,execfunc->mdonly,true,dep_rss); // Used to CRASH HERE... modified execfunc structure to store execution output independent of rss, so that we can pull it in after rss is forgotten. 
 							   
-	  dep_rss_admin_holder.lock();
+	  // dep_rss_admin_holder.lock();
 	}
 
 	return;
@@ -850,7 +916,7 @@ namespace snde {
 	  dep_rss_admin_holder.lock();
 	  
 	  if (more_deps) {
-	    check_dep_fcn_ready(recdb,dep_rss,dep_fcn,mathstatus_ptr,ready_to_execute_appendvec,dep_rss_admin_holder);
+	    check_dep_fcn_ready(recdb,dep_rss,dep_fcn,mathstatus_ptr,ready_to_execute_appendvec,may_need_completion_notification_set,dep_rss_admin_holder);
 	    return;
 	  }
 	}
@@ -975,9 +1041,9 @@ namespace snde {
 	    // execfunc is already complete so we may have to take care of notifications
 	    // Issue function completion notification
 	    //dep_rss->mathstatus.notify_math_function_executed(recdb,dep_rss,execfunc->inst,execfunc->mdonly,true,prior_state);
-	    execution_complete_notify_single_referencing_rss(recdb,execfunc,execfunc->mdonly,true,dep_rss);
+	    // execution_complete_notify_single_referencing_rss(recdb,execfunc,execfunc->mdonly,true,dep_rss);
 
-	    
+	    may_need_completion_notification_set.emplace(std::make_tuple(dep_rss,execfunc));
 	  }
 	  dep_rss_admin_holder.lock();
 	  

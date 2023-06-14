@@ -1,6 +1,5 @@
 #include <math.h>
 
-#include "snde/polynomial_transform.hpp"
 #include "snde/recmath_cppfunction.hpp"
 
 #ifdef SNDE_OPENCL
@@ -10,6 +9,10 @@
 #endif
 
 #include "snde/snde_types_h.h"
+
+
+#include "snde/polynomial_transform.hpp"
+
 #include "snde/polynomial_transform_c.h"
 
 
@@ -107,6 +110,8 @@ namespace snde {
 	//snde_debug(SNDE_DC_APP,"define_recs()");
 	// Use of "this" in the next line for the same reason as the typedefs, above
 	//std::shared_ptr<multi_ndarray_recording> result_rec = create_recording_math<multi_ndarray_recording>(this->get_result_channel_path(0), this->rss, 1);
+	input->assert_no_scale_or_offset(this->inst->definition->definition_command);
+
 	std::shared_ptr<ndtyped_recording_ref<OutputType>> result_ref;
 	result_ref = create_typed_ndarray_ref_math<OutputType>(this->get_result_channel_path(0), this->rss);
 
@@ -120,8 +125,8 @@ namespace snde {
 	  result_ref->rec->metadata = snde::MergeMetadata(result_ref->rec->metadata, input->rec->metadata);
 
 	  std::shared_ptr<snde::constructible_metadata> mergemdata = std::make_shared<snde::constructible_metadata>();
-	  mergemdata->AddMetaDatum(snde::metadatum("nde_array-ampl_units", poly->rec->metadata->GetMetaDatumStr("nde_array-ampl_units", "Arb")));
-	  mergemdata->AddMetaDatum(snde::metadatum("nde_array-ampl_coord", poly->rec->metadata->GetMetaDatumStr("nde_array-ampl_coord", "Intensity")));
+	  mergemdata->AddMetaDatum(snde::metadatum("ande_array-ampl_units", poly->rec->metadata->GetMetaDatumStr("ande_array-ampl_units", "Arb")));
+	  mergemdata->AddMetaDatum(snde::metadatum("ande_array-ampl_coord", poly->rec->metadata->GetMetaDatumStr("ande_array-ampl_coord", "Intensity")));
 	  result_ref->rec->metadata = snde::MergeMetadata(result_ref->rec->metadata, mergemdata);
 	  
 	  result_ref->rec->mark_metadata_done();
@@ -278,7 +283,6 @@ namespace snde {
 #endif // SNDE_OPENCL
 		snde_warning("Performing waveform vertex calculation on CPU. ");
 
-		std::vector<cl::Event> kerndoneevents;
 		
 
 		for (snde_index cnt = 0; cnt < nelem; cnt++) {

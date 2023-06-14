@@ -56,6 +56,13 @@ namespace snde {
   class instantiated_math_database;
   class instantiated_math_function;
   class math_definition;
+
+  struct mncn_lessthan { // less than operator for may_need_completion_notification so it can be used in a std::set
+    // std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>>,mncn_lessthan> 
+    bool operator()( const std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>> & lhs,
+                 const std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>> & rhs ) const noexcept;
+  };
+
   
   class math_instance_parameter {
   public:
@@ -388,6 +395,7 @@ namespace snde {
 			     std::shared_ptr<instantiated_math_function> dep_fcn,
 			     math_function_status *mathstatus_ptr,
 			     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> &ready_to_execute_appendvec,
+			     std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>>,mncn_lessthan> &may_need_completion_notification,
 			     std::unique_lock<std::mutex> &dep_rss_admin_holder);
 
   };

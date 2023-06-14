@@ -344,6 +344,7 @@ namespace snde {
     std::unordered_set<channel_state *> ready_channels; // references into the new_rss->recstatus.channel_map
 
     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> ready_to_execute;
+    std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>>,mncn_lessthan> may_need_completion_notification;
     bool all_ready=false;
 
     snde_debug(SNDE_DC_DISPLAY,"recstore_display_transforms::update calling build_rss_from_functions_and_channels() with %d unknownchanged_math_functions and %d changed_math_functions and %d ccnd and %d ccd",unknownchanged_math_functions.size(),changed_math_functions.size(),changed_channels_need_dispatch.size(),changed_channels_dispatched.size());
@@ -367,7 +368,9 @@ namespace snde {
 					  &changed_math_functions,
 					  &explicitly_updated_channels,
 					  &ready_channels,
-					  &ready_to_execute,&all_ready,
+					  &ready_to_execute,
+					  &may_need_completion_notification,
+					  &all_ready,
 					  true); // enable_ondemand
 
     snde_debug(SNDE_DC_DISPLAY,"recstore_display_transforms::update build_rss_from_functions_and_channels() complete with %d unknownchanged_math_functions and %d changed_math_functions",unknownchanged_math_functions.size(),changed_math_functions.size());
@@ -393,7 +396,16 @@ namespace snde {
       recdb->compute_resources->queue_computation(recdb,ready_rss,ready_fcn);
     }
 
-  
+    // Run any possibly needed completion notifications
+    for (auto && complete_rss_complete_execfunc: may_need_completion_notification) {
+      std::shared_ptr<recording_set_state> complete_rss;
+      std::shared_ptr<math_function_execution> complete_execfunc;
+
+      std::tie(complete_rss,complete_execfunc) = complete_rss_complete_execfunc;
+      execution_complete_notify_single_referencing_rss(recdb,complete_execfunc,complete_execfunc->mdonly,true,complete_rss);
+    }
+
+    
     // Check if everything is done; issue notification
     if (all_ready) {
       std::unique_lock<std::mutex> rss_admin(with_display_transforms->admin);

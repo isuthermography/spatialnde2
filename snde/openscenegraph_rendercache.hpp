@@ -26,10 +26,10 @@ namespace snde {
   class osg_rendercacheentry;
   class osg_renderparams;
 
-  typedef std::unordered_map<rendermode,std::function<std::shared_ptr<osg_rendercacheentry>(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)>,rendermode_hash> osg_renderer_map;
+  typedef std::unordered_map<rendermode,std::function<std::shared_ptr<osg_rendercacheentry>(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)>,rendermode_hash> osg_renderer_map;
   std::shared_ptr<osg_renderer_map> osg_renderer_registry(); 
 
-  int osg_register_renderer(rendermode mode,std::function<std::shared_ptr<osg_rendercacheentry>(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)> factory);
+  int osg_register_renderer(rendermode mode,std::function<std::shared_ptr<osg_rendercacheentry>(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)> factory);
 
 
   class osg_rendercache {
@@ -44,7 +44,7 @@ namespace snde {
 
     // GetEntry returns (entry, modified_flag). if not modified flag, then everything came out of the
     // cache unmodified so you may not need to rerender at all. 
-    std::pair<std::shared_ptr<osg_rendercacheentry>,bool> GetEntry(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *locks_required);  // mode from rendermode.hpp
+    std::pair<std::shared_ptr<osg_rendercacheentry>,bool> GetEntry(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);  // mode from rendermode.hpp
 
 
     void mark_obsolete(); // mark the potentially_obsolete flag of all cache entries
@@ -87,19 +87,21 @@ namespace snde {
     
 
     bool potentially_obsolete; // set by mark_obsolete()
-    std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> locks_required;
+    std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> locks_required; // Vector of (recording_ref,need_write_lock) of locks required for this entry, not including subrequirements from children. It is assembled in the subclass constructor, which is also responsible for adding all entries into the all_locks_required constructor parameter. Likewise, attempt_reuse() is responsible for adding all entries in locks_required to all_locks_required. The accumulate_locks_required() method below will perform such accumulation.
 
     
-    osg_rendercacheentry();
+    osg_rendercacheentry(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required); // the constructor will add required locks to the all_locks_required vector
     osg_rendercacheentry & operator=(const osg_rendercacheentry &) = delete; // shouldn't need copy assignment
     osg_rendercacheentry(const osg_rendercacheentry &) = delete; // shouldn't need copy constructor
     virtual ~osg_rendercacheentry() = default; // subclassable
 
+    void accumulate_locks_required(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
+    
     // attempt_reuse returns two bools:
     //   1. Whether this cache entry can be reused
     //   2. Whether there were any modifications here or deeper in the tree. If false,
     //      then you may not actually have to rerender
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)=0;
     virtual void clear_potentially_obsolete(); // clear the obsolete flag
   };
 
@@ -114,12 +116,12 @@ namespace snde {
     osg::ref_ptr<osg::Group> osg_group;
 
     
-    osg_rendercachegroupentry()=default;
+    osg_rendercachegroupentry(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     osg_rendercachegroupentry & operator=(const osg_rendercachegroupentry &) = delete; // shouldn't need copy assignment
     osg_rendercachegroupentry(const osg_rendercachegroupentry &) = delete; // shouldn't need copy constructor
     virtual ~osg_rendercachegroupentry() = default; // subclassable
     
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)=0;
 
   };
 
@@ -132,12 +134,12 @@ namespace snde {
     osg::ref_ptr<osg::Drawable> osg_drawable;
 
     
-    osg_rendercachedrawableentry()=default;
+    osg_rendercachedrawableentry(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     osg_rendercachedrawableentry & operator=(const osg_rendercachedrawableentry &) = delete; // shouldn't need copy assignment
     osg_rendercachedrawableentry(const osg_rendercachedrawableentry &) = delete; // shouldn't need copy constructor
     virtual ~osg_rendercachedrawableentry() = default; // subclassable
     
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)=0;
 
   };
 
@@ -151,12 +153,12 @@ namespace snde {
     osg::ref_ptr<osg::Texture> osg_texture;
     osg::ref_ptr<osg::TexMat> texture_transform;
 
-    osg_rendercachetextureentry()=default;
+    osg_rendercachetextureentry(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     osg_rendercachetextureentry & operator=(const osg_rendercachetextureentry &) = delete; // shouldn't need copy assignment
     osg_rendercachetextureentry(const osg_rendercachetextureentry &) = delete; // shouldn't need copy constructor
     virtual ~osg_rendercachetextureentry() = default; // subclassable
 
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)=0;
 
   };
 
@@ -167,12 +169,12 @@ namespace snde {
 
     osg::ref_ptr<OSGFPArray> osg_array;
     
-    osg_rendercachearrayentry()=default;
+    osg_rendercachearrayentry(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     osg_rendercachearrayentry & operator=(const osg_rendercachearrayentry &) = delete; // shouldn't need copy assignment
     osg_rendercachearrayentry(const osg_rendercachearrayentry &) = delete; // shouldn't need copy constructor
     virtual ~osg_rendercachearrayentry() = default; // subclassable
 
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)=0;
 
   };
   
@@ -184,12 +186,12 @@ namespace snde {
 
     std::vector<osg::ref_ptr<OSGFPArray>> osg_arrays;
     
-    osg_rendercachearraysentry()=default;
+    osg_rendercachearraysentry(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     osg_rendercachearraysentry & operator=(const osg_rendercachearraysentry &) = delete; // shouldn't need copy assignment
     osg_rendercachearraysentry(const osg_rendercachearraysentry &) = delete; // shouldn't need copy constructor
     virtual ~osg_rendercachearraysentry() = default; // subclassable
 
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req)=0;
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required)=0;
 
   }; 
 
@@ -210,10 +212,10 @@ namespace snde {
     //osg::ref_ptr<osg::PixelBufferObject> imagepbo;
     
 
-    osg_cachedimagedata(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    osg_cachedimagedata(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedimagedata() = default;
     
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     
   };
 
@@ -234,12 +236,12 @@ namespace snde {
     osg::ref_ptr<osg::StateSet> imagestateset;
     std::shared_ptr<osg_rendercachetextureentry> texture;
 
-    osg_cachedimage(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    osg_cachedimage(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedimage() = default;
     
     virtual void clear_potentially_obsolete();
 
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     
   };
 
@@ -250,10 +252,10 @@ namespace snde {
     std::shared_ptr<multi_ndarray_recording> cached_recording;
 
     
-    osg_cachedpointcloudvertices(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    osg_cachedpointcloudvertices(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedpointcloudvertices() = default;
     
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
 
   };
 
@@ -264,10 +266,10 @@ namespace snde {
     std::shared_ptr<multi_ndarray_recording> cached_recording;
 
     
-    osg_cachedpointcloudcolormap(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    osg_cachedpointcloudcolormap(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedpointcloudcolormap() = default;
     
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
 
   };
 
@@ -287,12 +289,12 @@ namespace snde {
     std::shared_ptr<osg_cachedpointcloudcolormap> colormap;
     std::shared_ptr<osg_cachedpointcloudvertices> vertices;
 
-    osg_cachedpointcloud(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    osg_cachedpointcloud(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedpointcloud() = default;
     
     virtual void clear_potentially_obsolete();
     
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
 
   };
 
@@ -312,11 +314,11 @@ namespace snde {
     std::shared_ptr<multi_ndarray_recording> cached_recording;
     
 
-    osg_cachedcoloredtransparentlines(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    osg_cachedcoloredtransparentlines(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedcoloredtransparentlines() = default;
     
     //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
-     virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     
   };
 
@@ -335,11 +337,11 @@ namespace snde {
     std::shared_ptr<multi_ndarray_recording> cached_recording;
 
 
-    osg_cachedcoloredtransparentpoints(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req);
+    osg_cachedcoloredtransparentpoints(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams& params, std::shared_ptr<display_requirement> display_req);
     ~osg_cachedcoloredtransparentpoints() = default;
 
     //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
-    virtual std::pair<bool, bool> attempt_reuse(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool, bool> attempt_reuse(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
 
   };
 
@@ -378,11 +380,11 @@ namespace snde {
       osg::ref_ptr<osg::Vec4Array> pp_endpoint_color;*/
 
 
-      osg_cachedwaveform(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req);
+      osg_cachedwaveform(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams& params, std::shared_ptr<display_requirement> display_req);
       ~osg_cachedwaveform() = default;
 
       //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
-      virtual std::pair<bool, bool> attempt_reuse(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req);
+      virtual std::pair<bool, bool> attempt_reuse(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
 
 
       virtual void clear_potentially_obsolete();
@@ -419,11 +421,11 @@ namespace snde {
     osg::ref_ptr<osg::Vec4Array> pp_endpoint_color;
 
 
-    osg_cachedphaseplaneendpointwithcoloredtransparentlines(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    osg_cachedphaseplaneendpointwithcoloredtransparentlines(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedphaseplaneendpointwithcoloredtransparentlines() = default;
     
     //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     
 
     virtual void clear_potentially_obsolete();
@@ -443,11 +445,11 @@ namespace snde {
     std::shared_ptr<meshed_vertnormalarrays_recording> cached_recording;
     
 
-    osg_cachedmeshednormals(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+     osg_cachedmeshednormals(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedmeshednormals() = default;
     
     //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
-     virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+     virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     
   };
 
@@ -462,10 +464,10 @@ namespace snde {
     std::shared_ptr<meshed_texvertex_recording> cached_recording;
     //snde_index num;
 
-    osg_cachedparameterizationdata(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    osg_cachedparameterizationdata(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedparameterizationdata() = default;
     
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     
   };
 
@@ -481,10 +483,10 @@ namespace snde {
     //snde_index num;
     
 
-    osg_cachedmeshedvertexarray(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    osg_cachedmeshedvertexarray(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedmeshedvertexarray() = default;
     
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     
   };
 
@@ -508,10 +510,10 @@ namespace snde {
     std::shared_ptr<osg_cachedmeshedvertexarray> vertexarrays_cache;
     std::shared_ptr<osg_cachedmeshednormals> normals_cache;
     
-    osg_cachedmeshedpart(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    osg_cachedmeshedpart(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedmeshedpart() = default;
     
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
     virtual void clear_potentially_obsolete();
     
@@ -542,10 +544,10 @@ namespace snde {
     std::shared_ptr<osg_cachedmeshednormals> normals_cache;
     std::shared_ptr<osg_cachedparameterizationdata> parameterization_cache;
 
-    osg_cachedtexedmeshedgeom(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    osg_cachedtexedmeshedgeom(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedtexedmeshedgeom() = default;
     
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
     virtual void clear_potentially_obsolete();
     
@@ -567,10 +569,10 @@ namespace snde {
     std::vector<std::shared_ptr<osg_cachedimagedata>> texture_caches;
 
 
-    osg_cachedtexedmeshedpart(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    osg_cachedtexedmeshedpart(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedtexedmeshedpart() = default;
     
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     
     //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
 
@@ -592,10 +594,10 @@ namespace snde {
 
     std::vector<std::shared_ptr<osg_rendercachegroupentry>> sub_components;
 
-    osg_cachedassembly(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    osg_cachedassembly(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedassembly() = default;
     
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     
     //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
 
@@ -617,10 +619,10 @@ namespace snde {
     std::shared_ptr<osg_rendercachegroupentry> channel_to_reorient;
     std::shared_ptr<osg_rendercachegroupentry> sub_component;
     
-    osg_cachedtransformedcomponent(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    osg_cachedtransformedcomponent(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
     ~osg_cachedtransformedcomponent() = default;
     
-    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req);
+    virtual std::pair<bool,bool> attempt_reuse(const osg_renderparams &params,std::shared_ptr<display_requirement> display_req,std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required);
     
     //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
     
