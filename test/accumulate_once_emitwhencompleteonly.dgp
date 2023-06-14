@@ -1,0 +1,218 @@
+# This is a simple example of using dataguzzler-python
+# with the spatialnde2 recording database. 
+
+# To use: pass the name of an .x3d file as the first command-line parameter 
+# and the name of a k4a recording as the second command line parameter
+
+from dataguzzler_python import dgpy
+import spatialnde2 as snde
+import threading
+import time
+import numpy as np
+
+include(dgpy,"dgpy_startup.dpi") # If you get a NameError here, be sure you are executing this file with dataguzzler-python
+
+include(dgpy,"Qt.dpi",prefer_pyqt=False) 
+
+include(snde,"recdb.dpi",enable_opencl=True)
+include(snde,"recdb_gui.dpi")
+
+input("Press enter")
+
+transact = recdb.start_transaction()	
+
+live_channel = recdb.define_channel("/live","main",recdb.raw())
+
+onedlive_channel = recdb.define_channel("/liveoned","main",recdb.raw())
+
+accumulator_fortran_newaxis = snde.accumulate_once.instantiate( [ snde.math_parameter_recording("/live"),
+                                                                  snde.math_parameter_unsigned_const(10),
+                                                                  snde.math_parameter_int_const(2), 
+								  snde.math_parameter_bool_const(True),
+								  snde.math_parameter_bool_const(True)],
+                                                                [ snde.shared_string("/accum_newaxis_fortran") ],
+                                                                "/",
+                                                                False,
+                                                                False,
+                                                                False,
+                                                                snde.math_definition("accumulator fortran newaxis definition"),
+                                                                None)
+recdb.add_math_function(accumulator_fortran_newaxis,False)
+
+
+accumulator_c_newaxis = snde.accumulate_once.instantiate(       [ snde.math_parameter_recording("/live"),
+                                                                  snde.math_parameter_unsigned_const(10),
+                                                                  snde.math_parameter_int_const(-1),
+								  snde.math_parameter_bool_const(True),
+								  snde.math_parameter_bool_const(True)],
+                                                                [ snde.shared_string("/accum_newaxis_c") ],
+                                                                "/",
+                                                                False,
+                                                                False,
+                                                                False,
+                                                                snde.math_definition("accumulator c newaxis definition"),
+                                                                None)
+recdb.add_math_function(accumulator_c_newaxis ,False)
+
+accumulator_fortran_concat = snde.accumulate_once.instantiate( [  snde.math_parameter_recording("/live"),
+                                                                  snde.math_parameter_unsigned_const(9),
+                                                                  snde.math_parameter_int_const(1),
+								  snde.math_parameter_bool_const(True),
+								  snde.math_parameter_bool_const(True)],
+                                                                [ snde.shared_string("/accum_concat_fortran") ],
+                                                                "/",
+                                                                False,
+                                                                False,
+                                                                False,
+                                                                snde.math_definition("accumulator fortran concat definition"),
+                                                                None)
+recdb.add_math_function(accumulator_fortran_concat,False)
+
+
+accumulator_c_concat = snde.accumulate_once.instantiate(        [ snde.math_parameter_recording("/live"),
+                                                                  snde.math_parameter_unsigned_const(9),
+                                                                  snde.math_parameter_int_const(0),
+								  snde.math_parameter_bool_const(True),
+								  snde.math_parameter_bool_const(True)],
+                                                                [ snde.shared_string("/accum_concat_c") ],
+                                                                "/",
+                                                                False,
+                                                                False,
+                                                                False,
+                                                                snde.math_definition("accumulator c concat definition"),
+                                                                None)
+recdb.add_math_function(accumulator_c_concat ,False)
+
+
+
+
+
+
+bscan = snde.accumulate_once.instantiate(		        [ snde.math_parameter_recording("/liveoned"),
+                                                                  snde.math_parameter_unsigned_const(3),
+                                                                  snde.math_parameter_int_const(-1),
+								  snde.math_parameter_bool_const(True),
+								  snde.math_parameter_bool_const(True)],
+                                                                [ snde.shared_string("/bscan") ],
+                                                                "/",
+                                                                False,
+                                                                False,
+                                                                False,
+                                                                snde.math_definition("accumulator bscan definition"),
+                                                                None)
+recdb.add_math_function(bscan ,False)
+
+cscan = snde.accumulate_once.instantiate(		        [ snde.math_parameter_recording("/bscan"),
+                                                                  snde.math_parameter_unsigned_const(3),
+                                                                  snde.math_parameter_int_const(-1),
+								  snde.math_parameter_bool_const(False),
+								  snde.math_parameter_bool_const(True)],
+                                                                [ snde.shared_string("/cscan") ],
+                                                                "/",
+                                                                False,
+                                                                False,
+                                                                False,
+                                                                snde.math_definition("accumulator cscan definition"),
+                                                                None)
+recdb.add_math_function(cscan ,False)
+
+globalrev = transact.end_transaction()
+
+
+
+
+
+def live_thread_code():
+
+    cnt = 0
+    
+    while True: 
+        
+        value = np.array([[.1,.2,.3],[.4,.5,.6],[.7,.8,.9]]) + cnt
+
+        transact = recdb.start_transaction()	
+        live_recording = snde.create_ndarray_ref(recdb,live_channel,recdb.raw(),snde.SNDE_RTN_FLOAT32)
+        metadata = snde.constructible_metadata()
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis0_coord","X Axis"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis0_units","mm"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis0_inival",-1, "mm"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis0_step",1, "mm"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis1_coord","Y Axis"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis1_units","mm"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis1_inival",-1, "mm"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis1_step",1, "mm"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-ampl_coord","Amplitude"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-ampl_units","Volts"))
+
+        live_recording.rec.metadata=metadata;
+        
+        live_recording.rec.mark_metadata_done()
+        live_recording.allocate_storage( value.shape )
+        
+
+        #print("value=%s" % (str(value)))
+        
+        live_recording.data()[:] = value
+        live_recording.rec.mark_data_ready()
+        
+        transact.end_transaction()
+        
+        time.sleep(1)
+        cnt+=1
+        pass
+    
+    pass
+
+
+
+live_thread = threading.Thread(target=live_thread_code)
+live_thread.start()
+
+
+
+def onedlive_thread_code():
+
+    cnt = 0
+    
+    while True: 
+        
+        value = np.array([.1,.2,.3]) + cnt
+
+        transact = recdb.start_transaction()	
+        live_recording = snde.create_ndarray_ref(recdb,onedlive_channel,recdb.raw(),snde.SNDE_RTN_FLOAT32)
+        metadata = snde.constructible_metadata()
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis0_coord","X Axis"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis0_units","mm"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis0_inival",-1, "mm"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis0_step",1, "mm"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis1_coord","Y Axis"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis1_units","mm"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis1_inival",-1, "mm"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-axis1_step",1, "mm"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-ampl_coord","Amplitude"))
+        metadata.AddMetaDatum(snde.metadatum("nde_array-ampl_units","Volts"))
+
+        live_recording.rec.metadata=metadata;
+        
+        live_recording.rec.mark_metadata_done()
+        live_recording.allocate_storage( value.shape )
+        
+
+        #print("value=%s" % (str(value)))
+        
+        live_recording.data()[:] = value
+        live_recording.rec.mark_data_ready()
+        
+        transact.end_transaction()
+        
+        time.sleep(1)
+        cnt+=1
+        pass
+    
+    pass
+
+
+
+onedlive_thread = threading.Thread(target=onedlive_thread_code)
+onedlive_thread.start()
+

@@ -629,7 +629,10 @@ namespace snde {
 	}
 
 	// Try to Add Third Axis if it Exists
-	if (recdb_strong->latest_globalrev()->get_ndarray_ref(posmgr->selected_channel->FullName, 0)->ndinfo()->ndim >= 3) {
+	auto latest_globalrev = recdb_strong->latest_globalrev();
+	auto rec = latest_globalrev->check_for_recording_ref(posmgr->selected_channel->FullName, 0);
+	// There is an obvious race condition issue here where this could change between line 632 and line 636 -- fix this later
+	if (rec && rec->ndinfo()->ndim >= 3) {
 		a = display->GetThirdAxis(posmgr->selected_channel->FullName);
 		if (a) {
 			if (needjoin) {
@@ -686,7 +689,8 @@ namespace snde {
 	a=display->GetAmplAxis(posmgr->selected_channel->FullName);
 	
 	// Only Show Amplitude If It Can Be Adjusted -- Not Colormapping with RGBA Image Directly
-	if (recdb_strong->latest_globalrev()->get_ndarray_ref(posmgr->selected_channel->FullName, 0)->storage->typenum != SNDE_RTN_SNDE_RGBA) {
+	
+	if (rec && rec->storage->typenum != SNDE_RTN_SNDE_RGBA) {
 
 		if (a) {
 			if (needjoin) {
