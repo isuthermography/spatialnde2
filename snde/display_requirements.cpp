@@ -2385,8 +2385,8 @@ std::shared_ptr<display_requirement> tracking_pose_recording_display_handler::ge
   std::shared_ptr<display_requirement> sub_requirement2 = traverse_display_requirement(display,base_rss,display->lookup_channel(component_abspath),SNDE_SRG_DEFAULT_3D,nullptr);
   retval->sub_requirements.push_back(sub_requirement2);
 
-  std::shared_ptr<renderparams_base> component_params = sub_requirement2->mode.constraint;
-  pose_params->component_params=component_params;
+  std::shared_ptr<renderparams_base> untransformed_params = sub_requirement2->mode.constraint;
+  pose_params->untransformed_params=untransformed_params;
   //pose_params->component_orientation = null_orientation
 
   
@@ -2481,7 +2481,7 @@ std::shared_ptr<display_requirement> pose_channel_recording_display_handler::get
   
   std::shared_ptr<renderparams_base> channel_to_reorient_params = sub_requirement1->mode.constraint;
   pose_params->channel_to_reorient_params=channel_to_reorient_params;
-  pose_params->component_params = nullptr;
+  pose_params->untransformed_params = nullptr;
 
   if (pose_channel_rec->storage.at(0)->requires_locking_read) {
     // with only a few bytes there's no reason a pose channel should ever need a locking storage manager.
@@ -2519,14 +2519,14 @@ std::shared_ptr<display_requirement> pose_channel_recording_display_handler::get
   
   
   // sub-requirement 2 is our component in rendering mode (if present)
-  if (pose_channel_rec->component_name) {
-    std::string component_abspath = recdb_path_join(recdb_path_context(chanpath),*pose_channel_rec->component_name);
+  if (pose_channel_rec->untransformed_channel) {
+    std::string untransformed_abspath = recdb_path_join(recdb_path_context(chanpath),*pose_channel_rec->untransformed_channel);
 
-    std::shared_ptr<display_requirement> sub_requirement2 = traverse_display_requirement(display,base_rss,display->lookup_channel(component_abspath),SNDE_SRG_DEFAULT_3D,nullptr);
+    std::shared_ptr<display_requirement> sub_requirement2 = traverse_display_requirement(display,base_rss,display->lookup_channel(untransformed_abspath),SNDE_SRG_DEFAULT_3D,nullptr);
     retval->sub_requirements.push_back(sub_requirement2);
 
-    std::shared_ptr<renderparams_base> component_params = sub_requirement2->mode.constraint;
-    pose_params->component_params=component_params;
+    std::shared_ptr<renderparams_base> untransformed_params = sub_requirement2->mode.constraint;
+    pose_params->untransformed_params=untransformed_params;
     //pose_params->component_orientation = null_orientation;
     
   }

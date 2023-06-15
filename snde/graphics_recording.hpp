@@ -142,6 +142,11 @@ namespace snde {
     std::vector<std::pair<std::string,snde_orientation3>> pieces; // strings are path names, hopefully relative, treating the recdb_path_context() of the assembly_recording's path as the relative context for pieces group context
     
     assembly_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::vector<std::pair<std::string,snde_orientation3>> &pieces);
+
+    virtual const std::shared_ptr<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>> graphics_subcomponents_orientation_lockinfo(std::shared_ptr<recording_set_state> rss);
+
+    virtual const std::shared_ptr<std::map<std::string,std::pair<std::string,snde_orientation3>>> graphics_subcomponents_lockedorientations(std::shared_ptr<recording_set_state> rss);
+
   };
 
 
@@ -174,7 +179,12 @@ namespace snde {
     virtual snde_orientation3 get_channel_to_reorient_pose(std::shared_ptr<recording_set_state> rss) const = 0;
     
     tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient,std::string component_name);
-    
+
+
+    virtual const std::shared_ptr<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>> graphics_subcomponents_orientation_lockinfo(std::shared_ptr<recording_set_state> rss);
+
+    virtual const std::shared_ptr<std::map<std::string,std::pair<std::string,snde_orientation3>>> graphics_subcomponents_lockedorientations(std::shared_ptr<recording_set_state> rss);
+
   };
 
 
@@ -200,20 +210,29 @@ namespace snde {
 
 
 
-  // Simpler alternative to a pose_channel ndarray recording + a pose_channel_tracking_pose_recording
-  // but does not support a fixed recording as well
+  // THe pose_channel_recording is an ndarray with a single snde_orientation3
+  // as its value. It renders the channel given as background_channel
+  // untransformed alongside channel_to_reorient transformed by the
+  // given orientation. 
 
+
+  
   class pose_channel_recording: public multi_ndarray_recording {
   public:
     // should have a single 0D array of type snde_orientation3
     // with the value representing the orient_world_over_object. 
     
     std::string channel_to_reorient; // Name of the channel to render with the given pose, potentially relative to the parent of the pose_channel_recording
-    std::shared_ptr<std::string> component_name; // nullptr, or name of the channel to render untransformed, potentially relative to the parent of the pose_channel_recording
+    std::shared_ptr<std::string> untransformed_channel; // nullptr, or name of the channel to render untransformed, potentially relative to the parent of the pose_channel_recording
     
     pose_channel_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays,std::string channel_to_reorient); // must have num_ndarrays parameter for compatibility with create_subclass_ndarray_ref<S,T>...
 
-    void set_untransformed_render_channel(std::string component_name_str); // only call during initialization
+    virtual const std::shared_ptr<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>> graphics_subcomponents_orientation_lockinfo(std::shared_ptr<recording_set_state> rss);
+
+    virtual const std::shared_ptr<std::map<std::string,std::pair<std::string,snde_orientation3>>> graphics_subcomponents_lockedorientations(std::shared_ptr<recording_set_state> rss);
+
+    
+    void set_untransformed_render_channel(std::string untransformed_channel_str); // only call during initialization
 
     // this static method is used by Python through the SWIG wrappers to get a pose_channel_recording from the .rec attribute of an ndarray_recording_ref
     static std::shared_ptr<pose_channel_recording> from_ndarray_recording(std::shared_ptr<multi_ndarray_recording> rec);

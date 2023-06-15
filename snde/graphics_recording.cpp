@@ -269,7 +269,28 @@ namespace snde {
     rec_classes.push_back(recording_class_info("snde::assembly_recording",typeid(assembly_recording),ptr_to_new_shared_impl<assembly_recording>));
 
   }
-
+  
+  const std::shared_ptr<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>> assembly_recording::graphics_subcomponents_orientation_lockinfo(std::shared_ptr<recording_set_state> rss)
+  {
+    std::shared_ptr<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>> subcomponents = std::make_shared<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>>();
+    size_t cnt = 0;
+    for (auto && piece: pieces) {
+      std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>> empty_lockinfo(std::shared_ptr<multi_ndarray_recording>(),std::make_pair((size_t)0,false));
+      subcomponents->emplace(std::make_pair(std::to_string(cnt),std::make_pair(piece.first,empty_lockinfo)));
+      cnt++;
+    }
+    return subcomponents;
+  }
+  const std::shared_ptr<std::map<std::string,std::pair<std::string,snde_orientation3>>> assembly_recording::graphics_subcomponents_lockedorientations(std::shared_ptr<recording_set_state> rss)
+  {
+    std::shared_ptr<std::map<std::string,std::pair<std::string,snde_orientation3>>> subcomponents = std::make_shared<std::map<std::string,std::pair<std::string,snde_orientation3>>>();
+    size_t cnt = 0;
+    for (auto && piece: pieces) {
+      subcomponents->emplace(std::to_string(cnt),piece);
+      cnt++;
+    }
+    return subcomponents;
+  }
 
   loaded_part_geometry_recording::loaded_part_geometry_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::unordered_set<std::string> &processing_tags)
  :
@@ -291,7 +312,25 @@ namespace snde {
     
   }
 
-
+  const std::shared_ptr<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>> tracking_pose_recording::graphics_subcomponents_orientation_lockinfo(std::shared_ptr<recording_set_state> rss)
+  {
+   std::shared_ptr<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>> subcomponents = std::make_shared<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>>();
+   subcomponents->emplace("component_name",std::make_pair(component_name,std::make_pair(std::shared_ptr<multi_ndarray_recording>(),std::make_pair(0,false))));
+    // Not including channel_to_reorient because its orientation is variable
+    // and therefore can't be considered part of an immutable recording
+    return subcomponents;
+  }
+   const std::shared_ptr<std::map<std::string,std::pair<std::string,snde_orientation3>>> tracking_pose_recording::graphics_subcomponents_lockedorientations(std::shared_ptr<recording_set_state> rss)
+  {
+   std::shared_ptr<std::map<std::string,std::pair<std::string,snde_orientation3>>> subcomponents = std::shared_ptr<std::map<std::string,std::pair<std::string,snde_orientation3>>>();
+   snde_orientation3 null_orient;
+   snde_null_orientation3(&null_orient);
+   subcomponents->emplace("component_name",std::make_pair(component_name,null_orient));
+    // Not including channel_to_reorient because its orientation is variable
+    // and therefore can't be considered part of an immutable recording
+    return subcomponents;
+  }
+  
   // Register the pre-existing tracking_pose_recording_display_handler in display_requirement.cpp/hpp as the display handler for pose_channel_tracking_pose_recording
   static int register_pctpr_display_handler = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(pose_channel_tracking_pose_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
 	return std::make_shared<tracking_pose_recording_display_handler>(display,displaychan,base_rss);
@@ -352,11 +391,36 @@ namespace snde {
     define_array(0,rtn_typemap.at(typeid(snde_orientation3)),"pose");
   }
 
+  const std::shared_ptr<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>> pose_channel_recording::graphics_subcomponents_orientation_lockinfo(std::shared_ptr<recording_set_state> rss)
+  {
+    std::shared_ptr<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>> subcomponents = std::make_shared<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>>();
+    std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>> lockinfo(std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this()),std::make_pair(0,false));
+   
+    subcomponents->emplace("channel_to_reorient",std::make_pair(channel_to_reorient,lockinfo));
+    if (untransformed_channel) {
+      
+      
+      subcomponents->emplace("untransformed_channel",std::make_pair(*untransformed_channel,std::make_pair(std::shared_ptr<multi_ndarray_recording>(),std::make_pair(0,false))));
+    }
+    return subcomponents;
+  }
+   const std::shared_ptr<std::map<std::string,std::pair<std::string,snde_orientation3>>> pose_channel_recording::graphics_subcomponents_lockedorientations(std::shared_ptr<recording_set_state> rss)
+  {
+    std::shared_ptr<std::map<std::string,std::pair<std::string,snde_orientation3>>> subcomponents = std::make_shared<std::map<std::string,std::pair<std::string,snde_orientation3>>>();
+    subcomponents->emplace("channel_to_reorient",std::make_pair(channel_to_reorient,reference_typed_ndarray<snde_orientation3>(0)->element(0)));
+    if (untransformed_channel) {
+      snde_orientation3 null_orient;
+      snde_null_orientation3(&null_orient);
+      
+      subcomponents->emplace("untransformed_channel",std::make_pair(*untransformed_channel,null_orient));
+    }
+    return subcomponents;
+  }
   
   // only call during initialization
-  void pose_channel_recording::set_untransformed_render_channel(std::string component_name_str)
+  void pose_channel_recording::set_untransformed_render_channel(std::string untransformed_channel_str)
   {
-    component_name = std::make_shared<std::string>(component_name_str);
+    untransformed_channel = std::make_shared<std::string>(untransformed_channel_str);
   }
 
   /* static */ std::shared_ptr<pose_channel_recording> pose_channel_recording::from_ndarray_recording(std::shared_ptr<multi_ndarray_recording> rec)

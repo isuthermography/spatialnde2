@@ -175,6 +175,8 @@ namespace snde {
   class tracking_pose_recording: public recording_base {
     // abstract class: Must subclass! ... Then register your class to use the tracking_pose_recording_display_handler (see display_requirements.cpp)
   public:
+    std::string channel_to_reorient; // string is a path name, absolute or relative, treating the path of the tracking_pose_recording with a trailing slash as a group context
+    // component name is the component that we can manipulate, etc.
     std::string component_name; // string is a path name, absolute or relative, treating the path of the tracking_pose_recording with a trailing slash as a group context
     virtual snde_orientation3 get_channel_to_reorient_pose(std::shared_ptr<recording_set_state> rss) const = 0;
     
@@ -196,7 +198,7 @@ namespace snde {
   class pose_channel_recording: public multi_ndarray_recording {
   public:
     std::string channel_to_reorient; // Name of the channel to render with the given pose, potentially relative to the parent of the pose_channel_recording
-    std::shared_ptr<std::string> component_name; // nullptr, or name of the channel to render untransformed. 
+    std::shared_ptr<std::string> untransformed_channel; // nullptr, or name of the channel to render untransformed. 
 
     
     pose_channel_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays,std::string channel_to_reorient);
