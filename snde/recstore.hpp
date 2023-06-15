@@ -1019,7 +1019,9 @@ namespace snde {
     recording_set_state(const recording_set_state &orig) = delete;
     virtual ~recording_set_state()=default;
 
-    void wait_complete(); // wait for all the math in this recording_set_state or globalrev to reach nominal completion (metadataonly or ready, as configured)
+    bool check_complete();
+    
+    void wait_complete(); // wait for all the recordings and math in this recording_set_state or globalrev to reach nominal completion (metadataonly or ready, as configured)
     
     std::string print_math_status(bool verbose=false);
     std::string print_recording_status(bool verbose=false);

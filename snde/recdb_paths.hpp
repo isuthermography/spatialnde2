@@ -11,6 +11,17 @@
 
 namespace snde {
 
+  static inline bool recdb_path_isabs(std::string path)
+  {
+    if (path.size() == 0) {
+      return false;
+    }
+    if (path.at(0) == '/') {
+      return true;
+    }
+    return false;
+  }
+  
   static inline std::pair<std::string,std::string> recdb_path_split(std::string full_path)
   {
     

@@ -4324,6 +4324,15 @@ namespace snde {
     std::atomic_store(&_prerequisite_state,prereq_state);
   }
 
+
+  bool recording_set_state::check_complete()
+  {
+    std::lock_guard<std::mutex> rss_admin(admin);
+      
+    // check if all recordings are ready and all math functions are complete
+    bool all_ready = !recstatus.defined_recordings.size() && !recstatus.instantiated_recordings.size() && !mathstatus.pending_functions.size() && !mathstatus.mdonly_pending_functions.size();
+    return all_ready;
+  }
   void recording_set_state::wait_complete()
   {
     std::shared_ptr<promise_channel_notify> promise_notify=std::make_shared<promise_channel_notify>(std::vector<std::string>(),std::vector<std::string>(),true);

@@ -241,8 +241,17 @@ namespace snde {
 
   // convenience function for SWIG
   std::shared_ptr<ndarray_recording_ref> create_pose_channel_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner,std::string channel_to_reorient_name);
+
   
-  
+  // This function collects the locks you need in order to traverse the scene graph and extract the orientations.
+  // It does NOT collect the locks needed for the actual geometry or texture.
+  // The returned vector is suitable for passing to lockmanager::lock_recording_arrays()
+  std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>> traverse_scenegraph_orientationlocks(std::shared_ptr<recording_set_state> rss,std::string channel_path);
+
+
+  //This function traverses the scene graph and extracts the orientations into an array of snde_partinstance.
+  //It requires that you have locked the arrays returned by traverse_scenegraph_orientationlocks()
+   std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>> traverse_scenegraph_orientationlocked(std::shared_ptr<recording_set_state> rss,std::string channel_path);
 };
 
 
