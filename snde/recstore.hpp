@@ -352,8 +352,14 @@ namespace snde {
 
     virtual void recording_needs_dynamic_metadata(); // Call this before mark_metadata_done() to list this recording as needing dynamic metadata
 
-
+    
     std::shared_ptr<multi_ndarray_recording> cast_to_multi_ndarray();
+
+    // graphics_subcomponents() returns a mapping from unique strings determined by the recording subclass to the channel (which may be relative) storing the subcomponent. This function should only be called once the recording is complete. The returned map should be considered immutable.
+    // if the provided rss parameter is not nullptr, then this routine includes in the mapping the parameters to lockmanager::lock_recording_arrays() to acquire any necessary locks for the subcomponent orientations. After acquiring these locks, you can then make a call to graphics_subcomponents_lockedorientations() to obtain a mapping with the actual orientations. 
+    virtual const std::shared_ptr<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>> graphics_subcomponents_orientation_lockinfo(std::shared_ptr<recording_set_state> rss);
+
+    virtual const std::shared_ptr<std::map<std::string,std::pair<std::string,snde_orientation3>>> graphics_subcomponents_lockedorientations(std::shared_ptr<recording_set_state> rss);
 
     virtual std::shared_ptr<recording_set_state> _get_originating_rss_rec_admin_prelocked(); // version of get_originating_rss() to use if you have the recording database and recording's admin locks already locked.
     std::shared_ptr<recording_set_state> _get_originating_rss_recdb_admin_prelocked(); // version of get_originating_rss() to use if you have the recording database admin lock already locked.
@@ -1015,7 +1021,9 @@ namespace snde {
     recording_set_state(const recording_set_state &orig) = delete;
     virtual ~recording_set_state()=default;
 
-    void wait_complete(); // wait for all the math in this recording_set_state or globalrev to reach nominal completion (metadataonly or ready, as configured)
+    bool check_complete();
+    
+    void wait_complete(); // wait for all the recordings and math in this recording_set_state or globalrev to reach nominal completion (metadataonly or ready, as configured)
     
     std::string print_math_status(bool verbose=false);
     std::string print_recording_status(bool verbose=false);

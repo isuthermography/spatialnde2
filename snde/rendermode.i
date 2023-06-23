@@ -248,8 +248,8 @@ namespace snde {
     snde_orientation3 channel_to_reorient_orientation;
     
     
-    std::shared_ptr<renderparams_base> component_params; // channel we are observing 
-    //snde_orientation3 component_orientation;  // always the identity  
+    std::shared_ptr<renderparams_base> untransformed_params; // channel we are observing 
+    //snde_orientation3 untransformed_orientation;  // always the identity  
     
     
     poseparams() = default;

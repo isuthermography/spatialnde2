@@ -507,7 +507,7 @@ namespace snde {
     snde_orientation3 channel_to_reorient_orientation;
     
     
-    std::shared_ptr<renderparams_base> component_params; // channel we are observing 
+    std::shared_ptr<renderparams_base> untransformed_params; // channel we are observing 
     //snde_orientation3 component_orientation;  // always the identity  
     
     poseparams() = default;
@@ -530,8 +530,8 @@ namespace snde {
 	hashv = hashv ^ channel_to_reorient_params->hash();
 
       }
-      if (component_params) {
-	hashv = hashv ^ component_params->hash();
+      if (untransformed_params) {
+	hashv = hashv ^ untransformed_params->hash();
 
       }
 							 
@@ -544,17 +544,17 @@ namespace snde {
       const poseparams *bptr = dynamic_cast<const poseparams *>(&b);
       if (!bptr) return false; 
 
-      if (component_params && !bptr->component_params) {
+      if (untransformed_params && !bptr->untransformed_params) {
 	return false;	  
       }
 
-      if (!component_params && bptr->component_params) {
+      if (!untransformed_params && bptr->untransformed_params) {
 	return false;	  
       }
 
       
-      if (component_params && bptr->component_params) {      
-	if (!(*component_params == *bptr->component_params)) {
+      if (untransformed_params && bptr->untransformed_params) {      
+	if (!(*untransformed_params == *bptr->untransformed_params)) {
 	  return false;
 	}
       }

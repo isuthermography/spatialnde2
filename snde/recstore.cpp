@@ -402,7 +402,16 @@ namespace snde {
   {
     return std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this());
   }
+  
+  const std::shared_ptr<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>> recording_base::graphics_subcomponents_orientation_lockinfo(std::shared_ptr<recording_set_state> rss)
+  {
+    return std::make_shared<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>>();
+  }
 
+  const std::shared_ptr<std::map<std::string,std::pair<std::string,snde_orientation3>>> recording_base::graphics_subcomponents_lockedorientations(std::shared_ptr<recording_set_state> rss)
+  {
+    return std::make_shared<std::map<std::string,std::pair<std::string,snde_orientation3>>>();
+  }
 
   std::shared_ptr<recording_set_state> recording_base::_get_originating_rss_rec_admin_prelocked() 
   // version of get_originating_rss() to use if you have (optionally the recdb and) the rec admin locks already locked.
@@ -4328,6 +4337,15 @@ namespace snde {
     std::atomic_store(&_prerequisite_state,prereq_state);
   }
 
+
+  bool recording_set_state::check_complete()
+  {
+    std::lock_guard<std::mutex> rss_admin(admin);
+      
+    // check if all recordings are ready and all math functions are complete
+    bool all_ready = !recstatus.defined_recordings.size() && !recstatus.instantiated_recordings.size() && !mathstatus.pending_functions.size() && !mathstatus.mdonly_pending_functions.size();
+    return all_ready;
+  }
   void recording_set_state::wait_complete()
   {
     std::shared_ptr<promise_channel_notify> promise_notify=std::make_shared<promise_channel_notify>(std::vector<std::string>(),std::vector<std::string>(),true);

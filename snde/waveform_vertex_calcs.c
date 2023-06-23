@@ -11,8 +11,8 @@ void waveform_as_vertlines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 	snde_index cnt, // within these inputs and these outputs,
 	snde_index startidx,
 	snde_index endidx,
-	double inival,
-	double step,
+	float inival,
+	float step,
 	snde_index pxstep,
 	snde_float32 linewidth_horiz,
 	snde_float32 linewidth_vert,
@@ -27,7 +27,7 @@ void waveform_as_vertlines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 	if (((startidx + (cnt + 2) * pxstep) + 1) > endidx)
 	  endpt = endidx;
 
-	waveform_intype minval = -log(0.0);
+	waveform_intype minval = -log(0.0f);
 	waveform_intype maxval = -minval;
 	for (snde_index i = (startidx + cnt*pxstep); i <= endpt; ++i) {
 		if (inputs[i] > maxval) {
@@ -42,11 +42,11 @@ void waveform_as_vertlines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 
 	if ((maxval - minval) < (linewidth_vert))
 	{
-		minval = minval - linewidth_vert / 2.0;
-		maxval = maxval + linewidth_vert / 2.0;
+		minval = minval - linewidth_vert / 2.0f;
+		maxval = maxval + linewidth_vert / 2.0f;
 	}
 
-	priorx = step * pxstep * (waveform_intype)(cnt)+inival + step * (waveform_intype)(startidx)+0.5 * step;
+	priorx = step * pxstep * (waveform_intype)(cnt)+inival + step * (waveform_intype)(startidx)+0.5f * step;
 	curx = priorx;
 	priory = minval;	
 	cury = maxval;	
@@ -64,30 +64,30 @@ void waveform_as_vertlines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 	// Therefore width_direction = -i*l0y + j*l0x
 
 	//printf("ppvao: width_direction.real=%f;linewidth_horiz=%f\n",width_direction.real,linewidth_horiz);
-	//printf("ppvao: tvout.coord[0]=%f\n",priorx - linewidth_horiz*width_direction.real/2.0);
+	//printf("ppvao: tvout.coord[0]=%f\n",priorx - linewidth_horiz*width_direction.real/2.0f);
 
 	//printf("ppvao: totalcnt=%u; totallen=%u\n",(unsigned)totalcnt,(unsigned)totallen);
-	tri_vertices[cnt * 6].coord[0] = priorx - linewidth_horiz / 2.0;
+	tri_vertices[cnt * 6].coord[0] = priorx - linewidth_horiz / 2.0f;
 	tri_vertices[cnt * 6].coord[1] = priory;
 	tri_vertices[cnt * 6].coord[2] = 0.0f;
 
-	tri_vertices[cnt * 6 + 1].coord[0] = curx - linewidth_horiz / 2.0;
+	tri_vertices[cnt * 6 + 1].coord[0] = curx - linewidth_horiz / 2.0f;
 	tri_vertices[cnt * 6 + 1].coord[1] = cury;
 	tri_vertices[cnt * 6 + 1].coord[2] = 0.0f;
 
-	tri_vertices[cnt * 6 + 2].coord[0] = priorx + linewidth_horiz / 2.0;
+	tri_vertices[cnt * 6 + 2].coord[0] = priorx + linewidth_horiz / 2.0f;
 	tri_vertices[cnt * 6 + 2].coord[1] = priory;
 	tri_vertices[cnt * 6 + 2].coord[2] = 0.0f;
 
-	tri_vertices[cnt * 6 + 3].coord[0] = priorx + linewidth_horiz / 2.0;
+	tri_vertices[cnt * 6 + 3].coord[0] = priorx + linewidth_horiz / 2.0f;
 	tri_vertices[cnt * 6 + 3].coord[1] = priory;
 	tri_vertices[cnt * 6 + 3].coord[2] = 0.0f;
 
-	tri_vertices[cnt * 6 + 4].coord[0] = curx - linewidth_horiz / 2.0;
+	tri_vertices[cnt * 6 + 4].coord[0] = curx - linewidth_horiz / 2.0f;
 	tri_vertices[cnt * 6 + 4].coord[1] = cury;
 	tri_vertices[cnt * 6 + 4].coord[2] = 0.0f;
 
-	tri_vertices[cnt * 6 + 5].coord[0] = curx + linewidth_horiz / 2.0;
+	tri_vertices[cnt * 6 + 5].coord[0] = curx + linewidth_horiz / 2.0f;
 	tri_vertices[cnt * 6 + 5].coord[1] = cury;
 	tri_vertices[cnt * 6 + 5].coord[2] = 0.0f;
 
@@ -130,8 +130,8 @@ void waveform_as_vertlines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 	  OCL_GLOBAL_ADDR snde_float32* trivert_colors,
 	  snde_index startidx,
 	  snde_index endidx,
-	  double inival,
-	  double step,
+	  float inival,
+	  float step,
 	  snde_index pxstep,
 	  snde_float32 linewidth_horiz,
 	  snde_float32 linewidth_vert,
@@ -169,8 +169,8 @@ void waveform_as_interplines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 	OCL_GLOBAL_ADDR snde_float32* trivert_colors,
 	snde_index cnt, // within these inputs and these outputs,
 	snde_index pos,
-	double inival,
-	double step,
+	float inival,
+	float step,
 	snde_float32 linewidth_horiz,
 	snde_float32 linewidth_vert,
 	snde_float32 R,
@@ -280,8 +280,8 @@ void waveform_as_interplines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 	  OCL_GLOBAL_ADDR snde_coord3* tri_vertices,
 	  OCL_GLOBAL_ADDR snde_float32* trivert_colors,
 	  snde_index pos,
-	  double inival,
-	  double step,
+	  float inival,
+	  float step,
 	  snde_float32 linewidth_horiz,
 	  snde_float32 linewidth_vert,
 	  snde_float32 R,
@@ -318,8 +318,8 @@ void waveform_as_interplines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 		OCL_GLOBAL_ADDR snde_float32* trivert_colors,
 		snde_index cnt, // within these inputs and these outputs,
 		snde_index pos,
-		double inival,
-		double step,
+		float inival,
+		float step,
 		snde_float32 R,
 		snde_float32 G,
 		snde_float32 B,
@@ -349,8 +349,8 @@ void waveform_as_interplines(OCL_GLOBAL_ADDR waveform_intype* inputs,
 	  OCL_GLOBAL_ADDR snde_coord3* tri_vertices,
 	  OCL_GLOBAL_ADDR snde_float32* trivert_colors,
 	  snde_index pos,
-	  double inival,
-	  double step,
+	  float inival,
+	  float step,
 	  snde_float32 R,
 	  snde_float32 G,
 	  snde_float32 B,
