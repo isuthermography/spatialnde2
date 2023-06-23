@@ -214,13 +214,13 @@ always lock arrays prior to access. For example::
 
   rwlock_token_set locktokens = recdb->lockmgr->lock_recording_refs({
     { test_ref, true },  
-  });
+  }, false);
 
 or (Python)::
   
   locktokens = recdb.lockmgr.lock_recording_refs([
     (test_ref, True),  
-  ])
+  ], False)
 
 You provide a sequence of (recording reference, read/write) pairs
 where the second element is false for read and true for right.  It is
@@ -228,10 +228,12 @@ important to lock all recordings in a single method call because at
 way the locking code can ensure a consistent locking order is
 followed. Multiple simultaneous read locks on a given array are
 possible. Only one write lock can be held for a given array at a time,
-and no read locks can exist in parallel with that write lock.
+and no read locks can exist in parallel with that write lock. The last
+parameter to ``lock_recording_refs()`` indicates that you are locking it
+for GPU access and is usually false.
 
 The locks will last until explicitly unlocked or the containing
-object is destroyed
+object is destroyed. See below for how to explicitly unlock.
 
 Assigning Array Contents
 ------------------------
@@ -282,17 +284,17 @@ is not implemented as of this writing.
 Marking the Recording as Ready
 ------------------------------
 
-The recording is marked as ready with the ``mark_as_ready()`` method of
+The recording is marked as ready with the ``mark_data_and_metadata_ready()`` method of
 the recording (C++)::
   
-  test_ref->rec->mark_as_ready();
+  test_ref->rec->mark_data_and_metadata_ready();
 
 or (Python)::
   
-  test_ref.rec.mark_as_ready()
+  test_ref.rec.mark_data_and_metadata_ready()
 
 Make sure all locks are released prior to calling the
-``mark_as_ready()`` method.
+``mark_data_and_metadata_ready()`` method.
 
 Waiting for Globalrevision Completion
 -------------------------------------
