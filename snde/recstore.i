@@ -958,6 +958,8 @@ namespace snde {
     void wait_recording_names(std::shared_ptr<recording_set_state> rss,const std::vector<std::string> &metadataonly, const std::vector<std::string> fullyready);
 
     std::shared_ptr<monitor_globalrevs> start_monitoring_globalrevs();
+    std::shared_ptr<monitor_globalrevs> start_monitoring_globalrevs(std::shared_ptr<globalrevision> first);
+    std::shared_ptr<monitor_globalrevs> start_monitoring_globalrevs(std::shared_ptr<globalrevision> first ,bool inhibit_mutable);
     void globalrev_mutablenotneeded_code(); 
     void transaction_background_end_code();
 

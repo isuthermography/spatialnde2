@@ -77,14 +77,79 @@ namespace snde {
       if (clearcheck != executing_math_function::msgs.end()) {
 	// Add check here for bool = True
 	just_starting = true;
+	if (emit_when_complete_only) {
+	  std::shared_ptr<accumulate_once_creator_data<T>> new_creator_data = std::make_shared<accumulate_once_creator_data<T>>();
+	  //snde_warning("avg: exec just_starting");
+	  will_run = false;
+	  new_creator_data->first_rec = to_accum;
+	  new_creator_data->pending_recs.push_back(to_accum);
+	  new_creator_data->accumulated = 1;
+	  previous_recording->creator_data = new_creator_data;
+		
+	}
       }
       else {
 	// Is there a previous recording
 	if (!previous_recording) {  // No - flag that we are just starting
 	  just_starting = true;
+	  if (emit_when_complete_only) {
+	    return std::make_pair(true,std::make_shared<compute_options_function_override_type>([ this, just_starting] {
+
+	      //snde_warning("avg: compute_options just_starting");
+
+	      std::vector<std::shared_ptr<compute_resource_option>> option_list =
+		{
+		  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+								0, // data_bytes for transfer
+								0.0, // flops
+								1, // max effective cpu cores
+								1), // useful_cpu_cores (min # of cores to supply
+		  
+		};
+	  
+	  
+	      return std::make_pair(option_list,std::make_shared<define_recs_function_override_type>([this] { 
+	    
+		// define_recs code
+		std::shared_ptr<null_recording> starting_result;
+		//snde_warning("avg: define_recs just_starting");
+	  
+		//to_avg->assert_no_scale_or_offset(this->inst->definition->definition_command);
+	    
+		starting_result = create_recording_math<null_recording>(this->get_result_channel_path(0),this->rss);
+		return std::make_shared<metadata_function_override_type>([ this, starting_result ]() {
+		  // metadata code
+
+		  //snde_warning("avg: metadata just_starting");
+
+		  starting_result->metadata=std::make_shared<immutable_metadata>();
+		  starting_result->mark_metadata_done();
+	      
+		  return std::make_shared<lock_alloc_function_override_type>([ this, starting_result ]() {
+		    // lock_alloc code
+	       
+		
+		    return std::make_shared<exec_function_override_type>([ this, starting_result ]() {
+		      // exec code
+
+		      //std::shared_ptr<averaging_downsampler_creator_data<T>> new_creator_data = std::make_shared<averaging_downsampler_creator_data<T>>();
+		      //snde_warning("avg: exec just_starting");
+
+		      // new_creator_data->pending_recs.push_back(to_avg);
+		      //starting_result->creator_data = new_creator_data;
+		      starting_result->mark_data_ready();
+		  
+		    }); 
+		  });
+		  
+		});
+	      }));
+	    }));
+	  }
 	}
+      
 	else {  // Yes -- there is a previous recording, let's check it
-	  {
+	{
 	    // Get handle to creator data for previous recording
 	    std::lock_guard<std::mutex> prevrec_admin(previous_recording->admin);
 	    previous_recording_creator_data = previous_recording->creator_data;
