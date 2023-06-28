@@ -262,7 +262,7 @@ namespace snde {
     std::shared_ptr<display_axis> GetSecondAxisLocked(const std::string &fullname);
     
     
-    std::shared_ptr<display_axis> GetThirdAxis(const std::string &fullname);
+    std::tuple<std::shared_ptr<display_axis>, double, double, std::string> GetThirdAxis(const std::string &fullname);
     
     std::shared_ptr<display_axis> GetThirdAxisLocked(const std::string &fullname);
     

@@ -633,35 +633,18 @@ namespace snde {
 	auto rec = latest_globalrev->check_for_recording_ref(posmgr->selected_channel->FullName, 0);
 	// There is an obvious race condition issue here where this could change between line 632 and line 636 -- fix this later
 	if (rec && rec->ndinfo()->ndim >= 3) {
-		a = display->GetThirdAxis(posmgr->selected_channel->FullName);
+		double offset2, scale2;
+		std::string UnitName;
+		std::tie(a,offset2,scale2,UnitName) = display->GetThirdAxis(posmgr->selected_channel->FullName);
 		if (a) {
 			if (needjoin) {
 				statusline += " | ";
 			}
-			double scalefactor;
-			double vertunitsperdiv;
-			bool pixelflag = false;
 
+			double displayframe;
 			{
-				std::lock_guard<std::mutex> adminlock(a->unit->admin);
-				scalefactor = a->unit->scale;
-				vertunitsperdiv = scalefactor;
-
-				pixelflag = a->unit->pixelflag;
-				snde_debug(SNDE_DC_VIEWER, "Image: Vertical axis: a=%s", a->axis.c_str());
-
-			}
-
-			{
-				std::lock_guard<std::mutex> adminlock(display->admin);
-				if (pixelflag) vertunitsperdiv *= display->pixelsperdiv;
-			}
-
-			//std::stringstream inipos;
-			double inipos;
-			{
-				std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
-				inipos = posmgr->selected_channel->DisplayFrame * vertunitsperdiv;
+			  	std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+				displayframe = posmgr->selected_channel->DisplayFrame;
 			}
 
 			//std::stringstream vertscalestr;
@@ -669,7 +652,7 @@ namespace snde {
 
 			//statusline += a->abbrev+"0=" + inipos.str() + " " + vertscalestr.str() + a->unit->unit.print(false);
 			std::lock_guard<std::mutex> adminlock(a->admin);
-			statusline += a->abbrev + "=" + PrintWithSIPrefix(inipos, a->unit->unit.print(false), 3);
+			statusline += a->abbrev + "=" + PrintWithSIPrefix(offset2 + scale2 * displayframe, a->unit->unit.print(false), 3);
 
 			needjoin = true;
 
