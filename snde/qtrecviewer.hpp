@@ -85,6 +85,7 @@ namespace snde {
     void SelectorClicked(bool checked);
     void Darken(bool checked);
     void ResetIntensity(bool checked);
+    void SetOffsetToMean(bool checked);
     void Brighten(bool checked);
     void NextFrame(bool checked);
     void PreviousFrame(bool checked);

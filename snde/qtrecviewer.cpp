@@ -888,6 +888,84 @@ namespace snde {
       
     
   }
+
+
+  void QTRecViewer::SetOffsetToMean(bool checked)
+  {
+	  if (posmgr->selected_channel) {
+
+
+		  int render_mode;
+		  {
+			  std::lock_guard<std::mutex> selchan_admin(posmgr->selected_channel->admin);
+
+			  render_mode = posmgr->selected_channel->render_mode;
+		  }
+
+		  std::shared_ptr<display_axis> a = display->GetAmplAxis(posmgr->selected_channel->FullName);
+
+		  std::shared_ptr<recdatabase> recdb_strong = recdb.lock();
+
+		  if (a && recdb_strong && (render_mode == SNDE_DCRM_IMAGE || render_mode == SNDE_DCRM_WAVEFORM)) {
+			  snde_float64 mean = 0.0;
+			  std::shared_ptr<snde::globalrevision> rev = recdb_strong->latest_globalrev();
+			  if (rev) {
+				  std::shared_ptr<snde::ndarray_recording_ref> ref = rev->get_ndarray_ref(posmgr->selected_channel->FullName, 0);
+				  if (ref) {
+					  snde_index n = ref->layout.flattened_length();
+					  snde_debug(SNDE_DC_VIEWER, "SetOffsetToMean: n = %llu", n);
+					  switch (ref->typenum) {
+					  case SNDE_RTN_FLOAT32:
+					  case SNDE_RTN_FLOAT64:
+						  for (snde_index i = 0; i < n; i++) {
+							  mean += ref->element_double(i);
+						  }
+						  break;
+					  case SNDE_RTN_UINT8:
+					  case SNDE_RTN_UINT16:
+					  case SNDE_RTN_UINT32:
+					  case SNDE_RTN_UINT64:
+						  for (snde_index i = 0; i < n; i++) {
+							  mean += (double)ref->element_unsigned(i);
+						  }
+						  break;
+					  case SNDE_RTN_INT16:
+					  case SNDE_RTN_INT32:
+					  case SNDE_RTN_INT64:
+						  for (snde_index i = 0; i < n; i++) {
+							  mean += (double)ref->element_int(i);
+						  }
+						  break;
+					  }
+					  if (n != 0) {
+						  mean /= double(n);
+					  }
+					  else {
+						  mean = 0.0;
+					  }
+				  }
+			  }
+
+			  {
+				  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+				  if (render_mode == SNDE_DCRM_IMAGE) {
+					  posmgr->selected_channel->Offset = mean;
+				  }
+				  else if(render_mode == SNDE_DCRM_WAVEFORM){
+					  posmgr->selected_channel->VertCenterCoord = mean;
+				  }
+				  
+			  }
+			  //posmgr->selected_channel->mark_as_dirty();
+			  // ***!!! Should probably look at intensity bounds for channel instead ***!!!
+			  UpdateViewerStatus();
+			  emit NeedRedraw();
+		  }
+	  }
+
+
+  }
+
   
   void QTRecViewer::Brighten(bool checked)
   {
