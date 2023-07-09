@@ -1,0 +1,76 @@
+from dataguzzler_python import dgpy
+from dataguzzler_python import context
+import spatialnde2 as snde
+import pdb
+
+include(dgpy,"dgpy_startup.dpi") # If you get a NameError here, be sure you are executing this file with dataguzzler-python
+
+include(dgpy,"Qt.dpi",prefer_pyqt=False) 
+
+include(dgpy,"matplotlib.dpi")
+include(snde,"recdb.dpi",enable_opencl=False) 
+include(snde,"recdb_gui.dpi")
+
+# What do these inputs to the graphics_storage_manager mean?
+graphman=snde.graphics_storage_manager("/graphics/",recdb.lowlevel_alloc,
+                                       recdb.alignment_requirements,recdb.lockmgr,
+                                       1e-8,2000000000);
+
+transact = recdb.start_transaction()
+
+
+graphicsgroup = recdb.define_channel("/graphics/","main",recdb.raw(),False,graphman)
+
+fusion_colormap_chan = recdb.define_channel("/fusion_colormap","main",recdb.raw(),
+                                            True)
+
+transact.end_transaction()
+
+transact = recdb.start_transaction()
+# final argument is the typenum, a list of typenums for SpatialNDE2
+# can be located in recording.h in the snde folder of the source
+# tree. 13 is complex float 32
+rec = snde.create_fusion_ndarray_recording(recdb,fusion_colormap_chan,recdb.raw(),13)
+#rec.create_ndarray_ref(0,)
+#rec.define_array(0,snde.SNDE_RTN_COMPLEXFLOAT32,"accumulator")
+#rec.define_array(1,snde.SNDE_RTN_SNDE_IMAGEDATA,"totals")
+ref_acc = rec.reference_ndarray("accumulator")
+ref_tot = rec.reference_ndarray("totals")
+
+#pdb.set_trace()
+#locktokens_accumulator = recdb.lockmgr.lock_recording_refs([
+#  (ref_acc, True),],gpu_access=True)
+
+#locktokens_totals = recdb.lockmgr.lock_recording_refs([
+#  (ref_tot, True),],gpu_access=True)
+
+array_size = [100,120]
+
+#pdb.set_trace()
+##ref_acc.allocate_storage(array_size,False)
+##ref_tot.allocate_storage(array_size,False)
+rec.allocate_storage(0,array_size,False)
+rec.allocate_storage(1,array_size,False)
+
+
+#pdb.set_trace()
+ref_acc.data()[:,:] = np.zeros(array_size,dtype=np.cdouble)
+ref_tot.data()[:,:] = np.ones(array_size,dtype=np.double)
+
+#pdb.set_trace()
+# Release write locks
+#snde.unlock_rwlock_token_set(locktokens_accumulator)
+#snde.unlock_rwlock_token_set(locktokens_totals)
+
+#pdb.set_trace()
+# Mark references as ready
+ref_acc.rec.mark_data_and_metadata_ready()
+ref_tot.rec.mark_data_and_metadata_ready()
+rec.mark_data_and_metadata_ready()
+
+transact.end_transaction()
+
+
+
+
+
