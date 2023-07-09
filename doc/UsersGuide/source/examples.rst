@@ -74,30 +74,30 @@ Dataguzzler-Python examples (require Dataguzzler-Python to be installed for oper
 Project Probe Tip Data User Guide
 ---------------------------------
 
-The purpose of the ``project_live_probe_tip_data.dgp`` module is to demonstrate the spatial registration 
+The purpose of the ``project_live_probe_tip_data.dgp`` example script is to demonstrate the spatial surface mapping
 capability of SpatialNDE2 by viewing the data recorded by a probe in the context of the location on a
 part or specimen where this data would origiate. This module can be found in the test directory of the SpatialNDE2 source tree.
 The user can move the probe to some pose (rotation and translation) relative to the part/specimen that they would prefer, and
-ray tracing is used to track which section of the part/specimen that the probe is pointing at over time. Records of the
-data from the probe (simulated eddy current impedance data) are created at that location in the parameterization space 
+ray tracing is used to track which section of the part/specimen that the probe is pointing at over each global revision. A ray points from the tip of the probe, and the 
+location of the intersection of the ray with the surface of the specimen is where that probe data gets projected. Records of the
+data from the probe (placeholder eddy current impedance data) are created at that location in the parameterization space 
 (2-dimensional surface map) of the 3D model of the part/specimen the probe is pointing at. The locations of the
 data in parameterization space are then used to put this data into a 3-dimensional context by rendering this
-data on the surface of the 3D part/specimen model, which allows for registration of impedance data to the model
-in a 3-dimensional context. Reading through the concepts section of the User Guide before running will be helpful in understanding
-the core concepts behind the features of this script.
+data on the surface of the 3D part/specimen model, which allows for observation of live impedance data fused with previous impedance data recordings projected onto the model
+in a 3-dimensional context. 
 
 Step-by-step guide for usage:
 
-1 (optional). Before running the example, select the probe and specimen 3D model files that you would like to use to accurately reflect your testing environment. Ensure that these files are meshed and in the Extensible 3D (``.x3d``) format. Then place these files in the working directory of the ``project_live_probe_tip_data.dgp`` file. Default models are assigned in the script if there are no models to use. The script can be set to read the models by changing the value of the ``specimen_model_file`` and ``probe_model_file`` variables.
+1. Run the script by navigating in your terminal to the ``test`` directory of the source tree, and run the command ``dataguzzler-python project_live_probe_tip_data.dgp``
 
-2. Use the ``"/probe_positioner"`` channel to move the probe in a context where the probe is fixed relative to the camera and can be dragged around a specimen. For a third person view (not through the probe's perspective) of the specimen and the probe, 
+2. Use the ``"/probe_positioner"`` channel to drag the viewer with the mouse from the probe's perspective around a specimen. For a third person view (not through the probe's perspective) of the specimen and the probe, 
 select the ``/probe_pose`` channel.
 
 .. image:: ProbePositioner_Screenshot.png
   :width: 800
   :alt: Image of probe and plate together with the ``/probe_positioner`` channel selected.
 
-3. A live visualization of simulated data from the probe can be found in the ``"/synthetic_probe_history"`` channnel, which displays the phase of a simulated signal, 
+3. A live visualization of placeholder data from the probe can be found in the ``"/synthetic_probe_history"`` channnel, which displays the phase of the probe's placeholder signal, 
 rotating in the complex plane, that would come from an eddy current probe. 
 
 .. image:: Synthetic_Probe_Impedance_Image.png
@@ -112,11 +112,13 @@ subsection of the concepts section of the User Guide.
   :width: 800
   :alt: Sample image of the surface-parameterization.
 
-5. To see the simulated data mapped to the specimen in a 3-dimensional context, select the ``"/graphics/projection_specimen"`` channel.
+5. To see the probe placeholder data mapped to the specimen in a 3-dimensional context, select the ``"/graphics/projection_specimen"`` channel.
 
 .. image:: GraphicsProjection_Specimen.png
   :width: 800
   :alt: Map of accumulated probe simulation data projected onto the specimen.
+
+6. (optional). Before running the example, select the probe and specimen 3D model files that you would like to use to accurately reflect your testing environment. Ensure that these files are meshed and in the Extensible 3D (``.x3d``) format. Then place these files in the working directory of the ``project_live_probe_tip_data.dgp`` file. Default models are assigned in the script if there are no models to use. The script can be set to read the models by changing the value of the ``specimen_model_file`` and ``probe_model_file`` variables. (NEED TO INCLUDE A LINK FOR PARAMETERIZATION INSTRUCTIONS)
 
 
 
