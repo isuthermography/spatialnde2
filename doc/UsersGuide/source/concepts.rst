@@ -96,7 +96,7 @@ of recordings corresponding to a conceptual instant in time. The
 ``globalrevision`` is a special case (subclass) of ``recording_set_state``
 representing a particular numbered such global revision within a
 recording database. Among other member variables the ``recording_set_state``
-tracsk the status of the contained recordings in ``recstatus`` and the
+tracks the status of the contained recordings in ``recstatus`` and the
 status of math functions in ``mathstatus``.
 
 Just because a ``recording_set_state`` or ``globalrevision`` object exists
@@ -163,8 +163,7 @@ The variable :math:`X_i` represents some measured input for scan iteration `i`, 
 represents the weight assgined to that input, and `n` represents the current total number of scans collected. The ``fusion_ndarray_recording`` is comprised of two sub-arrays called ``"accumulator"`` and ``"totals"``.
 The ``"accumulator"`` sub-array, which represents the numerator of this equation, contains the sum of all measured values to be stored in the recording, multiplied by their associated weights, carried out to element `i` within the array. 
 The ``"totals"`` sub-array, which represents the denominator of this equation, stores the values of the sum to element i of the weights assigned to each previous scan iteration.
-The rendering of this datatype is specially handled in the QT recording viewer, where the resulting image represents the quotient of this 
-weighted average.
+When rendering this datatype, the resulting image represents the quotient of the accumulator and totals, which is the weighted average. The ``fusion_ndarray_recording_display_handler`` class defined in ``display_requirements.hpp`` triggers the use of the ``fusion_colormapping()`` method of the ``fusion_colormapping`` class in ``rec_display_colormap.cpp`` that generates the renderable texture (instead of throwing around a bunch of class names, let's try to actually understand how the colormap is generated and describe that process here).
  
 .. _GeometricObjects:
 
