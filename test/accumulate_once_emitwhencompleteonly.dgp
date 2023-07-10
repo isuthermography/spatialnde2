@@ -14,9 +14,10 @@ include(dgpy,"dgpy_startup.dpi") # If you get a NameError here, be sure you are 
 
 include(dgpy,"Qt.dpi",prefer_pyqt=False) 
 
-include(snde,"recdb.dpi",enable_opencl=False)
+include(snde,"recdb.dpi",enable_opencl=True)
 include(snde,"recdb_gui.dpi")
 
+input("Press enter")
 
 transact = recdb.start_transaction()	
 
@@ -27,8 +28,8 @@ onedlive_channel = recdb.define_channel("/liveoned","main",recdb.raw())
 accumulator_fortran_newaxis = snde.accumulate_once.instantiate( [ snde.math_parameter_recording("/live"),
                                                                   snde.math_parameter_unsigned_const(10),
                                                                   snde.math_parameter_int_const(2), 
-								  snde.math_parameter_bool_const(False),
-								  snde.math_parameter_bool_const(False)],
+								  snde.math_parameter_bool_const(True),
+								  snde.math_parameter_bool_const(True)],
                                                                 [ snde.shared_string("/accum_newaxis_fortran") ],
                                                                 "/",
                                                                 False,
@@ -42,8 +43,8 @@ recdb.add_math_function(accumulator_fortran_newaxis,False)
 accumulator_c_newaxis = snde.accumulate_once.instantiate(       [ snde.math_parameter_recording("/live"),
                                                                   snde.math_parameter_unsigned_const(10),
                                                                   snde.math_parameter_int_const(-1),
-								  snde.math_parameter_bool_const(False),
-								  snde.math_parameter_bool_const(False)],
+								  snde.math_parameter_bool_const(True),
+								  snde.math_parameter_bool_const(True)],
                                                                 [ snde.shared_string("/accum_newaxis_c") ],
                                                                 "/",
                                                                 False,
@@ -56,8 +57,8 @@ recdb.add_math_function(accumulator_c_newaxis ,False)
 accumulator_fortran_concat = snde.accumulate_once.instantiate( [  snde.math_parameter_recording("/live"),
                                                                   snde.math_parameter_unsigned_const(9),
                                                                   snde.math_parameter_int_const(1),
-								  snde.math_parameter_bool_const(False),
-								  snde.math_parameter_bool_const(False)],
+								  snde.math_parameter_bool_const(True),
+								  snde.math_parameter_bool_const(True)],
                                                                 [ snde.shared_string("/accum_concat_fortran") ],
                                                                 "/",
                                                                 False,
@@ -71,8 +72,8 @@ recdb.add_math_function(accumulator_fortran_concat,False)
 accumulator_c_concat = snde.accumulate_once.instantiate(        [ snde.math_parameter_recording("/live"),
                                                                   snde.math_parameter_unsigned_const(9),
                                                                   snde.math_parameter_int_const(0),
-								  snde.math_parameter_bool_const(False),
-								  snde.math_parameter_bool_const(False)],
+								  snde.math_parameter_bool_const(True),
+								  snde.math_parameter_bool_const(True)],
                                                                 [ snde.shared_string("/accum_concat_c") ],
                                                                 "/",
                                                                 False,
@@ -89,7 +90,7 @@ recdb.add_math_function(accumulator_c_concat ,False)
 
 bscan = snde.accumulate_once.instantiate(		        [ snde.math_parameter_recording("/liveoned"),
                                                                   snde.math_parameter_unsigned_const(3),
-                                                                  snde.math_parameter_int_const(0),
+                                                                  snde.math_parameter_int_const(-1),
 								  snde.math_parameter_bool_const(True),
 								  snde.math_parameter_bool_const(True)],
                                                                 [ snde.shared_string("/bscan") ],
@@ -105,7 +106,7 @@ cscan = snde.accumulate_once.instantiate(		        [ snde.math_parameter_recordi
                                                                   snde.math_parameter_unsigned_const(3),
                                                                   snde.math_parameter_int_const(-1),
 								  snde.math_parameter_bool_const(False),
-								  snde.math_parameter_bool_const(False)],
+								  snde.math_parameter_bool_const(True)],
                                                                 [ snde.shared_string("/cscan") ],
                                                                 "/",
                                                                 False,
@@ -116,7 +117,6 @@ cscan = snde.accumulate_once.instantiate(		        [ snde.math_parameter_recordi
 recdb.add_math_function(cscan ,False)
 
 globalrev = transact.end_transaction()
-
 
 
 

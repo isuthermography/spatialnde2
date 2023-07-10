@@ -533,6 +533,17 @@ With ``SNDE_RCR_DISABLE_EXCEPTION_HANDLING`` the exception will instead cause
 an immediate crash, which may generate a core dump or drop into the debugger, depending on your system configuration. This can make it easier to debug the exception.
 environment and
 
+Math Function Messages
+----------------------
+
+Some math functions have the ability to receive messages.  Such messages can
+be used to reset the state of a math function, trigger a special process, provide
+new information outside of the normal recording process, etc.  The message is sent
+in a transaction using the ``send_math_message()`` function.  The 
+``instantiated_math_function`` object returned by the ``instantiate()`` method
+is required, as well as a string key name defining the message and the message
+value.  The message value is any ``math_instance_parameter``. 
+
 Threading and Locking
 ---------------------
 

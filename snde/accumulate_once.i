@@ -11,6 +11,7 @@ namespace snde {
   %pythoncode %{
 accumulate_once = cvar.accumulate_once_function # make our swig-wrapped math_function accessible as 'spatialnde2.accumulate_once
 
+
   %}
   
 };

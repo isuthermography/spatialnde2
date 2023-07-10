@@ -15,7 +15,10 @@ snde_rawaccessible(snde::instantiated_math_database);
 snde_rawaccessible(snde::math_function_execution);
 %shared_ptr(snde::executing_math_function);
 snde_rawaccessible(snde::executing_math_function);
-%shared_ptr(snde::math_instance_parameter);
+
+// Moved to recstore.i because it's earlier in the include order in spatialnde2.i
+// These types are used there
+/*%shared_ptr(snde::math_instance_parameter);
 snde_rawaccessible(snde::math_instance_parameter);
 %shared_ptr(snde::list_math_instance_parameter);
 snde_rawaccessible(snde::list_math_instance_parameter);
@@ -23,10 +26,10 @@ snde_rawaccessible(snde::list_math_instance_parameter);
 snde_rawaccessible(snde::dict_math_instance_parameter);
 %shared_ptr(snde::string_math_instance_parameter);
 snde_rawaccessible(snde::string_math_instance_parameter);
-%shared_ptr(snde::int_math_instance_parameter);
+%shared_ptr(snde::int_math_instance_parameter);                  
 snde_rawaccessible(snde::int_math_instance_parameter);
 %shared_ptr(snde::double_math_instance_parameter);
-snde_rawaccessible(snde::double_math_instance_parameter);
+snde_rawaccessible(snde::double_math_instance_parameter);*/
 
 
 %shared_ptr(std::unordered_map<std::string,std::shared_ptr<snde::math_function>>);
@@ -48,7 +51,12 @@ namespace snde {
 #define SNDE_MFPT_STR 1
 #define SNDE_MFPT_DBL 2
   // 3 is for an ancillary string
-#define SNDE_MFPT_RECORDING 4
+#define SNDE_MFPT_BOOL 4
+#define SNDE_MFPT_RECORDING 5
+#define SNDE_MFPT_VECTOR 6
+#define SNDE_MFPT_ORIENTATION 7
+#define SNDE_MFPT_INDEXVEC 8 // vector of indices
+#define SNDE_MFPT_MAP 9 // map
 
   // forward declarations
   class channelconfig; // defined in recstore.hpp
@@ -65,57 +73,69 @@ namespace snde {
   
 
   
-  class math_instance_parameter {
+class math_instance_parameter {
   public:
-    // this is a recursive dictionary/list structure -- this is just the abstract base class
+    unsigned paramtype; // SNDE_MFPT_XXX from above
+
+    math_instance_parameter(unsigned paramtype);
+
+    // Rule of 3
+    math_instance_parameter(const math_instance_parameter &) = delete;
+    math_instance_parameter& operator=(const math_instance_parameter &) = delete;
+    virtual ~math_instance_parameter()=default;  // virtual destructor required so we can be subclassed
+
     virtual bool operator==(const math_instance_parameter &ref)=0; // used for comparing extra parameters to instantiated_math_functions
     virtual bool operator!=(const math_instance_parameter &ref)=0;
-
   };
   
-  class list_math_instance_parameter {
+  class list_math_instance_parameter : public math_instance_parameter {
   public:
     std::vector<std::shared_ptr<math_instance_parameter>> list;
 
-    virtual bool operator==(const math_instance_parameter &ref)=0; // used for comparing extra parameters to instantiated_math_functions
-    virtual bool operator!=(const math_instance_parameter &ref)=0;
-
+    list_math_instance_parameter(std::vector<std::shared_ptr<math_instance_parameter>> list);
+    
+    virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref);
   };
     
-  class dict_math_instance_parameter {
+  class dict_math_instance_parameter : public math_instance_parameter {
   public:
-    std::unordered_map<std::string,std::shared_ptr<math_instance_parameter>> dict;
-    
-    virtual bool operator==(const math_instance_parameter &ref)=0; // used for comparing extra parameters to instantiated_math_functions
-    virtual bool operator!=(const math_instance_parameter &ref)=0;
+    std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>> dict;
 
+    dict_math_instance_parameter(std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>> dict);
+    
+    virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref);
   };
   
-  class string_math_instance_parameter {
+  class string_math_instance_parameter : public math_instance_parameter {
   public:
     std::string value;
 
-    virtual bool operator==(const math_instance_parameter &ref)=0; // used for comparing extra parameters to instantiated_math_functions
-    virtual bool operator!=(const math_instance_parameter &ref)=0;
+    string_math_instance_parameter(std::string value);
 
+    virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref);
   };
   
-  class int_math_instance_parameter {
+  class int_math_instance_parameter : public math_instance_parameter {
   public:
     int64_t value;
 
-    virtual bool operator==(const math_instance_parameter &ref)=0; // used for comparing extra parameters to instantiated_math_functions
-    virtual bool operator!=(const math_instance_parameter &ref)=0;
+    int_math_instance_parameter(int64_t value);
 
+    virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref);
   };
   
-  class double_math_instance_parameter {
+  class double_math_instance_parameter : public math_instance_parameter {
   public:
     double value;
 
-    virtual bool operator==(const math_instance_parameter &ref)=0; // used for comparing extra parameters to instantiated_math_functions
-    virtual bool operator!=(const math_instance_parameter &ref)=0;
-
+    double_math_instance_parameter(double value);
+    
+    virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
+    virtual bool operator!=(const math_instance_parameter &ref);
   };
 
 

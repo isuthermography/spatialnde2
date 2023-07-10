@@ -197,6 +197,13 @@ namespace snde {
 	  Viewer->RotateColormap(false);
 	}
 	return true;
+
+      case 'o':
+      case'O':
+          if (event->type() == QEvent::KeyPress) {
+              Viewer->SetOffsetToMean(false);
+          }
+          return true;
 	
       default:
 	return QFrame::eventFilter(object,event);
