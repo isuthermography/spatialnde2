@@ -160,10 +160,13 @@ One subclass of the ``multi_ndarray_recording`` is the ``fusion_ndarray_recordin
 The data in this subclass is represented by the equation: 
 :math:`\sum\nolimits_{i=0}^{n-1}X_{i}w_{i}/\sum\nolimits_{i=0}^{n-1}w_{i}`.
 The variable :math:`X_i` represents some measured input for scan iteration `i`, :math:`w_i`
-represents the weight assgined to that input, and `n` represents the current total number of scans collected. The ``fusion_ndarray_recording`` is comprised of two sub-arrays called ``"accumulator"`` and ``"totals"``.
+represents the weight assgined to that input, and `n` represents the current total number of scans collected. 
+
+The ``fusion_ndarray_recording`` is comprised of two sub-arrays called ``"accumulator"`` and ``"totals"``.
 The ``"accumulator"`` sub-array, which represents the numerator of this equation, contains the sum of all measured values to be stored in the recording, multiplied by their associated weights, carried out to element `i` within the array. 
 The ``"totals"`` sub-array, which represents the denominator of this equation, stores the values of the sum to element i of the weights assigned to each previous scan iteration.
-When rendering this datatype, the resulting image represents the quotient of the accumulator and totals, which is the weighted average. The ``fusion_ndarray_recording_display_handler`` class defined in ``display_requirements.hpp`` triggers the use of the ``fusion_colormapping()`` method of the ``fusion_colormapping`` class in ``rec_display_colormap.cpp`` that generates the renderable texture (instead of throwing around a bunch of class names, let's try to actually understand how the colormap is generated and describe that process here).
+
+When rendering this datatype, the resulting image represents the quotient of the accumulator and totals, which is the weighted average. Rendering of the ``fusion_ndarray_recording`` subclass is specially handeled by the ``fusion_ndarray_recording_display_handler`` class defined in ``display_requirements.hpp``. Colormaps for complex ``fusion_ndarray_recordings`` are generated with red and green channel values determined, respectively, by the real and imaginary values of the ``"accumulator"`` subarray, which are both scaled by the values of the ``"totals"`` subarray. The blue channel is determined wholly by the values of the ``"totals"`` subarray. For all other ``fusion_ndarray_recordings``, the default ``snde_colormap`` function is used to generate the colormap and then the blue channel values are overwritten based on the values of the ``"totals"`` subarray.
  
 .. _GeometricObjects:
 
