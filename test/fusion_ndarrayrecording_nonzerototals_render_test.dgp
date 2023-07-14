@@ -3,6 +3,20 @@ from dataguzzler_python import context
 import spatialnde2 as snde
 import pdb
 
+# The purpose of this script is to verify
+# that the renderer is correctly displaying the totals array of the 
+# fusion_ndarray_recording. The blue channel values in the rendered
+# colormap of this recording should be solely proportional
+# to the values of the totals array elements. Therefore, if we have a 
+# fusion_ndarray_recording with a totals array full of uniform
+# nonzero elements and an accumulator array full of all zero elements,
+# the recording's colormap should be displayed as monochromatic blue.
+
+# To conduct this test, simply run 
+# ``dataguzzler-python fusion_ndarrayrecording_nonzerototals_render_test.dgpy``
+# from your terminal of choice with a virtual environment
+# that has SpatialNDE2.
+
 include(dgpy,"dgpy_startup.dpi") # If you get a NameError here, be sure you are executing this file with dataguzzler-python
 
 include(dgpy,"Qt.dpi",prefer_pyqt=False) 
@@ -30,7 +44,7 @@ transact = recdb.start_transaction()
 # final argument is the typenum, a list of typenums for SpatialNDE2
 # can be located in recording.h in the snde folder of the source
 # tree. 13 is complex float 32
-rec = snde.create_fusion_ndarray_recording(recdb,fusion_colormap_chan,recdb.raw(),13)
+rec = snde.create_fusion_ndarray_recording(recdb,fusion_colormap_chan,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
 #rec.create_ndarray_ref(0,)
 #rec.define_array(0,snde.SNDE_RTN_COMPLEXFLOAT32,"accumulator")
 #rec.define_array(1,snde.SNDE_RTN_SNDE_IMAGEDATA,"totals")
