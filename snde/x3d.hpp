@@ -2775,7 +2775,7 @@ namespace snde {
        the parameterization will have a single, unit-length patches, named according to the 
        imagetexture URL. The snde_image structure will be allocated but blank 
        (imgbufoffset==SNDE_INDEX_INVALID). No image buffer space is allocated */
-    instantiate_geomproc_math_functions(recdb,loaded_geom,meshedcurpart,texedcurpart,&processing_tags);
+    instantiate_geomproc_math_functions(recdb,loaded_geom,meshedcurpart,uvparam,texedcurpart,&processing_tags);
 
     for (auto && remaining_tag: processing_tags) {
       snde_warning("x3d_load_geometry: Unhandled processing tag %s loading into %s",remaining_tag.c_str(),recdb_group_path.c_str());
