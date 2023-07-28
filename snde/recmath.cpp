@@ -1179,25 +1179,30 @@ namespace snde {
   }
 
   // Helper function for traverse_scenegraph_find_graphics_deps
-  static bool tsfgd_helper(std::shared_ptr<recording_set_state> rss,std::string channel_fullpath,const std::vector<std::string> &processing_tags,std::shared_ptr<std::set<std::string>> *deps_out)
+  static bool tsfgd_helper(std::shared_ptr<recording_set_state> rss,std::string channel_fullpath,const std::vector<std::string> &processing_tags,const std::set<std::string> &filter_channels,std::shared_ptr<std::set<std::string>> *deps_out)
   {
     bool found_incomplete_deps = false; 
     auto prereq_chan_it = rss->recstatus.channel_map->find(channel_fullpath);
     if (prereq_chan_it != rss->recstatus.channel_map->end()){
+      // Try to find an existing recording.
       std::shared_ptr<recording_base> rec = prereq_chan_it->second.rec();
-      if (!rec || (rec->info_state & SNDE_RECS_FULLYREADY != SNDE_RECS_FULLYREADY)) {
-	// Recording not present or not fully ready. 
+
+      // Check if we are filtering this channel
+      auto fc_it = filter_channels.find(channel_fullpath);
+      bool filtering = (fc_it != filter_channels.end());
+      if (!filtering && (!rec || (rec->info_state & SNDE_RECS_FULLYREADY != SNDE_RECS_FULLYREADY))) {
+	// We are not filtering this channel and the recording is not present or not fully ready. 
 	(*deps_out)->emplace(channel_fullpath);
 	found_incomplete_deps = true;
       }
       else {
-	// Recording present and fully ready.
+	// Either we are filtering this channel or the recording is present and fully ready.
 	// Obtain list of referenced channels.
 	// traverse recursively
 	std::shared_ptr<std::set<std::string>> componentparts = rec->graphics_componentpart_channels(rss,processing_tags);
 	
 	for (auto && component_fullpath: *componentparts) {
-	  found_incomplete_deps = tsfgd_helper(rss,component_fullpath,processing_tags,deps_out) || found_incomplete_deps;
+	  found_incomplete_deps = tsfgd_helper(rss,component_fullpath,processing_tags,filter_channels,deps_out) || found_incomplete_deps;
 	}
       }
     }
@@ -1214,7 +1219,7 @@ namespace snde {
   // Note that this only considers recordings that are not ready
   // as if the recording is ready any dependence is already
   // satisfied. 
-  bool traverse_scenegraph_find_graphics_deps(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,math_function_status *mathstatus_ptr,const std::vector<std::string> &processing_tags)
+  bool traverse_scenegraph_find_graphics_deps(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,math_function_status *mathstatus_ptr,const std::vector<std::string> &processing_tags,const std::set<std::string> &filter_channels)
   {
     bool found_incomplete_deps = false; 
 
@@ -1226,7 +1231,7 @@ namespace snde {
       std::set<std::string> prereq_channels = parameter->get_prerequisites(inst->channel_path_context);
       for (auto && prereq_channel: prereq_channels) {
 	std::string prereq_channel_fullpath = recdb_path_join(inst->channel_path_context,prereq_channel);
-	found_incomplete_deps = tsfgd_helper(rss,prereq_channel_fullpath,processing_tags,&deps) || found_incomplete_deps;
+	found_incomplete_deps = tsfgd_helper(rss,prereq_channel_fullpath,processing_tags,filter_channels,&deps) || found_incomplete_deps;
       }
     }
    

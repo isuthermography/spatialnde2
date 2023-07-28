@@ -752,19 +752,38 @@ namespace snde {
   // This function is like traverse_scenegraph_orientationlocked, except
   // that it will not recurse into any scenegraph node with a channel
   // path matching except_channelpath. In addition it returns  a
-  // vector containing the orientations of the instances matching
-  // except_channelpath. 
-  std::pair<std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>>,std::vector<snde_orientation3>> traverse_scenegraph_orientationlocked_except_channelpath(std::shared_ptr<recording_set_state> rss,std::string channel_path,std::string except_channelpath)
+  // vector containing the recursion info (channel_path,component_path,orientation) of the instances matching
+  // the entries in except_channelpaths. 
+  std::pair<std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>>,std::vector<std::tuple<std::string,std::string,snde_orientation3>>> traverse_scenegraph_orientationlocked_except_channelpath(std::shared_ptr<recording_set_state> rss,std::string channel_path,const std::set<std::string> &except_channelpaths,std::string starting_componentpath /* ="" */,const snde_orientation3 *starting_orientation /* =nullptr */)
   {
     if (!rss->check_complete()) {
       throw snde_error("traverse_scenegraph_orientationlocked: rss must be complete");
     }
     std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>> channelpaths_componentpaths_instances;
-    std::vector<snde_orientation3> except_orientations; 
+    std::vector<std::tuple<std::string,std::string,snde_orientation3>> except_recursioninfo; 
     snde_orientation3 null_orient;
-    snde_null_orientation3(&null_orient);
+
+    if (!starting_orientation) {
+      snde_null_orientation3(&null_orient);
+      starting_orientation = &null_orient;
+    }
     
-    tso_instance_helper(rss,channel_path,"",null_orient,channelpaths_componentpaths_instances,[ except_channelpath, &except_orientations ] (std::string channel_path,std::string component_path,snde_orientation3 orientation) { if (channel_path == except_channelpath) {except_orientations.push_back(orientation); return false; } else {return true; }});
-    return std::make_pair(channelpaths_componentpaths_instances,except_orientations); 
+    
+    tso_instance_helper(rss,
+			channel_path,
+			starting_componentpath,
+			*starting_orientation,
+			channelpaths_componentpaths_instances,
+			[ &except_channelpaths, &except_recursioninfo ] (std::string channel_path,std::string component_path,snde_orientation3 orientation) {
+			  auto ecp_it = except_channelpaths.find(channel_path);
+			  if (ecp_it != except_channelpaths.end()) {
+			    except_recursioninfo.push_back(std::make_tuple(channel_path,component_path,orientation));
+			    return false;
+			  }
+			  else {
+			    return true;
+			  }
+			});
+    return std::make_pair(channelpaths_componentpaths_instances,except_recursioninfo); 
   }
 };

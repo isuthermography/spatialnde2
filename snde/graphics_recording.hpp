@@ -270,12 +270,13 @@ namespace snde {
   //It requires that you have locked the arrays returned by traverse_scenegraph_orientationlocks()
    std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>> traverse_scenegraph_orientationlocked(std::shared_ptr<recording_set_state> rss,std::string channel_path);
 
+ 
   // This function is like traverse_scenegraph_orientationlocked, except
   // that it will not recurse into any scenegraph node with a channel
   // path matching except_channelpath. In addition it returns  a
-  // vector containing the orientations of the instances matching
-  // except_channelpath. 
-  std::pair<std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>>,std::vector<snde_orientation3>> traverse_scenegraph_orientationlocked_except_channelpath(std::shared_ptr<recording_set_state> rss,std::string channel_path,std::string except_channelpath);
+  // vector containing the recursion info (channel_path,component_path,orientation) of the instances matching
+  // the entries in except_channelpaths. 
+  std::pair<std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>>,std::vector<std::tuple<std::string,std::string,snde_orientation3>>> traverse_scenegraph_orientationlocked_except_channelpath(std::shared_ptr<recording_set_state> rss,std::string channel_path,const std::set<std::string> &except_channelpaths,std::string starting_componentpath="",const snde_orientation3 *starting_orientation=nullptr);
 
 
 };
