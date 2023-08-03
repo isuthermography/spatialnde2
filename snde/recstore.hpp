@@ -361,11 +361,13 @@ namespace snde {
 
     virtual const std::shared_ptr<std::map<std::string,std::pair<std::string,snde_orientation3>>> graphics_subcomponents_lockedorientations(std::shared_ptr<recording_set_state> rss);
 
-    virtual std::shared_ptr<recording_set_state> _get_originating_rss_rec_admin_prelocked(); // version of get_originating_rss() to use if you have the recording database and recording's admin locks already locked.
-    std::shared_ptr<recording_set_state> _get_originating_rss_recdb_admin_prelocked(); // version of get_originating_rss() to use if you have the recording database admin lock already locked.
+    virtual std::shared_ptr<std::set<std::string>> graphics_componentpart_channels(std::shared_ptr<recording_set_state> rss,std::vector<std::string> processing_tags);
+    
+    virtual std::shared_ptr<recording_set_state> _get_originating_rss_rec_admin_prelocked(); // version of get_originating_rss() to use if you have (optionally the recording database and) the recording's admin locks already locked.
+    virtual std::shared_ptr<recording_set_state> _get_originating_rss_recdb_admin_prelocked(); // version of get_originating_rss() to use if you have the recording database admin lock already locked.
 
 
-    virtual std::shared_ptr<recording_set_state> get_originating_rss(); // Get the originating recording set state (often a globalrev). You should only call this if you are sure that originating rss must still exist (otherwise may generate a snde_error), such as before the creator has declared the recording "ready". This will lock the recording database and rec admin locks, so any locks currently held must precede both in the locking order
+    virtual std::shared_ptr<recording_set_state> get_originating_rss(); // Get the originating recording set state (often a globalrev). You should only call this if you are sure that originating rss must still exist (otherwise may generate a snde_error), such as before the creator has declared the recording "ready". This will lock the rec admin locks, so any locks currently held must precede that in the locking order
     virtual bool _transactionrec_transaction_still_in_progress_admin_prelocked(); // with the recording admin locked,  return if this is a transaction recording where the transaction is still in progress and therefore we can't get the recording_set_state
 
     // Mutable recording only ***!!! Not properly implemented yet ***!!!

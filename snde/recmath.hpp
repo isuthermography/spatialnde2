@@ -157,7 +157,7 @@ namespace snde {
     
     std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution;
 
-    std::shared_ptr<std::function<bool(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated, math_function_status *mathstatus_ptr)>> find_additional_deps; // the find_additional_deps method is nullptr unless the function is a dynamic_dependency. For dynamic_dependencies this function walks the current list of dependencies (for instantiated parameter) with rss set state and adds additional dependencies that it has discovered to the mathstatus_ptr missing_prerequisites, missing_external_channel_prerequisites, and/or missing_external_function_prerequisites. It returns true if any were added; false otherwise. Any additions to missing_external_channel_prerequisites needs a corresponding addition in the prerequisite state to math_status::external_dependencies_on_channel. Any addition to missing_external_function_prerequisites requires an addition in the prerequisite state to math_status::external_dependencies_on_function. ANY ADDITION TO missing_prerequisites REQUIRES AN ADDITION TO math_status::extra_internal_dependencies_on_channel!!! (and the prerequisite must actually be missing; if present should simply increment num_modified_prerequisites if the prerequisite has been modified. 
+    std::shared_ptr<std::function<bool(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated, math_function_status *mathstatus_ptr)>> find_additional_deps; // the find_additional_deps method is nullptr unless the function is a dynamic_dependency. For dynamic_dependencies this function walks the current list of dependencies (for instantiated parameter) with rss set state and adds additional dependencies that it has discovered to the mathstatus_ptr missing_prerequisites, missing_external_channel_prerequisites, and/or missing_external_function_prerequisites. It returns true if any were added (or if a repeated call is otherwise necessary); false otherwise. Any additions to missing_external_channel_prerequisites needs a corresponding addition in the prerequisite state to math_status::external_dependencies_on_channel. Any addition to missing_external_function_prerequisites requires an addition in the prerequisite state to math_status::external_dependencies_on_function. ANY ADDITION TO missing_prerequisites REQUIRES AN ADDITION TO math_status::extra_internal_dependencies_on_channel!!! (and the prerequisite must actually be missing; if present should simply increment num_modified_prerequisites if the prerequisite has been modified. 
     
     // WARNING: If there is no implict or explicit self-dependency multiple computations for the same math function
     // but different versions can happen in parallel. 
@@ -332,6 +332,8 @@ namespace snde {
     std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<channelconfig>>> missing_external_channel_prerequisites; // all missing (non-ready...or !!!*** nonmdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Will be used e.g. for dependencies of on-demand recordings calculated in their own rss context
     std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_function_prerequisites; // all missing (non-ready... or !!!*** non-mdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Currently used solely for self-dependencies (which can't be mdonly)... Paired with external_dependencies_on_function
 
+    std::set<std::tuple<std::shared_ptr<channelconfig>,std::shared_ptr<instantiated_math_function>>> extra_internal_dependencies_on_function; // Use this field to indicate that there are additional math functions within this rss that need to be notified when this function is complete. The first element of the tuple identifies the output channel of this math function that the referenced math function is dependent on. Please note that it may be a dynamic (implicit) dependency. 
+    
     bool mdonly; // if this execution is actually mdonly. Feeds into execfunc->mdonly
 
     bool self_dependent; // if there is an implicit or explicit self-dependency
@@ -538,7 +540,14 @@ namespace snde {
     virtual ~silent_math_parameter_mismatch() = default;
   };
 
-
+  // Dynamic dependencies have a find_additional_deps() method
+  // that is needed to identify implicit dependencies.
+  // This function is designed to fill that role for graphics
+  // dependencies. Wrap this with a lambda that knows your
+  // processing tags and assign it when the math_function is
+  // created.
+  bool traverse_scenegraph_find_graphics_deps(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,math_function_status *mathstatus_ptr,std::vector<std::string> processing_tags);
+  
   //class registered_math_function {
   //public:
   //  std::string name; // Suggest python-style package.module.function, etc.
@@ -556,7 +565,7 @@ namespace snde {
   // registered name is usually a python-style package/module path
   // register_math_function() returns a value so it can be used an an initializer
   int register_math_function(std::string registered_name,std::shared_ptr<math_function> fcn);
-
+  
 
   // Idea: we could make a function to run math manually.
   // But we would first have to create the ability to define

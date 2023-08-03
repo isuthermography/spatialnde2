@@ -103,7 +103,7 @@ namespace snde {
   // tags (which are removed from the set). NOTE: Must be called while still in the transaction
   // in which the geometry is defined and loaded, and before meshedcurpart/texedcurpart are marked
   // as "data ready"
-  void instantiate_geomproc_math_functions(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom, std::shared_ptr<meshed_part_recording> meshedcurpart,std::shared_ptr<textured_part_recording> texedcurpart, std::unordered_set<std::string> *processing_tags)
+  void instantiate_geomproc_math_functions(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom, std::shared_ptr<meshed_part_recording> meshedcurpart,std::shared_ptr<meshed_parameterization_recording> meshedcurparam,std::shared_ptr<textured_part_recording> texedcurpart, std::unordered_set<std::string> *processing_tags)
   {
     std::shared_ptr<geomproc_instantiator_map> instantiator_map = geomproc_instantiator_registry();
 
@@ -111,6 +111,10 @@ namespace snde {
       loaded_geom->processed_relpaths.emplace("meshed",recdb_relative_path_to(recdb_path_context(loaded_geom->info->name),meshedcurpart->info->name));
     }
 
+    if (meshedcurparam) {
+      loaded_geom->processed_relpaths.emplace("uv",recdb_relative_path_to(recdb_path_context(loaded_geom->info->name),meshedcurpart->info->name));
+    }
+    
     if (texedcurpart) {
       loaded_geom->processed_relpaths.emplace("texed",recdb_relative_path_to(recdb_path_context(loaded_geom->info->name),texedcurpart->info->name));
     }
@@ -146,6 +150,11 @@ namespace snde {
     if (meshedcurpart) {
       meshedcurpart->processed_relpaths = loaded_geom->processed_relpaths;
     }
+    
+    if (meshedcurparam) {
+      meshedcurparam->processed_relpaths = loaded_geom->processed_relpaths;
+    }
+    
     if (texedcurpart) {
       texedcurpart->processed_relpaths = loaded_geom->processed_relpaths;
     }

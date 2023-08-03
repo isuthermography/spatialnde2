@@ -634,6 +634,8 @@ namespace snde {
   // an exception or similar and hence might be redundant
   {
     std::shared_ptr<std::unordered_map<std::shared_ptr<instantiated_math_function>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> external_dependencies_on_function;
+
+    std::set<std::tuple<std::shared_ptr<channelconfig>,std::shared_ptr<instantiated_math_function>>> extra_internal_deps;
     
     {
       std::lock_guard<std::mutex> rss_admin(recstate->admin);
@@ -688,6 +690,8 @@ namespace snde {
       
       // look up anything dependent on this function's execution
       external_dependencies_on_function = recstate->mathstatus.external_dependencies_on_function();
+      extra_internal_deps = our_status.extra_internal_dependencies_on_function;
+      
     } // release lock
 
     
@@ -740,6 +744,36 @@ namespace snde {
       }
     }
 
+    // Go through any extra_internal_deps, removing us as a missing prerequisite. Then see if the function is ready to run. 
+    {
+      std::unique_lock<std::mutex> rss_admin(recstate->admin);
+      for (auto && dep: extra_internal_deps) {
+	std::shared_ptr<channelconfig> dep_channel;
+	std::shared_ptr<instantiated_math_function> dep_math;
+
+	std::tie(dep_channel,dep_math) = dep;
+	math_function_status &dep_status = recstate->mathstatus.function_status.at(dep_math);
+	// Remove us as a missing prerequisite...For all our result_channel_paths.
+	for (auto && our_result: fcn->result_channel_paths) {
+	  if (!our_result) {
+	    continue;
+	  }
+	  channel_state &stat = recstate->recstatus.channel_map->at(*our_result);
+	  auto missing_prereq_it = dep_status.missing_prerequisites.find(stat.config);
+	  if (missing_prereq_it != dep_status.missing_prerequisites.end()) {
+	    dep_status.missing_prerequisites.erase(missing_prereq_it);
+	    bool channel_modified = stat.updated;
+	    if (channel_modified) {
+	      // Don't count self-dependencies here (at least not unless the definition has changed) ... but shouldn't be possible to get this code path on a self-dependency
+	      dep_status.num_modified_prerequisites++;
+	    }
+	  }
+	}
+	
+	recstate->mathstatus.check_dep_fcn_ready(recdb,recstate,dep_math,&dep_status,ready_to_execute,may_need_completion_notification,rss_admin);
+  
+      }
+    }
     // Queue computations from dependent functions
     
     for (auto && ready_rss_ready_fcn: ready_to_execute) {
@@ -1144,7 +1178,164 @@ namespace snde {
     return inst->result_channel_paths.size();
   }
 
+  // Helper function for traverse_scenegraph_find_graphics_deps
+  static bool tsfgd_helper(std::shared_ptr<recording_set_state> rss,std::string channel_fullpath,const std::vector<std::string> &processing_tags,const std::set<std::string> &filter_channels,std::shared_ptr<std::set<std::string>> *deps_out)
+  {
+    bool found_incomplete_deps = false; 
+    auto prereq_chan_it = rss->recstatus.channel_map->find(channel_fullpath);
+    if (prereq_chan_it != rss->recstatus.channel_map->end()){
+      // Try to find an existing recording.
+      std::shared_ptr<recording_base> rec = prereq_chan_it->second.rec();
 
+      // Check if we are filtering this channel
+      auto fc_it = filter_channels.find(channel_fullpath);
+      bool filtering = (fc_it != filter_channels.end());
+      if (!filtering && (!rec || (rec->info_state & SNDE_RECS_FULLYREADY != SNDE_RECS_FULLYREADY))) {
+	// We are not filtering this channel and the recording is not present or not fully ready. 
+	(*deps_out)->emplace(channel_fullpath);
+	found_incomplete_deps = true;
+      }
+      else {
+	// Either we are filtering this channel or the recording is present and fully ready.
+	// Obtain list of referenced channels.
+	// traverse recursively
+	std::shared_ptr<std::set<std::string>> componentparts = rec->graphics_componentpart_channels(rss,processing_tags);
+	
+	for (auto && component_fullpath: *componentparts) {
+	  found_incomplete_deps = tsfgd_helper(rss,component_fullpath,processing_tags,filter_channels,deps_out) || found_incomplete_deps;
+	}
+      }
+    }
+    return found_incomplete_deps; 
+  }
+  
+  // Dynamic dependencies have a find_additional_deps() method
+  // that is needed to identify implicit dependencies.
+  // This function is designed to fill that role for graphics
+  // dependencies. Wrap this with a lambda that knows your
+  // processing tags and assign it when the math_function is
+  // created.
+  //
+  // Note that this only considers recordings that are not ready
+  // as if the recording is ready any dependence is already
+  // satisfied. 
+  bool traverse_scenegraph_find_graphics_deps(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,math_function_status *mathstatus_ptr,const std::vector<std::string> &processing_tags,const std::set<std::string> &filter_channels)
+  {
+    bool found_incomplete_deps = false; 
+
+    std::shared_ptr<std::set<std::string>> deps;
+
+    
+    for (auto && parameter: inst->parameters) {
+      // get prerequisite channels for this parameter
+      std::set<std::string> prereq_channels = parameter->get_prerequisites(inst->channel_path_context);
+      for (auto && prereq_channel: prereq_channels) {
+	std::string prereq_channel_fullpath = recdb_path_join(inst->channel_path_context,prereq_channel);
+	found_incomplete_deps = tsfgd_helper(rss,prereq_channel_fullpath,processing_tags,filter_channels,&deps) || found_incomplete_deps;
+      }
+    }
+   
+
+    // We have now used the helper to find that we are dependent on
+    // some additional channels (if found_incomplete_deps is
+    // true).That means that we have to annotate ourselves as having
+    // this extra dependency, and also that we have to arrange for
+    // notifications once the recordings we are dependent on become
+    // complete.
+    //
+    // We annotate ourselves by adding to missing_prerequisites
+    // we arrange for notifications depending on whether the recording
+    // we are waiting for exists or not. If the recording came from
+    // a transaction, then it must exist. If it came from math, then
+    // it may exist. Either way, if it exists we find its
+    // originating_rss and add ourselves to the
+    // external_dependencies_on_channel if the originating_rss
+    // was not us. If the originating_rss was us, we add the new
+    // dependency to extra_internal_dependencies_on_channel.
+    // 
+    // If rec does not exist then it must be the outcome of a math
+    // function. We add the new dependency to the
+    // extra_internal_dependencies_on_function of our rss. That way
+    // when the function result is applied to our rss, it will see
+    // the new dependency triggering a check whether the math function
+    // we are working on can now execute. 
+    //
+    
+    // First pass is to put anything relevant into external_dependencies_on_channel of an originating_rss while holding our rss unlocked.
+
+    for (auto && dep: *deps) {
+      auto chan_it = rss->recstatus.channel_map->find(dep);
+      if (chan_it == rss->recstatus.channel_map->end()) {
+	snde_warning("traverse_scenegraph_find_graphics_deps(): channel %s not found in RSS.", dep.c_str());
+      }
+      else {
+	std::shared_ptr<recording_base> rec=chan_it->second.rec();
+
+	if (rec){
+	  if (rec->info_state & SNDE_RECS_FULLYREADY != SNDE_RECS_FULLYREADY){
+	    std::shared_ptr<recording_set_state> originating_rss = rec->get_originating_rss();
+	    if (originating_rss && originating_rss != rss) {
+	      std::lock_guard<std::mutex> orss_admin(originating_rss->admin);
+	      auto edoc = originating_rss->mathstatus.begin_atomic_external_dependencies_on_channel_update();
+	      std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>::iterator edoc_it;
+	      bool edoc_inserted;
+	      std::tie(edoc_it,edoc_inserted)=edoc->emplace(chan_it->second.config,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>());
+	      edoc_it->second.push_back(std::make_tuple(rss,inst));
+	      rss->mathstatus.end_atomic_external_dependencies_on_channel_update(edoc);
+	    }
+	  }
+	}
+      }
+    }
+
+    // Now that other rss's know to notify us, it is safe
+    // for us to note down our dependence on them. 
+    for (auto && dep: *deps) {
+      auto chan_it = rss->recstatus.channel_map->find(dep);
+      if (chan_it == rss->recstatus.channel_map->end()) {
+	snde_warning("traverse_scenegraph_find_graphics_deps(): channel %s not found in RSS.", dep.c_str());
+      }
+      else {
+	std::unique_lock<std::mutex> rss_admin(rss->admin);
+	std::shared_ptr<recording_base> rec=chan_it->second.rec();
+
+	if (rec){
+	  if (rec->info_state & SNDE_RECS_FULLYREADY != SNDE_RECS_FULLYREADY){
+	    mathstatus_ptr->missing_prerequisites.emplace(chan_it->second.config);
+	    std::shared_ptr<recording_set_state> originating_rss = rec->get_originating_rss();
+	    if (originating_rss == rss) {
+	     
+	      auto eidoc=rss->mathstatus.begin_atomic_extra_internal_dependencies_on_channel_update();
+
+	      std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::shared_ptr<instantiated_math_function>>>::iterator eidoc_it;
+	      bool inserted = false;
+	      std::tie(eidoc_it,inserted)=eidoc->emplace(chan_it->second.config,std::vector<std::shared_ptr<instantiated_math_function>>());
+	      eidoc_it->second.push_back(inst);
+	      rss->mathstatus.end_atomic_extra_internal_dependencies_on_channel_update(eidoc);
+	    }
+	    else {
+	      // Already added to external_dependencies_on_channel of
+	      // the originating_rss
+	      
+	    }
+	  }
+	}
+	else {
+	  // rec does not exist; it must be an uncertain result
+	  // of a math function.
+	  mathstatus_ptr->missing_prerequisites.emplace(chan_it->second.config);
+	  std::shared_ptr<instantiated_math_function> dep_fcn = rss->mathstatus.math_functions->defined_math_functions.at(dep);
+	  rss->mathstatus.function_status.at(dep_fcn).extra_internal_dependencies_on_function.emplace(std::make_tuple(chan_it->second.config,inst));
+	  // This way, when execution_complete_notify_single_referencing_rss() looks at our rss, notify_math_function_executed() will realize that our function needs to be considered.
+	    
+	}
+      }
+    }
+     
+
+     return found_incomplete_deps; 
+  }
+  
   /*  registered_math_function::registered_math_function(std::string name,std::function<std::shared_ptr<math_function>()> builder_function) :
     name(name),
     builder_function(builder_function)

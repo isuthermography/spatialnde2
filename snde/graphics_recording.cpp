@@ -47,6 +47,40 @@ namespace snde {
     // NOTE: Final parameter to multi_ndarray_recording() above is number of mapping entries ***!!! 
   }
 
+  std::shared_ptr<std::set<std::string>> meshed_part_recording::graphics_componentpart_channels(std::shared_ptr<recording_set_state> rss,std::vector<std::string> processing_tags)
+  {
+    std::shared_ptr<std::set<std::string>> componentpart_chans = std::make_shared<std::set<std::string>>();
+
+    std::unordered_set<std::string> processing_tag_set;
+    for (auto && tag: processing_tags) {
+      processing_tag_set.emplace(tag);
+    }
+
+    if (processing_tag_set.find("trianglearea") != processing_tag_set.end()){
+      componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),processed_relpaths.at("trianglearea"))); 
+    }
+    if (processing_tag_set.find("vertexarea") != processing_tag_set.end()){
+      componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),processed_relpaths.at("vertexarea"))); 
+    }
+
+    if (processing_tag_set.find("boxes3d") != processing_tag_set.end()){
+      componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),processed_relpaths.at("boxes3d"))); 
+    }
+    if (processing_tag_set.find("inplanemat") != processing_tag_set.end()){
+      componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),processed_relpaths.at("inplanemat"))); 
+    }
+    if (processing_tag_set.find("vertex_kdtree") != processing_tag_set.end()){
+      componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),processed_relpaths.at("vertex_kdtree"))); 
+    }
+    if (processing_tag_set.find("trinormals") != processing_tag_set.end()){
+      componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),processed_relpaths.at("trinormals"))); 
+    }
+    if (processing_tag_set.find("vertnormals") != processing_tag_set.end()){
+      componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),processed_relpaths.at("vertnormals"))); 
+    }
+    return componentpart_chans;
+  }
+  
   meshed_vertexarray_recording::meshed_vertexarray_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
     multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
   {
@@ -143,7 +177,26 @@ namespace snde {
     // NOTE: Final parameter to multi_ndarray_recording() above is number of mapping entries ***!!! 
   }
 
+  std::shared_ptr<std::set<std::string>> meshed_parameterization_recording::graphics_componentpart_channels(std::shared_ptr<recording_set_state> rss,std::vector<std::string> processing_tags)
+  {
+    std::shared_ptr<std::set<std::string>> componentpart_chans = std::make_shared<std::set<std::string>>();
 
+    std::unordered_set<std::string> processing_tag_set;
+    for (auto && tag: processing_tags) {
+      processing_tag_set.emplace(tag);
+    }
+
+    if (processing_tag_set.find("trianglearea") != processing_tag_set.end()){
+      componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),processed_relpaths.at("trianglearea"))); 
+    }
+    if (processing_tag_set.find("vertexarea") != processing_tag_set.end()){
+      componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),processed_relpaths.at("vertexarea"))); 
+    }
+    if (processing_tag_set.find("boxes2d") != processing_tag_set.end()){
+      componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),processed_relpaths.at("boxes2d"))); 
+    }
+    return componentpart_chans;
+  }
   meshed_projinfo_recording::meshed_projinfo_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,2)
   {
@@ -261,7 +314,31 @@ namespace snde {
     
   }
 
+  std::shared_ptr<std::set<std::string>> textured_part_recording::graphics_componentpart_channels(std::shared_ptr<recording_set_state> rss,std::vector<std::string> processing_tags)
+  {
+    std::shared_ptr<std::set<std::string>> componentpart_chans = std::make_shared<std::set<std::string>>();
 
+    std::unordered_set<std::string> processing_tag_set;
+    for (auto && tag: processing_tags) {
+      processing_tag_set.emplace(tag);
+    }
+
+    if (processing_tag_set.find("projinfo") != processing_tag_set.end()){
+      componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),processed_relpaths.at("projinfo"))); 
+    }
+    componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),part_name));
+
+    if (parameterization_name){
+      componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),*parameterization_name));
+    }
+
+    for (auto && facenum_imageref: texture_refs) {
+      componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),facenum_imageref.second->image_path));
+    }
+    return componentpart_chans;
+  }
+
+  
   assembly_recording::assembly_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::vector<std::pair<std::string,snde_orientation3>> &pieces) :
     recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize),
     pieces(pieces)
@@ -269,7 +346,7 @@ namespace snde {
     rec_classes.push_back(recording_class_info("snde::assembly_recording",typeid(assembly_recording),ptr_to_new_shared_impl<assembly_recording>));
 
   }
-  
+
   const std::shared_ptr<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>> assembly_recording::graphics_subcomponents_orientation_lockinfo(std::shared_ptr<recording_set_state> rss)
   {
     std::shared_ptr<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>> subcomponents = std::make_shared<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>>();
@@ -292,6 +369,18 @@ namespace snde {
     return subcomponents;
   }
 
+  
+  std::shared_ptr<std::set<std::string>> assembly_recording::graphics_componentpart_channels(std::shared_ptr<recording_set_state> rss,std::vector<std::string> processing_tags)
+  {
+    std::shared_ptr<std::set<std::string>> componentpart_chans = std::make_shared<std::set<std::string>>();
+
+    for (auto && channelpath_orientation: pieces) {
+      componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),channelpath_orientation.first));
+    }
+    return componentpart_chans;
+  }
+
+  
   loaded_part_geometry_recording::loaded_part_geometry_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::unordered_set<std::string> &processing_tags)
  :
     recording_group(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize), //,nullptr),
@@ -328,8 +417,20 @@ namespace snde {
    subcomponents->emplace("component_name",std::make_pair(component_name,null_orient));
     // Not including channel_to_reorient because its orientation is variable
     // and therefore can't be considered part of an immutable recording
-    return subcomponents;
+   return subcomponents;
   }
+
+  std::shared_ptr<std::set<std::string>> tracking_pose_recording::graphics_componentpart_channels(std::shared_ptr<recording_set_state> rss,std::vector<std::string> processing_tags)
+  {
+    std::shared_ptr<std::set<std::string>> componentpart_chans = std::make_shared<std::set<std::string>>();
+    
+    componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),channel_to_reorient));
+
+    componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),component_name));
+
+    return componentpart_chans;
+  }
+
   
   // Register the pre-existing tracking_pose_recording_display_handler in display_requirement.cpp/hpp as the display handler for pose_channel_tracking_pose_recording
   static int register_pctpr_display_handler = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING,typeid(pose_channel_tracking_pose_recording)),std::make_shared<registered_recording_display_handler>([] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
@@ -416,6 +517,19 @@ namespace snde {
     }
     return subcomponents;
   }
+
+    std::shared_ptr<std::set<std::string>> pose_channel_recording::graphics_componentpart_channels(std::shared_ptr<recording_set_state> rss,std::vector<std::string> processing_tags)
+  {
+    std::shared_ptr<std::set<std::string>> componentpart_chans = std::make_shared<std::set<std::string>>();
+    
+    componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),channel_to_reorient));
+
+    if (untransformed_channel) {
+      componentpart_chans->emplace(recdb_path_join(recdb_path_context(info->name),*untransformed_channel));
+    }
+    
+    return componentpart_chans;
+  }
   
   // only call during initialization
   void pose_channel_recording::set_untransformed_render_channel(std::string untransformed_channel_str)
@@ -433,7 +547,7 @@ namespace snde {
     return create_subclass_ndarray_ref<pose_channel_recording>(recdb,chan,owner_id,SNDE_RTN_SNDE_ORIENTATION3,channel_to_reorient_name);
   }
 
-  static void tso_lock_helper(std::shared_ptr<recording_set_state> rss,std::string channel_path,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>> this_lock,std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>> &locks)
+  static void tso_lock_helper(std::shared_ptr<recording_set_state> rss,std::string channel_path,std::string component_path,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>> this_lock,std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>> &locks,std::function<bool(std::string channel_path,std::string component_path)> recursion_approver)
   {
     std::shared_ptr<recording_base> graphicsrec=rss->check_for_recording(channel_path);
     if (graphicsrec) {
@@ -489,12 +603,15 @@ namespace snde {
 
       for (auto && field_chanpath_lockinfo: *component_lock_map) {
 	auto & lockinfo=field_chanpath_lockinfo.second.second;
-	
+	std::string fieldname = field_chanpath_lockinfo.first;
 	std::string subcomponent=field_chanpath_lockinfo.second.first;
+	std::string subcomponent_path = component_path + "/" + fieldname;
 	if (!recdb_path_isabs(subcomponent)) {
 	  subcomponent=recdb_path_join(recdb_path_context(channel_path),subcomponent);
 	}
-	tso_lock_helper(rss,subcomponent,lockinfo,locks);
+	if (recursion_approver(subcomponent,subcomponent_path)){
+	  tso_lock_helper(rss,subcomponent,subcomponent_path,lockinfo,locks,recursion_approver);
+	}
       }
     }
   }
@@ -509,11 +626,26 @@ namespace snde {
     }
     std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>> locks;
     std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>> this_lock = std::make_pair(nullptr,std::make_pair(0,false)); 
-    tso_lock_helper(rss,channel_path,this_lock,locks);
+    tso_lock_helper(rss,channel_path,"",this_lock,locks,[] (std::string channel_path,std::string component_path) { return true; });
     return locks;
   }
 
-  static void tso_instance_helper(std::shared_ptr<recording_set_state> rss,std::string channel_path,std::string component_path,snde_orientation3 orientation,std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>> &channelpaths_componentpaths_instances)
+  // This function is like traverse_scenegraph_orientationlocks except
+  // that it will not recurse into any scenegraph node with a channel path
+  // matching except_channelpath 
+  std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>> traverse_scenegraph_orientationlocks_except_channel(std::shared_ptr<recording_set_state> rss,std::string channel_path,std::string except_channelpath)
+  {
+    if (!rss->check_complete()) {
+      throw snde_error("traverse_scenegraph_orientationlocks: rss must be complete");
+    }
+    std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>> locks;
+    std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>> this_lock = std::make_pair(nullptr,std::make_pair(0,false)); 
+    tso_lock_helper(rss,channel_path,"",this_lock,locks,[except_channelpath] (std::string channel_path,std::string component_path) { if (channel_path == except_channelpath) {return false; } else {return true; }});
+    return locks;
+  }
+
+  
+  static void tso_instance_helper(std::shared_ptr<recording_set_state> rss,std::string channel_path,std::string component_path,snde_orientation3 orientation,std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>> &channelpaths_componentpaths_instances,std::function<bool(std::string channel_path,std::string component_path,snde_orientation3 orientation)> recursion_approver)
   {
     std::shared_ptr<recording_base> graphicsrec=rss->check_for_recording(channel_path);
     if (graphicsrec) {
@@ -595,8 +727,9 @@ namespace snde {
 	snde_orientation3 subcomponent_orientation;
 	orientation_orientation_multiply(orientation,subcomponent_relative_orientation,&subcomponent_orientation);
 
-	
-	tso_instance_helper(rss,subcomponent_channelpath,subcomponent_path,subcomponent_orientation,channelpaths_componentpaths_instances);
+	if (recursion_approver(subcomponent_channelpath,subcomponent_path,subcomponent_orientation)) {
+	  tso_instance_helper(rss,subcomponent_channelpath,subcomponent_path,subcomponent_orientation,channelpaths_componentpaths_instances,recursion_approver);
+	}
       }
     }
   }
@@ -612,7 +745,45 @@ namespace snde {
     snde_orientation3 null_orient;
     snde_null_orientation3(&null_orient);
     
-    tso_instance_helper(rss,channel_path,"",null_orient,channelpaths_componentpaths_instances);
+    tso_instance_helper(rss,channel_path,"",null_orient,channelpaths_componentpaths_instances,[] (std::string channel_path,std::string component_path,snde_orientation3 orientation) { return true; });
     return channelpaths_componentpaths_instances; 
+  }
+
+  // This function is like traverse_scenegraph_orientationlocked, except
+  // that it will not recurse into any scenegraph node with a channel
+  // path matching except_channelpath. In addition it returns  a
+  // vector containing the recursion info (channel_path,component_path,orientation) of the instances matching
+  // the entries in except_channelpaths. 
+  std::pair<std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>>,std::vector<std::tuple<std::string,std::string,snde_orientation3>>> traverse_scenegraph_orientationlocked_except_channelpath(std::shared_ptr<recording_set_state> rss,std::string channel_path,const std::set<std::string> &except_channelpaths,std::string starting_componentpath /* ="" */,const snde_orientation3 *starting_orientation /* =nullptr */)
+  {
+    if (!rss->check_complete()) {
+      throw snde_error("traverse_scenegraph_orientationlocked: rss must be complete");
+    }
+    std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>> channelpaths_componentpaths_instances;
+    std::vector<std::tuple<std::string,std::string,snde_orientation3>> except_recursioninfo; 
+    snde_orientation3 null_orient;
+
+    if (!starting_orientation) {
+      snde_null_orientation3(&null_orient);
+      starting_orientation = &null_orient;
+    }
+    
+    
+    tso_instance_helper(rss,
+			channel_path,
+			starting_componentpath,
+			*starting_orientation,
+			channelpaths_componentpaths_instances,
+			[ &except_channelpaths, &except_recursioninfo ] (std::string channel_path,std::string component_path,snde_orientation3 orientation) {
+			  auto ecp_it = except_channelpaths.find(channel_path);
+			  if (ecp_it != except_channelpaths.end()) {
+			    except_recursioninfo.push_back(std::make_tuple(channel_path,component_path,orientation));
+			    return false;
+			  }
+			  else {
+			    return true;
+			  }
+			});
+    return std::make_pair(channelpaths_componentpaths_instances,except_recursioninfo); 
   }
 };

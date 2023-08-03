@@ -412,7 +412,12 @@ namespace snde {
   {
     return std::make_shared<std::map<std::string,std::pair<std::string,snde_orientation3>>>();
   }
-
+  
+  std::shared_ptr<std::set<std::string>> recording_base::graphics_componentpart_channels(std::shared_ptr<recording_set_state> rss,std::vector<std::string> processing_tags)
+  {
+    return std::make_shared<std::set<std::string>>();
+  }
+  
   std::shared_ptr<recording_set_state> recording_base::_get_originating_rss_rec_admin_prelocked() 
   // version of get_originating_rss() to use if you have (optionally the recdb and) the rec admin locks already locked.
   {
@@ -502,8 +507,8 @@ namespace snde {
   // Get the originating recording set state (often a globalrev)
   // You should only call this if you are sure that originating rss must still exist
   // (otherwise may generate a snde_error), such as before the creator has declared
-  // the recording "ready". This will lock the recording database and rec admin locks,
-  // so any locks currently held must precede both in the locking order
+  // the recording "ready". This will lock the rec admin locks,
+  // so any locks currently held must precede that in the locking order
   {
 
     std::shared_ptr<recording_set_state> originating_rss_strong = _originating_rss.lock();

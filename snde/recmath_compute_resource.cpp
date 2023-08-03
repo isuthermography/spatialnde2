@@ -231,7 +231,7 @@ namespace snde {
 
     for (auto && result_channel_path_ptr: execfunc->inst->result_channel_paths) {
       channel_state &chanstate = single_referencing_rss->recstatus.channel_map->at(recdb_path_join(execfunc->inst->channel_path_context,*result_channel_path_ptr));
-      //chanstate.issue_math_notifications(recdb,ready_rss); // taken care of by notify_math_function_executed(), below
+      //chanstate.issue_math_notifications(recdb,ready_rss); // taken care of by notify_math_function_executed(), above
       chanstate.issue_nonmath_notifications(single_referencing_rss);
       
     }
