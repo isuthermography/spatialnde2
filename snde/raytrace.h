@@ -20,7 +20,7 @@ static RAYTRACE_INLINE void camera_rayvec(snde_cmat23 cam_mtx, snde_coord a,snde
   snde_coord fx,fy,cx,cy,x_over_w,y_over_w,rayvecfactor;
 
   fx = cam_mtx.row[0].coord[0];
-  fx = cam_mtx.row[1].coord[1];
+  fy = cam_mtx.row[1].coord[1];
   cx = cam_mtx.row[0].coord[2];
   cy = cam_mtx.row[1].coord[2];
   x_over_w = (a-cx)/fx;
@@ -63,7 +63,7 @@ static RAYTRACE_INLINE void camera_rayvec_deriv_a(snde_cmat23 cam_mtx, snde_coor
   snde_coord fx,fy,cx,cy,x_over_w,y_over_w,rayvecfactor,rayvecfactor2;
 
   fx = cam_mtx.row[0].coord[0];
-  fx = cam_mtx.row[1].coord[1];
+  fy = cam_mtx.row[1].coord[1];
   cx = cam_mtx.row[0].coord[2];
   cy = cam_mtx.row[1].coord[2];
   x_over_w = (a-cx)/fx;
@@ -89,7 +89,7 @@ static RAYTRACE_INLINE void camera_rayvec_deriv_b(snde_cmat23 cam_mtx, snde_coor
   snde_coord fx,fy,cx,cy,x_over_w,y_over_w,rayvecfactor,rayvecfactor2;
 
   fx = cam_mtx.row[0].coord[0];
-  fx = cam_mtx.row[1].coord[1];
+  fy = cam_mtx.row[1].coord[1];
   cx = cam_mtx.row[0].coord[2];
   cy = cam_mtx.row[1].coord[2];
   x_over_w = (a-cx)/fx;
