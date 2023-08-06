@@ -776,6 +776,21 @@ static VECOPS_INLINE snde_bool equalcoord4(const snde_coord4 vec1,const snde_coo
   return vec1.coord[0]==vec2.coord[0] && vec1.coord[1]==vec2.coord[1] && vec1.coord[2]==vec2.coord[2] && vec1.coord[3]==vec2.coord[3];
 }
 
+static VECOPS_INLINE void coord4_posn_from_coord3(const snde_coord3 vec, snde_coord4 *out)
+{
+  out->coord[0] = vec.coord[0];
+  out->coord[1] = vec.coord[1];
+  out->coord[2] = vec.coord[2];
+  out->coord[3] = 1.0;
+}
+
+static VECOPS_INLINE void coord4_vec_from_coord3(const snde_coord3 vec, snde_coord4 *out)
+{
+  out->coord[0] = vec.coord[0];
+  out->coord[1] = vec.coord[1];
+  out->coord[2] = vec.coord[2];
+  out->coord[3] = 0.0;
+}
 
 static VECOPS_INLINE void fmatrixsolve_print(snde_coord *A, snde_coord *b, size_t n, size_t nsolve,size_t *pivots)
 {

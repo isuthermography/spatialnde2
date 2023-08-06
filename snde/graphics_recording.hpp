@@ -237,7 +237,7 @@ namespace snde {
     std::string channel_to_reorient; // Name of the channel to render with the given pose, potentially relative to the parent of the pose_channel_recording
     std::shared_ptr<std::string> untransformed_channel; // nullptr, or name of the channel to render untransformed, potentially relative to the parent of the pose_channel_recording
     
-    pose_channel_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays,std::string channel_to_reorient); // must have num_ndarrays parameter for compatibility with create_subclass_ndarray_ref<S,T>...
+    pose_channel_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient); // must have num_ndarrays parameter for compatibility with create_subclass_ndarray_ref<S,T>...
 
     virtual const std::shared_ptr<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>> graphics_subcomponents_orientation_lockinfo(std::shared_ptr<recording_set_state> rss);
 
@@ -263,12 +263,15 @@ namespace snde {
 
   // This function is like traverse_scenegraph_orientationlocks except
   // that it will not recurse into any scenegraph node with a channel path
-  // matching except_channelpath
-  std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>> traverse_scenegraph_orientationlocks_except_channel(std::shared_ptr<recording_set_state> rss,std::string channel_path,std::string except_channelpath);
+  // matching except_channelpath. In addition to returning the lock info
+  // vector, it also returns a vector with recursion info with pairs of
+  // (channel_path,component_path) for the instances matching the entries
+  // in except_channelpaths. 
+  std::pair<std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>,std::vector<std::pair<std::string,std::string>>> traverse_scenegraph_orientationlocks_except_channelpaths(std::shared_ptr<recording_set_state> rss,std::string channel_path,const std::set<std::string> &except_channelpaths,std::string starting_component_path = "");
 
   //This function traverses the scene graph and extracts the orientations into an array of snde_partinstance.
   //It requires that you have locked the arrays returned by traverse_scenegraph_orientationlocks()
-   std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>> traverse_scenegraph_orientationlocked(std::shared_ptr<recording_set_state> rss,std::string channel_path);
+  std::vector<std::tuple<std::string,std::string,snde_partinstance>> traverse_scenegraph_orientationlocked(std::shared_ptr<recording_set_state> rss,std::string channel_path);
 
  
   // This function is like traverse_scenegraph_orientationlocked, except
@@ -276,7 +279,7 @@ namespace snde {
   // path matching except_channelpath. In addition it returns  a
   // vector containing the recursion info (channel_path,component_path,orientation) of the instances matching
   // the entries in except_channelpaths. 
-  std::pair<std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>>,std::vector<std::tuple<std::string,std::string,snde_orientation3>>> traverse_scenegraph_orientationlocked_except_channelpath(std::shared_ptr<recording_set_state> rss,std::string channel_path,const std::set<std::string> &except_channelpaths,std::string starting_componentpath="",const snde_orientation3 *starting_orientation=nullptr);
+  std::pair<std::vector<std::tuple<std::string,std::string,snde_partinstance>>,std::vector<std::tuple<std::string,std::string,snde_orientation3>>> traverse_scenegraph_orientationlocked_except_channelpaths(std::shared_ptr<recording_set_state> rss,std::string channel_path,const std::set<std::string> &except_channelpaths,std::string starting_componentpath="",const snde_orientation3 *starting_orientation=nullptr);
 
 
 };

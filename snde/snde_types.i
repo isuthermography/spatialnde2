@@ -134,7 +134,7 @@ typedef char snde_bool;
  // implements input and  const & input  typemaps for the specified type,
  // which must have an entry in snd::rtn_numpytypemap
 
- //%feature("novaluewrapper") snde_cpptype; // because valuewrapper screws up our output typemap and it shouldn't be necessary becaue we only use numpy_rtm_typemaps on plain-old-data types  (but disabling it doesn't seem to work)
+ //%feature("novaluewrapper") snde_cpptype; // because valuewrapper screws up our output typemap and it shouldn't be necessary because we only use numpy_rtm_typemaps on plain-old-data types  (but disabling it doesn't seem to work)
 
 %typemap(typecheck,precedence=SWIG_TYPECHECK_FLOAT_ARRAY) snde_cpptype varname {
   std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it;

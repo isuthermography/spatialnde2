@@ -493,6 +493,7 @@ template <typename T>
 %include "batched_live_accumulator.i"
 %include "accumulate_once.i"
 %include "project_onto_parameterization.i"
+%include "offset_calibration.i"
 %include "quaternion.i"
 %include "kdtree.i"
 %include "orientation_product.i"

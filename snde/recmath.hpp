@@ -42,6 +42,7 @@ namespace snde {
 #define SNDE_MFPT_ORIENTATION 7
 #define SNDE_MFPT_INDEXVEC 8 // vector of indices
 #define SNDE_MFPT_MAP 9 // map
+#define SNDE_MFPT_OFFSETCALIB 10 // used by offset_calibration.cpp internal messages
 
   // forward declarations
   class channelconfig; // defined in recstore.hpp
@@ -540,13 +541,28 @@ namespace snde {
     virtual ~silent_math_parameter_mismatch() = default;
   };
 
+  void annotate_incomplete_deps(std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst, math_function_status *mathstatus_ptr, const std::vector<std::string> &processing_tags, std::shared_ptr<std::set<std::string>> deps);
+
+
   // Dynamic dependencies have a find_additional_deps() method
   // that is needed to identify implicit dependencies.
   // This function is designed to fill that role for graphics
   // dependencies. Wrap this with a lambda that knows your
   // processing tags and assign it when the math_function is
   // created.
-  bool traverse_scenegraph_find_graphics_deps(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,math_function_status *mathstatus_ptr,std::vector<std::string> processing_tags);
+  //
+  // Note that this only considers recordings that are not ready
+  // as if the recording is ready any dependence is already
+  // satisfied. 
+  bool traverse_scenegraph_find_graphics_deps(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,math_function_status *mathstatus_ptr,const std::vector<std::string> &processing_tags,const std::set<std::string> &filter_channels);
+
+
+  // traverse_scenegraph_find_graphics_deps() searches all explicit
+  // dependencies (parameters of the math function) for referenced graphics.
+  // traverse_scenegraph_find_graphics_deps_under_channel() searches
+  // only within a specified channel
+  
+  bool traverse_scenegraph_find_graphics_deps_under_channel(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,math_function_status *mathstatus_ptr,const std::vector<std::string> &processing_tags,const std::set<std::string> &filter_channels,std::string channel_path);
   
   //class registered_math_function {
   //public:

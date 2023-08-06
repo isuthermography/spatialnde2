@@ -1818,7 +1818,7 @@ namespace snde {
     unsigned typenum=rtn_typemap.at(typeid(T));
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
-    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<S>(recdb,chan,owner_id,1,args...);
+    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<S>(recdb,chan,owner_id,args...);
     new_rec->define_array(0,typenum);
     
     return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
@@ -1855,7 +1855,7 @@ namespace snde {
     unsigned typenum=rtn_typemap.at(typeid(T));
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
-    std::shared_ptr<multi_ndarray_recording> new_rec = create_anonymous_recording<S>(recdb,purpose,1,args...);
+    std::shared_ptr<multi_ndarray_recording> new_rec = create_anonymous_recording<S>(recdb,purpose,args...);
     new_rec->define_array(0,typenum);
     
     return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
@@ -1898,7 +1898,7 @@ namespace snde {
     if (!recdb) return nullptr;
 
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chanpath,calc_rss,1); // owner id for math recordings is recdb raw pointer recdb.get()
-    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording_math<S>(chanpath,calc_rss,1,args...);
+    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording_math<S>(chanpath,calc_rss,args...);
     new_rec->define_array(0,typenum);
     return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
   }
@@ -1919,7 +1919,7 @@ namespace snde {
 
     // ***!!! Should look up maker method in a runtime-addable database ***!!!
 
-    rec=create_recording<S>(recdb,chan,owner_id,1,args...);
+    rec=create_recording<S>(recdb,chan,owner_id,args...);
     rec->define_array(0,typenum);
     
     ref=rec->reference_ndarray(0);
@@ -1938,7 +1938,7 @@ namespace snde {
     
     // ***!!! Should look up maker method in a runtime-addable database ***!!!
     
-    rec=create_anonymous_recording<S>(recdb,purpose,1,args...);
+    rec=create_anonymous_recording<S>(recdb,purpose,args...);
     rec->define_array(0,typenum);
     
     ref=rec->reference_ndarray(0);
@@ -1961,7 +1961,7 @@ namespace snde {
     if (!recdb) return nullptr;
 
     
-    rec=create_recording_math<S>(chanpath,calc_rss,1,args...); 
+    rec=create_recording_math<S>(chanpath,calc_rss,args...); 
     rec->define_array(0,typenum);
     ref=rec->reference_ndarray(0);
 
