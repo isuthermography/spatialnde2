@@ -1208,34 +1208,9 @@ namespace snde {
     }
     return found_incomplete_deps; 
   }
-  
-  // Dynamic dependencies have a find_additional_deps() method
-  // that is needed to identify implicit dependencies.
-  // This function is designed to fill that role for graphics
-  // dependencies. Wrap this with a lambda that knows your
-  // processing tags and assign it when the math_function is
-  // created.
-  //
-  // Note that this only considers recordings that are not ready
-  // as if the recording is ready any dependence is already
-  // satisfied. 
-  bool traverse_scenegraph_find_graphics_deps(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,math_function_status *mathstatus_ptr,const std::vector<std::string> &processing_tags,const std::set<std::string> &filter_channels)
+
+    void annotate_incomplete_deps(std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst, math_function_status *mathstatus_ptr, const std::vector<std::string> &processing_tags, std::shared_ptr<std::set<std::string>> deps)
   {
-    bool found_incomplete_deps = false; 
-
-    std::shared_ptr<std::set<std::string>> deps;
-
-    
-    for (auto && parameter: inst->parameters) {
-      // get prerequisite channels for this parameter
-      std::set<std::string> prereq_channels = parameter->get_prerequisites(inst->channel_path_context);
-      for (auto && prereq_channel: prereq_channels) {
-	std::string prereq_channel_fullpath = recdb_path_join(inst->channel_path_context,prereq_channel);
-	found_incomplete_deps = tsfgd_helper(rss,prereq_channel_fullpath,processing_tags,filter_channels,&deps) || found_incomplete_deps;
-      }
-    }
-   
-
     // We have now used the helper to find that we are dependent on
     // some additional channels (if found_incomplete_deps is
     // true).That means that we have to annotate ourselves as having
@@ -1330,11 +1305,61 @@ namespace snde {
 	    
 	}
       }
-    }
-     
-
-     return found_incomplete_deps; 
+    } 
   }
+  
+  // Dynamic dependencies have a find_additional_deps() method
+  // that is needed to identify implicit dependencies.
+  // This function is designed to fill that role for graphics
+  // dependencies. Wrap this with a lambda that knows your
+  // processing tags and assign it when the math_function is
+  // created.
+  //
+  // Note that this only considers recordings that are not ready
+  // as if the recording is ready any dependence is already
+  // satisfied. 
+  bool traverse_scenegraph_find_graphics_deps(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,math_function_status *mathstatus_ptr,const std::vector<std::string> &processing_tags,const std::set<std::string> &filter_channels)
+  {
+    bool found_incomplete_deps = false; 
+
+    std::shared_ptr<std::set<std::string>> deps;
+
+    
+    for (auto && parameter: inst->parameters) {
+      // get prerequisite channels for this parameter
+      std::set<std::string> prereq_channels = parameter->get_prerequisites(inst->channel_path_context);
+      for (auto && prereq_channel: prereq_channels) {
+	std::string prereq_channel_fullpath = recdb_path_join(inst->channel_path_context,prereq_channel);
+	found_incomplete_deps = tsfgd_helper(rss,prereq_channel_fullpath,processing_tags,filter_channels,&deps) || found_incomplete_deps;
+      }
+    }
+
+    annotate_incomplete_deps(rss,inst,mathstatus_ptr,processing_tags,deps);
+
+    return found_incomplete_deps;
+  }
+
+  // traverse_scenegraph_find_graphics_deps() searches all explicit
+  // dependencies (parameters of the math function) for referenced graphics.
+  // traverse_scenegraph_find_graphics_deps_under_channel() searches
+  // only within a specified channel
+  
+  bool traverse_scenegraph_find_graphics_deps_under_channel(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,math_function_status *mathstatus_ptr,const std::vector<std::string> &processing_tags,const std::set<std::string> &filter_channels,std::string channel_path)
+  {
+    bool found_incomplete_deps = false; 
+
+    std::shared_ptr<std::set<std::string>> deps;
+
+    
+    found_incomplete_deps = tsfgd_helper(rss,channel_path,processing_tags,filter_channels,&deps); 
+      
+    
+
+    annotate_incomplete_deps(rss,inst,mathstatus_ptr,processing_tags,deps);
+
+    return found_incomplete_deps;
+  }
+
   
   /*  registered_math_function::registered_math_function(std::string name,std::function<std::shared_ptr<math_function>()> builder_function) :
     name(name),

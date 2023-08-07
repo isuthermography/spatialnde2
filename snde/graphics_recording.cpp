@@ -478,16 +478,16 @@ namespace snde {
   }
 
 
-  pose_channel_recording::pose_channel_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays,std::string channel_to_reorient) :
-    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,num_ndarrays),
+  pose_channel_recording::pose_channel_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient) :
+    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1),
     channel_to_reorient(channel_to_reorient)
     
   {
     rec_classes.push_back(recording_class_info("snde::pose_channel_recording",typeid(pose_channel_recording),ptr_to_new_shared_impl<pose_channel_recording>));
 
-    if (num_ndarrays != 1) {
-      throw snde_error("pose_channel_recording::pose_channel_recording(%s): Error only single ndarray supported",chanpath.c_str());
-    }
+    // if (num_ndarrays != 1) {
+    //  throw snde_error("pose_channel_recording::pose_channel_recording(%s): Error only single ndarray supported",chanpath.c_str());
+    //  }
     
     define_array(0,rtn_typemap.at(typeid(snde_orientation3)),"pose");
   }
@@ -632,20 +632,32 @@ namespace snde {
 
   // This function is like traverse_scenegraph_orientationlocks except
   // that it will not recurse into any scenegraph node with a channel path
-  // matching except_channelpath 
-  std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>> traverse_scenegraph_orientationlocks_except_channel(std::shared_ptr<recording_set_state> rss,std::string channel_path,std::string except_channelpath)
+  // matching except_channelpath. In addition to returning the lock info
+  // vector, it also returns a vector with recursion info with pairs of
+  // (channel_path,component_path) for the instances matching the entries
+  // in except_channelpaths. 
+  std::pair<std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>,std::vector<std::pair<std::string,std::string>>> traverse_scenegraph_orientationlocks_except_channelpaths(std::shared_ptr<recording_set_state> rss,std::string channel_path,const std::set<std::string> &except_channelpaths,std::string starting_component_path /* = "" */)
   {
     if (!rss->check_complete()) {
       throw snde_error("traverse_scenegraph_orientationlocks: rss must be complete");
     }
     std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>> locks;
+    std::vector<std::pair<std::string,std::string>> except_channelpath_componentpaths;
+    
     std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>> this_lock = std::make_pair(nullptr,std::make_pair(0,false)); 
-    tso_lock_helper(rss,channel_path,"",this_lock,locks,[except_channelpath] (std::string channel_path,std::string component_path) { if (channel_path == except_channelpath) {return false; } else {return true; }});
-    return locks;
+    tso_lock_helper(rss,channel_path,"",this_lock,locks,[except_channelpaths,&except_channelpath_componentpaths] (std::string channel_path,std::string component_path) {
+      auto except_channelpath_it=except_channelpaths.find(channel_path);
+      if (except_channelpath_it != except_channelpaths.end()) {
+	except_channelpath_componentpaths.push_back(std::make_pair(channel_path,component_path));
+	return false;
+      } else {
+	return true;
+      }});
+    return std::make_pair(locks,except_channelpath_componentpaths);
   }
 
   
-  static void tso_instance_helper(std::shared_ptr<recording_set_state> rss,std::string channel_path,std::string component_path,snde_orientation3 orientation,std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>> &channelpaths_componentpaths_instances,std::function<bool(std::string channel_path,std::string component_path,snde_orientation3 orientation)> recursion_approver)
+  static void tso_instance_helper(std::shared_ptr<recording_set_state> rss,std::string channel_path,std::string component_path,snde_orientation3 orientation,std::vector<std::tuple<std::string,std::string,snde_partinstance>> &channelpaths_componentpaths_instances,std::function<bool(std::string channel_path,std::string component_path,snde_orientation3 orientation)> recursion_approver)
   {
     std::shared_ptr<recording_base> graphicsrec=rss->check_for_recording(channel_path);
     if (graphicsrec) {
@@ -711,10 +723,8 @@ namespace snde {
 	  firstuvpatch,
 	  uvnum,
 	};
-      
-	std::get<0>(channelpaths_componentpaths_instances).push_back(channel_path);
-	std::get<1>(channelpaths_componentpaths_instances).push_back(component_path);
-	std::get<2>(channelpaths_componentpaths_instances).push_back(instance);
+
+	channelpaths_componentpaths_instances.push_back(std::make_tuple(channel_path,component_path,instance));
       }
       for (auto && field_chanpath_orientation: *component_orientation_map) {
 	std::string fieldname=field_chanpath_orientation.first;
@@ -735,12 +745,12 @@ namespace snde {
   }
    //This function traverses the scene graph and extracts the orientations into an array of snde_partinstance.
   //It requires that you have locked the arrays returned by traverse_scenegraph_orientationlocks()
-   std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>> traverse_scenegraph_orientationlocked(std::shared_ptr<recording_set_state> rss,std::string channel_path)
+  std::vector<std::tuple<std::string,std::string,snde_partinstance>> traverse_scenegraph_orientationlocked(std::shared_ptr<recording_set_state> rss,std::string channel_path)
   {
     if (!rss->check_complete()) {
       throw snde_error("traverse_scenegraph_orientationlocked: rss must be complete");
     }
-    std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>> channelpaths_componentpaths_instances;
+    std::vector<std::tuple<std::string,std::string,snde_partinstance>> channelpaths_componentpaths_instances;
 
     snde_orientation3 null_orient;
     snde_null_orientation3(&null_orient);
@@ -754,12 +764,12 @@ namespace snde {
   // path matching except_channelpath. In addition it returns  a
   // vector containing the recursion info (channel_path,component_path,orientation) of the instances matching
   // the entries in except_channelpaths. 
-  std::pair<std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>>,std::vector<std::tuple<std::string,std::string,snde_orientation3>>> traverse_scenegraph_orientationlocked_except_channelpath(std::shared_ptr<recording_set_state> rss,std::string channel_path,const std::set<std::string> &except_channelpaths,std::string starting_componentpath /* ="" */,const snde_orientation3 *starting_orientation /* =nullptr */)
+  std::pair<std::vector<std::tuple<std::string,std::string,snde_partinstance>>,std::vector<std::tuple<std::string,std::string,snde_orientation3>>> traverse_scenegraph_orientationlocked_except_channelpaths(std::shared_ptr<recording_set_state> rss,std::string channel_path,const std::set<std::string> &except_channelpaths,std::string starting_componentpath /* ="" */,const snde_orientation3 *starting_orientation /* =nullptr */)
   {
     if (!rss->check_complete()) {
       throw snde_error("traverse_scenegraph_orientationlocked: rss must be complete");
     }
-    std::tuple<std::vector<std::string>,std::vector<std::string>,std::vector<snde_partinstance>> channelpaths_componentpaths_instances;
+    std::vector<std::tuple<std::string,std::string,snde_partinstance>> channelpaths_componentpaths_instances;
     std::vector<std::tuple<std::string,std::string,snde_orientation3>> except_recursioninfo; 
     snde_orientation3 null_orient;
 
