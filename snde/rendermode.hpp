@@ -198,6 +198,10 @@ namespace snde {
 	throw snde_error("renderparams_base::operator==(): equality operator not overidden but it should be");
       }
     }
+    virtual bool operator!=(const renderparams_base& b) {
+      return !(*this == b);
+    }
+
   };
 
 
