@@ -230,6 +230,7 @@ namespace snde {
 	      return std::make_shared<lock_alloc_function_override_type>([ this, starting_result,creator_data ]() {
 		// lock_alloc code
 		std::shared_ptr<ndtyped_recording_ref<snde_orientation3>> starting_ref = starting_result->reference_typed_ndarray<snde_orientation3>();
+		starting_result->allocate_storage(0,{1},false);
 		rwlock_token_set locktokens = lockmgr->lock_recording_refs({
 		    { starting_ref,true}},
 									   false
@@ -294,7 +295,7 @@ namespace snde {
 	      
 	      return std::make_shared<lock_alloc_function_override_type>([ this,scene,to_transform,previous_recording_pose,single_point_offset,creator_data,channel_to_reorient,result ]() {
 		// lock_alloc code
-
+		result->allocate_storage(0,{1},false);
 
 		// We are going to split the world into two parts:
 		// "Outer", which is in the scenegraph but not within
