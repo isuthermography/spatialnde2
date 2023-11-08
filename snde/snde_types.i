@@ -309,6 +309,115 @@ typedef char snde_bool;
   $result = (PyObject *)arrayobj;
 }
 
+// this typemap allows the input to not be present for a strict output argument
+%typemap(in, numinputs=0) snde_cpptype *OUTPUT_MATRIX(std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it,PyObject *zeroval,PyArray_Descr *ArrayDescr,PyArrayObject *arrayobj,PyObject *first_member,PyObject *shape_attr,PyObject *first_shape_member, Py_ssize_t first_shape_value,snde_cpptype *temp) {
+  
+  numpytypemap_it = snde::rtn_numpytypemap.find(SNDE_RTN_SNDE_CPPTYPE);
+  if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
+    //throw snde::snde_error("No corresponding numpy datatype found for " snde_cpptype_string );
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			"$argnum"" No corresponding numpy datatype found for " snde_cpptype_string);
+    SWIG_fail;
+  }
+
+  zeroval = PyLong_FromLong(0);
+  ArrayDescr = numpytypemap_it->second;
+
+  Py_IncRef((PyObject *)ArrayDescr); // because PyArray_CheckFromAny steals a reference to its descr parameter
+  // we need to obtain ArrayDescr[0].shape[0] to use that as the number of elements
+  first_member = PyObject_GetItem((PyObject*)ArrayDescr,zeroval);
+  if (!first_member) {
+    PyErr_Print();
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', TEST2 Array descriptor first element not found for " snde_cpptype_string);
+    SWIG_fail;
+  }
+
+  shape_attr = PyObject_GetAttrString(first_member,"shape");
+
+  if (!shape_attr) {
+    PyErr_Print();
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', Array descriptor first element does not have a .shape attribute for " snde_cpptype_string);
+    SWIG_fail;
+  }
+
+  first_shape_member = PyObject_GetItem(shape_attr,zeroval);
+  if (!first_shape_member) {
+    PyErr_Print();
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', Array descriptor first element .shape attr element 0 not found for " snde_cpptype_string);
+    SWIG_fail;
+  }
+
+  first_shape_value = PyNumber_AsSsize_t(first_shape_member,nullptr);
+
+  
+  Py_DecRef(first_shape_member);
+  Py_DecRef(shape_attr);
+  Py_DecRef(first_member);
+  Py_DecRef(zeroval);
+
+  temp = (snde_cpptype*)calloc(sizeof(snde_cpptype),first_shape_value);
+  $1 = temp;
+}
+
+%typemap(freearg) snde_cpptype *OUTPUT_MATRIX // free the temp calloc variable from snde_cpptype *OUTPUT_MATRIX typemap, above
+{
+  free($1);
+}
+
+%typemap(argout) snde_cpptype *OUTPUT_MATRIX (std::unordered_map<unsigned,PyArray_Descr*>::iterator numpytypemap_it,PyObject *zeroval, PyArray_Descr *ArrayDescr,PyArrayObject *arrayobj,npy_intp num_el,PyObject *first_member,PyObject *shape_attr,PyObject *first_shape_member, Py_ssize_t first_shape_value) {
+  numpytypemap_it = snde::rtn_numpytypemap.find(SNDE_RTN_SNDE_CPPTYPE);
+  if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
+    //throw snde::snde_error("No corresponding numpy datatype found for " snde_cpptype_string );
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', argument "
+			"$argnum"" No corresponding numpy datatype found for " snde_cpptype_string);
+    SWIG_fail;
+  }
+
+  zeroval = PyLong_FromLong(0);
+  ArrayDescr = numpytypemap_it->second;
+
+  Py_IncRef((PyObject *)ArrayDescr); // because PyArray_CheckFromAny steals a reference to its descr parameter
+  // we need to obtain ArrayDescr[0].shape[0] to use that as the number of elements
+  first_member = PyObject_GetItem((PyObject*)ArrayDescr,zeroval);
+  if (!first_member) {
+    PyErr_Print();
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', Array descriptor first element not found for " snde_cpptype_string);
+    SWIG_fail;
+  }
+
+  shape_attr = PyObject_GetAttrString(first_member,"shape");
+
+  if (!shape_attr) {
+    PyErr_Print();
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', Array descriptor first element does not have a .shape attribute for " snde_cpptype_string);
+    SWIG_fail;
+  }
+
+  first_shape_member = PyObject_GetItem(shape_attr,zeroval);
+  if (!first_shape_member) {
+    PyErr_Print();
+    SWIG_exception_fail(SWIG_TypeError, "in method '" "$symname" "', Array descriptor first element .shape attr element 0 not found for " snde_cpptype_string);
+    SWIG_fail;
+  }
+
+  first_shape_value = PyNumber_AsSsize_t(first_shape_member,nullptr);
+  num_el = first_shape_value;
+
+  Py_DecRef(first_shape_member);
+  Py_DecRef(shape_attr);
+  Py_DecRef(first_member);
+  Py_DecRef(zeroval);
+
+
+  // create new 1D array 
+  arrayobj = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type,ArrayDescr,1,&num_el,nullptr,nullptr,0,nullptr);
+
+  assert(PyArray_SIZE(arrayobj) == first_shape_value);
+  memcpy(PyArray_DATA(arrayobj),$1,sizeof(*$1)*first_shape_value);
+
+  $result = (PyObject *)arrayobj;
+}
+
 
 
 %enddef
