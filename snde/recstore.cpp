@@ -78,6 +78,7 @@ namespace snde {
       {typeid(snde_kdnode),SNDE_RTN_SNDE_KDNODE},
       //{typeid(snde_bool),SNDE_RTN_SNDE_BOOL}, // C++ type is indistinguishable from UINT8
       //{typeid(snde_compleximagedata),SNDE_RTN_SNDE_COMPLEXIMAGEDATA}, // C++ type is indistinguishable from complexfloat32
+      {typeid(std::vector<std::vector<snde_index>>),SNDE_RTN_VECOFINDEXVECS},
 
   });
   
@@ -208,6 +209,7 @@ namespace snde {
       {SNDE_RTN_SNDE_KDNODE,"SNDE_RTN_SNDE_KDNODE"},
       {SNDE_RTN_SNDE_BOOL,"SNDE_RTN_SNDE_BOOL"},
       {SNDE_RTN_SNDE_COMPLEXIMAGEDATA,"SNDE_RTN_SNDE_COMPLEXIMAGEDATA"},
+      {SNDE_RTN_VECOFINDEXVECS,"SNDE_RTN_VECOFINDEXVECS"},
     });
   
 

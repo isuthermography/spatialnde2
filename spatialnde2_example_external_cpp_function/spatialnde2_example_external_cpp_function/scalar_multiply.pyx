@@ -8,7 +8,7 @@ import spatialnde2 as snde
 
 
 
-from scalar_multiply_cpp cimport scalar_multiply_function as scalar_multiply_function_cpp
+from spatialnde2_example_external_cpp_function.scalar_multiply_cpp cimport scalar_multiply_function as scalar_multiply_function_cpp
 
 # scalar_multiply_function_cpp is a shared_ptr to an
 # snde::math_function To make it accessible to general python, we need

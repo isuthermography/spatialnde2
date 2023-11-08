@@ -60,6 +60,12 @@ namespace snde {
 
   }
 
+    std::vector<std::vector<snde_index>> math_parameter::get_vecofindexvecs(std::shared_ptr<recording_set_state> rss, const std::string& channel_path_context, const std::shared_ptr<math_definition>& fcn_def, size_t parameter_index)
+  {
+    throw math_parameter_mismatch("Cannot get index vector value from parameter of class %s for parameter %d of %s", (char*)typeid(*this).name(), parameter_index, fcn_def->definition_command.c_str());
+
+  }
+
   
   std::shared_ptr<recording_base> math_parameter::get_recording(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings
   {
@@ -378,6 +384,39 @@ namespace snde {
   {
     return !(*this==ref);
   }
+
+
+
+  math_parameter_vecofindexvecs_const::math_parameter_vecofindexvecs_const(const std::vector<std::vector<snde_index>>& indexvecs) :
+    math_parameter(SNDE_MFPT_VECOFINDEXVECS),
+    indexvecs(indexvecs)
+  {
+
+  }
+
+  std::vector<std::vector<snde_index>> math_parameter_vecofindexvecs_const::get_vecofindexvecs(std::shared_ptr<recording_set_state> rss, const std::string& channel_path_context, const std::shared_ptr<math_definition>& fcn_def, size_t parameter_index)
+  {
+    return indexvecs;
+  }
+
+
+  bool math_parameter_vecofindexvecs_const::operator==(const math_parameter& ref) // used for comparing parameters to instantiated_math_functions
+  {
+    const math_parameter_vecofindexvecs_const* iref = dynamic_cast<const math_parameter_vecofindexvecs_const*>(&ref);
+
+    if (!iref) {
+      return false;
+    }
+
+    return indexvecs == iref->indexvecs;
+
+  }
+
+  bool math_parameter_vecofindexvecs_const::operator!=(const math_parameter& ref)
+  {
+    return !(*this == ref);
+  }
+
 
   
   math_parameter_recording::math_parameter_recording(std::string channel_name) :
