@@ -43,7 +43,6 @@ namespace snde {
 #define SNDE_MFPT_INDEXVEC 8 // vector of indices
 #define SNDE_MFPT_MAP 9 // map
 #define SNDE_MFPT_OFFSETCALIB 10 // used by offset_calibration.cpp internal messages
-#define SNDE_MFPT_VECOFINDEXVECS 11 // vector of vector of indices
 
   // forward declarations
   class channelconfig; // defined in recstore.hpp

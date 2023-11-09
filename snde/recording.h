@@ -154,7 +154,7 @@ struct snde_multi_ndarray_recording {
 #define SNDE_RTN_SNDE_KDNODE 59
 #define SNDE_RTN_SNDE_BOOL 60
 #define SNDE_RTN_SNDE_COMPLEXIMAGEDATA 61
-#define SNDE_RTN_VECOFINDEXVECS 62
+
 // Still need to add NURBS types
 
 #endif // SNDE_RECORDING_H
