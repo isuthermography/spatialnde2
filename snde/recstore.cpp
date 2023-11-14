@@ -37,6 +37,7 @@ namespace snde {
       {typeid(std::shared_ptr<recording_base>),SNDE_RTN_RECORDING},      
       {typeid(std::shared_ptr<multi_ndarray_recording>),SNDE_RTN_RECORDING},      
       {typeid(std::shared_ptr<ndarray_recording_ref>),SNDE_RTN_RECORDING_REF},      
+      {typeid(std::shared_ptr<constructible_metadata>),SNDE_RTN_CONSTRUCTIBLEMETADATA},
       {typeid(snde_coord3_int16),SNDE_RTN_SNDE_COORD3_INT16},
       {typeid(std::vector<snde_index>),SNDE_RTN_INDEXVEC},
       {typeid(std::shared_ptr<recording_group>),SNDE_RTN_RECORDING_GROUP},
@@ -402,8 +403,22 @@ namespace snde {
   {
     return std::dynamic_pointer_cast<multi_ndarray_recording>(shared_from_this());
   }
+  
+  const std::shared_ptr<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>> recording_base::graphics_subcomponents_orientation_lockinfo(std::shared_ptr<recording_set_state> rss)
+  {
+    return std::make_shared<std::map<std::string,std::pair<std::string,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>>>>();
+  }
 
-
+  const std::shared_ptr<std::map<std::string,std::pair<std::string,snde_orientation3>>> recording_base::graphics_subcomponents_lockedorientations(std::shared_ptr<recording_set_state> rss)
+  {
+    return std::make_shared<std::map<std::string,std::pair<std::string,snde_orientation3>>>();
+  }
+  
+  std::shared_ptr<std::set<std::string>> recording_base::graphics_componentpart_channels(std::shared_ptr<recording_set_state> rss,std::vector<std::string> processing_tags)
+  {
+    return std::make_shared<std::set<std::string>>();
+  }
+  
   std::shared_ptr<recording_set_state> recording_base::_get_originating_rss_rec_admin_prelocked() 
   // version of get_originating_rss() to use if you have (optionally the recdb and) the rec admin locks already locked.
   {
@@ -493,8 +508,8 @@ namespace snde {
   // Get the originating recording set state (often a globalrev)
   // You should only call this if you are sure that originating rss must still exist
   // (otherwise may generate a snde_error), such as before the creator has declared
-  // the recording "ready". This will lock the recording database and rec admin locks,
-  // so any locks currently held must precede both in the locking order
+  // the recording "ready". This will lock the rec admin locks,
+  // so any locks currently held must precede that in the locking order
   {
 
     std::shared_ptr<recording_set_state> originating_rss_strong = _originating_rss.lock();
@@ -3380,6 +3395,19 @@ namespace snde {
       
       
     }
+
+
+    // Check for math messages -- erase from unknownchanged_channels see 3372/3373
+    // also add to new globalrev->math_status
+    for (auto mathfcn : recdb_strong->current_transaction->math_messages) {
+      changed_math_functions.emplace(mathfcn.first);
+      unknownchanged_math_functions.erase(mathfcn.first);
+    }
+    globalrev->mathstatus.math_messages = recdb_strong->current_transaction->math_messages;
+
+
+
+
     for (auto && updated_chan: recdb_strong->current_transaction->updated_channels) {
       std::shared_ptr<channelconfig> config = updated_chan->config();
 
@@ -4315,6 +4343,15 @@ namespace snde {
     std::atomic_store(&_prerequisite_state,prereq_state);
   }
 
+
+  bool recording_set_state::check_complete()
+  {
+    std::lock_guard<std::mutex> rss_admin(admin);
+      
+    // check if all recordings are ready and all math functions are complete
+    bool all_ready = !recstatus.defined_recordings.size() && !recstatus.instantiated_recordings.size() && !mathstatus.pending_functions.size() && !mathstatus.mdonly_pending_functions.size();
+    return all_ready;
+  }
   void recording_set_state::wait_complete()
   {
     std::shared_ptr<promise_channel_notify> promise_notify=std::make_shared<promise_channel_notify>(std::vector<std::string>(),std::vector<std::string>(),true);
@@ -4849,6 +4886,37 @@ namespace snde {
     }
 
     
+  }
+
+  void recdatabase::send_math_message(std::shared_ptr<instantiated_math_function> func, std::string name, std::shared_ptr<math_instance_parameter> msg)
+  {
+
+    // Check and throw if not in transaction 
+    if (!current_transaction) {
+      throw snde_error("send_math_message: must be called in a transaction");
+    }
+    
+    // add to the current transaction
+    {
+      std::lock_guard<std::mutex> curtrans_lock(current_transaction->admin);
+      auto msgs = current_transaction->math_messages.find(func);
+      if (msgs != current_transaction->math_messages.end()) {
+
+	auto check = msgs->second.find(name);
+	if (check != msgs->second.end()) {
+	  throw snde_error("send_math_message:  can only send specified message '%s' once in transaction", name);
+	}
+	else {
+	  msgs->second.emplace(std::make_pair(name, msg));
+	}	
+      }
+      else {
+	std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>> new_msgs;
+	new_msgs.emplace(std::make_pair(name, msg));
+	current_transaction->math_messages.emplace(std::make_pair(func, new_msgs));
+      }     	
+    }
+
   }
 
   void recdatabase::add_math_function_storage_manager(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager) 

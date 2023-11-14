@@ -231,7 +231,7 @@ namespace snde {
 
     for (auto && result_channel_path_ptr: execfunc->inst->result_channel_paths) {
       channel_state &chanstate = single_referencing_rss->recstatus.channel_map->at(recdb_path_join(execfunc->inst->channel_path_context,*result_channel_path_ptr));
-      //chanstate.issue_math_notifications(recdb,ready_rss); // taken care of by notify_math_function_executed(), below
+      //chanstate.issue_math_notifications(recdb,ready_rss); // taken care of by notify_math_function_executed(), above
       chanstate.issue_nonmath_notifications(single_referencing_rss);
       
     }
@@ -566,9 +566,20 @@ namespace snde {
       snde_debug(SNDE_DC_RECMATH,"execfunc=0x%llx; rss=0x%llx",(unsigned long long)execfunc.get(),(unsigned long long)ready_rss.get());
       snde_debug(SNDE_DC_RECMATH,"ready_to_execute:%d",(int)ready_rss_status.ready_to_execute);
       if (ready_rss_status.ready_to_execute && execfunc->try_execution_ticket()) {
+
 	// we are taking care of execution -- we have the execution ticket!
 	assert(ready_rss_status.execution_demanded); 
 	ready_rss_status.ready_to_execute=false;
+
+	// Move rss->mathstatus->math_msgs into executing_math_funciton for this math funciton
+	// Extract to local variable here and assign into executing_math_function down on 586
+	std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>> math_messages;
+	auto msglookup = ready_rss->mathstatus.math_messages.find(ready_fcn);
+	if (msglookup != ready_rss->mathstatus.math_messages.end()) {
+	  math_messages = msglookup->second;
+	}
+	
+
 	ready_rss_admin.unlock();
 
 	std::shared_ptr<recording_set_state> prerequisite_state = ready_rss->prerequisite_state();
@@ -576,6 +587,9 @@ namespace snde {
 
 	try {
 	  execfunc->execution_tracker = ready_fcn->fcn->initiate_execution(ready_rss,ready_fcn);
+
+	  // add it here
+	  execfunc->execution_tracker->msgs = math_messages;
 
 	  if (!execfunc->execution_tracker) {
 	    // initiate_execution failed

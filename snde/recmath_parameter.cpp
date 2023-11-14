@@ -1,5 +1,6 @@
 #include <typeinfo>
 
+#include <snde/metadata.hpp>
 #include "snde/recmath_parameter.hpp"
 #include "snde/recmath.hpp"
 #include "snde/recstore.hpp"
@@ -60,6 +61,11 @@ namespace snde {
 
   }
 
+  std::shared_ptr<constructible_metadata> math_parameter::get_metadata(std::shared_ptr<recording_set_state> rss, const std::string& channel_path_context, const std::shared_ptr<math_definition>& fcn_def, size_t parameter_index)
+  {
+    throw math_parameter_mismatch("Cannot get metadata value from parameter of class %s for parameter %d of %s", (char*)typeid(*this).name(), parameter_index, fcn_def->definition_command.c_str());
+
+  }
   
   std::shared_ptr<recording_base> math_parameter::get_recording(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index) // should only return ready recordings
   {
@@ -377,6 +383,37 @@ namespace snde {
   bool math_parameter_indexvec_const::operator!=(const math_parameter &ref)
   {
     return !(*this==ref);
+  }
+
+
+  math_parameter_metadata_const::math_parameter_metadata_const(std::shared_ptr<snde::constructible_metadata> metadata) :
+    math_parameter(SNDE_MFPT_METADATA),
+    metadata(metadata)
+  {
+
+  }
+
+  std::shared_ptr<snde::constructible_metadata> math_parameter_metadata_const::get_metadata(std::shared_ptr<recording_set_state> rss, const std::string& channel_path_context, const std::shared_ptr<math_definition>& fcn_def, size_t parameter_index)
+  {
+    return metadata;
+  }
+
+
+  bool math_parameter_metadata_const::operator==(const math_parameter& ref) // used for comparing parameters to instantiated_math_functions
+  {
+    const math_parameter_metadata_const* iref = dynamic_cast<const math_parameter_metadata_const*>(&ref);
+
+    if (!iref) {
+      return false;
+    }
+
+    return metadata == iref->metadata;
+
+  }
+
+  bool math_parameter_metadata_const::operator!=(const math_parameter& ref)
+  {
+    return !(*this == ref);
   }
 
   

@@ -1,6 +1,5 @@
 #include <math.h>
 
-#include "snde/phase_plane_vertex_functions.hpp"
 #include "snde/recmath_cppfunction.hpp"
 #include "snde/batched_live_accumulator.hpp"
 
@@ -15,6 +14,10 @@
 #include "snde/snde_types_h.h"
 #include "snde/geometry_types_h.h"
 #include "snde/vecops_h.h"
+
+
+#include "snde/phase_plane_vertex_functions.hpp"
+
 #include "snde/phase_plane_vertex_calcs_c.h"
 
   
@@ -285,7 +288,6 @@ namespace snde {
 	      snde_index output_pos=0;
 	      T previous_coords = { 0,0 };
 
-	      std::vector<cl::Event> kerndoneevents;
 	      
 	      
 	      for (size_t arraynum=0;arraynum < recording->mndinfo()->num_arrays;arraynum++) {

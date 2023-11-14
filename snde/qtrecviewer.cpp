@@ -629,36 +629,22 @@ namespace snde {
 	}
 
 	// Try to Add Third Axis if it Exists
-	if (recdb_strong->latest_globalrev()->get_ndarray_ref(posmgr->selected_channel->FullName, 0)->ndinfo()->ndim >= 3) {
-		a = display->GetThirdAxis(posmgr->selected_channel->FullName);
+	auto latest_globalrev = recdb_strong->latest_globalrev();
+	auto rec = latest_globalrev->check_for_recording_ref(posmgr->selected_channel->FullName, 0);
+	// There is an obvious race condition issue here where this could change between line 632 and line 636 -- fix this later
+	if (rec && rec->ndinfo()->ndim >= 3) {
+		double offset2, scale2;
+		std::string UnitName;
+		std::tie(a,offset2,scale2,UnitName) = display->GetThirdAxis(posmgr->selected_channel->FullName);
 		if (a) {
 			if (needjoin) {
 				statusline += " | ";
 			}
-			double scalefactor;
-			double vertunitsperdiv;
-			bool pixelflag = false;
 
+			double displayframe;
 			{
-				std::lock_guard<std::mutex> adminlock(a->unit->admin);
-				scalefactor = a->unit->scale;
-				vertunitsperdiv = scalefactor;
-
-				pixelflag = a->unit->pixelflag;
-				snde_debug(SNDE_DC_VIEWER, "Image: Vertical axis: a=%s", a->axis.c_str());
-
-			}
-
-			{
-				std::lock_guard<std::mutex> adminlock(display->admin);
-				if (pixelflag) vertunitsperdiv *= display->pixelsperdiv;
-			}
-
-			//std::stringstream inipos;
-			double inipos;
-			{
-				std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
-				inipos = posmgr->selected_channel->DisplayFrame * vertunitsperdiv;
+			  	std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+				displayframe = posmgr->selected_channel->DisplayFrame;
 			}
 
 			//std::stringstream vertscalestr;
@@ -666,7 +652,7 @@ namespace snde {
 
 			//statusline += a->abbrev+"0=" + inipos.str() + " " + vertscalestr.str() + a->unit->unit.print(false);
 			std::lock_guard<std::mutex> adminlock(a->admin);
-			statusline += a->abbrev + "=" + PrintWithSIPrefix(inipos, a->unit->unit.print(false), 3);
+			statusline += a->abbrev + "=" + PrintWithSIPrefix(offset2 + scale2 * displayframe, a->unit->unit.print(false), 3);
 
 			needjoin = true;
 
@@ -686,7 +672,8 @@ namespace snde {
 	a=display->GetAmplAxis(posmgr->selected_channel->FullName);
 	
 	// Only Show Amplitude If It Can Be Adjusted -- Not Colormapping with RGBA Image Directly
-	if (recdb_strong->latest_globalrev()->get_ndarray_ref(posmgr->selected_channel->FullName, 0)->storage->typenum != SNDE_RTN_SNDE_RGBA) {
+	
+	if (rec && rec->storage->typenum != SNDE_RTN_SNDE_RGBA) {
 
 		if (a) {
 			if (needjoin) {
@@ -901,6 +888,84 @@ namespace snde {
       
     
   }
+
+
+  void QTRecViewer::SetOffsetToMean(bool checked)
+  {
+	  if (posmgr->selected_channel) {
+
+
+		  int render_mode;
+		  {
+			  std::lock_guard<std::mutex> selchan_admin(posmgr->selected_channel->admin);
+
+			  render_mode = posmgr->selected_channel->render_mode;
+		  }
+
+		  std::shared_ptr<display_axis> a = display->GetAmplAxis(posmgr->selected_channel->FullName);
+
+		  std::shared_ptr<recdatabase> recdb_strong = recdb.lock();
+
+		  if (a && recdb_strong && (render_mode == SNDE_DCRM_IMAGE || render_mode == SNDE_DCRM_WAVEFORM)) {
+			  snde_float64 mean = 0.0;
+			  std::shared_ptr<snde::globalrevision> rev = recdb_strong->latest_globalrev();
+			  if (rev) {
+				  std::shared_ptr<snde::ndarray_recording_ref> ref = rev->get_ndarray_ref(posmgr->selected_channel->FullName, 0);
+				  if (ref) {
+					  snde_index n = ref->layout.flattened_length();
+					  snde_debug(SNDE_DC_VIEWER, "SetOffsetToMean: n = %llu", n);
+					  switch (ref->typenum) {
+					  case SNDE_RTN_FLOAT32:
+					  case SNDE_RTN_FLOAT64:
+						  for (snde_index i = 0; i < n; i++) {
+							  mean += ref->element_double(i);
+						  }
+						  break;
+					  case SNDE_RTN_UINT8:
+					  case SNDE_RTN_UINT16:
+					  case SNDE_RTN_UINT32:
+					  case SNDE_RTN_UINT64:
+						  for (snde_index i = 0; i < n; i++) {
+							  mean += (double)ref->element_unsigned(i);
+						  }
+						  break;
+					  case SNDE_RTN_INT16:
+					  case SNDE_RTN_INT32:
+					  case SNDE_RTN_INT64:
+						  for (snde_index i = 0; i < n; i++) {
+							  mean += (double)ref->element_int(i);
+						  }
+						  break;
+					  }
+					  if (n != 0) {
+						  mean /= double(n);
+					  }
+					  else {
+						  mean = 0.0;
+					  }
+				  }
+			  }
+
+			  {
+				  std::lock_guard<std::mutex> adminlock(posmgr->selected_channel->admin);
+				  if (render_mode == SNDE_DCRM_IMAGE) {
+					  posmgr->selected_channel->Offset = mean;
+				  }
+				  else if(render_mode == SNDE_DCRM_WAVEFORM){
+					  posmgr->selected_channel->VertCenterCoord = mean;
+				  }
+				  
+			  }
+			  //posmgr->selected_channel->mark_as_dirty();
+			  // ***!!! Should probably look at intensity bounds for channel instead ***!!!
+			  UpdateViewerStatus();
+			  emit NeedRedraw();
+		  }
+	  }
+
+
+  }
+
   
   void QTRecViewer::Brighten(bool checked)
   {

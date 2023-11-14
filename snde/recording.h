@@ -155,6 +155,8 @@ struct snde_multi_ndarray_recording {
 #define SNDE_RTN_SNDE_BOOL 60
 #define SNDE_RTN_SNDE_COMPLEXIMAGEDATA 61
 
+#define SNDE_RTN_CONSTRUCTIBLEMETADATA 62 // not usable for recordings, but used internally for math parameters.
+
 // Still need to add NURBS types
 
 #endif // SNDE_RECORDING_H

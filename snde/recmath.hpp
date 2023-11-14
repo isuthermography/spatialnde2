@@ -41,6 +41,9 @@ namespace snde {
 #define SNDE_MFPT_VECTOR 6
 #define SNDE_MFPT_ORIENTATION 7
 #define SNDE_MFPT_INDEXVEC 8 // vector of indices
+#define SNDE_MFPT_MAP 9 // map
+#define SNDE_MFPT_OFFSETCALIB 10 // used by offset_calibration.cpp internal messages
+#define SNDE_MFPT_METADATA 11 // constructible_metadata
 
   // forward declarations
   class channelconfig; // defined in recstore.hpp
@@ -65,45 +68,65 @@ namespace snde {
   
   class math_instance_parameter {
   public:
-    // this is a recursive dictionary/list structure -- this is just the abstract base class
-    
+    unsigned paramtype; // SNDE_MFPT_XXX from above
+
+    math_instance_parameter(unsigned paramtype);
+
+    // Rule of 3
+    math_instance_parameter(const math_instance_parameter &) = delete;
+    math_instance_parameter& operator=(const math_instance_parameter &) = delete;
+    virtual ~math_instance_parameter()=default;  // virtual destructor required so we can be subclassed
+
     virtual bool operator==(const math_instance_parameter &ref)=0; // used for comparing extra parameters to instantiated_math_functions
     virtual bool operator!=(const math_instance_parameter &ref)=0;
-
   };
   
-  class list_math_instance_parameter {
+  class list_math_instance_parameter : public math_instance_parameter {
   public:
     std::vector<std::shared_ptr<math_instance_parameter>> list;
+
+    list_math_instance_parameter(std::vector<std::shared_ptr<math_instance_parameter>> list);
+    
     virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
     virtual bool operator!=(const math_instance_parameter &ref);
-
   };
     
-  class dict_math_instance_parameter {
+  class dict_math_instance_parameter : public math_instance_parameter {
   public:
-    std::unordered_map<std::string,std::shared_ptr<math_instance_parameter>> dict;
+    std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>> dict;
+
+    dict_math_instance_parameter(std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>> dict);
+    
     virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
     virtual bool operator!=(const math_instance_parameter &ref);
   };
   
-  class string_math_instance_parameter {
+  class string_math_instance_parameter : public math_instance_parameter {
   public:
     std::string value;
+
+    string_math_instance_parameter(std::string value);
+
     virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
     virtual bool operator!=(const math_instance_parameter &ref);
   };
   
-  class int_math_instance_parameter {
+  class int_math_instance_parameter : public math_instance_parameter {
   public:
     int64_t value;
+
+    int_math_instance_parameter(int64_t value);
+
     virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
     virtual bool operator!=(const math_instance_parameter &ref);
   };
   
-  class double_math_instance_parameter {
+  class double_math_instance_parameter : public math_instance_parameter {
   public:
     double value;
+
+    double_math_instance_parameter(double value);
+    
     virtual bool operator==(const math_instance_parameter &ref); // used for comparing extra parameters to instantiated_math_functions
     virtual bool operator!=(const math_instance_parameter &ref);
   };
@@ -136,7 +159,7 @@ namespace snde {
     
     std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution;
 
-    std::shared_ptr<std::function<bool(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated, math_function_status *mathstatus_ptr)>> find_additional_deps; // the find_additional_deps method is nullptr unless the function is a dynamic_dependency. For dynamic_dependencies this function walks the current list of dependencies (for instantiated parameter) with rss set state and adds additional dependencies that it has discovered to the mathstatus_ptr missing_prerequisites, missing_external_channel_prerequisites, and/or missing_external_function_prerequisites. It returns true if any were added; false otherwise. Any additions to missing_external_channel_prerequisites needs a corresponding addition in the prerequisite state to math_status::external_dependencies_on_channel. Any addition to missing_external_function_prerequisites requires an addition in the prerequisite state to math_status::external_dependencies_on_function. ANY ADDITION TO missing_prerequisites REQUIRES AN ADDITION TO math_status::extra_internal_dependencies_on_channel!!! (and the prerequisite must actually be missing; if present should simply increment num_modified_prerequisites if the prerequisite has been modified. 
+    std::shared_ptr<std::function<bool(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated, math_function_status *mathstatus_ptr)>> find_additional_deps; // the find_additional_deps method is nullptr unless the function is a dynamic_dependency. For dynamic_dependencies this function walks the current list of dependencies (for instantiated parameter) with rss set state and adds additional dependencies that it has discovered to the mathstatus_ptr missing_prerequisites, missing_external_channel_prerequisites, and/or missing_external_function_prerequisites. It returns true if any were added (or if a repeated call is otherwise necessary); false otherwise. Any additions to missing_external_channel_prerequisites needs a corresponding addition in the prerequisite state to math_status::external_dependencies_on_channel. Any addition to missing_external_function_prerequisites requires an addition in the prerequisite state to math_status::external_dependencies_on_function. ANY ADDITION TO missing_prerequisites REQUIRES AN ADDITION TO math_status::extra_internal_dependencies_on_channel!!! (and the prerequisite must actually be missing; if present should simply increment num_modified_prerequisites if the prerequisite has been modified. 
     
     // WARNING: If there is no implict or explicit self-dependency multiple computations for the same math function
     // but different versions can happen in parallel. 
@@ -311,6 +334,8 @@ namespace snde {
     std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<channelconfig>>> missing_external_channel_prerequisites; // all missing (non-ready...or !!!*** nonmdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Will be used e.g. for dependencies of on-demand recordings calculated in their own rss context
     std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> missing_external_function_prerequisites; // all missing (non-ready... or !!!*** non-mdonly (as appropriate)) external prerequisites of this function. Remove entries from the set as they become ready. Currently used solely for self-dependencies (which can't be mdonly)... Paired with external_dependencies_on_function
 
+    std::set<std::tuple<std::shared_ptr<channelconfig>,std::shared_ptr<instantiated_math_function>>> extra_internal_dependencies_on_function; // Use this field to indicate that there are additional math functions within this rss that need to be notified when this function is complete. The first element of the tuple identifies the output channel of this math function that the referenced math function is dependent on. Please note that it may be a dynamic (implicit) dependency. 
+    
     bool mdonly; // if this execution is actually mdonly. Feeds into execfunc->mdonly
 
     bool self_dependent; // if there is an implicit or explicit self-dependency
@@ -335,7 +360,6 @@ namespace snde {
     std::shared_ptr<instantiated_math_database> math_functions; // immutable once copied in on construction
     std::unordered_map<std::shared_ptr<instantiated_math_function>,math_function_status> function_status; // lookup dependency and status info on this instantiated_math_function in our recording_set_state/globalrev. You must hold the recording_set_state's admin lock to mess with the function_status, but the map itself is only modified during construction so it is safe to do lookups on this map and keep pointers to the math_function_status without holding any locks. 
 
-
     // NOTE: an entry in either _external_dependencies_on_channel or _external_dependencies_on_function is sufficient to get you the needed callback. 
     std::shared_ptr<std::unordered_map<std::shared_ptr<channelconfig>,std::vector<std::tuple<std::weak_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>>>> _external_dependencies_on_channel; // Lookup external math functions that are dependent on this channel -- usually subsequent revisions of the same function. May result from implicit or explicit self-dependencies. This map is immutable and pointed to by a C++11 atomic shared pointer it is safe to look it up with the external_dependencies() method without holding your recording_set_state's admin lock. 
 
@@ -349,6 +373,7 @@ namespace snde {
     std::unordered_set<std::shared_ptr<instantiated_math_function>> completed_functions;  // completed functions with full result
     std::unordered_set<std::shared_ptr<instantiated_math_function>> completed_mdonly_functions; // pending functions where goal is metadata only and metadata is done (note that it is possible for fully ready functions to be in this list in some circumstances, for example if the full result was requested in another globalrev that references the same recording structure. 
     
+    std::unordered_map<std::shared_ptr<instantiated_math_function>, std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>>> math_messages; // Messages to dispatch to math functions in this rss only
     
     math_status(std::shared_ptr<instantiated_math_database> math_functions,const std::map<std::string,channel_state> & channel_map);
 
@@ -424,7 +449,7 @@ namespace snde {
     
   };
 
-  
+ 
   class executing_math_function {
     // generated to track the execution of a math function
     // each executing_math_function has a single unique math_function_execution. It
@@ -447,6 +472,9 @@ namespace snde {
     std::shared_ptr<recdatabase> recdb; // to avoid reference loops, this is only to be read by the function code itself, managed by the executing thread (recomath_compute_resource pool_code), and set to nullptr when execution is not actually occuring. 
     std::shared_ptr<lockmanager> lockmgr;
 
+    std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>> msgs;
+    
+
     // should also have parameter values, references, etc. here
     
     // parameter values should include bounding_hyperboxes of the domains that actually matter,
@@ -455,6 +483,7 @@ namespace snde {
 
     // self_dependent_recordings is auto-created by the constructor
     std::vector<std::shared_ptr<recording_base>> self_dependent_recordings; // only valid (size() > 0) with implicit/explict self dependency. entries will be nullptr first time through anyway. Entries may also be nullptr if the function output is being ignored rather than stored in the recording database. ***!!! Must be cleared to nullptr after execution to avoid keeping old recordings alive ***!!!  -- read access OK by the holder of the execution ticket; Otherwise accesses should be protected by the math_function_execution's admin lock
+
 
     // compute_resource is assigned post-creation and will be compatible with the selected_compute_option
     // These should be finalized and safe to read from any thread once we are in the define_recs function.
@@ -513,7 +542,29 @@ namespace snde {
     virtual ~silent_math_parameter_mismatch() = default;
   };
 
+  void annotate_incomplete_deps(std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst, math_function_status *mathstatus_ptr, const std::vector<std::string> &processing_tags, std::shared_ptr<std::set<std::string>> deps);
 
+
+  // Dynamic dependencies have a find_additional_deps() method
+  // that is needed to identify implicit dependencies.
+  // This function is designed to fill that role for graphics
+  // dependencies. Wrap this with a lambda that knows your
+  // processing tags and assign it when the math_function is
+  // created.
+  //
+  // Note that this only considers recordings that are not ready
+  // as if the recording is ready any dependence is already
+  // satisfied. 
+  bool traverse_scenegraph_find_graphics_deps(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,math_function_status *mathstatus_ptr,const std::vector<std::string> &processing_tags,const std::set<std::string> &filter_channels);
+
+
+  // traverse_scenegraph_find_graphics_deps() searches all explicit
+  // dependencies (parameters of the math function) for referenced graphics.
+  // traverse_scenegraph_find_graphics_deps_under_channel() searches
+  // only within a specified channel
+  
+  bool traverse_scenegraph_find_graphics_deps_under_channel(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,math_function_status *mathstatus_ptr,const std::vector<std::string> &processing_tags,const std::set<std::string> &filter_channels,std::string channel_path);
+  
   //class registered_math_function {
   //public:
   //  std::string name; // Suggest python-style package.module.function, etc.
@@ -531,7 +582,7 @@ namespace snde {
   // registered name is usually a python-style package/module path
   // register_math_function() returns a value so it can be used an an initializer
   int register_math_function(std::string registered_name,std::shared_ptr<math_function> fcn);
-
+  
 
   // Idea: we could make a function to run math manually.
   // But we would first have to create the ability to define

@@ -616,26 +616,28 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
   }
 
 
-  std::shared_ptr<display_axis> display_info::GetThirdAxis(const std::string &fullname)
+  std::tuple<std::shared_ptr<display_axis>, double, double, std::string> display_info::GetThirdAxis(const std::string &fullname)
   {
     std::shared_ptr<ndarray_recording_ref> rec;
     std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
     if (!recdb_strong) {
-      return nullptr; 
+      return std::make_tuple(nullptr, 0.0, 1.0, ""); 
     }
     try {
       rec = recdb_strong->latest_globalrev()->get_ndarray_ref(fullname);
     } catch (snde_error &) {
       // no such reference
-      return FindAxis("Time","seconds");
+      return std::make_tuple(FindAxis("Time","seconds"), 0.0, 1.0, "seconds");
     }
 
     std::string AxisName = rec->rec->metadata->GetMetaDatumStr("ande_array-axis2_coord","Time");
     std::string UnitName;
     double offset2;
     std::tie(offset2,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis2_offset",0.0,"seconds");
+    double scale2;
+    std::tie(scale2,UnitName) = rec->rec->metadata->GetMetaDatumDblUnits("ande_array-axis2_scale", 1.0, "seconds");
 
-    return FindAxis(AxisName,UnitName);
+    return std::make_tuple(FindAxis(AxisName,UnitName), offset2, scale2, UnitName);
   }
 
 

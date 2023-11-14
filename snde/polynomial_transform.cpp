@@ -1,6 +1,5 @@
 #include <math.h>
 
-#include "snde/polynomial_transform.hpp"
 #include "snde/recmath_cppfunction.hpp"
 
 #ifdef SNDE_OPENCL
@@ -10,6 +9,10 @@
 #endif
 
 #include "snde/snde_types_h.h"
+
+
+#include "snde/polynomial_transform.hpp"
+
 #include "snde/polynomial_transform_c.h"
 
 
@@ -280,7 +283,6 @@ namespace snde {
 #endif // SNDE_OPENCL
 		snde_warning("Performing waveform vertex calculation on CPU. ");
 
-		std::vector<cl::Event> kerndoneevents;
 		
 
 		for (snde_index cnt = 0; cnt < nelem; cnt++) {

@@ -1,6 +1,5 @@
 #include <math.h>
 
-#include "snde/waveform_vertex_functions.hpp"
 #include "snde/recmath_cppfunction.hpp"
 
 #ifdef SNDE_OPENCL
@@ -11,6 +10,10 @@
 
 #include "snde/snde_types_h.h"
 #include "snde/geometry_types_h.h"
+
+
+#include "snde/waveform_vertex_functions.hpp"
+
 #include "snde/waveform_vertex_calcs_c.h"
 
 
@@ -24,8 +27,8 @@ namespace snde {
     OCL_GLOBAL_ADDR snde_float32* trivert_colors,
     snde_index cnt, // within these inputs and these outputs,
     snde_index pos,
-    double inival,
-    double step,
+    float inival,
+    float step,
     snde_float32 linewidth_horiz,
     snde_float32 linewidth_vert,
     snde_float32 R,
@@ -43,8 +46,8 @@ namespace snde {
     snde_index cnt, // within these inputs and these outputs,
     snde_index startidx,
     snde_index endidx,
-    double inival,
-    double step,
+    float inival,
+    float step,
     snde_index pxstep,
     snde_float32 linewidth_horiz,
     snde_float32 linewidth_vert,
@@ -62,8 +65,8 @@ namespace snde {
     OCL_GLOBAL_ADDR snde_float32* trivert_colors,
     snde_index cnt, // within these inputs and these outputs,
     snde_index pos,
-    double inival,
-    double step,
+    float inival,
+    float step,
     snde_float32 R,
     snde_float32 G,
     snde_float32 B,
@@ -238,8 +241,10 @@ namespace snde {
 		  Buffers.AddBufferPortionAsKernelArg(result_rec, "vertcoord_color", 0, outlen * 6 * 4, waveform_interplines_vert_kern, 2, true, true);
 		  //waveform_interplines_vert_kern.setArg(3, sizeof(cnt), &cnt);
 		  waveform_interplines_vert_kern.setArg(3, sizeof(curpos), &curpos);
-		  waveform_interplines_vert_kern.setArg(4, sizeof(datainival), &datainival);
-		  waveform_interplines_vert_kern.setArg(5, sizeof(datastep), &datastep);
+		  float datainival_float = datainival;
+		  waveform_interplines_vert_kern.setArg(4, sizeof(datainival_float), &datainival_float);
+		  float datastep_float = datastep;
+		  waveform_interplines_vert_kern.setArg(5, sizeof(datastep_float), &datastep_float);
 		  waveform_interplines_vert_kern.setArg(6, sizeof(linewidth_horiz_fl), &linewidth_horiz_fl);
 		  waveform_interplines_vert_kern.setArg(7, sizeof(linewidth_vert_fl), &linewidth_vert_fl);
 		  waveform_interplines_vert_kern.setArg(8, sizeof(R_fl), &R_fl);
@@ -270,9 +275,7 @@ namespace snde {
 	      }
 	      else {
 #endif // SNDE_OPENCL
-		snde_warning("Performing waveform vertex calculation on CPU. ");
-
-		std::vector<cl::Event> kerndoneevents;
+		//snde_warning("Performing waveform vertex calculation on CPU. ");
 
 		T junk = 0.0;
 
@@ -466,8 +469,10 @@ namespace snde {
 		  //waveform_interplines_vert_kern.setArg(3, sizeof(cnt), &cnt);
 		  waveform_vertlines_vert_kern.setArg(3, sizeof(curpos), &curpos);
 		  waveform_vertlines_vert_kern.setArg(4, sizeof(endidx), &endidx);
-		  waveform_vertlines_vert_kern.setArg(5, sizeof(datainival), &datainival);
-		  waveform_vertlines_vert_kern.setArg(6, sizeof(datastep), &datastep);
+		  float datainival_float = datainival;
+		  waveform_vertlines_vert_kern.setArg(5, sizeof(datainival_float), &datainival_float);
+		  float datastep_float = datastep;  
+		  waveform_vertlines_vert_kern.setArg(6, sizeof(datastep_float), &datastep_float);
 		  waveform_vertlines_vert_kern.setArg(7, sizeof(idxstep), &idxstep);
 		  waveform_vertlines_vert_kern.setArg(8, sizeof(linewidth_horiz_fl), &linewidth_horiz_fl);
 		  waveform_vertlines_vert_kern.setArg(9, sizeof(linewidth_vert_fl), &linewidth_vert_fl);
@@ -498,9 +503,7 @@ namespace snde {
 	      }
 	      else {
 #endif // SNDE_OPENCL
-		snde_warning("Performing waveform vertex calculation on CPU. ");
-
-		std::vector<cl::Event> kerndoneevents;
+		//snde_warning("Performing waveform vertex calculation on CPU. ");
 
 		T junk = 0.0;
 
@@ -695,8 +698,10 @@ namespace snde {
 		  Buffers.AddBufferPortionAsKernelArg(result_rec, "pointcoord_color", 0, outlen * 4, waveform_points_vert_kern, 2, true, true);
 		  //waveform_interplines_vert_kern.setArg(3, sizeof(cnt), &cnt);
 		  waveform_points_vert_kern.setArg(3, sizeof(startidx), &startidx);
-		  waveform_points_vert_kern.setArg(4, sizeof(datainival), &datainival);
-		  waveform_points_vert_kern.setArg(5, sizeof(datastep), &datastep);
+		  float datainival_float = datainival;
+		  waveform_points_vert_kern.setArg(4, sizeof(datainival_float), &datainival_float);
+		  float datastep_float = datastep;
+		  waveform_points_vert_kern.setArg(5, sizeof(datastep_float), &datastep_float);
 		  waveform_points_vert_kern.setArg(6, sizeof(R_fl), &R_fl);
 		  waveform_points_vert_kern.setArg(7, sizeof(G_fl), &G_fl);
 		  waveform_points_vert_kern.setArg(8, sizeof(B_fl), &B_fl);
@@ -725,9 +730,7 @@ namespace snde {
 	      }
 	      else {
 #endif // SNDE_OPENCL
-		snde_warning("Performing waveform vertex calculation on CPU. ");
-
-		std::vector<cl::Event> kerndoneevents;
+		//snde_warning("Performing waveform vertex calculation on CPU. ");
 
 		T junk = 0.0;
 

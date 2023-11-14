@@ -151,9 +151,9 @@ void quaternion_inverse(const snde_coord4 quat, snde_coord4 *OUTPUT);
 void quaternion_apply_vector(const snde_coord4 quat,const snde_coord4 vec,snde_coord4 *OUTPUT);
 
 
-void quaternion_build_rotmtx(const snde_coord4 quat,snde_coord4 *OUTPUT /* (array of 3 or 4 coord4's, interpreted as column-major). Does not write 4th column  */ );
+void quaternion_build_rotmtx(const snde_coord4 quat,snde_coord4 *OUTPUT_MATRIX /* (array of 3 or 4 coord4's, interpreted as column-major). Does not write 4th column  */ );
 
-void orientation_build_rotmtx(const snde_orientation3 orient,snde_coord4 *OUTPUT /* (array of 4 coord4's, interpreted as column-major).  */ );
+void orientation_build_rotmtx(const snde_orientation3 orient,snde_coord4 *OUTPUT_MATRIX /* (array of 4 coord4's, interpreted as column-major).  */ );
 
 void rotmtx_build_orientation(const snde_coord4 *rotmtx, // array of 4 coord4s, interpreted as column-major homogeneous coordinates 4x4
 			      snde_orientation3 *OUTPUT);
