@@ -74,14 +74,6 @@ def singlevalue_live_thread_code():
         globalrev = transact.end_transaction()
 
         metadata = snde.constructible_metadata()
-        metadata.AddMetaDatum(snde.metadatum("ande_array-axis0_coord","X Axis"))
-        metadata.AddMetaDatum(snde.metadatum("ande_array-axis0_units","mm"))
-        metadata.AddMetaDatum(snde.metadatum("ande_array-axis0_offset",-1, "mm"))
-        metadata.AddMetaDatum(snde.metadatum("ande_array-axis0_scale",1, "mm"))
-        metadata.AddMetaDatum(snde.metadatum("ande_array-axis1_coord","Y Axis"))
-        metadata.AddMetaDatum(snde.metadatum("ande_array-axis1_units","mm"))
-        metadata.AddMetaDatum(snde.metadatum("ande_array-axis1_offset",-1, "mm"))
-        metadata.AddMetaDatum(snde.metadatum("ande_array-axis1_scale",1, "mm"))
         metadata.AddMetaDatum(snde.metadatum("ande_array-ampl_coord","Amplitude"))
         metadata.AddMetaDatum(snde.metadatum("ande_array-ampl_units","Volts"))
 

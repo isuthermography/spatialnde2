@@ -730,11 +730,7 @@ namespace snde {
 
 	
       } else if (render_mode == SNDE_DCRM_SCALAR) {
-			#ifndef _MSC_VER
-				#warning "UpdateViewerStatus on SNDE_DCRM_SCALAR not implemented"
-			#else
-				#pragma message("UpdateViewerStatus on SNDE_DCRM_SCALAR not implemented")
-			#endif 
+	statusline = "Scalar Value";
       } else if (render_mode == SNDE_DCRM_PHASEPLANE) {
 	a=display->GetAmplAxis(posmgr->selected_channel->FullName);
 	if (a) {
