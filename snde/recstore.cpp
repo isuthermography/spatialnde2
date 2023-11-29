@@ -1059,9 +1059,9 @@ namespace snde {
     rec_classes.push_back(recording_class_info("snde::recording_group",typeid(recording_group),ptr_to_new_shared_impl<recording_group>));
 
 
-    //if (!chanpath.size() || chanpath.at(chanpath.size()-1) != '/') {
-    //  throw snde_error("Recording group %s does not end with a trailing slash",chanpath.c_str());
-    //}
+    if (!chanpath.size() || chanpath.at(chanpath.size()-1) != '/') {
+      throw snde_error("Recording group %s does not end with a trailing slash",chanpath.c_str());
+    }
   }
 
   
