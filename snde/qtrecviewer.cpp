@@ -1030,6 +1030,24 @@ namespace snde {
 	  return retval;
   }
 
+  void QTRecViewer::EnableChannel(std::string channelpath) {
+	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(channelpath);
+	  if (!displaychan) {
+		  throw snde_error("QTRecViewer::EnableChannel -- Channel %s not found", channelpath.c_str());
+	  }
+	  displaychan->set_enabled(true);
+	  emit NeedRedraw();
+  }
+
+  void QTRecViewer::DisableChannel(std::string channelpath) {
+	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(channelpath);
+	  if (!displaychan) {
+		  throw snde_error("QTRecViewer::EnableChannel -- Channel %s not found", channelpath.c_str());
+	  }
+	  displaychan->set_enabled(false);
+	  emit NeedRedraw();
+  }
+
   void QTRecViewer::SetChannelBrightness(std::string channelpath, float brightness) {
 	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(channelpath);
 	  if (!displaychan) {
