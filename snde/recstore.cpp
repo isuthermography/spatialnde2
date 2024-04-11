@@ -1839,7 +1839,7 @@ namespace snde {
   {
     return reference_ndarray(array_index)->element_complexfloat64(idx); 
   }
-  snde_complexfloat64  multi_ndarray_recording::element_complexfloat64(size_t array_index,size_t idx,bool fortran_order)
+  snde_complexfloat64  multi_ndarray_recording::element_complexfloat64(size_t array_index,snde_index idx,bool fortran_order)
   {
     return reference_ndarray(array_index)->element_complexfloat64(idx,fortran_order); 
   }
@@ -1848,7 +1848,7 @@ namespace snde {
   {
     reference_ndarray(array_index)->assign_complexfloat64(idx,val);
   }
-  void multi_ndarray_recording::assign_complexfloat64(size_t array_index,size_t idx,snde_complexfloat64 val,bool fortran_order)
+  void multi_ndarray_recording::assign_complexfloat64(size_t array_index,snde_index idx,snde_complexfloat64 val,bool fortran_order)
   {
     reference_ndarray(array_index)->assign_complexfloat64(idx,val,fortran_order);
   }
