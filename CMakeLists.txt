@@ -270,6 +270,10 @@ IF(NOT WIN32)
   set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} rt ) # -lrt required for shm_open() etc.
 ENDIF()
 
+#IF (CMake_HAVE_CXX_ATOMIC_LIB)
+set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} atomic)
+#ENDIF()
+
 
 IF (OpenCL_FOUND)
     # Enable OpenCL support
