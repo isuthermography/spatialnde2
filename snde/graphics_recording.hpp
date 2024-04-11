@@ -165,10 +165,13 @@ namespace snde {
   public:
     std::unordered_set<std::string> processing_tags; // processing tags used on load
 
-    std::map<std::string,std::string> processed_relpaths; // indexed by "meshed", "uv", etc.; should be relative to the group
+    std::map<std::string,std::string> processed_relpaths; // indexed by "meshed", "uv", etc.; should be relative to the group. Will also include "landmarks" if those are loaded.
+
+    bool loaded_landmarks;
+
+    bool unchanged_since_load;
     
-    
-    loaded_part_geometry_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::unordered_set<std::string> &processing_tags);
+    loaded_part_geometry_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::unordered_set<std::string> &processing_tags,bool loaded_landmarks,bool unchanged_since_load);
     // Could (should) implement get_meshed_part(), get_texed_part(), get_parameterization(), etc. methods.
   };
 

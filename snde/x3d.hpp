@@ -1298,7 +1298,7 @@ namespace snde {
   }
 
   
-  std::shared_ptr<loaded_part_geometry_recording> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::vector<std::shared_ptr<x3d_shape>> shapes,size_t shape_index,std::string ownername,void *owner_id,std::string recdb_group_path,std::string context_fname,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,std::vector<std::string> processing_tag_vector)
+  std::shared_ptr<loaded_part_geometry_recording> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::vector<std::shared_ptr<x3d_shape>> shapes,size_t shape_index,std::string ownername,void *owner_id,std::string recdb_group_path,std::string context_fname,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,std::vector<std::string> processing_tag_vector,std::string landmarks_filename)
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
@@ -1332,7 +1332,7 @@ namespace snde {
 
     }
 
-    std::shared_ptr<loaded_part_geometry_recording> loaded_geom = create_recording<loaded_part_geometry_recording>(recdb,loaded_geom_channel,owner_id,processing_tags);
+    std::shared_ptr<loaded_part_geometry_recording> loaded_geom = create_recording<loaded_part_geometry_recording>(recdb,loaded_geom_channel,owner_id,processing_tags,landmarks_filename.size() > 0 ? true:false,true);
 
     std::string recdb_context = recdb_group_path;
 
@@ -2775,6 +2775,10 @@ namespace snde {
        the parameterization will have a single, unit-length patches, named according to the 
        imagetexture URL. The snde_image structure will be allocated but blank 
        (imgbufoffset==SNDE_INDEX_INVALID). No image buffer space is allocated */
+    if (landmarks_filename.size() > 0) {
+      load_geom_landmarks(recdb,landmarks_filename,loaded_geom);
+    }
+    
     instantiate_geomproc_math_functions(recdb,loaded_geom,meshedcurpart,uvparam,texedcurpart,&processing_tags);
 
     for (auto && remaining_tag: processing_tags) {
@@ -2797,7 +2801,7 @@ namespace snde {
   
 
 
-  std::shared_ptr<loaded_part_geometry_recording> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::string filename,size_t shape_index,std::string ownername,void *owner_id,std::string recdb_group_path,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,std::vector<std::string> processing_tags)
+  std::shared_ptr<loaded_part_geometry_recording> x3d_load_geometry(std::shared_ptr<recdatabase> recdb,std::shared_ptr<graphics_storage_manager> graphman,std::string filename,size_t shape_index,std::string ownername,void *owner_id,std::string recdb_group_path,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,std::vector<std::string> processing_tags,std::string landmarks_filename = "")
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
@@ -2814,7 +2818,7 @@ namespace snde {
     }
 
     
-    return x3d_load_geometry(recdb,graphman,shapes,shape_index,ownername,owner_id,recdb_group_path,filename,default_texture_scaling,processing_tags);
+    return x3d_load_geometry(recdb,graphman,shapes,shape_index,ownername,owner_id,recdb_group_path,filename,default_texture_scaling,processing_tags,landmarks_filename);
     
   }
 

@@ -164,7 +164,154 @@ namespace snde {
       
   }
 
+  static std::string simplecsv_strip_spaces(char* lineptr,size_t startpos,size_t endpos) {
     
+    
+    for (;lineptr[startpos] && (lineptr[startpos] == ' ' || lineptr[startpos] == '\t'); startpos++);
+    
+    for (endpos = pos; endpos >= 1 && (lineptr[endpos - 1] == ' ' || lineptr[endpos - 1] == '\t' || lineptr[endpos -1] == '\r' || lineptr[endpos - 1] == '\n'); endpos--);
+    
+    assert(endpos >= startpos);
+	
+    return line.substr(startpos, endpos - startpos);
+  }
+
+  static std::vector<std::string> simplecsv_read_row(std::istream &src)
+  {
+    std::vector<std::string> ret;
+    std::string line;
+    size_t pos = 0;
+    size_t lastpos = 0;
+    std::getline(src,line);
+    for (pos = 0; pos != std::npos && pos < line.size(); lastpos = pos, pos = line.find(',',pos)) {
+      if (pos != 0) {
+	// not the first iteration
+	char* lineptr = line.c_str();
+	ret.push_back(simplecsv_strip_spaces(lineptr,lastpos,pos));
+	
+	     
+      }
+    }
+    if (pos == std::npos) {
+      ret.push_back(simplecsv_strip_spaces(lineptr,lastpos,lineptr.size()));
+    }
+    return ret;
+  }
+  
+  void load_geom_landmarks(std::shared_ptr<recdatabase> recdb,std::shared_ptr<transaction> trans,std::string landmarks_filename,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::string ownername,void* owner_id)
+  // This gets called within a transaction with an incomplete
+  // loaded_part_geometry_recording that we can add to.
+  {
+    std::vector<std::tuple<std::string,double,double>> landmarks_2D;
+    std::vector<std::tuple<std::string,double,double,double>> landmarks_3D;
+    
+    std::ifstream landmarks_file(landmarks_filename);
+    std::vector<std::string> firstline = simplecsv_read_row(landmarks_file);
+    if (firstline.size() != 4) {
+      throw snde_error("load_geom_landmarks(): first row of file \"%s\" does not contain exactly 4 comma-separated headings",landmarks_filename.c_str());
+    }
+
+    if (firstline.at(0) != "Landmark name") {
+      throw snde_error("load_geom_landmarks(): first column heading in file \"%s\" is not \"Landmark name\". ",landmarks_filename.c_str());
+    }
+
+    
+    if (firstline.at(1) != "2D or 3D") {
+      throw snde_error("load_geom_landmarks(): second column heading in file \"%s\" is not \"2D or 3D\". ",landmarks_filename.c_str());
+    }
+
+    if (firstline.at(2) != "x or u (meters)") {
+      throw snde_error("load_geom_landmarks(): third column heading in file \"%s\" is not \"x or u (meters)\". ",landmarks_filename.c_str());
+    }
+
+    if (firstline.at(3) != "y or v (meters)") {
+      throw snde_error("load_geom_landmarks(): fourth column heading in file \"%s\" is not \"y or v (meters)\". ",landmarks_filename.c_str());
+    }
+
+    if (firstline.at(4) != "z or 0 (meters)") {
+      throw snde_error("load_geom_landmarks(): fifth column heading in file \"%s\" is not \"z or 0 (meters)\". ",landmarks_filename.c_str());
+    }
+
+    size_t line_num = 2;
+    do {
+      std::vector<std::string> row = simplecsv_read_row(landmarks_file);
+      if (row.size() == 0) {
+	line_num++;
+	continue;
+      }
+      if (row.size() != 5) {
+	throw snde_error("load_geom_landmarks(): line %d does not have five entries",(int)line_num);
+      }
+      char* endptr;
+      
+      double x_or_u;
+      std::string x_or_u_str = row.at(2);
+      x_or_u = strtod(x_or_u_str.c_str(),&endptr);
+      if (*endptr != 0) {
+	throw snde_error("load_geom_landmarks(): x or u value %s on line %d is not parseable as a number",x_or_u_str.c_str(),(int)line_num);
+      }
+      
+      double y_or_v;
+      std::string y_or_v_str = row.at(3);
+      y_or_v = strtod(y_or_v_str.c_str(),&endptr);
+      if (*endptr != 0) {
+	throw snde_error("load_geom_landmarks(): y or v value %s on line %d is not parseable as a number",y_or_v_str.c_str(),(int)line_num);
+      }
+      
+      double z_or_0;
+      std::string z_or_0_str = row.at(4);
+      z_or_0 = strtod(z_or_0_str.c_str(),&endptr);
+      if (*endptr != 0) {
+	throw snde_error("load_geom_landmarks(): z or 0 value %s on line %d is not parseable as a number",z_or_0_str.c_str(),(int)line_num);
+      }
+      
+      std::string landmark_name = row.at(0);
+      if (row.at(1) == "2D") {
+	landmarks_2D.push_back(std::make_tuple(landmark_name,x_or_u,y_or_v));
+      } else if (row.at(1) == "3D") {
+	landmarks_3D.push_back(std::make_tuple(landmark_name,x_or_u,y_or_v,z_or_0));
+      } else {
+	throw snde_error("load_geom_landmarks(): line %d does not specify 2D or 3D",(int)line_num);
+      }
+      line_num++;
+    } while (!landmarks_file.eofbit);
+
+    std::string landmarks_chanpath = recdb_path_join(loaded_geom->info->name,"landmarks");
+    std::shared_ptr<channelconfig> landmarks_config = std::make_shared<snde::channelconfig>(landmarks_chanpath,ownername,(void*)owner_id,false);
+
+    std::shared_ptr<channel> landmarks_chan = recdb->reserve_channel(landmarks_config);
+    
+    std::shared_ptr<recording_base> landmarks_recording = create_recording<recording_base>(recdb,landmarks_chan,(void*)owner_id);
+
+    std::shared_ptr<constructible_metadata> metadata = std::make_shared<constructible_metadata>();
+    for (auto lmname_u_v: landmarks_2D) {
+      std::string lm_name;
+      double u,v;
+
+      std::tie(lm_name,u,v) = lmname_u_v;
+      metadata.AddMetaDatum(metadatum_str(ssprintf("ande_landmarks_lm_%s_type",lm_name.c_str()),"2D"));
+      
+      metadata.AddMetaDatum(metadatum_dblunits(ssprintf("ande_landmarks_lm_%s_u",lm_name.c_str()),u,"meters"));
+
+      metadata.AddMetaDatum(metadatum_dblunits(ssprintf("ande_landmarks_lm_%s_v",lm_name.c_str()),v,"meters"));
+    }
+    for (auto lmname_x_y_z: landmarks_3D) {
+      std::string lm_name;
+      double x,y,z;
+
+      std::tie(lm_name,x,y,z) = lmname_x_y_z;
+      metadata.AddMetaDatum(metadatum_str(ssprintf("ande_landmarks_lm_%s_type",lm_name.c_str()),"3D"));
+      
+      metadata.AddMetaDatum(metadatum_dblunits(ssprintf("ande_landmarks_lm_%s_x",lm_name.c_str()),x,"meters"));
+
+      metadata.AddMetaDatum(metadatum_dblunits(ssprintf("ande_landmarks_lm_%s_y",lm_name.c_str()),y,"meters"));
+
+      metadata.AddMetaDatum(metadatum_dblunits(ssprintf("ande_landmarks_lm_%s_z",lm_name.c_str()),z,"meters"));
+    }
+    landmarks_recording->metadata = metadata;
+    landmarks_recording->mark_metadata_done();
+    landmarks_recording->mark_data_ready();
+  }
   
   
 };
