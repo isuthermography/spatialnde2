@@ -730,11 +730,7 @@ namespace snde {
 
 	
       } else if (render_mode == SNDE_DCRM_SCALAR) {
-			#ifndef _MSC_VER
-				#warning "UpdateViewerStatus on SNDE_DCRM_SCALAR not implemented"
-			#else
-				#pragma message("UpdateViewerStatus on SNDE_DCRM_SCALAR not implemented")
-			#endif 
+	statusline = "Scalar Value";
       } else if (render_mode == SNDE_DCRM_PHASEPLANE) {
 	a=display->GetAmplAxis(posmgr->selected_channel->FullName);
 	if (a) {
@@ -1032,6 +1028,24 @@ namespace snde {
 		  retval = displaychan->Offset;
 	  }
 	  return retval;
+  }
+
+  void QTRecViewer::EnableChannel(std::string channelpath) {
+	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(channelpath);
+	  if (!displaychan) {
+		  throw snde_error("QTRecViewer::EnableChannel -- Channel %s not found", channelpath.c_str());
+	  }
+	  displaychan->set_enabled(true);
+	  emit NeedRedraw();
+  }
+
+  void QTRecViewer::DisableChannel(std::string channelpath) {
+	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(channelpath);
+	  if (!displaychan) {
+		  throw snde_error("QTRecViewer::EnableChannel -- Channel %s not found", channelpath.c_str());
+	  }
+	  displaychan->set_enabled(false);
+	  emit NeedRedraw();
   }
 
   void QTRecViewer::SetChannelBrightness(std::string channelpath, float brightness) {

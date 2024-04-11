@@ -677,7 +677,7 @@ namespace snde {
 	render_mode = selected_channel->render_mode;
       }
       snde_debug(SNDE_DC_VIEWER,"HSAT: render_mode=%d",render_mode);
-      if (render_mode == SNDE_DCRM_IMAGE || render_mode == SNDE_DCRM_WAVEFORM) {
+      if (render_mode == SNDE_DCRM_IMAGE || render_mode == SNDE_DCRM_WAVEFORM || render_mode == SNDE_DCRM_SCALAR) {
 
 	{
 	  std::lock_guard<std::mutex> adminlock(selected_channel->admin);
@@ -1053,18 +1053,6 @@ namespace snde {
       {
 	std::lock_guard<std::mutex> selchan_admin(selected_channel->admin);
 	render_mode = selected_channel->render_mode;
-      }
-
-      if (render_mode == SNDE_DCRM_IMAGE) {
-	// for images we vertically zoom along with horizontal (at least for now)
-	// unless the vertical and horizontal axes are already the same
-	std::shared_ptr<display_axis> a = display->GetFirstAxis(selected_channel->FullName);
-	std::shared_ptr<display_axis> b = display->GetSecondAxis(selected_channel->FullName);
-
-	//if (a != b) { // don't actually want to trigger other because we get the vert scale from the horiz scale anyway
-	//  VertZoomActionTriggered(QAbstractSlider::SliderSingleStepAdd);	  
-	//}
-	
       }
     }
 

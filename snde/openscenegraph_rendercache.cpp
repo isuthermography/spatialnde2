@@ -2,6 +2,8 @@
 #include <osg/MatrixTransform>
 #include <osg/BlendFunc>
 #include <osg/Point>
+#include <osgText/Font>
+#include <osgText/Text>
 #include <iostream>
 
 
@@ -14,6 +16,10 @@
 namespace snde {
   
   // Lookups in the renderer registry are done per the indexes assigned by the registered recording display handlers defined in rec_display.cpp
+
+  static int osg_registered_scalar = osg_register_renderer(rendermode(SNDE_SRM_SCALAR, typeid(multi_ndarray_recording_display_handler)), [](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>, bool>>* all_locks_required, const osg_renderparams& params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry> {
+    return std::make_shared<osg_cachedscalar>(all_locks_required, params, display_req);
+    });
 
   static int osg_registered_imagedata = osg_register_renderer(rendermode(SNDE_SRM_RGBAIMAGEDATA,typeid(multi_ndarray_recording_display_handler)),[](std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>,bool>> *all_locks_required,const osg_renderparams &params, std::shared_ptr<display_requirement> display_req) -> std::shared_ptr<osg_rendercacheentry> {
       return std::make_shared<osg_cachedimagedata>(all_locks_required,params,display_req);
@@ -380,6 +386,99 @@ namespace snde {
   }
       
 
+  template<typename ... Args>
+  std::string string_format(const std::string& format, Args ... args)
+  {
+    int size_s = std::snprintf(nullptr, 0, format.c_str(), args ...) + 1; // Extra space for '\0'
+    if (size_s <= 0) { throw std::runtime_error("Error during formatting."); }
+    auto size = static_cast<size_t>(size_s);
+    std::unique_ptr<char[]> buf(new char[size]);
+    std::snprintf(buf.get(), size, format.c_str(), args ...);
+    return std::string(buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
+  }
+
+  osg_cachedscalar::osg_cachedscalar(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>, bool>>* all_locks_required, const osg_renderparams& params, std::shared_ptr<display_requirement> display_req) :
+    osg_rendercachegroupentry(all_locks_required)
+  {
+    cached_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+
+    if (!cached_recording) {
+      throw snde_error("osg_cachedscalar: Could not get recording for %s", display_req->renderable_channelpath->c_str());
+    }
+
+    locks_required.push_back({ cached_recording->reference_ndarray(0) ,false }); // accmulate locks needed for lockmanager::lock_recording_refs()
+
+
+    osg_group = new osg::Group;
+    osg::ref_ptr<osgText::Font> font = osgText::readRefFontFile("fonts/arial.ttf");
+    osg::ref_ptr<osg::Geode> geode = new osg::Geode;
+    osg_group->addChild(geode);
+    osg::ref_ptr<osgText::Text> text = new osgText::Text;
+    text->setFont(font);
+    std::shared_ptr<scalar_params> renderparams = std::dynamic_pointer_cast<scalar_params>(display_req->mode.constraint);
+    text->setColor({ (float)renderparams->color.R, (float)renderparams->color.G, (float)renderparams->color.B, 1.0f });
+    text->setFontResolution(60, 60);
+    text->setCharacterSize(renderparams->scale);
+    text->setPosition({ /*(float)(params.left)*/0.0f, /*(float)(params.top)*/0.0f, 0.0f});
+    text->setLayout(osgText::Text::LEFT_TO_RIGHT);
+    std::string displaytext = *display_req->renderable_channelpath + " = ";
+    switch (cached_recording->ndinfo(0)->typenum) {
+    case SNDE_RTN_COMPLEXFLOAT16:
+    case SNDE_RTN_COMPLEXFLOAT32:
+    case SNDE_RTN_COMPLEXFLOAT64:
+      displaytext += string_format("%.3f + j%.3f", cached_recording->element_complexfloat64(0, 0).real, cached_recording->element_complexfloat64(0, 0).imag);
+      break;
+    case SNDE_RTN_FLOAT16:
+    case SNDE_RTN_FLOAT32:
+    case SNDE_RTN_FLOAT64:
+      displaytext += string_format("%.3f", cached_recording->element_double(0,0));
+      break;
+    case SNDE_RTN_UINT8:
+    case SNDE_RTN_UINT16:
+    case SNDE_RTN_UINT32:
+    case SNDE_RTN_UINT64:
+      displaytext += string_format("%d", cached_recording->element_unsigned(0,0));
+      break;
+    case SNDE_RTN_INT8:
+    case SNDE_RTN_INT16:
+    case SNDE_RTN_INT32:
+    case SNDE_RTN_INT64:
+      displaytext += string_format("%d", cached_recording->element_int(0,0));
+      break;
+    case SNDE_RTN_STRING:
+      displaytext += static_cast<std::string*>(cached_recording->void_shifted_arrayptr(0))->c_str();
+      break;
+    default:
+      displaytext += "ERROR";
+      break;
+    }
+
+    displaytext += " ";
+    displaytext += cached_recording->metadata->GetMetaDatumStr("ande_array-ampl_units", "");
+
+    text->setText(displaytext);
+
+    geode->addDrawable(text);
+
+    accumulate_locks_required(all_locks_required);
+  }
+
+
+  std::pair<bool, bool> osg_cachedscalar::attempt_reuse(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req, std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>, bool>>* all_locks_required)
+  {
+    std::shared_ptr<multi_ndarray_recording> new_recording = std::dynamic_pointer_cast<multi_ndarray_recording>(params.with_display_transforms->check_for_recording(*display_req->renderable_channelpath));
+    if (!new_recording) {
+      throw snde_error("osg_cachedscalar::attempt_reuse: Could not get recording for %s", display_req->renderable_channelpath->c_str());
+    }
+
+    if (new_recording == cached_recording && new_recording->info->immutable) {
+      accumulate_locks_required(all_locks_required);
+      std::make_pair(true, false);
+    }
+
+    return std::make_pair(false, false); // (reusable,modified)
+
+  }
   
 
   

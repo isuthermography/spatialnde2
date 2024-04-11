@@ -195,6 +195,25 @@ namespace snde {
 
   }; 
 
+
+
+  class osg_cachedscalar : public osg_rendercachegroupentry {
+  public:
+    // inherited from osg_rendercacheentry:
+    //std::weak_ptr<display_info> display; // (or should these be passed every time?)
+    //std::weak_ptr<display_channel> displaychan;
+
+    std::shared_ptr<multi_ndarray_recording> cached_recording;
+
+
+    osg_cachedscalar(std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>, bool>>* all_locks_required, const osg_renderparams& params, std::shared_ptr<display_requirement> display_req);
+    ~osg_cachedscalar() = default;
+
+    //void update(std::shared_ptr<recording_base> new_recording,size_t drawareawidth,size_t drawareaheight,size_t layer_index);
+    virtual std::pair<bool, bool> attempt_reuse(const osg_renderparams& params, std::shared_ptr<display_requirement> display_req, std::vector<std::pair<std::shared_ptr<ndarray_recording_ref>, bool>>* all_locks_required);
+
+  };
+
   
 
   class osg_cachedimagedata: public osg_rendercachetextureentry {

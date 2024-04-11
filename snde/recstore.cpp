@@ -37,6 +37,7 @@ namespace snde {
       {typeid(std::shared_ptr<recording_base>),SNDE_RTN_RECORDING},      
       {typeid(std::shared_ptr<multi_ndarray_recording>),SNDE_RTN_RECORDING},      
       {typeid(std::shared_ptr<ndarray_recording_ref>),SNDE_RTN_RECORDING_REF},      
+      {typeid(std::shared_ptr<constructible_metadata>),SNDE_RTN_CONSTRUCTIBLEMETADATA},
       {typeid(snde_coord3_int16),SNDE_RTN_SNDE_COORD3_INT16},
       {typeid(std::vector<snde_index>),SNDE_RTN_INDEXVEC},
       {typeid(std::shared_ptr<recording_group>),SNDE_RTN_RECORDING_GROUP},

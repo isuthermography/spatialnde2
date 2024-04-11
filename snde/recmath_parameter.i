@@ -28,6 +28,9 @@ snde_rawaccessible(snde::math_parameter_orientation_const);
 %shared_ptr(snde::math_parameter_indexvec_const);
 snde_rawaccessible(snde::math_parameter_indexvec_const);
 
+%shared_ptr(snde::math_parameter_metadata_const);
+snde_rawaccessible(snde::math_parameter_metadata_const);
+
 %shared_ptr(snde::math_parameter_recording);
 snde_rawaccessible(snde::math_parameter_recording);
 
@@ -77,6 +80,8 @@ namespace snde {
     virtual snde_orientation3 get_orientation(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
 
     virtual std::vector<snde_index> get_indexvec(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
+
+    virtual std::shared_ptr<constructible_metadata> get_metadata(std::shared_ptr<recording_set_state> rss, const std::string& channel_path_context, const std::shared_ptr<math_definition>& fcn_def, size_t parameter_index);
 
     virtual std::shared_ptr<recording_base> get_recording(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // should only return ready recordings because we shouldn't be called until dependencies are ready // parameter_index human interpreted parameter number, starting at 1, for error messages only
 
@@ -194,6 +199,18 @@ namespace snde {
 
     virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
     virtual bool operator!=(const math_parameter &ref);
+
+  };
+
+  class math_parameter_metadata_const : public math_parameter {
+  public:
+    std::shared_ptr<snde::constructible_metadata> metadata;
+
+    math_parameter_metadata_const(std::shared_ptr<snde::constructible_metadata> metadata);
+    virtual std::shared_ptr<snde::constructible_metadata> get_metadata(std::shared_ptr<recording_set_state> rss, const std::string& channel_path_context, const std::shared_ptr<math_definition>& fcn_def, size_t parameter_index);
+
+    virtual bool operator==(const math_parameter& ref); // used for comparing parameters to instantiated_math_functions
+    virtual bool operator!=(const math_parameter& ref);
 
   };
 
