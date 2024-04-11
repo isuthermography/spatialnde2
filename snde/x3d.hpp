@@ -73,6 +73,7 @@ namespace snde {
   class x3d_node {
 
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
     std::string nodetype;
     std::unordered_map<std::string,std::shared_ptr<x3d_node>> nodedata;
     std::string default_containerField;
@@ -595,6 +596,7 @@ namespace snde {
 
   class x3d_material: public x3d_node {
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
     double ambientIntensity;
     Eigen::Vector3d diffuseColor;
     Eigen::Vector3d emissiveColor;
@@ -617,7 +619,7 @@ namespace snde {
 
     static std::shared_ptr<x3d_material> fromcurrentelement(x3d_loader *loader)
     {
-      std::shared_ptr<x3d_material> mat=std::make_shared<x3d_material>();
+      std::shared_ptr<x3d_material> mat=std::make_shared<x3d_material,Eigen::aligned_allocator<x3d_material>>();
 
 
       SetDoubleIfX3DAttribute(loader->reader,"ambientIntensity",&mat->ambientIntensity);
@@ -652,6 +654,7 @@ namespace snde {
 
   class x3d_shape: public x3d_node {
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
     Eigen::Vector3d bboxCenter;
     Eigen::Vector3d bboxSize;
 
@@ -668,7 +671,7 @@ namespace snde {
     }
 
     static std::shared_ptr<x3d_shape> fromcurrentelement(x3d_loader *loader) {
-      std::shared_ptr<x3d_shape> shape=std::make_shared<x3d_shape>();
+      std::shared_ptr<x3d_shape> shape=std::make_shared<x3d_shape, Eigen::aligned_allocator<x3d_shape>>();
 
       SetVectorIfX3DAttribute(loader->reader, "bboxCenter", &shape->bboxCenter);
       SetVectorIfX3DAttribute(loader->reader, "bboxSize", &shape->bboxSize);
@@ -698,6 +701,7 @@ namespace snde {
 
   class x3d_transform : public x3d_node {
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
     Eigen::Vector3d center;
     Eigen::Vector4d rotation;
     Eigen::Vector3d scale;
@@ -792,7 +796,7 @@ namespace snde {
     }
 
     static std::shared_ptr<x3d_transform> fromcurrentelement(x3d_loader *loader) {
-      std::shared_ptr<x3d_transform> trans=std::make_shared<x3d_transform>();
+      std::shared_ptr<x3d_transform> trans=std::make_shared<x3d_transform, Eigen::aligned_allocator<x3d_material>>();
 
       SetVectorIfX3DAttribute(loader->reader, "center", &trans->center);
       SetVectorIfX3DAttribute(loader->reader, "rotation", &trans->rotation);
@@ -835,6 +839,7 @@ namespace snde {
     /* This class should never be instantiated... just 
        subclasses x3d_indexedfaceset and x3d_indexedtriangleset */
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
     bool normalPerVertex;
     bool ccw;
     bool solid;
@@ -852,6 +857,7 @@ namespace snde {
   
   class x3d_indexedfaceset : public x3d_indexedset {
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
     bool convex;
     std::vector<snde_index> coordIndex;
     std::vector<snde_index> normalIndex;
@@ -877,7 +883,7 @@ namespace snde {
     }
 
     static std::shared_ptr<x3d_indexedfaceset> fromcurrentelement(x3d_loader *loader) {
-      std::shared_ptr<x3d_indexedfaceset> ifs=std::make_shared<x3d_indexedfaceset>();
+      std::shared_ptr<x3d_indexedfaceset> ifs=std::make_shared<x3d_indexedfaceset, Eigen::aligned_allocator<x3d_indexedfaceset>>();
 
       ifs->transform=loader->transformstack.back();
       SetBoolIfX3DAttribute(loader->reader, "normalPerVertex", &ifs->normalPerVertex);
@@ -915,6 +921,7 @@ namespace snde {
 
   class x3d_indexedtriangleset : public x3d_indexedset {
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
     //bool normalPerVertex; (now inherited from x3d_indexedset) 
     //bool ccw;  (now inherited from x3d_indexedset) 
     //bool solid;  (now inherited from x3d_indexedset) 
@@ -942,7 +949,7 @@ namespace snde {
     }
 
     static std::shared_ptr<x3d_indexedtriangleset> fromcurrentelement(x3d_loader *loader) {
-      std::shared_ptr<x3d_indexedtriangleset> its=std::make_shared<x3d_indexedtriangleset>();
+      std::shared_ptr<x3d_indexedtriangleset> its=std::make_shared<x3d_indexedtriangleset, Eigen::aligned_allocator<x3d_indexedtriangleset>>();
 
       its->transform=loader->transformstack.back();
       SetBoolIfX3DAttribute(loader->reader, "normalPerVertex", &its->normalPerVertex);

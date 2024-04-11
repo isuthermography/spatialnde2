@@ -613,9 +613,9 @@ namespace snde {
 
     
     snde_complexfloat64 element_complexfloat64(size_t array_index,const std::vector<snde_index> &idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
-    snde_complexfloat64 element_complexfloat64(size_t array_index,size_t idx,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    snde_complexfloat64 element_complexfloat64(size_t array_index,snde_index idx,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
     void assign_complexfloat64(size_t array_index,const std::vector<snde_index> &idx,snde_complexfloat64 val); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
-    void assign_complexfloat64(size_t array_index,size_t idx,snde_complexfloat64 val,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    void assign_complexfloat64(size_t array_index,snde_index idx,snde_complexfloat64 val,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
 
   };
 
