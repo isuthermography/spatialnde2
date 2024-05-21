@@ -781,7 +781,7 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
 	
       return;
     } else if (render_mode==SNDE_DCRM_SCALAR) {
-      return;
+      return;  // We are doing nothing here because we want to scale it with horizontal scale
     } else if (render_mode==SNDE_DCRM_IMAGE) {
       /* image or image array */
       a=GetSecondAxis(chan_name);

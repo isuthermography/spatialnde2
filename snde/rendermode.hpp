@@ -129,6 +129,7 @@ namespace snde {
   
 #define SNDE_SRM_INVALID "SNDE_SRM_INVALID" // undetermined/invalid display mode
 #define SNDE_SRM_RAW "SNDE_SRM_RAW" // raw data OK (used for passing 1D waveforms to the renderer)   --- NOTE:  This may not be needed?  I don't think we want to pass raw data to the renderer, we need to generate a new set of arrays and dynamically choose which one to use depending on the zoom level.
+#define SNDE_SRM_SCALAR "SNDE_SRM_SCALAR"  // maybe redundant with the above entry?
 #define SNDE_SRM_WAVEFORM "SNDE_SRM_WAVEFORM" //  1D waveform
 #define SNDE_SRM_RGBAIMAGEDATA "SNDE_SRM_RGBAIMAGEDATA" // render as an RGBA texture
 #define SNDE_SRM_RGBAIMAGE "SNDE_SRM_RGBAIMAGE" // render as an RGBA image
@@ -264,6 +265,36 @@ namespace snde {
     }
   };
 
+
+  class scalar_params : public renderparams_base {
+  public:
+    RecColor color; // each element 0-1
+    float scale;
+
+    scalar_params(RecColor color, float scale) : color(color), scale(scale)
+    {
+
+    }
+
+    virtual ~scalar_params() = default;
+    virtual size_t hash()
+    {
+      size_t hashv = std::hash<float>{}(color.R) ^ std::hash<float>{}(color.G) ^ std::hash<float>{}(color.B) ^ std::hash<float>{}(scale);
+
+      return hashv;
+    }
+
+    virtual bool operator==(const renderparams_base& b)
+    {
+      const scalar_params* bptr = dynamic_cast<const scalar_params*>(&b);
+      if (!bptr) return false;
+
+      return color.R == bptr->color.R && color.G == bptr->color.G && color.B == bptr->color.B && scale == bptr->scale;
+
+    }
+
+
+  };
 
   class waveform_params : public renderparams_base {
   public:

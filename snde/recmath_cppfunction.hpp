@@ -8,7 +8,7 @@
 //#error This header requires C++14! (for std::index_sequence)
 //#endif
 
-
+#include "snde/metadata.hpp"
 #include "snde/recstore.hpp"
 #include "snde/recmath.hpp"
 
@@ -405,6 +405,26 @@ namespace snde {
       return std::make_tuple(std::make_tuple(rec_subclass),nextparam,thisparam_index+1);
     }
   };
+
+
+  // partial specialization for a recording_base or subclasses thereof
+  template <> // T should be a recording_base or subclass
+  struct rmcfe_tuple_builder_helper<std::shared_ptr<snde::constructible_metadata>> {
+    std::tuple<std::tuple<std::shared_ptr<snde::constructible_metadata>>, std::vector<std::shared_ptr<math_parameter>>::iterator, size_t> rmcfe_tuple_builder(std::shared_ptr<recording_set_state> rss, std::vector<std::shared_ptr<math_parameter>>::iterator thisparam, std::vector<std::shared_ptr<math_parameter>>::iterator end, const std::string& channel_path_context, const std::shared_ptr<math_definition>& definition, size_t thisparam_index)
+    {
+      std::vector<std::shared_ptr<math_parameter>>::iterator nextparam = thisparam;
+
+      if (thisparam == end) {
+	throw math_parameter_mismatch("Not enough parameters provided to satisfy metadata parameter #%d of %s", (int)thisparam_index, definition->definition_command.c_str());
+      }
+      nextparam++;
+
+      // return statement implements the following:
+      //std::tie(this_tuple,nextparam) = rmcfe_tuple_builder(rss,firstparam,end,channel_path_context);
+      return std::make_tuple(std::make_tuple((*thisparam)->get_metadata(rss, channel_path_context, definition, thisparam_index)), nextparam, thisparam_index + 1);
+    }
+  };
+
 
   /*
   // specialization for a recording_base

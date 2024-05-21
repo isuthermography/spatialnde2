@@ -212,6 +212,20 @@ namespace snde {
     return (bool)std::is_base_of<ndarray_recording_ref,typename T::element_type>::value;
   }
 
+  template <typename T>
+  typename std::enable_if<!rtn_type_is_shared_ptr<T>::value, bool>::type
+    rtn_type_is_shared_constructiblemetadata_ptr()
+  {
+    return false;
+  }
+
+  template <typename T>
+  typename std::enable_if<rtn_type_is_shared_ptr<T>::value, bool>::type
+    rtn_type_is_shared_constructiblemetadata_ptr()
+  {
+    return (bool)std::is_base_of<constructible_metadata, typename T::element_type>::value;
+  }
+
   
   
   template <typename T>
@@ -226,12 +240,18 @@ namespace snde {
       if (rtn_type_is_shared_ndarrayrecordingref_ptr<T>()) {
 	return SNDE_RTN_RECORDING_REF;
       } else {
-	std::unordered_map<std::type_index,unsigned>::const_iterator wtnt_it = rtn_typemap.find(std::type_index(typeid(T)));
-	if (wtnt_it != rtn_typemap.end()) {
-	  return wtnt_it->second;
-	} else {
+	if (rtn_type_is_shared_constructiblemetadata_ptr<T>()) {
+	  return SNDE_RTN_CONSTRUCTIBLEMETADATA;
+	}
+	else {
+	  std::unordered_map<std::type_index, unsigned>::const_iterator wtnt_it = rtn_typemap.find(std::type_index(typeid(T)));
+	  if (wtnt_it != rtn_typemap.end()) {
+	    return wtnt_it->second;
+	  }
+	  else {
 
-	  throw snde_error("Type %s is not supported in this context",demangle_type_name(typeid(T).name()).c_str());
+	    throw snde_error("Type %s is not supported in this context", demangle_type_name(typeid(T).name()).c_str());
+	  }
 	}
       }
     }
@@ -593,9 +613,9 @@ namespace snde {
 
     
     snde_complexfloat64 element_complexfloat64(size_t array_index,const std::vector<snde_index> &idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
-    snde_complexfloat64 element_complexfloat64(size_t array_index,size_t idx,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    snde_complexfloat64 element_complexfloat64(size_t array_index,snde_index idx,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
     void assign_complexfloat64(size_t array_index,const std::vector<snde_index> &idx,snde_complexfloat64 val); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
-    void assign_complexfloat64(size_t array_index,size_t idx,snde_complexfloat64 val,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    void assign_complexfloat64(size_t array_index,snde_index idx,snde_complexfloat64 val,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
 
   };
 

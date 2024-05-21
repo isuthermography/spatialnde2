@@ -724,9 +724,82 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
   } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && array_rec->layouts.size()==1 && (NDim == 0 || (NDim == 1 &&  DimLen1==1))) {
     // goal is to render 0D or single point recording
     /* "single point" recording */
-    snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Single point recording rendering not yet implemented");
-    //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
-    return nullptr;
+    
+    std::shared_ptr<display_spatial_position> posn;
+    std::shared_ptr<display_spatial_transform> xform;
+    std::shared_ptr<display_channel_rendering_bounds> bounds;
+    size_t DC_ColorIdx;
+    double xcenter;
+    double ycenter;
+
+    float scale = 1.0f;
+
+    std::shared_ptr<rgbacolormapparams> colormap_params;
+    {
+      std::lock_guard<std::mutex> di_lock(display->admin);
+      std::lock_guard<std::mutex> dc_lock(displaychan->admin);
+      std::vector<snde_index> other_indices({ 0,0 });
+
+      // !!!*** displaychan updates should be more formally assigned and passed around
+      // this is interpreted by qtrecviewer for how the controls should work
+      // as distinct from renderer_type in display_requirement, which is used to select the actual renderer.
+      // Should these be unified somehow? 
+      displaychan->render_mode = SNDE_DCRM_SCALAR;
+      DC_ColorIdx = displaychan->ColorIdx;
+
+      std::shared_ptr<display_axis> a = display->GetAmplAxisLocked(chanpath);
+      std::shared_ptr<display_axis> t = display->GetFirstAxisLocked(chanpath);
+
+
+      {
+	std::lock_guard<std::mutex> axisadminlocka(a->admin);
+	std::lock_guard<std::mutex> axisadminlockt(t->admin);
+	xcenter = t->CenterCoord; /* in units */
+	ycenter = a->CenterCoord;
+
+	std::shared_ptr<display_unit> u = t->unit;
+	std::shared_ptr<display_unit> v = a->unit;
+	std::lock_guard<std::mutex> unitadminlocku(u->admin);
+	std::lock_guard<std::mutex> unitadminlockv(v->admin);
+
+	scale = (float)u->scale;
+      }
+
+
+
+
+      snde_debug(SNDE_DC_DISPLAY, "spatial_transforms_for_waveform_channel: scale=%f", scale);
+      std::tie(posn, xform, bounds) = spatial_transforms_for_waveform_channel(display->drawareawidth, display->drawareaheight,
+	display->horizontal_divisions, display->vertical_divisions,
+	xcenter, -displaychan->Position, displaychan->VertZoomAroundAxis,
+	displaychan->VertCenterCoord,
+	1.0f, 1.0f, display->pixelsperdiv,
+	false, false,
+	displaychan->VertZoomAroundAxis);  
+
+
+    } // release displaychan lock
+
+    // should colormap_params really be in the rendermode_ext key for this one or just the next one?
+    // I think the answer is both because the nested requirement won't be looked at
+    // if the parent just pulls from the cache
+    std::shared_ptr<scalar_params> renderparams = std::make_shared<scalar_params>(RecColorTable[DC_ColorIdx], scale);
+
+    std::shared_ptr<recdatabase> recdb = base_rss->recdb_weak.lock();
+    if (!recdb) {
+      return nullptr;
+    }
+
+    retval = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_SCALAR, typeid(*this), renderparams), rec, shared_from_this()); // display_requirement
+    retval->renderer_type = SNDE_DRRT_2D;
+
+    retval->spatial_position = posn;
+    retval->spatial_transform = xform;
+    retval->spatial_bounds = bounds;
+
+    return retval;
+
+
   } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && NDim==1) {
 
       /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
