@@ -619,7 +619,7 @@ namespace snde {
 
     static std::shared_ptr<x3d_material> fromcurrentelement(x3d_loader *loader)
     {
-      std::shared_ptr<x3d_material> mat=std::make_shared<x3d_material,Eigen::aligned_allocator<x3d_material>>();
+      std::shared_ptr<x3d_material> mat=std::allocate_shared<x3d_material>(Eigen::aligned_allocator<x3d_material>());
 
 
       SetDoubleIfX3DAttribute(loader->reader,"ambientIntensity",&mat->ambientIntensity);
@@ -671,7 +671,7 @@ namespace snde {
     }
 
     static std::shared_ptr<x3d_shape> fromcurrentelement(x3d_loader *loader) {
-      std::shared_ptr<x3d_shape> shape=std::make_shared<x3d_shape, Eigen::aligned_allocator<x3d_shape>>();
+      std::shared_ptr<x3d_shape> shape=std::allocate_shared<x3d_shape>(Eigen::aligned_allocator<x3d_shape>());
 
       SetVectorIfX3DAttribute(loader->reader, "bboxCenter", &shape->bboxCenter);
       SetVectorIfX3DAttribute(loader->reader, "bboxSize", &shape->bboxSize);
@@ -796,7 +796,7 @@ namespace snde {
     }
 
     static std::shared_ptr<x3d_transform> fromcurrentelement(x3d_loader *loader) {
-      std::shared_ptr<x3d_transform> trans=std::make_shared<x3d_transform, Eigen::aligned_allocator<x3d_material>>();
+      std::shared_ptr<x3d_transform> trans=std::allocate_shared<x3d_transform>(Eigen::aligned_allocator<x3d_transform>());
 
       SetVectorIfX3DAttribute(loader->reader, "center", &trans->center);
       SetVectorIfX3DAttribute(loader->reader, "rotation", &trans->rotation);
@@ -883,7 +883,7 @@ namespace snde {
     }
 
     static std::shared_ptr<x3d_indexedfaceset> fromcurrentelement(x3d_loader *loader) {
-      std::shared_ptr<x3d_indexedfaceset> ifs=std::make_shared<x3d_indexedfaceset, Eigen::aligned_allocator<x3d_indexedfaceset>>();
+      std::shared_ptr<x3d_indexedfaceset> ifs=std::allocate_shared<x3d_indexedfaceset>(Eigen::aligned_allocator<x3d_indexedfaceset>());
 
       ifs->transform=loader->transformstack.back();
       SetBoolIfX3DAttribute(loader->reader, "normalPerVertex", &ifs->normalPerVertex);
@@ -949,7 +949,7 @@ namespace snde {
     }
 
     static std::shared_ptr<x3d_indexedtriangleset> fromcurrentelement(x3d_loader *loader) {
-      std::shared_ptr<x3d_indexedtriangleset> its=std::make_shared<x3d_indexedtriangleset, Eigen::aligned_allocator<x3d_indexedtriangleset>>();
+      std::shared_ptr<x3d_indexedtriangleset> its=std::allocate_shared<x3d_indexedtriangleset>(Eigen::aligned_allocator<x3d_indexedtriangleset>());
 
       its->transform=loader->transformstack.back();
       SetBoolIfX3DAttribute(loader->reader, "normalPerVertex", &its->normalPerVertex);
@@ -2783,7 +2783,7 @@ namespace snde {
        imagetexture URL. The snde_image structure will be allocated but blank 
        (imgbufoffset==SNDE_INDEX_INVALID). No image buffer space is allocated */
     if (landmarks_filename.size() > 0) {
-      load_geom_landmarks(recdb,landmarks_filename,loaded_geom);
+      load_geom_landmarks(recdb,nullptr,landmarks_filename,loaded_geom,ownername,owner_id);
     }
     
     instantiate_geomproc_math_functions(recdb,loaded_geom,meshedcurpart,uvparam,texedcurpart,&processing_tags);

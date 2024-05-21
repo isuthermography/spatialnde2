@@ -3,6 +3,7 @@
 #include <unordered_set>
 #include <memory>
 #include <map>
+#include <fstream>
 
 #include "snde/recstore.hpp"
 #include "snde/recmath.hpp"
@@ -164,12 +165,13 @@ namespace snde {
       
   }
 
-  static std::string simplecsv_strip_spaces(char* lineptr,size_t startpos,size_t endpos) {
-    
+  static std::string simplecsv_strip_spaces(const char* lineptr,size_t startpos,size_t endpos) {
+
+    std::string line(lineptr);
     
     for (;lineptr[startpos] && (lineptr[startpos] == ' ' || lineptr[startpos] == '\t'); startpos++);
     
-    for (endpos = pos; endpos >= 1 && (lineptr[endpos - 1] == ' ' || lineptr[endpos - 1] == '\t' || lineptr[endpos -1] == '\r' || lineptr[endpos - 1] == '\n'); endpos--);
+    for (endpos = startpos; endpos >= 1 && (lineptr[endpos - 1] == ' ' || lineptr[endpos - 1] == '\t' || lineptr[endpos -1] == '\r' || lineptr[endpos - 1] == '\n'); endpos--);
     
     assert(endpos >= startpos);
 	
@@ -183,17 +185,17 @@ namespace snde {
     size_t pos = 0;
     size_t lastpos = 0;
     std::getline(src,line);
-    for (pos = 0; pos != std::npos && pos < line.size(); lastpos = pos, pos = line.find(',',pos)) {
+    for (pos = 0; pos != std::string::npos && pos < line.size(); lastpos = pos, pos = line.find(',',pos)) {
       if (pos != 0) {
 	// not the first iteration
-	char* lineptr = line.c_str();
+	const char* lineptr = line.c_str();
 	ret.push_back(simplecsv_strip_spaces(lineptr,lastpos,pos));
 	
 	     
       }
     }
-    if (pos == std::npos) {
-      ret.push_back(simplecsv_strip_spaces(lineptr,lastpos,lineptr.size()));
+    if (pos == std::string::npos) {
+      ret.push_back(simplecsv_strip_spaces(line.c_str(),lastpos,line.size()));
     }
     return ret;
   }
@@ -289,24 +291,24 @@ namespace snde {
       double u,v;
 
       std::tie(lm_name,u,v) = lmname_u_v;
-      metadata.AddMetaDatum(metadatum_str(ssprintf("ande_landmarks_lm_%s_type",lm_name.c_str()),"2D"));
+      metadata->AddMetaDatum(metadatum_str(ssprintf("ande_landmarks_lm_%s_type",lm_name.c_str()),"2D"));
       
-      metadata.AddMetaDatum(metadatum_dblunits(ssprintf("ande_landmarks_lm_%s_u",lm_name.c_str()),u,"meters"));
+      metadata->AddMetaDatum(metadatum_dblunits(ssprintf("ande_landmarks_lm_%s_u",lm_name.c_str()),u,"meters"));
 
-      metadata.AddMetaDatum(metadatum_dblunits(ssprintf("ande_landmarks_lm_%s_v",lm_name.c_str()),v,"meters"));
+      metadata->AddMetaDatum(metadatum_dblunits(ssprintf("ande_landmarks_lm_%s_v",lm_name.c_str()),v,"meters"));
     }
     for (auto lmname_x_y_z: landmarks_3D) {
       std::string lm_name;
       double x,y,z;
 
       std::tie(lm_name,x,y,z) = lmname_x_y_z;
-      metadata.AddMetaDatum(metadatum_str(ssprintf("ande_landmarks_lm_%s_type",lm_name.c_str()),"3D"));
+      metadata->AddMetaDatum(metadatum_str(ssprintf("ande_landmarks_lm_%s_type",lm_name.c_str()),"3D"));
       
-      metadata.AddMetaDatum(metadatum_dblunits(ssprintf("ande_landmarks_lm_%s_x",lm_name.c_str()),x,"meters"));
+      metadata->AddMetaDatum(metadatum_dblunits(ssprintf("ande_landmarks_lm_%s_x",lm_name.c_str()),x,"meters"));
 
-      metadata.AddMetaDatum(metadatum_dblunits(ssprintf("ande_landmarks_lm_%s_y",lm_name.c_str()),y,"meters"));
+      metadata->AddMetaDatum(metadatum_dblunits(ssprintf("ande_landmarks_lm_%s_y",lm_name.c_str()),y,"meters"));
 
-      metadata.AddMetaDatum(metadatum_dblunits(ssprintf("ande_landmarks_lm_%s_z",lm_name.c_str()),z,"meters"));
+      metadata->AddMetaDatum(metadatum_dblunits(ssprintf("ande_landmarks_lm_%s_z",lm_name.c_str()),z,"meters"));
     }
     landmarks_recording->metadata = metadata;
     landmarks_recording->mark_metadata_done();
