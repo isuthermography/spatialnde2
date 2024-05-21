@@ -75,16 +75,9 @@ Project Probe Tip Data User Guide
 ---------------------------------
 
 The purpose of the ``project_live_probe_tip_data.dgp`` example script is to demonstrate the spatial surface mapping
-capability of SpatialNDE2 by viewing the data recorded by a probe in the context of the location on a
-part or specimen where this data would origiate. This module can be found in the test directory of the SpatialNDE2 source tree.
-The user can move the probe to some pose (rotation and translation) relative to the part/specimen that they would prefer, and
-ray tracing is used to track which section of the part/specimen that the probe is pointing at over each global revision. A ray points from the tip of the probe, and the 
-location of the intersection of the ray with the surface of the specimen is where that probe data gets projected. Records of the
-data from the probe (placeholder eddy current impedance data) are created at that location in the parameterization space 
-(2-dimensional surface map) of the 3D model of the part/specimen the probe is pointing at. The locations of the
-data in parameterization space are then used to put this data into a 3-dimensional context by rendering this
-data on the surface of the 3D part/specimen model, which allows for observation of live impedance data fused with previous impedance data recordings projected onto the model
-in a 3-dimensional context. 
+capability of SpatialNDE2 by viewing synthetic data recorded by a probe in the context of the location on a
+part or specimen where this data would originate. This module can be found in the test directory of the SpatialNDE2 source tree.
+The user can move the probe and see data project onto the part surface in real time. 
 
 Step-by-step guide for usage:
 
@@ -104,7 +97,7 @@ rotating in the complex plane, that would come from an eddy current probe.
    :width: 800
    :alt: Image of probe impedance plotted in the complex plane.
 	
-4. A surface-parameterization map of accumulated probe impedance data can be viewed using the ``"/graphics/projection"`` channel. The rendering of this
+4. A surface-parameterization map of the specimen representing a running weighted average of accumulated probe impedance data is stored and can be viewed in the ``"/graphics/projection"`` channel. The rendering of this
 data is specially handled using the qt recording viewer. For information on the type of recording used to store this data, see the ``fusion_ndarray_recording``
 subsection of the concepts section of the User Guide.
 
@@ -121,6 +114,12 @@ subsection of the concepts section of the User Guide.
 6. (optional). Before running the example, select the probe and specimen 3D model files that you would like to use to accurately reflect your testing environment. Ensure that these files are meshed and in the Extensible 3D (``.x3d``) format. Then place these files in the working directory of the ``project_live_probe_tip_data.dgp`` file. Default models are assigned in the script if there are no models to use. The script can be set to read the models by changing the value of the ``specimen_model_file`` and ``probe_model_file`` variables. (NEED TO INCLUDE A LINK FOR PARAMETERIZATION INSTRUCTIONS)
 
 
+Ray tracing is used to track which section of the part/specimen that the probe is pointing at over each global revision. A ray points from the tip of the probe, and the data gets projected to the
+location of the intersection of the ray with the surface of the specimen. Placeholder eddy current impedance data is stored at that location in the parameterization space 
+(2-dimensional surface map) of the 3D model. The locations of the
+data in parameterization space are then used to put this data into a 3-dimensional context by rendering this
+data on the surface of the 3D part/specimen model, which allows for observation of live impedance data fused with previous impedance data recordings projected onto the model
+in a 3-dimensional context. 
 
 
 
