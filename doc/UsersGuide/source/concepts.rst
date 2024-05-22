@@ -166,9 +166,11 @@ The ``fusion_ndarray_recording`` is comprised of two sub-arrays called ``"accumu
 The ``"accumulator"`` sub-array, which represents the numerator of this equation, contains the sum of all measured values to be stored in the recording, multiplied by their associated weights, carried out to scan iteration `n-1`. 
 The ``"totals"`` sub-array, which represents the denominator of this equation, stores the values of the sum to scan iteration `n-1` of the weights assigned to each previous scan iteration.
 
-"""Everything above happens over all data dimensions of your array (broadcast). In the special case of a 2-dimensional array, the SpatialNDE2 viewer can render it as an image. Feed into the next paragraph'""
-
-When rendering this datatype, the resulting image represents the quotient of the accumulator and totals, which is the weighted average. Rendering of the ``fusion_ndarray_recording`` subclass is specially handeled by the ``fusion_ndarray_recording_display_handler`` class defined in ``display_requirements.hpp``. Colormaps for complex ``fusion_ndarray_recordings`` are generated with red and green channel values determined, respectively, by the real and imaginary values of the ``"accumulator"`` subarray, which are both scaled by the values of the ``"totals"`` subarray. The blue channel is determined wholly by the values of the ``"totals"`` subarray. For all other ``fusion_ndarray_recordings``, the default ``snde_colormap`` function is used to generate the colormap and then the blue channel values are overwritten based on the values of the ``"totals"`` subarray. (mention the real case first)
+When rendering this datatype, the SpatialNDE2 viewer can render 2D images representing the quotient of the accumulator and totals, which is the weighted average. Rendering of the 
+``fusion_ndarray_recording`` subclass is specially handeled by the ``fusion_ndarray_recording_display_handler`` class defined in ``display_requirements.hpp``. Colormaps for real ``fusion_ndarray_recordings`` are 
+generated as normal according to the selected colormap in the viewer, except the blue channel is overridden and represents the ratio of the total weighting for a particular pixel to the maximum total weighting for 
+any pixel in the 2D image. Colormaps for complex ``fusion_ndarray_recordings`` are generated with red and green channel values determined, respectively, by the real and imaginary components of the weighted average. 
+The blue channel is determined the same way as for the real case.
  
 .. _GeometricObjects:
 
