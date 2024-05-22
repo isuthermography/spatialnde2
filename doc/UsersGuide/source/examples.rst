@@ -91,7 +91,7 @@ Step-by-step guide for usage:
   :width: 800
   :alt: Image of probe and plate together with the ``/probe_positioner`` channel selected.
 
-3. A live visualization of placeholder data from the probe can be found in the ``"/synthetic_probe_history"`` channnel, which displays the phase of the probe's placeholder signal, 
+3. A live visualization of placeholder data from the probe can be found in the ``"/synthetic_probe_history"`` channel, which displays the phase of the probe's placeholder signal, 
 rotating in the complex plane. 
 
 .. image:: Synthetic_Probe_Impedance_Image.png
@@ -112,7 +112,7 @@ rotating in the complex plane.
 
 6. (optional). Before running the example, you can select alternate models for probe and specimen. Ensure that these files are meshed and in the Extensible 3D (``.x3d``) format. The defaults included in the script can be overridden by changing the value of the ``specimen_model_file`` and ``probe_model_file`` variables when running the ``dataguzzler-python`` command on the ``.dgp`` file. For example, if the user wants to project data onto a specimen model from a file called ``disk.x3d``, then they would type:
 
-``dataguzzler-python project_live_probe_tip_data.dgp specimen_model_file="disk.x3d"``
+``dataguzzler-python project_live_probe_tip_data.dgp "--specimen_model_file=disk.x3d"``
 
 Note: when overriding any variable, there should be no spaces on either side of the ``=`` sign.
 
