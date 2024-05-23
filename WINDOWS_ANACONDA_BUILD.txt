@@ -78,5 +78,5 @@ version based on git tagging, such as from https://git-scm.com/downloads
      Workaround #1: Initialize QT from Python (e.g. use dataguzzler-python)
 	 Workaround #2: Set the QT_PLUGIN_PATH environment variable to point at the QT plugins
 	                from your anaconda environment, e.g. 
-					command prompt: set QT_PLUGIN_PATH='c:\users\username\.conda\envs\SNDE\Library\plugins'
+					command prompt: set 'QT_PLUGIN_PATH=c:\users\username\.conda\envs\SNDE\Library\plugins'
 					PowerShell: $env:QT_PLUGIN_PATH='c:\users\username\.conda\envs\SNDE\Library\plugins'
