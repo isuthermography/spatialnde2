@@ -23,6 +23,7 @@ if not "snde_recdb_windows" in globals():
             self.viewer = snde.QTRecViewer(recdb,self)
             self.viewer_QWidget = self.viewer.QWidget() # Save a copy so that we can check that it is still valid with shiboken2.isValid() before accessing the potentially invalid (because the window closed, etc.) self.viewer object that is essentially a raw pointer but gives us access to the full set of methods. 
             self.setCentralWidget(self.viewer_QWidget)
+            self.setWindowTitle('SpatialNDE2 Recording Database Viewer')
 
             # Intelligent default size
             self.resize(QApp.primaryScreen().availableGeometry().size()*0.7);
