@@ -223,8 +223,8 @@ or (Python)::
   ], False)
 
 You provide a sequence of (recording reference, read/write) pairs
-where the second element is false for read and true for right.  It is
-important to lock all recordings in a single method call because at
+where the second element is false for read and true for write.  It is
+important to lock all recordings in a single method call because that
 way the locking code can ensure a consistent locking order is
 followed. Multiple simultaneous read locks on a given array are
 possible. Only one write lock can be held for a given array at a time,
@@ -261,7 +261,7 @@ method to obtain a writeable reference::
 
 In Python, vectorized (numpy) access is also possible::
 
-  test_ref.data()[:] = np.sin(np.arange(rec_len),dtype='d')) 
+  test_ref.data()[:] = np.sin(np.arange(rec_len),dtype='d') 
 
 Unlocking the Array
 -------------------
@@ -341,6 +341,7 @@ or the available array recording references with
 a recording or an array reference with ``globalrev.get_recording()``
 or ``globalrev.get_recording_ref()`` respectively. 
 
+.. _SNDEinDGPY:
 
 Using SpatialNDE2 in Dataguzzler-Python
 ---------------------------------------
@@ -578,5 +579,9 @@ scripted from Python such as when using Dataguzzler-Python.
     that owns the mutex. A deadlock is almost certainly a locking order
     violation. The `gdb-automatic-deadlock-detector <https://github.com/DamZiobro/gdb-automatic-deadlock-detector>`_ automates deadlock detection
     using GDB and Python.
+
+
+
+
     
   

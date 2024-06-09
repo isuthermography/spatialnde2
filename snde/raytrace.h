@@ -10,12 +10,13 @@
 
 
 static RAYTRACE_INLINE void camera_rayvec(snde_cmat23 cam_mtx, snde_coord a,snde_coord b,snde_coord3 *rayveccam)
-// cam_mtx is the first two
-// rows of the camera matrix
-// evaluate the camera ray vector for pixel (a,b) relative to the origin at the camera focus
-// with the camera pointing in the -z direction
-// stores ray vector in camera coordinates in rayveccam
-// NOTE: Camera matrix defined based on OpenGL coordinate system, not OpencL
+/// cam_mtx is the first two
+/// rows of the camera matrix
+/// evaluate the camera ray vector for pixel (a,b) relative to the origin at the camera focus
+/// with the camera pointing in the -z direction
+/// stores ray vector in camera coordinates in rayveccam
+/// NOTE: Camera matrix defined based on OpenGL coordinate system, not OpencL
+
 {
   snde_coord fx,fy,cx,cy,x_over_w,y_over_w,rayvecfactor;
 
@@ -907,7 +908,7 @@ void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
   snde_coord2 pos,pos_frac,srcpos;
   //float64_t angle_of_incidence_factor;
 
-  if (isnan(pixelval)) {
+  if (isnan(pixelval) || isnan(uvcoords0_pixels) || isnan(uvcoords1_pixels)) {
     return; /* never project NaN */
   }
 
