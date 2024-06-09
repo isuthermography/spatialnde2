@@ -505,7 +505,7 @@ is requested).
 
 By the end of the execution function, it should have marked metadata
 as done on all output recordings (``mark_metadata_done()`` method of
-the recording) and the data as being ready (``mark_as_ready()`` method).
+the recording) and the data as being ready (``mark_data_and_metadata_ready()`` method).
 
 If math code throws an exception, it will be caught and (if the
 exception was an ``snde_error()``) a backtrace printed. Exceptions of 

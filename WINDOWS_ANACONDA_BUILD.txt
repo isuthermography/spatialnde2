@@ -26,7 +26,7 @@ version based on git tagging, such as from https://git-scm.com/downloads
    strongly encouraged.  The following command will establish a new environment
    named SNDE with all of the required libraries and packages:
 
-     conda create -n SNDE -c conda-forge python=3.9 numpy scipy matplotlib cython ipython pip opencv clhpp pyopencl pint hdf5 h5py lxml setuptools netcdf4 cmake openscenegraph pyopengl glfw freeglut glew mesa eigen swig pyreadline pyserial pyside2 hdf5 pyvisa
+     conda create -n SNDE -c conda-forge python=3.9 numpy scipy matplotlib cython ipython pip opencv clhpp pyopencl pint hdf5 h5py lxml setuptools netcdf4 cmake openscenegraph pyopengl glfw freeglut glew mesa eigen swig pyreadline pyserial pyside2 hdf5 pyvisa git 
      
    Note:  not all of these packages may be needed.  There may be other 
           packages required for certain situations.
@@ -52,14 +52,14 @@ version based on git tagging, such as from https://git-scm.com/downloads
 
    Alternatively you can load the generated .sln file into Visual Studio and
    build it from there. If you do so you may need to manually select RelWithDebInfo
-   as the configuration to build (upper toolbar, left center).
+   as the configuration to build (upper toolbar, left center) instead of Debug or Release.
    
 9) Build and install python wrapper
 
      python setup.py build
      python setup.py install
 
-10) Build and install sample c++ wrapper
+10) Optional: Build and install example c++ wrapper
 
      cd ..
      cd spatialnde2_example_external_cpp_function
