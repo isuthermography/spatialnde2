@@ -810,7 +810,7 @@ namespace snde {
 #else
     std::shared_ptr<std::vector<std::pair<std::string,unsigned long long>>> list_recording_revisions();
 #endif    
-    std::shared_ptr<std::vector<std::pair<std::string,std::string>>> list_recording_refs();
+    std::shared_ptr<std::vector<std::pair<std::string,std::string>>> list_ndarray_refs();
 
     // admin lock must be locked when calling this function. Returns
     std::shared_ptr<recording_set_state> prerequisite_state();

@@ -1092,7 +1092,7 @@ namespace snde {
 #else
     std::shared_ptr<std::vector<std::pair<std::string,unsigned long long>>> list_recording_revisions();
 #endif    
-    std::shared_ptr<std::vector<std::pair<std::string,std::string>>> list_recording_refs();
+    std::shared_ptr<std::vector<std::pair<std::string,std::string>>> list_ndarray_refs();
     
     std::shared_ptr<recording_set_state> prerequisite_state();
     void atomic_prerequisite_state_clear(); // sets the prerequisite state to nullptr (called after the rss becomes ready)
