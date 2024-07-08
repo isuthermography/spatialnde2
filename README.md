@@ -10,7 +10,7 @@ combinations of missing prerequisites may have been tested
 - libxml2
 - eigen3 (v3.3 or above)
 - OpenCL
-- Python (v3.6 or above; including development libraries)
+- Python (v3.6 or above; including development libraries, and the following packages: numpy, setuptools, wheel)
 - SWIG
 - Cython
 - libpng
@@ -52,8 +52,7 @@ Run the build and install steps (BE SURE TO USE THE SAME COPY OF PYTHON
 YOU CONFIGURED WITH IN CMAKE):
 
 ```bash
-   python setup.py build
-   python setup.py install
+   pip install --no-deps --no-build-isolation .
 ```
 
 The latter command may need to be run as root or Administrator if your
