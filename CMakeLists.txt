@@ -520,11 +520,11 @@ IF (Python3_FOUND)
   # openscenegraph or qt, for example
   IF(WIN32)
     add_custom_command(OUTPUT ${PYTHONPKGFILES}
-    DEPENDS compile_configuration python/pyproject.toml python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES} 
+    DEPENDS compile_configuration pyproject.toml setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES} 
     # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
     
-    COMMAND ${CMAKE_COMMAND} -E copy python/setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
-    COMMAND ${CMAKE_COMMAND} -E copy python/pyproject.toml ${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml
+    COMMAND ${CMAKE_COMMAND} -E copy setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
+    COMMAND ${CMAKE_COMMAND} -E copy pyproject.toml ${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
@@ -560,11 +560,11 @@ IF (Python3_FOUND)
 
   ELSE()
     add_custom_command(OUTPUT ${PYTHONPKGFILES}
-    DEPENDS compile_configuration python/pyproject.toml python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES}
+    DEPENDS compile_configuration pyproject.toml setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES}
     # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
     
-    COMMAND ${CMAKE_COMMAND} -E copy python/setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
-    COMMAND ${CMAKE_COMMAND} -E copy python/pyproject.toml ${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml
+    COMMAND ${CMAKE_COMMAND} -E copy setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
+    COMMAND ${CMAKE_COMMAND} -E copy pyproject.toml ${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
@@ -926,7 +926,7 @@ if(INSTALL_INTO_PYTHON_SITE_PACKAGES)
   #install(
   #  FILES "${PROJECT_BINARY_DIR}/spatialnde2.py"
   #  DESTINATION ${PYTHON_SITE_PACKAGES})
-  install( CODE "execute_process(COMMAND ${Python3_EXECUTABLE} setup.py install )")
+  install( CODE "execute_process(COMMAND ${Python3_EXECUTABLE} -m pip install --no-deps --no-build-isolation )")
 endif()
 
 
