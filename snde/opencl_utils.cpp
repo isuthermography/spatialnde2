@@ -301,7 +301,7 @@ namespace snde {
     std::vector<cl::Device> devices{ device };
 
 #ifdef SNDE_DOUBLEPREC_COORDS
-    buildoptions += "-D SNDE_DOUBLEPREC_COORDS "
+    buildoptions += "-D SNDE_DOUBLEPREC_COORDS ";
 #endif
     
     if (build_with_doubleprec) {
