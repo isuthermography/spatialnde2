@@ -107,7 +107,7 @@ namespace snde {
     if (threaded && enable_threaded_opengl) {
       RenderContext = new QOpenGLContext();
       RenderContext->setShareContext(context());
-      QScreen* pScreen = QGuiApplication::screenAt(mapToGlobal({ width() / 2,0 }));
+      QScreen* pScreen = QGuiApplication::screenAt(mapToGlobal(QPoint{ width() / 2,0 }));
       RenderContext->setScreen(pScreen);
       DummyOffscreenSurface = new QOffscreenSurface(pScreen);
       DummyOffscreenSurface->setFormat(context()->format());

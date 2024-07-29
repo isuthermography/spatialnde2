@@ -26,7 +26,7 @@ version based on git tagging, such as from https://git-scm.com/downloads
    strongly encouraged.  The following command will establish a new environment
    named SNDE with all of the required libraries and packages:
 
-     conda create -n SNDE -c conda-forge python=3.9 numpy scipy matplotlib cython ipython pip opencv clhpp pyopencl pint hdf5 h5py lxml setuptools netcdf4 cmake openscenegraph pyopengl glfw freeglut glew mesa eigen swig pyreadline pyserial pyside2 hdf5 pyvisa git wheel 
+     conda create -n SNDE -c conda-forge python=3.9 numpy scipy matplotlib cython ipython pip opencv clhpp pyopencl pint hdf5 h5py lxml setuptools netcdf4 cmake openscenegraph pyopengl glfw freeglut glew mesa eigen swig pyreadline pyserial pyside2 hdf5 pyvisa git wheel build tomli-w 
      
    Note:  not all of these packages may be needed.  There may be other 
           packages required for certain situations.
