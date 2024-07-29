@@ -2,11 +2,13 @@ import sys
 import os
 import os.path
 
+open_mode='b'
 try:
     import tomllib
     pass
 except ModuleNotFoundError:
     import pip._vendor.tomli as tomllib
+    open_mode='' #Seems not to want bytes mode
     pass
 
 import tomli_w
@@ -16,7 +18,8 @@ import tomli_w
 # root=".."
 # where .. is the relative path from argv[2] to argv[1]
 
-with open(sys.argv[1],"rb") as f:
+
+with open(sys.argv[1],"r"+open_mode) as f:
     data=tomllib.load(f)
     pass
 

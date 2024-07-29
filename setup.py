@@ -11,7 +11,13 @@ from setuptools import setup, Extension
 from setuptools.command.install import install
 #import distutils
 from setuptools import Command
-from setuptools.command.build import build
+try:
+    from setuptools.command.build import build
+    pass
+except ModuleNotFoundError:
+    from distutils.command.build import build
+    pass
+
 from setuptools.command.build_ext import build_ext
 from sysconfig import get_config_var
 from contextlib import suppress
