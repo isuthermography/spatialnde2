@@ -336,10 +336,10 @@ global revision (which may not yet be complete) with
 ``recdb.latest_defined_globalrev()``. Given a global revision
 object stored in the variable ``globalrev``, you can list the
 recordings in a global revision with ``globalrev.list_recordings()``
-or the available array recording references with
-``globalrev.list_recording_refs()``. Likewise you can obtain
-a recording or an array reference with ``globalrev.get_recording()``
-or ``globalrev.get_recording_ref()`` respectively. 
+or the available n-dimensional array recording references with
+``globalrev.list_ndarray_refs()``. Likewise you can obtain
+a recording or an n-dimensional array reference with ``globalrev.get_recording()``
+or ``globalrev.get_ndarray_ref()`` respectively. 
 
 .. _SNDEinDGPY:
 

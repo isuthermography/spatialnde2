@@ -136,7 +136,7 @@ arrays is common enough (e.g. for graphics data structures, growing
 recordings) to justify this as the base data structure.
 
 The individual arrays within a ``multi_ndarray_recording`` are accessed
-using the ``ndarray_recording_ref`` reference class (or a subclass thereof) returned by the ``reference_ndarray()`` method or by the ``get_recording_ref()`` method of the ``recording_set_state`` or ``globalrevision``. 
+using the ``ndarray_recording_ref`` reference class (or a subclass thereof) returned by the ``reference_ndarray()`` method or by the ``get_ndarray_ref()`` method of the ``recording_set_state`` or ``globalrevision``. 
 Note that the single-ndarray ``ndarray_recording_ref`` is **not** a subclass
 of ``multi_ndarray_recording`` so that the different n-dimensional arrays
 within a single ``multi_ndarray_recording`` can be accessed by their own
@@ -285,7 +285,7 @@ The ``ndarray_recording_ref`` is the previously mentioned class for
 referencing a single n-dimensional array within a
 ``multi_ndarray_recording``.  It can be obtained via the
 ``reference_ndarray()`` method of the ``multi_ndarray_recording`` or
-the ``get_recording_ref()`` method of a ``recording_set_state`` or
+the ``get_ndarray_ref()`` method of a ``recording_set_state`` or
 ``globalrevision``. The ``ndarray_recording_ref`` contains a C++ STL
 shared pointer to the recording, ensuring that the recording will be
 kept in memory as long as the reference exists. It also contains an
@@ -529,7 +529,7 @@ is requested).
 
 By the end of the execution function, it should have marked metadata
 as done on all output recordings (``mark_metadata_done()`` method of
-the recording) and the data as being ready (``mark_as_ready()`` method).
+the recording) and the data as being ready (``mark_data_and_metadata_ready()`` method).
 
 If math code throws an exception, it will be caught and (if the
 exception was an ``snde_error()``) a backtrace printed. Exceptions of 

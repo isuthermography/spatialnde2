@@ -4588,7 +4588,7 @@ namespace snde {
     return retval;
   }
 
-  std::shared_ptr<std::vector<std::pair<std::string,std::string>>> recording_set_state::list_recording_refs()
+  std::shared_ptr<std::vector<std::pair<std::string,std::string>>> recording_set_state::list_ndarray_refs()
     {
       std::shared_ptr<std::vector<std::pair<std::string,std::string>>> retval = std::make_shared<std::vector<std::pair<std::string,std::string>>>();
 

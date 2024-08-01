@@ -395,32 +395,32 @@ namespace snde {
 		    snde_index accumindex = 0;
 		    if (!just_starting) {
 		      accumindex = creator_data->accumulated;
-		    }
+		    
 
-		    snde_index elements_in_single_entry = 1;
-		    for (auto&& axislen : to_accum->layout.dimlen) {
-		      elements_in_single_entry *= axislen;
-		    }
-		    snde_index bytes_in_single_entry = elements_in_single_entry * to_accum->ndinfo()->elementsize;
+		      snde_index elements_in_single_entry = 1;
+		      for (auto&& axislen : to_accum->layout.dimlen) {
+			elements_in_single_entry *= axislen;
+		      }
+		      snde_index bytes_in_single_entry = elements_in_single_entry * to_accum->ndinfo()->elementsize;
 		    		    
-		    // Copy data
-		    std::vector<snde_index> curelement(accum_dimlen.size());  //assignmap.at(accumindex)
-		    snde_index inputindex = assignmap.at(accumindex);
-		    if (fortran_mode) {
-		      for (size_t i = 0; i < accum_dimlen.size(); ++i) {
-			curelement[i] = inputindex % accum_dimlen[i];
-			inputindex /= accum_dimlen[i];
+		      // Copy data
+		      std::vector<snde_index> curelement(accum_dimlen.size());  //assignmap.at(accumindex)
+		      snde_index inputindex = assignmap.at(accumindex);
+		      if (fortran_mode) {
+			for (size_t i = 0; i < accum_dimlen.size(); ++i) {
+			  curelement[i] = inputindex % accum_dimlen[i];
+			  inputindex /= accum_dimlen[i];
+			}
 		      }
-		    }
-		    else {
-		      for (size_t i = accum_dimlen.size(); i > 0; --i) {
-			curelement[i-1] = inputindex % accum_dimlen[i-1];
-			inputindex /= accum_dimlen[i-1];
+		      else {
+			for (size_t i = accum_dimlen.size(); i > 0; --i) {
+			  curelement[i-1] = inputindex % accum_dimlen[i-1];
+			  inputindex /= accum_dimlen[i-1];
+			}
 		      }
-		    }
-		    memcpy(result->element_dataptr(arraynum, curelement), to_accum->void_shifted_arrayptr(), bytes_in_single_entry);
+		      memcpy(result->element_dataptr(arraynum, curelement), to_accum->void_shifted_arrayptr(), bytes_in_single_entry);
 
-		    if (!just_starting) {
+		    
 		      // Mark Element as Modified
 		      result->storage.at(0)->mark_as_modified(NULL, result->element_offset(0, curelement), elements_in_single_entry, true);
 		    }
@@ -431,12 +431,19 @@ namespace snde {
 		    // Create new creator_data
 		    std::shared_ptr<nd_accumulate_once_creator_data<T>> new_creator_data = std::make_shared<nd_accumulate_once_creator_data<T>>();
 		    if (just_starting) {
-		      new_creator_data->accumulated = 1;
+		      new_creator_data->accumulated = 0;
 		      new_creator_data->first_rec = to_accum;
 		    }
 		    else {
-		      new_creator_data->accumulated = creator_data->accumulated + 1;
-		      new_creator_data->first_rec = creator_data->first_rec;
+		      if (creator_data->accumulated == 0) {
+			new_creator_data->accumulated = 1;
+			new_creator_data->first_rec = to_accum;
+		      }
+		      else {
+			new_creator_data->accumulated = creator_data->accumulated + 1;
+			new_creator_data->first_rec = creator_data->first_rec;
+		      }
+		      
 		    }		  
 
 		    // Check if finished

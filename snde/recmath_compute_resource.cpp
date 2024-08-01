@@ -588,8 +588,6 @@ namespace snde {
 	try {
 	  execfunc->execution_tracker = ready_fcn->fcn->initiate_execution(ready_rss,ready_fcn);
 
-	  // add it here
-	  execfunc->execution_tracker->msgs = math_messages;
 
 	  if (!execfunc->execution_tracker) {
 	    // initiate_execution failed
@@ -614,6 +612,9 @@ namespace snde {
 	    return;
 
 	    
+	  } else {
+	    // add it here
+	    execfunc->execution_tracker->msgs = math_messages;
 	  }
 	  
 	} catch (const math_parameter_mismatch &exc) {
