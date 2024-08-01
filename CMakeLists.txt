@@ -225,6 +225,10 @@ include_directories(${HDF5_CXX_INCLUDE_DIRS})
 set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} ${HDF5_C_DEFINITIONS} ${HDF5_CXX_DEFINITIONS} ) 
 set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DH5_BUILT_AS_DYNAMIC_LIB=1)
 
+IF (LibXml2_FOUND AND Eigen3_FOUND)
+  set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS}  -DSNDE_X3D)
+ENDIF()
+
 # OpenSceneGraph (osg) dependencies
 find_package(OpenThreads)
 find_package(OpenSceneGraph 3.6.0 REQUIRED osg osgViewer osgGA osgDB osgUtil osgText) # Shader stuff requires OSG 3.6.0 or newer. Could also disable this with a configuration (search for enable_shaders) to support older OSG versions
@@ -792,7 +796,7 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	message(STATUS ${Python3_LIBRARIES})
 	include(${SWIG_USE_FILE})
 	# BUG: If python version >= 3 need -py3 -DPY_VERSION_HEX=0x03060000 additional flags to SWIG command
-	set(CMAKE_SWIG_FLAGS "-threads" "-DSNDE_LOCKMANAGER_COROUTINES_THREADED" )
+	set(CMAKE_SWIG_FLAGS "-threads" )
 	# We enforce a private SWIG_TYPE_TABLE because the swig type table
 	# isn't thread-safe and we are designed to be used in a highly
 	# threaded environment. This limits interoperability between
@@ -806,22 +810,20 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	# with other binding systems. 
 	set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-DSWIG_TYPE_TABLE=spatialnde2" )
 
-	IF (LibXml2_FOUND AND Eigen3_FOUND)
-	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_X3D)
-	ENDIF()
-
 	set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-py3" "-DPY_VERSION_HEX=0x03${PyVerHex}0000")
-	if (SIZEOF_LONG MATCHES "8")
-	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-DSIZEOF_LONG_IS_8")
-	endif()
+	#if (SIZEOF_LONG MATCHES "8")
+	#  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-DSIZEOF_LONG_IS_8")
+	#endif()
 	
-	if (SIZEOF_SIZE_T MATCHES "8")
-	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-DSIZEOF_SIZE_T_IS_8")
-	endif()
+	#if (SIZEOF_SIZE_T MATCHES "8")
+	#  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-DSIZEOF_SIZE_T_IS_8")
+	#endif()
     
-	IF (OpenCL_FOUND)
-	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_OPENCL)
-	ENDIF()
+	#IF (OpenCL_FOUND)
+	#  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_OPENCL)
+	#ENDIF()
+
+	set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} ${SPATIALNDE2_COMPILE_DEFINITIONS})
 	#message("CMAKE_SWIG_FLAGS: " "${CMAKE_SWIG_FLAGS}")
 
 	
