@@ -47,9 +47,12 @@ and libraries:
   * libxml2: Stable XML parser and generator
   * Eigen3: Matrix math
   * OpenCL: GPU acceleration
+  * OpenCV: Computer vision
+  * HDF5: Data file I/O
   * Python: Build scripting
   * SWIG: Generation of Python bindings
   * NumPy: Used in Python bindings
+  * Python setuptools and associated packages
   * libpng: Graphics I/O
   * OpenSceneGraph: Rendering subsystem. 
   * OpenGL: Rendering backend for OpenSceneGraph
@@ -62,5 +65,13 @@ The 3D rendering (OpenSceneGraph) and GUI (QT5) dependencies are
 intentionally isolated into a relatively small number of source
 files and linked into separate shared libraries. This will make
 it possible to target alternative graphics APIs (such as Vulkan
-with VulkanSceneGraph) and/or alternative GUIs in the future. 
+with VulkanSceneGraph) and/or alternative GUIs in the future.
+
+Here is a list of required prerequisites for RPM based Linux systems using Qt5:
+
+ * cmake libxml2-devel eigen3-devel ocl-icd-devel opencl-filesystem opencl-headers python3-pyopencl swig python3-numpy python3-setuptools python3-pip python3-wheel python3-build python3-tomli-w libpng-devel OpenSceneGraph-devel libglvnd-devel qt5-qtbase-devel pyside2-devel shiboken2 python3-shiboken2-devel freeglut-devel opencv-devel hdf5-devel python3-h5py python3-lxml glfw-devel glew-devel python3-pyserial git
+
+Here is a list of required prerequisites for RPM based Linux systems using Qt6:
+
+ * cmake libxml2-devel eigen3-devel ocl-icd-devel opencl-filesystem opencl-headers python3-pyopencl swig python3-numpy python3-setuptools python3-pip python3-wheel python3-build python3-tomli-w libpng-devel OpenSceneGraph-devel libglvnd-devel qt6-qtbase-devel pyside6-devel shiboken6 python3-shiboken6-devel freeglut-devel opencv-devel hdf5-devel python3-h5py python3-lxml glfw-devel glew-devel python3-pyserial git
 

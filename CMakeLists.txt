@@ -225,6 +225,10 @@ include_directories(${HDF5_CXX_INCLUDE_DIRS})
 set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} ${HDF5_C_DEFINITIONS} ${HDF5_CXX_DEFINITIONS} ) 
 set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DH5_BUILT_AS_DYNAMIC_LIB=1)
 
+IF (LibXml2_FOUND AND Eigen3_FOUND)
+  set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS}  -DSNDE_X3D)
+ENDIF()
+
 # OpenSceneGraph (osg) dependencies
 find_package(OpenThreads)
 find_package(OpenSceneGraph 3.6.0 REQUIRED osg osgViewer osgGA osgDB osgUtil osgText) # Shader stuff requires OSG 3.6.0 or newer. Could also disable this with a configuration (search for enable_shaders) to support older OSG versions
@@ -233,9 +237,13 @@ find_package(OpenGL REQUIRED COMPONENTS OpenGL) # (If this becomes a problem som
 
 find_package(GLUT)
 
-# QT
-find_package(Qt5 REQUIRED Core Widgets Gui OpenGL UiTools )
-
+IF(SNDE_ENABLE_QT6)
+  find_package(Qt6 REQUIRED Core Widgets Gui OpenGL UiTools )
+  set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_ENABLE_QT6=1)
+ELSE()
+  find_package(Qt5 REQUIRED Core Widgets Gui OpenGL UiTools )
+  set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_ENABLE_QT5=1)
+ENDIF()
 
 IF (OpenCL_FOUND)
   # Enable OpenCL support
@@ -312,15 +320,29 @@ IF (OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   link_directories(${OPENSCENEGRAPH_LIB_DIR})
 
 ENDIF()
-IF (Qt5_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
-  include_directories(${Qt5Widgets_INCLUDE_DIRS} ${Qt5Core_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5OpenGL_INCLUDE_DIRS} ${Qt5UiTools_INCLUDE_DIRS} )
+IF(SNDE_ENABLE_QT6)
+  IF (Qt6_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
+    include_directories(${Qt6Widgets_INCLUDE_DIRS} ${Qt6Core_INCLUDE_DIRS} ${Qt6Widgets_INCLUDE_DIRS} ${Qt6OpenGL_INCLUDE_DIRS} ${Qt6UiTools_INCLUDE_DIRS} )
   
-  QT5_WRAP_CPP(qt_osg_compositor_MOC snde/qt_osg_compositor.cpp snde/qt_osg_compositor.hpp )
-  QT5_WRAP_CPP(qtrecviewer_support_MOC snde/qtrecviewer_support.cpp snde/qtrecviewer_support.hpp )
-  QT5_WRAP_CPP(qtrecviewer_MOC snde/qtrecviewer.cpp snde/qtrecviewer.hpp )
+    QT6_WRAP_CPP(qt_osg_compositor_MOC snde/qt_osg_compositor.cpp snde/qt_osg_compositor.hpp )
+    QT6_WRAP_CPP(qtrecviewer_support_MOC snde/qtrecviewer_support.cpp snde/qtrecviewer_support.hpp )
+    QT6_WRAP_CPP(qtrecviewer_MOC snde/qtrecviewer.cpp snde/qtrecviewer.hpp )
   
-  set(SPATIALNDE2_QT_SOURCES snde/qt_osg_compositor.cpp ${qt_osg_compositor_MOC} snde/qtrecviewer_support.cpp ${qtrecviewer_support_MOC} snde/qtrecviewer.cpp ${qtrecviewer_MOC} )
+    set(SPATIALNDE2_QT_SOURCES snde/qt_osg_compositor.cpp ${qt_osg_compositor_MOC} snde/qtrecviewer_support.cpp ${qtrecviewer_support_MOC} snde/qtrecviewer.cpp ${qtrecviewer_MOC} )
 
+  ENDIF()
+ELSE()
+  
+  IF (Qt5_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
+    include_directories(${Qt5Widgets_INCLUDE_DIRS} ${Qt5Core_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5OpenGL_INCLUDE_DIRS} ${Qt5UiTools_INCLUDE_DIRS} )
+  
+    QT5_WRAP_CPP(qt_osg_compositor_MOC snde/qt_osg_compositor.cpp snde/qt_osg_compositor.hpp )
+    QT5_WRAP_CPP(qtrecviewer_support_MOC snde/qtrecviewer_support.cpp snde/qtrecviewer_support.hpp )
+    QT5_WRAP_CPP(qtrecviewer_MOC snde/qtrecviewer.cpp snde/qtrecviewer.hpp )
+  
+    set(SPATIALNDE2_QT_SOURCES snde/qt_osg_compositor.cpp ${qt_osg_compositor_MOC} snde/qtrecviewer_support.cpp ${qtrecviewer_support_MOC} snde/qtrecviewer.cpp ${qtrecviewer_MOC} )
+
+  ENDIF()
 ENDIF()
 
 IF (LibXml2_FOUND)
@@ -377,10 +399,19 @@ IF (OpenSceneGraph_FOUND)
   ENDIF()
 ENDIF()
 
-IF (Qt5_FOUND)
-  qt5_add_resources(SPATIALNDE2_QT_RCC snde/qtrecviewer.qrc )
-  add_library(spatialnde2_qt SHARED ${SPATIALNDE2_QT_SOURCES} ${SPATIALNDE2_QT_RCC})
-  target_link_libraries(spatialnde2_qt Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools ${OPENSCENEGRAPH_LIBRARIES} spatialnde2 spatialnde2_osg)
+IF(SNDE_ENABLE_QT6)
+  IF (Qt6_FOUND)
+    qt6_add_resources(SPATIALNDE2_QT_RCC snde/qtrecviewer.qrc )
+    add_library(spatialnde2_qt SHARED ${SPATIALNDE2_QT_SOURCES} ${SPATIALNDE2_QT_RCC})
+    target_link_libraries(spatialnde2_qt Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::UiTools ${OPENSCENEGRAPH_LIBRARIES} spatialnde2 spatialnde2_osg)
+  ENDIF()
+ELSE()
+ 
+  IF (Qt5_FOUND)
+    qt5_add_resources(SPATIALNDE2_QT_RCC snde/qtrecviewer.qrc )
+    add_library(spatialnde2_qt SHARED ${SPATIALNDE2_QT_SOURCES} ${SPATIALNDE2_QT_RCC})
+    target_link_libraries(spatialnde2_qt Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools ${OPENSCENEGRAPH_LIBRARIES} spatialnde2 spatialnde2_osg)
+  ENDIF()
 ENDIF()
 
 # SpatialNDE2 headers
@@ -507,7 +538,7 @@ ENDIF (Python3_FOUND)
 
 
 IF (Python3_FOUND)
-  set(PYTHONPKGFILES ${CMAKE_CURRENT_BINARY_DIR}/setup.py ${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} )
+  set(PYTHONPKGFILES ${CMAKE_CURRENT_BINARY_DIR}/setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.cfg ${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/__init__.py ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} )
 
 
   file(GLOB CYTHON_PXD_FILES snde/*.pxd )
@@ -520,11 +551,13 @@ IF (Python3_FOUND)
   # openscenegraph or qt, for example
   IF(WIN32)
     add_custom_command(OUTPUT ${PYTHONPKGFILES}
-    DEPENDS compile_configuration python/pyproject.toml python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES} 
+    DEPENDS compile_configuration pyproject.toml setup.py setup.cfg spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES} 
     # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
     
-    COMMAND ${CMAKE_COMMAND} -E copy python/setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
-    COMMAND ${CMAKE_COMMAND} -E copy python/pyproject.toml ${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml
+    COMMAND ${CMAKE_COMMAND} -E copy setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
+    COMMAND ${CMAKE_COMMAND} -E copy setup.cfg ${CMAKE_CURRENT_BINARY_DIR}/setup.cfg
+    #COMMAND ${CMAKE_COMMAND} -E copy pyproject.toml ${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml
+    COMMAND ${Python3_EXECUTABLE} python/pyproject_assign_git_root.py pyproject.toml ${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
@@ -560,11 +593,13 @@ IF (Python3_FOUND)
 
   ELSE()
     add_custom_command(OUTPUT ${PYTHONPKGFILES}
-    DEPENDS compile_configuration python/pyproject.toml python/setup.py spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES}
+    DEPENDS compile_configuration pyproject.toml setup.py setup.cfg spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES}
     # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
     
-    COMMAND ${CMAKE_COMMAND} -E copy python/setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
-    COMMAND ${CMAKE_COMMAND} -E copy python/pyproject.toml ${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml
+    COMMAND ${CMAKE_COMMAND} -E copy setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
+    COMMAND ${CMAKE_COMMAND} -E copy setup.cfg ${CMAKE_CURRENT_BINARY_DIR}/setup.cfg
+    #COMMAND ${CMAKE_COMMAND} -E copy pyproject.toml ${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml
+    COMMAND ${Python3_EXECUTABLE} python/pyproject_assign_git_root.py pyproject.toml ${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
@@ -684,24 +719,48 @@ IF (Qt5_FOUND AND OpenCL_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenScene
   #target_link_libraries(png_viewer_qt ${SPATIALNDE2_QT_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${OpenCL_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
 ENDIF()
 
-IF (Qt5_FOUND AND Python3_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PNG_FOUND)
-  add_executable(x3d_viewer_qt test/x3d_viewer_qt.cpp)
-  add_dependencies(x3d_viewer_qt OpenGL::GL )
-  target_link_libraries(x3d_viewer_qt ${SPATIALNDE2_QT_LIBS} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS}  ${OPENSCENEGRAPH_LIBRARIES} ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
-  IF (OpenCL_FOUND)
-	  target_link_libraries(x3d_viewer_qt ${SPATIALNDE2_OCL_LIBS})
+IF(SNDE_ENABLE_QT6)
+  IF (Qt6_FOUND AND Python3_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PNG_FOUND)
+    add_executable(x3d_viewer_qt test/x3d_viewer_qt.cpp)
+    add_dependencies(x3d_viewer_qt OpenGL::GL )
+    target_link_libraries(x3d_viewer_qt ${SPATIALNDE2_QT_LIBS} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS}  ${OPENSCENEGRAPH_LIBRARIES} ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::UiTools )
+    IF (OpenCL_FOUND)
+      target_link_libraries(x3d_viewer_qt ${SPATIALNDE2_OCL_LIBS})
+    ENDIF()
+  ENDIF()
+ELSE()
+  IF (Qt5_FOUND AND Python3_FOUND AND LibXml2_FOUND AND EIGEN3_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND AND PNG_FOUND)
+    add_executable(x3d_viewer_qt test/x3d_viewer_qt.cpp)
+    add_dependencies(x3d_viewer_qt OpenGL::GL )
+    target_link_libraries(x3d_viewer_qt ${SPATIALNDE2_QT_LIBS} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS}  ${OPENSCENEGRAPH_LIBRARIES} ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
+    IF (OpenCL_FOUND)
+      target_link_libraries(x3d_viewer_qt ${SPATIALNDE2_OCL_LIBS})
+    ENDIF()
   ENDIF()
 ENDIF()
 
 
-IF (Qt5_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND )
-  add_executable(ande_viewer test/ande_viewer.cpp)
-  add_dependencies(ande_viewer OpenGL::GL )
-  target_link_libraries(ande_viewer ${SPATIALNDE2_QT_LIBS} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS}  ${OPENSCENEGRAPH_LIBRARIES}  ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
-  IF(OpenCL_FOUND)
-        target_link_libraries(ande_viewer ${SPATIALNDE2_OCL_LIBS})
+IF(SNDE_ENABLE_QT6)
+  IF (Qt6_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND )
+    add_executable(ande_viewer test/ande_viewer.cpp)
+    add_dependencies(ande_viewer OpenGL::GL )
+    target_link_libraries(ande_viewer ${SPATIALNDE2_QT_LIBS} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS}  ${OPENSCENEGRAPH_LIBRARIES}  ${CMAKE_THREAD_LIBS_INIT} Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::UiTools )
+    IF(OpenCL_FOUND)
+      target_link_libraries(ande_viewer ${SPATIALNDE2_OCL_LIBS})
+    ENDIF()
+  ENDIF()
+ELSE()
+  
+  IF (Qt5_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND )
+    add_executable(ande_viewer test/ande_viewer.cpp)
+    add_dependencies(ande_viewer OpenGL::GL )
+    target_link_libraries(ande_viewer ${SPATIALNDE2_QT_LIBS} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS}  ${OPENSCENEGRAPH_LIBRARIES}  ${CMAKE_THREAD_LIBS_INIT} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools )
+    IF(OpenCL_FOUND)
+      target_link_libraries(ande_viewer ${SPATIALNDE2_OCL_LIBS})
+    ENDIF()
   ENDIF()
 ENDIF()
+
 
 
 
@@ -737,7 +796,7 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	message(STATUS ${Python3_LIBRARIES})
 	include(${SWIG_USE_FILE})
 	# BUG: If python version >= 3 need -py3 -DPY_VERSION_HEX=0x03060000 additional flags to SWIG command
-	set(CMAKE_SWIG_FLAGS "-threads" "-DSNDE_LOCKMANAGER_COROUTINES_THREADED" )
+	set(CMAKE_SWIG_FLAGS "-threads" )
 	# We enforce a private SWIG_TYPE_TABLE because the swig type table
 	# isn't thread-safe and we are designed to be used in a highly
 	# threaded environment. This limits interoperability between
@@ -751,22 +810,20 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	# with other binding systems. 
 	set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-DSWIG_TYPE_TABLE=spatialnde2" )
 
-	IF (LibXml2_FOUND AND Eigen3_FOUND)
-	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_X3D)
-	ENDIF()
-
 	set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-py3" "-DPY_VERSION_HEX=0x03${PyVerHex}0000")
-	if (SIZEOF_LONG MATCHES "8")
-	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-DSIZEOF_LONG_IS_8")
-	endif()
+	#if (SIZEOF_LONG MATCHES "8")
+	#  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-DSIZEOF_LONG_IS_8")
+	#endif()
 	
-	if (SIZEOF_SIZE_T MATCHES "8")
-	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-DSIZEOF_SIZE_T_IS_8")
-	endif()
+	#if (SIZEOF_SIZE_T MATCHES "8")
+	#  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} "-DSIZEOF_SIZE_T_IS_8")
+	#endif()
     
-	IF (OpenCL_FOUND)
-	  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_OPENCL)
-	ENDIF()
+	#IF (OpenCL_FOUND)
+	#  set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS}  -DSNDE_OPENCL)
+	#ENDIF()
+
+	set(CMAKE_SWIG_FLAGS ${CMAKE_SWIG_FLAGS} ${SPATIALNDE2_COMPILE_DEFINITIONS})
 	#message("CMAKE_SWIG_FLAGS: " "${CMAKE_SWIG_FLAGS}")
 
 	
@@ -776,8 +833,12 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	set(SPATIALNDE2_SWIG_SOURCES snde/spatialnde2.i  )
 	set_property(SOURCE snde/spatialnde2.i PROPERTY SWIG_MODULE_NAME spatialnde2_python)
 
-        	
-	set(SWIG_SPATIALNDE2_LINK_TARGETS Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools PNG::PNG hdf5::hdf5 hdf5::hdf5_cpp) # Libraries needed by swig_spatialnde2 that are swig targets
+        IF(SNDE_ENABLE_QT6)
+	  set(SWIG_SPATIALNDE2_LINK_TARGETS Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::UiTools PNG::PNG hdf5::hdf5 hdf5::hdf5_cpp) # Libraries needed by swig_spatialnde2 that are swig targets
+	ELSE()  
+	  set(SWIG_SPATIALNDE2_LINK_TARGETS Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools PNG::PNG hdf5::hdf5 hdf5::hdf5_cpp) # Libraries needed by swig_spatialnde2 that are swig targets
+	ENDIF()
+	
 	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${Python3_LIBRARIES} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${SPATIALNDE2_QT_LIBS} )
 
 	IF (OpenCL_FOUND)
@@ -926,7 +987,7 @@ if(INSTALL_INTO_PYTHON_SITE_PACKAGES)
   #install(
   #  FILES "${PROJECT_BINARY_DIR}/spatialnde2.py"
   #  DESTINATION ${PYTHON_SITE_PACKAGES})
-  install( CODE "execute_process(COMMAND ${Python3_EXECUTABLE} setup.py install )")
+  install( CODE "execute_process(COMMAND ${Python3_EXECUTABLE} -m pip install --no-deps --no-build-isolation )")
 endif()
 
 
@@ -941,8 +1002,8 @@ install(FILES
         ${CMAKE_BINARY_DIR}/compile_libraries.txt
         DESTINATION ${APP_INSTALL_DIR})
 
-      
-IF (Qt5_FOUND)
+
+IF ((Qt5_FOUND AND SNDE_ENABLE_QT5) OR (Qt6_FOUND AND SNDE_ENABLE_QT6))
   install(TARGETS
           spatialnde2_qt
           DESTINATION ${APP_INSTALL_DIR}/lib)

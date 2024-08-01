@@ -1,0 +1,22 @@
+[project]
+name = 'spatialnde2'
+dynamic = ['version','authors','description','urls']
+requires-python = ">= 3.8"
+readme = "README.md"
+classifiers = [
+	    "Development Status :: 3 - Alpha",
+	    "License :: OSI Approved :: BSD License"
+	    ]
+
+#[project.scripts]
+#dataguzzler-python = "dataguzzler_python.bin.dataguzzler_python:main"
+
+[build-system]
+requires = ["setuptools>=64","numpy", "setuptools_scm[toml]>=5"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+# Note: With recent setuptools we can use "version_file" instead of "write_to"
+write_to = "python/_version.py"
+
+

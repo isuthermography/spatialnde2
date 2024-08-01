@@ -151,7 +151,15 @@ static QUATERNION_INLINE void quaternion_apply_vector(const snde_coord4 quat,con
 
 
 static QUATERNION_INLINE void quaternion_build_rotmtx(const snde_coord4 quat,snde_coord4 *rotmtx /* (array of 3 or 4 coord4's, interpreted as column-major). Does not write 4th column  */ )
-/* assumes quat is normalized, stored as 'i,j,k,w' components */
+/*
+  assumes quat is normalized, stored as 'i,j,k,w' components
+  WARNING: when rotmtx is read out from python, it is a series
+  of column vectors each of which is a snde_coord4. To get the
+  actual matrix you need to extract the ["coord"] and then
+  transpose, ie
+  numpy_matrix = quaternion_build_rotmtx(...)["coord"].T
+ */
+  
 {
   // This could definitely be optimized
   snde_coord4 vec1 = { { 1.0f, 0.0f, 0.0f, 0.0f } };

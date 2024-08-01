@@ -16,3 +16,5 @@ doc/ProgramRef/spatialnde2_reference.pdf
 doc/UsersGuide/build
 
 old_obsolete
+python/_version.py
+dist
