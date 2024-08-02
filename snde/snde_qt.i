@@ -127,7 +127,7 @@ namespace snde {
   bindings_name = PyUnicode_FromString("shiboken2");
 #endif
 #ifdef SNDE_ENABLE_QT6
-  binding_name = PyUnicode_FromString("shiboken6");
+  bindings_name = PyUnicode_FromString("shiboken6");
 #endif
   bindings = PyImport_GetModule(bindings_name);
   if (!bindings) {
