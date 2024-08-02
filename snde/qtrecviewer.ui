@@ -89,7 +89,7 @@
       </property>
       <layout class="QGridLayout" name="viewerGridLayout" columnstretch="5,0,0">
        <item row="1" column="0">
-        <widget class="QOpenGLWidget" name="openGLWidget"/>
+        <!-- <widget class="QOpenGLWidget" name="openGLWidget"/> -->
        </item>
        <item row="3" column="2">
         <widget class="QToolButton" name="resetButton">
