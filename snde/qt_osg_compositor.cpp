@@ -395,9 +395,9 @@ namespace snde {
     //GraphicsWindow->getEventQueue()->windowResize(0,0,width,height);
     //GraphicsWindow->resized(0,0,width,height);
     //Camera->setViewport(0,0,width,height);
-    display->set_pixelsperdiv(width,height);
+    display->set_pixelsperdiv(width*devicePixelRatio(),height*devicePixelRatio());
     
-    resize_compositor(width,height);
+    resize_compositor(width*devicePixelRatio(),height*devicePixelRatio());
     
     trigger_rerender();
   }
