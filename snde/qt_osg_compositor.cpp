@@ -409,7 +409,7 @@ namespace snde {
   {
     // translate Qt mouseMoveEvent to OpenSceneGraph
     snde_debug(SNDE_DC_EVENT,"Generating mousemotion");
-    GraphicsWindow->getEventQueue()->mouseMotion(event->x(), event->y()); //,event->timestamp()/1000.0);
+    GraphicsWindow->getEventQueue()->mouseMotion(event->x()*devicePixelRatio(), event->y()*devicePixelRatio()); //,event->timestamp()/1000.0);
     
     // for some reason drags with the middle mouse button pressed
     // get the buttons field filtered out (?)
@@ -444,9 +444,9 @@ namespace snde {
       
     }
 
-    snde_debug(SNDE_DC_EVENT,"Mouse press event (%d,%d,%d)",event->x(),event->y(),button);
+    snde_debug(SNDE_DC_EVENT,"Mouse press event (%d,%d,%d)",event->x()*devicePixelRatio(),event->y()*devicePixelRatio(),button);
     
-    GraphicsWindow->getEventQueue()->mouseButtonPress(event->x(),event->y(),button); //,event->timestamp()/1000.0);
+    GraphicsWindow->getEventQueue()->mouseButtonPress(event->x()*devicePixelRatio(),event->y()*devicePixelRatio(),button); //,event->timestamp()/1000.0);
     
     trigger_rerender();
     
@@ -478,8 +478,8 @@ namespace snde {
       
     }
     
-    snde_debug(SNDE_DC_EVENT,"Mouse release event (%d,%d,%d)",event->x(),event->y(),button);
-    GraphicsWindow->getEventQueue()->mouseButtonRelease(event->x(),event->y(),button); //,event->timestamp()/1000.0);
+    snde_debug(SNDE_DC_EVENT,"Mouse release event (%d,%d,%d)",event->x()*devicePixelRatio(),event->y()*devicePixelRatio(),button);
+    GraphicsWindow->getEventQueue()->mouseButtonRelease(event->x()*devicePixelRatio(),event->y()*devicePixelRatio(),button); //,event->timestamp()/1000.0);
     
     trigger_rerender();
     
@@ -510,15 +510,15 @@ namespace snde {
       for (auto & TouchPoint: TouchPoints) {
 	
 	if (TouchPoint.state()==Qt::TouchPointPressed) {
-	  GraphicsWindow->getEventQueue()->touchBegan(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_BEGAN,TouchPoint.pos().x(),TouchPoint.pos().y(),1); //,timestamp);
+	  GraphicsWindow->getEventQueue()->touchBegan(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_BEGAN,TouchPoint.pos().x()*devicePixelRatio(),TouchPoint.pos().y()*devicePixelRatio(),1); //,timestamp);
 	} else if (TouchPoint.state()==Qt::TouchPointMoved) {
-	  GraphicsWindow->getEventQueue()->touchMoved(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_MOVED,TouchPoint.pos().x(),TouchPoint.pos().y(),1); //,timestamp);
+	  GraphicsWindow->getEventQueue()->touchMoved(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_MOVED,TouchPoint.pos().x()*devicePixelRatio(),TouchPoint.pos().y()*devicePixelRatio(),1); //,timestamp);
 	  
 	} else if (TouchPoint.state()==Qt::TouchPointStationary) {
-	  GraphicsWindow->getEventQueue()->touchMoved(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_STATIONERY,TouchPoint.pos().x(),TouchPoint.pos().y(),1); //,timestamp);
+	  GraphicsWindow->getEventQueue()->touchMoved(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_STATIONERY,TouchPoint.pos().x()*devicePixelRatio(),TouchPoint.pos().y()*devicePixelRatio(),1); //,timestamp);
 	  
 	} else if (TouchPoint.state()==Qt::TouchPointReleased) {
-	  GraphicsWindow->getEventQueue()->touchEnded(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_ENDED,TouchPoint.pos().x(),TouchPoint.pos().y(),1); //,timestamp);
+	  GraphicsWindow->getEventQueue()->touchEnded(TouchPoint.id(),osgGA::GUIEventAdapter::TOUCH_ENDED,TouchPoint.pos().x()*devicePixelRatio(),TouchPoint.pos().y()*devicePixelRatio(),1); //,timestamp);
 	  
 	}
       }
