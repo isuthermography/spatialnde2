@@ -10,12 +10,13 @@
 
 
 static RAYTRACE_INLINE void camera_rayvec(snde_cmat23 cam_mtx, snde_coord a,snde_coord b,snde_coord3 *rayveccam)
-// cam_mtx is the first two
-// rows of the camera matrix
-// evaluate the camera ray vector for pixel (a,b) relative to the origin at the camera focus
-// with the camera pointing in the -z direction
-// stores ray vector in camera coordinates in rayveccam
-// NOTE: Camera matrix defined based on OpenGL coordinate system, not OpencL
+/// cam_mtx is the first two
+/// rows of the camera matrix
+/// evaluate the camera ray vector for pixel (a,b) relative to the origin at the camera focus
+/// with the camera pointing in the -z direction
+/// stores ray vector in camera coordinates in rayveccam
+/// NOTE: Camera matrix defined based on OpenGL coordinate system, not OpencL
+
 {
   snde_coord fx,fy,cx,cy,x_over_w,y_over_w,rayvecfactor;
 
@@ -33,7 +34,7 @@ static RAYTRACE_INLINE void camera_rayvec(snde_cmat23 cam_mtx, snde_coord a,snde
 }
 
 
-static RAYTRACE_INLINE void camera_rayvec_wrl(snde_cmat23 cam_mtx, snde_coord a,snde_coord b,snde_orientation3 camcoords_to_wrlcoords,snde_coord4 *rayvecwrlproj)
+static RAYTRACE_INLINE void camera_rayvec_wrl(snde_cmat23 cam_mtx, snde_coord a,snde_coord b,snde_orientation3 orient_wrlcoords_over_camcoords,snde_coord4 *rayvecwrlproj)
 // evaluate the camera ray vector for pixel (a,b) relative to the world coordinate frame
 // with the camera pointing in the -z direction
 // outputs rayvec in projective object coordinates (4th entry zero)
@@ -46,7 +47,7 @@ static RAYTRACE_INLINE void camera_rayvec_wrl(snde_cmat23 cam_mtx, snde_coord a,
   camera_rayvec(cam_mtx,a,b,(snde_coord3*)&rayvec_cam);
   rayvec_cam.coord[3]=0.0;  // a vector in projective coordinates has a final coordinate of 0
 
-  orientation_apply_vector(camcoords_to_wrlcoords,rayvec_cam,rayvecwrlproj);
+  orientation_apply_vector(orient_wrlcoords_over_camcoords,rayvec_cam,rayvecwrlproj);
   
 }
 
@@ -103,7 +104,7 @@ static RAYTRACE_INLINE void camera_rayvec_deriv_b(snde_cmat23 cam_mtx, snde_coor
   
 }
 
-static RAYTRACE_INLINE void camera_rayvec_deriv_a_wrl(snde_cmat23 cam_mtx, snde_coord a,snde_coord b,snde_orientation3 camcoords_to_wrlcoords,snde_coord4 *rayvecderivwrlproj)
+static RAYTRACE_INLINE void camera_rayvec_deriv_a_wrl(snde_cmat23 cam_mtx, snde_coord a,snde_coord b,snde_orientation3 orient_wrlcoords_over_camcoords,snde_coord4 *rayvecderivwrlproj)
 // evaluate the camera ray vector derivative w.r.t motion in the a direction,
 // for pixel (a,b) relative to world coordinates
 // outputs rayvec in projective object coordinates (4th entry zero)
@@ -116,11 +117,11 @@ static RAYTRACE_INLINE void camera_rayvec_deriv_a_wrl(snde_cmat23 cam_mtx, snde_
   camera_rayvec_deriv_a(cam_mtx,a,b,(snde_coord3*)&rayvecderiv_cam);
   rayvecderiv_cam.coord[3]=0.0;  // a vector in projective coordinates has a final coordinate of 0
 
-  orientation_apply_vector(camcoords_to_wrlcoords,rayvecderiv_cam,rayvecderivwrlproj);
+  orientation_apply_vector(orient_wrlcoords_over_camcoords,rayvecderiv_cam,rayvecderivwrlproj);
   
 }
 
-static RAYTRACE_INLINE void camera_rayvec_deriv_b_wrl(snde_cmat23 cam_mtx, snde_coord a,snde_coord b,snde_orientation3 camcoords_to_wrlcoords,snde_coord4 *rayvecderivwrlproj)
+static RAYTRACE_INLINE void camera_rayvec_deriv_b_wrl(snde_cmat23 cam_mtx, snde_coord a,snde_coord b,snde_orientation3 orient_wrlcoords_over_camcoords,snde_coord4 *rayvecderivwrlproj)
 // evaluate the camera ray vector derivative w.r.t motion in the b direction,
 // for pixel (a,b) relative to world coordinates
 // outputs rayvec in projective object coordinates (4th entry zero)
@@ -133,7 +134,7 @@ static RAYTRACE_INLINE void camera_rayvec_deriv_b_wrl(snde_cmat23 cam_mtx, snde_
   camera_rayvec_deriv_b(cam_mtx,a,b,(snde_coord3*)&rayvecderiv_cam);
   rayvecderiv_cam.coord[3]=0.0;  // a vector in projective coordinates has a final coordinate of 0
 
-  orientation_apply_vector(camcoords_to_wrlcoords,rayvecderiv_cam,rayvecderivwrlproj);
+  orientation_apply_vector(orient_wrlcoords_over_camcoords,rayvecderiv_cam,rayvecderivwrlproj);
   
 }
 
@@ -907,7 +908,7 @@ void project_to_uv_arrays(snde_imagedata pixelval,snde_imagedata pixelweighting,
   snde_coord2 pos,pos_frac,srcpos;
   //float64_t angle_of_incidence_factor;
 
-  if (isnan(pixelval)) {
+  if (isnan(pixelval) || isnan(uvcoords0_pixels) || isnan(uvcoords1_pixels)) {
     return; /* never project NaN */
   }
 
@@ -1199,26 +1200,26 @@ static RAYTRACE_INLINE void raytrace_camera_projection_opencl(OCL_GLOBAL_ADDR sn
 #endif // __OPENCL_VERSION__
 
 
-static RAYTRACE_INLINE void raytrace_evaluate_focalpointwrl(snde_orientation3 camcoords_to_wrlcoords,snde_coord4 *focalpointwrl)
+static RAYTRACE_INLINE void raytrace_evaluate_focalpointwrl(snde_orientation3 orient_wrlcoords_over_camcoords,snde_coord4 *focalpointwrl)
 {
   snde_coord4 focalpointcam={.coord={0.0,0.0,0.0,1.0}};
 
   // calculation of focalpointobj: Coordinates of focal point in world coordinates
-  orientation_apply_position(camcoords_to_wrlcoords,focalpointcam,focalpointwrl);
+  orientation_apply_position(orient_wrlcoords_over_camcoords,focalpointcam,focalpointwrl);
   
 }
 
-static RAYTRACE_INLINE void raytrace_evaluate_wrlcoords_to_camcoords(snde_orientation3 camcoords_to_wrlcoords,snde_orientation3 *wrlcoords_to_camcoords)
+static RAYTRACE_INLINE void raytrace_evaluate_orient_camcoords_over_wrlcoords(snde_orientation3 orient_wrlcoords_over_camcoords,snde_orientation3 *orient_camcoords_over_wrlcoords)
 {
-  orientation_inverse(camcoords_to_wrlcoords,wrlcoords_to_camcoords);
+  orientation_inverse(orient_wrlcoords_over_camcoords,orient_camcoords_over_wrlcoords);
   
 }
 
 
 static RAYTRACE_INLINE
 void raytrace_sensor_evaluate_zdist(
-				    snde_orientation3 sensorcoords_to_wrlcoords,
-				    snde_orientation3 wrlcoords_to_sensorcoords,
+				    snde_orientation3 orient_wrlcoords_over_sensorcoords,
+				    snde_orientation3 orient_sensorcoords_over_wrlcoords,
 				    snde_coord mindist, // Generally negative to accommodate slight sensor/specimen overlap due to positioning error
 				    snde_coord maxdist,
 				    OCL_GLOBAL_ADDR snde_partinstance *instances,
@@ -1260,15 +1261,15 @@ void raytrace_sensor_evaluate_zdist(
   // of the source image for each pixel, which surface
   // it maps onto.
   
-  //camera_rayvec_wrl(cam_mtx,aindex,bindex,camcoords_to_wrlcoords,&rayvecwrl);
+  //camera_rayvec_wrl(cam_mtx,aindex,bindex,orient_wrlcoords_over_camcoords,&rayvecwrl);
   snde_coord4 sensorloc_sensor = { { 0,0,-mindist,1 } }; // Point located at the minimum distance along the sensor axis (z)  in sensor coordinates. Negated because behind the sensor is in the +z direction
   snde_coord4 sensordirec_sensor = { { 0,0,-1,0 } };  // Looks in the -z direction
   
   snde_coord4 sensorloc_wrl;
   snde_coord4 sensordirec_wrl;
 
-  orientation_apply_position(sensorcoords_to_wrlcoords,sensorloc_sensor,&sensorloc_wrl);
-  orientation_apply_vector(sensorcoords_to_wrlcoords,sensordirec_sensor,&sensordirec_wrl);
+  orientation_apply_position(orient_wrlcoords_over_sensorcoords,sensorloc_sensor,&sensorloc_wrl);
+  orientation_apply_vector(orient_wrlcoords_over_sensorcoords,sensordirec_sensor,&sensordirec_wrl);
   
   
   raytrace_find_first_intersection(sensorloc_wrl,sensordirec_wrl,
@@ -1418,8 +1419,8 @@ static RAYTRACE_INLINE
 void raytrace_camera_evaluate_zdist(
 				    snde_cmat23 cam_mtx,
 				    snde_coord4 focalpointwrl,
-				    snde_orientation3 camcoords_to_wrlcoords,
-				    snde_orientation3 wrlcoords_to_camcoords,
+				    snde_orientation3 orient_wrlcoords_over_camcoords,
+				    snde_orientation3 orient_camcoords_over_wrlcoords,
 				    snde_index aindex,snde_index bindex, // index of the particular pixel ray we are interested in
 				      
 				    OCL_GLOBAL_ADDR snde_partinstance *instances,
@@ -1475,7 +1476,7 @@ void raytrace_camera_evaluate_zdist(
   // of the source image for each pixel, which surface
   // it maps onto.
     
-  camera_rayvec_wrl(cam_mtx,aindex,bindex,camcoords_to_wrlcoords,&rayvecwrl);
+  camera_rayvec_wrl(cam_mtx,aindex,bindex,orient_wrlcoords_over_camcoords,&rayvecwrl);
   
   
   raytrace_find_first_intersection(focalpointwrl,rayvecwrl,
@@ -1527,8 +1528,8 @@ void raytrace_camera_evaluate_zdist(
 
     // ***!!!! BUG: Does not currently consider the coordinate transformation in the instance!
     
-    camera_rayvec_deriv_a_wrl(cam_mtx,aindex,bindex,camcoords_to_wrlcoords,&rayvecderiv_a);
-    camera_rayvec_deriv_b_wrl(cam_mtx,aindex,bindex,camcoords_to_wrlcoords,&rayvecderiv_b);
+    camera_rayvec_deriv_a_wrl(cam_mtx,aindex,bindex,orient_wrlcoords_over_camcoords,&rayvecderiv_a);
+    camera_rayvec_deriv_b_wrl(cam_mtx,aindex,bindex,orient_wrlcoords_over_camcoords,&rayvecderiv_b);
 
     raytrace_find_intersection_rayvec_derivative(focalpointwrl,rayvecwrl,
 						 rayvecderiv_a,
@@ -1563,7 +1564,7 @@ void raytrace_camera_evaluate_zdist(
       //if (imagedata_ray_intersect_deriv_a_cam_z) {
       // derivative with respect to a in camera coordinates
       // ***!!!! BUG: Does not currently consider the coordinate transformation in the instance!
-      orientation_apply_vector(wrlcoords_to_camcoords,ray_intersect_deriv_a,&ray_intersect_deriv_a_cam);
+      orientation_apply_vector(orient_camcoords_over_wrlcoords,ray_intersect_deriv_a,&ray_intersect_deriv_a_cam);
       
       // export z-derivative with respect to a in camera coordinates
       imagedata_intersectprops->ray_intersect_deriv_a_cam_z=ray_intersect_deriv_a_cam.coord[2];
@@ -1571,7 +1572,7 @@ void raytrace_camera_evaluate_zdist(
       
       //if (imagedata_ray_intersect_deriv_b_cam_z) {
       // derivative with respect to b in camera coordinates
-      orientation_apply_vector(wrlcoords_to_camcoords,ray_intersect_deriv_b,&ray_intersect_deriv_b_cam);
+      orientation_apply_vector(orient_camcoords_over_wrlcoords,ray_intersect_deriv_b,&ray_intersect_deriv_b_cam);
       // export z-derivative with respect to b in camera coordinates
       imagedata_intersectprops->ray_intersect_deriv_b_cam_z=ray_intersect_deriv_b_cam.coord[2];
       //}
@@ -1745,7 +1746,7 @@ void raytrace_camera_evaluate_zdist(
 static RAYTRACE_INLINE
 void raytrace_camera_evaluate_zbuffer(
 				      snde_cmat23 cam_mtx,
-				      snde_orientation3 camcoords_to_wrlcoords,
+				      snde_orientation3 orient_wrlcoords_over_camcoords,
 				      snde_index src_na, snde_index src_nb, // assume rays start at origin of camcoords, projected by cam_mtx with pixel coordinates 0..na and 0..nb. Use Fortran ordering for image array
 				      snde_index src_strides[2], // usually (1, src_na)
 				      OCL_GLOBAL_ADDR snde_partinstance *instances,
@@ -1773,14 +1774,14 @@ void raytrace_camera_evaluate_zbuffer(
 {
   int64_t bcnt;  // must be signed (e.g. not size_t) for MSVC compatibility
   snde_coord4 focalpointwrl;
-  snde_orientation3 wrlcoords_to_camcoords;
+  snde_orientation3 orient_camcoords_over_wrlcoords;
 
   snde_coord NaNval;
   NaNval=snde_infnan(0);
     
 
-  raytrace_evaluate_focalpointwrl(camcoords_to_wrlcoords,&focalpointwrl);
-  raytrace_evaluate_wrlcoords_to_camcoords(camcoords_to_wrlcoords,&wrlcoords_to_camcoords);
+  raytrace_evaluate_focalpointwrl(orient_wrlcoords_over_camcoords,&focalpointwrl);
+  raytrace_evaluate_orient_camcoords_over_wrlcoords(orient_wrlcoords_over_camcoords,&orient_camcoords_over_wrlcoords);
   
   
   
@@ -1820,13 +1821,13 @@ void raytrace_camera_evaluate_zbuffer(
 
 	
 
-	//camera_rayvec_wrl(cam_mtx,acnt,bcnt,camcoords_to_wrlcoords,&rayvecwrl);
+	//camera_rayvec_wrl(cam_mtx,acnt,bcnt,orient_wrlcoords_over_camcoords,&rayvecwrl);
 
 
 	raytrace_camera_evaluate_zdist(cam_mtx,
 				       focalpointwrl,
-				       camcoords_to_wrlcoords,
-				       wrlcoords_to_camcoords,
+				       orient_wrlcoords_over_camcoords,
+				       orient_camcoords_over_wrlcoords,
 				       acnt,bcnt, // index of the particular pixel ray we are interested in
 				       instances,
 				       num_instances,
@@ -1863,8 +1864,8 @@ void raytrace_camera_evaluate_zbuffer(
 
 __kernel void raytrace_camera_evaluate_zbuffer_opencl(
 							   snde_cmat23 cam_mtx,
-							   snde_orientation3 camcoords_to_wrlcoords,
-							   snde_orientation3 wrlcoords_to_camcoords,
+							   snde_orientation3 orient_wrlcoords_over_camcoords,
+							   snde_orientation3 orient_camcoords_over_wrlcoords,
 							   snde_index src_na, snde_index src_nb, // assume rays start at origin of camcoords, projected by cam_mtx with pixel coordinates 0..na and 0..nb. Use Fortran ordering for image array
 							   OCL_GLOBAL_ADDR snde_partinstance *instances,
 							   snde_index num_instances,
@@ -1891,8 +1892,8 @@ __kernel void raytrace_camera_evaluate_zbuffer_opencl(
   
   raytrace_camera_evaluate_zdist(cam_mtx,
 				 focalpointwrl;
-				 camcoords_to_wrlcoords,
-				 wrlcoords_to_camcoords,
+				 orient_wrlcoords_over_camcoords,
+				 orient_camcoords_over_wrlcoords,
 				 aindex,bindex, // index of the particular pixel ray we are interested in
 				 instances,
 				 num_instances,

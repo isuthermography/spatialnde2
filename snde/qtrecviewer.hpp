@@ -76,6 +76,8 @@ namespace snde {
     void SetChannelContrast(std::string channelpath, float contrast);
     float GetChannelBrightness(std::string channelpath);
     void SetChannelBrightness(std::string channelpath, float brightness);
+    void EnableChannel(std::string chanpath);
+    void DisableChannel(std::string chanpath);
 
 							      
   public slots:

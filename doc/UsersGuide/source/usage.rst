@@ -223,8 +223,8 @@ or (Python)::
   ], False)
 
 You provide a sequence of (recording reference, read/write) pairs
-where the second element is false for read and true for right.  It is
-important to lock all recordings in a single method call because at
+where the second element is false for read and true for write.  It is
+important to lock all recordings in a single method call because that
 way the locking code can ensure a consistent locking order is
 followed. Multiple simultaneous read locks on a given array are
 possible. Only one write lock can be held for a given array at a time,
@@ -261,7 +261,7 @@ method to obtain a writeable reference::
 
 In Python, vectorized (numpy) access is also possible::
 
-  test_ref.data()[:] = np.sin(np.arange(rec_len),dtype='d')) 
+  test_ref.data()[:] = np.sin(np.arange(rec_len),dtype='d') 
 
 Unlocking the Array
 -------------------
@@ -336,11 +336,12 @@ global revision (which may not yet be complete) with
 ``recdb.latest_defined_globalrev()``. Given a global revision
 object stored in the variable ``globalrev``, you can list the
 recordings in a global revision with ``globalrev.list_recordings()``
-or the available array recording references with
-``globalrev.list_recording_refs()``. Likewise you can obtain
-a recording or an array reference with ``globalrev.get_recording()``
-or ``globalrev.get_recording_ref()`` respectively. 
+or the available n-dimensional array recording references with
+``globalrev.list_ndarray_refs()``. Likewise you can obtain
+a recording or an n-dimensional array reference with ``globalrev.get_recording()``
+or ``globalrev.get_ndarray_ref()`` respectively. 
 
+.. _SNDEinDGPY:
 
 Using SpatialNDE2 in Dataguzzler-Python
 ---------------------------------------
@@ -578,5 +579,9 @@ scripted from Python such as when using Dataguzzler-Python.
     that owns the mutex. A deadlock is almost certainly a locking order
     violation. The `gdb-automatic-deadlock-detector <https://github.com/DamZiobro/gdb-automatic-deadlock-detector>`_ automates deadlock detection
     using GDB and Python.
+
+
+
+
     
   

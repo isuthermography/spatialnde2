@@ -53,15 +53,14 @@ For non-Windows platforms, after configuring with cmake, run ``make
 Performing Python Installation
 ------------------------------
 
-The build process does **NOT** automatically make the built
+The above build process does **NOT** automatically make the built
 SpatialNDE2 binaries available to Python. Instead, the build process
-generates a Python ``setuptools`` compatible ``setup.py`` in the build
+generates a Python ``setuptools`` compatible ``pyproject.toml`` in the build
 directory. So to make the results of a ``CMake`` build available to
 python you need to run:
 
 ::
-   python setup.py build
-   python setup.py install
+   pip install --no-deps --no-build-isolation .
 
 on the command line from the CMake build directory, after each cmake
 build. Depending on your environment, the install step may need to be
@@ -74,6 +73,36 @@ It is also important to make sure that the Python installation or
 environment you install into is the same as the one you built for. The
 build process prints a message at the end suggesting this installation
 step, and includes the full path to the correct Python binary. 
+
+Python Based Full Build
+-----------------------
+The latest versions of SpatialNDE2 can be built entirely from Python
+including compiling the C++ library using the Python pip installer,
+so long as the necessary prerequisites are installed.
+From the main SpatialNDE2 directory, run
+
+::
+   pip install --no-deps --no-build-isolation .
+
+This is equivalent to creating a build directory, using cmake
+to configure that build directory, running the compile, and then
+performing the pip install step from the build directory.
+
+If you need to pass parameters to cmake, you can pass those parameters
+as a comma separated list in setup.cfg, e.g.
+
+::
+   [cmake_prebuild]
+   extra-cmake-opts=-DSNDE_DOUBLEPREC_COORDS=ON
+
+Unfortunately, this requires modifying the setup.cfg file from the
+repository, which may be undesireable. An alternative is to create
+a setup_local.cfg file with the same content and use the
+DIST_EXTRA_CONFIG environment variable to pass that file to pip
+as illustrated in setupcmd.bat (Windows) or setupcmd.sh (Linux).
+
+Rebuilding Other Packages When SpatialNDE2 is Upgraded
+------------------------------------------------------
 
 The SpatialNDE2 Python install includes a full set of C/C++ API header
 header files along with the generated DLL/SO library and the Python

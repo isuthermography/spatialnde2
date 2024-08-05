@@ -488,6 +488,7 @@ template <typename T>
 %include "boxes_calculation.i"
 %include "area_calculation.i"
 %include "averaging_downsampler.i"
+%include "mean.i"
 %include "NumPy_BGRtoRGBA.i"
 %include "NumPy_BGRtoGray16.i"
 %include "batched_live_accumulator.i"

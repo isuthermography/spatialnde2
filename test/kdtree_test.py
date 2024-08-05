@@ -82,8 +82,8 @@ search_points.rec.mark_data_ready()
 globalrev = transact.end_transaction()
 globalrev.wait_complete();
 
-kdtree = globalrev.get_recording_ref("/kdtree","vertex_kdtree").data()
-knn = globalrev.get_recording_ref("/knn").data()
+kdtree = globalrev.get_ndarray_ref("/kdtree","vertex_kdtree").data()
+knn = globalrev.get_ndarray_ref("/knn").data()
 
 
 by_numpy = np.argmin(np.linalg.norm((raw_vertices[np.newaxis,:,:]-raw_search_points[:,np.newaxis,:]),axis=2),axis=1)
@@ -107,7 +107,7 @@ globalrev2 = transact2.end_transaction()
 globalrev2.wait_complete();
 
 
-knn2 = globalrev2.get_recording_ref("/knn").data()
+knn2 = globalrev2.get_ndarray_ref("/knn").data()
 
 
 by_numpy2 = np.argmin(np.linalg.norm((raw_vertices[np.newaxis,:,:]-raw_vertices[:,np.newaxis,:]),axis=2),axis=1)

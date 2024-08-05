@@ -52,59 +52,138 @@ class QOffscreenSurface;
 namespace snde {
 
    // Output typemap for returning QObjects with a pyside wrapper instead of swig
-%typemap(out) QObject *(PyObject *shibok2=nullptr,PyObject *shib2_wrapInstance=nullptr,PyObject *pyside2_qtcore=nullptr,PyObject *qobject=nullptr) {
-  shibok2 = PyImport_ImportModule("shiboken2");
-  if (!shibok2) SWIG_fail; // raise exception up 
-  shib2_wrapInstance=PyObject_GetAttrString(shibok2,"wrapInstance");
-  if (!shib2_wrapInstance) SWIG_fail; // raise exception up 
+  %typemap(out) QObject *(PyObject *bindings_name=nullptr,PyObject *bindings=nullptr,bool using_pyside=true,PyObject *wrapInstance=nullptr,PyObject *qtcore=nullptr,PyObject *qobject=nullptr) {
+    // Try Shiboken first to see if it is already loaded
+#ifdef SNDE_ENABLE_QT5
+  bindings_name=PyUnicode_FromString("shiboken2");
+#endif
+#ifdef SNDE_ENABLE_QT6
+  bindings_name=PyUnicode_FromString("shiboken6");
+#endif
+  bindings = PyImport_GetModule(bindings_name);
+  if (!bindings) {
+    using_pyside=false;
+    Py_DECREF(bindings_name);
+    // Now try PyQt to see if it is already loaded
+#ifdef SNDE_ENABLE_QT5
+    bindings_name=PyUnicode_FromString("PyQt5.sip");
+#endif
+#ifdef SNDE_ENABLE_QT6
+    bindings_name=PyUnicode_FromString("PyQt6.sip");
+#endif
+    bindings = PyImport_GetModule(bindings_name);
+  }
+  if (!bindings){
+    PyErr_SetString(PyExc_ImportError,"Neither PySide nor PyQt bindings are loaded");
+    SWIG_fail;// raise exception up
+  }
+  if (using_pyside){
+    wrapInstance=PyObject_GetAttrString(bindings,"wrapInstance");
+  } else {
+    wrapInstance=PyObject_GetAttrString(bindings,"wrapinstance");
+  }
+  if (!wrapInstance) SWIG_fail; // raise exception up 
 
-  
-  pyside2_qtcore = PyImport_ImportModule("PySide2.QtCore");
-  if (!pyside2_qtcore) SWIG_fail; // raise exception up 
-  qobject=PyObject_GetAttrString(pyside2_qtcore,"QObject");
+  if (using_pyside) {
+#ifdef SNDE_ENABLE_QT5
+    qtcore = PyImport_ImportModule("PySide2.QtCore");
+#endif
+#ifdef SNDE_ENABLE_QT6
+    qtcore = PyImport_ImportModule("PySide6.QtCore");
+#endif
+  } else {
+#ifdef SNDE_ENABLE_QT5
+    qtcore = PyImport_ImportModule("PyQt5.QtCore");
+#endif
+#ifdef SNDE_ENABLE_QT6
+    qtcore = PyImport_ImportModule("PyQt6.QtCore");
+#endif
+  }
+  if (!qtcore) SWIG_fail; // raise exception up 
+  qobject=PyObject_GetAttrString(qtcore,"QObject");
   if (!qobject) SWIG_fail; // raise exception up 
   
   //$result = PyTuple_New(2);
   //PyTuple_SetItem($result,0,PyObject_CallFunction(shib2_wrapInstance,(char *)"KO",(unsigned long long)((uintptr_t)($1)),qobject));
   //PyTuple_SetItem($result,1,
   //SWIG_NewPointerObj(SWIG_as_voidptr($1),$descriptor(QObject *),0));
-  $result = PyObject_CallFunction(shib2_wrapInstance,(char *)"KO",(unsigned long long)((uintptr_t)($1)),qobject);
+  $result = PyObject_CallFunction(wrapInstance,(char *)"KO",(unsigned long long)((uintptr_t)($1)),qobject);
   
 
   
   Py_XDECREF(qobject);
-  Py_XDECREF(pyside2_qtcore);
-  Py_XDECREF(shib2_wrapInstance);
-  Py_XDECREF(shibok2);
+  Py_XDECREF(qtcore);
+  Py_XDECREF(wrapInstance);
+  Py_XDECREF(bindings);
+  Py_XDECREF(bindings_name);
 }
 
 
 
   // Output typemap for returning QWidgets with pyside wrapper instead of swig
-%typemap(out) QWidget *(PyObject *shibok2=nullptr,PyObject *shib2_wrapInstance=nullptr,PyObject *pyside2_qtwidgets=nullptr,PyObject *qwidget=nullptr) {
-  shibok2 = PyImport_ImportModule("shiboken2");
-  if (!shibok2) SWIG_fail; // raise exception up 
-  shib2_wrapInstance=PyObject_GetAttrString(shibok2,"wrapInstance");
-  if (!shib2_wrapInstance) SWIG_fail; // raise exception up 
-
-  
-  pyside2_qtwidgets = PyImport_ImportModule("PySide2.QtWidgets");
-  if (!pyside2_qtwidgets) SWIG_fail; // raise exception up 
-  qwidget=PyObject_GetAttrString(pyside2_qtwidgets,"QWidget");
+    %typemap(out) QWidget *(PyObject *bindings_name=nullptr,PyObject *bindings=nullptr,bool using_pyside=true,PyObject *wrapInstance=nullptr,PyObject *qtwidgets=nullptr,PyObject *qwidget=nullptr) {
+    // Try Shiboken first to see if it is already loaded
+#ifdef SNDE_ENABLE_QT5
+  bindings_name = PyUnicode_FromString("shiboken2");
+#endif
+#ifdef SNDE_ENABLE_QT6
+  bindings_name = PyUnicode_FromString("shiboken6");
+#endif
+  bindings = PyImport_GetModule(bindings_name);
+  if (!bindings) {
+    using_pyside=false;
+    Py_DECREF(bindings_name);
+    // Now try PyQt to see if it is already loaded
+      #ifdef SNDE_ENABLE_QT5
+    bindings_name=PyUnicode_FromString("PyQt5.sip");
+#endif
+#ifdef SNDE_ENABLE_QT6
+    bindings_name=PyUnicode_FromString("PyQt6.sip");
+#endif
+    bindings = PyImport_GetModule(bindings_name);
+  }
+  if (!bindings){
+    PyErr_SetString(PyExc_ImportError,"Neither PySide nor PyQt bindings are loaded");
+    SWIG_fail;// raise exception up
+  }
+  if (using_pyside){
+    wrapInstance=PyObject_GetAttrString(bindings,"wrapInstance");
+  } else {
+    wrapInstance=PyObject_GetAttrString(bindings,"wrapinstance");
+  }
+  if (!wrapInstance) SWIG_fail; // raise exception up
+  if (using_pyside) {
+#ifdef SNDE_ENABLE_QT5
+    qtwidgets = PyImport_ImportModule("PySide2.QtWidgets");
+#endif
+#ifdef SNDE_ENABLE_QT6
+    qtwidgets = PyImport_ImportModule("PySide6.QtWidgets");
+#endif
+  } else {
+#ifdef SNDE_ENABLE_QT5
+    qtwidgets = PyImport_ImportModule("PyQt5.QtWidgets");
+#endif
+#ifdef SNDE_ENABLE_QT6
+    qtwidgets = PyImport_ImportModule("PyQt6.QtWidgets");
+#endif
+  }
+  if (!qtwidgets) SWIG_fail; // raise exception up 
+  qwidget=PyObject_GetAttrString(qtwidgets,"QWidget");
   if (!qwidget) SWIG_fail; // raise exception up 
   
   //$result = PyTuple_New(2);
   //PyTuple_SetItem($result,0,PyObject_CallFunction(shib2_wrapInstance,(char *)"KO",(unsigned long long)((uintptr_t)($1)),qobject));
   //PyTuple_SetItem($result,1,
   //SWIG_NewPointerObj(SWIG_as_voidptr($1),$descriptor(QObject *),0));
-  $result = PyObject_CallFunction(shib2_wrapInstance,(char *)"KO",(unsigned long long)((uintptr_t)($1)),qwidget);
+  $result = PyObject_CallFunction(wrapInstance,(char *)"KO",(unsigned long long)((uintptr_t)($1)),qwidget);
   
 
   
   Py_XDECREF(qwidget);
-  Py_XDECREF(pyside2_qtwidgets);
-  Py_XDECREF(shib2_wrapInstance);
-  Py_XDECREF(shibok2);
+  Py_XDECREF(qtwidgets);
+  Py_XDECREF(wrapInstance);
+  Py_XDECREF(bindings);
+  Py_XDECREF(bindings_name);
 }
 
 
@@ -153,27 +232,60 @@ namespace snde {
 %enddef 
 
   // input typemap for QWidget
-  %typemap(in) QWidget * (PyObject *shibok_two=nullptr,PyObject *shib2_getCppPointer=nullptr,PyObject *PointerTuple=nullptr,QWidget *SwigWidget=nullptr) {
+   %typemap(in) QWidget * (PyObject *bindings_in_name=nullptr,PyObject *bindings_in=nullptr,bool using_pyside_in=true,PyObject *getPointer=nullptr,PyObject *PointerResult=nullptr,QWidget *SwigWidget=nullptr) {
     // already a swig pointer
     if (!SWIG_ConvertPtr($input,(void **)&SwigWidget,$descriptor(QWidget *),0)) {
       $1 = SwigWidget;
     } else {
-      // try for a shiboken2 pyside pointer
-      shibok_two = PyImport_ImportModule("shiboken2");
-      if (!shibok_two) SWIG_fail; /* raise exception up */
-      shib2_getCppPointer=PyObject_GetAttrString(shibok_two,"getCppPointer");
+      // Try Shiboken first to see if it is already loaded
+#ifdef SNDE_ENABLE_QT5
+      bindings_in_name=PyUnicode_FromString("shiboken2");
+#endif
+#ifdef SNDE_ENABLE_QT6
+      bindings_in_name=PyUnicode_FromString("shiboken6");
+#endif
+      bindings_in = PyImport_GetModule(bindings_in_name);
+      if (!bindings_in) {
+	using_pyside_in=false;
+	Py_DECREF(bindings_in_name);
+	// Now try PyQt to see if it is already loaded
+#ifdef SNDE_ENABLE_QT5
+	bindings_in_name=PyUnicode_FromString("PyQt5.sip");
+#endif
+#ifdef SNDE_ENABLE_QT6
+	bindings_in_name=PyUnicode_FromString("PyQt6.sip");
+#endif
+	bindings_in = PyImport_GetModule(bindings_in_name);
+      }
+      if (!bindings_in){
+	PyErr_SetString(PyExc_ImportError,"Neither PySide nor PyQt bindings are loaded");
+	SWIG_fail;// raise exception up
+      }
+
+      if (using_pyside_in) {
+	
+	getPointer=PyObject_GetAttrString(bindings_in,"getCppPointer");
+      } else {
+	getPointer=PyObject_GetAttrString(bindings_in,"unwrapinstance");
+      }
       
-      PointerTuple = PyObject_CallFunction(shib2_getCppPointer,(char *)"O",$input);
-      if (!PointerTuple) SWIG_fail;
-      
-      if (!PyTuple_Check(PointerTuple)) SWIG_fail;
-      $1 = static_cast<QWidget *>(PyLong_AsVoidPtr(PyTuple_GetItem(PointerTuple,0)));
+      PointerResult = PyObject_CallFunction(getPointer,(char *)"O",$input);
+      if (!PointerResult) SWIG_fail;
+
+      if (using_pyside_in) {
+	// PySide getCppPointer() returns a tuple, the first element of which is the pointer as an integer
+	if (!PyTuple_Check(PointerResult)) SWIG_fail;
+	$1 = static_cast<QWidget *>(PyLong_AsVoidPtr(PyTuple_GetItem(PointerResult,0)));
+      } else {
+	$1 = static_cast<QWidget *>(PyLong_AsVoidPtr(PointerResult));
+      }
       if (PyErr_Occurred()) SWIG_fail;
     }
 
-    Py_XDECREF(PointerTuple);
-    Py_XDECREF(shib2_getCppPointer);
-    Py_XDECREF(shibok_two);
+    Py_XDECREF(PointerResult);
+    Py_XDECREF(getPointer);
+    Py_XDECREF(bindings_in);
+    Py_XDECREF(bindings_in_name);
     
   }
 

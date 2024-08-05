@@ -613,9 +613,9 @@ namespace snde {
 
     
     snde_complexfloat64 element_complexfloat64(size_t array_index,const std::vector<snde_index> &idx); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
-    snde_complexfloat64 element_complexfloat64(size_t array_index,size_t idx,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    snde_complexfloat64 element_complexfloat64(size_t array_index,snde_index idx,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
     void assign_complexfloat64(size_t array_index,const std::vector<snde_index> &idx,snde_complexfloat64 val); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
-    void assign_complexfloat64(size_t array_index,size_t idx,snde_complexfloat64 val,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
+    void assign_complexfloat64(size_t array_index,snde_index idx,snde_complexfloat64 val,bool fortran_order=false); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
 
   };
 
@@ -1092,7 +1092,7 @@ namespace snde {
 #else
     std::shared_ptr<std::vector<std::pair<std::string,unsigned long long>>> list_recording_revisions();
 #endif    
-    std::shared_ptr<std::vector<std::pair<std::string,std::string>>> list_recording_refs();
+    std::shared_ptr<std::vector<std::pair<std::string,std::string>>> list_ndarray_refs();
     
     std::shared_ptr<recording_set_state> prerequisite_state();
     void atomic_prerequisite_state_clear(); // sets the prerequisite state to nullptr (called after the rss becomes ready)

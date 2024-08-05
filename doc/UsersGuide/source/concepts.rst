@@ -1,3 +1,6 @@
+..module:: sphinx.ext.mathbase
+    :synopsis:
+
 SpatialNDE2 Concepts
 ====================
 
@@ -27,7 +30,7 @@ array; the recording data structure is generally treated as fixed once
 the recording is marked as ready). The most common type of recording
 is the ``multi_ndarray_recording`` discussed below. Often single
 arrays within a ``multi_ndarray_recording`` are referenced using the
-``ndarray_recording_ref`` class.
+``ndarray_recording_ref`` class. 
 
 New recordings are created with the ``create_recording<T>()``,
 ``create_anonymous_recording<T>()`` (used for recordings not part of a
@@ -48,7 +51,7 @@ Recording Database
 ------------------
 
 The recording database holds information about versioned collections
-of recordings in *channels*. The recording database keep tracks of how
+of recordings in *channels*. The recording database keeps track of how
 the channel contents are updated (*globalrevisions*). All updates are
 performed via *transactions*. The recording database is implemented in
 the ``recdatabase`` class that is usually stored as a shared pointer
@@ -93,7 +96,7 @@ of recordings corresponding to a conceptual instant in time. The
 ``globalrevision`` is a special case (subclass) of ``recording_set_state``
 representing a particular numbered such global revision within a
 recording database. Among other member variables the ``recording_set_state``
-tracsk the status of the contained recordings in ``recstatus`` and the
+tracks the status of the contained recordings in ``recstatus`` and the
 status of math functions in ``mathstatus``.
 
 Just because a ``recording_set_state`` or ``globalrevision`` object exists
@@ -133,7 +136,7 @@ arrays is common enough (e.g. for graphics data structures, growing
 recordings) to justify this as the base data structure.
 
 The individual arrays within a ``multi_ndarray_recording`` are accessed
-using the ``ndarray_recording_ref`` reference class (or a subclass thereof) returned by the ``reference_ndarray()`` method or by the ``get_recording_ref()`` method of the ``recording_set_state`` or ``globalrevision``. 
+using the ``ndarray_recording_ref`` reference class (or a subclass thereof) returned by the ``reference_ndarray()`` method or by the ``get_ndarray_ref()`` method of the ``recording_set_state`` or ``globalrevision``. 
 Note that the single-ndarray ``ndarray_recording_ref`` is **not** a subclass
 of ``multi_ndarray_recording`` so that the different n-dimensional arrays
 within a single ``multi_ndarray_recording`` can be accessed by their own
@@ -150,6 +153,26 @@ snde_multi_ndarray_recording`` that starts with the ``struct
 snde_recording_base`` base structure.  The ``struct
 snde_multi_ndarray_recording`` then points to multiple ``struct
 snde_ndarray_info`` representing the indivdual arrays.
+
+Fusion-N-Dimensional-Array Recordings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+One subclass of the ``multi_ndarray_recording`` is the ``fusion_ndarray_recording``. This subclass is useful for input data that is recorded over time in the form of a weighted average.
+The data in this subclass is represented by the equation: 
+:math:`\sum\nolimits_{i=0}^{n-1}X_{i}w_{i}/\sum\nolimits_{j=0}^{n-1}w_{j}`.
+The variable :math:`X_i` represents some measured input for scan iteration `i`, :math:`w_i`
+represents the weight assigned to that input, and `n` represents the current total number of scans collected. 
+
+The ``fusion_ndarray_recording`` is comprised of two sub-arrays called ``"accumulator"`` and ``"totals"``.
+The ``"accumulator"`` sub-array, which represents the numerator of this equation, contains the sum of all measured values to be stored in the recording, multiplied by their associated weights, carried out to scan iteration `n-1`. 
+The ``"totals"`` sub-array, which represents the denominator of this equation, stores the values of the sum to scan iteration `n-1` of the weights assigned to each previous scan iteration.
+
+When rendering this datatype, the SpatialNDE2 viewer can render 2D images representing the quotient of the accumulator and totals, which is the weighted average. Rendering of the 
+``fusion_ndarray_recording`` subclass is specially handeled by the ``fusion_ndarray_recording_display_handler`` class defined in ``display_requirements.hpp``. Colormaps for real ``fusion_ndarray_recordings`` are 
+generated as normal according to the selected colormap in the viewer, except the blue channel is overridden and represents the ratio of the total weighting for a particular pixel to the maximum total weighting for 
+any pixel in the 2D image. Colormaps for complex ``fusion_ndarray_recordings`` are generated with red and green channel values determined, respectively, by the real and imaginary components of the weighted average. 
+The blue channel is determined the same way as for the real case.
+ 
+.. _GeometricObjects:
 
 Geometric Objects such as Parts and CAD Models
 ----------------------------------------------
@@ -216,6 +239,7 @@ representation (the various triangles and vertices fields).
 A more detailed discussion of graphics and geometric objects
 is planned for another chapter. 
 
+.. _OrientationsAndPoses: 
 
 Orientations and Object Poses
 -----------------------------
@@ -261,7 +285,7 @@ The ``ndarray_recording_ref`` is the previously mentioned class for
 referencing a single n-dimensional array within a
 ``multi_ndarray_recording``.  It can be obtained via the
 ``reference_ndarray()`` method of the ``multi_ndarray_recording`` or
-the ``get_recording_ref()`` method of a ``recording_set_state`` or
+the ``get_ndarray_ref()`` method of a ``recording_set_state`` or
 ``globalrevision``. The ``ndarray_recording_ref`` contains a C++ STL
 shared pointer to the recording, ensuring that the recording will be
 kept in memory as long as the reference exists. It also contains an
@@ -505,7 +529,7 @@ is requested).
 
 By the end of the execution function, it should have marked metadata
 as done on all output recordings (``mark_metadata_done()`` method of
-the recording) and the data as being ready (``mark_as_ready()`` method).
+the recording) and the data as being ready (``mark_data_and_metadata_ready()`` method).
 
 If math code throws an exception, it will be caught and (if the
 exception was an ``snde_error()``) a backtrace printed. Exceptions of 

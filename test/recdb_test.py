@@ -46,7 +46,7 @@ test_ref.rec.mark_data_ready()
 
 globalrev.wait_complete();
 
-rec = globalrev.get_recording_ref("/test channel")
+rec = globalrev.get_ndarray_ref("/test channel")
 
 data = rec.data()
 
