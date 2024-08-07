@@ -12,7 +12,7 @@ classifiers = [
 #dataguzzler-python = "dataguzzler_python.bin.dataguzzler_python:main"
 
 [build-system]
-requires = ["setuptools>=64","numpy", "setuptools_scm[toml]>=5"]
+requires = ["setuptools>=64","numpy", "setuptools_scm[toml]>=5","tomli-w"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]

@@ -26,7 +26,7 @@ version based on git tagging, such as from https://git-scm.com/downloads
    strongly encouraged.  The following command will establish a new environment
    named SNDE with all of the required libraries and packages:
 
-     conda create -n SNDE -c conda-forge python=3.9 numpy scipy matplotlib cython ipython pip opencv clhpp pyopencl pint hdf5 h5py lxml setuptools netcdf4 cmake openscenegraph pyopengl glfw freeglut glew mesa eigen swig pyreadline pyserial pyside2 hdf5 pyvisa git wheel build tomli-w 
+     conda create -n SNDE -c conda-forge python=3.11 numpy scipy matplotlib cython ipython pip opencv clhpp pyopencl pint hdf5 h5py lxml setuptools netcdf4 cmake openscenegraph pyopengl glfw freeglut glew mesa eigen swig pyreadline pyserial pyside2 hdf5 pyvisa git wheel build tomli-w 
      
    Note:  not all of these packages may be needed.  There may be other 
           packages required for certain situations.
@@ -35,7 +35,18 @@ version based on git tagging, such as from https://git-scm.com/downloads
 
      conda activate SNDE
 
-   and cd to the folder where you placed the spatialnde2 source folder.
+   and cd into the spatialnde2 source folder.
+
+OPTION A: Fully automated build
+-------------------------------
+6) Use pip to perform the build entirely automatically
+     pip install --no-deps --no-build-isolation .
+
+SpatialNDE2 is now fully built and installed and you can skip
+steps 7-9.
+
+If option A fails, you can troubleshoot by performing a
+manual build:
 
 6) Make a build folder and cd inside
 
@@ -54,7 +65,7 @@ version based on git tagging, such as from https://git-scm.com/downloads
    build it from there. If you do so you may need to manually select RelWithDebInfo
    as the configuration to build (upper toolbar, left center) instead of Debug or Release.
    
-9) Build and install python wrapper
+9) Build and install python wrapper from the build folder
 
      pip install --no-deps --no-build-isolation .
 
