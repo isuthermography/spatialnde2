@@ -4,7 +4,9 @@ including Dataguzzler, and ensures all required libraries and dependencies are
 installed and in the correct location.  
 
 Prerequisites:
-Microsoft Visual Studio 2015 Update 3 or later
+Microsoft Visual Studio 2015 Update 3 or later.
+    Be sure to install "Python development" and
+    "Desktop development with C++"
 Anaconda3
 This repository or Git Bash to clone the repo from GitHub
 OpenCL Drivers (Optional -- For OpenCL Support)
