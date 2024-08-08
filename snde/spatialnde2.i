@@ -1,4 +1,4 @@
-/* SWIG interface for spatialnde2 */
+/* SWIG interface for spatialnde2 */ 
 // swig -c++ -python spatialnde2.i
  
 %module spatialnde2

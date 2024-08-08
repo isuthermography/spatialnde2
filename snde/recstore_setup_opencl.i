@@ -35,6 +35,8 @@
     Py_XDECREF(clDevice);
     Py_XDECREF(pyopencl);
   } else {
+    snde::snde_warning("pyopencl not found; access to OpenCL objects will not be available from Python");
+    PyErr_Clear();
     // if we have opencl but not pyopencl, just return (None, None)
     Py_INCREF(Py_None); // becaues PyTuple_SetItem steals a reference
     Py_INCREF(Py_None);
