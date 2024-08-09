@@ -352,7 +352,7 @@ namespace snde {
     size_t rec_index; // index of referenced ndarray within recording.
     unsigned typenum;
     %immutable;
-       /* std::atomic_int*/ int &info_state; // reference to rec->info_state
+       /* std::atomic_int*/ int info_state; // reference to rec->info_state
     %mutable;
     arraylayout &layout; // reference  to rec->layouts.at(rec_index)
     std::shared_ptr<recording_storage> &storage;
