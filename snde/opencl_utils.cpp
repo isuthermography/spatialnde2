@@ -76,8 +76,15 @@ namespace snde {
     
 
     std::string summary;
-    
-    cl::Platform::get(&platforms);
+
+    try {
+      cl::Platform::get(&platforms);
+    }
+    catch(const cl::Error& e) {
+      snde_warning("Error %d getting OpenCL platform list: %s. OpenCL will not be used.",(int)e.err(),e.what());
+      return std::make_tuple(cl::Context(),std::vector<cl::Device>(),std::string("No available OpenCL platforms."));
+  
+    }
     
     for (platformnum=0;platformnum < platforms.size();platformnum++) {
       
