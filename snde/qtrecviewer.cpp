@@ -471,12 +471,29 @@ namespace snde {
     bool needjoin=false;
 
     std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
+    std::shared_ptr<ndarray_recording_ref> rec = NULL;
+    
+    
 
     //if (!recdb_strong) return;
 
     if (posmgr->selected_channel) {
       //std::shared_ptr<mutableinfostore> chan_data;
       //chan_data = recdb->lookup(posmgr->selected_channel->FullName);
+
+    // display revision -- Note, this recording ref is used below
+    // Also, this isn't necessarily linked to what is actually being displayed on screen
+    // This should be reworked so that it is linked to a specific globalrev being actively
+    // rendered by the scope
+    if (recdb_strong){
+        auto latest_globalrev = recdb_strong->latest_globalrev();
+	    rec = latest_globalrev->check_for_recording_ref(posmgr->selected_channel->FullName, 0);
+    }
+    if( recdb_strong && rec ){
+        uint64_t revision = rec->rec->info->revision;
+        statusline += "Revision: " + std::to_string(revision);
+        needjoin=true;
+    }
 
       int render_mode;
       bool chan_enabled;
@@ -510,6 +527,10 @@ namespace snde {
 	{
 	  std::lock_guard<std::mutex> adminlock(a->admin);
 	  
+      if(needjoin) {
+          statusline += " | ";
+      }
+
 	  statusline += a->abbrev+"=" + PrintWithSIPrefix(a->CenterCoord,a->unit->unit.print(false),3) + " " + PrintWithSIPrefix(horizscale,a->unit->unit.print(false),3);
 	}
 	if (horizpixelflag) {
@@ -628,9 +649,10 @@ namespace snde {
 	  
 	}
 
+
+
 	// Try to Add Third Axis if it Exists
-	auto latest_globalrev = recdb_strong->latest_globalrev();
-	auto rec = latest_globalrev->check_for_recording_ref(posmgr->selected_channel->FullName, 0);
+
 	// There is an obvious race condition issue here where this could change between line 632 and line 636 -- fix this later
 	if (rec && rec->ndinfo()->ndim >= 3) {
 		double offset2, scale2;
