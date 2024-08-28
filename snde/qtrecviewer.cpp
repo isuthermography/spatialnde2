@@ -488,11 +488,11 @@ namespace snde {
     if (recdb_strong){
         auto latest_globalrev = recdb_strong->latest_globalrev();
 	    rec = latest_globalrev->check_for_recording_ref(posmgr->selected_channel->FullName, 0);
-    }
-    if( recdb_strong && rec ){
-        uint64_t revision = rec->rec->info->revision;
-        statusline += "Revision: " + std::to_string(revision);
-        needjoin=true;
+    
+		if (recdb_strong && rec) {
+			statusline += "Revision: " + std::to_string(rec->rec->info->revision) + "/" + std::to_string(latest_globalrev->globalrev);
+			needjoin = true;
+		}
     }
 
       int render_mode;
