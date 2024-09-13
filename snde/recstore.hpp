@@ -149,6 +149,7 @@ namespace snde {
   class channel_state;
   class transaction;
   class recording_set_state;
+  class rss_reference;
   class arraylayout;
   class math_status;
   class instantiated_math_database;
@@ -165,7 +166,7 @@ namespace snde {
   class recording_storage; // recstore_storage.hpp
   class recording_storage_manager; // recstore_storage.hpp
   class allocator_alignment; // allocator.hpp
-
+  class transaction_manager; // recstore_transaction_manager.hpp
   
   // constant data structures with recording type number information
   SNDE_API extern const std::unordered_map<std::type_index,unsigned> rtn_typemap; // look up typenum based on C++ typeid(type)
@@ -314,6 +315,15 @@ namespace snde {
 
     }
   };
+
+  struct recording_params {
+    std::shared_ptr<recdatabase> recdb;
+    std::shared_ptr<recording_storage_manager> storage_manager;
+    std::shared_ptr<rss_reference> prerequisite_state;
+    std::string chanpath;
+    std::shared_ptr<rss_reference> originating_state;
+    uint64_t new_revision; // set to SNDE_REVISION_INVALID unless you have a definitive new revision to supply. 
+  };
   
   class recording_base: public std::enable_shared_from_this<recording_base>  {
     // may be subclassed by creator
@@ -326,6 +336,7 @@ namespace snde {
     std::mutex admin;
     
     struct snde_recording_base *info; // owned by this class and allocated with malloc; often actually a sublcass such as snde_multi_ndarray_recording
+    std::atomic<uint64_t> info_revision; //atomic mirror of info->revision 
     std::atomic_int info_state; // atomic mirror of info->state ***!!! This is referenced by the ndarray_recording_ref->info_state
 
     // class inheritance info (managed by constructors of this and derived classes)
@@ -344,13 +355,16 @@ namespace snde {
     // need to extract from recdb_weak and _originating_globalrev_index.
     // DON'T ACCESS THESE DIRECTLY! Use the .get_originating_rss() and ._get_originating_rss_recdb_and_rec_admin_prelocked() methods.
     std::weak_ptr<recdatabase> recdb_weak;  // Right now I think this is here solely so that we can get access to the available_compute_resources_database to queue more calculations after a recording is marked as ready. Also used by assign_storage_manager(). Immutable once created so safe to read.  
-    std::weak_ptr<transaction> defining_transact; // This pointer should be valid for a recording defined as part of a transaction; nullptr for an ondemand math recording, for example. Weak ptr should be convertible to strong as long as the originating_rss is still current.
+    //std::weak_ptr<transaction> defining_transact; // This pointer should be valid for a recording defined as part of a transaction; nullptr for an ondemand math recording, for example. Weak ptr should be convertible to strong as long as the originating_rss is still current.
 
-    uint64_t originating_rss_unique_id; // must be assigned by creator (i.e. create_recording<>() or create_recording_math<>()) immediately after creation. Immutable from then on. 
+    uint64_t originating_state_unique_id; // must be assigned by creator (i.e. create_recording<>() or create_recording_math<>()) immediately after creation. Immutable from then on. 
     
-    std::weak_ptr<recording_set_state> _originating_rss; // locked by admin mutex; if expired than originating_rss has been freed. if nullptr then this was defined as part of a transaction that was may still be going on when the recording was defined. Use get_originating_rss() which handles locking and getting the originating_rss from the defining_transact
+    //std::weak_ptr<recording_set_state> _originating_rss; // locked by admin mutex; if expired than originating_rss has been freed. if nullptr then this was defined as part of a transaction that was may still be going on when the recording was defined. Use get_originating_rss() which handles locking and getting the originating_rss from the defining_transact
 
+    std::shared_ptr<rss_reference> prerequisite_state; // This pointer is cleared when the recording is complete and that allows the prerequisite state to go out of existence.
 
+    std::shared_ptr<rss_reference> originating_state; // This pointer is cleared when the recording is complete and that allows the originating state to go out of existence.
+    
     std::shared_ptr<recording_creator_data> creator_data; // responsibility of owner of channel who wrote the recording. The shared pointer itself is locked by the admin mutex. 
     
     // Some kind of notification that recording is done to support
@@ -363,7 +377,7 @@ namespace snde {
     //  * Should be called by the owner of the given channel, as verified by owner_id
     //  * Should be called within a transaction (i.e. the recdb transaction_lock is held by the existance of the transaction) or part of a math calculation
     // The various helpers above must call recdb->register_new_rec() or register_new_math_rec() on the constructed recording
-    recording_base(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize=0);
+    recording_base(struct recording_params params,size_t info_structsize=0);
 
     // rule of 3
     recording_base & operator=(const recording_base &) = delete; 
@@ -383,12 +397,12 @@ namespace snde {
 
     virtual std::shared_ptr<std::set<std::string>> graphics_componentpart_channels(std::shared_ptr<recording_set_state> rss,std::vector<std::string> processing_tags);
     
-    virtual std::shared_ptr<recording_set_state> _get_originating_rss_rec_admin_prelocked(); // version of get_originating_rss() to use if you have (optionally the recording database and) the recording's admin locks already locked.
-    virtual std::shared_ptr<recording_set_state> _get_originating_rss_recdb_admin_prelocked(); // version of get_originating_rss() to use if you have the recording database admin lock already locked.
+    //virtual std::shared_ptr<recording_set_state> _get_originating_rss_rec_admin_prelocked(); // version of get_originating_rss() to use if you have (optionally the recording database and) the recording's admin locks already locked.
+    //virtual std::shared_ptr<recording_set_state> _get_originating_rss_recdb_admin_prelocked(); // version of get_originating_rss() to use if you have the recording database admin lock already locked.
 
 
-    virtual std::shared_ptr<recording_set_state> get_originating_rss(); // Get the originating recording set state (often a globalrev). You should only call this if you are sure that originating rss must still exist (otherwise may generate a snde_error), such as before the creator has declared the recording "ready". This will lock the rec admin locks, so any locks currently held must precede that in the locking order
-    virtual bool _transactionrec_transaction_still_in_progress_admin_prelocked(); // with the recording admin locked,  return if this is a transaction recording where the transaction is still in progress and therefore we can't get the recording_set_state
+    //virtual std::shared_ptr<recording_set_state> get_originating_rss(); // Get the originating recording set state (often a globalrev). You should only call this if you are sure that originating rss must still exist (otherwise may generate a snde_error), such as before the creator has declared the recording "ready". This will lock the rec admin locks, so any locks currently held must precede that in the locking order
+    //virtual bool _transactionrec_transaction_still_in_progress_admin_prelocked(); // with the recording admin locked,  return if this is a transaction recording where the transaction is still in progress and therefore we can't get the recording_set_state
 
     // Mutable recording only ***!!! Not properly implemented yet ***!!!
     /*
@@ -417,7 +431,7 @@ namespace snde {
   class null_recording: public recording_base {
   public:
 
-    null_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize=0);
+    null_recording(struct recording_params params,size_t info_structsize=0);
     
      
     // rule of 3
@@ -439,7 +453,7 @@ namespace snde {
     //std::shared_ptr<std::string> path_to_primary; // nullptr or the path (generally relative to this group) to the primary content of the group, which should be displayed when the user asks to view the content represented by the group. 
 
 
-    recording_group(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize); //,std::shared_ptr<std::string> path_to_primary);
+    recording_group(struct recording_params params,size_t info_structsize); //,std::shared_ptr<std::string> path_to_primary);
     
     
     // rule of 3
@@ -467,7 +481,7 @@ namespace snde {
     // This constructor used to create a multi_ndarray_recording with multiple ndarrays. But don't use it directly. Use create_recording and friends instead!
     //  Immediately after construction, need to call .define_array() on each array up to num_ndarrays!!! (create...ref() and create...ref_math() do this automatically)
     // WARNING: Don't call directly as this constructor doesn't add to the transaction (need to call recdb->register_new_recording()) and many math functions 
-    multi_ndarray_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,size_t num_ndarrays);
+    multi_ndarray_recording(struct recording_params params,size_t info_structsize,size_t num_ndarrays);
 
 
     // rule of 3
@@ -775,17 +789,27 @@ namespace snde {
 
     // typenum parameter applies to the accumulator only (obviously)
     
-    fusion_ndarray_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,unsigned typenum);
+    fusion_ndarray_recording(struct recording_params params,size_t info_structsize,unsigned typenum);
     
     
   };
 
+  struct transaction_notifies {
+    bool all_ready;
+    std::unordered_set<channel_state *> ready_channels; // references into the new_rss->recstatus.channel_map
+    std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<instantiated_math_function>>> ready_to_execute;
+    std::set<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>>,mncn_lessthan> may_need_completion_notification;
+    std::vector<std::shared_ptr<channel_notify>> transaction_pending_channel_notifies; // from the pending_channel_notifies of the transaction
+    
+
+  };
+  
   class transaction: public std::enable_shared_from_this<transaction> {
   public:
     // mutable until end of transaction when it is destroyed and converted to a globalrev structure
     std::mutex admin; // after the recording_set_state in the locking order and after the class channel's admin lock, but before recordings. Must hold this lock when reading or writing structures within. Does not cover the channels/recordings themselves.
 
-    uint64_t globalrev; // globalrev index for this transaction. Immutable once published
+    
     uint64_t rss_unique_index; // unique_index field that will be assigned to the recording_set_state. Immutable once published
     std::unordered_set<std::shared_ptr<channel>> updated_channels;
     //Keep track of whether a new recording is required for the channel (e.g. if it has a new owner) (use false for math recordings)
@@ -800,8 +824,34 @@ namespace snde {
 
     // when the transaction is complete, resulting_globalrevision() is assigned
     // so that if you have a pointer to the transaction you can get the globalrevision (which is also a recording_set_state)
-    std::weak_ptr<globalrevision> _resulting_globalrevision; // locked by transaction admin mutex; use resulting_globalrevision() accessor. 
-    std::pair<std::shared_ptr<globalrevision>,bool> resulting_globalrevision(); // returned bool true means null pointer indicates expired pointer, rather than in-progress transaction
+    std::shared_ptr<globalrevision> _resulting_globalrevision; // locked by transaction admin mutex; use globalrev() or globalrev_nowait() accessor.
+
+    std::shared_ptr<rss_reference> our_state_reference; // This pointer is created with the transaction. The reference is filled in by _realize_transaction() and MUST BE CLEARED BY THE TRANSACTION_MANAGER AFTER the transaction is realized, and that allows the state to go out of existence.
+    
+    std::shared_ptr<rss_reference> prerequisite_state; // This pointer is created with the transaction. THE REFERENCE MUST BE FILLED IN BY THE TRANSACTION_MANAGER. The pointer MUST BE CLEARED BY THE TRANSACTION_MANAGER AFTER the transaction is realized and that allows the prerequisite state to go out of existence once other pointers are cleared.
+
+    std::mutex transaction_background_end_lock; // locks the function and pointer immediately below. Last in the locking order
+    
+    std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> transaction_background_end_fcn;
+    std::shared_ptr<void> transaction_background_end_params;
+    
+    transaction();
+
+    virtual ~transaction();
+    
+    void register_new_rec(std::shared_ptr<recording_base> new_rec);
+
+    std::shared_ptr<globalrevision> globalrev(); // Wait for the globalrev resulting from this transaction to be complete. Throws an exception if any of the non-math recordings initiated in this transaction are not complete.
+    std::shared_ptr<globalrevision> globalrev_wait(); // Wait for the globalrev resulting from this transaction to be complete. Unlike globalrev() this function will not throw an exception for incomplete recordings; instead it will wait for them to be complete.
+    
+    std::shared_ptr<globalrevision> globalrev_available(); // Wait for the globalrev resulting from this transaction to exist, but not necessarily be complete. 
+    
+    std::shared_ptr<globalrevision> globalrev_nowait(); // Return the globalrevision resulting from this transaction if it exists yet. Returns nullptr otherwise. Even if the globalrev exists, it may not be complete.
+
+    //virtual void end_transaction(std::shared_ptr<recdatabase> recdb);
+    std::tuple<std::shared_ptr<globalrevision>,transaction_notifies> _realize_transaction(std::shared_ptr<recdatabase> recdb,uint64_t globalrevision_index);
+
+    void _notify_transaction_globalrev(std::shared_ptr<recdatabase> recdb_strong,std::shared_ptr<globalrevision> globalrev,struct transaction_notifies trans_notify);
 
 
     bool transaction_globalrev_is_complete();
@@ -816,7 +866,7 @@ namespace snde {
   };
 
 
-  // helper function used by active_transaction::end_transaction() and recstore_display_transforms::update()
+  // helper function used by transaction::realize_transaction() and recstore_display_transforms::update()
   void build_rss_from_functions_and_channels(std::shared_ptr<recdatabase> recdb,
 					     std::shared_ptr<recording_set_state> previous_rss,
 					     std::shared_ptr<recording_set_state> new_rss,
@@ -848,10 +898,13 @@ namespace snde {
     // transaction and then reacquire after you have the
     // transaction lock.
   public:
-    std::unique_lock<movable_mutex> transaction_lock_holder;
-    std::weak_ptr<recdatabase> recdb;
-    std::shared_ptr<globalrevision> previous_globalrev;
+    std::shared_ptr<recdatabase> recdb;
+    //std::shared_ptr<globalrevision> previous_globalrev;
+    std::shared_ptr<transaction> trans;
     bool transaction_ended;
+
+    
+    
     
     active_transaction(std::shared_ptr<recdatabase> recdb);
 
@@ -862,7 +915,7 @@ namespace snde {
     ~active_transaction(); // destructor releases transaction_lock from holder
 
         
-    std::shared_ptr<globalrevision> end_transaction();
+    std::shared_ptr<transaction> end_transaction();
 
     std::shared_ptr<transaction> run_in_background_and_end_transaction(std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn,std::shared_ptr<void> params);
     
@@ -958,14 +1011,14 @@ namespace snde {
     std::shared_ptr<channelconfig> config; // immutable
     std::shared_ptr<channel> _channel; // immutable pointer, but pointed data is not immutable, (but you shouldn't generally need to access this)
     std::shared_ptr<recording_base> _rec; // atomic shared ptr to recording structure created to store the ouput; may be nullptr if not (yet) created. Always nullptr for ondemand recordings... recording contents may be mutable but have their own admin lock
-    std::atomic<bool> updated; // this field is only valid once the creating transaction is ended and rec() returns a valid pointer and once rec()->state is READY or METADATAREADY. It is true if this particular recording has a new revision particular to the enclosing recording_set_state. For math recordings this is assigned in the create_recording_math<T> template (below). For non-math recordings it is assigned in end_transaction(). 
-    std::shared_ptr<uint64_t> _revision; // Atomic shared pointer... This is assigned when the channel_state is created from _rec->info->revision for manually created recordings. (For ondemand math recordings this is not meaningful?) For math recordings with the math_function's new_revision_optional (config->math_fcn->fcn->new_revision_optional) flag clear, this is defined during end_transaction() before the channel_state is published. If the new_revision_optional flag is set, this left nullptr; once the math function determines whether a new recording will be instantiated the revision will be assigned when the recording is define, with ordering ensured by the implicit self-dependency implied by the new_revision_optional flag (recmath_compute_resource.cpp)
+    std::atomic<bool> updated; // this field is only valid once the creating transaction is ended and rec() returns a valid pointer and once rec()->state is READY or METADATAREADY. It is true if this particular recording has a new revision particular to the enclosing recording_set_state. For math recordings this is assigned in the create_recording_math<T> template (below). For non-math recordings it is assigned in realize_transaction(). 
+    std::shared_ptr<uint64_t> _revision; // Atomic shared pointer... This is assigned when the channel_state is created from _rec->info->revision for manually created recordings. (For ondemand math recordings this is not meaningful?) For math recordings with the math_function's new_revision_optional (config->math_fcn->fcn->new_revision_optional) flag clear, this is defined during realize_transaction() before the channel_state is published. If the new_revision_optional flag is set, this left nullptr; once the math function determines whether a new recording will be instantiated the revision will be assigned when the recording is define, with ordering ensured by the implicit self-dependency implied by the new_revision_optional flag (recmath_compute_resource.cpp)
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_metadataonly; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes metadataonly; set to nullptr at end of channel becoming metadataonly. 
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_ready; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes ready; set to nullptr at end of channel becoming ready. 
 
     channel_state(std::shared_ptr<channel> chan,std::shared_ptr<channelconfig> config,std::shared_ptr<recording_base> rec,bool updated);
 
-    channel_state(const channel_state &orig); // copy constructor used for initializing channel_map from prototype defined in end_transaction()
+    channel_state(const channel_state &orig); // copy constructor used for initializing channel_map from prototype defined in realize_transaction()
 
     // Copy assignment operator deleted
     channel_state& operator=(const channel_state &) = delete;
@@ -1032,16 +1085,19 @@ namespace snde {
     std::atomic<bool> ready; // indicates that all recordings except ondemand and data_requestonly recordings are READY (mutable recordings may be OBSOLETE)
     recording_status recstatus;
     math_status mathstatus; // note math_status.math_functions is immutable
-    std::shared_ptr<recording_set_state> _prerequisite_state; // C++11 atomic shared pointer. recording_set_state to be used for self-dependencies and any missing dependencies not present in this state. This is an atomic shared pointer (read with .prerequisite_state()) that is set to nullptr once a new globalrevision is ready, so as to allow prior recording revisions to be freed.
+    std::shared_ptr<rss_reference> _prerequisite_state; // This atomic shared pointer is cleared when the rss is complete and that allows the prerequisite state to go out of existence. Use prerequisite_state() accessor.
+
+    std::shared_ptr<rss_reference> our_state_reference; // This pointer is cleared when the rss is complete, and that allows the state to go out of existence.
+
     std::unordered_set<std::shared_ptr<channel_notify>> recordingset_complete_notifiers; // Notifiers waiting on this recording set state being complete. Criteria will be removed as they are satisifed and entries will be removed as the notifications are performed.
     std::shared_ptr<lockmanager> lockmgr; // pointer is immutable after initialization
 
     
-    recording_set_state(std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state,uint64_t originating_globalrev_index,uint64_t unique_index); // constructor
+    recording_set_state(std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<rss_reference> prerequisite_state,uint64_t originating_globalrev_index,uint64_t unique_index); // constructor
     // Rule of 3
     recording_set_state& operator=(const recording_set_state &) = delete; 
     recording_set_state(const recording_set_state &orig) = delete;
-    virtual ~recording_set_state()=default;
+    virtual ~recording_set_state();
 
     bool check_complete();
     
@@ -1082,7 +1138,9 @@ namespace snde {
     }
 
     
-
+    std::shared_ptr<rss_reference> prerequisite_state();
+    void prerequisite_state_clear();
+    void prerequisite_state_assign(std::shared_ptr<rss_reference> state);
     std::shared_ptr<ndarray_recording_ref> check_for_recording_ref(const std::string &fullpath,size_t array_index=0);
     std::shared_ptr<ndarray_recording_ref> check_for_recording_ref(const std::string &fullpath,std::string array_name);
 
@@ -1093,9 +1151,6 @@ namespace snde {
     std::shared_ptr<std::vector<std::pair<std::string,unsigned long long>>> list_recording_revisions();
 #endif    
     std::shared_ptr<std::vector<std::pair<std::string,std::string>>> list_ndarray_refs();
-    
-    std::shared_ptr<recording_set_state> prerequisite_state();
-    void atomic_prerequisite_state_clear(); // sets the prerequisite state to nullptr (called after the rss becomes ready)
 
     long get_reference_count(); // get the shared_ptr reference count; useful for debugging memory leaks
 
@@ -1106,12 +1161,36 @@ namespace snde {
       // internal use only for recording_set_state::_update_recstatus__rss_admin_transaction_admin_locked()
     bool _urratal_check_mdonly(std::string channelpath);
     
-    void _update_recstatus__rss_admin_transaction_admin_locked(); // This is called during end_transaction() with the recdb admin lock, the rss admin lock, and the transaction admin lock held, to identify anything misplaced in the above unordered_maps. After the call and marking of the transaction's _resulting_globalrevision, placement responsibility shifts to mark_metadata_done() and mark_data_ready() methods of the recording. 
+    void _update_recstatus__rss_admin_transaction_admin_locked(); // This is called during realize_transaction() with the recdb admin lock, the rss admin lock, and the transaction admin lock held, to identify anything misplaced in the above unordered_maps. After the call and marking of the transaction's _resulting_globalrevision, placement responsibility shifts to mark_metadata_done() and mark_data_ready() methods of the recording. 
 
+    void register_new_math_rec(void *owner_id,std::shared_ptr<recording_base> new_rec); // registers newly created math recording in the given rss (and extracts mutable flag for the given channel into the recording structure)).
+    
     std::string get_math_status();
     std::string get_math_function_status(std::string definition_command);
 
   };
+
+  class rss_reference {
+    // A single rss_reference to a particular rss or globalrev is
+    // created during the transaction that created the rss. It should
+    // never be copied and no other reference to the same rss should
+    // be created until the rss actually exists. But, shared pointers
+    // to it can be passed around. Its internal shared pointer gets
+    // initialized when the transaction is realized. It is stored in
+    // recordings as prerequisite_state and/or originating_state and
+    // the shared_ptr to the rss_reference gets cleared when the
+    // recording is complete. As such, it holds previous state in
+    // memory as long as needed, but no longer. It is also stored in
+    // recording_set_states as prerequisite_state. That pointer is
+    // likewise cleared when the rss or globalrev is complete.
+  public:
+    std::shared_ptr<recording_set_state> _rss; // atomic shared pointer; use rss() accessor
+    rss_reference();
+    rss_reference(std::shared_ptr<recording_set_state> rss);
+    ~rss_reference();
+    std::shared_ptr<recording_set_state> rss();
+    void rss_assign(std::shared_ptr<recording_set_state> rss);
+    };
 
   class globalrev_mutable_lock {
   public:
@@ -1138,7 +1217,7 @@ namespace snde {
 
     
     uint64_t globalrev; // immutable
-    std::shared_ptr<transaction> defining_transact; // This keeps the transaction data structure (pointed to by weak pointers in the recordings created in the transaction) in memory at least as long as the globalrevision is current.
+    //std::shared_ptr<transaction> defining_transact; // This keeps the transaction data structure (pointed to by weak pointers in the recordings created in the transaction) in memory at least as long as the globalrevision is current.
 
     // With the globalrevision object there is a single object of class globalrev_mutable_lock. This is created with the globalrevision
     // and pointed to here (mutable_recordings_still_needed) until the globalrev is ready. Once ready, notify.cpp:_globalrev_complete_notify::perform_notify()
@@ -1152,13 +1231,13 @@ namespace snde {
     std::shared_ptr<globalrev_mutable_lock> mutable_recordings_need_holder;
     std::atomic<bool> mutable_recordings_still_needed; 
 
-    globalrevision(uint64_t globalrev, std::shared_ptr<transaction> defining_transact, std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<recording_set_state> prereq_state,uint64_t rss_unique_index);   
+    globalrevision(uint64_t globalrev, std::shared_ptr<transaction> defining_transact, std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<rss_reference> prerequisite_state,uint64_t rss_unique_index);   
   };
   
 
   class recdatabase : public std::enable_shared_from_this<recdatabase> {
   public:
-    std::mutex admin; // Locks access to _channels and _deleted_channels and _available_math_functions, _globalrevs, repetitive_notifies,  and monitoring. In locking order, precedes channel admin locks, available_compute_resource_database, globalrevision admin locks, recording admin locks, and Python GIL. 
+    std::mutex admin; // Locks access to _channels and _deleted_channels and _available_math_functions, _globalrevs, repetitive_notifies,  and monitoring. In locking order, precedes transaction_manager locks, channel admin locks, available_compute_resource_database, globalrevision admin locks, recording admin locks, and Python GIL. 
     std::map<std::string,std::shared_ptr<channel>> _channels; // Generally don't use the channel map directly. Grab the latestglobalrev and use the channel map from that. 
     std::map<std::string,std::shared_ptr<channel>> _deleted_channels; // Channels are put here after they are deleted. They can be moved back into the main list if re-created. 
     instantiated_math_database _instantiated_functions; 
@@ -1180,20 +1259,7 @@ namespace snde {
 
     std::atomic<bool> started;
 
-    // transaction_lock is a movable_mutex so we have the freedom to unlock
-    // it from a different thread than we used to lock it.
-    movable_mutex transaction_lock; // ***!!! Before any dataguzzler-python module context locks, etc. Before the recdb admin lock
-    std::shared_ptr<transaction> current_transaction; // only valid while transaction_lock is held. But changing/accessing also requires the recdb admin lock
-
-
-    // managing the thread that can run stuff at the end of a transaction
-    std::thread transaction_background_end_thread; // used by active_transaction::run_in_background_and_end_transaction()
-    std::mutex transaction_background_end_lock; // locks the condition variable, function, pointers, and bool immediately below.  Last in the locking order
-    std::condition_variable transaction_background_end_condition;
-    std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> transaction_background_end_fcn;
-    std::shared_ptr<void> transaction_background_end_params;
-    std::shared_ptr<active_transaction> transaction_background_end_acttrans;
-    bool transaction_background_end_mustexit;
+    std::shared_ptr<transaction_manager> transmgr; // pointer is immutable once created during startup. 
     
     std::set<std::weak_ptr<monitor_globalrevs>,std::owner_less<std::weak_ptr<monitor_globalrevs>>> monitoring;
     uint64_t monitoring_notify_globalrev; // latest globalrev for which monitoring has already been notified
@@ -1224,22 +1290,19 @@ namespace snde {
     // a transaction update can be multi-threaded but you shouldn't call end_transaction()  (or the end_transaction method on the
     // active_transaction or delete the active_transaction) until all other threads are finished with transaction actions
     std::shared_ptr<active_transaction> start_transaction();
-    std::shared_ptr<globalrevision> end_transaction(std::shared_ptr<active_transaction> act_trans);
+    std::shared_ptr<transaction> end_transaction(std::shared_ptr<active_transaction> act_trans);
     std::shared_ptr<transaction> run_in_background_and_end_transaction(std::shared_ptr<active_transaction> act_trans,std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn, std::shared_ptr<void> params);
 
     // add_math_function() must be called within a transaction
-    void add_math_function(std::shared_ptr<instantiated_math_function> new_function,bool hidden); // Use separate functions with/without storage manager because swig screws up the overload
+    void add_math_function(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> new_function,bool hidden); // Use separate functions with/without storage manager because swig screws up the overload
 
     std::shared_ptr<instantiated_math_function> lookup_math_function(std::string fullpath);
     
-    void delete_math_function(std::shared_ptr<instantiated_math_function> fcn);
+    void delete_math_function(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> fcn);
 
-    void send_math_message(std::shared_ptr<instantiated_math_function> func, std::string name, std::shared_ptr<math_instance_parameter> msg);
+    void send_math_message(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> func, std::string name, std::shared_ptr<math_instance_parameter> msg);
     
-    void add_math_function_storage_manager(std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager);
-    
-    void register_new_rec(std::shared_ptr<recording_base> new_rec);
-    void register_new_math_rec(void *owner_id,std::shared_ptr<recording_set_state> calc_rss,std::shared_ptr<recording_base> new_rec); // registers newly created math recording in the given rss (and extracts mutable flag for the given channel into the recording structure)). 
+    void add_math_function_storage_manager(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager);
 
     std::shared_ptr<globalrevision> latest_defined_globalrev(); // safe to call with or without recdb admin lock held
 
@@ -1248,12 +1311,12 @@ namespace snde {
     std::shared_ptr<globalrevision> get_globalrev(uint64_t revnum);
 
     // Allocate channel with a specific name; returns nullptr if the name is inuse
-    std::shared_ptr<channel> reserve_channel(std::shared_ptr<channelconfig> new_config); // must be called within a transaction
-    void release_channel(std::string channelpath, void *owner_id); // must be called within a transaction
+    std::shared_ptr<channel> reserve_channel(std::shared_ptr<active_transaction> trans,std::shared_ptr<channelconfig> new_config); // must be called within a transaction
+    void release_channel(std::shared_ptr<active_transaction> trans,std::string channelpath, void *owner_id); // must be called within a transaction
 
     // Define a new channel; throws an error if the channel is already in use.
     // Must be called within a transaction
-    std::shared_ptr<channel> define_channel(std::string channelpath, std::string owner_name, void *owner_id, bool hidden=false, std::shared_ptr<recording_storage_manager> storage_manager=nullptr);
+    std::shared_ptr<channel> define_channel(std::shared_ptr<active_transaction> trans,std::string channelpath, std::string owner_name, void *owner_id, bool hidden=false, std::shared_ptr<recording_storage_manager> storage_manager=nullptr);
     
     //std::shared_ptr<channel> lookup_channel_live(std::string channelpath);
 
@@ -1273,7 +1336,7 @@ namespace snde {
     void unregister_ready_globalrev_quicknotifies_called_recdb_locked(std::shared_ptr<std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<globalrevision>)>> quicknotify);
 
     void globalrev_mutablenotneeded_code(); 
-    void transaction_background_end_code();
+    
     
     
     std::shared_ptr<math_function_registry_map> available_math_functions(); // Note that this includes ONLY the custom-added math functions, not the built ins. Use math_function_registry()  to get the c++ built in ones
@@ -1719,20 +1782,20 @@ namespace snde {
   size_t recording_default_info_structsize(size_t param,size_t min);
   
   template <typename T,typename ... Args>
-  std::shared_ptr<T> create_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,Args && ... args)
+  std::shared_ptr<T> create_recording(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,Args && ... args)
   {
-    if (!recdb->current_transaction) {
-      throw snde_error("create_recording() outside of a transaction!");
-    }
+    //if (!recdb->current_transaction) {
+    //  throw snde_error("create_recording() outside of a transaction!");
+    //}
 
     if (chan->deleted) {
         throw snde_error("Cannot call create_recording() on a deleted channel");
     }
 
     std::shared_ptr<channelconfig> chanconfig = chan->config();
-    std::shared_ptr<recording_storage_manager> storage_manager = select_storage_manager_for_recording_during_transaction(recdb,chanconfig->channelpath.c_str());
+    std::shared_ptr<recording_storage_manager> storage_manager = select_storage_manager_for_recording_during_transaction(trans->recdb,chanconfig->channelpath.c_str());
     
-    uint64_t new_revision = ++chan->latest_revision; // atomic variable so it is safe to pre-increment
+    //***!!! uint64_t new_revision = ++chan->latest_revision; // atomic variable so it is safe to pre-increment
 
     
     
@@ -1744,10 +1807,10 @@ namespace snde {
     // the caller is responsible for making sure we are in a transaction
     // i.e. appropriate synchronization must happen before and after. 
     
-    std::shared_ptr<T> new_rec = std::make_shared<T>(recdb,storage_manager,recdb->current_transaction,chanconfig->channelpath,nullptr,new_revision,0,args...);
-    new_rec->originating_rss_unique_id = recdb->current_transaction->rss_unique_index;
+    std::shared_ptr<T> new_rec = std::make_shared<T>(recording_params{trans->recdb,storage_manager,trans->trans->prerequisite_state,chanconfig->channelpath,trans->trans->our_state_reference,SNDE_REVISION_INVALID},0,args...);
+    new_rec->originating_state_unique_id = trans->trans->rss_unique_index;
     
-    recdb->register_new_rec(new_rec);
+    trans->trans->register_new_rec(new_rec);
     return new_rec;
   }
 
@@ -1762,8 +1825,8 @@ namespace snde {
 
     
     
-    std::shared_ptr<T> new_rec = std::make_shared<T>(recdb,storage_manager,nullptr,std::string("//anonymous/")+purpose,nullptr,0,0,args...);
-    new_rec->originating_rss_unique_id = rss_get_unique();
+    std::shared_ptr<T> new_rec = std::make_shared<T>(recording_params{recdb,storage_manager,nullptr,std::string("//anonymous/")+purpose,nullptr,SNDE_REVISION_INVALID},0,args...);
+    new_rec->originating_state_unique_id = rss_get_unique();
     
     return new_rec;
   }
@@ -1776,7 +1839,7 @@ namespace snde {
     if (!recdb) return nullptr;
     
     std::shared_ptr<recording_storage_manager> storage_manager = select_storage_manager_for_recording(recdb,chanpath,calc_rss);
-    std::shared_ptr<transaction> defining_transact = (std::dynamic_pointer_cast<globalrevision>(calc_rss)) ? (std::dynamic_pointer_cast<globalrevision>(calc_rss)->defining_transact):nullptr;
+    //std::shared_ptr<transaction> defining_transact = (std::dynamic_pointer_cast<globalrevision>(calc_rss)) ? (std::dynamic_pointer_cast<globalrevision>(calc_rss)->defining_transact):nullptr;
     uint64_t new_revision=0;
 
     channel_state &state = calc_rss->recstatus.channel_map->at(chanpath);
@@ -1799,12 +1862,12 @@ namespace snde {
       
     }
 
-    std::shared_ptr<T> new_rec = std::make_shared<T>(recdb,storage_manager,defining_transact,chanpath,calc_rss,new_revision,0,args...);
+    std::shared_ptr<T> new_rec = std::make_shared<T>(recording_params{recdb,storage_manager,calc_rss->prerequisite_state(),chanpath,calc_rss->our_state_reference,new_revision},0,args...);
     
-    new_rec->originating_rss_unique_id = calc_rss->unique_index;
+    new_rec->originating_state_unique_id = calc_rss->unique_index;
     
     
-    recdb->register_new_math_rec((void*)recdb.get(),calc_rss,new_rec);
+    calc_rss->register_new_math_rec((void*)recdb.get(),new_rec);
     return new_rec;
     
   }
@@ -1813,22 +1876,22 @@ namespace snde {
   
   // for non math-functions operating in a transaction
   template <typename T>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum=rtn_typemap.at(typeid(T)))
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum=rtn_typemap.at(typeid(T)))
   {
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
-    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<multi_ndarray_recording>(recdb,chan,owner_id,1);
+    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<multi_ndarray_recording>(trans,chan,owner_id,1);
     new_rec->define_array(0,typenum);
     
     return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
   }
 
     template <typename T>
-    std::shared_ptr<ndtyped_recording_ref<T>> create_typed_named_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string arrayname,unsigned typenum=rtn_typemap.at(typeid(T)))
+    std::shared_ptr<ndtyped_recording_ref<T>> create_typed_named_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,std::string arrayname,unsigned typenum=rtn_typemap.at(typeid(T)))
   {
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
-    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<multi_ndarray_recording>(recdb,chan,owner_id,1);
+    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<multi_ndarray_recording>(trans,chan,owner_id,1);
     new_rec->define_array(0,typenum,arrayname);
     
     return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
@@ -1836,13 +1899,13 @@ namespace snde {
 
   
   template <typename S,typename T,typename ... Args>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_subclass_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,Args && ... args)
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_subclass_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,Args && ... args)
   {
 
     unsigned typenum=rtn_typemap.at(typeid(T));
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
-    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<S>(recdb,chan,owner_id,args...);
+    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<S>(trans,chan,owner_id,args...);
     new_rec->define_array(0,typenum);
     
     return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
@@ -1931,19 +1994,19 @@ namespace snde {
   // static factory methods for creating recordings with single runtime-determined types
   // for regular (non-math) use. Automatically registers the new recording
   // ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
-  std::shared_ptr<ndarray_recording_ref> create_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
+  std::shared_ptr<ndarray_recording_ref> create_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
 
-  std::shared_ptr<ndarray_recording_ref> create_named_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string arrayname,unsigned typenum);
+  std::shared_ptr<ndarray_recording_ref> create_named_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,std::string arrayname,unsigned typenum);
 
   template <typename S,typename ... Args> 
-  std::shared_ptr<ndarray_recording_ref> create_subclass_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum,Args && ... args)
+  std::shared_ptr<ndarray_recording_ref> create_subclass_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum,Args && ... args)
   {
     std::shared_ptr<multi_ndarray_recording> rec;
     std::shared_ptr<ndarray_recording_ref> ref;
 
     // ***!!! Should look up maker method in a runtime-addable database ***!!!
 
-    rec=create_recording<S>(recdb,chan,owner_id,args...);
+    rec=create_recording<S>(trans,chan,owner_id,args...);
     rec->define_array(0,typenum);
     
     ref=rec->reference_ndarray(0);

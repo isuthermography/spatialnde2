@@ -962,7 +962,7 @@ namespace snde {
 	// execfunc would have been assigned in recstore.cpp end_transaction()
 	// So all we have to check here is the full list of prerequisites
 	
-	std::shared_ptr<recording_set_state> prior_state = dep_rss->prerequisite_state();
+	std::shared_ptr<recording_set_state> prior_state = dep_rss->prerequisite_state()->rss();
 	assert(prior_state); 
 
 	
@@ -978,8 +978,8 @@ namespace snde {
 	    assert(paramstate.revision());
 
 
-	    channel_state &parampriorstate = prior_state->recstatus.channel_map->at(dep_fcn_param_fullpath);
-	    assert(parampriorstate.revision());
+	    //channel_state &parampriorstate = prior_state->recstatus.channel_map->at(dep_fcn_param_fullpath);
+	    //assert(parampriorstate.revision());
 
 	    if (paramstate.updated) {
 	      snde_debug(SNDE_DC_RECMATH,"recmath: %s need recalc due to %s updated.",dep_fcn->definition->definition_command.c_str(),dep_fcn_param_fullpath.c_str());
@@ -1145,7 +1145,7 @@ namespace snde {
     
     // initialize self_dependent_recordings, if applicable
     if (inst && inst->self_dependent) {
-      std::shared_ptr<recording_set_state> prereq_state=rss->prerequisite_state();
+      std::shared_ptr<recording_set_state> prereq_state=rss->prerequisite_state()->rss();
 
       auto prereq_state_function_status_it = prereq_state->mathstatus.function_status.find(inst);
       if (prereq_state_function_status_it == prereq_state->mathstatus.function_status.end()) {
@@ -1248,7 +1248,11 @@ namespace snde {
 
 	if (rec){
 	  if (rec->info_state & SNDE_RECS_FULLYREADY != SNDE_RECS_FULLYREADY){
-	    std::shared_ptr<recording_set_state> originating_rss = rec->get_originating_rss();
+	    std::shared_ptr<recording_set_state> originating_rss;
+	    {
+	      std::lock_guard<std::mutex> rec_admin(rec->admin);
+	      originating_rss = rec->originating_state->rss();
+	    }
 	    if (originating_rss && originating_rss != rss) {
 	      std::lock_guard<std::mutex> orss_admin(originating_rss->admin);
 	      auto edoc = originating_rss->mathstatus.begin_atomic_external_dependencies_on_channel_update();
@@ -1277,7 +1281,11 @@ namespace snde {
 	if (rec){
 	  if (rec->info_state & SNDE_RECS_FULLYREADY != SNDE_RECS_FULLYREADY){
 	    mathstatus_ptr->missing_prerequisites.emplace(chan_it->second.config);
-	    std::shared_ptr<recording_set_state> originating_rss = rec->get_originating_rss();
+	    std::shared_ptr<recording_set_state> originating_rss;
+	    {
+	      std::lock_guard<std::mutex> rec_admin(rec->admin);
+	      originating_rss = rec->originating_state->rss();
+	    }
 	    if (originating_rss == rss) {
 	     
 	      auto eidoc=rss->mathstatus.begin_atomic_extra_internal_dependencies_on_channel_update();

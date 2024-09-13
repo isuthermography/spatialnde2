@@ -285,6 +285,15 @@ namespace snde {
 
     
     with_display_transforms = std::make_shared<recording_set_state>(recdb,initial_mathdb,initial_channel_map,nullptr,previous_globalrev->globalrev,rss_get_unique());
+
+
+    // We have to play transaction manager here because there isn't an actual transaction involved.
+    with_display_transforms->our_state_reference = std::make_shared<rss_reference>(with_display_transforms);
+
+    // snde_warning("rss 0x%lx gets new rss_reference", (unsigned long) with_display_transforms.get());
+    // We need to make sure that our_state_reference goes away when the rss is complete. Use clear_osr_notify to trigger a call back.
+    std::shared_ptr<recording_set_state> with_display_transforms_ref = with_display_transforms;
+    
     with_display_transforms->mathstatus.math_functions->_rebuild_dependency_map(); // (not automatically done on construction)
 
     // For everything we copied in from the globalrev (above),
@@ -396,6 +405,11 @@ namespace snde {
       recdb->compute_resources->queue_computation(recdb,ready_rss,ready_fcn);
     }
 
+    // get notified when with_display_transforms is ready so that we can clear our_state_reference
+    std::shared_ptr<callback_channel_notify> clear_osr_notify = std::make_shared<callback_channel_notify>(std::vector<std::string>(),std::vector<std::string>(),true,[with_display_transforms_ref] (){with_display_transforms_ref->our_state_reference = nullptr;});
+    clear_osr_notify->apply_to_rss(with_display_transforms);
+
+    
     // Run any possibly needed completion notifications
     for (auto && complete_rss_complete_execfunc: may_need_completion_notification) {
       std::shared_ptr<recording_set_state> complete_rss;

@@ -1,3 +1,4 @@
+transaction = None # active_transaction object
 positioner_channel = None  # positioner channel name
 model_channel = None # name of channel containing renderable model to position
 background_channel = None # name of channel containing background to render
@@ -10,8 +11,8 @@ if viewer is None:
     pass
 
 
-positioner_chan = recdb.define_channel(positioner_channel,"main",recdb.raw())
-positioner_rec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,positioner_chan,recdb.raw(),model_channel,background_channel,main_viewer.viewer.OSGWidget)
+positioner_chan = recdb.define_channel(transaction,positioner_channel,"main",recdb.raw())
+positioner_rec = snde.create_qt_osg_compositor_view_tracking_pose_recording(transaction,positioner_chan,recdb.raw(),model_channel,background_channel,main_viewer.viewer.OSGWidget)
 positioner_rec.mark_data_and_metadata_ready()
 
 

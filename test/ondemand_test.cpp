@@ -181,10 +181,10 @@ int main(int argc, char **argv)
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
 
   testchan_config=std::make_shared<snde::channelconfig>("/test channel", "main", (void *)&main,false);
-  std::shared_ptr<snde::channel> testchan = recdb->reserve_channel(testchan_config);
+  std::shared_ptr<snde::channel> testchan = recdb->reserve_channel(transact,testchan_config);
   
-  test_rec = create_ndarray_ref(recdb,testchan,(void *)&main,SNDE_RTN_FLOAT64);
-  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
+  test_rec = create_ndarray_ref(transact,testchan,(void *)&main,SNDE_RTN_FLOAT64);
+  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction()->globalrev_available();
 
   test_rec->allocate_storage({100,120}, true);
 

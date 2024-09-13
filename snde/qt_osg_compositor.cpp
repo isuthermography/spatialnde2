@@ -568,8 +568,8 @@ namespace snde {
       }));
   
   
-  qt_osg_compositor_view_tracking_pose_recording::qt_osg_compositor_view_tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient, std::string component_name,QSharedPointer<qt_osg_compositor> compositor) :
-    tracking_pose_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,channel_to_reorient,component_name),
+  qt_osg_compositor_view_tracking_pose_recording::qt_osg_compositor_view_tracking_pose_recording(struct recording_params params,size_t info_structsize,std::string channel_to_reorient, std::string component_name,QSharedPointer<qt_osg_compositor> compositor) :
+    tracking_pose_recording(params,info_structsize,channel_to_reorient,component_name),
     compositor(compositor)
   {
     rec_classes.push_back(recording_class_info("snde::qt_osg_compositor_view_tracking_pose_recording",typeid(qt_osg_compositor_view_tracking_pose_recording),ptr_to_new_shared_impl<qt_osg_compositor_view_tracking_pose_recording>));

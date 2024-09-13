@@ -29,14 +29,14 @@ transact = recdb.start_transaction()
 graphicsgroup_config=snde.channelconfig("/graphics", "main", recdb.raw(),False,graphman)
 graphicsgroup = recdb.reserve_channel(graphicsgroup_config); 
 
-part_recordings = snde.x3d_load_geometry(recdb,graphman,args[1],0,"main",recdb.raw(),"/graphics/x3d",None,[ "reindex_vertices", "reindex_tex_vertices", "trinormals"])
+part_recordings = snde.x3d_load_geometry(transact,graphman,args[1],0,"main",recdb.raw(),"/graphics/x3d",None,[ "reindex_vertices", "reindex_tex_vertices", "trinormals"])
 
 
 
 followerchan_config=snde.channelconfig("/graphics/follower channel", "main", recdb.raw(),False)
-followerchan = recdb.reserve_channel(followerchan_config); 
+followerchan = recdb.reserve_channel(transact,followerchan_config); 
 
-followerrec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,followerchan,recdb.raw(),"/graphics/x3d/meshed","/pointcloud recording",main_viewer.viewer.OSGWidget)
+followerrec = snde.create_qt_osg_compositor_view_tracking_pose_recording(transact,followerchan,recdb.raw(),"/graphics/x3d/meshed","/pointcloud recording",main_viewer.viewer.OSGWidget)
 
 
 followerrec
@@ -44,7 +44,7 @@ followerrec.metadata=snde.constructible_metadata()
 followerrec.mark_metadata_done()
 followerrec.mark_data_ready()
 
-globalrev = transact.end_transaction()
+globalrev = transact.end_transaction().globalrev()
 
 
 k4a.running=True

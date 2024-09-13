@@ -43,14 +43,14 @@ knn_function = knn_math_function.instantiate([ snde.math_parameter_recording("/m
 
 transact = recdb.start_transaction(); # Transaction RAII holder
 
-recdb.add_math_function(kdtree_function,False)
-recdb.add_math_function(knn_function,False)
+recdb.add_math_function(transact,kdtree_function,False)
+recdb.add_math_function(transact,knn_function,False)
 
 num_raw_vertices = 2000
 #num_raw_vertices = 13
 vertices_config=snde.channelconfig("/match_vertices", "main", recdb,False)
-vertices_chan = recdb.reserve_channel(vertices_config);
-vertices = snde.create_ndarray_ref(recdb,vertices_chan,recdb,snde.SNDE_RTN_SNDE_COORD3)
+vertices_chan = recdb.reserve_channel(transact,vertices_config);
+vertices = snde.create_ndarray_ref(transact,vertices_chan,recdb,snde.SNDE_RTN_SNDE_COORD3)
 vertices.rec.metadata=snde.immutable_metadata()
 vertices.rec.mark_metadata_done()
 vertices.allocate_storage([ num_raw_vertices ]);
@@ -64,8 +64,8 @@ vertices.rec.mark_data_ready()
 num_search_points = 10000
 #num_search_points = 1
 search_points_config=snde.channelconfig("/search_points", "main", recdb,False)
-search_points_chan = recdb.reserve_channel(search_points_config);
-search_points = snde.create_ndarray_ref(recdb,search_points_chan,recdb,snde.SNDE_RTN_SNDE_COORD3)
+search_points_chan = recdb.reserve_channel(transact,search_points_config);
+search_points = snde.create_ndarray_ref(transact,search_points_chan,recdb,snde.SNDE_RTN_SNDE_COORD3)
 search_points.rec.metadata=snde.immutable_metadata()
 search_points.rec.mark_metadata_done()
 search_points.allocate_storage([ num_search_points ]);
@@ -79,8 +79,8 @@ search_points.rec.mark_data_ready()
 
 
     
-globalrev = transact.end_transaction()
-globalrev.wait_complete();
+globalrev = transact.end_transaction().globalrev()
+
 
 kdtree = globalrev.get_ndarray_ref("/kdtree","vertex_kdtree").data()
 knn = globalrev.get_ndarray_ref("/knn").data()

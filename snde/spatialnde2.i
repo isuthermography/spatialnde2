@@ -1,6 +1,6 @@
 /* SWIG interface for spatialnde2 */ 
 // swig -c++ -python spatialnde2.i
- 
+  
 %module spatialnde2
 
 %pythonbegin %{
@@ -509,6 +509,7 @@ template <typename T>
 %include "utils.i"
 %include "ande_file.i"
 %include "polynomial_transform.i"
+%include "geometry_processing.i"
 
 #ifdef SNDE_OPENCL
 %include "opencl_utils.i"
@@ -661,5 +662,16 @@ template <typename T>
   Py_DECREF(np_dtype);
   Py_DECREF(Globals);
 
+%}
+
+%pythoncode %{
+  try:
+    import importlib.metadata
+    __version__ = importlib.metadata.version("spatialnde2")
+    pass
+  except ImportError:
+    # Python3.7 may not have importlib.metadata
+    pass
+  
 %}
 

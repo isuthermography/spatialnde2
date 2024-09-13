@@ -111,20 +111,20 @@ Transactions
 
 The transaction represents a conceptually instantaneous grouping of
 changes to a recording database. A transaction is started by
-calling the ``active_transaction`` constructor with the recording
-database as a parameter.
+calling the ``start_transaction()`` method of the recording
+database.
 
 Within the transaction you can define new channels, add math
 functions, create new recordings for channels, etc. The transaction is
 ended by calling the ``end_transaction()`` method of the
-``active_transaction`` object, which then returns a ``globalrevision``
+``active_transaction`` object, which then returns a ``transaction``
+object on which you can call the ``.globalrev()`` method that returns
+a ``globalrevision``
 object you can use to access the recordings within the
 transaction. The ``end_transaction()`` also allows math functions
 dependent on recordings that were changed within the transaction to
 start executing once all of the recordings they are dependent on are
-complete and ready. You can wait for all recordings within the
-globalrevision to become complete and aready by calling the
-``wait_complete`` method of the globalrevision. 
+complete and ready. The ``.globalrev()`` method mentioned above waits for all recordings (including math calculations) to be complete. If you do not wish to wait for completion, you can instead call ``.globalrev_available()`` that only waits for existence of the global revision, not completion.
 
 Multi-N-Dimensional-Array Recordings
 ------------------------------------

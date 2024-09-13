@@ -230,7 +230,7 @@ namespace snde {
   
   static int registered_trinormals_function = register_math_function("spatialnde2.trinormals",trinormals_function);
 
-  void instantiate_trinormals(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
+  void instantiate_trinormals(std::shared_ptr<active_transaction> trans,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
     std::string context = recdb_path_context(loaded_geom->info->name);
 	
@@ -248,7 +248,7 @@ namespace snde {
       nullptr);
 
 
-    recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
+    trans->recdb->add_math_function(trans,instantiated,true); // trinormals are generally hidden by default
     loaded_geom->processed_relpaths.emplace("trinormals","trinormals");
 
   }
@@ -696,7 +696,7 @@ namespace snde {
   static int registered_vertnormals_function = register_math_function("spatialnde2.vertnormals",vertnormals_recording_function);
   
 
-  void instantiate_vertnormals(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
+  void instantiate_vertnormals(std::shared_ptr<active_transaction> trans,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
     std::string context = recdb_path_context(loaded_geom->info->name);
 
@@ -715,7 +715,7 @@ namespace snde {
       std::make_shared<math_definition>("instantiate_vertnormals()"),
       nullptr);
 
-    recdb->add_math_function(instantiated,true); // vertnormals are generally hidden by default
+    trans->recdb->add_math_function(trans,instantiated,true); // vertnormals are generally hidden by default
     loaded_geom->processed_relpaths.emplace("vertnormals","vertnormals");
     
     //recdb_path_join(context,loaded_geom->processed_relpaths.at("meshed"))

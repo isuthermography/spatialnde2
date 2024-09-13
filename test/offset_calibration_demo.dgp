@@ -54,20 +54,20 @@ graphman=snde.graphics_storage_manager("/graphics/",recdb.lowlevel_alloc,recdb.a
 transact = recdb.start_transaction()
 
 
-graphicsgroup = recdb.define_channel("/graphics/","main",recdb.raw(),False,graphman)
+graphicsgroup = recdb.define_channel(transact,"/graphics/","main",recdb.raw(),False,graphman)
 
-plate_recording = snde.x3d_load_geometry(recdb,graphman,specimen_model_file,0,"main",recdb.raw(),specimen_model_tree,specimen_model_scaling,[ "reindex_vertices","reindex_tex_vertices"] + snde.project_onto_parameterization_processing_tags)
+plate_recording = snde.x3d_load_geometry(transact,graphman,specimen_model_file,0,"main",recdb.raw(),specimen_model_tree,specimen_model_scaling,[ "reindex_vertices","reindex_tex_vertices"] + snde.project_onto_parameterization_processing_tags)
 
 
-probe_recording = snde.x3d_load_geometry(recdb,graphman,probe_model_file,0,"main",recdb.raw(),probe_model_tree,None,[ "reindex_vertices","reindex_tex_vertices" ])
+probe_recording = snde.x3d_load_geometry(transact,graphman,probe_model_file,0,"main",recdb.raw(),probe_model_tree,None,[ "reindex_vertices","reindex_tex_vertices" ])
 
 
 main_viewer.viewer.set_camera_pose(snde.recdb_path_join(probe_model_tree,"meshed"),np.array(([0,0,.4,  0.        ], [ 0,0,0,  1]),dtype=[('offset', '<f4', (4,)), ('quat', '<f4', (4,))]))
 main_viewer.viewer.set_rotation_center_dist(snde.recdb_path_join(probe_model_tree,"meshed"),0.4)
 
 
-specimen_pose_chan = recdb.define_channel(specimen_pose_channel,"main",recdb.raw())
-specimen_pose_ref = snde.create_pose_channel_ndarray_ref(recdb,specimen_pose_chan,recdb.raw(),snde.recdb_path_join(specimen_model_tree,"meshed"))
+specimen_pose_chan = recdb.define_channel(transact,specimen_pose_channel,"main",recdb.raw())
+specimen_pose_ref = snde.create_pose_channel_ndarray_ref(transact,specimen_pose_chan,recdb.raw(),snde.recdb_path_join(specimen_model_tree,"meshed"))
 specimen_pose_ref.allocate_storage([1])
 specimen_position = np.array(((0,0,0,0),(.4, .3, .625, .6)),dtype=orient_dtype)
 # Temporarily use trivial specimen position
@@ -85,12 +85,12 @@ corrected_pose_math_function = snde.offset_calibration.instantiate( [ snde.math_
                                                                      False,
                                                                      snde.math_definition("synthetic_probe_history definition"),
                                                                      None)
-recdb.add_math_function(corrected_pose_math_function,False)
+recdb.add_math_function(transact,corrected_pose_math_function,False)
 
 
 
-registered_pose_chan = recdb.define_channel(registered_pose_channel,"main",recdb.raw())
-registered_pose_ref = snde.create_pose_channel_ndarray_ref(recdb,registered_pose_chan,recdb.raw(),correction_pose_channel)
+registered_pose_chan = recdb.define_channel(transact,registered_pose_channel,"main",recdb.raw())
+registered_pose_ref = snde.create_pose_channel_ndarray_ref(transact,registered_pose_chan,recdb.raw(),correction_pose_channel)
 registered_pose_ref.allocate_storage([1])
 registered_position = np.array(((.03,0,0,0),(0, 0, 0, 1)),dtype=orient_dtype)
 registered_pose_ref.data()[0]=registered_position
@@ -98,16 +98,17 @@ registered_pose_ref.rec.mark_data_and_metadata_ready()
 
 
 probe_pose_func = include(snde,"manual_positioner_in_transaction.dpi",
+                          transaction=transact,
                           positioner_channel="/probe_positioner",
                           background_channel=registered_pose_channel,
                           model_channel=snde.recdb_path_join(probe_model_tree,"meshed"))
 
-probe_pose_chan = recdb.define_channel(probe_pose_channel,"main",recdb.raw())
+probe_pose_chan = recdb.define_channel(transact,probe_pose_channel,"main",recdb.raw())
 
 
-def new_probe_posn_in_transaction(orientation):
+def new_probe_posn_in_transaction(transact,orientation):
     
-    probe_pose_ref = snde.create_pose_channel_ndarray_ref(recdb,probe_pose_chan,recdb.raw(),snde.recdb_path_join(probe_model_tree,"meshed"))
+    probe_pose_ref = snde.create_pose_channel_ndarray_ref(transact,probe_pose_chan,recdb.raw(),snde.recdb_path_join(probe_model_tree,"meshed"))
     probe_pose_ref.allocate_storage([1])
 
     probe_pose_rec = snde.pose_channel_recording.from_ndarray_recording(probe_pose_ref.rec)
@@ -120,7 +121,7 @@ def new_probe_posn_in_transaction(orientation):
 
 # initialize probe_pose with an invalid orientation so we can get an
 # initial empty projection
-new_probe_posn_in_transaction(snde.snde_invalid_orientation3())
+new_probe_posn_in_transaction(transact,snde.snde_invalid_orientation3())
 #probe_positioner_chan = recdb.define_channel("/probe_positioner","main",recdb.raw())
 #probe_positioner_rec = snde.create_qt_osg_compositor_view_tracking_pose_recording(recdb,probe_positioner_chan,recdb.raw(),probe_model_tree+"/meshed","/specimen_pose",main_viewer.viewer.OSGWidget)
 #probe_positioner_rec.mark_data_and_metadata_ready()
@@ -142,12 +143,12 @@ main_viewer.viewer.set_rotation_center_dist("/probe_positioner",0.425)
 
 # Synthetic probe based on phase_plot_test.dgp
 
-synthetic_probe_impedance_chan = recdb.define_channel("/synthetic_probe_impedance","main",recdb.raw())
+synthetic_probe_impedance_chan = recdb.define_channel(transact,"/synthetic_probe_impedance","main",recdb.raw())
 
-def new_synthetic_probe_impedance_rec_in_transaction(value):
+def new_synthetic_probe_impedance_rec_in_transaction(transact,value):
     """This function is used within a transaction to create a new 
 recording with a new value (NOTE: Not particularly necessary to have this abstracted out)"""
-    synthetic_probe_imp_ref = snde.create_ndarray_ref(recdb,synthetic_probe_impedance_chan,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
+    synthetic_probe_imp_ref = snde.create_ndarray_ref(transact,synthetic_probe_impedance_chan,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
     metadata = snde.constructible_metadata()
     metadata.AddMetaDatum(snde.metadatum("snde_render_goal","SNDE_SRG_PHASEPLANE"))
     metadata.AddMetaDatum(snde.metadatum("snde_phase_plane_historical_fade",True))
@@ -164,7 +165,7 @@ recording with a new value (NOTE: Not particularly necessary to have this abstra
     pass
 
 # Provide initial NaN value on the channel so we can create the projection immediately
-new_synthetic_probe_impedance_rec_in_transaction(np.nan)
+new_synthetic_probe_impedance_rec_in_transaction(transact,np.nan)
 
 
 synthetic_probe_history = snde.batched_live_accumulator.instantiate( [ snde.math_parameter_recording("/synthetic_probe_impedance"),
@@ -179,10 +180,11 @@ synthetic_probe_history = snde.batched_live_accumulator.instantiate( [ snde.math
                                                                      False,
                                                                      snde.math_definition("synthetic_probe_history definition"),
                                                                      None)
-recdb.add_math_function(synthetic_probe_history,False)
+recdb.add_math_function(transact,synthetic_probe_history,False)
 
 
 include(snde,"project_probe_tip_data_in_transaction.dpi",
+        transaction=transact,
         specimen_model_tree = specimen_model_tree,
         specimen_pose_channel = specimen_pose_channel,
         probe_pose_channel=probe_pose_channel,
@@ -225,7 +227,7 @@ def sensordata_thread_code():
 
         value = center + radius*np.exp((0+1j)*angle)
 
-        new_synthetic_probe_impedance_rec_in_transaction(value)
+        new_synthetic_probe_impedance_rec_in_transaction(transact,value)
         
         #if np.real(value) < 0.0:
         #    value = np.nan
@@ -233,9 +235,9 @@ def sensordata_thread_code():
         #print("value=%s" % (str(value)))
         
         
-        grev = transact.end_transaction()
+        grev = transact.end_transaction().globalrev()
 
-        grev.wait_complete()
+
         time.sleep(.01)
         cnt+=1
         pass
@@ -263,11 +265,11 @@ def probepos_thread_code():
         
         orientation = probe_pose_func() # probe_position
         
-        new_probe_posn_in_transaction(orientation)
+        new_probe_posn_in_transaction(transact,orientation)
         
         
-        grev = transact.end_transaction()
-        grev.wait_complete()
+        grev = transact.end_transaction().globalrev()
+    
         time.sleep(.01)
         pass
     pass
