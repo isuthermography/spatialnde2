@@ -591,6 +591,9 @@ null_recording_recording_display_handler::null_recording_recording_display_handl
 
 
 // Register this handler for SNDE_SRG_RENDERING_3D and SNDE_SRG_RENDERING_2D on null_recordings
+static int register_nr_display_handler_rendering = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING, typeid(null_recording)), std::make_shared<registered_recording_display_handler>([](std::shared_ptr<display_info> display, std::shared_ptr<display_channel> displaychan, std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
+      return std::make_shared<null_recording_recording_display_handler>(display, displaychan, base_rss);
+      }));
 static int register_nr_display_handler_rendering_2d = register_recording_display_handler(rendergoal(SNDE_SRG_RENDERING_2D,typeid(null_recording)),std::make_shared<registered_recording_display_handler>( [] (std::shared_ptr<display_info> display,std::shared_ptr<display_channel> displaychan,std::shared_ptr<recording_set_state> base_rss) -> std::shared_ptr<recording_display_handler_base> {
       return std::make_shared<null_recording_recording_display_handler>(display,displaychan,base_rss);
       }));
@@ -602,6 +605,7 @@ static int register_nr_display_handler_rendering_3d = register_recording_display
 
 std::shared_ptr<display_requirement> null_recording_recording_display_handler::get_display_requirement(std::string simple_goal,std::shared_ptr<renderparams_base> params_from_parent)
 {
+  
   return nullptr;
 }
 
@@ -718,7 +722,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     // goal is to render empty waveform 
     //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
     
-    snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Empty recording rendering not yet implemented");
+    //snde_warning("multi_ndarray_recording_display_handler::get_display_requirement(): Empty recording rendering not yet implemented");
     
     return nullptr;
   } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && array_rec->layouts.size()==1 && (NDim == 0 || (NDim == 1 &&  DimLen1==1))) {
@@ -1579,7 +1583,7 @@ std::shared_ptr<display_requirement> fusion_ndarray_recording_display_handler::g
     // goal is to render empty waveform 
     //retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_INVALID,typeid(*this),nullptr),rec,shared_from_this()); // display_requirement constructor
     
-    snde_warning("fusion_ndarray_recording_display_handler::get_display_requirement(): Empty recording rendering not yet implemented");
+    //snde_warning("fusion_ndarray_recording_display_handler::get_display_requirement(): Empty recording rendering not yet implemented");
     
     return nullptr;
   } else if ((simple_goal == SNDE_SRG_RENDERING || simple_goal==SNDE_SRG_RENDERING_2D) && array_rec->layouts.size()==1 && (NDim == 0 || (NDim == 1 &&  DimLen1==1))) {
