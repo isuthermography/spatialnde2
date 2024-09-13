@@ -485,6 +485,8 @@ namespace snde {
     // Also, this isn't necessarily linked to what is actually being displayed on screen
     // This should be reworked so that it is linked to a specific globalrev being actively
     // rendered by the scope
+
+    // Also... Line 509 below... returns a value regardless of whether there is a valid recording.  It probably shouldn't.  Adding a check on line 514 for now.
     if (recdb_strong){
         auto latest_globalrev = recdb_strong->latest_globalrev();
 	    rec = latest_globalrev->check_for_recording_ref(posmgr->selected_channel->FullName, 0);
@@ -509,7 +511,7 @@ namespace snde {
       
       
       
-      if (a) {
+      if (recdb_strong && rec && a) {
 	{
 	  std::lock_guard<std::mutex> adminlock(a->unit->admin);
 	  horizscale = a->unit->scale;
@@ -813,7 +815,12 @@ namespace snde {
 	
       }  else {
 	if (chan_enabled) {
-	  snde_warning("qtrecviewer: invalid render_mode: %d on channel %s (0x%llx)",render_mode,posmgr->selected_channel->FullName.c_str(),(unsigned long long)((uintptr_t)posmgr->selected_channel.get()));
+	  // How about we display something in the status line instead of printing an annoying error message to stderr
+	  //snde_warning("qtrecviewer: invalid render_mode: %d on channel %s (0x%llx)",render_mode,posmgr->selected_channel->FullName.c_str(),(unsigned long long)((uintptr_t)posmgr->selected_channel.get()));
+	  if (needjoin) {
+	    statusline += " | ";
+	  }
+	  statusline += " Invalid Recording";
 	}
       }
       
