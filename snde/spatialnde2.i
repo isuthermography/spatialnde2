@@ -1,7 +1,7 @@
 /* SWIG interface for spatialnde2 */ 
 // swig -c++ -python spatialnde2.i
   
-%module spatialnde2
+%module(directors="1") spatialnde2
 
 %pythonbegin %{
 import sys
@@ -510,6 +510,7 @@ template <typename T>
 %include "ande_file.i"
 %include "polynomial_transform.i"
 %include "geometry_processing.i"
+%include "recstore_transaction_manager.i"
 
 #ifdef SNDE_OPENCL
 %include "opencl_utils.i"

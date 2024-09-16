@@ -1,7 +1,166 @@
+#include <chrono>
+
+
 namespace snde {
 
   class ordered_transaction;
+
+  class measurement_time {
+  public:
+    // immutable
+    std::string epoch_start_iso8601; // may be empty string
+    measurement_time(std::string epoch_start_iso8601):
+      epoch_start_iso8601(epoch_start_iso8601)
+    {
+
+    }
+    virtual ~measurement_time()=default;
+    virtual double seconds_since_epoch()
+    {
+      return std::numeric_limits<double>::quiet_NaN();
+    }
+    
+    virtual const bool operator==(const std::shared_ptr<measurement_time> &rhs)
+    {
+      throw snde_error("Invalid abstract base class comparison");
+    }
+
+    virtual const bool operator!=(const std::shared_ptr<measurement_time> &rhs)
+    {
+      throw snde_error("Invalid abstract base class comparison");
+    }
+    virtual const bool operator>(const std::shared_ptr<measurement_time> &rhs)
+    {
+      throw snde_error("Invalid abstract base class comparison");
+    }
+    virtual const bool operator>=(const std::shared_ptr<measurement_time> &rhs)
+    {
+      throw snde_error("Invalid abstract base class comparison");
+    }
+    virtual const bool operator<(const std::shared_ptr<measurement_time> &rhs)
+    {
+      throw snde_error("Invalid abstract base class comparison");
+    }
+    virtual const bool operator<=(const std::shared_ptr<measurement_time> &rhs)
+    {
+      throw snde_error("Invalid abstract base class comparison");
+    }
+  };
   
+  class measurement_clock {
+  public:
+    std::mutex admin; // Locks member variables of this and subclasses; last in the locking order.
+    std::string epoch_start_iso8601; // may be empty string
+    measurement_clock(std::string epoch_start_iso8601) :
+      epoch_start_iso8601(epoch_start_iso8601)
+    {
+
+    }
+    
+    virtual ~measurement_clock()=default;
+    virtual std::shared_ptr<measurement_time> get_current_time()
+    {
+      throw snde_error("Abstract base class get_current_time()");
+    }
+
+
+  };
+
+  template <typename T>
+  class measurement_time_cpp: public measurement_time {
+  public:
+    typedef T clock_type;
+    std::chrono::time_point<T> _point;
+
+    measurement_time_cpp(std::chrono::time_point<T> point,std::string epoch_start_iso8601) :
+      _point(point),
+      measurement_time(epoch_start_iso8601)
+    {
+
+
+    }
+    virtual const bool operator==(const std::shared_ptr<measurement_time> &rhs)
+    {
+      std::shared_ptr<measurement_time_cpp> rhscast=std::dynamic_pointer_cast<measurement_time_cpp>(rhs);
+      if (!rhscast) {
+	throw snde_error("Type mismatch in time comparison: %s vs. %s",demangle_type_name(typeid(*this).name()).c_str(),demangle_type_name(typeid(rhs.get()).name()).c_str());
+      }
+      return _point==rhscast->_point;
+    }
+
+    virtual const bool operator!=(const std::shared_ptr<measurement_time> &rhs)
+    {
+      std::shared_ptr<measurement_time_cpp> rhscast=std::dynamic_pointer_cast<measurement_time_cpp>(rhs);
+      if (!rhscast) {
+	throw snde_error("Type mismatch in time comparison: %s vs. %s",demangle_type_name(typeid(*this).name()).c_str(),demangle_type_name(typeid(rhs.get()).name()).c_str());
+      }
+      return _point!=rhscast->_point;
+    }
+
+    virtual const bool operator<(const std::shared_ptr<measurement_time> &rhs)
+    {
+      std::shared_ptr<measurement_time_cpp> rhscast=std::dynamic_pointer_cast<measurement_time_cpp>(rhs);
+      if (!rhscast) {
+	throw snde_error("Type mismatch in time comparison: %s vs. %s",demangle_type_name(typeid(*this).name()).c_str(),demangle_type_name(typeid(rhs.get()).name()).c_str());
+      }
+      return _point<rhscast->_point;
+    }
+
+    virtual const bool operator<=(const std::shared_ptr<measurement_time> &rhs)
+    {
+      std::shared_ptr<measurement_time_cpp> rhscast=std::dynamic_pointer_cast<measurement_time_cpp>(rhs);
+      if (!rhscast) {
+	throw snde_error("Type mismatch in time comparison: %s vs. %s",demangle_type_name(typeid(*this).name()).c_str(),demangle_type_name(typeid(rhs.get()).name()).c_str());
+      }
+      return _point<=rhscast->_point;
+    }
+
+    virtual const bool operator>(const std::shared_ptr<measurement_time> &rhs)
+    {
+      std::shared_ptr<measurement_time_cpp> rhscast=std::dynamic_pointer_cast<measurement_time_cpp>(rhs);
+      if (!rhscast) {
+	throw snde_error("Type mismatch in time comparison: %s vs. %s",demangle_type_name(typeid(*this).name()).c_str(),demangle_type_name(typeid(rhs.get()).name()).c_str());
+      }
+      return _point>rhscast->_point;
+    }
+
+    virtual const bool operator>=(const std::shared_ptr<measurement_time> &rhs)
+    {
+      std::shared_ptr<measurement_time_cpp> rhscast=std::dynamic_pointer_cast<measurement_time_cpp>(rhs);
+      if (!rhscast) {
+	throw snde_error("Type mismatch in time comparison: %s vs. %s",demangle_type_name(typeid(*this).name()).c_str(),demangle_type_name(typeid(rhs.get()).name()).c_str());
+      }
+      return _point>=rhscast->_point;
+    }
+    
+    virtual double seconds_since_epoch()
+    {
+      std::chrono::duration<typename T::rep,typename T::period> dur=_point.time_since_epoch();
+      return dur.count()*1.0*T::period::Num/T::period::Denom;
+    }
+  };
+
+  template <typename T>
+  class measurement_clock_cpp: public measurement_clock {
+    // can instantiate against any of the standard C++ clocks
+    // for example, std::chrono::system_clock,std::chrono::steady_clock,
+    // std::chrono::high_resolution_clock
+  public:
+    typedef T clock_type;
+    measurement_clock_cpp(std::string epoch_start_iso8601) :
+      measurement_clock(epoch_start_iso8601)
+    {
+
+
+
+    }
+    virtual std::shared_ptr<measurement_time> get_current_time()
+    {
+      return std::make_shared<measurement_time_cpp<T>>(T::now(),epoch_start_iso8601);
+    }
+
+  };
+      
   class transaction_manager {
   public:
     std::mutex admin; // locks member variables of subclasses; between transaction_lock (in ordered_transaction_manager) and recdb admin lock in locking order

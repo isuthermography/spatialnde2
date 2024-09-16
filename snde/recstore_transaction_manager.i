@@ -1,3 +1,9 @@
+%shared_ptr(snde::measurement_time);
+snde_rawaccessible(snde::measurement_time);
+
+%shared_ptr(snde::measurement_clock);
+snde_rawaccessible(snde::measurement_clock);
+
 %shared_ptr(snde::transaction_manager);
 snde_rawaccessible(snde::transaction_manager);
 
@@ -24,7 +30,40 @@ snde_rawaccessible(snde::timed_transaction);
 namespace snde {
 
   class ordered_transaction;
-  
+  %feature("director") measurement_time;
+  class measurement_time {
+  public:
+    // immutable
+    std::string epoch_start_iso8601; // may be empty string
+    measurement_time(std::string epoch_start_iso8601);
+    virtual ~measurement_time()=default;
+    virtual double seconds_since_epoch();
+    
+    virtual const bool operator==(const std::shared_ptr<measurement_time> &rhs);
+
+    virtual const bool operator!=(const std::shared_ptr<measurement_time> &rhs);
+
+    virtual const bool operator<(const std::shared_ptr<measurement_time> &rhs);
+    virtual const bool operator<=(const std::shared_ptr<measurement_time> &rhs);
+
+    virtual const bool operator>(const std::shared_ptr<measurement_time> &rhs);
+
+    virtual const bool operator>=(const std::shared_ptr<measurement_time> &rhs);
+  };
+
+  %feature("director") measurement_clock;
+  class measurement_clock {
+  public:
+    //std::mutex admin; // Locks member variables of this and subclasses; last in the locking order.
+    std::string epoch_start_iso8601; // may be empty string
+    measurement_clock(std::string epoch_start_iso8601);
+    
+    virtual ~measurement_clock()=default;
+    virtual std::shared_ptr<measurement_time> get_current_time();
+
+
+  };
+
   class transaction_manager {
   public:
     //std::mutex admin; // locks member variables of subclasses; between transaction_lock (in ordered_transaction_manager) and recdb admin lock in locking order
