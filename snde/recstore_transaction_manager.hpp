@@ -19,6 +19,10 @@ namespace snde {
     {
       return std::numeric_limits<double>::quiet_NaN();
     }
+    virtual double difference_seconds(std::shared_ptr<measurement_time> to_subtract)
+    {
+      return std::numeric_limits<double>::quiet_NaN();
+    }
     
     virtual const bool operator==(const std::shared_ptr<measurement_time> &rhs)
     {
@@ -136,7 +140,17 @@ namespace snde {
     virtual double seconds_since_epoch()
     {
       std::chrono::duration<typename T::rep,typename T::period> dur=_point.time_since_epoch();
-      return dur.count()*1.0*T::period::Num/T::period::Denom;
+      return dur.count()*1.0*T::period::num/T::period::den;
+    }
+    virtual double difference_seconds(std::shared_ptr<measurement_time> to_subtract)
+    {
+      std::chrono::duration<typename T::rep,typename T::period> dur=_point.time_since_epoch();
+      std::shared_ptr<measurement_time_cpp> to_subtract_cast=std::dynamic_pointer_cast<measurement_time_cpp>(to_subtract);
+      if (!to_subtract_cast) {
+	throw snde_error("Type mismatch in time subtraction: %s vs. %s",demangle_type_name(typeid(*this).name()).c_str(),demangle_type_name(typeid(to_subtract.get()).name()).c_str());
+      }
+      std::chrono::duration<typename T::rep,typename T::period> to_subtract_dur=to_subtract_cast->_point.time_since_epoch();
+      return (dur.count()-to_subtract_dur.count())*1.0*T::period::num/T::period::den;
     }
   };
 

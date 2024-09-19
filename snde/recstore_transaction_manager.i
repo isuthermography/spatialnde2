@@ -4,6 +4,24 @@ snde_rawaccessible(snde::measurement_time);
 %shared_ptr(snde::measurement_clock);
 snde_rawaccessible(snde::measurement_clock);
 
+%shared_ptr(snde::measurement_time_cpp<std::chrono::system_clock>);
+snde_rawaccessible(snde::measurement_time_cpp<std::chrono::system_clock>);
+
+%shared_ptr(snde::measurement_clock_cpp<std::chrono::system_clock>);
+snde_rawaccessible(snde::measurement_clock_cpp<std::chrono::system_clock>);
+
+%shared_ptr(snde::measurement_time_cpp<std::chrono::steady_clock>);
+snde_rawaccessible(snde::measurement_time_cpp<std::chrono::steady_clock>);
+
+%shared_ptr(snde::measurement_clock_cpp<std::chrono::steady_clock>);
+snde_rawaccessible(snde::measurement_clock_cpp<std::chrono::steady_clock>);
+
+%shared_ptr(snde::measurement_time_cpp<std::chrono::high_resolution_clock>);
+snde_rawaccessible(snde::measurement_time_cpp<std::chrono::high_resolution_clock>);
+
+%shared_ptr(snde::measurement_clock_cpp<std::chrono::high_resolution_clock>);
+snde_rawaccessible(snde::measurement_clock_cpp<std::chrono::high_resolution_clock>);
+
 %shared_ptr(snde::transaction_manager);
 snde_rawaccessible(snde::transaction_manager);
 
@@ -38,6 +56,8 @@ namespace snde {
     measurement_time(std::string epoch_start_iso8601);
     virtual ~measurement_time()=default;
     virtual double seconds_since_epoch();
+
+    virtual double difference_seconds(std::shared_ptr<measurement_time> to_subtract);
     
     virtual const bool operator==(const std::shared_ptr<measurement_time> &rhs);
 
@@ -63,7 +83,45 @@ namespace snde {
 
 
   };
+  template <typename T>
+  class measurement_time_cpp: public measurement_time {
+  public:
+    //typedef T clock_type;
+    //std::chrono::time_point<T> _point;
 
+    //measurement_time_cpp(std::chrono::time_point<T> point,std::string epoch_start_iso8601) ;
+
+    virtual ~measurement_time_cpp()=default;
+    virtual double seconds_since_epoch();
+
+    virtual double difference_seconds(std::shared_ptr<measurement_time> to_subtract);
+    
+    virtual const bool operator==(const std::shared_ptr<measurement_time> &rhs);
+
+    virtual const bool operator!=(const std::shared_ptr<measurement_time> &rhs);
+
+    virtual const bool operator<(const std::shared_ptr<measurement_time> &rhs);
+    virtual const bool operator<=(const std::shared_ptr<measurement_time> &rhs);
+
+    virtual const bool operator>(const std::shared_ptr<measurement_time> &rhs);
+
+    virtual const bool operator>=(const std::shared_ptr<measurement_time> &rhs);
+  };
+
+template <typename T>
+  class measurement_clock_cpp: public measurement_clock {
+    // can instantiate against any of the standard C++ clocks
+    // for example, std::chrono::system_clock,std::chrono::steady_clock,
+    // std::chrono::high_resolution_clock
+  public:
+    typedef T clock_type;
+    measurement_clock_cpp(std::string epoch_start_iso8601);
+    virtual std::shared_ptr<measurement_time> get_current_time();
+
+  };
+  %template(measurement_clock_cpp_system) snde::measurement_clock_cpp<std::chrono::system_clock>;
+  %template(measurement_clock_cpp_steady) snde::measurement_clock_cpp<std::chrono::steady_clock>;
+  %template(measurement_clock_cpp_high_resolution) snde::measurement_clock_cpp<std::chrono::high_resolution_clock>;
   class transaction_manager {
   public:
     //std::mutex admin; // locks member variables of subclasses; between transaction_lock (in ordered_transaction_manager) and recdb admin lock in locking order
@@ -102,7 +160,9 @@ namespace snde {
     virtual void transaction_manager_background_end_code();
     
   };
-
+  
+    
+    
   class ordered_transaction: public transaction {
   public:
     //std::shared_ptr<globalrevision> previous_globalrev;
