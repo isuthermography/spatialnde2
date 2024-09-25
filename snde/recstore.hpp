@@ -1725,6 +1725,10 @@ namespace snde {
       throw snde_error("create_recording() outside of a transaction!");
     }
 
+    if (chan->deleted) {
+        throw snde_error("Cannot call create_recording() on a deleted channel");
+    }
+
     std::shared_ptr<channelconfig> chanconfig = chan->config();
     std::shared_ptr<recording_storage_manager> storage_manager = select_storage_manager_for_recording_during_transaction(recdb,chanconfig->channelpath.c_str());
     
