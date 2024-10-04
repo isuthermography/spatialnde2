@@ -1060,8 +1060,77 @@ class rss_reference {
   %extend recdatabase {
     // manual wrapping of start_transaction() so that we drop the dataguzzler_python context
     // (if present) while acquiring the transaction lock
-    std::shared_ptr<active_transaction> start_transaction()
+   
+
+    std::shared_ptr<active_transaction> start_transaction(std::shared_ptr<measurement_time> timestamp)
     {
+      // ***!!!NOTE: See parallel code below in start_transaction() (with no parameter)
+      PyObject *dgpython_context_module=nullptr;
+      PyObject *PopThreadContext=nullptr;
+      {
+	SWIG_PYTHON_THREAD_BEGIN_BLOCK;
+      
+	
+	// check for presence of dataguzzler-python (must have already been imported by something else)
+	//dgpython_context_module = PyImport_ImportModule("dataguzzler_python.context");
+	PyObject *dgpython_context_module_name = PyUnicode_FromString("dataguzzler_python.context");
+	
+	dgpython_context_module = PyImport_GetModule(dgpython_context_module_name);
+	Py_DECREF(dgpython_context_module_name);
+	if (dgpython_context_module) {
+	  // get PopThreadContext() and PushThreadContext() functions
+	  PopThreadContext = PyObject_GetAttrString(dgpython_context_module,"PopThreadContext");
+	  PyObject *PushThreadContext = PyObject_GetAttrString(dgpython_context_module,"PushThreadContext");
+	  
+	  // Call PushThreadContext(None) to drop the current context
+	  PyObject *ret = PyObject_CallFunction(PushThreadContext,(char *)"O",Py_None);
+
+	  if (ret) {
+	    Py_DECREF(ret);
+	  }
+	  else {
+	    // Print the Python exception information
+	    PyErr_PrintEx(0);  
+	  }
+	  
+	  Py_DECREF(PushThreadContext);
+	  
+	} else {
+	  PyErr_Clear();
+	  //snde::snde_warning("start_transaction(): No dataguzzler_python context found");
+	}
+	
+	
+	// Drop the GIL and acquire the transaction lock
+	SWIG_PYTHON_THREAD_END_BLOCK;
+      }
+      std::shared_ptr<snde::active_transaction> retval;
+      //Py_BEGIN_ALLOW_THREADS;
+      {
+	//SWIG_PYTHON_THREAD_BEGIN_ALLOW;
+	retval = self->start_transaction(timestamp);
+	//SWIG_PYTHON_THREAD_END_ALLOW;
+      }
+      //Py_END_ALLOW_THREADS;
+      {
+	SWIG_PYTHON_THREAD_BEGIN_BLOCK;
+	
+	// Pop the thread context to reaquire our context lock
+	if (dgpython_context_module) {
+	  PyObject *ret = PyObject_CallFunction(PopThreadContext,(char *)"");
+	  Py_DECREF(ret);
+	  Py_DECREF(PopThreadContext);
+	  Py_DECREF(dgpython_context_module);
+	}
+	
+	SWIG_PYTHON_THREAD_END_BLOCK;
+      }
+      return retval;
+    }
+
+     std::shared_ptr<active_transaction> start_transaction()
+{
+      // ***!!!NOTE: See parallel code below in start_transaction(timestamp) 
       PyObject *dgpython_context_module=nullptr;
       PyObject *PopThreadContext=nullptr;
       {

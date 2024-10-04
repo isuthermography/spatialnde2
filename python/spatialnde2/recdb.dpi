@@ -9,10 +9,17 @@ enable_opencl = True
 global opencl_context
 global opencl_devices
 
+transmgr=None # provide a transaction_manager as a transmgr kwarg to override the default ordered_transaction_manager
+
 
 if not "recdb" in globals():
 
     recdb=snde.recdatabase()
+
+    if transmgr is not None:
+        recdb.transmgr = transmgr.upcast()
+        pass
+    
     snde.setup_cpu(recdb,multiprocessing.cpu_count())
     if enable_opencl:
         (opencl_context,opencl_devices_vec) = snde.setup_opencl(recdb,False,4,None)

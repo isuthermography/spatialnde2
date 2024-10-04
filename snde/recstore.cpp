@@ -2195,7 +2195,8 @@ namespace snde {
       globalrev_complete->apply_to_transaction(shared_from_this());
       globalrev_complete->wait_interruptable();
     }
-
+    globalrev_ptr=globalrev_nowait();
+    assert(globalrev_ptr);
     return globalrev_ptr;
   }
 
@@ -2206,7 +2207,10 @@ namespace snde {
       std::shared_ptr<promise_channel_notify> globalrev_complete = std::make_shared<promise_channel_notify>(std::vector<std::string>(),std::vector<std::string>(),false); // The channel_notify with blank criteria returns when the globalrev exists. 
       globalrev_complete->apply_to_transaction(shared_from_this());
       globalrev_complete->wait_interruptable();
+
     }
+    globalrev_ptr=globalrev_nowait();
+    assert(globalrev_ptr);
     return globalrev_ptr;
   }
 
@@ -2242,22 +2246,21 @@ namespace snde {
 
     return retval;
   }
+
+  void transaction::update_timestamp(std::shared_ptr<transaction_manager> transmgr,std::shared_ptr<measurement_time> new_timestamp)
+  {
+    //dummy implementation for base class
+  }
   
-  active_transaction::active_transaction(std::shared_ptr<recdatabase> recdb) :
+  active_transaction::active_transaction(std::shared_ptr<recdatabase> recdb,std::shared_ptr<measurement_time> timestamp) :
     recdb(recdb),
     transaction_ended(false)
   {
 
-    trans = recdb->transmgr->start_transaction(recdb);
+    trans = recdb->transmgr->start_transaction(recdb,timestamp);
 
-    
-    
-
-         
-    
-
-    
   }
+
 
   static void _identify_changed_channels(const std::map<std::string,std::shared_ptr<channelconfig>> &all_channels_by_name,std::shared_ptr<instantiated_math_database> mathdb, std::unordered_set<std::shared_ptr<instantiated_math_function>> *unknownchanged_math_functions,std::unordered_set<std::shared_ptr<instantiated_math_function>> *changed_math_functions,std::unordered_set<std::shared_ptr<channelconfig>> *unknownchanged_channels,std::unordered_set<std::shared_ptr<channelconfig>> *changed_channels_dispatched,std::unordered_set<std::shared_ptr<channelconfig>> *changed_channels_need_dispatch,std::unordered_set<std::shared_ptr<instantiated_math_function>> *possiblychanged_math_functions,const std::unordered_set<std::shared_ptr<channelconfig>>::iterator &channel_to_dispatch_it,bool enable_ondemand) // channel_to_dispatch should be in changed_channels_need_dispatch
   // mathdb must be immutable; (i.e. it must already be copied into the global revision)
@@ -3401,6 +3404,11 @@ namespace snde {
     return trans;
   } 
 
+  void active_transaction::update_timestamp(std::shared_ptr<measurement_time> new_timestamp)
+  {
+    trans->update_timestamp(recdb->transmgr,new_timestamp);
+  }
+    
     
   std::tuple<std::shared_ptr<globalrevision>,transaction_notifies> transaction::_realize_transaction(std::shared_ptr<recdatabase> recdb_strong,uint64_t globalrevision_index) 
   // Warning: we may be called by the active_transaction destructor, so calling e.g. virtual methods on the active transaction
@@ -3438,7 +3446,23 @@ namespace snde {
     // set of math functions known to be (definitely) changed
     std::unordered_set<std::shared_ptr<instantiated_math_function>> changed_math_functions; 
 
+    // Give every recording created in the transaction its revision index
 
+    {
+      std::lock_guard<std::mutex> recdb_lock(recdb_strong->admin);
+      
+      std::lock_guard<std::mutex> transaction_admin_lock(admin);
+      for (auto && name_recptr: new_recordings) {
+	std::shared_ptr<channel> chan = recdb_strong->_channels.at(name_recptr.first);
+	assert(name_recptr.second->info_revision == SNDE_REVISION_INVALID); // for this transaction manager, revisions are assigned now (except for math channels)
+	uint64_t new_revision = ++chan->latest_revision; // atomic variable so it is safe to pre-increment
+	std::lock_guard<std::mutex> recording_lock(name_recptr.second->admin);
+	name_recptr.second->info->revision = new_revision;
+	name_recptr.second->info_revision = new_revision;
+      }
+
+    }
+   
 
     
     {
@@ -4960,12 +4984,15 @@ namespace snde {
     }
 
     if (!transmgr) {
-      transmgr = std::make_shared<ordered_transaction_manager>(shared_from_this());
+      transmgr = std::make_shared<ordered_transaction_manager>();
     }
+
+    transmgr->startup(shared_from_this());
     
     // insert an empty globalrev so there always is one
-    snde::active_transaction transact(shared_from_this());
-    transact.end_transaction();
+    // (moved into transaction manager startup)
+    // snde::active_transaction transact(shared_from_this());
+    // transact.end_transaction();
     
     
     
@@ -4979,13 +5006,13 @@ namespace snde {
     compute_resources->start();
   }
   
-  std::shared_ptr<active_transaction> recdatabase::start_transaction()
+  std::shared_ptr<active_transaction> recdatabase::start_transaction(std::shared_ptr<measurement_time> timestamp /* =nullptr */)
   {
     if (!started) {
       throw snde_error("recdatabase::start_transaction(): Recording database has not been started (use start() method)");
     }
     
-    return std::make_shared<active_transaction>(shared_from_this());
+    return std::make_shared<active_transaction>(shared_from_this(),timestamp);
   }
   
   std::shared_ptr<transaction> recdatabase::end_transaction(std::shared_ptr<active_transaction> act_trans)

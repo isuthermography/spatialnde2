@@ -4,6 +4,7 @@
 namespace snde {
 
   class ordered_transaction;
+  class timed_transaction;
 
   class measurement_time {
   public:
@@ -50,6 +51,11 @@ namespace snde {
       throw snde_error("Invalid abstract base class comparison");
     }
   };
+
+  class measurement_time_ptr_less {
+  public:
+    bool operator()(const std::shared_ptr<measurement_time> a,const std::shared_ptr<measurement_time> b) const;
+  };
   
   class measurement_clock {
   public:
@@ -66,7 +72,10 @@ namespace snde {
     {
       throw snde_error("Abstract base class get_current_time()");
     }
-
+    virtual void sleep_for(double seconds)
+    {
+      throw snde_error("Abstract base class sleep_for()");
+    }
 
   };
 
@@ -154,6 +163,26 @@ namespace snde {
     }
   };
 
+  // seconds_to_clock_duration<T> creates a duration object for a
+  // clock of the specified type with the specified minimum delay
+  // in seconds. If the clock does not use a floating point period,
+  // then the duration is rounded up to the next multiple of its period.
+  
+  template <typename T>
+  typename std::enable_if<std::chrono::treat_as_floating_point<typename T::rep>::value,std::chrono::duration<typename T::rep,typename T::period>>::type
+  seconds_to_clock_duration(double seconds)
+  {
+    return std::chrono::duration<typename T::rep,typename T::period>((typename T::rep)(seconds*T::period::den/T::period::num));
+  }
+
+  
+  template <typename T>
+  typename std::enable_if<!std::chrono::treat_as_floating_point<typename T::rep>::value,std::chrono::duration<typename T::rep,typename T::period>>::type
+  seconds_to_clock_duration(double seconds)
+  {
+    return std::chrono::duration<typename T::rep,typename T::period>((typename T::rep)(std::ceil(seconds*T::period::den/T::period::num)));
+  }
+  
   template <typename T>
   class measurement_clock_cpp: public measurement_clock {
     // can instantiate against any of the standard C++ clocks
@@ -172,15 +201,29 @@ namespace snde {
     {
       return std::make_shared<measurement_time_cpp<T>>(T::now(),epoch_start_iso8601);
     }
+    virtual void sleep_for(double seconds)
+    {
+      
+	
+      std::chrono::duration<typename T::rep,typename T::period> dur(seconds_to_clock_duration<T>(seconds));
 
+      std::this_thread::sleep_for(dur);
+      
+    }
   };
       
-  class transaction_manager {
+  class transaction_manager: public std::enable_shared_from_this<transaction_manager> {
   public:
-    std::mutex admin; // locks member variables of subclasses; between transaction_lock (in ordered_transaction_manager) and recdb admin lock in locking order
-    virtual std::shared_ptr<transaction> start_transaction(std::shared_ptr<recdatabase> recdb) = 0;
+    std::mutex admin; // locks member variables of subclasses; between transaction_lock (in ordered_transaction_manager) and recdb admin lock in locking order. Precedes the admin lock of a transaction proper.
+    transaction_manager();
+    virtual void startup(std::shared_ptr<recdatabase> recdb) =0;
+    std::shared_ptr<transaction_manager> upcast(); //because of a swig bug where subclasses can't be assigned into the recording db object.
+    virtual std::shared_ptr<transaction> start_transaction(std::shared_ptr<recdatabase> recdb,std::shared_ptr<measurement_time> timestamp=nullptr) = 0;
     virtual void end_transaction(std::shared_ptr<recdatabase> recdb,std::shared_ptr<transaction> trans) = 0;
     virtual void notify_background_end_fcn(std::shared_ptr<active_transaction> trans) = 0;
+    // rule of 3
+    transaction_manager& operator=(const transaction_manager &) = delete; 
+    transaction_manager(const transaction_manager &orig) = delete;
     virtual ~transaction_manager();
 
   };
@@ -201,14 +244,16 @@ namespace snde {
 
 
     std::weak_ptr<recdatabase> recdb;
-    ordered_transaction_manager(std::shared_ptr<recdatabase> recdb);
-    
-    virtual std::shared_ptr<transaction> start_transaction(std::shared_ptr<recdatabase> recdb);
+    ordered_transaction_manager();
+    virtual void startup(std::shared_ptr<recdatabase> recdb);
+    virtual std::shared_ptr<transaction> start_transaction(std::shared_ptr<recdatabase> recdb,std::shared_ptr<measurement_time> timestamp=nullptr);
 
     virtual void end_transaction(std::shared_ptr<recdatabase> recdb,std::shared_ptr<transaction> trans);
 
     virtual void notify_background_end_fcn(std::shared_ptr<active_transaction> trans);
-
+    // rule of 3
+    ordered_transaction_manager& operator=(const ordered_transaction_manager &) = delete; 
+    ordered_transaction_manager(const ordered_transaction_manager &orig) = delete;
     virtual ~ordered_transaction_manager();
     virtual void transaction_manager_background_end_code();
     
@@ -217,22 +262,80 @@ namespace snde {
   class ordered_transaction: public transaction {
   public:
     //std::shared_ptr<globalrevision> previous_globalrev;
-    uint64_t globalrev; // globalrev index for this transaction. Immutable once published
+    uint64_t globalrev_index; // globalrev index for this transaction. Immutable once published
     
-    //ordered_transaction();
-
+    ordered_transaction();
+    // rule of 3
+    ordered_transaction& operator=(const ordered_transaction &) = delete; 
+    ordered_transaction(const ordered_transaction &orig) = delete;
+    virtual ~ordered_transaction()=default;
   };
 
 
   class timed_transaction_manager: public transaction_manager {
   public:
+    std::mutex transaction_manager_background_end_lock; // last in the locking order except for transaction_background_end_lock. locks the condition variable and bool below.
 
+   
+
+   
+    
+    std::condition_variable transaction_manager_background_end_condition;
+    // managing the thread that can run stuff at the end of a transaction
+    std::vector<std::thread> transaction_manager_background_end_thread_pool; // used by active_transaction::run_in_background_and_end_transaction()
+    bool transaction_manager_background_end_mustexit;
+    std::list<std::shared_ptr<timed_transaction>> transaction_background_end_queue; // locked by transaction_manager_background_end_lock
+    
+    std::multimap<std::shared_ptr<measurement_time>,std::shared_ptr<timed_transaction>,measurement_time_ptr_less> transaction_map;
+
+    std::thread transaction_end_thread;
+
+    bool transaction_end_thread_mustexit; //locked by transaction manager admin lock
+    
+    std::weak_ptr<recdatabase> recdb;
+    std::shared_ptr<measurement_clock> clock;
+    double latency_secs;
+    
+    timed_transaction_manager(std::shared_ptr<measurement_clock> clock,double latency_secs);
+    virtual void startup(std::shared_ptr<recdatabase> recdb);
+    virtual std::shared_ptr<transaction> start_transaction(std::shared_ptr<recdatabase> recdb,std::shared_ptr<measurement_time> timestamp=nullptr);
+
+    virtual void end_transaction(std::shared_ptr<recdatabase> recdb,std::shared_ptr<transaction> trans);
+
+    virtual void _actually_end_transaction(std::shared_ptr<recdatabase> recdb,std::shared_ptr<timed_transaction> timed_trans);
+
+    virtual void notify_background_end_fcn(std::shared_ptr<active_transaction> trans);
+    // rule of 3
+    timed_transaction_manager& operator=(const timed_transaction_manager &) = delete; 
+    timed_transaction_manager(const timed_transaction_manager &orig) = delete;
+    virtual ~timed_transaction_manager();
+    virtual void transaction_manager_background_end_code();
+
+    virtual void transaction_end_thread_code();
+    
+    
   };
 
 
   class timed_transaction: public transaction {
   public:
+    // uint64_t globalrev_index; // globalrev index for this transaction. Immutable once published
+     // transaction_lock is a movable_mutex so we have the freedom to unlock
+    // it from a different thread than we used to lock it.
+    movable_mutex transaction_lock; // ***!!! Before any dataguzzler-python module context locks, etc. Before the recdb admin lock. Note the distinction between this and the admin lock of the class transaction.
+    std::unique_lock<movable_mutex> transaction_lock_holder;
 
+    std::shared_ptr<measurement_time> timestamp;
+    std::atomic<bool> ended;
+    timed_transaction();
+    // rule of 3
+    timed_transaction& operator=(const timed_transaction &) = delete; 
+    timed_transaction(const timed_transaction &orig) = delete;
+    virtual ~timed_transaction()=default;
+
+    
+    
+    virtual void update_timestamp(std::shared_ptr<transaction_manager> transmgr,std::shared_ptr<measurement_time> new_timestamp);
   };
 
 };

@@ -167,6 +167,7 @@ namespace snde {
   class recording_storage_manager; // recstore_storage.hpp
   class allocator_alignment; // allocator.hpp
   class transaction_manager; // recstore_transaction_manager.hpp
+  class measurement_time; // recstore_transaction_manager.hpp
   
   // constant data structures with recording type number information
   SNDE_API extern const std::unordered_map<std::type_index,unsigned> rtn_typemap; // look up typenum based on C++ typeid(type)
@@ -836,7 +837,9 @@ namespace snde {
     std::shared_ptr<void> transaction_background_end_params;
     
     transaction();
-
+    // rule of 3
+    transaction& operator=(const transaction &) = delete; 
+    transaction(const transaction &orig) = delete;
     virtual ~transaction();
     
     void register_new_rec(std::shared_ptr<recording_base> new_rec);
@@ -862,7 +865,8 @@ namespace snde {
     // You can call its interrupt() method from another thread to
     // cancel the wait. 
     std::shared_ptr<promise_channel_notify> get_transaction_globalrev_complete_waiter(); 
-    
+
+    virtual void update_timestamp(std::shared_ptr<transaction_manager> transmgr,std::shared_ptr<measurement_time> new_timestamp);
   };
 
 
@@ -906,7 +910,7 @@ namespace snde {
     
     
     
-    active_transaction(std::shared_ptr<recdatabase> recdb);
+    active_transaction(std::shared_ptr<recdatabase> recdb,std::shared_ptr<measurement_time> timestamp=nullptr);
 
 
     // rule of 3
@@ -916,7 +920,7 @@ namespace snde {
 
         
     std::shared_ptr<transaction> end_transaction();
-
+    void update_timestamp(std::shared_ptr<measurement_time> new_timestamp);
     std::shared_ptr<transaction> run_in_background_and_end_transaction(std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn,std::shared_ptr<void> params);
     
   };
@@ -1289,7 +1293,7 @@ namespace snde {
 
     // a transaction update can be multi-threaded but you shouldn't call end_transaction()  (or the end_transaction method on the
     // active_transaction or delete the active_transaction) until all other threads are finished with transaction actions
-    std::shared_ptr<active_transaction> start_transaction();
+    std::shared_ptr<active_transaction> start_transaction(std::shared_ptr<measurement_time> timestamp=nullptr);
     std::shared_ptr<transaction> end_transaction(std::shared_ptr<active_transaction> act_trans);
     std::shared_ptr<transaction> run_in_background_and_end_transaction(std::shared_ptr<active_transaction> act_trans,std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn, std::shared_ptr<void> params);
 

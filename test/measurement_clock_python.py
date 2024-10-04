@@ -32,6 +32,9 @@ class measurement_clock_monotonic(snde.measurement_clock):
 
     def get_current_time(self):
         return measurement_time_monotonic(time.monotonic_ns())
+    def sleep_for(self,time_seconds):
+        time.sleep(time_seconds)
+        pass
     pass
 
 clock = measurement_clock_monotonic()

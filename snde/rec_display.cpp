@@ -396,56 +396,58 @@ void display_info::set_current_globalrev(std::shared_ptr<globalrevision> globalr
     //std::vector<std::string>::reverse_iterator cl_next_iter;
     
     //for (auto cl_name_iter=channel_layer_order.rbegin();cl_name_iter != channel_layer_order.rend();cl_name_iter=cl_next_iter) {
-    for (auto channel_map_iter = globalrev_param->recstatus.channel_map->rbegin();channel_map_iter != globalrev_param->recstatus.channel_map->rend();channel_map_iter++) {
-      const std::string &cl_name = channel_map_iter->first;
+    if (globalrev_param) {
+      for (auto channel_map_iter = globalrev_param->recstatus.channel_map->rbegin();channel_map_iter != globalrev_param->recstatus.channel_map->rend();channel_map_iter++) {
+	const std::string &cl_name = channel_map_iter->first;
       
-      auto ci_iter = channel_info.find(cl_name);
-      //auto reciter = current_globalrev->recstatus.channel_map->find(cl_name);
+	auto ci_iter = channel_info.find(cl_name);
+	//auto reciter = current_globalrev->recstatus.channel_map->find(cl_name);
 
-      //if (reciter==current_globalrev->recstatus.channel_map->end()) {
-      // // channel is gone; remove from channel_info
-      //channel_info.erase(cl_name);
+	//if (reciter==current_globalrev->recstatus.channel_map->end()) {
+	// // channel is gone; remove from channel_info
+	//channel_info.erase(cl_name);
 
 	////auto clo_iter = std::find(channel_layer_order.begin(),channel_layer_order.end(),cl_name);
 	////assert(clo_iter != channel_layer_order.end()); // if this trips, then somehow channel_info and channel_layer_order weren't kept parallel
-      //
-      // channel_layer_order.erase(cl_next_iter.base()); // cl_next_iter points to the previous element of the sequence, but the .base() returns an iterator pointing at the subsequent element, so we erase the element we wanted to. Also note that this erasure invalidates all subsequent iterators (but the only one we are going to use is cl_next_iter, which isn't subsequent. 
-      //}
+	//
+	// channel_layer_order.erase(cl_next_iter.base()); // cl_next_iter points to the previous element of the sequence, but the .base() returns an iterator pointing at the subsequent element, so we erase the element we wanted to. Also note that this erasure invalidates all subsequent iterators (but the only one we are going to use is cl_next_iter, which isn't subsequent. 
+	//}
 
-      //assert(ci_iter != channel_info.end()); // if this trips, then somehow channel_info and channel_layer_order weren't kept parallel
+	//assert(ci_iter != channel_info.end()); // if this trips, then somehow channel_info and channel_layer_order weren't kept parallel
       
-      std::shared_ptr<display_channel> this_display_channel;
-      if (ci_iter == channel_info.end()) {
-	this_display_channel = _add_new_channel(cl_name);
+	std::shared_ptr<display_channel> this_display_channel;
+	if (ci_iter == channel_info.end()) {
+	  this_display_channel = _add_new_channel(cl_name);
 	
-      } else {
-	this_display_channel = ci_iter->second;
-      }
+	} else {
+	  this_display_channel = ci_iter->second;
+	}
       
-      //channels_considered.emplace(cl_name);
+	//channels_considered.emplace(cl_name);
       
-      //std::shared_ptr<recording_base> rec=reciter->second.rec();
+	//std::shared_ptr<recording_base> rec=reciter->second.rec();
       
-      if ((include_disabled || this_display_channel->Enabled)) {
-	if (check_for_mutable) { // check_for_mutable flag requires that RSS be fully ready
-	  if (!channel_map_iter->second.rec()->info->immutable) {
-	    mutable_channels.push_back(this_display_channel);
+	if ((include_disabled || this_display_channel->Enabled)) {
+	  if (check_for_mutable) { // check_for_mutable flag requires that RSS be fully ready
+	    if (!channel_map_iter->second.rec()->info->immutable) {
+	      mutable_channels.push_back(this_display_channel);
+	    }
+	  }
+	
+	
+	  if (selected.size() > 0 && cl_name == selected && selected_last) {
+	    //retval.insert(retval.begin(),ci_iter->second);
+	    assert(!selected_chan);
+	    selected_chan = this_display_channel;
+	  } else {
+	    retval.push_back(this_display_channel);
+	    //retval.insert(retval.begin(),ci_iter->second);
 	  }
 	}
+      
 	
-	
-	if (selected.size() > 0 && cl_name == selected && selected_last) {
-	    //retval.insert(retval.begin(),ci_iter->second);
-	  assert(!selected_chan);
-	  selected_chan = this_display_channel;
-	} else {
-	  retval.push_back(this_display_channel);
-	  //retval.insert(retval.begin(),ci_iter->second);
-	}
+      
       }
-      
-	
-      
     }
     
     if (selected_chan) {
