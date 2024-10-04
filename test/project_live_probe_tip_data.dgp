@@ -9,7 +9,10 @@ include(dgpy,"dgpy_startup.dpi") # If you get a NameError here, be sure you are 
 include(dgpy,"Qt.dpi",prefer_pyqt=False) 
 
 include(dgpy,"matplotlib.dpi")
-include(snde,"recdb.dpi",enable_opencl=True) 
+transaction_clock=snde.measurement_clock_cpp_steady("")
+transmgr=snde.timed_transaction_manager(transaction_clock,0.25)
+#transmgr=None
+include(snde,"recdb.dpi",transmgr=transmgr,enable_opencl=True) 
 include(snde,"recdb_gui.dpi")
 
 specimen_model_file = "Plate_uv.x3d"

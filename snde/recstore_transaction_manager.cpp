@@ -14,7 +14,7 @@ namespace snde {
 
   transaction_manager::transaction_manager()
   {
- 
+    started=false;
   }
 
   std::shared_ptr<transaction_manager> transaction_manager::upcast()
@@ -35,7 +35,11 @@ namespace snde {
   
   void ordered_transaction_manager::startup(std::shared_ptr<recdatabase> recdb)
   {
-    this->recdb=recdb;
+    {
+      std::lock_guard<std::mutex> transmgr_admin(admin);
+      started=true;
+      this->recdb=recdb;
+    }
     transaction_manager_background_end_thread = std::thread([this]() { transaction_manager_background_end_code(); });
     
     // insert an empty globalrev so there always is one
@@ -100,19 +104,21 @@ namespace snde {
     
     std::tie(globalrev_ptr,trans_notifies) = trans_local->_realize_transaction(recdb,ordered_trans->globalrev_index);
     
-    transaction_lock_holder.unlock();
-    trans_local->_notify_transaction_globalrev(recdb,globalrev_ptr,trans_notifies);
-
-    {
-      std::lock_guard<std::mutex> transaction_admin_lock(trans->admin);
-      trans->prerequisite_state = nullptr;
-      trans->our_state_reference = nullptr;
-    }
-    
     {
       std::lock_guard<std::mutex> manager_lock(admin);
       trans = nullptr;
     }
+
+    transaction_lock_holder.unlock();
+    trans_local->_notify_transaction_globalrev(recdb,globalrev_ptr,trans_notifies);
+
+    {
+      std::lock_guard<std::mutex> transaction_admin_lock(trans_local->admin);
+      trans_local->prerequisite_state = nullptr;
+      trans_local->our_state_reference = nullptr;
+    }
+    
+   
   }
 
   void ordered_transaction_manager::notify_background_end_fcn(std::shared_ptr<active_transaction> act_trans)
@@ -130,8 +136,9 @@ namespace snde {
       transaction_manager_background_end_mustexit=true;
       transaction_manager_background_end_condition.notify_all();
     }
-
-    transaction_manager_background_end_thread.join();
+    if (started) {
+      transaction_manager_background_end_thread.join();
+    }
   }
 
   void ordered_transaction_manager::transaction_manager_background_end_code()
@@ -219,7 +226,12 @@ namespace snde {
     if (!timed_trans){
       throw snde_error("timed_transaction_manager startup(): Transaction is from a different kind of manager. Is this transaction manager registered with the correct recording database?");
     }
-    transaction_map.erase(timed_trans->timestamp);
+    {
+      std::lock_guard<std::mutex> transmgr_admin(admin);
+      started=true;
+    
+      transaction_map.erase(timed_trans->timestamp);
+    }
     _actually_end_transaction(recdb,timed_trans);
     int threadpool_num_threads=8;
     for (int threadcnt=0;threadcnt<threadpool_num_threads;threadcnt++) {
@@ -353,11 +365,12 @@ namespace snde {
       transaction_manager_background_end_mustexit=true;
       transaction_manager_background_end_condition.notify_all();
     }
-
-    for (auto && background_end_thread: transaction_manager_background_end_thread_pool) {
-      background_end_thread.join();
+    if (started) {
+      for (auto && background_end_thread: transaction_manager_background_end_thread_pool) {
+	background_end_thread.join();
+      }
+      transaction_end_thread.join();
     }
-    transaction_end_thread.join();
   }
 
   void timed_transaction_manager::transaction_manager_background_end_code()
@@ -438,13 +451,16 @@ namespace snde {
       
       
       std::shared_ptr<measurement_time> iteration_timestamp= clock->get_current_time();
+      //snde_warning("ttm: timestamp=%.20g",iteration_timestamp->seconds_since_epoch());
       auto transaction_map_it = transaction_map.begin();
 
       if (transaction_map_it != transaction_map.end()) {
 	auto & time_transaction = *transaction_map_it;
 	double age = iteration_timestamp->difference_seconds(time_transaction.first);
+	//snde_warning("ttm: age=%g", age);
 	if (age > latency_secs && time_transaction.second->ended) {
 	  // this transaction is the first in the map and is older than latency and has been ended
+	  //snde_warning("ttm: ending transaction");
 	  std::shared_ptr<measurement_time> transaction_timestamp = time_transaction.first;
 	  std::shared_ptr<timed_transaction> trans = time_transaction.second;
 	  transaction_map.erase(transaction_map_it);
@@ -457,12 +473,13 @@ namespace snde {
 	  if (last_transaction_timestamp && transaction_timestamp->difference_seconds(last_transaction_timestamp) < 0.0) {
 	    // this transaction precedes our previous transaction
 	    snde_warning("timed_transaction_manager: attempting to actually_end_transaction out-of-order. Transaction discarded. Perhaps the latency parameter is too small?");
-	    break;
+	    continue;
 	  }
 	  last_transaction_timestamp = transaction_timestamp;
-
+	  //snde_warning("ttm: actually end transaction");
 	  _actually_end_transaction(recdb_strong,trans);
-	  break;
+	  //snde_warning("ttm: fully ended");
+	  continue;
 	} else if (age <= latency_secs) {
 	  wait_time = latency_secs - age;
 	  if (wait_time > latency_secs/2.0) {
@@ -471,7 +488,7 @@ namespace snde {
 	} else if (!time_transaction.second->ended) {
 	  wait_time = (latency_secs/4.0);
 	}
-	  
+	//snde_warning("ttm: wait_time=%g",wait_time);
 	
 
       } else {

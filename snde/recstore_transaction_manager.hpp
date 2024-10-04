@@ -215,6 +215,7 @@ namespace snde {
   class transaction_manager: public std::enable_shared_from_this<transaction_manager> {
   public:
     std::mutex admin; // locks member variables of subclasses; between transaction_lock (in ordered_transaction_manager) and recdb admin lock in locking order. Precedes the admin lock of a transaction proper.
+    std::atomic<bool> started;
     transaction_manager();
     virtual void startup(std::shared_ptr<recdatabase> recdb) =0;
     std::shared_ptr<transaction_manager> upcast(); //because of a swig bug where subclasses can't be assigned into the recording db object.
