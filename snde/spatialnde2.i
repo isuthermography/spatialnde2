@@ -614,7 +614,7 @@ template <typename T>
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD2,(PyArray_Descr *)coord2_dtype);
   PyObject *cmat23_dtype = PyRun_String("dtype([('row', dtype([('coord', np.float64, 3), ]) , 2), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_CMAT23,(PyArray_Descr *)cmat23_dtype);
-  PyObject *orientation3_dtype = PyRun_String("dtype([('offset', np.float64, 4), ('quat', np.float64,4) ])",Py_eval_input,Globals,Globals);
+  PyObject *orientation3_dtype = PyRun_String("dtype([('quat', np.float64,4),('offset', np.float64, 4),  ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_ORIENTATION3,(PyArray_Descr *)orientation3_dtype);
 #else
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD,PyArray_DescrFromType(NPY_FLOAT32));
@@ -627,7 +627,7 @@ template <typename T>
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD2,(PyArray_Descr *)coord2_dtype);
   PyObject *cmat23_dtype = PyRun_String("dtype([('row', dtype([('coord', np.float32, 3), ]) , 2), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_CMAT23,(PyArray_Descr *)cmat23_dtype);
-  PyObject *orientation3_dtype = PyRun_String("dtype([('offset', np.float32, 4), ('quat', np.float32,4) ])",Py_eval_input,Globals,Globals);
+  PyObject *orientation3_dtype = PyRun_String("dtype([('quat', np.float32,4),('offset', np.float32, 4),  ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_ORIENTATION3,(PyArray_Descr *)orientation3_dtype);
 
   // !!!!!***** This needs to be adjusted to consider the various possible sizes for snde_index and snde_coord

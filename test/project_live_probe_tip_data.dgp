@@ -27,7 +27,7 @@ probe_model_file = "Probe_uv.x3d"
 probe_model_tree = "/graphics/probe/"
 probe_pose_channel = "/probe_pose"
 
-orient_dtype = [('offset', '<f4', (4,)), ('quat', '<f4', (4,))]
+orient_dtype = [('quat', '<f4', (4,)),('offset', '<f4', (4,))]
 
 graphman=snde.graphics_storage_manager("/graphics/",recdb.lowlevel_alloc,recdb.alignment_requirements,recdb.lockmgr,1e-8,2000000000);
 
@@ -42,16 +42,16 @@ plate_recording = snde.x3d_load_geometry(transact,graphman,specimen_model_file,0
 probe_recording = snde.x3d_load_geometry(transact,graphman,probe_model_file,0,"main",recdb.raw(),probe_model_tree,None,[ "reindex_vertices","reindex_tex_vertices" ])
 
 
-main_viewer.viewer.set_camera_pose(snde.recdb_path_join(probe_model_tree,"meshed"),np.array(([0,0,.4,  0.        ], [ 0,0,0,  1]),dtype=[('offset', '<f4', (4,)), ('quat', '<f4', (4,))]))
+main_viewer.viewer.set_camera_pose(snde.recdb_path_join(probe_model_tree,"meshed"),np.array(( [ 1,0,0,0],[0,0,.4,  1.        ]),dtype=orient_dtype))
 main_viewer.viewer.set_rotation_center_dist(snde.recdb_path_join(probe_model_tree,"meshed"),0.4)
 
 
 specimen_pose_chan = recdb.define_channel(transact,specimen_pose_channel,"main",recdb.raw())
 specimen_pose_ref = snde.create_pose_channel_ndarray_ref(transact,specimen_pose_chan,recdb.raw(),snde.recdb_path_join(specimen_model_tree,"meshed"))
 specimen_pose_ref.allocate_storage([1])
-specimen_position = np.array(((0,0,0,0),(.4, .3, .625, .6)),dtype=orient_dtype)
+specimen_position = np.array(((.6,.4, .3, .625),(0,0,0,1)),dtype=orient_dtype)
 # Temporarily use trivial specimen position
-#specimen_position = np.array(((0,0,0,0),(0,0,0,1)),dtype=orient_dtype)
+#specimen_position = np.array(((1,0,0,0),(0,0,0,1)),dtype=orient_dtype)
 specimen_pose_ref.data()[0]=specimen_position
 specimen_pose_ref.rec.mark_data_and_metadata_ready()
 
@@ -88,11 +88,11 @@ new_probe_posn_in_transaction(transact,snde.snde_invalid_orientation3())
 
 
 ## For nontrivial specimen position 
-main_viewer.viewer.set_camera_pose("/probe_positioner",np.array(([-0.3360842 ,  0.05746431, -0.19362034,  0.        ], [ 0.6163294 ,  0.63233364, -0.2971067 , -0.36334535]),
-      dtype=[('offset', '<f4', (4,)), ('quat', '<f4', (4,))]))
+main_viewer.viewer.set_camera_pose("/probe_positioner",np.array(([-0.36334535, 0.6163294 ,  0.63233364, -0.2971067 ],[-0.3360842 ,  0.05746431, -0.19362034,  1.        ]),
+      dtype=orient_dtype))
 # For trivial specimen position
-#main_viewer.viewer.set_camera_pose("/probe_positioner",np.array(([ 0.07375578,  0.01429099, -0.39151475,  0.        ], [0.9951329 , 0.08943763, 0.03899188, 0.01382136]),
-#      dtype=[('offset', '<f4', (4,)), ('quat', '<f4', (4,))]))
+#main_viewer.viewer.set_camera_pose("/probe_positioner",np.array(([0.01382136,0.9951329 , 0.08943763, 0.03899188],[ 0.07375578,  0.01429099, -0.39151475,  1.        ]),
+#      dtype=orient_dtype))
 main_viewer.viewer.set_rotation_center_dist("/probe_positioner",0.425)
 
 

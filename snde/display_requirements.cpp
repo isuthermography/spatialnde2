@@ -2442,7 +2442,7 @@ std::shared_ptr<display_requirement> tracking_pose_recording_display_handler::ge
 
   
   //// this assertion is temporary for debugging purposes and needs to be removed!!!***
-  //assert(isnan(pose_params->channel_to_reorient_orientation.quat.coord[3]) || pose_params->channel_to_reorient_orientation.quat.coord[3] != 0.0);
+  //assert(isnan(pose_params->channel_to_reorient_orientation.quat.coord[3]) || pose_params->channel_to_reorient_orientation.quat.coord[0] != 0.0);
   //{
   //  snde_coord4 rotmtx[4];
   //  orientation_build_rotmtx(pose_params->channel_to_reorient_orientation,rotmtx);
@@ -2579,7 +2579,7 @@ std::shared_ptr<display_requirement> pose_channel_recording_display_handler::get
 
   
   //// this assertion is temporary for debugging purposes and needs to be removed!!!***
-  //assert(isnan(pose_params->channel_to_reorient_orientation.quat.coord[3]) || pose_params->channel_to_reorient_orientation.quat.coord[3] != 0.0);
+  //assert(isnan(pose_params->channel_to_reorient_orientation.quat.coord[3]) || pose_params->channel_to_reorient_orientation.quat.coord[0] != 0.0);
   //{
   //  snde_coord4 rotmtx[4];
   //  orientation_build_rotmtx(pose_params->channel_to_reorient_orientation,rotmtx);
