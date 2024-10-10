@@ -247,7 +247,7 @@ Orientations and Object Poses
 of an object in three-dimensional space. Within the context
 of SpatialNDE2, we will measure and store the "pose" of an object
 as the transform (an snde_orientation3, with Numpy dtype
-representation ``[('offset', '<f4', (4,)), ('quat', '<f4', (4,))]``)
+representation ``[('quat', '<f4', (4,)),('offset', '<f4', (4,))]``)
 that, when multiplied on the right by a position or vector in
 object coordinates, gives the position or vector in world coordinates.
 
