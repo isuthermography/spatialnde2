@@ -68,8 +68,8 @@ rec.allocate_storage(1,array_size,False)
 
 
 #pdb.set_trace()
-ref_acc.data()[:,:] = np.zeros(array_size,dtype=np.cdouble)
-ref_tot.data()[:,:] = np.ones(array_size,dtype=np.double)
+ref_acc.data[:,:] = np.zeros(array_size,dtype=np.cdouble)
+ref_tot.data[:,:] = np.ones(array_size,dtype=np.double)
 
 #pdb.set_trace()
 # Release write locks

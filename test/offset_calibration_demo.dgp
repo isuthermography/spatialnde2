@@ -72,7 +72,7 @@ specimen_pose_ref.allocate_storage([1])
 specimen_position = np.array((( .3, .625, .6,.4),(0,0,0,1)),dtype=orient_dtype)
 # Temporarily use trivial specimen position
 #specimen_position = np.array(((1,0,0,0),(0,0,0,1)),dtype=orient_dtype)
-specimen_pose_ref.data()[0]=specimen_position
+specimen_pose_ref.data[0]=specimen_position
 specimen_pose_ref.rec.mark_data_and_metadata_ready()
 
 corrected_pose_math_function = snde.offset_calibration.instantiate( [ snde.math_parameter_recording(registered_pose_channel),
@@ -93,7 +93,7 @@ registered_pose_chan = recdb.define_channel(transact,registered_pose_channel,"ma
 registered_pose_ref = snde.create_pose_channel_ndarray_ref(transact,registered_pose_chan,recdb.raw(),correction_pose_channel)
 registered_pose_ref.allocate_storage([1])
 registered_position = np.array(((1, 0, 0, 0),(.03,0,0,1)),dtype=orient_dtype)
-registered_pose_ref.data()[0]=registered_position
+registered_pose_ref.data[0]=registered_position
 registered_pose_ref.rec.mark_data_and_metadata_ready()
 
 
@@ -114,7 +114,7 @@ def new_probe_posn_in_transaction(transact,orientation):
     probe_pose_rec = snde.pose_channel_recording.from_ndarray_recording(probe_pose_ref.rec)
     probe_pose_rec.set_untransformed_render_channel(specimen_pose_channel)
     
-    probe_pose_ref.data()[0]=orientation
+    probe_pose_ref.data[0]=orientation
     probe_pose_ref.rec.mark_metadata_done()
     probe_pose_ref.rec.mark_data_ready()
     pass

@@ -103,7 +103,7 @@ def singlevalue_live_thread_code():
 
     #print("value=%s" % (str(value)))
         
-    live_recording.data()[:] = value
+    live_recording.data[:] = value
     live_recording.rec.mark_data_ready()     
     globalrev.wait_complete()
     time.sleep(1)

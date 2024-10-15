@@ -152,7 +152,7 @@ def live_thread_code():
 
         #print("value=%s" % (str(value)))
         
-        live_recording.data()[:] = value
+        live_recording.data[:] = value
         live_recording.rec.mark_data_ready()
         
         transact.end_transaction()
@@ -200,7 +200,7 @@ def onedlive_thread_code():
 
         #print("value=%s" % (str(value)))
         
-        live_recording.data()[:] = value
+        live_recording.data[:] = value
         live_recording.rec.mark_data_ready()
         
         transact.end_transaction()

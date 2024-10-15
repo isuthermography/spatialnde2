@@ -86,11 +86,11 @@ scaled_rec_32 = globalrev.get_ndarray_ref("/scaled_channel")
 assert(not scaled_rec_32.ndinfo().requires_locking_read)
 assert(not test_rec_32.ndinfo().requires_locking_read)
 
-data_32 = scaled_rec_32.data()
+data_32 = scaled_rec_32.data
 
 for cnt in range(rec_len):
     math_function_value = data_32[cnt]
-    recalc_value = test_rec_32.data()[cnt]*scalefactor
+    recalc_value = test_rec_32.data[cnt]*scalefactor
     print(" %f \t \t %f" % (recalc_value,math_function_value)) 
     assert(abs(math_function_value-recalc_value) < 1e-4) # No functionality in Python to do single precision calculation for comparison
     pass
@@ -99,11 +99,11 @@ scaled_rec_64 = globalrev2.get_ndarray_ref("/scaled_channel")
 assert(not scaled_rec_64.ndinfo().requires_locking_read)
 assert(not test_rec_64.ndinfo().requires_locking_read)
 
-data_64 = scaled_rec_64.data()
+data_64 = scaled_rec_64.data
 
 for cnt in range(rec_len):
     math_function_value = data_64[cnt]
-    recalc_value = test_rec_64.data()[cnt]*scalefactor
+    recalc_value = test_rec_64.data[cnt]*scalefactor
     print(" %f \t \t %f" % (recalc_value,math_function_value)) 
     assert(math_function_value == recalc_value) 
     pass

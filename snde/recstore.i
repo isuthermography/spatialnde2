@@ -19,7 +19,6 @@ snde_rawaccessible(snde::recording_group);
 snde_rawaccessible(snde::null_recording);
 %shared_ptr(snde::multi_ndarray_recording);
 snde_rawaccessible(snde::multi_ndarray_recording);
-%shared_ptr(snde::_ndarray_recording_ref_wrapper);
 %shared_ptr(snde::ndarray_recording_ref);
 snde_rawaccessible(snde::ndarray_recording_ref);
 %shared_ptr(snde::fusion_ndarray_recording);
@@ -364,17 +363,15 @@ namespace snde {
 
   };
 
-  class _ndarray_recording_ref_wrapper {
-  public:
-    std::shared_ptr<ndarray_recording_ref> ref;
-  };
+  
 
-  // output typemap for _ndarray_recording_ref_wrapper
+  // output typemap for _ndarray_recording_ref
   // that turns it into a numpy PyObject for the .data attribute
-  // getter (._get_wrapper)
+  // getter (.shared_from_this()). Note the ::data that limits it
+  // to the .data attribute. 
 }
-%typemap(out) std::shared_ptr<snde::_ndarray_recording_ref_wrapper> const &snde::ndarray_recording_ref::data (std::shared_ptr<snde::ndarray_recording_ref> _self,std::vector<npy_intp> dims,std::vector<npy_intp> strides,PyObject *memory_holder_obj) { // self because this code was derived from a preexisting extend directive 
-    _self = (*($1))->ref;
+%typemap(out) std::shared_ptr<snde::ndarray_recording_ref> const &snde::ndarray_recording_ref::data (std::shared_ptr<snde::ndarray_recording_ref> _self,std::vector<npy_intp> dims,std::vector<npy_intp> strides,PyObject *memory_holder_obj) { // self because this code was derived from a preexisting extend directive 
+    _self = (*($1));
     
     auto numpytypemap_it = snde::rtn_numpytypemap.find(_self->ndinfo()->typenum);
     if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
@@ -415,8 +412,8 @@ namespace snde {
   
 
 
-//enable the ndarray_recording_ref.data attribute using the _get_wrapper getter
-%attributestring(snde::ndarray_recording_ref,std::shared_ptr<snde::_ndarray_recording_ref_wrapper>,data,_get_wrapper);
+//enable the ndarray_recording_ref.data attribute using the shared_from_this() getter
+%attributestring(snde::ndarray_recording_ref,std::shared_ptr<snde::ndarray_recording_ref>,data,shared_from_this);
 
 
 namespace snde {
@@ -450,7 +447,7 @@ namespace snde {
     inline snde_multi_ndarray_recording *mndinfo() {return (snde_multi_ndarray_recording *)rec->info;}
     inline snde_ndarray_info *ndinfo() {return &((snde_multi_ndarray_recording *)rec->info)->arrays[rec_index];}
     
-    std::shared_ptr<_ndarray_recording_ref_wrapper> _get_wrapper(); //  get wrapper used in python bindings to typemap the result for the .data getter.
+    
     
 
     inline void *void_shifted_arrayptr();

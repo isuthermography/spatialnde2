@@ -110,9 +110,9 @@ for cnt in range(rec_len):
     test_rec.assign_double([cnt],100.0*math.sin(cnt))
     pass
 
-pointcloud_rec.data()["coord"][:,:,0]=x_2d
-pointcloud_rec.data()["coord"][:,:,1]=y_2d
-pointcloud_rec.data()["coord"][:,:,2]=z_2d
+pointcloud_rec.data["coord"][:,:,0]=x_2d
+pointcloud_rec.data["coord"][:,:,1]=y_2d
+pointcloud_rec.data["coord"][:,:,2]=z_2d
 # must unlock prior to mark_data_ready
 snde.unlock_rwlock_token_set(locktokens)
 

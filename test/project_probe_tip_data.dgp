@@ -49,7 +49,7 @@ specimen_pose_ref.allocate_storage([1])
 specimen_position = np.array(((.6,.4, .3, .625),(0,0,0,1)),dtype=orient_dtype)
 # Temporarily use trivial specimen position
 #specimen_position = np.array(((1,0,0,0),(0,0,0,1)),dtype=orient_dtype)
-specimen_pose_ref.data()[0]=specimen_position
+specimen_pose_ref.data[0]=specimen_position
 specimen_pose_ref.rec.mark_data_and_metadata_ready()
 
 
@@ -71,7 +71,7 @@ def new_probe_posn_in_transaction(transact,orientation):
     probe_pose_rec = snde.pose_channel_recording.from_ndarray_recording(probe_pose_ref.rec)
     probe_pose_rec.set_untransformed_render_channel(specimen_pose_channel)
     
-    probe_pose_ref.data()[0]=orientation
+    probe_pose_ref.data[0]=orientation
     probe_pose_ref.rec.mark_metadata_done()
     probe_pose_ref.rec.mark_data_ready()
     pass

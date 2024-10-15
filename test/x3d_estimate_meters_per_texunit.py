@@ -25,9 +25,9 @@ specimen_recording = snde.x3d_load_geometry(transact,graphman,specimen_model_fil
 g=transact.end_transaction().globalrev()
 
 
-meshedpart = g.get_ndarray_ref("/graphics/specimen/meshed","parts").data()
-uv = g.get_ndarray_ref("/graphics/specimen/uv","uvs").data()
-uvcoords2inplane = g.get_ndarray_ref("/graphics/specimen/projinfo","uvcoords2inplane").data()
+meshedpart = g.get_ndarray_ref("/graphics/specimen/meshed","parts").data
+uv = g.get_ndarray_ref("/graphics/specimen/uv","uvs").data
+uvcoords2inplane = g.get_ndarray_ref("/graphics/specimen/projinfo","uvcoords2inplane").data
 
 numtris = meshedpart["numtris"][0]
 assert(numtris==uv["numuvtris"][0])
