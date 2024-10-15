@@ -1980,6 +1980,12 @@ namespace snde {
     return rec->reference_ndarray(rec_index); // Returned reference will now be fully typed and therefore can access the elements. 
   }
   
+  std::shared_ptr<_ndarray_recording_ref_wrapper> ndarray_recording_ref::_get_wrapper() //  get wrapper used in python bindings to typemap the result for the .data getter.
+  {
+    std::shared_ptr<_ndarray_recording_ref_wrapper> wrapper= std::make_shared<_ndarray_recording_ref_wrapper>();
+    wrapper->ref=shared_from_this();
+    return wrapper;
+  }
   double ndarray_recording_ref::element_double(const std::vector<snde_index> &idx)
   {
     throw snde_error("Cannot access elements of untyped recording reference. Create typed reference with .reference_ndarray() instead.");

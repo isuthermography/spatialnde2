@@ -19,6 +19,7 @@ snde_rawaccessible(snde::recording_group);
 snde_rawaccessible(snde::null_recording);
 %shared_ptr(snde::multi_ndarray_recording);
 snde_rawaccessible(snde::multi_ndarray_recording);
+%shared_ptr(snde::_ndarray_recording_ref_wrapper);
 %shared_ptr(snde::ndarray_recording_ref);
 snde_rawaccessible(snde::ndarray_recording_ref);
 %shared_ptr(snde::fusion_ndarray_recording);
@@ -363,6 +364,62 @@ namespace snde {
 
   };
 
+  class _ndarray_recording_ref_wrapper {
+  public:
+    std::shared_ptr<ndarray_recording_ref> ref;
+  };
+
+  // output typemap for _ndarray_recording_ref_wrapper
+  // that turns it into a numpy PyObject for the .data attribute
+  // getter (._get_wrapper)
+}
+%typemap(out) std::shared_ptr<snde::_ndarray_recording_ref_wrapper> const &snde::ndarray_recording_ref::data (std::shared_ptr<snde::ndarray_recording_ref> _self,std::vector<npy_intp> dims,std::vector<npy_intp> strides,PyObject *memory_holder_obj) { // self because this code was derived from a preexisting extend directive 
+    _self = (*($1))->ref;
+    
+    auto numpytypemap_it = snde::rtn_numpytypemap.find(_self->ndinfo()->typenum);
+    if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
+      throw snde::snde_error("No corresponding numpy datatype found for snde type #%u",_self->ndinfo()->typenum);
+    }
+      
+    PyArray_Descr *ArrayDescr = snde::rtn_numpytypemap.at(_self->ndinfo()->typenum);
+
+    // make npy_intp dims and strides from layout.dimlen and layout.strides
+
+    std::copy(_self->layout.dimlen.begin(),_self->layout.dimlen.end(),std::back_inserter(dims));
+
+    for (auto && stride: _self->layout.strides) {
+      strides.push_back(stride*_self->ndinfo()->elementsize); // our strides are in numbers of elements vs numpy does it in bytes;
+    }
+    int flags = 0;
+    if (!(_self->info_state & SNDE_RECF_DATAREADY)) {
+      flags = NPY_ARRAY_WRITEABLE; // only writeable if it's not marked as ready yet.
+    }
+
+    //// Need to grab the GIL before Python calls because
+    //// swig wrapped us with something that dropped it (!)
+    //PyGILState_STATE gstate = PyGILState_Ensure();
+    Py_IncRef((PyObject *)ArrayDescr); // because PyArray_NewFromDescr steals a reference to its descr parameter
+    PyArrayObject *obj = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type,ArrayDescr,_self->layout.dimlen.size(),dims.data(),strides.data(),_self->void_shifted_arrayptr(),flags,nullptr);
+
+    // memory_holder_obj contains a shared_ptr to "this", i.e. the ndarray_recording.  We will store this in the "base" property of obj so that as long as obj lives, so will the ndarray_recording, and hence its memory.
+    // (This code is similar to the code returned by _wrap_recording_base_cast_to_ndarray()
+    //std::shared_ptr<snde::ndarray_recording_ref> rawresult = self->shared_from_this();
+    //assert(rawresult);
+    std::shared_ptr<snde::ndarray_recording_ref> *smartresult = new std::shared_ptr<snde::ndarray_recording_ref>(_self);
+    memory_holder_obj = SWIG_NewPointerObj(SWIG_as_voidptr(smartresult), SWIGTYPE_p_std__shared_ptrT_snde__ndarray_recording_ref_t, SWIG_POINTER_OWN/*|SWIG_POINTER_NOSHADOW*/);
+    PyArray_SetBaseObject(obj,memory_holder_obj); // steals reference to memory_holder_obj
+    //PyGILState_Release(gstate);
+    $result= (PyObject *)obj;
+  }
+
+  
+
+
+//enable the ndarray_recording_ref.data attribute using the _get_wrapper getter
+%attributestring(snde::ndarray_recording_ref,std::shared_ptr<snde::_ndarray_recording_ref_wrapper>,data,_get_wrapper);
+
+
+namespace snde {
   class ndarray_recording_ref {
     // reference to a single ndarray within an multi_ndarray_recording
     // once the multi_ndarray_recording is published and sufficiently complete, its fields are immutable, so these are too
@@ -392,7 +449,9 @@ namespace snde {
     
     inline snde_multi_ndarray_recording *mndinfo() {return (snde_multi_ndarray_recording *)rec->info;}
     inline snde_ndarray_info *ndinfo() {return &((snde_multi_ndarray_recording *)rec->info)->arrays[rec_index];}
-
+    
+    std::shared_ptr<_ndarray_recording_ref_wrapper> _get_wrapper(); //  get wrapper used in python bindings to typemap the result for the .data getter.
+    
 
     inline void *void_shifted_arrayptr();
     
@@ -463,46 +522,7 @@ namespace snde {
   };
 
 
-  %extend ndarray_recording_ref {
-    PyObject *data()
-    {
-      auto numpytypemap_it = snde::rtn_numpytypemap.find(self->ndinfo()->typenum);
-      if (numpytypemap_it == snde::rtn_numpytypemap.end()) {
-	throw snde::snde_error("No corresponding numpy datatype found for snde type #%u",self->ndinfo()->typenum);
-      }
-      
-      PyArray_Descr *ArrayDescr = snde::rtn_numpytypemap.at(self->ndinfo()->typenum);
-
-      // make npy_intp dims and strides from layout.dimlen and layout.strides
-      std::vector<npy_intp> dims;
-      std::vector<npy_intp> strides;
-      std::copy(self->layout.dimlen.begin(),self->layout.dimlen.end(),std::back_inserter(dims));
-
-      for (auto && stride: self->layout.strides) {
-	strides.push_back(stride*self->ndinfo()->elementsize); // our strides are in numbers of elements vs numpy does it in bytes;
-      }
-      int flags = 0;
-      if (!(self->info_state & SNDE_RECF_DATAREADY)) {
-	flags = NPY_ARRAY_WRITEABLE; // only writeable if it's not marked as ready yet.
-      }
-
-      // Need to grab the GIL before Python calls because
-      // swig wrapped us with something that dropped it (!)
-      PyGILState_STATE gstate = PyGILState_Ensure();
-      Py_IncRef((PyObject *)ArrayDescr); // because PyArray_NewFromDescr steals a reference to its descr parameter
-      PyArrayObject *obj = (PyArrayObject *)PyArray_NewFromDescr(&PyArray_Type,ArrayDescr,self->layout.dimlen.size(),dims.data(),strides.data(),self->void_shifted_arrayptr(),flags,nullptr);
-
-      // memory_holder_obj contains a shared_ptr to "this", i.e. the ndarray_recording.  We will store this in the "base" property of obj so that as long as obj lives, so will the ndarray_recording, and hence its memory.
-      // (This code is similar to the code returned by _wrap_recording_base_cast_to_ndarray()
-      std::shared_ptr<snde::ndarray_recording_ref> rawresult = self->shared_from_this();
-      assert(rawresult);
-      std::shared_ptr<snde::ndarray_recording_ref> *smartresult = new std::shared_ptr<snde::ndarray_recording_ref>(rawresult);
-      PyObject *memory_holder_obj = SWIG_NewPointerObj(SWIG_as_voidptr(smartresult), SWIGTYPE_p_std__shared_ptrT_snde__ndarray_recording_ref_t, SWIG_POINTER_OWN/*|SWIG_POINTER_NOSHADOW*/);
-      PyArray_SetBaseObject(obj,memory_holder_obj); // steals reference to memory_holder_obj
-      PyGILState_Release(gstate);
-      return (PyObject *)obj;
-    }
-  }
+ 
   
 
   class fusion_ndarray_recording: public multi_ndarray_recording {

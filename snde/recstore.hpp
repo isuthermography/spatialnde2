@@ -635,6 +635,11 @@ namespace snde {
   };
 
 
+  class _ndarray_recording_ref_wrapper {
+  public:
+    std::shared_ptr<ndarray_recording_ref> ref;
+  };
+  
   class ndarray_recording_ref: public std::enable_shared_from_this<ndarray_recording_ref> {
     // reference to a single ndarray within an multi_ndarray_recording
     // once the multi_ndarray_recording is published and sufficiently complete, its fields are immutable, so these are too
@@ -661,6 +666,7 @@ namespace snde {
     inline snde_multi_ndarray_recording *mndinfo() {return (snde_multi_ndarray_recording *)rec->info;}
     inline snde_ndarray_info *ndinfo() {return &((snde_multi_ndarray_recording *)rec->info)->arrays[rec_index];}
 
+    std::shared_ptr<_ndarray_recording_ref_wrapper> _get_wrapper(); //  get wrapper used in python bindings to typemap the result for the .data getter.
     
     // Throw an snde_error exception if the recording specifies a scale
     // or offset. This should be used whenever interpreting array data

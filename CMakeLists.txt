@@ -796,7 +796,7 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	message(STATUS ${Python3_LIBRARIES})
 	include(${SWIG_USE_FILE})
 	# BUG: If python version >= 3 need -py3 -DPY_VERSION_HEX=0x03060000 additional flags to SWIG command
-	set(CMAKE_SWIG_FLAGS "-threads" )
+	set(CMAKE_SWIG_FLAGS "-threads" ) # "-debug-tmsearch" )
 	# We enforce a private SWIG_TYPE_TABLE because the swig type table
 	# isn't thread-safe and we are designed to be used in a highly
 	# threaded environment. This limits interoperability between

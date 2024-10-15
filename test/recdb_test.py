@@ -48,7 +48,7 @@ globalrev.wait_complete();
 
 rec = globalrev.get_ndarray_ref("/test channel")
 
-data = rec.data()
+data = rec.data
 
 # Demonstrate export to raw shared pointer and reconstruction
 # from raw shared pointer:
@@ -59,6 +59,6 @@ rec2 = snde.ndarray_recording_ref.consume_raw_shared_ptr(rec.produce_raw_shared_
 assert(not rec.ndinfo().requires_locking_read)
 assert(not rec2.ndinfo().requires_locking_read)
 
-assert((rec2.data() == rec.data()).all())
+assert((rec2.data == rec.data).all())
 
 print(data)

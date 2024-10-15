@@ -69,7 +69,7 @@ typedef unsigned long long uint64_t;
 %include "python/std_unordered_map.i"
 %include "std_multimap.i"
 %include "std_shared_ptr.i"
- 
+%include "attribute.i" 
 
 //numpy
 %include "numpy.i"
