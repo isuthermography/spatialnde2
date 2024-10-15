@@ -261,7 +261,7 @@ method to obtain a writeable reference::
 
 In Python, vectorized (numpy) access is also possible::
 
-  test_ref.data()[:] = np.sin(np.arange(rec_len),dtype='d') 
+  test_ref.data[:] = np.sin(np.arange(rec_len),dtype='d') 
 
 Unlocking the Array
 -------------------

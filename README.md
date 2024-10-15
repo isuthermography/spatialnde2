@@ -16,6 +16,7 @@ globalrevision to be complete.
   - The quaternion is now first in the structure and the offset is now second (previously it was the other way around).
   - The first element of the quaternion is now the real part and it is followed by the three imaginary parts (previously the real part was last).
   - The final element of the offset is now 1.0 (previously it was 0.0).
+- Python data access to ndarray refs is now by .data attribute rather than .data() method.
 
 ## Prerequisites
 INSTALLING ALL PREREQUISITES IS STRONGLY RECOMMENDED as not all possible 
