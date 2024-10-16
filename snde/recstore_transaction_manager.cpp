@@ -109,7 +109,13 @@ namespace snde {
       trans = nullptr;
     }
 
-    transaction_lock_holder.unlock();
+    std::unique_lock<movable_mutex> tr_lock_release;
+    transaction_lock_holder.swap(tr_lock_release);
+    tr_lock_release.unlock();
+ 
+
+ 
+  
     trans_local->_notify_transaction_globalrev(recdb,globalrev_ptr,trans_notifies);
 
     {
