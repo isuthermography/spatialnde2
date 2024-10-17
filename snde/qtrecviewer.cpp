@@ -306,8 +306,7 @@ namespace snde {
   {
 	  if (!Selector) return nullptr;
 	  return FindDisplayChan(Selector->Name);
-  }
-    
+  } 
   
   void QTRecViewer::set_selected(QTRecSelector *Selector)
   // assumes Selector already highlighted 
@@ -328,6 +327,19 @@ namespace snde {
     deselect_other_selectors(Selector);
     
     //UpdateViewerStatus(); // Now taken care of by posmgr->set_selected()'s call to trigger which emits into this slot
+  }
+
+
+  void QTRecViewer::set_selected(std::string channame) {
+
+    auto selector_iter = Selectors.find(channame);
+    if (selector_iter != Selectors.end()) {
+      auto& selector = selector_iter->second;
+      set_selected(selector);
+    }
+    else {
+      throw snde_error("Unable to find channel % s", channame.c_str());
+    }
   }
   
   
