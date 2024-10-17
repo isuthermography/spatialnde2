@@ -504,6 +504,7 @@ template <typename T>
 %include "snde_qt.i"
 %include "qt_osg_compositor.i"
 %include "qtrecviewer.i"
+%include "qtrecviewer_support.i"
 %include "recstore_setup.i"
 %include "x3d.i"
 %include "utils.i"
