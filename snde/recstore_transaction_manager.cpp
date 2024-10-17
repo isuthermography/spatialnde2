@@ -332,7 +332,10 @@ namespace snde {
     
     std::tie(globalrev_ptr,trans_notifies) = timed_trans->_realize_transaction(recdb,globalrev_index);
     
-    timed_trans->transaction_lock_holder.unlock();
+   
+    std::unique_lock<movable_mutex> tr_lock_release;
+    timed_trans->transaction_lock_holder.swap(tr_lock_release);
+    tr_lock_release.unlock();
     timed_trans->_notify_transaction_globalrev(recdb,globalrev_ptr,trans_notifies);
     {
       std::lock_guard<std::mutex> transaction_admin_lock(timed_trans->admin);
