@@ -313,7 +313,8 @@ namespace snde {
   {
     
     std::shared_ptr<display_channel> displaychan=FindDisplayChan(Selector);
-    
+   
+
     Selector->setselected(true);
     //std::shared_ptr<iterablerecrefs> reclist=recdb->reclist();
     
@@ -335,7 +336,8 @@ namespace snde {
     auto selector_iter = Selectors.find(channame);
     if (selector_iter != Selectors.end()) {
       auto& selector = selector_iter->second;
-      set_selected(selector);
+      selector->RadioButton->setFocus(); // Workaround required to ensure that focus doesn't change to a radio button when the window regains focus -- this triggers a change of the selection
+      set_selected(selector);  
     }
     else {
       throw snde_error("Unable to find channel % s", channame.c_str());
