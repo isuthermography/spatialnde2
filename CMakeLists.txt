@@ -23,6 +23,11 @@ endif()
 # Select coordinate precision: single vs. double
 set(SNDE_DOUBLEPREC_COORDS OFF CACHE BOOL "Use double precision for geometric coordinates rather than single precision" )
 
+# Enable Python Integration with SpatialNDE2 Core Library Functions
+# This adds a Python library dependency to the spatialnde2 libraries
+set(SNDE_PYTHON_SUPPORT_ENABLED ON CACHE BOOL "Enable python support in SpatialNDE2 libraries to allow dropping of GIL at critical points")
+set(SNDE_PYTHON_SUPPORT_PRINT_FUNCTION_CALLS ON CACHE BOOL "Print debug statements when GIL is dropped by Python support in SpatialNDE2 libraries")
+
 # There is no realloc functionality on win32.  We could implement code that would replicate the capability
 # however, this would create an inconsistency with existing pointers that are floating around elsewhere out of the
 # control of the shared memory allocator.  So, instead, we just allocate way more address space than we expect to need.
@@ -76,6 +81,13 @@ ENDIF()
 
 IF(SNDE_DOUBLEPREC_COORDS)
   set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_DOUBLEPREC_COORDS ) 
+ENDIF()
+
+IF(SNDE_PYTHON_SUPPORT_ENABLED)
+  set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_PYTHON_SUPPORT_ENABLED ) 
+  IF(SNDE_PYTHON_SUPPORT_PRINT_FUNCTION_CALLS)
+    set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_PYTHON_SUPPORT_PRINT_FUNCTION_CALLS ) 
+  ENDIF(SNDE_PYTHON_SUPPORT_PRINT_FUNCTION_CALLS)
 ENDIF()
 
 set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_WIN32_SHMEM_SIZE=${SNDE_WIN32_SHMEM_SIZE})
@@ -356,6 +368,10 @@ ENDIF()
 
 IF (Python3_FOUND)
     include_directories(${Python3_INCLUDE_DIRS})
+
+    IF (SNDE_PYTHON_SUPPORT_ENABLED)
+      set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} ${Python3_LIBRARIES})
+    ENDIF (SNDE_PYTHON_SUPPORT_ENABLED)
 ENDIF(Python3_FOUND)
 
 IF (OpenThreads_FOUND)
@@ -378,6 +394,10 @@ add_dependencies(spatialnde2 OpenGL::GL )
 # Need a define for direct compiling of spatialnde2 for the items that need dllimport/dllexport on Windows
 target_compile_definitions(spatialnde2 PRIVATE SPATIALNDE2_SHAREDLIB_EXPORT)
 target_link_libraries(spatialnde2 hdf5::hdf5 hdf5::hdf5_cpp )
+
+IF (SNDE_PYTHON_SUPPORT_ENABLED)
+    target_link_libraries(spatialnde2 ${Python3_LIBRARIES})
+ENDIF (SNDE_PYTHON_SUPPORT_ENABLED)
 
 IF (NOT WIN32)
   target_link_libraries(spatialnde2 rt)

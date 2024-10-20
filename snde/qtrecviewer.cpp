@@ -7,6 +7,8 @@
 #include "snde/qtrecviewer.hpp"
 #include "snde/qt_osg_compositor.hpp"
 
+#include "snde/python_support.hpp"
+
 namespace snde {
   
   QTRecViewer::QTRecViewer(std::shared_ptr<recdatabase> recdb,QWidget *parent /*=0*/)
@@ -286,7 +288,6 @@ namespace snde {
     }
   }
 
-	
   std::shared_ptr<display_channel> QTRecViewer::FindDisplayChan(std::string channame) {
 
 	  auto ci_iter = display->channel_info.find(channame);
@@ -311,6 +312,7 @@ namespace snde {
   void QTRecViewer::set_selected(QTRecSelector *Selector)
   // assumes Selector already highlighted 
   {
+    SNDE_DropPythonGIL
     
     std::shared_ptr<display_channel> displaychan=FindDisplayChan(Selector);
    
@@ -328,10 +330,13 @@ namespace snde {
     deselect_other_selectors(Selector);
     
     //UpdateViewerStatus(); // Now taken care of by posmgr->set_selected()'s call to trigger which emits into this slot
+    SNDE_RestorePythonGIL
   }
 
 
   void QTRecViewer::set_selected(std::string channame) {
+
+    SNDE_DropPythonGIL
 
     auto selector_iter = Selectors.find(channame);
     if (selector_iter != Selectors.end()) {
@@ -342,6 +347,8 @@ namespace snde {
     else {
       throw snde_error("Unable to find channel % s", channame.c_str());
     }
+
+    SNDE_RestorePythonGIL
   }
   
   
@@ -349,6 +356,7 @@ namespace snde {
 
   void QTRecViewer::update_rec_list()  
   {
+    SNDE_DropPythonGIL
     std::shared_ptr<recdatabase> recdb_strong=recdb.lock();
 
     snde_debug(SNDE_DC_VIEWER,"QTRecViewer executing update_rec_list()");
@@ -437,48 +445,61 @@ namespace snde {
 
     snde_debug(SNDE_DC_VIEWER,"QTRecViewer update_rec_list() emitting NewGlobalRev()");
     emit NewGlobalRev();
+
+    SNDE_RestorePythonGIL
     
   }
   
   void QTRecViewer::deselect_other_selectors(QTRecSelector *Selected)
   {
+    SNDE_DropPythonGIL
     for (auto & name_sel : Selectors) {
       if (name_sel.second != Selected) {
 	name_sel.second->setselected(false);
       }
     }
+    SNDE_RestorePythonGIL
   }
 
 
   snde_orientation3 QTRecViewer::get_camera_pose(std::string channelpath)
   {
+    SNDE_DropPythonGIL
     return OSGWidget->get_camera_pose(channelpath);
+    SNDE_RestorePythonGIL
   }
 
   void QTRecViewer::set_camera_pose(std::string channelpath,const snde_orientation3 &newpose)
   {
+    SNDE_DropPythonGIL
     OSGWidget->set_camera_pose(channelpath,newpose);
 
 
     emit NeedRedraw();
+    SNDE_RestorePythonGIL
   }
 
   snde_coord QTRecViewer::get_rotation_center_dist(std::string channelpath)
   {
+    SNDE_DropPythonGIL
     return OSGWidget->get_rotation_center_dist(channelpath);
+    SNDE_RestorePythonGIL
   }
 
   void QTRecViewer::set_rotation_center_dist(std::string channelpath,snde_coord newcenterdist)
   {
+    SNDE_DropPythonGIL
     OSGWidget->set_rotation_center_dist(channelpath,newcenterdist);
 
 
     emit NeedRedraw();
+    SNDE_RestorePythonGIL
   }
 
   
   void QTRecViewer::UpdateViewerStatus()
   {
+    SNDE_DropPythonGIL
     double horizscale;
     bool horizpixelflag;
     std::string statusline="";
@@ -844,11 +865,14 @@ namespace snde {
     }
     
     ViewerStatus->setText(QString::fromStdString(statusline));
+
+    SNDE_RestorePythonGIL
       
   }
 
   void QTRecViewer::SelectorClicked(bool checked)
   {
+    SNDE_DropPythonGIL
     //fprintf(stderr,"SelectorClicked()\n");
     QObject *obj = sender();      
     for (auto & name_selector: Selectors) {
@@ -866,12 +890,13 @@ namespace snde {
       }
     }
     
-    
+    SNDE_RestorePythonGIL
   }
   
 
   void QTRecViewer::Darken(bool checked)
   {
+    SNDE_DropPythonGIL
     if (posmgr->selected_channel) {
       
       int render_mode;
@@ -896,12 +921,15 @@ namespace snde {
 	emit NeedRedraw();
       }
     }
+
+    SNDE_RestorePythonGIL
   }
   
   
 
   void QTRecViewer::ResetIntensity(bool checked)
   {
+    SNDE_DropPythonGIL
     if (posmgr->selected_channel) {
       
       
@@ -925,12 +953,13 @@ namespace snde {
       }
     }
       
-    
+    SNDE_RestorePythonGIL
   }
 
 
   void QTRecViewer::SetOffsetToMean(bool checked)
   {
+    SNDE_DropPythonGIL
 	  if (posmgr->selected_channel) {
 
 
@@ -1002,12 +1031,13 @@ namespace snde {
 		  }
 	  }
 
-
+    SNDE_RestorePythonGIL
   }
 
   
   void QTRecViewer::Brighten(bool checked)
   {
+    SNDE_DropPythonGIL
     if (posmgr->selected_channel) {
       int render_mode;
       {
@@ -1029,11 +1059,13 @@ namespace snde {
 	emit NeedRedraw();
       }
     }
-    
+    SNDE_RestorePythonGIL
   }
   
 
   float QTRecViewer::GetChannelContrast(std::string channelpath) {
+    SNDE_DropPythonGIL
+
 	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(channelpath);
 	  if (!displaychan) {
 		  throw snde_error("QTRecViewer::GetChannelContrast -- Channel %s not found", channelpath.c_str());
@@ -1044,9 +1076,11 @@ namespace snde {
 		  retval = displaychan->Scale;
 	  }
 	  return retval;
+    SNDE_RestorePythonGIL
   }
 
   void QTRecViewer::SetChannelContrast(std::string channelpath, float contrast) {
+    SNDE_DropPythonGIL
 	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(channelpath);
 	  if (!displaychan) {
 		  throw snde_error("QTRecViewer::GetChannelContrast -- Channel %s not found", channelpath.c_str());
@@ -1057,10 +1091,12 @@ namespace snde {
 	  }
 	  UpdateViewerStatus();
 	  emit NeedRedraw();
+    SNDE_RestorePythonGIL
   }
 
 
   float QTRecViewer::GetChannelBrightness(std::string channelpath) {
+    SNDE_DropPythonGIL
 	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(channelpath);
 	  if (!displaychan) {
 		  throw snde_error("QTRecViewer::GetChannelBrightness -- Channel %s not found", channelpath.c_str());
@@ -1071,27 +1107,33 @@ namespace snde {
 		  retval = displaychan->Offset;
 	  }
 	  return retval;
+	  SNDE_RestorePythonGIL
   }
 
   void QTRecViewer::EnableChannel(std::string channelpath) {
+    SNDE_DropPythonGIL
 	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(channelpath);
 	  if (!displaychan) {
 		  throw snde_error("QTRecViewer::EnableChannel -- Channel %s not found", channelpath.c_str());
 	  }
 	  displaychan->set_enabled(true);
 	  emit NeedRedraw();
+	  SNDE_RestorePythonGIL
   }
 
   void QTRecViewer::DisableChannel(std::string channelpath) {
+    SNDE_DropPythonGIL
 	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(channelpath);
 	  if (!displaychan) {
 		  throw snde_error("QTRecViewer::EnableChannel -- Channel %s not found", channelpath.c_str());
 	  }
 	  displaychan->set_enabled(false);
 	  emit NeedRedraw();
+	  SNDE_RestorePythonGIL
   }
 
   void QTRecViewer::SetChannelBrightness(std::string channelpath, float brightness) {
+    SNDE_DropPythonGIL
 	  std::shared_ptr<display_channel> displaychan = FindDisplayChan(channelpath);
 	  if (!displaychan) {
 		  throw snde_error("QTRecViewer::GetChannelBrightness -- Channel %s not found", channelpath.c_str());
@@ -1102,11 +1144,13 @@ namespace snde {
 	  }
 	  UpdateViewerStatus();
 	  emit NeedRedraw();
+	  SNDE_RestorePythonGIL
   }
 
 
   void QTRecViewer::LessContrast(bool checked)
   {
+    SNDE_DropPythonGIL
     if (posmgr->selected_channel) {
 
       int render_mode;
@@ -1164,11 +1208,12 @@ namespace snde {
 	emit NeedRedraw();
       }
     }
-    
+    SNDE_RestorePythonGIL
   }
 
   void QTRecViewer::RotateColormap(bool checked)
   {
+    SNDE_DropPythonGIL
     if (posmgr->selected_channel) {
       std::lock_guard<std::mutex> selchan_admin(posmgr->selected_channel->admin);
       posmgr->selected_channel->ColorMap++;
@@ -1178,10 +1223,12 @@ namespace snde {
     }
     
     emit NeedRedraw();
+    SNDE_RestorePythonGIL
   }
 
   void QTRecViewer::NextFrame(bool checked) 
   {
+    SNDE_DropPythonGIL
 	  if (posmgr->selected_channel) {
 		  {
 			  std::lock_guard<std::mutex> selchan_admin(posmgr->selected_channel->admin);
@@ -1190,10 +1237,12 @@ namespace snde {
 		  UpdateViewerStatus();
 		  emit NeedRedraw();
 	  }
+    SNDE_RestorePythonGIL
   }
 
   void QTRecViewer::PreviousFrame(bool checked)
   {
+    SNDE_DropPythonGIL
 	  if (posmgr->selected_channel) {
 		  {
 			  std::lock_guard<std::mutex> selchan_admin(posmgr->selected_channel->admin);
@@ -1204,10 +1253,12 @@ namespace snde {
 		  UpdateViewerStatus();
 		  emit NeedRedraw();
 	  }
+    SNDE_RestorePythonGIL
   }
   
   void QTRecViewer::MoreContrast(bool checked)
   {
+    SNDE_DropPythonGIL
     if (posmgr->selected_channel) {
 
       int render_mode;
@@ -1256,6 +1307,7 @@ namespace snde {
 	emit NeedRedraw();
       }
     }
+    SNDE_RestorePythonGIL
   }
 
 
