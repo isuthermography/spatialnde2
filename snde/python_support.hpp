@@ -75,14 +75,12 @@ namespace snde {
 
     DropPythonGIL() : _state(nullptr) {
       if (Py_IsInitialized() && PyGILState_Check()) {
-	fprintf(stderr, "Dropping GIL\n");
 	_state = PyEval_SaveThread();
       }
     }
 
     virtual ~DropPythonGIL() {
       if (_state) {
-	fprintf(stderr, "Reacquiring GIL\n");
 	PyEval_RestoreThread(_state);
       }
     }
