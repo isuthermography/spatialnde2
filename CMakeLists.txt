@@ -26,7 +26,6 @@ set(SNDE_DOUBLEPREC_COORDS OFF CACHE BOOL "Use double precision for geometric co
 # Enable Python Integration with SpatialNDE2 Core Library Functions
 # This adds a Python library dependency to the spatialnde2 libraries
 set(SNDE_PYTHON_SUPPORT_ENABLED ON CACHE BOOL "Enable python support in SpatialNDE2 libraries to allow dropping of GIL at critical points")
-set(SNDE_PYTHON_SUPPORT_PRINT_FUNCTION_CALLS ON CACHE BOOL "Print debug statements when GIL is dropped by Python support in SpatialNDE2 libraries")
 
 # There is no realloc functionality on win32.  We could implement code that would replicate the capability
 # however, this would create an inconsistency with existing pointers that are floating around elsewhere out of the
@@ -85,9 +84,6 @@ ENDIF()
 
 IF(SNDE_PYTHON_SUPPORT_ENABLED)
   set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_PYTHON_SUPPORT_ENABLED ) 
-  IF(SNDE_PYTHON_SUPPORT_PRINT_FUNCTION_CALLS)
-    set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_PYTHON_SUPPORT_PRINT_FUNCTION_CALLS ) 
-  ENDIF(SNDE_PYTHON_SUPPORT_PRINT_FUNCTION_CALLS)
 ENDIF()
 
 set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_WIN32_SHMEM_SIZE=${SNDE_WIN32_SHMEM_SIZE})

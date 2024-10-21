@@ -20,7 +20,7 @@ namespace snde {
     selected(false),
     reccolor(reccolor)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     setFrameShadow(QFrame::Shadow::Raised);
     setFrameShape(QFrame::Shape::Box);
     setLineWidth(1);
@@ -40,13 +40,13 @@ namespace snde {
     
     //setcolor(reccolor);
     setselected(selected);
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
   
   void QTRecSelector::setcolor(RecColor newcolor)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     float Rscaled=snde_round_to_uchar(newcolor.R*255.0);
     float Gscaled=snde_round_to_uchar(newcolor.G*255.0);
     float Bscaled=snde_round_to_uchar(newcolor.B*255.0);
@@ -64,14 +64,14 @@ namespace snde {
     setStyleSheet(QString::fromStdString("QRadioButton { color:"+CSScolor+"; }\n" + "QFrame { border: 2px solid " + BorderColor + "; }\n"));
     
     reccolor=newcolor;
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
 
 
   void QTRecSelector::setselected(bool newselected)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     selected=newselected;
     if (selected) {
       setPalette(selectedpalette);
@@ -80,12 +80,12 @@ namespace snde {
       setPalette(basepalette);
     }
     setcolor(reccolor);
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
   bool QTRecSelector::eventFilter(QObject *object,QEvent *event)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     if (event->type()==QEvent::FocusIn) {
       //fprintf(stderr,"FocusIn\n");
 
@@ -221,7 +221,7 @@ namespace snde {
 
     
     return QFrame::eventFilter(object,event);
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
 
@@ -353,7 +353,7 @@ namespace snde {
     //VertZoomOutButton(VertZoomOutButton)
     Parent_Viewer(Parent_Viewer)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     power=100.0;
     nsteps=100;
     nzoomsteps=43; // should be multiple of 6+1, e.g. 2*3*7=42, add 1 -> 43
@@ -366,13 +366,13 @@ namespace snde {
     
     VertZoom->setRange(0,nzoomsteps-1);
     HorizZoom->setRange(0,nzoomsteps-1);
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
   
   std::tuple<double,bool> qtrec_position_manager::GetHorizScale()
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     double horizscale = 2.0/display->horizontal_divisions;
     bool horizpixelflag=false;
     bool success=false;
@@ -390,12 +390,12 @@ namespace snde {
     }
     
     return std::make_tuple(horizscale,horizpixelflag);
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
   std::tuple<double,bool> qtrec_position_manager::GetVertScale()
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     double vertscale=0.0;
     bool success=false;
     bool vertpixelflag=false;
@@ -417,7 +417,7 @@ namespace snde {
     
     
     return std::make_tuple(vertscale,vertpixelflag);
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
 
@@ -425,7 +425,7 @@ namespace snde {
 
   void qtrec_position_manager::SetHorizScale(double horizscale,bool horizpixelflag)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     snde_debug(SNDE_DC_VIEWER,"SetHorizScale %.2g",horizscale);
     assert(horizscale > 0.0);
     if (selected_channel) {
@@ -441,12 +441,12 @@ namespace snde {
       }
       //selected_channel->mark_as_dirty();
     }
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
   void qtrec_position_manager::SetVertScale(double vertscale,bool vertpixelflag)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     snde_debug(SNDE_DC_VIEWER,"SetVertScale()");
     if (selected_channel) {
       snde_debug(SNDE_DC_VIEWER,"SetVertScale(); selected_channel");
@@ -457,13 +457,13 @@ namespace snde {
 
       }
     }
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
 
   double qtrec_position_manager::GetScaleFromZoomPos(int zoompos,bool pixelflag)     
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     // see comment under definition of nzoomsteps for step definition
     double scale;
     int forwardzoompos = nzoomsteps-1 - zoompos; // regular zoompos is REVERSED so higher numbers mean fewer unitsperdiv... this one is FORWARD so higher numbers mean more unitsperdiv
@@ -479,13 +479,13 @@ namespace snde {
     
     
     return scale;
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
 
   int qtrec_position_manager::GetZoomPosFromScale(double scale, bool pixelflag)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     // see comment under definition of nzoomsteps for step definition
     //double unitsperdiv = scale; // a->unit->scale;
     //if (pixelflag) { // a->unit->pixelflag
@@ -529,14 +529,14 @@ namespace snde {
       retval = 0;
     }
     return retval;
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
 
 
   std::tuple<double,double,double> qtrec_position_manager::GetHorizEdges()
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     double LeftEdge = -1.0;
     double RightEdge = 1.0;
     double horizunitsperdiv = (RightEdge-LeftEdge)/display->horizontal_divisions;
@@ -564,13 +564,13 @@ namespace snde {
       
     }
     return std::make_tuple(LeftEdge,RightEdge,horizunitsperdiv);
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
 
   std::tuple<double,double,double> qtrec_position_manager::GetVertEdges()
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     double BottomEdge = -1.0;
     double TopEdge = 1.0;
     double vertunitsperdiv = (TopEdge-BottomEdge)/display->horizontal_divisions;
@@ -596,13 +596,13 @@ namespace snde {
       }
     }
     return std::make_tuple(BottomEdge,TopEdge,vertunitsperdiv);
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
 
   void qtrec_position_manager::trigger()
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     double LeftEdgeRec,RightEdgeRec,horizunitsperdiv;
     double BottomEdgeRec,TopEdgeRec,vertunitsperdiv;
     
@@ -677,21 +677,21 @@ namespace snde {
     
     snde_debug(SNDE_DC_VIEWER,"Emitting Newposition()");
     emit NewPosition();
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
   void qtrec_position_manager::set_selected(std::shared_ptr<display_channel> chan)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     selected_channel=chan;
     
     trigger();
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
   void qtrec_position_manager::HorizSliderActionTriggered(int action)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     //double HorizPosn = HorizSlider->sliderPosition()-(nsteps-1)/2.0;
     double HorizPosn = (nsteps-1)/2.0 - HorizSlider->sliderPosition();
     
@@ -836,12 +836,12 @@ namespace snde {
     //fprintf(stderr,"HorizCenterCoord=%f\n",a->CenterCoord);
     //}
     trigger();
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
   void qtrec_position_manager::VertSliderActionTriggered(int action)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     double VertPosn = VertSlider->sliderPosition() - (nsteps-1)/2.0;
     
     double CenterCoord=0.0;
@@ -945,13 +945,13 @@ namespace snde {
     }
     //selected_channel->mark_as_dirty();
     trigger();
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
     
   }
 
   void qtrec_position_manager::HorizZoomActionTriggered(int action)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     double horizscale;
     bool horizpixelflag;
     std::tie(horizscale,horizpixelflag) = GetHorizScale();
@@ -1003,14 +1003,14 @@ namespace snde {
       break;
     }
     trigger();
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
 
 
   void qtrec_position_manager::VertZoomActionTriggered(int action)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     double vertscale;
     bool vertpixelflag;
     std::tie(vertscale,vertpixelflag) = GetVertScale();
@@ -1063,28 +1063,28 @@ namespace snde {
       break;
     }
     trigger();
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
   void qtrec_position_manager::VertZoomIn(bool)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     //fprintf(stderr,"VertZoomIn()\n");
     VertZoomActionTriggered(QAbstractSlider::SliderSingleStepAdd);      
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
   void qtrec_position_manager::VertZoomOut(bool)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     VertZoomActionTriggered(QAbstractSlider::SliderSingleStepSub);      
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
 
   void qtrec_position_manager::HorizZoomIn(bool)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     snde_debug(SNDE_DC_VIEWER,"HorizZoomIn()");
     HorizZoomActionTriggered(QAbstractSlider::SliderSingleStepAdd);
 
@@ -1095,13 +1095,13 @@ namespace snde {
 	render_mode = selected_channel->render_mode;
       }
     }
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
 
   void qtrec_position_manager::HorizZoomOut(bool)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     HorizZoomActionTriggered(QAbstractSlider::SliderSingleStepSub);      
     if (selected_channel) {
       int render_mode;
@@ -1122,7 +1122,7 @@ namespace snde {
 	
       }
     }
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
 

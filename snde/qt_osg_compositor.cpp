@@ -22,25 +22,25 @@ namespace snde {
   
   void qt_osg_worker_thread::run()
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     set_thread_name(nullptr,"snde2 qt_osg worker");
 
     comp->worker_code();
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
   void qt_osg_worker_thread::emit_need_update()
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     emit compositor_need_update();
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
 
   
   static bool confirm_threaded_opengl(bool enable_threaded_opengl)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     bool platform_support = QOpenGLContext::supportsThreadedOpenGL();
 
     if (enable_threaded_opengl && !platform_support) {
@@ -49,7 +49,7 @@ namespace snde {
     }
 
     return enable_threaded_opengl;
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
   qt_osg_compositor::qt_osg_compositor(std::shared_ptr<recdatabase> recdb,
@@ -66,7 +66,7 @@ namespace snde {
     qt_worker_thread(nullptr),
     Parent_QTRViewer(QPointer<QTRecViewer>(Parent_QTRViewer))
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     Viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded);
     Viewer->getCamera()->setViewport(new osg::Viewport(0,0,width(),height()));
     Viewer->getCamera()->setGraphicsContext(GraphicsWindow);
@@ -78,23 +78,23 @@ namespace snde {
     setAttribute(Qt::WA_AcceptTouchEvents,true);
 
     //QObject::connect(AnimTimer,SIGNAL(timeout()),this,SLOT(update()));
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
   qt_osg_compositor::~qt_osg_compositor()
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     // call stop before any other destruction happens so that our objects are still valid
     stop();
 
     // our superclass will call stop() again but it won't matter because the above call
     // will have already dealt with everything. 
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
   void qt_osg_compositor::trigger_rerender()
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     // perform OSG event traversal prior to rendering so as to be able to process
     // mouse events, etc. BEFORE compositing
     snde_debug(SNDE_DC_RENDERING,"trigger_rerender()");
@@ -106,12 +106,12 @@ namespace snde {
       // if not threaded, we need a paint callback
       update();
     }
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
   void qt_osg_compositor::initializeGL()
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     // called once our context is created by QT and after any
     // reparenting (which would trigger a new context)
 
@@ -142,13 +142,13 @@ namespace snde {
     //  RenderContext->moveToThread(qt_worker_thread);
     //  DummyOffscreenSurface->moveToThread(qt_worker_thread);
     //}
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
 
   void qt_osg_compositor::worker_code()
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     {
       std::unique_lock<std::mutex> adminlock(admin);
       worker_thread_id = std::make_shared<std::thread::id>(std::this_thread::get_id());
@@ -180,13 +180,13 @@ namespace snde {
       
       execution_notify.notify_all(); // notify parent we have set the worker id
     }
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
   
   void qt_osg_compositor::_start_worker_thread(std::unique_lock<std::mutex> *adminlock)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     // start worker thread as a QThread instead of std::thread
     if (threaded) {
       //qt_worker_thread = QThread::create([ this ]() { this->worker_code(); });
@@ -219,12 +219,12 @@ namespace snde {
     
     threads_started=true; 
     // Note: worker_thread will still be waiting for us to setup the thread_responsibilities
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
   void qt_osg_compositor::_join_worker_thread()
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     if (threaded && threads_started) {
       // worker thread clearing its ID is our handshake that it is finished.
       
@@ -242,13 +242,13 @@ namespace snde {
     
     threads_started=false;
     worker_thread_id=nullptr; 
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
 
   }
 
   void qt_osg_compositor::perform_ondemand_calcs(std::unique_lock<std::mutex> *adminlock)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     // wrap osg_compositor::perform_ondemand_calcs so that after layer
     // ondemand calcs are done we will rerender.
 
@@ -261,12 +261,12 @@ namespace snde {
     //if (threaded && !enable_threaded_opengl) {
     //  qt_worker_thread->emit_need_update();
     //}
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
   void qt_osg_compositor::perform_layer_rendering(std::unique_lock<std::mutex> *adminlock)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     // wrap osg_compositor::perform_layer_rendering so that after layer
     // rendering is done we will repaint.
 
@@ -293,13 +293,13 @@ namespace snde {
       // can do compositing next.
       //qt_worker_thread->emit_need_update();
     }
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
 
   void qt_osg_compositor::perform_compositing(std::unique_lock<std::mutex> *adminlock)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     
     osg_compositor::perform_compositing(adminlock);
 
@@ -332,22 +332,22 @@ namespace snde {
     }
 
     */
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
 
   void qt_osg_compositor::wake_up_ondemand_locked(std::unique_lock<std::mutex> *adminlock)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     if (threaded) {
       execution_notify.notify_all();
     }
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
   void qt_osg_compositor::wake_up_renderer_locked(std::unique_lock<std::mutex> *adminlock)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     if (threaded && enable_threaded_opengl) {
       execution_notify.notify_all();
     } else if (threaded && !enable_threaded_opengl) {
@@ -362,13 +362,13 @@ namespace snde {
       adminlock->lock();
 
     }
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
 
   }
 
   void qt_osg_compositor::wake_up_compositor_locked(std::unique_lock<std::mutex> *adminlock)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     adminlock->unlock();
 
     // Need GUI update
@@ -378,25 +378,25 @@ namespace snde {
       //emit update(); // (commented out because if we are the GUI thread then we are already awake!)
     }
     adminlock->lock();
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
   void qt_osg_compositor::clean_up_renderer_locked(std::unique_lock<std::mutex> *adminlock)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     osg_compositor::clean_up_renderer_locked(adminlock);
 
     if (threaded && enable_threaded_opengl) {
       delete RenderContext; // OK because it's not owned by another QObject
       delete DummyOffscreenSurface; // OK because it's not owned by another QObject
     }
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
   
   void qt_osg_compositor::paintGL()
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     // mark that at minimum we need a recomposite
     snde_debug(SNDE_DC_RENDERING,"paintGL()");
     {
@@ -412,12 +412,12 @@ namespace snde {
     // execute up to one full rendering pass but don't allow waiting in the QT main thread main loop
     dispatch(true,false,false);
     snde_debug(SNDE_DC_RENDERING,"paintGL() returning.");
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
   void qt_osg_compositor::resizeGL(int width, int height)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     // ***!!!! BUG: compositor gets its size through resize_width and
     // resize_height after a proper resize operation here,
     // but display_requirements.cpp pulls from
@@ -433,7 +433,7 @@ namespace snde {
     resize_compositor(width*devicePixelRatio(),height*devicePixelRatio());
     
     trigger_rerender();
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
 
@@ -441,7 +441,7 @@ namespace snde {
 
   void qt_osg_compositor::mouseMoveEvent(QMouseEvent *event)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     // translate Qt mouseMoveEvent to OpenSceneGraph
     snde_debug(SNDE_DC_EVENT,"Generating mousemotion");
     GraphicsWindow->getEventQueue()->mouseMotion(event->x()*devicePixelRatio(), event->y()*devicePixelRatio()); //,event->timestamp()/1000.0);
@@ -455,12 +455,12 @@ namespace snde {
     if (event->buttons()) {
       trigger_rerender();
     }
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
   void qt_osg_compositor::mousePressEvent(QMouseEvent *event)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     int button;
     switch(event->button()) {
     case Qt::LeftButton:
@@ -491,12 +491,12 @@ namespace snde {
     // would do e.g.
     //GraphicsWindow->getEventQueue()->mouseButtonPress(event->x(),event->y(),button#)
     // Would also want to forward mouseButtonRelease() 
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
   void qt_osg_compositor::mouseReleaseEvent(QMouseEvent *event)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     int button;
     switch(event->button()) {
     case Qt::LeftButton:
@@ -526,25 +526,25 @@ namespace snde {
       // would do e.g.
       //GraphicsWindow->getEventQueue()->mouseButtonPress(event->x(),event->y(),button#)
       // Would also want to forward mouseButtonRelease() 
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
   void qt_osg_compositor::wheelEvent(QWheelEvent *event)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     GraphicsWindow->getEventQueue()->mouseScroll( (event->angleDelta().y() > 0) ?
 						  osgGA::GUIEventAdapter::SCROLL_UP :
 						  osgGA::GUIEventAdapter::SCROLL_DOWN);
     //event->timestamp()/1000.0);
     trigger_rerender();
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
     
   }
   
   
   bool qt_osg_compositor::event(QEvent *event)
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     if (event->type()==QEvent::TouchBegin || event->type()==QEvent::TouchUpdate || event->type()==QEvent::TouchEnd) {
       QList<QTouchEvent::TouchPoint> TouchPoints = static_cast<QTouchEvent *>(event)->touchPoints();
       
@@ -571,7 +571,7 @@ namespace snde {
       
       return QOpenGLWidget::event(event);
     }
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
   
@@ -588,23 +588,23 @@ namespace snde {
   void qt_osg_compositor::rerender()
   // QT slot indicating that rerendering is needed
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     snde_debug(SNDE_DC_RENDERING,"qt_osg_compositor: Got rerender");
     trigger_rerender();
 
     if (!threaded) {
       emit update(); // in non-threaded mode we have to go into paintGL() to initiate the update (otherwise sub-thread will take care of it for us)
     }
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
   
   void qt_osg_compositor::update()
   // QT slot indicating that we should do a display update, i.e. a re-composite
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     snde_debug(SNDE_DC_RENDERING,"qt_osg_compositor::update()");
     QOpenGLWidget::update(); // re-composite done inside paintGL();
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
   }
 
 
@@ -631,7 +631,7 @@ namespace snde {
   // by QSharedPointer with deleteLater() as its deleter and we are only calling a custom method that
   // is thread-safe. 
   {
-    SNDE_DropPythonGIL
+    SNDE_BeginDropPythonGILBlock
     snde_orientation3 retval;
 
     snde_invalid_orientation3(&retval);
@@ -784,7 +784,7 @@ namespace snde {
     // Therefore retval = channel_to_reorient_campose * follower_channel_campose * (follower channel object coords)/(ctt channel object coords)?
 
     // channel_to_reorient_campose / follower_channel_campose = (ctt channel object coords)/(ctt channel camera coords) * (follower channel camera coords) / (follower channel object coords) = (ctt channel object coords)/(follower channel object coords) * (follower channel camera coords)/(ctt channel camera coords)
-    SNDE_RestorePythonGIL
+    SNDE_EndDropPythonGILBlock
 
   }
 
