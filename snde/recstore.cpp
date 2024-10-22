@@ -3613,7 +3613,9 @@ namespace snde {
 	recdb_strong->current_transaction = nullptr; 
 	assert(!transaction_ended);
 	transaction_ended=true;
-	transaction_lock_holder.unlock();
+	std::unique_lock<movable_mutex> tr_lock_release;
+	transaction_lock_holder.swap(tr_lock_release);
+	tr_lock_release.unlock();
       }
     }
 
