@@ -18,6 +18,8 @@
 #include <stdexcept>
 #include <cstring>
 #include <cstdarg>
+#include <ctime>
+#include <iomanip>
 
 #include <map>
 #include <cstdio>
@@ -290,7 +292,11 @@ namespace snde {
   void snde_warning(std::string fmt, Args && ... args)
   {
     std::string warnstr = ssprintf(fmt,std::forward<Args>(args) ...);
-    fprintf(stderr,"SNDE WARNING: %s\n",warnstr.c_str());
+    std::time_t time_now = std::time(nullptr);
+    std::tm* tm = std::localtime(&time_now);
+    char timebuf[80];
+    strftime(timebuf, sizeof(timebuf), "%Y-%M-%d %H:%M:%S", tm);
+    fprintf(stderr,"[%s] SNDE WARNING: %s\n", timebuf ,warnstr.c_str());
   }
 
   SNDE_API extern unsigned initial_debugflags;
@@ -303,7 +309,11 @@ namespace snde {
     
     if (dbgclass & current_debugflags()) {
       std::string warnstr = ssprintf(fmt,std::forward<Args>(args) ...);
-      fprintf(stderr,"SNDE DEBUG: %s\n",warnstr.c_str());
+      std::time_t time_now = std::time(nullptr);
+      std::tm* tm = std::localtime(&time_now);
+      char timebuf[80];
+      strftime(timebuf, sizeof(timebuf), "%Y-%M-%d %H:%M:%S", tm);
+      fprintf(stderr,"[%s] SNDE DEBUG: %s\n", timebuf, warnstr.c_str());
     }
   }
     // defines for dbgclass/current_debugflags
