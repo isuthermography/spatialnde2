@@ -44,6 +44,15 @@ typedef unsigned long long uint64_t;
   }
 }
 
+%exception {
+  try {
+    $action
+  } catch (const std::exception &serr) {
+    PyErr_SetString(PyExc_RuntimeError,serr.what());
+    SWIG_fail;
+  }
+}
+
 
 
 // Perform includes
