@@ -40,6 +40,7 @@ namespace snde {
     debugflags |= check_debugflag(SNDE_DC_X3D,"SNDE_DC_X3D");
     debugflags |= check_debugflag(SNDE_DC_OPENCL,"SNDE_DC_OPENCL");
     debugflags |= check_debugflag(SNDE_DC_OPENCL_COMPILATION,"SNDE_DC_OPENCL_COMPILATION");
+    debugflags |= check_debugflag(SNDE_DC_PYTHON_SUPPORT, "SNDE_DC_PYTHON_SUPPORT");
     debugflags |= check_debugflag(SNDE_DC_ALL,"SNDE_DC_ALL");
 
     return debugflags;

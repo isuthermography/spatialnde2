@@ -51,8 +51,8 @@ namespace snde {
     QTRecViewer & operator=(const QTRecViewer &) = delete;
     virtual ~QTRecViewer();
     
-    std::shared_ptr<display_channel> FindDisplayChan(std::string channame);
-    std::shared_ptr<display_channel> FindDisplayChan(QTRecSelector *Selector);
+    //std::shared_ptr<display_channel> FindDisplayChan(std::string channame);
+    //std::shared_ptr<display_channel> FindDisplayChan(QTRecSelector *Selector);
     
     void set_selected(QTRecSelector *Selector);
     void set_selected(std::string channame);
