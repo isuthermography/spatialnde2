@@ -14,7 +14,7 @@
 There is a potential for deadlocks when intermixing C++ code that could be called by Qt.  Some Python Qt bindings do not 
 necessarily explicitly release the GIL.  This code provides an optional capability built on an RAII model that behaves 
 similarly to Py_BEGIN_ALLOW_THREADS and Py_END_ALLOW_THREADS macros.  For any function in which we should explicitly drop 
-the GIL, simply add an SNDE_BeginDropPythonGILBlock to the beginning of the function and a SNDE_EndDropPythonGILBlock to the end.  
+the GIL, simply add a SNDE_BeginDropPythonGILBlock to the beginning of the function and a SNDE_EndDropPythonGILBlock to the end.  
 These macros do include curly braces to ensure the GIL state is restored before the function returns.  They will do 
 nothing if the SNDE_PYTHON_SUPPORT_ENABLED flag is not set or if the thread has not already called Py_Initialize.
 */
@@ -64,7 +64,6 @@ namespace snde {
 
 #define SNDE_BeginDropPythonGILBlock
 #define SNDE_EndDropPythonGILBlock
-
 
 #endif // SNDE_PYTHON_SUPPORT_ENABLED
 

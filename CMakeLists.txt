@@ -25,7 +25,7 @@ set(SNDE_DOUBLEPREC_COORDS OFF CACHE BOOL "Use double precision for geometric co
 
 # Enable Python Integration with SpatialNDE2 Core Library Functions
 # This adds a Python library dependency to the spatialnde2 libraries
-set(SNDE_PYTHON_SUPPORT_ENABLED ON CACHE BOOL "Enable python support in SpatialNDE2 libraries to allow dropping of GIL at critical points")
+set(SNDE_PYTHON_SUPPORT_ENABLED ON CACHE BOOL "Enable python support in SpatialNDE2 libraries -- builds SWIG bindings and includes support functions for dropping the GIL in Qt code")
 
 # There is no realloc functionality on win32.  We could implement code that would replicate the capability
 # however, this would create an inconsistency with existing pointers that are floating around elsewhere out of the
@@ -80,10 +80,6 @@ ENDIF()
 
 IF(SNDE_DOUBLEPREC_COORDS)
   set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_DOUBLEPREC_COORDS ) 
-ENDIF()
-
-IF(SNDE_PYTHON_SUPPORT_ENABLED)
-  set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_PYTHON_SUPPORT_ENABLED ) 
 ENDIF()
 
 set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_WIN32_SHMEM_SIZE=${SNDE_WIN32_SHMEM_SIZE})
@@ -207,22 +203,30 @@ find_package(Threads REQUIRED)
 # Always first go for the python found
 # in the command path. But allow this to be
 # overridden if need be
-find_program(PYTHON_EXECUTABLE
-  NAMES python python3
-  PATHS ENV PATH
-  DOC "Python executable, defining version and ABI to use for build"
-  NO_DEFAULT_PATH )
-set(PYTHON_MANUAL_COMPONENT_SELECTION FALSE CACHE BOOL "Manually select python installation components" )
-if(PYTHON_MANUAL_COMPONENT_SELECTION)
-  set(Python3_ARTIFACTS_INTERACTIVE TRUE )
-endif()
+IF(SNDE_PYTHON_SUPPORT_ENABLED)
+    find_program(PYTHON_EXECUTABLE
+      NAMES python python3
+      PATHS ENV PATH
+      DOC "Python executable, defining version and ABI to use for build"
+      NO_DEFAULT_PATH )
+    set(PYTHON_MANUAL_COMPONENT_SELECTION FALSE CACHE BOOL "Manually select python installation components" )
+    if(PYTHON_MANUAL_COMPONENT_SELECTION)
+      set(Python3_ARTIFACTS_INTERACTIVE TRUE )
+    endif()
 
-set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
+    set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
 
-message(PYTHON_EXECUTABLE " " ${PYTHON_EXECUTABLE})
+    message(PYTHON_EXECUTABLE " " ${PYTHON_EXECUTABLE})
 
-find_package(Python3 COMPONENTS Interpreter Development)
-find_package(SWIG)
+    find_package(Python3 COMPONENTS Interpreter Development)
+    find_package(SWIG)
+
+    IF (Python3_FOUND)
+        message(STATUS "Python3: " ${Python3_VERSION})
+        set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_PYTHON_SUPPORT_ENABLED ) 
+    ENDIF (Python3_FOUND)
+ENDIF(SNDE_PYTHON_SUPPORT_ENABLED)
+
 find_package(PNG)
 set(HDF5_USE_STATIC_LIBRARIES OFF )
 find_package(HDF5 REQUIRED COMPONENTS C CXX )
@@ -273,10 +277,6 @@ ENDIF()
 
 include_directories( BEFORE . )  # So that #include "snde/..." works during the build
 include_directories( BEFORE ${CMAKE_CURRENT_BINARY_DIR}/include )  # So that #include "snde/..." works during the build for python generated headers
-
-IF (Python3_FOUND)
-    message(STATUS "Python3: " ${Python3_VERSION})
-ENDIF (Python3_FOUND)
 
 set(SPATIALNDE2_LIBS spatialnde2 ${CMAKE_THREAD_LIBS_INIT} )
 set(SPATIALNDE2_OCL_LIBS spatialnde2_ocl )
@@ -364,10 +364,7 @@ ENDIF()
 
 IF (Python3_FOUND)
     include_directories(${Python3_INCLUDE_DIRS})
-
-    IF (SNDE_PYTHON_SUPPORT_ENABLED)
-      set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} ${Python3_LIBRARIES})
-    ENDIF (SNDE_PYTHON_SUPPORT_ENABLED)
+    set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} ${Python3_LIBRARIES})
 ENDIF(Python3_FOUND)
 
 IF (OpenThreads_FOUND)
