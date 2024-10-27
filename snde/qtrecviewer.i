@@ -20,6 +20,7 @@ namespace snde {
 
 
   // see snde_qt.i for information on QObject/QWidget semantics, shiboken2/PySide2 interoperability, etc. 
+  // The following line is critical for all QWidget-derived classes.  See snde_qt.i for more info.
   snde_qwidget_inheritor(QTRecViewer); // also implicitly performs snde_qobject_inheritor() magic
 
 

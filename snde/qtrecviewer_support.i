@@ -12,6 +12,11 @@ namespace snde {
     
   class QTRecSelector;
 
+  class qtrec_position_manager;
+
+
+  // see snde_qt.i for information on QObject/QWidget semantics, shiboken2/PySide2 interoperability, etc. 
+  snde_qobject_inheritor(qtrec_position_manager); 
 
   
   class qtrec_position_manager: public QObject

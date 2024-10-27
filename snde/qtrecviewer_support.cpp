@@ -63,8 +63,8 @@ namespace snde {
     } else {
       BorderColor="gray";
     }
-    
-    setStyleSheet(QString::fromStdString("QRadioButton { color:"+CSScolor+"; }\n" + "QFrame { border: 2px solid " + BorderColor + "; }\n"));
+
+    setStyleSheet(QString::fromStdString("QRadioButton { color:" + CSScolor + "; }\n" + "QFrame { border: 2px solid " + BorderColor + "; }\n"));
     
     reccolor=newcolor;
     SNDE_EndDropPythonGILBlock
@@ -95,8 +95,9 @@ namespace snde {
 	SNDE_BeginDropPythonGILBlock
     if (event->type()==QEvent::FocusIn) {
       //fprintf(stderr,"FocusIn\n");
+      QFocusEvent* focusEvent = static_cast<QFocusEvent*>(event);
 
-      if (object==RadioButton) {
+      if (object==RadioButton && focusEvent->reason() != Qt::FocusReason::OtherFocusReason) {
 	Viewer->set_selected(this);
       }
     }
@@ -630,6 +631,14 @@ namespace snde {
   {
     {
 	SNDE_BeginDropPythonGILBlock
+
+    // TODO -- Potential Bug Issue !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    // This method should be moved into QtRecViewer proper because it manipulates
+    // QWidget objects, which needs to be done from the main thread.  It should
+    // use a signal instead and this code be in a slot of QtRecViewer.
+
+    // We should also document the thread semantics better too.
+
     double LeftEdgeRec,RightEdgeRec,horizunitsperdiv;
     double BottomEdgeRec,TopEdgeRec,vertunitsperdiv;
     

@@ -16,6 +16,14 @@
   // any base QObject and/or QWidget methods. Custom methods of QTRecViewer
   // should be SWIG-wrapped and callable directly.
 
+  // QWidget objects must be called from the main thread.  Failure to do so
+  // can result in unpredictable crashes.  The .QWidget() method is detected
+  // by dataguzzler-python QtWrapper because only QWidget-derived spatialnde2
+  // objects need to be Qt-wrapped to run in the main thread.
+
+  // THEREFORE IT IS CRITICAL TO MARK ALL QWIDGET DERIVED CLASSES WITH THE
+  // snde_qwidget_inheritor() MACRO DEFINED BELOW!
+
   // The output typemap for classes marked as snde_qobject_inheritor
   // prevents swig from taking ownership of the new object, so that QT can instead. 
 

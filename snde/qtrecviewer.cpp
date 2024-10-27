@@ -344,7 +344,7 @@ namespace snde {
     auto selector_iter = Selectors.find(channame);
     if (selector_iter != Selectors.end()) {
       auto& selector = selector_iter->second;
-      selector->RadioButton->setFocus(); // Workaround required to ensure that focus doesn't change to a radio button when the window regains focus -- this triggers a change of the selection
+      selector->RadioButton->setFocus(Qt::FocusReason::OtherFocusReason); // Workaround required to ensure that focus doesn't change to a radio button when the window regains focus -- this triggers a change of the selection
       set_selected(selector);  
     }
     else {
