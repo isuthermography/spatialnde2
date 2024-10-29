@@ -327,9 +327,24 @@ static QUATERNION_INLINE void rotmtx_build_orientation(const snde_coord4 *rotmtx
 
 static QUATERNION_INLINE int orientation_valid(const snde_orientation3 orient)
 {
-  if (isnan(orient.offset.coord[0]) || isnan(orient.quat.coord[0])) {
+  if (isnan(orient.offset.coord[0]) || isnan(orient.offset.coord[1]) || isnan(orient.offset.coord[2]) || isnan(orient.offset.coord[3]) || isnan(orient.quat.coord[0]) || isnan(orient.quat.coord[1]) || isnan(orient.quat.coord[2]) || isnan(orient.quat.coord[3])) {
     return FALSE;
   }
+  snde_coord norm;
+  
+  norm=sqrt(pow(orient.quat.coord[0],2) + pow(orient.quat.coord[1],2) + pow(orient.quat.coord[2],2)+pow(orient.quat.coord[3],2));
+  
+  if (fabs(norm-1.0) > 1e-3) {
+    // quaternion is way out of normalization
+    return FALSE;
+  }
+
+  if (fabs(orient.offset.coord[3]-1.0) > 1e-3) {
+    // last element of offset is way off 1.0
+    return FALSE;
+  }
+    
+  
   return TRUE;
 }
 
