@@ -42,8 +42,8 @@ recdb.add_math_function(transaction,projection,False)
 
 
 # Create channel with projected object 
-projection_specimen_chan = recdb.define_channel(transaction,projection_specimen_channel,"main",recdb.raw())
-snde.create_textured_part_recording(transaction,projection_specimen_chan,recdb.raw(),
+projection_specimen_chan = recdb.define_channel(transaction,projection_specimen_channel,"main")
+snde.create_textured_part_recording(transaction,projection_specimen_chan,
                                     snde.recdb_path_join(specimen_model_tree,"meshed"),snde.shared_string(snde.recdb_path_join(specimen_model_tree,"uv")),
                                     [ (0, snde.image_reference(projection_channel,0,1, [] )) ]).mark_data_and_metadata_ready()
 

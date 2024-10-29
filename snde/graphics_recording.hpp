@@ -256,7 +256,7 @@ namespace snde {
   };
 
   // convenience function for SWIG
-  std::shared_ptr<ndarray_recording_ref> create_pose_channel_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner,std::string channel_to_reorient_name);
+  std::shared_ptr<ndarray_recording_ref> create_pose_channel_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan,std::string channel_to_reorient_name);
 
   
   // This function collects the locks you need in order to traverse the scene graph and extract the orientations.

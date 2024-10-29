@@ -143,6 +143,7 @@ namespace snde {
   // forward references
   class recdatabase;
   class channel;
+  class reserved_channel;
   class multi_ndarray_recording;
   class ndarray_recording_ref;
   class globalrevision;
@@ -290,7 +291,7 @@ namespace snde {
   };
   
 
-  std::shared_ptr<recording_storage_manager> select_storage_manager_for_recording_during_transaction(std::shared_ptr<recdatabase> recdb,std::string chanpath);
+  std::shared_ptr<recording_storage_manager> select_storage_manager_for_recording_during_transaction(std::shared_ptr<recdatabase> recdb,std::shared_ptr<reserved_channel> proposed_chan,std::shared_ptr<channelconfig> proposed_config);
 
   std::shared_ptr<recording_storage_manager> select_storage_manager_for_recording(std::shared_ptr<recdatabase> recdb,std::string chanpath,std::shared_ptr<recording_set_state> rss);
 
@@ -349,6 +350,8 @@ namespace snde {
     bool needs_dynamic_metadata; // assign with recording_needs_dynamic_metadata() method
     std::shared_ptr<constructible_metadata> pending_dynamic_metadata; 
 
+    std::shared_ptr<reserved_channel> chan; //  immutable reference to the channel provided when the recording was created. Needed for assigning storage manager
+    std::shared_ptr<channelconfig> chanconfig; // current proposed channel configuration as of when this recording was created (immutable)
     std::shared_ptr<recording_storage_manager> storage_manager; // pointer initialized to a default by recording constructor, then used by the allocate_storage() method. Any assignment must be prior to that. may not be used afterward; see recording_storage in recstore_storage.hpp for details on pointed structure.
 
     // These next three items relate to the __originating__ globalrevision or recording set state
@@ -815,10 +818,10 @@ namespace snde {
 
     
     uint64_t rss_unique_index; // unique_index field that will be assigned to the recording_set_state. Immutable once published
-    std::unordered_set<std::shared_ptr<channel>> updated_channels;
+    std::multimap<std::string,std::pair<std::shared_ptr<reserved_channel>,std::shared_ptr<channelconfig>>> updated_channels;
     //Keep track of whether a new recording is required for the channel (e.g. if it has a new owner) (use false for math recordings)
     std::map<std::string,bool> new_recording_required; // index is channel name for updated channels
-    std::unordered_map<std::string,std::shared_ptr<recording_base>> new_recordings;
+    std::unordered_map<std::string,std::pair<std::shared_ptr<reserved_channel>,std::shared_ptr<recording_base>>> new_recordings; // Note: for now reserved_channel may be nullptr for a math channel (but that wouldn't be recorded here, would it?)
     std::unordered_map<std::shared_ptr<instantiated_math_function>, std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>>> math_messages;
 
     // end of transaction propagates this structure into an update of recdatabase._channels
@@ -845,7 +848,7 @@ namespace snde {
     transaction(const transaction &orig) = delete;
     virtual ~transaction();
     
-    void register_new_rec(std::shared_ptr<recording_base> new_rec);
+    void register_new_rec(std::shared_ptr<reserved_channel> chan,std::shared_ptr<recording_base> new_rec);
 
     std::shared_ptr<globalrevision> globalrev(); // Wait for the globalrev resulting from this transaction to be complete. Throws an exception if any of the non-math recordings initiated in this transaction are not complete.
     std::shared_ptr<globalrevision> globalrev_wait(); // Wait for the globalrev resulting from this transaction to be complete. Unlike globalrev() this function will not throw an exception for incomplete recordings; instead it will wait for them to be complete.
@@ -941,7 +944,7 @@ namespace snde {
     
     std::string channelpath; // Path of this channel in recording database
     std::string owner_name; // Name of owner, such as a dataguzzler_python module
-    void *owner_id; // pointer private to the owner (such as dataguzzler_python PyObject of the owner's representation of this channel) that
+    //void *owner_id; // pointer private to the owner (such as dataguzzler_python PyObject of the owner's representation of this channel) that
     // the owner can use to verify its continued ownership.
 
     bool hidden; // explicitly hidden channel
@@ -957,7 +960,7 @@ namespace snde {
     bool data_requestonly; // if the output is to be stored in the database with the metadata always calculated but the underlying data only triggered to be computed if requested or needed by another recording.
     bool data_mutable; // if the output is mutable
 
-    channelconfig(std::string channelpath, std::string owner_name, void *owner_id,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager=nullptr);
+    channelconfig(std::string channelpath, std::string owner_name,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager=nullptr);
     // rule of 3
     channelconfig& operator=(const channelconfig &) = default; 
     channelconfig(const channelconfig &orig) = default;
@@ -980,24 +983,70 @@ namespace snde {
     // Should the channel have some means to give notification of updates?
     // What thread/context should that be in and how does it relate to the end of the transaction or
     // the completion of math?
+
+    std::string channelpath; // full channel path (immutable)
     
-    std::shared_ptr<channelconfig> _config; // atomic shared pointer to immutable data structure; nullptr for a deleted channel
+      // std::shared_ptr<channelconfig> _config; // atomic shared pointer to immutable data structure; nullptr for a deleted channel
+      std::shared_ptr<reserved_channel> _realized_owner; // atomic shared pointer
     std::atomic<uint64_t> latest_revision; // 0 means "invalid"; generally 0 (or previous latest) during channel creation/undeletion; incremented to 1 (with an empty recording if necessary) after transaction end 
-    std::atomic<bool> deleted; // is the channel currently defined?
+    // std::atomic<bool> deleted; // is the channel currently defined? (replaced by owner being null)
 
     std::mutex admin; // last in the locking order except before python GIL. Used to ensure there can only be one _config update at a time. 
 
 
-    channel(std::shared_ptr<channelconfig> initial_config);
+    channel(std::string channelpath,std::shared_ptr<reserved_channel> initial_owner);
 
-    std::shared_ptr<channelconfig> config(); // Use this method to safely get the current channelconfig pointer
+    // Any config referenced here can only represent
+    // the current status that is realized (from _realize_transaction())
+    // not what may be pending in transactions. Therefore, this config()
+    // is pretty much useless and generally shouldn't be used.
+    // Need to modify transaction structure to track modified channels
+    // by the new channelconfig rather than by channel pointer.
+    // This way, the modifications get queued with the transaction
+    // and synchronized in _realize_transaction(), which is intrisically
+    // serial.
+    
+    std::shared_ptr<channelconfig> realized_config(); // Use this method to safely get the current channelconfig pointer from the most recently realized transaction
+    std::shared_ptr<reserved_channel> realized_owner(); // Use this method to safely get the current owning reserved_channel pointer from the most recently realized transaction.
 
+    
+    std::shared_ptr<reserved_channel> begin_atomic_realized_owner_update(); // channel admin lock must be locked when calling this function.
+  
+   
+      
+   
+    
+    void end_atomic_realized_owner_update(std::shared_ptr<reserved_channel> new_owner); // admin must be locked when calling this function. It accepts the modified copy of the atomically guarded data
+    
+    
+  };
+
+  class reserved_channel {
+  public:
+    // A reserved_channel represents that a channel has been defined
+    // for the purpose of storing recordings. The reserved_channel pointer
+    // will be passed when defining new recordings for the channel.
+
+    std::mutex admin; // last in the locking order except before python GIL. Used to ensure there can only be one _config update at a time.
+    
+    std::shared_ptr<channelconfig> _proposed_config; // Atomic shared pointer to current proposed configuration (latest changes). Will be nullptr if the channel is deleted.
+    std::shared_ptr<channelconfig> _realized_config; // Atomic shared pointer to current realized configuration (status as of the most recently realized transaction). Will be nullptr if the channel is deleted.
+
+
+    std::shared_ptr<channel> chan; // Immutable
+    std::shared_ptr<channelconfig> proposed_config(); //Use this method to get the most recently assigned configuration.
+    std::shared_ptr<channelconfig> realized_config(); // Use this method to safely get the current channelconfig pointer for the most recently realized transaction. Returns nullptr for a deleted channel.
+
+    // NOTE: the config may only be updated by various calls
+    // that reconfigure a channel
+    // so don't call these update methods yourself.
+    // That means this template complexity may be unnecessary.
     template<typename T>
-    std::shared_ptr<T> begin_atomic_config_update()
-    // channel admin lock must be locked when calling this function. It is a template because channelconfig can be subclassed. Call it as begin_atomic_config_update<channelconfig>() if you need to subclass It returns a new modifiable copy of the atomically guarded data
+    std::shared_ptr<T> begin_atomic_proposed_config_update()
+    // channel admin lock must be locked when calling this function. It is a template because channelconfig can be subclassed. Call it as begin_atomic_proposed_config_update<channelconfig>() if you need to subclass It returns a new modifiable copy of the atomically guarded data
     // (it returns nullptr if the existing config doesn't match T)
     {
-      std::shared_ptr<T> old_config = std::dynamic_pointer_cast<T>(std::atomic_load(&_config));
+      std::shared_ptr<T> old_config = std::dynamic_pointer_cast<T>(std::atomic_load(&_proposed_config));
       if (!old_config) {
 	return nullptr;
       }
@@ -1005,25 +1054,43 @@ namespace snde {
       return new_config;
     }
     
-    void end_atomic_config_update(std::shared_ptr<channelconfig> new_config); // admin must be locked when calling this function. It accepts the modified copy of the atomically guarded data
+    void end_atomic_proposed_config_update(std::shared_ptr<channelconfig> new_config); // admin must be locked when calling this function. It accepts the modified copy of the atomically guarded data
     
+ 
+  
+    // NOTE: the config may only be updated by realize_transaction()
+    // so don't call these update methods yourself.
+    // That means this template complexity is unnecessary.
+    template<typename T>
+    std::shared_ptr<T> begin_atomic_realized_config_update()
+    // channel admin lock must be locked when calling this function. It is a template because channelconfig can be subclassed. Call it as begin_atomic_config_update<channelconfig>() if you need to subclass It returns a new modifiable copy of the atomically guarded data
+    // (it returns nullptr if the existing config doesn't match T)
+    {
+      std::shared_ptr<T> old_config = std::dynamic_pointer_cast<T>(std::atomic_load(&_realized_config));
+      if (!old_config) {
+	return nullptr;
+      }
+      std::shared_ptr<T> new_config=std::make_shared<T>(*old_config);
+      return new_config;
+    }
+    
+    void end_atomic_realized_config_update(std::shared_ptr<channelconfig> new_config); // admin must be locked when calling this function. It accepts the modified copy of the atomically guarded data
     
   };
-
-
     
   class channel_state {
   public:
     // for atomic updates to notify_ ... atomic shared pointers, you must lock the recording_set_state's admin lock
     std::shared_ptr<channelconfig> config; // immutable
-    std::shared_ptr<channel> _channel; // immutable pointer, but pointed data is not immutable, (but you shouldn't generally need to access this)
+    std::shared_ptr<reserved_channel> chan; // immutable
+    // std::shared_ptr<channel> _channel; // immutable pointer, but pointed data is not immutable, (but you shouldn't generally need to access this)
     std::shared_ptr<recording_base> _rec; // atomic shared ptr to recording structure created to store the ouput; may be nullptr if not (yet) created. Always nullptr for ondemand recordings... recording contents may be mutable but have their own admin lock
     std::atomic<bool> updated; // this field is only valid once the creating transaction is ended and rec() returns a valid pointer and once rec()->state is READY or METADATAREADY. It is true if this particular recording has a new revision particular to the enclosing recording_set_state. For math recordings this is assigned in the create_recording_math<T> template (below). For non-math recordings it is assigned in realize_transaction(). 
     std::shared_ptr<uint64_t> _revision; // Atomic shared pointer... This is assigned when the channel_state is created from _rec->info->revision for manually created recordings. (For ondemand math recordings this is not meaningful?) For math recordings with the math_function's new_revision_optional (config->math_fcn->fcn->new_revision_optional) flag clear, this is defined during realize_transaction() before the channel_state is published. If the new_revision_optional flag is set, this left nullptr; once the math function determines whether a new recording will be instantiated the revision will be assigned when the recording is define, with ordering ensured by the implicit self-dependency implied by the new_revision_optional flag (recmath_compute_resource.cpp)
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_metadataonly; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes metadataonly; set to nullptr at end of channel becoming metadataonly. 
     std::shared_ptr<std::unordered_set<std::shared_ptr<channel_notify>>> _notify_about_this_channel_ready; // atomic shared ptr to immutable set of channel_notifies that need to be updated or perhaps triggered when this channel becomes ready; set to nullptr at end of channel becoming ready. 
 
-    channel_state(std::shared_ptr<channel> chan,std::shared_ptr<channelconfig> config,std::shared_ptr<recording_base> rec,bool updated);
+    channel_state(std::shared_ptr<reserved_channel> owner,std::shared_ptr<channelconfig> config,std::shared_ptr<recording_base> rec,bool updated);
 
     channel_state(const channel_state &orig); // copy constructor used for initializing channel_map from prototype defined in realize_transaction()
 
@@ -1170,7 +1237,7 @@ namespace snde {
     
     void _update_recstatus__rss_admin_transaction_admin_locked(); // This is called during realize_transaction() with the recdb admin lock, the rss admin lock, and the transaction admin lock held, to identify anything misplaced in the above unordered_maps. After the call and marking of the transaction's _resulting_globalrevision, placement responsibility shifts to mark_metadata_done() and mark_data_ready() methods of the recording. 
 
-    void register_new_math_rec(void *owner_id,std::shared_ptr<recording_base> new_rec); // registers newly created math recording in the given rss (and extracts mutable flag for the given channel into the recording structure)).
+    void register_new_math_rec(std::shared_ptr<recording_base> new_rec); // registers newly created math recording in the given rss (and extracts mutable flag for the given channel into the recording structure)).
     
     std::string get_math_status();
     std::string get_math_function_status(std::string definition_command);
@@ -1246,7 +1313,7 @@ namespace snde {
   public:
     std::mutex admin; // Locks access to _channels and _deleted_channels and _available_math_functions, _globalrevs, repetitive_notifies,  and monitoring. In locking order, precedes transaction_manager locks, channel admin locks, available_compute_resource_database, globalrevision admin locks, recording admin locks, and Python GIL. 
     std::map<std::string,std::shared_ptr<channel>> _channels; // Generally don't use the channel map directly. Grab the latestglobalrev and use the channel map from that. 
-    std::map<std::string,std::shared_ptr<channel>> _deleted_channels; // Channels are put here after they are deleted. They can be moved back into the main list if re-created. 
+    // std::map<std::string,std::shared_ptr<channel>> _deleted_channels; // Channels are put here after they are deleted. They can be moved back into the main list if re-created. 
     instantiated_math_database _instantiated_functions; 
     
     std::map<uint64_t,std::shared_ptr<globalrevision>> _globalrevs; // Index is global revision counter. Includes at least one globalrev that is fully ready plus any that are still udndergoing computation. The last element in this is the most recently defined globalrev.
@@ -1301,15 +1368,15 @@ namespace snde {
     std::shared_ptr<transaction> run_in_background_and_end_transaction(std::shared_ptr<active_transaction> act_trans,std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn, std::shared_ptr<void> params);
 
     // add_math_function() must be called within a transaction
-    void add_math_function(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> new_function,bool hidden); // Use separate functions with/without storage manager because swig screws up the overload
+    std::vector<std::shared_ptr<reserved_channel>> add_math_function(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> new_function,bool hidden); // Use separate functions with/without storage manager because swig screws up the overload
 
     std::shared_ptr<instantiated_math_function> lookup_math_function(std::string fullpath);
     
-    void delete_math_function(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> fcn);
+    void delete_math_function(std::shared_ptr<active_transaction> trans,std::vector<std::shared_ptr<reserved_channel>> chans,std::shared_ptr<instantiated_math_function> fcn);
 
     void send_math_message(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> func, std::string name, std::shared_ptr<math_instance_parameter> msg);
     
-    void add_math_function_storage_manager(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager);
+    std::vector<std::shared_ptr<reserved_channel>> add_math_function_storage_manager(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager);
 
     std::shared_ptr<globalrevision> latest_defined_globalrev(); // safe to call with or without recdb admin lock held
 
@@ -1318,12 +1385,12 @@ namespace snde {
     std::shared_ptr<globalrevision> get_globalrev(uint64_t revnum);
 
     // Allocate channel with a specific name; returns nullptr if the name is inuse
-    std::shared_ptr<channel> reserve_channel(std::shared_ptr<active_transaction> trans,std::shared_ptr<channelconfig> new_config); // must be called within a transaction
-    void release_channel(std::shared_ptr<active_transaction> trans,std::string channelpath, void *owner_id); // must be called within a transaction
+    std::shared_ptr<reserved_channel> reserve_channel(std::shared_ptr<active_transaction> trans,std::shared_ptr<channelconfig> new_config); // must be called within a transaction
+    void release_channel(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan); // must be called within a transaction
 
     // Define a new channel; throws an error if the channel is already in use.
     // Must be called within a transaction
-    std::shared_ptr<channel> define_channel(std::shared_ptr<active_transaction> trans,std::string channelpath, std::string owner_name, void *owner_id, bool hidden=false, std::shared_ptr<recording_storage_manager> storage_manager=nullptr);
+    std::shared_ptr<reserved_channel> define_channel(std::shared_ptr<active_transaction> trans,std::string channelpath, std::string owner_name, bool hidden=false, std::shared_ptr<recording_storage_manager> storage_manager=nullptr);
     
     //std::shared_ptr<channel> lookup_channel_live(std::string channelpath);
 
@@ -1789,7 +1856,7 @@ namespace snde {
   size_t recording_default_info_structsize(size_t param,size_t min);
   
   template <typename T,typename ... Args>
-  std::shared_ptr<T> create_recording(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,Args && ... args)
+  std::shared_ptr<T> create_recording(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan,Args && ... args)
   {
     //if (!recdb->current_transaction) {
     //  throw snde_error("create_recording() outside of a transaction!");
@@ -1797,25 +1864,22 @@ namespace snde {
 
 
 
-    std::shared_ptr<channelconfig> chanconfig = chan->config();
-    std::shared_ptr<recording_storage_manager> storage_manager = select_storage_manager_for_recording_during_transaction(trans->recdb,chanconfig->channelpath.c_str());
+    std::shared_ptr<channelconfig> chanconfig = chan->proposed_config();
+    std::shared_ptr<recording_storage_manager> storage_manager = select_storage_manager_for_recording_during_transaction(trans->recdb,chan,chanconfig);
     
     //***!!! uint64_t new_revision = ++chan->latest_revision; // atomic variable so it is safe to pre-increment
 
-    
-    
-    if (owner_id != chanconfig->owner_id) {
-      throw snde_error("create_recording() on %s with mismatched owner id (%llx vs %llx) on recording owned by %s",chanconfig->channelpath.c_str(),(unsigned long long)(uintptr_t)owner_id,(unsigned long long)(uintptr_t)chanconfig->owner_id,chanconfig->owner_name.c_str());
-    }
     
     // It is safe to use recdb->current_transaction here even with out locking because
     // the caller is responsible for making sure we are in a transaction
     // i.e. appropriate synchronization must happen before and after. 
     
     std::shared_ptr<T> new_rec = std::make_shared<T>(recording_params{trans->recdb,storage_manager,trans->trans->prerequisite_state,chanconfig->channelpath,trans->trans->our_state_reference,SNDE_REVISION_INVALID},0,args...);
+    new_rec->chan=chan;
+    new_rec->chanconfig=chanconfig;
     new_rec->originating_state_unique_id = trans->trans->rss_unique_index;
     
-    trans->trans->register_new_rec(new_rec);
+    trans->trans->register_new_rec(chan,new_rec);
     return new_rec;
   }
 
@@ -1849,6 +1913,7 @@ namespace snde {
 
     channel_state &state = calc_rss->recstatus.channel_map->at(chanpath);
     state.updated = true; // mark as updated but ONLY in the RSS of the calculation itself (not in subsequent referencing rss's)
+
     
     if (std::dynamic_pointer_cast<globalrevision>(calc_rss)) {
       // if calc_rss is really a globalrevision (i.e. not an ondemand calculation)
@@ -1858,7 +1923,21 @@ namespace snde {
 
       // if the new_revision_optional flag is set, then we have to define the new revision now;
       if (/*state.config->math_fcn->fcn->new_revision_optional && */ !state.revision()) {
-	new_revision = ++state._channel->latest_revision; // latest_revision is atomic; correct ordering guaranteed by the implicit self-dependency that comes with new_revision_optional flag -- this should even work transitively for recordings dependent on new-revision-optional recordings
+	// We no longer require the new_revision_optional flag here,
+	// but we shouldn't be creating new math recordings until
+	// the transaction has ended, at which point
+	// build_rss_from_functions_and_channels() should have
+	// instantiated any mandatory updated recordings.
+	// If we got to this code path, this is not a mandatory update,
+	// which means that our channel, or something we are
+	// dependent on, is new_revision_optional.
+
+	// !!!***There might be the possibility of revision index
+	// ordering bugs if we
+	// are dependent on a new_revision_optional math channel
+	// as well as other channels and get a mix of mandatory
+	// and optional updates. 
+	new_revision = ++state.chan->chan->latest_revision; // latest_revision is atomic; correct ordering guaranteed by the implicit self-dependency that comes with new_revision_optional flag -- this should even work transitively for recordings dependent on new-revision-optional recordings
 	state.end_atomic_revision_update(new_revision);
       } else{ 
 	// new_revision_optional is clear: grab revision from channel_state
@@ -1870,9 +1949,10 @@ namespace snde {
     std::shared_ptr<T> new_rec = std::make_shared<T>(recording_params{recdb,storage_manager,calc_rss->prerequisite_state(),chanpath,calc_rss->our_state_reference,new_revision},0,args...);
     
     new_rec->originating_state_unique_id = calc_rss->unique_index;
+    new_rec->chan=state.chan;
+    new_rec->chanconfig=state.config;
     
-    
-    calc_rss->register_new_math_rec((void*)recdb.get(),new_rec);
+    calc_rss->register_new_math_rec(new_rec);
     return new_rec;
     
   }
@@ -1881,22 +1961,22 @@ namespace snde {
   
   // for non math-functions operating in a transaction
   template <typename T>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum=rtn_typemap.at(typeid(T)))
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan,unsigned typenum=rtn_typemap.at(typeid(T)))
   {
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
-    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<multi_ndarray_recording>(trans,chan,owner_id,1);
+    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<multi_ndarray_recording>(trans,chan,1);
     new_rec->define_array(0,typenum);
     
     return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
   }
 
     template <typename T>
-    std::shared_ptr<ndtyped_recording_ref<T>> create_typed_named_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,std::string arrayname,unsigned typenum=rtn_typemap.at(typeid(T)))
+    std::shared_ptr<ndtyped_recording_ref<T>> create_typed_named_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan,std::string arrayname,unsigned typenum=rtn_typemap.at(typeid(T)))
   {
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
-    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<multi_ndarray_recording>(trans,chan,owner_id,1);
+    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<multi_ndarray_recording>(trans,chan,1);
     new_rec->define_array(0,typenum,arrayname);
     
     return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
@@ -1904,13 +1984,13 @@ namespace snde {
 
   
   template <typename S,typename T,typename ... Args>
-  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_subclass_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,Args && ... args)
+  std::shared_ptr<ndtyped_recording_ref<T>> create_typed_subclass_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan,Args && ... args)
   {
 
     unsigned typenum=rtn_typemap.at(typeid(T));
     //std::shared_ptr<multi_ndarray_recording> new_rec = std::make_shared<multi_ndarray_recording>(recdb,chan,owner_id,1);
     
-    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<S>(trans,chan,owner_id,args...);
+    std::shared_ptr<multi_ndarray_recording> new_rec = create_recording<S>(trans,chan,args...);
     new_rec->define_array(0,typenum);
     
     return std::make_shared<ndtyped_recording_ref<T>>(new_rec,typenum,0);
@@ -1999,19 +2079,19 @@ namespace snde {
   // static factory methods for creating recordings with single runtime-determined types
   // for regular (non-math) use. Automatically registers the new recording
   // ok to specify typenum as SNDE_RTM_UNASSIGNED if you don't know the final type yet. Then use assign_recording_type() method to get a new fully typed reference 
-  std::shared_ptr<ndarray_recording_ref> create_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum);
+  std::shared_ptr<ndarray_recording_ref> create_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan,unsigned typenum);
 
-  std::shared_ptr<ndarray_recording_ref> create_named_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,std::string arrayname,unsigned typenum);
+  std::shared_ptr<ndarray_recording_ref> create_named_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan,std::string arrayname,unsigned typenum);
 
   template <typename S,typename ... Args> 
-  std::shared_ptr<ndarray_recording_ref> create_subclass_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,unsigned typenum,Args && ... args)
+  std::shared_ptr<ndarray_recording_ref> create_subclass_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan,unsigned typenum,Args && ... args)
   {
     std::shared_ptr<multi_ndarray_recording> rec;
     std::shared_ptr<ndarray_recording_ref> ref;
 
     // ***!!! Should look up maker method in a runtime-addable database ***!!!
 
-    rec=create_recording<S>(trans,chan,owner_id,args...);
+    rec=create_recording<S>(trans,chan,args...);
     rec->define_array(0,typenum);
     
     ref=rec->reference_ndarray(0);

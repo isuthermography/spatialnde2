@@ -30,18 +30,18 @@ transact = recdb.start_transaction(); # Transaction RAII holder
 
 recdb.add_math_function(transact,scaled_channel_function,False)
 
-testchan_config=snde.channelconfig("/test_channel", "main", recdb,False)
+testchan_config=snde.channelconfig("/test_channel", "main",False)
   
 testchan = recdb.reserve_channel(transact,testchan_config);
 
 # demonstrate alternative ways to create the recording
 
-test_rec_32 = snde.create_ndarray_ref(transact,testchan,recdb,snde.SNDE_RTN_FLOAT32)
+test_rec_32 = snde.create_ndarray_ref(transact,testchan,snde.SNDE_RTN_FLOAT32)
 
 globalrev = transact.end_transaction().globalrev_available()
 
 transact2 = recdb.start_transaction(); # Transaction RAII holder
-test_rec_64 = snde.create_ndarray_ref(transact2,testchan,recdb,snde.SNDE_RTN_FLOAT64)
+test_rec_64 = snde.create_ndarray_ref(transact2,testchan,snde.SNDE_RTN_FLOAT64)
 globalrev2 = transact2.end_transaction().globalrev_available()
 
 

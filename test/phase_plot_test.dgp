@@ -19,7 +19,7 @@ include(snde,"recdb_gui.dpi")
 
 transact = recdb.start_transaction()	
 
-live_channel = recdb.define_channel(transact,"/live complex value","main",recdb.raw())
+live_channel = recdb.define_channel(transact,"/live complex value","main")
 
 accumulator = snde.batched_live_accumulator.instantiate( [ snde.math_parameter_recording("/live complex value"),
                                                            snde.math_parameter_unsigned_const(30),
@@ -48,7 +48,7 @@ def live_thread_code():
     while True: 
 
         transact = recdb.start_transaction()	
-        live_recording = snde.create_ndarray_ref(transact,live_channel,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
+        live_recording = snde.create_ndarray_ref(transact,live_channel,snde.SNDE_RTN_COMPLEXFLOAT32)
         metadata = snde.constructible_metadata()
         metadata.AddMetaDatum(snde.metadatum("snde_render_goal","SNDE_SRG_PHASEPLANE"))
         metadata.AddMetaDatum(snde.metadatum("snde_phase_plane_historical_fade",True))

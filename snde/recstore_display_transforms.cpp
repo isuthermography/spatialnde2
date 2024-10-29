@@ -161,7 +161,7 @@ namespace snde {
     for (auto && channame_chanstate: *globalrev_channel_map) {
       initial_channel_map.emplace(std::piecewise_construct,
 				  std::forward_as_tuple(channame_chanstate.first),
-				  std::forward_as_tuple(channame_chanstate.second._channel,channame_chanstate.second.config,channame_chanstate.second.rec(),false));
+				  std::forward_as_tuple(channame_chanstate.second.chan,channame_chanstate.second.config,channame_chanstate.second.rec(),false));
 
       all_channels_by_name.emplace(std::piecewise_construct,
 				   std::forward_as_tuple(channame_chanstate.first),
@@ -225,7 +225,7 @@ namespace snde {
 
 	  renderableconfig = std::make_shared<channelconfig>(*dispreq->renderable_channelpath,
 											    "recstore_display_transform",
-							     (void *)recdb.get(), // math channels owned by recdb pointer
+							     
 											    true, // hidden
 											    nullptr); // storage_manager
 	  renderableconfig->math=true;
@@ -243,21 +243,32 @@ namespace snde {
 	// add to initial_mathdb
 	initial_mathdb.defined_math_functions.emplace(*dispreq->renderable_channelpath,renderableconfig->math_fcn);
 
-	// Get a class channel to represent this math function
-	std::shared_ptr<channel> rdt_channel;
-	std::unordered_map<std::string,std::shared_ptr<channel>>::iterator existing_channel = rdt_channels.find(*dispreq->renderable_channelpath);
+	// Get a class reserved_channel to represent this math function
+	std::shared_ptr<reserved_channel> rdt_channel;
+	std::unordered_map<std::string,std::shared_ptr<reserved_channel>>::iterator existing_channel = rdt_channels.find(*dispreq->renderable_channelpath);
 	if (existing_channel != rdt_channels.end()) {
 	  rdt_channel = existing_channel->second;
 	  {
 	    std::lock_guard<std::mutex> rdt_admin(rdt_channel->admin);
-	    rdt_channel->begin_atomic_config_update<channelconfig>();
-	    rdt_channel->end_atomic_config_update(renderableconfig);
+	    rdt_channel->begin_atomic_proposed_config_update<channelconfig>();
+	    rdt_channel->end_atomic_proposed_config_update(renderableconfig);
+
+	    rdt_channel->begin_atomic_realized_config_update<channelconfig>();
+	    rdt_channel->end_atomic_realized_config_update(renderableconfig);
 	  }
 	    
 	} else {
-	  rdt_channel=std::make_shared<channel>(renderableconfig);
-
-	  rdt_channel->latest_revision = starting_revision;
+	  rdt_channel=std::make_shared<reserved_channel>();
+	  rdt_channel->begin_atomic_proposed_config_update<channelconfig>();
+	  rdt_channel->end_atomic_proposed_config_update(renderableconfig);
+	  rdt_channel->begin_atomic_realized_config_update<channelconfig>();
+	  rdt_channel->end_atomic_realized_config_update(renderableconfig);
+	  std::shared_ptr<channel> pseudochannel=std::make_shared<channel>(*dispreq->renderable_channelpath,rdt_channel);
+	  pseudochannel->begin_atomic_realized_owner_update();
+	  pseudochannel->end_atomic_realized_owner_update(rdt_channel);
+	  rdt_channel->chan=pseudochannel;
+	  
+	  rdt_channel->chan->latest_revision = starting_revision;
 	  
 	}
 	

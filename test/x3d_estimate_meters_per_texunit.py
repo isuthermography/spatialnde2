@@ -19,8 +19,8 @@ graphman=snde.graphics_storage_manager("/graphics/",recdb.lowlevel_alloc,recdb.a
 
 transact = recdb.start_transaction()
 
-graphicsgroup = recdb.define_channel(transact,"/graphics/","main",recdb.raw(),False,graphman)
-specimen_recording = snde.x3d_load_geometry(transact,graphman,specimen_model_file,0,"main",recdb.raw(),specimen_model_tree,None,[ "reindex_vertices","reindex_tex_vertices","inplanemat","projinfo"])
+graphicsgroup = recdb.define_channel(transact,"/graphics/","main",False,graphman)
+specimen_recording = snde.x3d_load_geometry(transact,graphman,specimen_model_file,0,"main",specimen_model_tree,None,[ "reindex_vertices","reindex_tex_vertices","inplanemat","projinfo"])
 
 g=transact.end_transaction().globalrev()
 

@@ -13,8 +13,8 @@ recdb.startup()
 
  
 transact = recdb.start_transaction();
-testchan = recdb.define_channel(transact,"/test channel", "main", recdb.raw());
-test_ref = snde.create_ndarray_ref(transact,testchan,recdb.raw(),snde.SNDE_RTN_FLOAT32)
+testchan = recdb.define_channel(transact,"/test channel", "main");
+test_ref = snde.create_ndarray_ref(transact,testchan,snde.SNDE_RTN_FLOAT32)
 globalrev = transact.end_transaction().globalrev_available()
 
 test_rec_metadata = snde.constructible_metadata()

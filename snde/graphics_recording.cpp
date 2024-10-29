@@ -544,9 +544,9 @@ namespace snde {
     return std::dynamic_pointer_cast<pose_channel_recording>(rec);
   }
 
-  std::shared_ptr<ndarray_recording_ref> create_pose_channel_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,std::string channel_to_reorient_name)
+  std::shared_ptr<ndarray_recording_ref> create_pose_channel_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan,std::string channel_to_reorient_name)
   {
-    return create_subclass_ndarray_ref<pose_channel_recording>(trans,chan,owner_id,SNDE_RTN_SNDE_ORIENTATION3,channel_to_reorient_name);
+    return create_subclass_ndarray_ref<pose_channel_recording>(trans,chan,SNDE_RTN_SNDE_ORIENTATION3,channel_to_reorient_name);
   }
 
   static void tso_lock_helper(std::shared_ptr<recording_set_state> rss,std::string channel_path,std::string component_path,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>> this_lock,std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>> &locks,std::function<bool(std::string channel_path,std::string component_path)> recursion_approver)

@@ -200,7 +200,7 @@ namespace snde {
     return ret;
   }
   
-  void load_geom_landmarks(std::shared_ptr<recdatabase> recdb,std::shared_ptr<active_transaction> trans,std::string landmarks_filename,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::string ownername,void* owner_id)
+  void load_geom_landmarks(std::shared_ptr<recdatabase> recdb,std::shared_ptr<active_transaction> trans,std::string landmarks_filename,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::string ownername)
   // This gets called within a transaction with an incomplete
   // loaded_part_geometry_recording that we can add to.
   {
@@ -279,11 +279,11 @@ namespace snde {
     } while (!landmarks_file.eofbit);
 
     std::string landmarks_chanpath = recdb_path_join(loaded_geom->info->name,"landmarks");
-    std::shared_ptr<channelconfig> landmarks_config = std::make_shared<snde::channelconfig>(landmarks_chanpath,ownername,(void*)owner_id,false);
+    std::shared_ptr<channelconfig> landmarks_config = std::make_shared<snde::channelconfig>(landmarks_chanpath,ownername,false);
 
-    std::shared_ptr<channel> landmarks_chan = recdb->reserve_channel(trans,landmarks_config);
+    std::shared_ptr<reserved_channel> landmarks_chan = recdb->reserve_channel(trans,landmarks_config);
     
-    std::shared_ptr<recording_base> landmarks_recording = create_recording<recording_base>(trans,landmarks_chan,(void*)owner_id);
+    std::shared_ptr<recording_base> landmarks_recording = create_recording<recording_base>(trans,landmarks_chan);
 
     std::shared_ptr<constructible_metadata> metadata = std::make_shared<constructible_metadata>();
     for (auto lmname_u_v: landmarks_2D) {

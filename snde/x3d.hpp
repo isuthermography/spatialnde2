@@ -1305,7 +1305,7 @@ namespace snde {
   }
 
   
-  std::shared_ptr<loaded_part_geometry_recording> x3d_load_geometry(std::shared_ptr<active_transaction> trans,std::shared_ptr<graphics_storage_manager> graphman,std::vector<std::shared_ptr<x3d_shape>> shapes,size_t shape_index,std::string ownername,void *owner_id,std::string recdb_group_path,std::string context_fname,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,std::vector<std::string> processing_tag_vector,std::string landmarks_filename)
+  std::shared_ptr<loaded_part_geometry_recording> x3d_load_geometry(std::shared_ptr<active_transaction> trans,std::shared_ptr<graphics_storage_manager> graphman,std::vector<std::shared_ptr<x3d_shape>> shapes,size_t shape_index,std::string ownername,std::string recdb_group_path,std::string context_fname,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,std::vector<std::string> processing_tag_vector,std::string landmarks_filename)
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
@@ -1330,8 +1330,8 @@ namespace snde {
 
     std::unordered_set<std::string> processing_tags=geomproc_vector_to_set(processing_tag_vector);
   
-    std::shared_ptr<channelconfig> loaded_geom_config=std::make_shared<channelconfig>(recdb_group_path, ownername,owner_id,false,graphman);
-    std::shared_ptr<channel> loaded_geom_channel=trans->recdb->reserve_channel(trans,loaded_geom_config);
+    std::shared_ptr<channelconfig> loaded_geom_config=std::make_shared<channelconfig>(recdb_group_path, ownername,false,graphman);
+    std::shared_ptr<reserved_channel> loaded_geom_channel=trans->recdb->reserve_channel(trans,loaded_geom_config);
 
 
     if (!recdb_group_path.size() || recdb_group_path.at(0) != '/') {
@@ -1339,7 +1339,7 @@ namespace snde {
 
     }
 
-    std::shared_ptr<loaded_part_geometry_recording> loaded_geom = create_recording<loaded_part_geometry_recording>(trans,loaded_geom_channel,owner_id,processing_tags,landmarks_filename.size() > 0 ? true:false,true);
+    std::shared_ptr<loaded_part_geometry_recording> loaded_geom = create_recording<loaded_part_geometry_recording>(trans,loaded_geom_channel,processing_tags,landmarks_filename.size() > 0 ? true:false,true);
 
     std::string recdb_context = recdb_group_path;
 
@@ -1438,14 +1438,14 @@ namespace snde {
 	  std::string texture_path = pathjoin(stripfilepart(context_fname),*texture_fname);
 	  texture_chanpath = recdb_path_join(recdb_context,strippathpart(*texture_fname)); // This variable is used later when we set up the parameterization
 					       
-	  std::shared_ptr<channelconfig> texturechan_config=std::make_shared<snde::channelconfig>(texture_chanpath, ownername, (void *)owner_id,false);
-	  std::shared_ptr<snde::channel> texturechan = trans->recdb->reserve_channel(trans,texturechan_config);
+	  std::shared_ptr<channelconfig> texturechan_config=std::make_shared<snde::channelconfig>(texture_chanpath, ownername,false);
+	  std::shared_ptr<snde::reserved_channel> texturechan = trans->recdb->reserve_channel(trans,texturechan_config);
 	  //texture_rec = create_recording<multi_ndarray_recording>(trans,texturechan,(void *)owner_id,1);
 	  //texture_rec->name_mapping.emplace(std::make_pair("texbuffer",0));
 	  //texture_rec->name_reverse_mapping.emplace(std::make_pair(0,"texbuffer"));
 	  //rec->define_array(0,rtn_typemap.at(typeid(*graphman->geom.texbuffer)));
 	    
-	  texture_rec = create_recording<texture_recording>(trans,texturechan,(void *)owner_id);
+	  texture_rec = create_recording<texture_recording>(trans,texturechan);
 	  texture_rec->assign_storage_manager(graphman);
 
 	  texture_ref = texture_rec->reference_ndarray("texbuffer");
@@ -2157,10 +2157,10 @@ namespace snde {
 
     std::string meshedpartname = std::string("meshed");
     std::string meshedfullname = recdb_path_join(recdb_context,meshedpartname);
-    std::shared_ptr<channelconfig> meshedcurpart_config=std::make_shared<snde::channelconfig>(meshedfullname, ownername, (void *)owner_id,false);
-    std::shared_ptr<snde::channel> meshedcurpart_chan = trans->recdb->reserve_channel(trans,meshedcurpart_config);
+    std::shared_ptr<channelconfig> meshedcurpart_config=std::make_shared<snde::channelconfig>(meshedfullname, ownername,false);
+    std::shared_ptr<snde::reserved_channel> meshedcurpart_chan = trans->recdb->reserve_channel(trans,meshedcurpart_config);
       
-    std::shared_ptr<meshed_part_recording> meshedcurpart = create_recording<meshed_part_recording>(trans,meshedcurpart_chan,(void *)owner_id);
+    std::shared_ptr<meshed_part_recording> meshedcurpart = create_recording<meshed_part_recording>(trans,meshedcurpart_chan);
     meshedcurpart->assign_storage_manager(graphman);
       
     //std::shared_ptr<graphics_storage> meshedcurpartpartstore = storage_from_allocation(meshedcurpart->info->name,nullptr,"parts",meshedcurpart->info->revision,rec->originating_state_unique_id,firstpart,sizeof(*graphman->geom.parts),rtn_typemap.at(typeid(*graphman->geom.parts)),1);
@@ -2198,11 +2198,11 @@ namespace snde {
     if (texture_ref) {
       std::string texedpartname = std::string("texed");
       std::string texedfullname = recdb_path_join(recdb_context,texedpartname);
-      std::shared_ptr<channelconfig> texedcurpart_config=std::make_shared<snde::channelconfig>(texedfullname, ownername, (void *)owner_id,false);
-      std::shared_ptr<snde::channel> texedcurpart_chan = trans->recdb->reserve_channel(trans,texedcurpart_config);
+      std::shared_ptr<channelconfig> texedcurpart_config=std::make_shared<snde::channelconfig>(texedfullname, ownername,false);
+      std::shared_ptr<snde::reserved_channel> texedcurpart_chan = trans->recdb->reserve_channel(trans,texedcurpart_config);
 
 
-      texedcurpart = create_recording<textured_part_recording>(trans,texedcurpart_chan,(void *)owner_id,meshedfullname,nullptr,std::map<snde_index,std::shared_ptr<image_reference>>());
+      texedcurpart = create_recording<textured_part_recording>(trans,texedcurpart_chan,meshedfullname,nullptr,std::map<snde_index,std::shared_ptr<image_reference>>());
       texedcurpart->assign_storage_manager(graphman);
       texedcurpart->metadata = std::make_shared<immutable_metadata>(metadata); 
       texedcurpart->mark_metadata_done();
@@ -2662,10 +2662,10 @@ namespace snde {
 
       std::string uvparamname = std::string("uv");
       std::string uvparamfullname = recdb_path_join(recdb_context,uvparamname);
-      std::shared_ptr<channelconfig> uvparam_config=std::make_shared<snde::channelconfig>(uvparamfullname, ownername, (void *)owner_id,false);
-      std::shared_ptr<snde::channel> uvparam_chan = trans->recdb->reserve_channel(trans,uvparam_config);
+      std::shared_ptr<channelconfig> uvparam_config=std::make_shared<snde::channelconfig>(uvparamfullname, ownername,false);
+      std::shared_ptr<snde::reserved_channel> uvparam_chan = trans->recdb->reserve_channel(trans,uvparam_config);
       
-      uvparam = create_recording<meshed_parameterization_recording>(trans,uvparam_chan,(void *)owner_id);  // currently only implement numuvpatches==1
+      uvparam = create_recording<meshed_parameterization_recording>(trans,uvparam_chan);  // currently only implement numuvpatches==1
       uvparam->assign_storage_manager(graphman);
       x3d_assign_allocated_storage(uvparam,"uvs",graphman->geom.uvs,firstuv,1);
       x3d_assign_allocated_storage(uvparam,"uv_patches",graphman->geom.uv_patches,graphman->geom.uvs[firstuv].firstuvpatch,1);
@@ -2783,7 +2783,7 @@ namespace snde {
        imagetexture URL. The snde_image structure will be allocated but blank 
        (imgbufoffset==SNDE_INDEX_INVALID). No image buffer space is allocated */
     if (landmarks_filename.size() > 0) {
-      load_geom_landmarks(trans->recdb,trans,landmarks_filename,loaded_geom,ownername,owner_id);
+      load_geom_landmarks(trans->recdb,trans,landmarks_filename,loaded_geom,ownername);
     }
     
     instantiate_geomproc_math_functions(trans,loaded_geom,meshedcurpart,uvparam,texedcurpart,&processing_tags);
@@ -2808,7 +2808,7 @@ namespace snde {
   
 
 
-  std::shared_ptr<loaded_part_geometry_recording> x3d_load_geometry(std::shared_ptr<active_transaction> trans,std::shared_ptr<graphics_storage_manager> graphman,std::string filename,size_t shape_index,std::string ownername,void *owner_id,std::string recdb_group_path,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,std::vector<std::string> processing_tags,std::string landmarks_filename = "")
+  std::shared_ptr<loaded_part_geometry_recording> x3d_load_geometry(std::shared_ptr<active_transaction> trans,std::shared_ptr<graphics_storage_manager> graphman,std::string filename,size_t shape_index,std::string ownername,std::string recdb_group_path,std::shared_ptr<x3d_texture_scaling> default_texture_scaling,std::vector<std::string> processing_tags,std::string landmarks_filename = "")
   /* Load geometry from specified file. Each indexedfaceset or indexedtriangleset
      is presumed to be a separate object. Must consist of strictly triangles.
      
@@ -2825,7 +2825,7 @@ namespace snde {
     }
 
     
-    return x3d_load_geometry(trans,graphman,shapes,shape_index,ownername,owner_id,recdb_group_path,filename,default_texture_scaling,processing_tags,landmarks_filename);
+    return x3d_load_geometry(trans,graphman,shapes,shape_index,ownername,recdb_group_path,filename,default_texture_scaling,processing_tags,landmarks_filename);
     
   }
 

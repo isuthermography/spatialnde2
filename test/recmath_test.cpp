@@ -195,10 +195,10 @@ int main(int argc, char *argv[])
   
   recdb->add_math_function(transact,scaled_channel_function,false);
   
-  std::shared_ptr<snde::channelconfig> testchan_config=std::make_shared<snde::channelconfig>("/test_channel", "main", (void *)&main,false);
+  std::shared_ptr<snde::channelconfig> testchan_config=std::make_shared<snde::channelconfig>("/test_channel", "main",false);
   
-  std::shared_ptr<snde::channel> testchan = recdb->reserve_channel(transact,testchan_config);
-  test_rec = create_ndarray_ref(transact,testchan,(void *)&main,SNDE_RTN_FLOAT32);
+  std::shared_ptr<snde::reserved_channel> testchan = recdb->reserve_channel(transact,testchan_config);
+  test_rec = create_ndarray_ref(transact,testchan,SNDE_RTN_FLOAT32);
   std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction()->globalrev_available();
 
   test_rec->rec->metadata=std::make_shared<snde::immutable_metadata>();

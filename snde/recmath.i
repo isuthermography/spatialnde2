@@ -62,7 +62,7 @@ namespace snde {
   class channelconfig; // defined in recstore.hpp
   class recording_status; // defined in recstore.hpp
   class channel_state; // defined in recstore.hpp
-
+  class reserved_channel; // defined in recstore.hpp
   class math_status;
   class math_function_status;
   class math_definition;

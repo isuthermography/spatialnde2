@@ -99,15 +99,15 @@ Defining Channels and Recordings
 Channels and recordings need to be defined within a transaction. For example (C++)::
   
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction();  
-  std::shared_ptr<snde::channel> testchan = recdb->define_channel(transact,"/test channel", "main", (void *)recdb.get());
-  std::shared_ptr<snde::ndarray_recording_ref> test_ref = snde::create_ndarray_ref(transact,testchan,(void *)recdb.get(),SNDE_RTN_FLOAT32);
+  std::shared_ptr<snde::channel> testchan = recdb->define_channel(transact,"/test channel", "main");
+  std::shared_ptr<snde::ndarray_recording_ref> test_ref = snde::create_ndarray_ref(transact,testchan,SNDE_RTN_FLOAT32);
   std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction()->globalrev_available();
 
 or (Python)::
 
   transact = recdb.start_transaction();
-  testchan = recdb.define_channel(transact,"/test channel", "main", recdb.raw());
-  test_ref = snde.create_ndarray_ref(transact,testchan,recdb.raw(),snde.SNDE_RTN_FLOAT32)
+  testchan = recdb.define_channel(transact,"/test channel", "main");
+  test_ref = snde.create_ndarray_ref(transact,testchan,snde.SNDE_RTN_FLOAT32)
   globalrev = transact.end_transaction().globalrev_available()
 
 Each channel has a *path*, given as the second parameter to the
@@ -537,7 +537,9 @@ debugging output.  Debug categories:
   * ``SNDE_DC_EVENT`` Event traversal from the GUI 
   * ``SNDE_DC_VIEWER`` The QT-based recording viewer
   * ``SNDE_DC_X3D`` Loading .x3d graphics files
-  * ``SNDE_DC_OPENCL`` OpenGL-based GPU acceleration
+  * ``SNDE_DC_OPENCL`` OpenCL-based GPU acceleration
+  * ``SNDE_DC_OPENCL_COMPILATION`` Warnings from compiling OpenCL GPU compute kernels
+  * ``SNDE_DC_MEMLEAK`` Debugging of memory leaks based on global revision reference loops
   * ``SNDE_DC_ALL`` Enables all of the above. 
 
 In addition you can get additional logging from the OpenSceneGraph

@@ -57,7 +57,7 @@ int main(int argc, char **argv)
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
 
   
-  std::shared_ptr<ande_loadrecording_map> recmap = andefile_loadfile(transact,"main",(void *)&main,argv[1],"/"); 
+  std::shared_ptr<ande_loadrecording_map> recmap = andefile_loadfile(transact,"main",argv[1],"/"); 
 
   std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction()->globalrev();
 

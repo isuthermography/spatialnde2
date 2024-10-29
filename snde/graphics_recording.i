@@ -250,11 +250,11 @@ namespace snde {
   };
 
 
-  std::shared_ptr<ndarray_recording_ref> create_pose_channel_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,std::string channel_to_reorient_name);
+  std::shared_ptr<ndarray_recording_ref> create_pose_channel_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan,std::string channel_to_reorient_name);
   
   // moved from recstore.i...
   template <class T>
-    std::shared_ptr<T> create_recording_textured_part_info(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,std::string part_name, std::shared_ptr<std::string> parameterization_name, std::vector<std::pair<snde_index,std::shared_ptr<image_reference>>> texture_refs);
+    std::shared_ptr<T> create_recording_textured_part_info(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan,std::string part_name, std::shared_ptr<std::string> parameterization_name, std::vector<std::pair<snde_index,std::shared_ptr<image_reference>>> texture_refs);
   %{
 #define create_recording_textured_part_info create_recording
    %}

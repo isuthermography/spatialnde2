@@ -61,14 +61,14 @@ recdb.startup()
  
 transact = recdb.start_transaction(); # Transaction RAII holder
 
-testchan_config=snde.channelconfig("/test channel", "main", recdb,False)
-pointcloudchan_config=snde.channelconfig("/pointcloud channel", "main", recdb,False)
+testchan_config=snde.channelconfig("/test channel", "main",False)
+pointcloudchan_config=snde.channelconfig("/pointcloud channel", "main",False)
   
 testchan = recdb.reserve_channel(transact,testchan_config);
 pointcloudchan = recdb.reserve_channel(transact,pointcloudchan_config);
 
-test_rec = snde.create_ndarray_ref(transact,testchan,recdb,snde.SNDE_RTN_FLOAT32)
-pointcloud_rec = snde.create_ndarray_ref(transact,pointcloudchan,recdb,snde.SNDE_RTN_SNDE_COORD3)
+test_rec = snde.create_ndarray_ref(transact,testchan,snde.SNDE_RTN_FLOAT32)
+pointcloud_rec = snde.create_ndarray_ref(transact,pointcloudchan,snde.SNDE_RTN_SNDE_COORD3)
 
 globalrev = transact.end_transaction().globalrev_available()
 

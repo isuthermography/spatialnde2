@@ -246,6 +246,7 @@ namespace snde {
     std::vector<std::shared_ptr<math_parameter>> parameters; // ***!!! MUST BE COMBINED WITH channel_path_context ***!!!
     //std::list<std::shared_ptr<channel>> results; // Note that null entries are legitimate if results are being ignored.
     std::vector<std::shared_ptr<std::string>> result_channel_paths; // Note that null entries are legitimate if results are being ignored. ***!!! MUST BE COMBINED WITH channel_path_context ***!!!
+    
     std::vector<bool> result_mutability; // for each result, is it mutable (if we are in mutable mode)
     
     std::string channel_path_context; // context for parameters and result_channel_paths, if any are relative. 

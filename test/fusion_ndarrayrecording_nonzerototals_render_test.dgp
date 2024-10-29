@@ -33,9 +33,9 @@ graphman=snde.graphics_storage_manager("/graphics/",recdb.lowlevel_alloc,
 transact = recdb.start_transaction()
 
 
-graphicsgroup = recdb.define_channel(transact,"/graphics/","main",recdb.raw(),False,graphman)
+graphicsgroup = recdb.define_channel(transact,"/graphics/","main",False,graphman)
 
-fusion_colormap_chan = recdb.define_channel(transact,"/fusion_colormap","main",recdb.raw(),
+fusion_colormap_chan = recdb.define_channel(transact,"/fusion_colormap","main",
                                             True)
 
 transact.end_transaction()
@@ -44,7 +44,7 @@ transact = recdb.start_transaction()
 # final argument is the typenum, a list of typenums for SpatialNDE2
 # can be located in recording.h in the snde folder of the source
 # tree. 13 is complex float 32
-rec = snde.create_fusion_ndarray_recording(transact,fusion_colormap_chan,recdb.raw(),snde.SNDE_RTN_COMPLEXFLOAT32)
+rec = snde.create_fusion_ndarray_recording(transact,fusion_colormap_chan,snde.SNDE_RTN_COMPLEXFLOAT32)
 #rec.create_ndarray_ref(0,)
 #rec.define_array(0,snde.SNDE_RTN_COMPLEXFLOAT32,"accumulator")
 #rec.define_array(1,snde.SNDE_RTN_SNDE_IMAGEDATA,"totals")

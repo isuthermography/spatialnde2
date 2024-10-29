@@ -176,7 +176,7 @@ int main(int argc, char **argv)
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
 
   
-  std::shared_ptr<loaded_part_geometry_recording> part_recording = x3d_load_geometry(transact,graphman,argv[1],0,"main",(void *)&main,"/loaded_x3d/",nullptr, { /* "reindex_vertices", */ "reindex_tex_vertices" } ); 
+  std::shared_ptr<loaded_part_geometry_recording> part_recording = x3d_load_geometry(transact,graphman,argv[1],0,"main","/loaded_x3d/",nullptr, { /* "reindex_vertices", */ "reindex_tex_vertices" } ); 
 
   std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction()->globalrev(); // globalrev must be complete before we are allowed to pass it to viewer. 
 

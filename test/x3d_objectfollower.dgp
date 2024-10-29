@@ -26,17 +26,17 @@ k4a.depth_data_mode = "POINTCLOUD"
 
 transact = recdb.start_transaction()	
 
-graphicsgroup_config=snde.channelconfig("/graphics", "main", recdb.raw(),False,graphman)
+graphicsgroup_config=snde.channelconfig("/graphics", "main",False,graphman)
 graphicsgroup = recdb.reserve_channel(graphicsgroup_config); 
 
-part_recordings = snde.x3d_load_geometry(transact,graphman,args[1],0,"main",recdb.raw(),"/graphics/x3d",None,[ "reindex_vertices", "reindex_tex_vertices", "trinormals"])
+part_recordings = snde.x3d_load_geometry(transact,graphman,args[1],0,"main","/graphics/x3d",None,[ "reindex_vertices", "reindex_tex_vertices", "trinormals"])
 
 
 
-followerchan_config=snde.channelconfig("/graphics/follower channel", "main", recdb.raw(),False)
+followerchan_config=snde.channelconfig("/graphics/follower channel", "main",False)
 followerchan = recdb.reserve_channel(transact,followerchan_config); 
 
-followerrec = snde.create_qt_osg_compositor_view_tracking_pose_recording(transact,followerchan,recdb.raw(),"/graphics/x3d/meshed","/pointcloud recording",main_viewer.viewer.OSGWidget)
+followerrec = snde.create_qt_osg_compositor_view_tracking_pose_recording(transact,followerchan,"/graphics/x3d/meshed","/pointcloud recording",main_viewer.viewer.OSGWidget)
 
 
 followerrec

@@ -104,7 +104,7 @@ namespace snde {
     
     andefile_readrecording_base(const std::set<std::string> &ande_classes,std::string h5path, H5::Group group, std::string recpath,std::shared_ptr<ande_loadrecording_map> filemap);
     
-    virtual std::shared_ptr<recording_base> define_rec(std::shared_ptr<active_transaction> trans,std::string ownername,void *owner_id)=0;
+    virtual std::shared_ptr<recording_base> define_rec(std::shared_ptr<active_transaction> trans,std::string ownername)=0;
     
     virtual void read(std::shared_ptr<recording_base> rec) // read actual data into rec and any sub-recordings into filemap
     {
@@ -133,7 +133,7 @@ namespace snde {
     
     andefile_readarray(const std::set<std::string> &ande_classes,std::string h5path, H5::Group group, std::string recpath,std::shared_ptr<ande_loadrecording_map> filemap);
     
-    virtual std::shared_ptr<recording_base> define_rec(std::shared_ptr<active_transaction> trans,std::string ownername,void *owner_id);    
+    virtual std::shared_ptr<recording_base> define_rec(std::shared_ptr<active_transaction> trans,std::string ownername);    
     virtual void read(std::shared_ptr<recording_base> rec); // read actual data
 
     virtual ~andefile_readarray() = default;
@@ -157,7 +157,7 @@ namespace snde {
     
     andefile_readgroup(const std::set<std::string> &ande_classes,std::string h5path, H5::Group group, std::string recpath,std::shared_ptr<ande_loadrecording_map> filemap);
     
-    virtual std::shared_ptr<recording_base> define_rec(std::shared_ptr<active_transaction> trans,std::string ownername,void *owner_id);    
+    virtual std::shared_ptr<recording_base> define_rec(std::shared_ptr<active_transaction> trans,std::string ownername);    
     virtual void read(std::shared_ptr<recording_base> rec) // read actual data
     {
       // nothing to actually read for a group
@@ -186,7 +186,7 @@ namespace snde {
   
   std::shared_ptr<andefile_readrecording_base> andefile_loadrecording(std::string h5path,H5::Group group,std::string recpath,std::shared_ptr<ande_loadrecording_map> filemap);
 
-  std::shared_ptr<ande_loadrecording_map> andefile_loadfile(std::shared_ptr<active_transaction> trans,std::string ownername,void *owner_id,std::string filename,std::string recpath="/"); // add filter function parameter or specific recording to request to limit what is loaded?
+  std::shared_ptr<ande_loadrecording_map> andefile_loadfile(std::shared_ptr<active_transaction> trans,std::string ownername,std::string filename,std::string recpath="/"); // add filter function parameter or specific recording to request to limit what is loaded?
 
   bool andefile_savefile_pathstack_top_is_start_of(std::vector<std::string> *pathstack,const std::string &writepath_group);
   

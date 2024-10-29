@@ -48,7 +48,9 @@ snde_rawaccessible(snde::timed_transaction);
 namespace snde {
 
   class ordered_transaction;
+#if SWIG_VERSION >= 0x040100 // Directors disabled for swig older than 4.1.0 because of uncompilable code
   %feature("director") measurement_time;
+#endif
   class measurement_time {
   public:
     // immutable
@@ -70,8 +72,9 @@ namespace snde {
 
     virtual const bool operator>=(const std::shared_ptr<measurement_time> &rhs);
   };
-
+#if SWIG_VERSION >= 0x040100 // Directors disabled for swig older than 4.1.0 because of uncompilable code
   %feature("director") measurement_clock;
+#endif
   class measurement_clock {
   public:
     //std::mutex admin; // Locks member variables of this and subclasses; last in the locking order.

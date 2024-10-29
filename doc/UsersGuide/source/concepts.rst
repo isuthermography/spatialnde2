@@ -390,6 +390,8 @@ implements such an approach for storing object geometry data. By
 comparison the ``recording_storage_manager_simple`` delegates directly
 to the underlying ``memallocator``.
 
+Storage managers are defined for channels, and apply to that channel and any sub-channels. Note that if a parent channel changes its storage manager, there may be some latency before the sub-channels start using it. In particular, any transactions started before the transaction and the parent channel is realized. For this reason, when switching storage managers, always end the transaction and wait for realization with the ``.globalrev_available()`` or ``.globalrev()`` methods.
+
 Memory Allocators
 -----------------
 

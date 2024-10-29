@@ -100,7 +100,7 @@ namespace snde {
 
   // template for qoc_view_tracking_pose_recording arguments
   template <class T>
-    std::shared_ptr<T> create_recording_qoc_view_tracking_pose_info(std::shared_ptr<active_transaction> trans,std::shared_ptr<channel> chan,void *owner_id,std::string channel_to_reorient,std::string component_name,QSharedPointer<qt_osg_compositor> compositor);
+    std::shared_ptr<T> create_recording_qoc_view_tracking_pose_info(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan,std::string channel_to_reorient,std::string component_name,QSharedPointer<qt_osg_compositor> compositor);
   %{
 #define create_recording_qoc_view_tracking_pose_info create_recording
    %}

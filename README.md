@@ -17,6 +17,9 @@ globalrevision to be complete.
   - The first element of the quaternion is now the real part and it is followed by the three imaginary parts (previously the real part was last).
   - The final element of the offset is now 1.0 (previously it was 0.0).
 - Python data access to ndarray refs is now by .data attribute rather than .data() method.
+- Owner IDs no longer are provided when configuring a channel (channelconfig() constructor) so that parameter has been removed.
+- Owner IDs are no longer required when creating a recording, so that parameter has been removed.
+- Reserving a channel now returns a reserved_channel object rather than a channel object. This new reserved_channel object contains your rights to the channel and needs to be passed as the channel object was before into the construction of a recording.
 
 ## Prerequisites
 INSTALLING ALL PREREQUISITES IS STRONGLY RECOMMENDED as not all possible 
