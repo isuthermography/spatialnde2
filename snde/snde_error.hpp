@@ -18,6 +18,8 @@
 #include <stdexcept>
 #include <cstring>
 #include <cstdarg>
+#include <ctime>
+#include <iomanip>
 
 #include <map>
 #include <cstdio>
@@ -290,7 +292,11 @@ namespace snde {
   void snde_warning(std::string fmt, Args && ... args)
   {
     std::string warnstr = ssprintf(fmt,std::forward<Args>(args) ...);
-    fprintf(stderr,"SNDE WARNING: %s\n",warnstr.c_str());
+    std::time_t time_now = std::time(nullptr);
+    std::tm* tm = std::localtime(&time_now);
+    char timebuf[80];
+    strftime(timebuf, sizeof(timebuf), "%Y-%M-%d %H:%M:%S", tm);
+    fprintf(stderr,"[%s] SNDE WARNING: %s\n", timebuf ,warnstr.c_str());
   }
 
   SNDE_API extern unsigned initial_debugflags;
@@ -303,7 +309,11 @@ namespace snde {
     
     if (dbgclass & current_debugflags()) {
       std::string warnstr = ssprintf(fmt,std::forward<Args>(args) ...);
-      fprintf(stderr,"SNDE DEBUG: %s\n",warnstr.c_str());
+      std::time_t time_now = std::time(nullptr);
+      std::tm* tm = std::localtime(&time_now);
+      char timebuf[80];
+      strftime(timebuf, sizeof(timebuf), "%Y-%M-%d %H:%M:%S", tm);
+      fprintf(stderr,"[%s] SNDE DEBUG: %s\n", timebuf, warnstr.c_str());
     }
   }
     // defines for dbgclass/current_debugflags
@@ -321,8 +331,9 @@ namespace snde {
 #define SNDE_DC_X3D (1<<10)
 #define SNDE_DC_OPENCL (1<<11)
 #define SNDE_DC_OPENCL_COMPILATION (1<<12)
-#define SNDE_DC_MEMLEAK (1<<13)
-#define SNDE_DC_ALL ((1<<14)-1)
+#define SNDE_DC_PYTHON_SUPPORT (1<<13)
+#define SNDE_DC_MEMLEAK (1<<14)
+#define SNDE_DC_ALL ((1<<15)-1)
 
    
 }

@@ -44,6 +44,15 @@ typedef unsigned long long uint64_t;
   }
 }
 
+%exception {
+  try {
+    $action
+  } catch (const std::exception &serr) {
+    PyErr_SetString(PyExc_RuntimeError,serr.what());
+    SWIG_fail;
+  }
+}
+
 
 
 // Perform includes
@@ -504,6 +513,7 @@ template <typename T>
 %include "snde_qt.i"
 %include "qt_osg_compositor.i"
 %include "qtrecviewer.i"
+%include "qtrecviewer_support.i"
 %include "recstore_setup.i"
 %include "x3d.i"
 %include "utils.i"

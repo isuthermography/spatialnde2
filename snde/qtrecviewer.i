@@ -20,6 +20,7 @@ namespace snde {
 
 
   // see snde_qt.i for information on QObject/QWidget semantics, shiboken2/PySide2 interoperability, etc. 
+  // The following line is critical for all QWidget-derived classes.  See snde_qt.i for more info.
   snde_qwidget_inheritor(QTRecViewer); // also implicitly performs snde_qobject_inheritor() magic
 
 
@@ -51,10 +52,11 @@ namespace snde {
     QTRecViewer & operator=(const QTRecViewer &) = delete;
     virtual ~QTRecViewer();
     
-    std::shared_ptr<display_channel> FindDisplayChan(std::string channame);
-    std::shared_ptr<display_channel> FindDisplayChan(QTRecSelector *Selector);
+    //std::shared_ptr<display_channel> FindDisplayChan(std::string channame);
+    //std::shared_ptr<display_channel> FindDisplayChan(QTRecSelector *Selector);
     
     void set_selected(QTRecSelector *Selector);
+    void set_selected(std::string channame);
     void deselect_other_selectors(QTRecSelector *Selected);
 
 
