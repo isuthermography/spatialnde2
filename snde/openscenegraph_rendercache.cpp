@@ -2022,6 +2022,10 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     for (size_t component_index=0; component_index < sub_components.size(); component_index++) {
       const snde_orientation3 & piece_orientation = std::get<1>(cached_recording->pieces.at(component_index));
       snde_coord4 rotmtx[4]; // index identifies which column (data stored column-major)
+      if (!orientation_valid(piece_orientation)) {
+	snde_warning("osg_cachedassembly: invalid orientation for assembly component %s of channel %s", display_req->sub_requirements.at(component_index)->renderable_channelpath->c_str() ,display_req->renderable_channelpath->c_str());
+	continue;
+      }
       orientation_build_rotmtx(piece_orientation,rotmtx);
       
       osg::ref_ptr<osg::MatrixTransform> xform  = new osg::MatrixTransform(osg::Matrixd(&rotmtx[0].coord[0])); // remember osg::MatrixTransform also wants the matrix column-major
@@ -2126,7 +2130,7 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
     assert(pose_params);
     
 
-    if (!isnan(pose_params->channel_to_reorient_orientation.quat.coord[0])) {
+    if (orientation_valid(pose_params->channel_to_reorient_orientation)) {
       // (otherwise just ignore NaN poses)
       
       snde_coord4 rotmtx[4]; // index identifies which column (data stored column-major)
@@ -2139,7 +2143,10 @@ osg::BoundingBox bbox = pc_geom->getBoundingBox();
       if (sub_component) {
 	osg_group->addChild(sub_component->osg_group);
       }
+    } else {
+      snde_warning("osg_cachedtransformedcomponent: invalid orientation of channel %s within channel %s", channeltotrack_requirement->renderable_channelpath->c_str() ,display_req->renderable_channelpath->c_str());
     }
+    
     accumulate_locks_required(all_locks_required);
   }
   

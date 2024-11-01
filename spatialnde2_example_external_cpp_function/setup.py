@@ -40,7 +40,7 @@ ext_modules=cythonize(
               extra_link_args = spatialnde2_compile_explicit_libraries,
               libraries=["spatialnde2"]  + spatialnde2_compile_libraries,
               undef_macros = ["NDEBUG"]
-              ))
+              ),include_path=["spatialnde2_example_external_cpp_function"])
 
 setup(name="spatialnde2_example_external_cpp_function",
             description="Example external c++ function for spatialnde2",

@@ -57,10 +57,9 @@ int main(int argc, char **argv)
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
 
   
-  std::shared_ptr<ande_loadrecording_map> recmap = andefile_loadfile(recdb,"main",(void *)&main,argv[1],"/"); 
+  std::shared_ptr<ande_loadrecording_map> recmap = andefile_loadfile(transact,"main",argv[1],"/"); 
 
-  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
-  globalrev->wait_complete();
+  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction()->globalrev();
 
   QCoreApplication::setAttribute(Qt::AA_UseDesktopOpenGL); // OpenSceneGraph requires UseDesktopOpenGL, I think
   QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts); // Eliminate annoying QT warning message

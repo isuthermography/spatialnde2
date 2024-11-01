@@ -60,9 +60,9 @@ int main(int argc, char **argv)
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
 
   
-  std::shared_ptr<loaded_part_geometry_recording> part_recording = x3d_load_geometry(recdb,graphman,argv[1],0,"main",(void *)&main,"/loaded_x3d/",nullptr,{ /* "reindex_vertices", */ "reindex_tex_vertices" } ); 
+  std::shared_ptr<loaded_part_geometry_recording> part_recording = x3d_load_geometry(transact,graphman,argv[1],0,"main","/loaded_x3d/",nullptr,{ /* "reindex_vertices", */ "reindex_tex_vertices" } ); 
 
-  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
+  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction()->globalrev();
   
 
   QCoreApplication::setAttribute(Qt::AA_UseDesktopOpenGL); // OpenSceneGraph requires UseDesktopOpenGL, I think

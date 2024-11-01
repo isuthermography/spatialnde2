@@ -332,7 +332,8 @@ namespace snde {
 #define SNDE_DC_OPENCL (1<<11)
 #define SNDE_DC_OPENCL_COMPILATION (1<<12)
 #define SNDE_DC_PYTHON_SUPPORT (1<<13)
-#define SNDE_DC_ALL ((1<<14)-1)
+#define SNDE_DC_MEMLEAK (1<<14)
+#define SNDE_DC_ALL ((1<<15)-1)
 
    
 }

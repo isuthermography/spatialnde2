@@ -1295,12 +1295,12 @@ namespace snde {
     retval.offset.coord[0]=translation.x();
     retval.offset.coord[1]=translation.y();
     retval.offset.coord[2]=translation.z();
-    retval.offset.coord[3]=0.0;
+    retval.offset.coord[3]=1.0;
 
-    retval.quat.coord[0]=rotation.x();
-    retval.quat.coord[1]=rotation.y();
-    retval.quat.coord[2]=rotation.z();
-    retval.quat.coord[3]=rotation.w();
+    retval.quat.coord[1]=rotation.x();
+    retval.quat.coord[2]=rotation.y();
+    retval.quat.coord[3]=rotation.z();
+    retval.quat.coord[0]=rotation.w();
 
     return retval;
   }

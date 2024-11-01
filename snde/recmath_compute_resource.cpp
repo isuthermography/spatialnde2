@@ -270,7 +270,7 @@ namespace snde {
 
   }
   
-  void _wrap_up_execution(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> ready_rss,std::shared_ptr<instantiated_math_function> ready_fcn, std::vector<std::shared_ptr<recording_base>> result_channel_recs,bool possibly_redundant,std::shared_ptr<recording_set_state> prerequisite_state)
+  void _wrap_up_execution(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_set_state> ready_rss,std::shared_ptr<instantiated_math_function> ready_fcn, std::vector<std::shared_ptr<recording_base>> result_channel_recs,bool possibly_redundant)
   // ***!!!!! You must have the execution ticket -- "true" value from try_execution_ticket() in order to call this
   {
 
@@ -501,7 +501,10 @@ namespace snde {
     // we can execute anything immutable, anything that is not part of a globalrev (i.e. ondemand), or once the prior globalrev is fully ready
     // (really we just need to make sure all immutable recordings in the prior globalrev are ready, but there isn't currently a good
     // way to do that)
-    std::shared_ptr<recording_set_state> prior_globalrev=computation->recstate->prerequisite_state(); // only actually prior_globalrev if computation_rss_is_globalrev
+    std::shared_ptr<recording_set_state> prior_globalrev;
+    if (computation->recstate->prerequisite_state()) {
+      prior_globalrev=computation->recstate->prerequisite_state()->rss(); // only actually prior_globalrev if computation_rss_is_globalrev
+    }
 
     std::shared_ptr<globalrevision> prior_globalrev_globalrev=std::dynamic_pointer_cast<globalrevision>(prior_globalrev);
     
@@ -579,10 +582,9 @@ namespace snde {
 	  math_messages = msglookup->second;
 	}
 	
-
+	//std::shared_ptr<recording_set_state> prerequisite_rss = ready_rss->prerequisite_state()->rss();
+	
 	ready_rss_admin.unlock();
-
-	std::shared_ptr<recording_set_state> prerequisite_state = ready_rss->prerequisite_state();
 
 
 	try {
@@ -608,7 +610,7 @@ namespace snde {
 	    }
 	    _transfer_function_result_state(execfunc,nullptr,SNDE_FRS_ANY,SNDE_FRS_INSTANTIATED,result_channel_recs);
 	    
-	    _wrap_up_execution(recdb,ready_rss,ready_fcn,result_channel_recs,true,prerequisite_state); // true is possibly_redundant
+	    _wrap_up_execution(recdb,ready_rss,ready_fcn,result_channel_recs,true); // true is possibly_redundant
 	    return;
 
 	    
@@ -640,7 +642,7 @@ namespace snde {
 	  }
 	  _transfer_function_result_state(execfunc,nullptr,SNDE_FRS_ANY,SNDE_FRS_INSTANTIATED,result_channel_recs);
 	  
-	  _wrap_up_execution(recdb,ready_rss,ready_fcn,result_channel_recs,true,prerequisite_state); // true is possibly_redundant
+	  _wrap_up_execution(recdb,ready_rss,ready_fcn,result_channel_recs,true); // true is possibly_redundant
 	  return;
 
 	}
@@ -674,7 +676,7 @@ namespace snde {
 	  assert(ready_fcn->result_channel_paths.size()==execfunc->execution_tracker->self_dependent_recordings.size());
 	  std::vector<std::shared_ptr<recording_base>> result_channel_recs=execfunc->execution_tracker->self_dependent_recordings;
 	  
-	  _wrap_up_execution(recdb,ready_rss,ready_fcn,result_channel_recs,false,prerequisite_state); // false is possibly_redundant
+	  _wrap_up_execution(recdb,ready_rss,ready_fcn,result_channel_recs,false); // false is possibly_redundant
 	  snde_debug(SNDE_DC_RECMATH,"qc: already finished");
 	  return;
 	}
@@ -998,7 +1000,7 @@ namespace snde {
       
       // not worrying about cpu affinity yet.
       
-      std::shared_ptr<recording_set_state> prerequisite_state=recstate->prerequisite_state();
+      //std::shared_ptr<recording_set_state> prerequisite_rss=recstate->prerequisite_state()->rss();
       
       std::vector<std::shared_ptr<recording_base>> result_channel_recs;
       bool mdonly = false;

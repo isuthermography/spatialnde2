@@ -2325,6 +2325,7 @@ std::shared_ptr<display_requirement> assembly_recording_display_handler::get_dis
     
     //std::string abspath = recdb_join_assembly_and_component_names(chanpath,std::get<0>(relpath_orientation));
     std::string abspath = recdb_path_join(recdb_path_context(chanpath),std::get<0>(relpath_orientation));
+
     
     std::shared_ptr<display_requirement> sub_requirement = traverse_display_requirement(display,base_rss,display->lookup_channel(abspath),SNDE_SRG_DEFAULT_3D,nullptr);
     retval->sub_requirements.push_back(sub_requirement);
@@ -2442,7 +2443,7 @@ std::shared_ptr<display_requirement> tracking_pose_recording_display_handler::ge
 
   
   //// this assertion is temporary for debugging purposes and needs to be removed!!!***
-  //assert(isnan(pose_params->channel_to_reorient_orientation.quat.coord[3]) || pose_params->channel_to_reorient_orientation.quat.coord[3] != 0.0);
+  //assert(isnan(pose_params->channel_to_reorient_orientation.quat.coord[3]) || pose_params->channel_to_reorient_orientation.quat.coord[0] != 0.0);
   //{
   //  snde_coord4 rotmtx[4];
   //  orientation_build_rotmtx(pose_params->channel_to_reorient_orientation,rotmtx);
@@ -2579,7 +2580,7 @@ std::shared_ptr<display_requirement> pose_channel_recording_display_handler::get
 
   
   //// this assertion is temporary for debugging purposes and needs to be removed!!!***
-  //assert(isnan(pose_params->channel_to_reorient_orientation.quat.coord[3]) || pose_params->channel_to_reorient_orientation.quat.coord[3] != 0.0);
+  //assert(isnan(pose_params->channel_to_reorient_orientation.quat.coord[3]) || pose_params->channel_to_reorient_orientation.quat.coord[0] != 0.0);
   //{
   //  snde_coord4 rotmtx[4];
   //  orientation_build_rotmtx(pose_params->channel_to_reorient_orientation,rotmtx);

@@ -620,6 +620,7 @@ namespace snde {
 	//snde_debug(SNDE_DC_APP,"define_recs()");
 	// Use of "this" in the next line for the same reason as the typedefs, above
 	std::shared_ptr<multi_ndarray_recording> result_rec = create_recording_math<multi_ndarray_recording>(this->get_result_channel_path(0), this->rss, 2);
+	assert(result_rec->originating_state);
 	result_rec->define_array(0, SNDE_RTN_SNDE_COORD3, "pointcoord");
 	result_rec->define_array(1, SNDE_RTN_FLOAT32, "pointcoord_color");
 

@@ -13,9 +13,9 @@ recdb.startup()
 
  
 transact = recdb.start_transaction();
-testchan = recdb.define_channel("/test channel", "main", recdb.raw());
-test_ref = snde.create_ndarray_ref(recdb,testchan,recdb.raw(),snde.SNDE_RTN_FLOAT32)
-globalrev = transact.end_transaction()
+testchan = recdb.define_channel(transact,"/test channel", "main");
+test_ref = snde.create_ndarray_ref(transact,testchan,snde.SNDE_RTN_FLOAT32)
+globalrev = transact.end_transaction().globalrev_available()
 
 test_rec_metadata = snde.constructible_metadata()
 test_rec_metadata.AddMetaDatum(snde.metadatum_dbl("nde_axis0_inival",0.0));
@@ -48,7 +48,7 @@ globalrev.wait_complete();
 
 rec = globalrev.get_ndarray_ref("/test channel")
 
-data = rec.data()
+data = rec.data
 
 # Demonstrate export to raw shared pointer and reconstruction
 # from raw shared pointer:
@@ -59,6 +59,6 @@ rec2 = snde.ndarray_recording_ref.consume_raw_shared_ptr(rec.produce_raw_shared_
 assert(not rec.ndinfo().requires_locking_read)
 assert(not rec2.ndinfo().requires_locking_read)
 
-assert((rec2.data() == rec.data()).all())
+assert((rec2.data == rec.data).all())
 
 print(data)

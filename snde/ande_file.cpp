@@ -461,22 +461,22 @@ namespace snde {
     
   }
   
-  std::shared_ptr<recording_base> andefile_readarray::define_rec(std::shared_ptr<recdatabase> recdb,std::string ownername,void *owner_id)
+  std::shared_ptr<recording_base> andefile_readarray::define_rec(std::shared_ptr<active_transaction> trans,std::string ownername)
   {
-    std::shared_ptr<channel> loadchan;
+    std::shared_ptr<reserved_channel> loadchan;
     
-    {
-      std::lock_guard<std::mutex> recdb_admin(recdb->admin);
-      auto channel_map_it = recdb->_channels.find(recpath);
-      if (channel_map_it != recdb->_channels.end()) {
-	loadchan = channel_map_it->second;
-      }
-    }
-    if (!loadchan) {
-      loadchan = recdb->define_channel(recpath,ownername,owner_id); // Note: no way (so far) to set hidden flag or storage manager
-    }
+    //{
+    //  std::lock_guard<std::mutex> recdb_admin(trans->recdb->admin);
+    //  auto channel_map_it = trans->recdb->_channels.find(recpath);
+    //  if (channel_map_it != trans->recdb->_channels.end()) {
+    //    loadchan = channel_map_it->second;
+    //  }
+    //}
     
-    std::shared_ptr<multi_ndarray_recording> retval = create_recording<multi_ndarray_recording>(recdb,loadchan,owner_id,(size_t)numarrays);
+    loadchan = trans->recdb->define_channel(trans,recpath,ownername); // Note: no way (so far) to set hidden flag or storage manager
+    
+    
+    std::shared_ptr<multi_ndarray_recording> retval = create_recording<multi_ndarray_recording>(trans,loadchan,(size_t)numarrays);
 
     retval->metadata=metadata;
     
@@ -694,23 +694,23 @@ namespace snde {
     
   }
   
-  std::shared_ptr<recording_base> andefile_readgroup::define_rec(std::shared_ptr<recdatabase> recdb,std::string ownername,void *owner_id)
+  std::shared_ptr<recording_base> andefile_readgroup::define_rec(std::shared_ptr<active_transaction> trans,std::string ownername)
   {
-    std::shared_ptr<channel> loadchan;
+    std::shared_ptr<reserved_channel> loadchan;
     
-    {
-      std::lock_guard<std::mutex> recdb_admin(recdb->admin);
-      auto channel_map_it = recdb->_channels.find(recpath);
-      if (channel_map_it != recdb->_channels.end()) {
-	loadchan = channel_map_it->second;
-      }
-    }
-    if (!loadchan) {
-      loadchan = recdb->define_channel(recpath,ownername,owner_id); // Note: no way (so far) to set hidden flag or storage manager
-    }
+    //{
+    //  std::lock_guard<std::mutex> recdb_admin(trans->recdb->admin);
+    //  auto channel_map_it = trans->recdb->_channels.find(recpath);
+    //  if (channel_map_it != trans->recdb->_channels.end()) {
+    //	loadchan = channel_map_it->second;
+    //  }
+    //}
+  
+    loadchan = trans->recdb->define_channel(trans,recpath,ownername); // Note: no way (so far) to set hidden flag or storage manager
+    
     
     // ***!!! Should we provide the group with an explicit order that matches the order in the file???
-    std::shared_ptr<recording_group> retval = create_recording<recording_group>(recdb,loadchan,owner_id); //,nullptr);
+    std::shared_ptr<recording_group> retval = create_recording<recording_group>(trans,loadchan); //,nullptr);
     retval->metadata=metadata;
 
     return retval;
@@ -1219,7 +1219,7 @@ namespace snde {
   
   
   
-  std::shared_ptr<ande_loadrecording_map> andefile_loadfile(std::shared_ptr<recdatabase> recdb,std::string ownername,void *owner_id,std::string filename,std::string recpath /* ="/" */ ) // add filter function parameter or specific recording to request to limit what is loaded? 
+  std::shared_ptr<ande_loadrecording_map> andefile_loadfile(std::shared_ptr<active_transaction> trans,std::string ownername,std::string filename,std::string recpath /* ="/" */ ) // add filter function parameter or specific recording to request to limit what is loaded? 
   {
     //std::shared_ptr<ande_file> andefile = std::make_shared<ande_file>(filename);
     H5::H5File H5Obj(filename,H5F_ACC_RDONLY);
@@ -1239,7 +1239,7 @@ namespace snde {
       std::string recname = std::get<0>(recname_loaderptr_recordingptr);
       std::pair<std::shared_ptr<andefile_readrecording_base>,std::shared_ptr<recording_base>> &loaderptr_recordingptr=std::get<1>(recname_loaderptr_recordingptr);
       // define recording and assign into filemap
-      loaderptr_recordingptr.second = loaderptr_recordingptr.first->define_rec(recdb,ownername,owner_id);
+      loaderptr_recordingptr.second = loaderptr_recordingptr.first->define_rec(trans,ownername);
     }
     
     // iterate through all recordings and load them

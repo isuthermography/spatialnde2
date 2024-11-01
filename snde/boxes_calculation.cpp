@@ -489,7 +489,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   
   static int registered_boxes_calculation_3d_function = register_math_function("spatialnde2.boxes_calculation_3d",boxes_calculation_3d_function);
 
-  void instantiate_boxes3d(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
+  void instantiate_boxes3d(std::shared_ptr<active_transaction> trans,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
     std::string context = recdb_path_context(loaded_geom->info->name);
 
@@ -509,7 +509,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
       nullptr);
 
 
-    recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
+    trans->recdb->add_math_function(trans,instantiated,true); // trinormals are generally hidden by default
     loaded_geom->processed_relpaths.emplace("boxes3d","boxes3d");
 
   }
@@ -1007,7 +1007,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   static int registered_boxes_calculation_2d_function = register_math_function("spatialnde2.boxes_calculation_2d",boxes_calculation_2d_function);
 
 
-  void instantiate_boxes2d(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
+  void instantiate_boxes2d(std::shared_ptr<active_transaction> trans,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
     
     std::string context = recdb_path_context(loaded_geom->info->name);
@@ -1025,7 +1025,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
       nullptr);
 
     
-    recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
+    trans->recdb->add_math_function(trans,instantiated,true); // trinormals are generally hidden by default
     loaded_geom->processed_relpaths.emplace("boxes2d","boxes2d");
   }
   

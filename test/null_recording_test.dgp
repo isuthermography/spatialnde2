@@ -19,6 +19,6 @@ include(snde,"recdb_gui.dpi")
 
 transact = recdb.start_transaction()	
 
-live_channel = recdb.define_channel("/nullrecording","main",recdb.raw())
+live_channel = recdb.define_channel("/nullrecording","main")
 
 globalrev = transact.end_transaction()

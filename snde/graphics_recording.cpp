@@ -21,8 +21,8 @@ namespace snde {
   */
 
   
-  meshed_part_recording::meshed_part_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
-    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,8)
+  meshed_part_recording::meshed_part_recording(struct recording_params params,size_t info_structsize) :
+    multi_ndarray_recording(params,info_structsize,8)
   {
     snde_geometrydata dummy={0};
 
@@ -81,8 +81,8 @@ namespace snde {
     return componentpart_chans;
   }
   
-  meshed_vertexarray_recording::meshed_vertexarray_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
-    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
+  meshed_vertexarray_recording::meshed_vertexarray_recording(struct recording_params params,size_t info_structsize) :
+    multi_ndarray_recording(params,info_structsize,1)
   {
     //snde_geometrydata dummy={0};
     
@@ -92,8 +92,8 @@ namespace snde {
   }
 
 
-  meshed_inplanemat_recording::meshed_inplanemat_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
-    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
+  meshed_inplanemat_recording::meshed_inplanemat_recording(struct recording_params params,size_t info_structsize) :
+    multi_ndarray_recording(params,info_structsize,1)
   {
     snde_geometrydata dummy={0};
 
@@ -103,8 +103,8 @@ namespace snde {
   }
 
   
-  meshed_texvertex_recording::meshed_texvertex_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
-    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
+  meshed_texvertex_recording::meshed_texvertex_recording(struct recording_params params,size_t info_structsize) :
+    multi_ndarray_recording(params,info_structsize,1)
   {
     snde_geometrydata dummy={0};
 
@@ -114,8 +114,8 @@ namespace snde {
 
   }
     
-  meshed_vertnormals_recording::meshed_vertnormals_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
-    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
+  meshed_vertnormals_recording::meshed_vertnormals_recording(struct recording_params params,size_t info_structsize) :
+    multi_ndarray_recording(params,info_structsize,1)
   {
     snde_geometrydata dummy={0};
     
@@ -125,8 +125,8 @@ namespace snde {
 
   }
 
-  meshed_vertnormalarrays_recording::meshed_vertnormalarrays_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
-    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
+  meshed_vertnormalarrays_recording::meshed_vertnormalarrays_recording(struct recording_params params,size_t info_structsize) :
+    multi_ndarray_recording(params,info_structsize,1)
   {
     snde_geometrydata dummy={0};
 
@@ -137,8 +137,8 @@ namespace snde {
   }
 
   
-  meshed_trinormals_recording::meshed_trinormals_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
-   multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
+  meshed_trinormals_recording::meshed_trinormals_recording(struct recording_params params,size_t info_structsize) :
+    multi_ndarray_recording(params,info_structsize,1)
   {
     snde_geometrydata dummy={0};
     
@@ -148,8 +148,8 @@ namespace snde {
 
   }
 
-  meshed_parameterization_recording::meshed_parameterization_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
-   multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,9)
+  meshed_parameterization_recording::meshed_parameterization_recording(struct recording_params params,size_t info_structsize) :
+    multi_ndarray_recording(params,info_structsize,9)
   {
     snde_geometrydata dummy={0};
 
@@ -197,8 +197,8 @@ namespace snde {
     }
     return componentpart_chans;
   }
-  meshed_projinfo_recording::meshed_projinfo_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
-   multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,2)
+  meshed_projinfo_recording::meshed_projinfo_recording(struct recording_params params,size_t info_structsize) :
+    multi_ndarray_recording(params,info_structsize,2)
   {
     snde_geometrydata dummy={0};
 
@@ -213,8 +213,8 @@ namespace snde {
   }
 
 
-  boxes3d_recording::boxes3d_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
-   multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,3)
+  boxes3d_recording::boxes3d_recording(struct recording_params params,size_t info_structsize) :
+    multi_ndarray_recording(params,info_structsize,3)
   {
     snde_geometrydata dummy={0};
 
@@ -233,8 +233,8 @@ namespace snde {
 
 
 
-  boxes2d_recording::boxes2d_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
-   multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,0)
+  boxes2d_recording::boxes2d_recording(struct recording_params params,size_t info_structsize) :
+    multi_ndarray_recording(params,info_structsize,0)
   {
     // ***!!!! NOTE: Must call set_num_patches after construction and before assigning storage ***!!!
     rec_classes.push_back(recording_class_info("snde::boxes2d_recording",typeid(boxes2d_recording),ptr_to_new_shared_impl<boxes2d_recording>));
@@ -268,8 +268,8 @@ namespace snde {
 
   
   
-  texture_recording::texture_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize) :
-    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1)
+  texture_recording::texture_recording(struct recording_params params,size_t info_structsize) :
+    multi_ndarray_recording(params,info_structsize,1)
     
   {
     snde_geometrydata dummy={0};
@@ -291,8 +291,8 @@ namespace snde {
 
   }
 
-  textured_part_recording::textured_part_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string part_name, std::shared_ptr<std::string> parameterization_name, const std::map<snde_index,std::shared_ptr<image_reference>> &texture_refs) :
-    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize),
+  textured_part_recording::textured_part_recording(struct recording_params params,size_t info_structsize,std::string part_name, std::shared_ptr<std::string> parameterization_name, const std::map<snde_index,std::shared_ptr<image_reference>> &texture_refs) :
+    recording_base(params,info_structsize),
     part_name(part_name),
     parameterization_name(parameterization_name),
     texture_refs(texture_refs)
@@ -303,8 +303,8 @@ namespace snde {
 
   
   // This version primarily for Python wrapping
-  textured_part_recording::textured_part_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string part_name, std::shared_ptr<std::string> parameterization_name, std::vector<std::pair<snde_index,std::shared_ptr<image_reference>>> texture_refs_vec) :
-    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize),
+  textured_part_recording::textured_part_recording(struct recording_params params,size_t info_structsize,std::string part_name, std::shared_ptr<std::string> parameterization_name, std::vector<std::pair<snde_index,std::shared_ptr<image_reference>>> texture_refs_vec) :
+    recording_base(params,info_structsize),
     part_name(part_name),
     parameterization_name(parameterization_name)
   {
@@ -339,8 +339,8 @@ namespace snde {
   }
 
   
-  assembly_recording::assembly_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::vector<std::pair<std::string,snde_orientation3>> &pieces) :
-    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize),
+  assembly_recording::assembly_recording(struct recording_params params,size_t info_structsize,const std::vector<std::pair<std::string,snde_orientation3>> &pieces) :
+    recording_base(params,info_structsize),
     pieces(pieces)
   {
     rec_classes.push_back(recording_class_info("snde::assembly_recording",typeid(assembly_recording),ptr_to_new_shared_impl<assembly_recording>));
@@ -381,9 +381,9 @@ namespace snde {
   }
 
   
-  loaded_part_geometry_recording::loaded_part_geometry_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,const std::unordered_set<std::string> &processing_tags,bool loaded_landmarks,bool unchanged_since_load)
+  loaded_part_geometry_recording::loaded_part_geometry_recording(struct recording_params params,size_t info_structsize,const std::unordered_set<std::string> &processing_tags,bool loaded_landmarks,bool unchanged_since_load)
  :
-    recording_group(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize), //,nullptr),
+    recording_group(params,info_structsize), //,nullptr),
     processing_tags(processing_tags),
     loaded_landmarks(loaded_landmarks),
     unchanged_since_load(unchanged_since_load)
@@ -393,8 +393,8 @@ namespace snde {
   }
 
   
-  tracking_pose_recording::tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient,std::string component_name):
-    recording_base(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize),
+  tracking_pose_recording::tracking_pose_recording(struct recording_params params,size_t info_structsize,std::string channel_to_reorient,std::string component_name):
+    recording_base(params,info_structsize),
     channel_to_reorient(channel_to_reorient),
     component_name(component_name)
   {
@@ -439,8 +439,8 @@ namespace snde {
 	return std::make_shared<tracking_pose_recording_display_handler>(display,displaychan,base_rss);
       }));
 
-  pose_channel_tracking_pose_recording::pose_channel_tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient,std::string component_name,std::string pose_channel_name):
-    tracking_pose_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,channel_to_reorient,component_name),
+  pose_channel_tracking_pose_recording::pose_channel_tracking_pose_recording(struct recording_params params,size_t info_structsize,std::string channel_to_reorient,std::string component_name,std::string pose_channel_name):
+    tracking_pose_recording(params,info_structsize,channel_to_reorient,component_name),
     pose_channel_name(pose_channel_name)
   {
     rec_classes.push_back(recording_class_info("snde::pose_channel_tracking_pose_recording",typeid(pose_channel_tracking_pose_recording),ptr_to_new_shared_impl<pose_channel_tracking_pose_recording>));
@@ -480,8 +480,8 @@ namespace snde {
   }
 
 
-  pose_channel_recording::pose_channel_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient) :
-    multi_ndarray_recording(recdb,storage_manager,defining_transact,chanpath,_originating_rss,new_revision,info_structsize,1),
+  pose_channel_recording::pose_channel_recording(struct recording_params params,size_t info_structsize,std::string channel_to_reorient) :
+    multi_ndarray_recording(params,info_structsize,1),
     channel_to_reorient(channel_to_reorient)
     
   {
@@ -544,9 +544,9 @@ namespace snde {
     return std::dynamic_pointer_cast<pose_channel_recording>(rec);
   }
 
-  std::shared_ptr<ndarray_recording_ref> create_pose_channel_ndarray_ref(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string channel_to_reorient_name)
+  std::shared_ptr<ndarray_recording_ref> create_pose_channel_ndarray_ref(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan,std::string channel_to_reorient_name)
   {
-    return create_subclass_ndarray_ref<pose_channel_recording>(recdb,chan,owner_id,SNDE_RTN_SNDE_ORIENTATION3,channel_to_reorient_name);
+    return create_subclass_ndarray_ref<pose_channel_recording>(trans,chan,SNDE_RTN_SNDE_ORIENTATION3,channel_to_reorient_name);
   }
 
   static void tso_lock_helper(std::shared_ptr<recording_set_state> rss,std::string channel_path,std::string component_path,std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>> this_lock,std::vector<std::pair<std::shared_ptr<multi_ndarray_recording>,std::pair<size_t,bool>>> &locks,std::function<bool(std::string channel_path,std::string component_path)> recursion_approver)

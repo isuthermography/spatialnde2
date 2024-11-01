@@ -1,10 +1,53 @@
 import sys
+import pkgutil
+import os.path
 import multiprocessing 
 import math
 import numpy as np
 import spatialnde2 as snde
-from PySide2.QtWidgets import QApplication,QWidget,QMainWindow
-from PySide2.QtCore import QCoreApplication,QObject,Qt
+# Check if SpatialNDE2 is built for Qt5 versus Qt6
+spatialnde2_loader = pkgutil.get_loader("spatialnde2")
+spatialnde2_qt_version=None
+if spatialnde2_loader is not None:
+    spatialnde2_path = spatialnde2_loader.get_filename()
+    spatialnde2_dirpath = os.path.dirname(spatialnde2_path)
+    compile_definitions_path = os.path.join(spatialnde2_dirpath, "compile_definitions.txt")
+    with open(compile_definitions_path, "r") as fh:
+        compile_definitions_str = fh.read()
+        pass
+    _spatialnde2_qt6_enabled = "-DSNDE_ENABLE_QT6=1" in compile_definitions_str
+    if _spatialnde2_qt6_enabled:
+        spatialnde2_qt_version="6"
+        pass
+    else:
+        spatialnde2_qt_version="5"
+        pass
+    pass
+
+if spatialnde2_qt_version == "5":
+    try: 
+        from PySide2.QtWidgets import QApplication,QWidget,QMainWindow
+        from PySide2.QtCore import QCoreApplication,QObject,Qt
+        from PySide2 import QtCore
+        pass
+    except ImportError:
+        from PyQt5.QtWidgets import QApplication,QWidget,QMainWindow
+        from PyQt5.QtCore import QCoreApplication,QObject,Qt
+        from PyQt5 import QtCore
+        pass
+    pass
+else:
+    try: 
+        from PySide6.QtWidgets import QApplication,QWidget,QMainWindow
+        from PySide6.QtCore import QCoreApplication,QObject,Qt
+        from PySide6 import QtCore
+        pass
+    except ImportError:
+        from PyQt6.QtWidgets import QApplication,QWidget,QMainWindow
+        from PyQt6.QtCore import QCoreApplication,QObject,Qt
+        from PyQt6 import QtCore
+        pass
+    pass
 
 rec_len=100;
 
@@ -18,16 +61,16 @@ recdb.startup()
  
 transact = recdb.start_transaction(); # Transaction RAII holder
 
-testchan_config=snde.channelconfig("/test channel", "main", recdb,False)
-pointcloudchan_config=snde.channelconfig("/pointcloud channel", "main", recdb,False)
+testchan_config=snde.channelconfig("/test channel", "main",False)
+pointcloudchan_config=snde.channelconfig("/pointcloud channel", "main",False)
   
-testchan = recdb.reserve_channel(testchan_config);
-pointcloudchan = recdb.reserve_channel(pointcloudchan_config);
+testchan = recdb.reserve_channel(transact,testchan_config);
+pointcloudchan = recdb.reserve_channel(transact,pointcloudchan_config);
 
-test_rec = snde.create_ndarray_ref(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT32)
-pointcloud_rec = snde.create_ndarray_ref(recdb,pointcloudchan,recdb,snde.SNDE_RTN_SNDE_COORD3)
+test_rec = snde.create_ndarray_ref(transact,testchan,snde.SNDE_RTN_FLOAT32)
+pointcloud_rec = snde.create_ndarray_ref(transact,pointcloudchan,snde.SNDE_RTN_SNDE_COORD3)
 
-globalrev = transact.end_transaction()
+globalrev = transact.end_transaction().globalrev_available()
 
 test_rec.rec.metadata=snde.constructible_metadata()
 test_rec.rec.mark_metadata_done()
@@ -62,14 +105,14 @@ pointcloud_rec.allocate_storage([ nx,ny ],True);
 locktokens = recdb.lockmgr.lock_recording_refs([
     (test_rec, True), # first element is recording_ref, 2nd parameter is false for read, true for write
     (pointcloud_rec,True)
-])
+],False)
 for cnt in range(rec_len):
     test_rec.assign_double([cnt],100.0*math.sin(cnt))
     pass
 
-pointcloud_rec.data()["coord"][:,:,0]=x_2d
-pointcloud_rec.data()["coord"][:,:,1]=y_2d
-pointcloud_rec.data()["coord"][:,:,2]=z_2d
+pointcloud_rec.data["coord"][:,:,0]=x_2d
+pointcloud_rec.data["coord"][:,:,1]=y_2d
+pointcloud_rec.data["coord"][:,:,2]=z_2d
 # must unlock prior to mark_data_ready
 snde.unlock_rwlock_token_set(locktokens)
 
@@ -79,7 +122,7 @@ pointcloud_rec.rec.mark_data_ready()
 globalrev.wait_complete();
 
 
-QCoreApplication.setAttribute(Qt.QtCore.Qt.AA_UseDesktopOpenGL)
+QCoreApplication.setAttribute(QtCore.Qt.AA_UseDesktopOpenGL)
 QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
 
 app = QApplication(sys.argv)

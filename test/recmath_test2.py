@@ -28,21 +28,21 @@ scaled_channel_function = scalar_multiply_function.instantiate([ snde.math_param
                                                                None)
 transact = recdb.start_transaction(); # Transaction RAII holder
 
-recdb.add_math_function(scaled_channel_function,False)
+recdb.add_math_function(transact,scaled_channel_function,False)
 
-testchan_config=snde.channelconfig("/test_channel", "main", recdb,False)
+testchan_config=snde.channelconfig("/test_channel", "main",False)
   
-testchan = recdb.reserve_channel(testchan_config);
+testchan = recdb.reserve_channel(transact,testchan_config);
 
 # demonstrate alternative ways to create the recording
 
-test_rec_32 = snde.create_ndarray_ref(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT32)
+test_rec_32 = snde.create_ndarray_ref(transact,testchan,snde.SNDE_RTN_FLOAT32)
 
-globalrev = transact.end_transaction()
+globalrev = transact.end_transaction().globalrev_available()
 
 transact2 = recdb.start_transaction(); # Transaction RAII holder
-test_rec_64 = snde.create_ndarray_ref(recdb,testchan,recdb,snde.SNDE_RTN_FLOAT64)
-globalrev2 = transact2.end_transaction()
+test_rec_64 = snde.create_ndarray_ref(transact2,testchan,snde.SNDE_RTN_FLOAT64)
+globalrev2 = transact2.end_transaction().globalrev_available()
 
 
 test_rec_32.rec.metadata=snde.immutable_metadata()
@@ -86,11 +86,11 @@ scaled_rec_32 = globalrev.get_ndarray_ref("/scaled_channel")
 assert(not scaled_rec_32.ndinfo().requires_locking_read)
 assert(not test_rec_32.ndinfo().requires_locking_read)
 
-data_32 = scaled_rec_32.data()
+data_32 = scaled_rec_32.data
 
 for cnt in range(rec_len):
     math_function_value = data_32[cnt]
-    recalc_value = test_rec_32.data()[cnt]*scalefactor
+    recalc_value = test_rec_32.data[cnt]*scalefactor
     print(" %f \t \t %f" % (recalc_value,math_function_value)) 
     assert(abs(math_function_value-recalc_value) < 1e-4) # No functionality in Python to do single precision calculation for comparison
     pass
@@ -99,11 +99,11 @@ scaled_rec_64 = globalrev2.get_ndarray_ref("/scaled_channel")
 assert(not scaled_rec_64.ndinfo().requires_locking_read)
 assert(not test_rec_64.ndinfo().requires_locking_read)
 
-data_64 = scaled_rec_64.data()
+data_64 = scaled_rec_64.data
 
 for cnt in range(rec_len):
     math_function_value = data_64[cnt]
-    recalc_value = test_rec_64.data()[cnt]*scalefactor
+    recalc_value = test_rec_64.data[cnt]*scalefactor
     print(" %f \t \t %f" % (recalc_value,math_function_value)) 
     assert(math_function_value == recalc_value) 
     pass

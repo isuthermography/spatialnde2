@@ -236,7 +236,7 @@ namespace snde {
   static int registered_kdtree_calculation_function = register_math_function("spatialnde2.kdtree_calculation",kdtree_calculation_function);
 
 
-  void instantiate_vertex_kdtree(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
+  void instantiate_vertex_kdtree(std::shared_ptr<active_transaction> trans,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
     std::string context = recdb_path_context(loaded_geom->info->name);
 
@@ -260,7 +260,7 @@ namespace snde {
       nullptr);
 
 
-    recdb->add_math_function(instantiated,true); // kdtree is generally hidden by default
+    trans->recdb->add_math_function(trans,instantiated,true); // kdtree is generally hidden by default
     loaded_geom->processed_relpaths.emplace("kdtree","kdtree");
     
   }
@@ -378,9 +378,12 @@ namespace snde {
   {
     // NOTE: Must keep code parallel with perform_inline_ocl_knn_calculation(), above!!!***
     snde_index num_search_points = search_points->layout.flattened_length();
-    
+    snde_index num_search_point_indices = num_search_points; // set equal to num_search_points if search_point_indices==nullptr
     if (search_point_indices) {
 
+      // iterate over only search_points specified in search_point_indices
+      num_search_point_indices = search_point_indices->layout.flattened_length();
+      
       if (!search_point_indices->layout.is_contiguous()) {
 	throw snde_error("search_point_indices array must be contiguous");
       }
@@ -400,7 +403,7 @@ namespace snde {
     
 #ifdef SNDE_OPENCL
     std::shared_ptr<assigned_compute_resource_opencl> opencl_resource=std::dynamic_pointer_cast<assigned_compute_resource_opencl>(compute_resource);
-    if (opencl_resource && search_point_indices->layout.flattened_length() > 0) {
+    if (opencl_resource && search_point_indices && search_point_indices->layout.flattened_length() > 0) {
       cl::Device knn_dev = opencl_resource->devices.at(0);
 
       OpenCLBuffers Buffers(opencl_resource->oclcache,opencl_resource->context,knn_dev,locktokens);
