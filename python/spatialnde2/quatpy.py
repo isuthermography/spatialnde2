@@ -61,7 +61,7 @@ def quaternion_inverse(quat):
     
     # The inverse of a quaternion [w, i, j, k] is [w, -i, -j, -k] normalized
     # inv = np.array([quat[0], -quat[1], -quat[2], -quat[3]]) / (norm ** 2)
-    inv = np.concatenate([quat[..., :1], -quat[..., 1:]], axis=-1)/(norm[..., np.newaxis=-1]**2)
+    inv = np.concatenate([quat[..., :1], -quat[..., 1:]], axis=-1)/(norm[..., np.newaxis]**2)
     return inv
 
 def quaternion_apply_vector(quat, vec):
