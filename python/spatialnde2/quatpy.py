@@ -37,7 +37,10 @@ def quaternion_product(quat1, quat2):
         quat1[..., 0] * quat2[..., 2] - quat1[..., 1] * quat2[..., 3] + quat1[..., 2] * quat2[..., 0] + quat1[..., 3] * quat2[..., 1],  # j part
         quat1[..., 0] * quat2[..., 3] + quat1[..., 1] * quat2[..., 2] - quat1[..., 2] * quat2[..., 1] + quat1[..., 3] * quat2[..., 0]   # k part
     ])
-    return product
+    
+    axis_range = np.arange(len(product.shape))
+    product_transpose = np.transpose(product, np.roll(axis_range, -1))
+    return product_transpose
 
 def quaternion_product_normalized(quat1, quat2): 
     unnormalized = quaternion_product(quat1, quat2)
@@ -69,9 +72,12 @@ def quaternion_apply_vector(quat, vec):
         raise ValueError("Quaternions must have 4 components (real + 3 imaginary)")
     if vec.shape[-1] != 3: 
         raise ValueError("Vectors must have 3 components")
-    
+
     # vec_as_quat = np.array([0.0, *vec[:3]])
-    vec_as_quat = np.concatenate([np.zeros((vec.shape[:-1], 1)), vec], axis=-1)
+    zeros_shape = np.concatenate((vec.shape[:-1], (1,)))
+    vec_as_quat = np.concatenate([np.zeros(zeros_shape), vec], axis=-1)
+
+    # print(f"vec to quat{vec_as_quat}")
     
     q1_times_v = quaternion_product(quat, vec_as_quat)
     q1_inverse = quaternion_inverse(quat)
@@ -84,20 +90,33 @@ def quaternion_average(quat, axis=None):
     elements of a quaternion. Compute the average over a particular preceding axis
     or all preceding axes. 
     
-    If axis is None, compute over all preceding axes. If axis is an integer, 
+    If axis is None, compute over all but the last axis. If axis is an integer, 
     compute over that axis. 
+    
+    The quaternions should be normalized. If they are not, the average will be a
+    weighted average based on their magnitudes.
     '''
     # If compute over all axes, flatten them. 
     if axis is None: 
         quat = quat.reshape(np.prod(quat.shape[:-1]), 4)
         axis = 0
         pass
+    
+    # Transpose axis of averaging to the second last axis
+    axis_order = list(range(len(quat.shape)))
+    del axis_order[axis]
+    axis_order.insert(-2, axis)
+    print(axis_order) # do a test with a moderately large number of axes, at least 4 ***!!!
+    quat = np.transpose(quat, axis_order)
         
     # Generate the matrix of outer products of the quaternions over the 
-    outer_prods = np.einsum("...i, ...j->...ij", quat, quat)
+    outer_prods = np.einsum("...ki, ...kj->...ij", quat, quat)
     
     # Evaluate eigenvectors/eigenvalues of outer product matrix
     (evals, evecs) = np.linalg.eigh(outer_prods)
+    
+    # import pdb
+    # pdb.set_trace()
     
     # Mean quaternion is the eigenvector corresponding to the largest (last) eigenvalue
     return evecs[..., :, -1]
@@ -116,17 +135,20 @@ def quaternion_apply_to_bothsides_of_matrix(quat, mtx):
     # Apply quaternion to each column (LH side)
     # transformed_columns = np.array([quaternion_apply_vector(quat, mtx[:, i]) for i in range(mtx.shape[1])]) 
     transformed_columns = np.concatenate([quaternion_apply_vector(quat[..., np.newaxis, :], mtx[..., np.newaxis, :, i]) for i in range(mtx.shape[1])], axis=-2) 
+    # print(f"transformed_columns{transformed_columns}")
     # Each row of transformed_columns represents a single transformed column
     
     # Apply quaternion across the transformed columns (RH side). Because they are stored as rows, we need to extract columns.
     # transformed_rows = np.array([quaternion_apply_vector(quat, transformed_columns[:, i]) for i in range(transformed_columns.shape[0])])
     transformed_rows = np.concatenate([quaternion_apply_vector(quat[..., np.newaxis, :], transformed_columns[..., np.newaxis, :, i]) for i in range(transformed_columns.shape[0])], axis=-2)
+    # print(f"transformed_rows{transformed_rows}")
 
     # Each row of transformed_rows represents a single transformed row, which we now treat as a column vector. 
     # These column vectors per the original comment need to be interpreted as rows. 
     # Therefore, our transformed_mtx is just transformed_rows
     
     transformed_mtx = transformed_rows
+    # print(f"transformed_mtx{transformed_mtx}")
     
     # # Normalize the quaternion 
     # quat = quaternion_normalize(quat)
@@ -143,12 +165,25 @@ def quaternion_build_rotmtx(quat):
     Creates a 3x3 matrix with the upper 3x3 the rotation represented by quat. 
     The final column represents a zero offset. 
     """
-    rotmtx = np.zeros(quat.shape[:-1] + [3, 3])
+    rotmtx = np.zeros(quat.shape[:-1] + (3, 3))
     vecs = [(1.0, 0.0, 0.0), 
                 (0.0, 1.0, 0.0), 
                 (0.0, 0.0, 1.0)]
     
     
     for i, vec in enumerate(vecs):
-        rotmtx[..., :, i] = quaternion_apply_vector(quat, vec.reshape(*([1]*(len(quat.shape) - 1) + [3])))
+        rotmtx[..., :, i] = quaternion_apply_vector(quat, vec.reshape(*([1]*(len(quat.shape) - 1) + [3]))) # ORIGINAL
     return rotmtx
+
+def angle_between_quaternions(quat1, quat2):
+    '''
+    Calculates the angle between two quaternions of (w, i, j, k) dimensions. 
+    
+    The angle is output in radians. 
+    '''
+    quat1_norm = quaternion_normalize(quat1)
+    quat2_norm = quaternion_normalize(quat2)
+    dot_product = np.inner(quat1_norm, quat2_norm)
+    
+    angle = 2 * np.arccos(dot_product) # returns the angle in radians
+    return angle
