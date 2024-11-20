@@ -23,6 +23,10 @@ endif()
 # Select coordinate precision: single vs. double
 set(SNDE_DOUBLEPREC_COORDS OFF CACHE BOOL "Use double precision for geometric coordinates rather than single precision" )
 
+# Enable Python Integration with SpatialNDE2 Core Library Functions
+# This adds a Python library dependency to the spatialnde2 libraries
+set(SNDE_PYTHON_SUPPORT_ENABLED ON CACHE BOOL "Enable python support in SpatialNDE2 libraries -- builds SWIG bindings and includes support functions for dropping the GIL in Qt code")
+
 # There is no realloc functionality on win32.  We could implement code that would replicate the capability
 # however, this would create an inconsistency with existing pointers that are floating around elsewhere out of the
 # control of the shared memory allocator.  So, instead, we just allocate way more address space than we expect to need.
@@ -199,22 +203,30 @@ find_package(Threads REQUIRED)
 # Always first go for the python found
 # in the command path. But allow this to be
 # overridden if need be
-find_program(PYTHON_EXECUTABLE
-  NAMES python python3
-  PATHS ENV PATH
-  DOC "Python executable, defining version and ABI to use for build"
-  NO_DEFAULT_PATH )
-set(PYTHON_MANUAL_COMPONENT_SELECTION FALSE CACHE BOOL "Manually select python installation components" )
-if(PYTHON_MANUAL_COMPONENT_SELECTION)
-  set(Python3_ARTIFACTS_INTERACTIVE TRUE )
-endif()
+IF(SNDE_PYTHON_SUPPORT_ENABLED)
+    find_program(PYTHON_EXECUTABLE
+      NAMES python python3
+      PATHS ENV PATH
+      DOC "Python executable, defining version and ABI to use for build"
+      NO_DEFAULT_PATH )
+    set(PYTHON_MANUAL_COMPONENT_SELECTION FALSE CACHE BOOL "Manually select python installation components" )
+    if(PYTHON_MANUAL_COMPONENT_SELECTION)
+      set(Python3_ARTIFACTS_INTERACTIVE TRUE )
+    endif()
 
-set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
+    set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
 
-message(PYTHON_EXECUTABLE " " ${PYTHON_EXECUTABLE})
+    message(PYTHON_EXECUTABLE " " ${PYTHON_EXECUTABLE})
 
-find_package(Python3 COMPONENTS Interpreter Development)
-find_package(SWIG)
+    find_package(Python3 COMPONENTS Interpreter Development)
+    find_package(SWIG)
+
+    IF (Python3_FOUND)
+        message(STATUS "Python3: " ${Python3_VERSION})
+        set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_PYTHON_SUPPORT_ENABLED ) 
+    ENDIF (Python3_FOUND)
+ENDIF(SNDE_PYTHON_SUPPORT_ENABLED)
+
 find_package(PNG)
 set(HDF5_USE_STATIC_LIBRARIES OFF )
 find_package(HDF5 REQUIRED COMPONENTS C CXX )
@@ -265,10 +277,6 @@ ENDIF()
 
 include_directories( BEFORE . )  # So that #include "snde/..." works during the build
 include_directories( BEFORE ${CMAKE_CURRENT_BINARY_DIR}/include )  # So that #include "snde/..." works during the build for python generated headers
-
-IF (Python3_FOUND)
-    message(STATUS "Python3: " ${Python3_VERSION})
-ENDIF (Python3_FOUND)
 
 set(SPATIALNDE2_LIBS spatialnde2 ${CMAKE_THREAD_LIBS_INIT} )
 set(SPATIALNDE2_OCL_LIBS spatialnde2_ocl )
@@ -356,6 +364,7 @@ ENDIF()
 
 IF (Python3_FOUND)
     include_directories(${Python3_INCLUDE_DIRS})
+    set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} ${Python3_LIBRARIES})
 ENDIF(Python3_FOUND)
 
 IF (OpenThreads_FOUND)
@@ -378,6 +387,10 @@ add_dependencies(spatialnde2 OpenGL::GL )
 # Need a define for direct compiling of spatialnde2 for the items that need dllimport/dllexport on Windows
 target_compile_definitions(spatialnde2 PRIVATE SPATIALNDE2_SHAREDLIB_EXPORT)
 target_link_libraries(spatialnde2 hdf5::hdf5 hdf5::hdf5_cpp )
+
+IF (SNDE_PYTHON_SUPPORT_ENABLED)
+    target_link_libraries(spatialnde2 ${Python3_LIBRARIES})
+ENDIF (SNDE_PYTHON_SUPPORT_ENABLED)
 
 IF (NOT WIN32)
   target_link_libraries(spatialnde2 rt)
@@ -420,7 +433,7 @@ FILE(GLOB SPATIALNDE2_C_HEADERS "snde/*.h")
 
 # SpatialNDE2 dataguzzler-python .dpi include files
 FILE(GLOB SPATIALNDE2_DPI_FILES "python/spatialnde2/*.dpi")
-
+FILE(GLOB SPATIALNDE2_PY_MODULES "python/spatialnde2/*.py")
 
 # Set RPATH
 # the RPATH to be used when installing, but only if it's not a system directory
@@ -553,7 +566,7 @@ IF (Python3_FOUND)
   # openscenegraph or qt, for example
   IF(WIN32)
     add_custom_command(OUTPUT ${PYTHONPKGFILES}
-    DEPENDS compile_configuration pyproject.toml setup.py setup.cfg spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES} 
+    DEPENDS compile_configuration pyproject.toml setup.py setup.cfg spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${SPATIALNDE2_PY_MODULES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES} 
     # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
     
     COMMAND ${CMAKE_COMMAND} -E copy setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
@@ -579,6 +592,8 @@ IF (Python3_FOUND)
     COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_C_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_DPI_FILES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_PY_MODULES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+
     COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${CYTHON_PXD_FILES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     
@@ -595,7 +610,7 @@ IF (Python3_FOUND)
 
   ELSE()
     add_custom_command(OUTPUT ${PYTHONPKGFILES}
-    DEPENDS compile_configuration pyproject.toml setup.py setup.cfg spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES}
+    DEPENDS compile_configuration pyproject.toml setup.py setup.cfg spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${SPATIALNDE2_PY_MODULES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES}
     # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
     
     COMMAND ${CMAKE_COMMAND} -E copy setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
@@ -618,6 +633,7 @@ IF (Python3_FOUND)
     COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_C_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_DPI_FILES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_PY_MODULES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${CYTHON_PXD_FILES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     
@@ -844,8 +860,10 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${Python3_LIBRARIES} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${SPATIALNDE2_QT_LIBS} )
 
 	IF (OpenCL_FOUND)
+          IF (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"))
             set(SWIG_SPATIALNDE2_LINK_TARGETS ${SWIG_SPATIALNDE2_LINK_TARGETS} OpenCL::OpenCL)
-	    set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${SPATIALNDE2_OCL_LIBS})
+          ENDIF()
+          set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${SPATIALNDE2_OCL_LIBS})
 	ENDIF()
 
 	#IF(NOT WIN32)
@@ -895,7 +913,7 @@ foreach(dep in LISTS ${SWIG_SPATIALNDE2_LINK_TARGETS})
 
 
   ## Work around FindHDF5 problem where the link target name is hdf5-shared instead of hdf5
-  #set(THIS_PROCESSED1_EVALUATED_LINK_TARGET $<IF:$<STREQUAL:"hdf5-shared",${THIS_RAW_EVALUATED_LINK_TARGET}>,"hdf5",${THIS_RAW_EVALUATED_LINK_TARGET}> ) 
+  #set(THIS_PROCESSED1_EVALUATED_LINK_TARGET $<IF:$<STREQUAL:"hdf5-shared",${THIS_RAW_EVALUATED_LINK_TARGET}>,"hdf5",${THIS_RAW_EVALUATED_LINK_TARGET}> )
   #
   #set(THIS_PROCESSED2_EVALUATED_LINK_TARGET $<IF:$<STREQUAL:"hdf5_cpp-shared",${THIS_PROCESSED1_EVALUATED_LINK_TARGET}>,"hdf5_cpp",${THIS_PROCESSED1_EVALUATED_LINK_TARGET}> ) 
 

@@ -5,7 +5,7 @@
 %shared_ptr(snde::qt_osg_compositor_view_tracking_pose_recording);
 snde_rawaccessible(snde::qt_osg_compositor_view_tracking_pose_recording);
 
-
+// The following line is critical for all QWidget-derived classes.  See snde_qt.i for more info.
 snde_qwidget_inheritor(snde::qt_osg_compositor); // also implicitly performs snde_qobject_inheritor() magic
 
 namespace snde {
