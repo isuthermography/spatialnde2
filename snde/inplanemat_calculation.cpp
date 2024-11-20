@@ -50,7 +50,8 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord3) + numtris*sizeof(snde_trivertnormals) + numtris*sizeof(snde_cmat23), // data_bytes for transfer
 							numtris*(200), // flops
 							1, // max effective cpu cores
@@ -215,7 +216,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_spatialnde2_inplanemat_calculation_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.inplanemat_calculation",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<inplanemat_calculation>(rss,inst);
     }); 
   }
@@ -224,7 +225,7 @@ namespace snde {
   // (in CMakeLists.txt) make it move into the _ocl.so library)
   SNDE_API std::shared_ptr<math_function> inplanemat_calculation_function = define_spatialnde2_inplanemat_calculation_function();
   
-  static int registered_inplanemat_calculation_function = register_math_function("spatialnde2.inplanemat",inplanemat_calculation_function);
+  static int registered_inplanemat_calculation_function = register_math_function(inplanemat_calculation_function);
   
   
   void instantiate_inplanemat(std::shared_ptr<active_transaction> trans,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
@@ -246,6 +247,7 @@ namespace snde {
       false, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("instantiate_inplanemat()"),
+      {},
       nullptr);
 
 

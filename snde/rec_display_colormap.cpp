@@ -60,14 +60,16 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							numdatapoints*(sizeof(T)+sizeof(snde_rgba)), // data_bytes for transfer
 							numdatapoints*(10), // flops
 							1, // max effective cpu cores
 							1), // useful_cpu_cores (min # of cores to supply
 	  
 #ifdef SNDE_OPENCL
-	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+	  std::make_shared<compute_resource_option_opencl>(std::set<std::string>(), // no tags
+							   0, //metadata_bytes
 							   numdatapoints*(sizeof(T)+sizeof(snde_rgba)),
 							   0, // cpu_flops
 							   numdatapoints*(10), // gpuflops
@@ -216,7 +218,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_colormap_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.colormap",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       std::shared_ptr<executing_math_function> executing;
 
       executing = make_cppfuncexec_floatingtypes<colormap_recording>(rss,inst);
@@ -234,7 +236,7 @@ namespace snde {
   }
 
 
-  static int registered_colormap_function = register_math_function("spatialnde2.colormap",define_colormap_function());
+  static int registered_colormap_function = register_math_function(define_colormap_function());
   
 
 
@@ -269,14 +271,16 @@ namespace snde {
       
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							numdatapoints*(3*sizeof(snde_coord)+sizeof(snde_rgba)), // data_bytes for transfer
 							numdatapoints*(10.0), // flops
 							1, // max effective cpu cores
 							1), // useful_cpu_cores (min # of cores to supply
 	  
 #ifdef SNDE_OPENCL
-	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+	  std::make_shared<compute_resource_option_opencl>(std::set<std::string>(), // no tags
+							   0, //metadata_bytes
 							   numdatapoints*(3*sizeof(snde_coord)+sizeof(snde_rgba)),
 							   0, // cpu_flops
 							   numdatapoints*(10), // gpuflops
@@ -429,14 +433,14 @@ namespace snde {
 
   std::shared_ptr<math_function> define_pointcloud_colormap_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.pointcloud_colormap",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<pointcloud_colormap_recording>(rss,inst);
       
     }); 
   }
 
 
-  static int registered_pointcloud_colormap_function = register_math_function("spatialnde2.pointcloud_colormap",define_pointcloud_colormap_function());
+  static int registered_pointcloud_colormap_function = register_math_function(define_pointcloud_colormap_function());
   
 
 
@@ -535,14 +539,16 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							numdatapoints*(sizeof(T)+sizeof(snde_rgba)), // data_bytes for transfer
 							numdatapoints*(10), // flops
 							1, // max effective cpu cores
 							1), // useful_cpu_cores (min # of cores to supply
 	  
 #ifdef SNDE_OPENCL
-	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+	  std::make_shared<compute_resource_option_opencl>(std::set<std::string>(), // no tags
+							   0, //metadata_bytes
 							   numdatapoints*(sizeof(T)+sizeof(snde_rgba)),
 							   0, // cpu_flops
 							   numdatapoints*(10), // gpuflops
@@ -744,7 +750,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_fusion_colormapping_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.fusion_colormapping",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       std::shared_ptr<executing_math_function> executing;
       
       executing = make_cppfuncexec_floatingtypes<fusion_colormapping>(rss,inst);
@@ -763,7 +769,7 @@ namespace snde {
   SNDE_OCL_API std::shared_ptr<math_function> fusion_colormapping_function = define_fusion_colormapping_function();
 
 
-  static int registered_fusion_colormapping_function = register_math_function("spatialnde2.fusion_colormapping",fusion_colormapping_function);
+  static int registered_fusion_colormapping_function = register_math_function(fusion_colormapping_function);
   
 
 

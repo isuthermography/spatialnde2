@@ -41,7 +41,7 @@ namespace snde {
     //bool supports_cpu;
     //bool supports_opencl;
     //bool supports_cuda;
-    cpp_math_function(std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
+    cpp_math_function(std::string function_name,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
     //		      bool supports_cpu,
     //		      bool supports_opencl,
     //		      bool supports_cuda);
@@ -58,6 +58,7 @@ namespace snde {
 								    bool ondemand,
 								    bool mdonly,
 								    std::shared_ptr<math_definition> definition,
+								    std::set<std::string> execution_tags,
 								    std::shared_ptr<math_instance_parameter> extra_params);
     
     // initiate_execution is now a function pointer member of our superclass
@@ -84,6 +85,7 @@ namespace snde {
 				   bool mdonly,
 				   std::shared_ptr<math_function> fcn,
 				   std::shared_ptr<math_definition> definition,
+				   std::set<std::string> execution_tags,
 				   std::shared_ptr<math_instance_parameter> extra_params);
     
     // rule of 3

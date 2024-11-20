@@ -682,10 +682,10 @@ namespace snde {
     std::shared_ptr<transaction> run_in_background_and_end_transaction(std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn, std::shared_ptr<void> params);
 
   };
+  // !!!*** also need to implement trans.math object that can
+  // accept objects returned by recmath.i: instantiate_math()
 
-  // need global revision class which will need to have a snapshot of channel configs, including math channels
-  // since new math channel revisions are no longer defined until calculated, we will rely on the snapshot to
-  // figure out which new channels need to be written. 
+  
   
   class channelconfig {
     // The channelconfig is immutable once published; However it may be copied, privately updated by its owner, (if subclassed, you must use the correct subclasses

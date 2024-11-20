@@ -69,14 +69,16 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord3) + numtris*sizeof(snde_trivertnormals) + numtris*sizeof(snde_coord3), // data_bytes for transfer
 							numtris*(3+5+3+5+9+5), // flops
 							1, // max effective cpu cores
 							1), // useful_cpu_cores (min # of cores to supply
 	  
 #ifdef SNDE_OPENCL
-	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+	  std::make_shared<compute_resource_option_opencl>(std::set<std::string>(), // no tags
+							   0, //metadata_bytes
 							   numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord3) + numtris*sizeof(snde_trivertnormals) + numtris*sizeof(snde_coord3),
 							   0, // cpu_flops
 							   numtris*(3+5+3+5+9+5), // gpuflops
@@ -221,14 +223,14 @@ namespace snde {
 
   std::shared_ptr<math_function> define_spatialnde2_trinormals_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.trinormals",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<normal_calculation_trinormals>(rss,inst);
     }); 
   }
 
   SNDE_OCL_API std::shared_ptr<math_function> trinormals_function = define_spatialnde2_trinormals_function();
   
-  static int registered_trinormals_function = register_math_function("spatialnde2.trinormals",trinormals_function);
+  static int registered_trinormals_function = register_math_function(trinormals_function);
 
   void instantiate_trinormals(std::shared_ptr<active_transaction> trans,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
@@ -245,6 +247,7 @@ namespace snde {
       false, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("instantiate_trinormals()"),
+      {},
       nullptr);
 
 
@@ -298,14 +301,16 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord3) + numtris*sizeof(snde_trivertnormals) + numtris*sizeof(snde_coord3), // data_bytes for transfer
 							numtris*(3+5+3+5+9+5), // flops
 							1, // max effective cpu cores
 							1), // useful_cpu_cores (min # of cores to supply
 	  
 #ifdef SNDE_OPENCL
-	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+	  std::make_shared<compute_resource_option_opencl>(std::set<std::string>(), // no tags
+							   0, //metadata_bytes
 							   numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord3) + numtris*sizeof(snde_trivertnormals) + numtris*sizeof(snde_coord3),
 							   0, // cpu_flops
 							   numtris*(3+5+3+5+9+5), // gpuflops
@@ -454,7 +459,7 @@ namespace snde {
     
   std::shared_ptr<math_function> define_vertnormalarray_recording_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.vertnormalarray",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<normal_calculation_vertnormalarray>(rss,inst);
     });
     
@@ -462,7 +467,7 @@ namespace snde {
 
   SNDE_OCL_API std::shared_ptr<math_function> vertnormalarray_recording_function=define_vertnormalarray_recording_function();
   
-  static int registered_vertnormalarray_function = register_math_function("spatialnde2.vertnormalarray",vertnormalarray_recording_function);
+  static int registered_vertnormalarray_function = register_math_function(vertnormalarray_recording_function);
   
 
 
@@ -508,14 +513,16 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord3) + numtris*sizeof(snde_trivertnormals) + numtris*sizeof(snde_coord3), // data_bytes for transfer
 							numtris*(3+5+3+5+9+5), // flops
 							1, // max effective cpu cores
 							1), // useful_cpu_cores (min # of cores to supply
 	  
 #ifdef SNDE_OPENCL
-	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+	  std::make_shared<compute_resource_option_opencl>(std::set<std::string>(), // no tags
+							   0, //metadata_bytes
 							   numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord3) + numtris*sizeof(snde_trivertnormals) + numtris*sizeof(snde_coord3),
 							   0, // cpu_flops
 							   numtris*(3+5+3+5+9+5), // gpuflops
@@ -685,7 +692,7 @@ namespace snde {
     
   std::shared_ptr<math_function> define_vertnormals_recording_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.vertnormals_recording",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<normal_calculation_vertnormals>(rss,inst);
     });
     
@@ -693,7 +700,7 @@ namespace snde {
 
   SNDE_OCL_API std::shared_ptr<math_function> vertnormals_recording_function=define_vertnormals_recording_function();
   
-  static int registered_vertnormals_function = register_math_function("spatialnde2.vertnormals",vertnormals_recording_function);
+  static int registered_vertnormals_function = register_math_function(vertnormals_recording_function);
   
 
   void instantiate_vertnormals(std::shared_ptr<active_transaction> trans,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
@@ -713,6 +720,7 @@ namespace snde {
       false, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("instantiate_vertnormals()"),
+      {},
       nullptr);
 
     trans->recdb->add_math_function(trans,instantiated,true); // vertnormals are generally hidden by default

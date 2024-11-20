@@ -3,8 +3,9 @@
 #include "snde/recmath.hpp"
 
 namespace snde {
-  compute_resource_option::compute_resource_option(unsigned type, size_t metadata_bytes,size_t data_bytes) :
+  compute_resource_option::compute_resource_option(unsigned type,std::set<std::string> execution_tags, size_t metadata_bytes,size_t data_bytes) :
     type(type),
+    execution_tags(execution_tags),
     metadata_bytes(metadata_bytes),
     data_bytes(data_bytes)
   {
@@ -12,12 +13,13 @@ namespace snde {
   }
 
 
-  compute_resource_option_cpu::compute_resource_option_cpu(size_t metadata_bytes,
+  compute_resource_option_cpu::compute_resource_option_cpu(std::set<std::string> execution_tags,
+							   size_t metadata_bytes,
 							   size_t data_bytes,
 							   snde_float64 flops,
 							   size_t max_effective_cpu_cores,
 							   size_t useful_cpu_cores) :
-    compute_resource_option(SNDE_CR_CPU,metadata_bytes,data_bytes),
+    compute_resource_option(SNDE_CR_CPU,execution_tags,metadata_bytes,data_bytes),
     flops(flops),
     max_effective_cpu_cores(max_effective_cpu_cores),
     useful_cpu_cores(useful_cpu_cores)
@@ -35,14 +37,15 @@ namespace snde {
   }
 
 
-  _compute_resource_option_cpu_combined::_compute_resource_option_cpu_combined(size_t metadata_bytes,
+  _compute_resource_option_cpu_combined::_compute_resource_option_cpu_combined(std::set<std::string> execution_tags,
+									       size_t metadata_bytes,
 									       size_t data_bytes,
 									       snde_float64 flops,
 									       size_t max_effective_cpu_cores,
 									       size_t useful_cpu_cores,
 									       std::shared_ptr<compute_resource_option> orig,
 									       std::shared_ptr<assigned_compute_resource> orig_assignment) :
-    compute_resource_option_cpu(metadata_bytes,data_bytes,flops,
+    compute_resource_option_cpu(execution_tags,metadata_bytes,data_bytes,flops,
 				max_effective_cpu_cores,useful_cpu_cores),
     orig(orig),
     orig_assignment(orig_assignment)
@@ -415,38 +418,96 @@ namespace snde {
   bool available_compute_resource_database::_queue_computation_into_database_acrdb_locked(uint64_t globalrev,std::shared_ptr<pending_computation> computation,const std::vector<std::shared_ptr<compute_resource_option>> &compute_options)
   // returns true if we successfully queued it into at least one place. 
   {
-    bool retval=false;
-    
-    // This is a really dumb loop that just assigns all matching resources
 
     
+
+
+    // Algorithm: sort matches between compute_resource_options and
+    // available_compute_resources (compute_resource_option->compatible_with())
+    // according to the number of execution tags from the
+    // (function_to_execute and compute_resource_option) that match
+    // tags from the (available_compute_resource). We then select
+    // all available_compute_resources with the highest number of
+    // matching execution tags. 
+
+    // We will do this by placing vectors of
+    // (compute_resource_option,available_compute_resource) pairs in a
+    // std::map indexed by the number of matching tags.
+    // Then we just pull out the last entry in the map
+    // and the corresponding vector of options and resources
+    // are used to dispatch the computation. 
+
+    // Here is the map:
+    std::map<size_t,std::vector<std::pair<std::shared_ptr<compute_resource_option>,std::shared_ptr<available_compute_resource>>>> resources_by_tags_matched;
     
     std::shared_ptr <available_compute_resource> selected_resource;
     std::shared_ptr <compute_resource_option> selected_option;
-    for (auto && compute_resource: compute_resources) { // compute_resource.second is a shared_ptr<available_compute_resource>
-      for (auto && compute_option: compute_options) { // compute_option is a shared_ptr<compute_resource_option>
-	if (compute_option->compatible_with(compute_resource.second)) {
-	  selected_resource = compute_resource.second;
-	  selected_option = compute_option;
-	  
-	  selected_resource->prioritized_computations.emplace(std::make_pair(globalrev*SNDE_CR_PRIORITY_REDUCTION_LIMIT + computation->priority_reduction,
-									     std::make_tuple(std::weak_ptr<pending_computation>(computation),selected_option)));
-	  //compute_resource_lock.unlock();  (???What was this supposed to do???)
-	  //selected_resource->computations_added.notify_one();
-	  snde_debug(SNDE_DC_COMPUTE_DISPATCH,"_queue_computation_into_database_acrdb_locked: Notifying ACRD of changes");
-	  notify_acrd_of_changes_to_prioritized_computations();
-	  retval=true;
+    for (auto && compute_option: compute_options) { // compute_option is a shared_ptr<compute_resource_option>
+   
+      std::set<std::string> execution_tags;
+      // Add the execution tags from the function definition
+      execution_tags.insert(computation->function_to_execute->inst->execution_tags.begin(),computation->function_to_execute->inst->execution_tags.end());
+      // Add the execution tags from the compute_option provided by the function itself
+      execution_tags.insert(compute_option->execution_tags.begin(),compute_option->execution_tags.end());
 
-	}	  
+      
+
+     
+      for (auto && compute_resource: compute_resources) { // compute_resource.second is a shared_ptr<available_compute_resource>
+	if (compute_option->compatible_with(compute_resource.second)) {
+	  // Count the number of matches between execution_tags and our available_compute_resource
+	  std::set<std::string> matching_tags;
+	  
+	  std::set_intersection(execution_tags.begin(),execution_tags.end(),
+				compute_resource.second->tags.begin(), compute_resource.second->tags.end(),
+				std::inserter(matching_tags,matching_tags.begin()));
+	  size_t num_matches = matching_tags.size();
+	
+	  auto resource_map_it = resources_by_tags_matched.find(num_matches);
+	  if (resource_map_it == resources_by_tags_matched.end()){
+	    // no entry for this num_matches so far
+	    bool success;
+	    std::tie(resource_map_it,success) = resources_by_tags_matched.emplace(num_matches,std::vector<std::pair<std::shared_ptr<compute_resource_option>,std::shared_ptr<available_compute_resource>>>());
+	  }
+	  resource_map_it->second.emplace_back(std::make_pair(compute_option,compute_resource.second));
+	}
+
       }
+    }
+    auto selected_resources=resources_by_tags_matched.end();
+    selected_resources--; // last actual element is end()-1
+    if (selected_resources==resources_by_tags_matched.end()){
+
+      // snde_warning("_queue_computation_into_database_acrdb_locked: No available_compute_resource matches compute job for %s!!!",computation->function_to_execute->inst->definition->definition_command.c_str());
+      return false;
+    } else {
+      for (auto && option_and_resource: selected_resources->second) {
+	std::tie(selected_option,selected_resource)=option_and_resource;
+	
+	selected_resource->prioritized_computations.emplace(std::make_pair(globalrev*SNDE_CR_PRIORITY_REDUCTION_LIMIT + computation->priority_reduction,
+									   std::make_tuple(std::weak_ptr<pending_computation>(computation),selected_option)));
+	//compute_resource_lock.unlock();  (???What was this supposed to do???)
+	//selected_resource->computations_added.notify_one();
+	  snde_debug(SNDE_DC_COMPUTE_DISPATCH,"_queue_computation_into_database_acrdb_locked: Notifying ACRD of changes");
+
+
+
+      }
+    
+   
+      notify_acrd_of_changes_to_prioritized_computations();
+
+	
+
+	  
+
+      todo_list.emplace(computation);
+      return true;
+     
       
     }
 
-    if (retval) {
-      todo_list.emplace(computation);
-    }
 
-    return retval; 
   }
 
 
@@ -785,17 +846,18 @@ namespace snde {
   }
 
 
-  available_compute_resource::available_compute_resource(std::shared_ptr<recdatabase> recdb,unsigned type) :
+  available_compute_resource::available_compute_resource(std::shared_ptr<recdatabase> recdb,unsigned type,std::set<std::string> tags) :
     recdb(recdb),
     acrd_admin(recdb->compute_resources->admin),
     acrd(recdb->compute_resources),
-    type(type)
+    type(type),
+    tags(tags)
   {
     
   }
 
-  available_compute_resource_cpu::available_compute_resource_cpu(std::shared_ptr<recdatabase> recdb,size_t total_cpu_cores_available) :
-    available_compute_resource(recdb,SNDE_CR_CPU),
+  available_compute_resource_cpu::available_compute_resource_cpu(std::shared_ptr<recdatabase> recdb,std::set<std::string> tags,size_t total_cpu_cores_available) :
+    available_compute_resource(recdb,SNDE_CR_CPU,tags),
     total_cpu_cores_available(total_cpu_cores_available)
   {
 

@@ -8,11 +8,14 @@
 
 namespace snde {
 
-  void setup_cpu(std::shared_ptr<recdatabase> recdb,size_t nthreads)
+  void setup_cpu(std::shared_ptr<recdatabase> recdb,std::set<std::string> tags,size_t nthreads)
   {
 
-
-    std::shared_ptr<available_compute_resource_cpu> cpu = std::make_shared<available_compute_resource_cpu>(recdb,nthreads);
+    std::set<std::string> cpu_tags(tags);
+    cpu_tags.emplace("CPU");
+    cpu_tags.emplace("OpenMP");
+      
+    std::shared_ptr<available_compute_resource_cpu> cpu = std::make_shared<available_compute_resource_cpu>(recdb,cpu_tags,nthreads);
     
     recdb->compute_resources->set_cpu_resource(cpu);
 

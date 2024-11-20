@@ -8,6 +8,19 @@
 
 namespace snde {
 
+  std::string escape_to_quoted_string(std::string to_quote)
+  {
+    std::string s="\"";
+    for (char c : to_quote) {
+      if (c < 32 || c == '\"' || c == '\\' || c == '\'') {
+        s += ssprintf("\\x%2.2x", (unsigned)c);
+      } else{
+        s += c;
+      }
+    }
+    return s + "\"";
+  }
+  
   math_parameter::math_parameter(unsigned paramtype) :
     paramtype(paramtype)
   {
@@ -92,7 +105,11 @@ namespace snde {
 
   }
 
-
+  std::string math_parameter_string_const::generate_parsible() // generate a parsible string for Python that can be used for redefining the math function.
+  {
+    return escape_to_quoted_string(string_constant);
+  }
+  
   std::string math_parameter_string_const::get_string(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
@@ -118,7 +135,11 @@ namespace snde {
 
 
   
-
+  std::string math_parameter_int_const::generate_parsible() // generate a parsible string for Python that can be used for redefining the math function.
+  {
+    return ssprintf("%lld",(long long)int_constant);
+  }
+  
   math_parameter_int_const::math_parameter_int_const(int64_t int_constant) :
     math_parameter(SNDE_MFPT_INT),
     int_constant(int_constant)
@@ -159,6 +180,11 @@ namespace snde {
 
   }
   
+  std::string math_parameter_unsigned_const::generate_parsible() // generate a parsible string for Python that can be used for redefining the math function.
+  {
+    return ssprintf("%llu",(unsigned long long)unsigned_constant);
+  }
+  
   uint64_t math_parameter_unsigned_const::get_unsigned(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
@@ -194,6 +220,11 @@ namespace snde {
 
   }
 
+  std::string math_parameter_sndeindex_const::generate_parsible() // generate a parsible string for Python that can be used for redefining the math function.
+  {
+    return ssprintf("%llu",(unsigned long long)index_constant);
+  }
+  
   snde_index math_parameter_sndeindex_const::get_unsigned(std::shared_ptr<recording_set_state> rss, const std::string& channel_path_context, const std::shared_ptr<math_definition>& fcn_def, size_t parameter_index)
     // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
@@ -230,6 +261,11 @@ namespace snde {
 
   }
 
+  std::string math_parameter_double_const::generate_parsible() // generate a parsible string for Python that can be used for redefining the math function.
+  {
+    return ssprintf("%16.16g",(double)double_constant);
+  }
+  
   double math_parameter_double_const::get_double(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
@@ -265,6 +301,15 @@ namespace snde {
 
   }
 
+  std::string math_parameter_bool_const::generate_parsible() // generate a parsible string for Python that can be used for redefining the math function.
+  {
+    if (bool_constant) {
+      return ssprintf("True");
+    } else{
+      return ssprintf("False");
+    }
+  }
+  
   snde_bool math_parameter_bool_const::get_bool(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
@@ -298,6 +343,16 @@ namespace snde {
 
   }
 
+   std::string math_parameter_vector_const::generate_parsible() // generate a parsible string for Python that can be used for redefining the math function.
+  {
+    
+#ifdef SNDE_DOUBLEPREC_COORDS
+    return ssprintf("np.array((%16.16g,%16.16g,%16.16g),dtype=[('coord',np.float64,3),]",(double)vector_constant.coord[0],(double)vector_constant.coord[1],(double)vector_constant.coord[2]);
+#else
+    return ssprintf("np.array((%16.16g,%16.16g,%16.16g),dtype=[('coord',np.float32,3),]",(double)vector_constant.coord[0],(double)vector_constant.coord[1],(double)vector_constant.coord[2]);
+#endif
+  }
+  
   snde_coord3 math_parameter_vector_const::get_vector(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
@@ -329,6 +384,15 @@ namespace snde {
 
   }
 
+  std::string math_parameter_orientation_const::generate_parsible() // generate a parsible string for Python that can be used for redefining the math function.
+  {
+#ifdef SNDE_DOUBLEPREC_COORDS
+    return ssprintf("np.array(([%16.16g,%16.16g,%16.16g,%16.16g],[%16.16g,%16.16g,%16.16g,%16.16g]),dtype=[('quat', np.float64,4),('offset', np.float64, 4),])",(double)orientation_constant.quat.coord[0],(double)orientation_constant.quat.coord[1],(double)orientation_constant.quat.coord[2],(double)orientation_constant.quat.coord[3],(double)orientation_constant.offset.coord[0],(double)orientation_constant.offset.coord[1],(double)orientation_constant.offset.coord[2],(double)orientation_constant.offset.coord[3]);
+#else
+    return ssprintf("np.array(([%16.16g,%16.16g,%16.16g,%16.16g],[%16.16g,%16.16g,%16.16g,%16.16g]),dtype=[('quat', np.float32,4),('offset', np.float32, 4),])",(double)orientation_constant.quat.coord[0],(double)orientation_constant.quat.coord[1],(double)orientation_constant.quat.coord[2],(double)orientation_constant.quat.coord[3],(double)orientation_constant.offset.coord[0],(double)orientation_constant.offset.coord[1],(double)orientation_constant.offset.coord[2],(double)orientation_constant.offset.coord[3]);
+#endif
+  }
+  
   snde_orientation3 math_parameter_orientation_const::get_orientation(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
@@ -362,6 +426,16 @@ namespace snde {
 
   }
 
+ std::string math_parameter_indexvec_const::generate_parsible() // generate a parsible string for Python that can be used for redefining the math function.
+  {
+    std::string ret = "[ ";
+    for (size_t i=0; i < indexvec.size(); i++) {
+      ret += ssprintf("%llu, ",(unsigned long long) indexvec[i]);
+    }
+    ret += "]";
+    return ret;
+  }
+  
   std::vector<snde_index> math_parameter_indexvec_const::get_indexvec(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
   {
     return indexvec;
@@ -393,6 +467,12 @@ namespace snde {
 
   }
 
+
+  std::string math_parameter_metadata_const::generate_parsible() // generate a parsible string for Python that can be used for redefining the math function.
+  {
+    throw snde_error("conversion of metadata into a python parsible string not yet implemented.");
+  }
+  
   std::shared_ptr<snde::constructible_metadata> math_parameter_metadata_const::get_metadata(std::shared_ptr<recording_set_state> rss, const std::string& channel_path_context, const std::shared_ptr<math_definition>& fcn_def, size_t parameter_index)
   {
     return metadata;
@@ -444,7 +524,20 @@ namespace snde {
 
   }
 
+  std::string math_parameter_recording::generate_parsible() // generate a parsible string for Python that can be used for redefining the math function.
+  {
+    if (array_index == 0 && array_name == "") {
+      return escape_to_quoted_string(channel_name);
+      
+    }
+    // otherwise instantiate the math_parameter_recording explicitly
+    if (array_name != "") {
+      return ssprintf("snde.math_parameter_recording(%s,%s)", escape_to_quoted_string(channel_name).c_str(), escape_to_quoted_string(array_name).c_str());
+    }
+    return ssprintf("snde.math_parameter_recording(%s,%lu)", escape_to_quoted_string(channel_name).c_str(),(unsigned long)array_index);
+  }
 
+  
   bool math_parameter_recording::operator==(const math_parameter &ref) // used for comparing parameters to instantiated_math_functions
   {
     const math_parameter_recording *rref = dynamic_cast<const math_parameter_recording *>(&ref);

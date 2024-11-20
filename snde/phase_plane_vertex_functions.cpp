@@ -105,14 +105,16 @@ namespace snde {
       
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							layout_length * sizeof(snde_coord)*3*6*2, // data_bytes for transfer
 							0.0, // flops
 							1, // max effective cpu cores
 							1), // useful_cpu_cores (min # of cores to supply
 	  
 #ifdef SNDE_OPENCL
-	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+	  std::make_shared<compute_resource_option_opencl>(std::set<std::string>(), // no tags
+							   0, //metadata_bytes
 							   layout_length * sizeof(snde_coord)*3*6*2,
 							   0.0, // cpu_flops
 							   0.0, // gpuflops
@@ -344,7 +346,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_phase_plane_line_triangle_vertices_alphas_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.phase_plane_line_triangle_vertices_alphas",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return make_cppfuncexec_complextypes<phase_plane_line_triangle_vertices_alphas>(rss,inst);
     });
     
@@ -352,7 +354,7 @@ namespace snde {
 
   SNDE_OCL_API std::shared_ptr<math_function> phase_plane_line_triangle_vertices_alphas_function = define_phase_plane_line_triangle_vertices_alphas_function();
   
-  static int registered_phase_plane_line_triangle_vertices_alphas_function = register_math_function("spatialnde2.phase_plane_line_triangle_vertices_alphas",phase_plane_line_triangle_vertices_alphas_function);
+  static int registered_phase_plane_line_triangle_vertices_alphas_function = register_math_function(phase_plane_line_triangle_vertices_alphas_function);
   
   
 
@@ -372,7 +374,8 @@ namespace snde {
     {
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							0, // data_bytes for transfer
 							0.0f, // flops
 							1, // max effective cpu cores
@@ -465,14 +468,14 @@ namespace snde {
   
   std::shared_ptr<math_function> define_spatialnde2_phase_plane_endpoint_octagon_vertices_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.phase_plane_endpoint_octagon_vertices",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<phase_plane_endpoint_octagon_vertices>(rss,inst);
     }); 
   }
 
   SNDE_OCL_API std::shared_ptr<math_function> phase_plane_endpoint_octagon_vertices_function = define_spatialnde2_phase_plane_endpoint_octagon_vertices_function();
   
-  static int registered_phase_plane_endpoint_octagon_vertices_function = register_math_function("spatialnde2.phase_plane_endpoint_octagon_vertices",phase_plane_endpoint_octagon_vertices_function);
+  static int registered_phase_plane_endpoint_octagon_vertices_function = register_math_function(phase_plane_endpoint_octagon_vertices_function);
   
   
 

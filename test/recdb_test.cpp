@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
 {
   size_t len=100;
   std::shared_ptr<snde::recdatabase> recdb=std::make_shared<snde::recdatabase>();
-  setup_cpu(recdb,std::thread::hardware_concurrency());
+  setup_cpu(recdb,{},std::thread::hardware_concurrency());
   setup_storage_manager(recdb);
   setup_math_functions(recdb, {});
   recdb->startup();

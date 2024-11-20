@@ -45,6 +45,8 @@ snde_rawaccessible(std::unordered_map<std::string,std::shared_ptr<snde::math_fun
   #include "recmath.hpp"
 
 %}
+
+
 namespace snde {
   // defines for the type entry of the param_names_types list in a math_function... so far identical to DGM_MDT_... in dg_metadata.h
 #define SNDE_MFPT_INT 0
@@ -145,17 +147,17 @@ class math_instance_parameter {
     // Immutable once published; that said it may be replaced in the database due to a reloading operation. 
   public:
 
-    math_function(const std::vector<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
+    math_function(std::string function_name,const std::vector<std::pair<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
 
     // Rule of 3
     math_function(const math_function &) = delete;
     math_function& operator=(const math_function &) = delete;
 
     virtual ~math_function()=default;  // virtual destructor required so we can be subclassed
-
+    std::string function_name;
     
     // Should we put the name (of the function, not the channel) here???
-    std::vector<std::tuple<std::string,unsigned>> param_names_types; // list of (name,type) tuples
+    std::vector<std::pair<std::string,unsigned>> param_names_types; // list of (name,type) tuples
     
     bool new_revision_optional; // set if the function sometimes chooses not to create a new revision. Causes an implicit self-dependency, because we have to wait for the prior revision to finish to find out if that version was actually different. Note that new_revision_optional implies that execution is optional but execution of a new_revision_optional math function does not guarantee it will actually create new revisions but may still reference prior revs. Execution of a non-new_revision_optional math function is guaranteed to define new recordings in each result channel. 
     bool pure_optionally_mutable; // set if the function is "pure" and can optionally operate on its previous output, only rewriting the modified area according to bounding_hyperboxes. If optionally_mutable is taken advantage of, there is an implicit self-dependency on the prior-revision
@@ -178,6 +180,7 @@ class math_instance_parameter {
 								    bool ondemand,
 								    bool mdonly,
 								    std::shared_ptr<math_definition> definition,
+								    std::set<std::string> execution_tags,
 								    std::shared_ptr<math_instance_parameter> extra_params)=0;
 								    
     // get_compute_options() returns a list of compute_resource_options, each of which has a compute_code pointer
@@ -250,7 +253,8 @@ class math_instance_parameter {
     
   };
 
-  class math_definition {
+ %feature("director") math_definition;
+ class math_definition {
     // Represents the way an instantiated_math_function was defined
     // immutable once published. Needed for saving settings. 
   public:
@@ -280,6 +284,7 @@ class math_instance_parameter {
     bool mdonly; // Note: This determines whether the instantiation is mdonly. For the execution to be mdonly, the mdonly flag in the math_function_status must be true as well. 
     std::shared_ptr<math_function> fcn;
     std::shared_ptr<math_definition> definition;
+    std::set<std::string> execution_tags;
     std::shared_ptr<math_instance_parameter> extra_params;
     
     std::shared_ptr<instantiated_math_function> original_function; // null originally 
@@ -293,6 +298,7 @@ class math_instance_parameter {
 			       bool mdonly,
 			       std::shared_ptr<math_function> fcn,
 			       std::shared_ptr<math_definition> definition,
+			       std::set<std::string> execution_tags,
 			       std::shared_ptr<math_instance_parameter> extra_params);
 
     // Rule of 3
@@ -517,7 +523,139 @@ class math_instance_parameter {
   typedef std::unordered_map<std::string,std::shared_ptr<math_function>> math_function_registry_map;
   
   std::shared_ptr<math_function_registry_map> math_function_registry();
-  int register_math_function(std::string registered_name,std::shared_ptr<math_function> fcn);
+  int register_math_function(std::shared_ptr<math_function> fcn);
 
 }
+
+%pythoncode %{
+  class pending_math_definition(math_definition):
+    """A pending_math_definition is returned when you use
+    the python shorthand for instantiating a math function. This
+    gets stored by the trans.math[] setitem method into the
+    transaction and then the definition is finalized during
+    _realize_transaction()."""
+
+    function_name = None # name of function (will need snde. prefix)
+    args = None # list of python interpretable string arguments
+					     
+    instantiated = None # the (possibly incomplete) instantiated_math_function
+    intermediate_channels = None # list of (channel_name,pending_math_definition or pending_math_definition_result_channel) for any required intermediate channels
+   
+
+    def __init__(self,function_name,args,intermediate_channels):
+      super().__init__("")
+      self.function_name = function_name
+      self.args = args
+      self.intermediate_channels = intermediate_channels
+      pass
+
+    def __iter__(self):
+      return pending_math_definition_result_channel(self,0)
+    pass
+
+  class pending_math_definition_result_channel:
+    """A pending_math_definition_result_channel is returned
+    when you try to iterate over a pending_math_definition.
+    This provides a way to separate out the different
+    result_channels.
+
+    A mutable _result_channel is returned by the
+    pending_math_definition __iter__() method as an iterator.
+    This iterator copies itself, returning immutable copies.
+    """
+
+    definition = None # pending_math_definition object
+    
+    result_channel_index = None
+
+    def __init__(self,definition,result_channel_index):
+      self.definition=definition
+      self.result_channel_index=result_channel_index
+      pass
+
+    def __next__(self):
+      to_return = copy.copy(self)
+      self.result_channel_index +=1
+      return to_return
+    pass
+  def _convert_math_param(math_fcn,idx,arg,name_type,intermediate_channels):
+    """
+    math_fcn is a class math_function
+    idx is the index of this parameter
+    arg is the provided argument
+    name_type is the name, rtn type number from the math function
+    intermediate_channels is a output parameter list that gets
+    (channel_name,pending_math_definition or pending_math_definition_result_channel)
+    for any required intermediate channels
+    returns a math_parameter subclass instance
+    """
+    
+    if isinstance(arg,math_parameter):
+      return arg
+      
+    (name,rtn_type)=name_type
+    if rtn_type == SNDE_RTN_RECORDING or RTN_TYPE == SNDE_RTN_RECORDING_REF:
+      # need to determine channel_name
+      if isinstance(arg,str):
+        channel_name = arg
+        pass
+      elif isinstance(arg,channel):
+        channel_name = arg.channelpath
+        pass
+      elif isinstance(arg,reserved_channel):
+        channel_name = arg.chan.channelpath
+        pass
+      elif isinstance(arg,pending_math_definition):
+        channel_name = f"/math_intermediate_{id(arg):d}"
+        intermediate_channels.append(channel_name,arg)
+        pass
+      else:
+        raise ValueError(f"Invalid type for parameter index {idx:d} of math function {math_fcn.function_name:s}. Expected a type convertible to a channel, got {type(arg).__name__:s}.")
+
+      return math_parameter_recording(channel_name)
+      
+    elif rtn_type == SNDE_RTN_CONSTRUCTIBLEMETADATA:
+      return math_parameter_metadata_const(arg)
+    elif rtn_type == SNDE_RTN_INDEXVEC:
+      return math_parameter_indexvec_const(arg)
+    elif rtn_type == SNDE_RTN_SNDE_ORIENTATION3:
+      return math_parameter_orientation_const(arg)
+    elif rtn_type == SNDE_RTN_SNDE_COORD3:
+      return math_parameter_vector_const(arg)
+    elif rtn_type == SNDE_RTN_SNDE_BOOL:
+      return math_parameter_bool_const(arg)
+    elif rtn_type == SNDE_RTN_SNDE_COORD or rtn_type == SNDE_RTN_FLOAT32 or rtn_type == SNDE_RTN_FLOAT64 or rtn_type == SNDE_RTN_FLOAT16:
+      return math_parameter_double_const(arg)
+    elif rtn_type == SNDE_RTN_SNDE_INDEX:
+      return math_parameter_sndeindex_const(arg)
+    elif rtn_type == SNDE_RTN_UINT64 or rtn_type == SNDE_RTN_UINT32 or rtn_type == SNDE_RTN_UINT16 or rtn_type == SNDE_RTN_UINT8:
+      return math_parameter_unsigned_const(arg)
+    elif rtn_type == SNDE_RTN_INT64 or rtn_type == SNDE_RTN_INT32 or rtn_type == SNDE_RTN_INT16 or rtn_type == SNDE_RTN_INT8:
+      return math_parameter_int_const(arg)
+    elif rtn_type == SNDE_RTN_STRING:
+      return math_parameter_string_const(arg)
+    else:
+      raise ValueError(f"Invalid type extracted from parameter index {idx:d} of math function {math_fcn.function_name:s}. Got rtn_type = {rtn_type:d} (see recording.h) in recmath.i:_convert_math_param() that does not appear to be convertible to a math_parameter.")
+    pass
+
+ 
+    
+  def instantiate_math(math_fcn,*args,mutable=None,execution_tags=None,extra_params=None):
+    if math_fcn.mandatory_mutable:
+      mutable = True
+      pass
+    if mutable is None:
+      mutable = False
+      pass
+    if execution_tags is None:
+      execution_tags = []
+      pass
+    intermediate_channels = []
+    math_params = [ _convert_math_param(math_fcn,idx,args[idx],math_fcn.params_names_types[idx],intermediate_channels) for idx in range(len(args)) ]
+    math_params_parsible = [ param.generate_parsible() for param in math_params ]
+    math_def = pending_math_definition(math_fcn.function_name,math_params_parsible,intermediate_channels)
+    math_def.instantiated = math_fcn.instantiate(math_params,[ ],"/",mutable,False,False,math_def,execution_tags,extra_params)
+    return math_def
+    
+%}
 

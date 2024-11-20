@@ -88,14 +88,16 @@ namespace snde {
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
       {	
 
-	std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+						      0, //metadata_bytes 
 						      nelem * sizeof(OutputType), // data_bytes for transfer
 						      0.0, // flops
 						      1, // max effective cpu cores
 						      1), // useful_cpu_cores (min # of cores to supply
 
 #ifdef SNDE_OPENCL
-	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+	  std::make_shared<compute_resource_option_opencl>(std::set<std::string>(), // no tags
+							   0, //metadata_bytes
 							   nelem * sizeof(OutputType),
 							   0.0, // cpu_flops
 							   0.0, // gpuflops
@@ -320,7 +322,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_polynomial_transform_function_float32()
   {
-    return std::make_shared<cpp_math_function>([](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.polynomial_transform_float32", [](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
 
       if (!inst) {
 	// initial call with no instantiation to probe parameters; just use float32 case
@@ -387,7 +389,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_polynomial_transform_function_float64()
   {
-    return std::make_shared<cpp_math_function>([](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.polynomial_transform_float64",[](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
 
       if (!inst) {
 	// initial call with no instantiation to probe parameters; just use float32 case
@@ -454,12 +456,12 @@ namespace snde {
 
   SNDE_OCL_API std::shared_ptr<math_function> polynomial_transform_function_float32 = define_polynomial_transform_function_float32();
 
-  static int registered_polynomial_transform_function_float32 = register_math_function("spatialnde2.polynomial_transform_float32", polynomial_transform_function_float32);
+  static int registered_polynomial_transform_function_float32 = register_math_function( polynomial_transform_function_float32);
 
 
   SNDE_OCL_API std::shared_ptr<math_function> polynomial_transform_function_float64 = define_polynomial_transform_function_float64();
 
-  static int registered_polynomial_transform_function_float64 = register_math_function("spatialnde2.polynomial_transform_float64", polynomial_transform_function_float64);
+  static int registered_polynomial_transform_function_float64 = register_math_function(polynomial_transform_function_float64);
 
 
 

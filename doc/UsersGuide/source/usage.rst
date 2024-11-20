@@ -16,7 +16,7 @@ and calling the ``startup()`` method (C++)::
   ...
   
   std::shared_ptr<snde::recdatabase> recdb=std::make_shared<snde::recdatabase>();
-  snde::setup_cpu(recdb,std::thread::hardware_concurrency());
+  snde::setup_cpu(recdb,{"CPU"},std::thread::hardware_concurrency());
   snde::setup_opencl(recdb,false,4,nullptr); 
   snde::setup_storage_manager(recdb);
   snde::setup_math_functions(recdb,{});
@@ -29,8 +29,8 @@ or in Python::
   ...
   
   recdb=snde.recdatabase();
-  snde.setup_cpu(recdb,multiprocessing.cpu_count())
-  snde.setup_opencl(recdb,False,4,None)
+  snde.setup_cpu(recdb,["CPU"],multiprocessing.cpu_count())
+  snde.setup_opencl(recdb,[],False,4,None)
   snde.setup_storage_manager(recdb)
   snde.setup_math_functions(recdb,[])
   recdb.startup()
@@ -43,21 +43,23 @@ Let's go through these lines one-by-one.
 This initializes the recording database object.
 ::
   
-   snde::setup_cpu(recdb,std::thread::hardware_concurrency());
+   snde::setup_cpu(recdb,{"CPU"},std::thread::hardware_concurrency());
    
 This configures the CPU as a compute resource, allowing the
 same number of threads as the number of CPU cores reported
-by the operating system.
+by the operating system. The braces can be used to provide
+a set of tags that can match the CPU to specific computations. 
 
 ::
    
-  snde::setup_opencl(recdb,false,4,nullptr); 
+  snde::setup_opencl(recdb,{},false,4,nullptr); 
 
-This optional step enables OpenCL GPU acceleration. The
-second parameter is true to require that the primary GPU acceleration
+This optional step enables OpenCL GPU acceleration. The second parameter
+provides tags that can match to computations. The
+third parameter is true to require that the primary GPU acceleration
 device supports double precision floating point, false otherwise.
-The 3rd parameter specifies the maximum number of tasks to
-simultaneously run on the GPU. The 4th parameter can be a pointer
+The 4th parameter specifies the maximum number of tasks to
+simultaneously run on the GPU. The 5th parameter can be a pointer
 to a string indicating a prefix to the platform name of the desired
 OpenCL device, e.g. (C++)::
   
@@ -99,7 +101,7 @@ Defining Channels and Recordings
 Channels and recordings need to be defined within a transaction. For example (C++)::
   
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction();  
-  std::shared_ptr<snde::channel> testchan = recdb->define_channel(transact,"/test channel", "main");
+  std::shared_ptr<snde::reserved_channel> testchan = recdb->define_channel(transact,"/test channel", "main");
   std::shared_ptr<snde::ndarray_recording_ref> test_ref = snde::create_ndarray_ref(transact,testchan,SNDE_RTN_FLOAT32);
   std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction()->globalrev_available();
 

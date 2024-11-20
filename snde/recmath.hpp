@@ -136,17 +136,17 @@ namespace snde {
     // Immutable once published; that said it may be replaced in the database due to a reloading operation. 
   public:
 
-    math_function(const std::vector<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
+    math_function(std::string function_name,const std::vector<std::pair<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
 
     // Rule of 3
     math_function(const math_function &) = delete;
     math_function& operator=(const math_function &) = delete; 
     virtual ~math_function()=default;  // virtual destructor required so we can be subclassed
 
-    
+    std::string function_name;
     // Should we put the name (of the function, not the channel) here???
     //size_t num_results;
-    std::vector<std::tuple<std::string,unsigned>> param_names_types; // list of (name,type) tuples
+    std::vector<std::pair<std::string,unsigned>> param_names_types; // list of (name,type) tuples
 
     
     bool new_revision_optional; // set if the function sometimes chooses not to create a new revision. Causes an implicit self-dependency, because we have to wait for the prior revision to finish to find out if that version was actually different. Note that new_revision_optional implies that execution is optional but execution of a new_revision_optional math function does not guarantee it will actually create new revisions but may still reference prior revs. Execution of a non-new_revision_optional math function is guaranteed to define new recordings in each result channel. 
@@ -172,6 +172,7 @@ namespace snde {
 								    bool ondemand,
 								    bool mdonly,
 								    std::shared_ptr<math_definition> definition,
+								    std::set<std::string> execution_tags,
 								    std::shared_ptr<math_instance_parameter> extra_params)=0;
 								    
     // get_compute_options() returns a list of compute_resource_options, each of which has a compute_code pointer
@@ -257,6 +258,7 @@ namespace snde {
     bool mdonly; // Note: This determines whether the instantiation is mdonly. For the execution to be mdonly, the mdonly flag in the math_function_status must be true as well. 
     std::shared_ptr<math_function> fcn;
     std::shared_ptr<math_definition> definition;
+    std::set<std::string> execution_tags;
     std::shared_ptr<math_instance_parameter> extra_params;
     
     std::shared_ptr<instantiated_math_function> original_function; // null originally
@@ -273,6 +275,7 @@ namespace snde {
 			       bool mdonly,
 			       std::shared_ptr<math_function> fcn,
 			       std::shared_ptr<math_definition> definition,
+			       std::set<std::string> execution_tags,
 			       std::shared_ptr<math_instance_parameter> extra_params);
 
     // Rule of 3
@@ -582,7 +585,7 @@ namespace snde {
  
   // registered name is usually a python-style package/module path
   // register_math_function() returns a value so it can be used an an initializer
-  int register_math_function(std::string registered_name,std::shared_ptr<math_function> fcn);
+  int register_math_function(std::shared_ptr<math_function> fcn);
   
 
   // Idea: we could make a function to run math manually.

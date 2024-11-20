@@ -172,7 +172,8 @@ namespace snde {
   }
 
   
-  math_function::math_function(const std::vector<std::tuple<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution) :
+  math_function::math_function(std::string function_name,const std::vector<std::pair<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution) :
+    function_name(function_name),
     param_names_types(param_names_types),
     initiate_execution(initiate_execution)
   {
@@ -209,6 +210,7 @@ namespace snde {
 							 bool mdonly,
 							 std::shared_ptr<math_function> fcn,
 							 std::shared_ptr<math_definition> definition,
+							 std::set<std::string> execution_tags,
 							 std::shared_ptr<math_instance_parameter> extra_params) :
     parameters(parameters.begin(),parameters.end()),
     result_channel_paths(result_channel_paths.begin(),result_channel_paths.end()),
@@ -220,6 +222,7 @@ namespace snde {
     mdonly(mdonly),
     fcn(fcn),
     definition(definition),
+    execution_tags(execution_tags),
     extra_params(extra_params)
   {
 
@@ -1405,7 +1408,7 @@ namespace snde {
   }
 
   
-  int register_math_function(std::string registered_name,std::shared_ptr<math_function> fcn)
+  int register_math_function(std::shared_ptr<math_function> fcn)
   // returns value so can be used as an initializer
   {
     math_function_registry(); // make sure registry is defined
@@ -1418,13 +1421,13 @@ namespace snde {
 
     std::unordered_map<std::string,std::shared_ptr<math_function>>::iterator old_function;
 
-    old_function = new_map->find(registered_name);
+    old_function = new_map->find(fcn->function_name);
     if (old_function != new_map->end()) {
-      snde_warning("Overriding already-registered math function %s in the static registry",registered_name.c_str());
+      snde_warning("Overriding already-registered math function %s in the static registry",fcn->function_name.c_str());
       new_map->erase(old_function);
     }
     
-    new_map->emplace(registered_name,fcn);
+    new_map->emplace(fcn->function_name,fcn);
 
     *_math_function_registry = new_map;
     return 0;

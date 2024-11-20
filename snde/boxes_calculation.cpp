@@ -302,7 +302,8 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord3) + numtris*sizeof(snde_trivertnormals) + numtris*sizeof(snde_box3), // data_bytes for transfer
 							numtris*(200), // flops
 							1, // max effective cpu cores
@@ -479,7 +480,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
   std::shared_ptr<math_function> define_spatialnde2_boxes_calculation_3d_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.boxes_calculation_3d",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<boxes_calculation_3d>(rss,inst);
     }); 
     
@@ -487,7 +488,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
   SNDE_API std::shared_ptr<math_function> boxes_calculation_3d_function = define_spatialnde2_boxes_calculation_3d_function();
   
-  static int registered_boxes_calculation_3d_function = register_math_function("spatialnde2.boxes_calculation_3d",boxes_calculation_3d_function);
+  static int registered_boxes_calculation_3d_function = register_math_function(boxes_calculation_3d_function);
 
   void instantiate_boxes3d(std::shared_ptr<active_transaction> trans,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
@@ -506,6 +507,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
       false, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("instantiate_boxes3d()"),
+      {},
       nullptr);
 
 
@@ -780,7 +782,8 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord2) +  numtris*sizeof(snde_box2), // data_bytes for transfer
 							numtris*(200), // flops
 							1, // max effective cpu cores
@@ -994,7 +997,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   
   std::shared_ptr<math_function> define_spatialnde2_boxes_calculation_2d_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.boxes_calculation_2d",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<boxes_calculation_2d>(rss,inst);
     }); 
     
@@ -1004,7 +1007,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   // (in CMakeLists.txt) make it move into the _ocl.so library)
   SNDE_API std::shared_ptr<math_function> boxes_calculation_2d_function = define_spatialnde2_boxes_calculation_2d_function();
   
-  static int registered_boxes_calculation_2d_function = register_math_function("spatialnde2.boxes_calculation_2d",boxes_calculation_2d_function);
+  static int registered_boxes_calculation_2d_function = register_math_function(boxes_calculation_2d_function);
 
 
   void instantiate_boxes2d(std::shared_ptr<active_transaction> trans,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
@@ -1022,6 +1025,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
       false, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("instantiate_boxes2d()"),
+      {},
       nullptr);
 
     

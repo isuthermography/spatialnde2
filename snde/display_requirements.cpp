@@ -978,6 +978,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
           true, // ondemand
           false, // mdonly
           std::make_shared<math_definition>(funcdescr),
+	  {}, // no tags so far
           nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
 
       
@@ -1012,6 +1013,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 	  true, // ondemand
 	  false, // mdonly
 	  std::make_shared<math_definition>("c++ definition of waveform_points"),
+	  {}, // no tags so far
 	  nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
 
 
@@ -1114,6 +1116,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       true, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("c++ definition of phase_plane_endpoint_octagon_vertices for rendering"),
+      {}, // no tags so far
       nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
     
     retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
@@ -1345,6 +1348,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 	true, // ondemand
 	false, // mdonly
 	std::make_shared<math_definition>("c++ definition of colormapping"),
+	{}, // no tags so far
 	nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
       
       retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
@@ -1456,6 +1460,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       true, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("c++ definition of point cloud colormapping"),
+      {}, // no tags so far
       nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
     
     retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_POINTCLOUDCOLORMAP,typeid(*this),colormap_params),rec,shared_from_this()); // display_requirement
@@ -1494,6 +1499,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       true, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("c++ definition of phase plane line triangle vertices and alphas"),
+      {}, // no tags so far
       nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
     
     retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_COLOREDTRANSPARENTLINES,typeid(*this),color_renderparams),rec,shared_from_this()); // display_requirement
@@ -1801,6 +1807,7 @@ std::shared_ptr<display_requirement> fusion_ndarray_recording_display_handler::g
       true, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("c++ definition of fusion colormapping"),
+      {}, // no tags so far
       nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
     
     retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
@@ -1937,6 +1944,7 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
       true, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("c++ definition of vertex_arrays for rendering"),
+      {}, // no tags so far
       nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
     
     retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
@@ -1974,6 +1982,7 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
       true, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("c++ definition of vertex normals for rendering"),
+      {}, // no tags so far
       nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
     
     retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
@@ -2032,6 +2041,7 @@ std::shared_ptr<display_requirement> meshed_parameterization_recording_display_h
     true, // ondemand
     false, // mdonly
     std::make_shared<math_definition>("c++ definition of texvertex_arrays for rendering"),
+    {}, // no tags so far
     nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
   
   //retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);

@@ -66,6 +66,7 @@ typedef unsigned long long uint64_t;
 %include "std_deque.i"
 %include "std_except.i"
 %include "std_pair.i"
+%include "std_set.i"
 %include "python/std_unordered_map.i"
 %include "std_multimap.i"
 %include "std_shared_ptr.i"
@@ -168,6 +169,8 @@ namespace snde {
 };
 
 %template(shared_string_vector) std::vector<std::shared_ptr<std::string>>;
+
+%template(string_set) std::set<std::string>;
 
 %{
 #define SWIG_FILE_WITH_INIT
@@ -362,6 +365,7 @@ template <typename T>
 }
 
 
+
 %template(StringPair) std::pair<std::string,std::string>;
 %shared_ptr(std::vector<std::pair<std::string,std::string>>);
 %template(StringPairVector) std::vector<std::pair<std::string,std::string>>;
@@ -395,9 +399,9 @@ template <typename T>
 // types of the same size, so if longs are 64 bit better for us
 // ust to use "unsigned long"
 #ifdef SIZEOF_LONG_IS_8
-%template(StringUnsignedPair) std::pair<std::string,unsigned long>;
+%template(StringUnsigned64Pair) std::pair<std::string,unsigned long>;
 %shared_ptr(std::vector<std::pair<std::string,unsigned long>>);
-%template(StringUnsignedPairVector) std::vector<std::pair<std::string,unsigned long>>;
+%template(StringUnsigned64PairVector) std::vector<std::pair<std::string,unsigned long>>;
 %extend std::vector<std::pair<std::string,unsigned long>> {
   std::string __str__()
   {
@@ -423,9 +427,9 @@ template <typename T>
 
 
 #else
-%template(StringUnsignedPair) std::pair<std::string,unsigned long long >;
+%template(StringUnsigned64Pair) std::pair<std::string,unsigned long long >;
 %shared_ptr(std::vector<std::pair<std::string,unsigned long long>>);
-%template(StringUnsignedPairVector) std::vector<std::pair<std::string,unsigned long long>>;
+%template(StringUnsigned64PairVector) std::vector<std::pair<std::string,unsigned long long>>;
 %extend std::vector<std::pair<std::string,unsigned long long>> {
   std::string __str__()
   {
@@ -448,6 +452,20 @@ template <typename T>
     return strval;
   }
 }
+#endif
+
+
+#ifdef SIZEOF_LONG_IS_8
+// regular unsigned are different from Unsigned64
+%template(StringUnsignedPair) std::pair<std::string,unsigned>;
+//%shared_ptr(std::pair<std::string,unsigned>);
+%template(StringUnsignedPairVector) std::vector<std::pair<std::string,unsigned>>;
+#else
+// regular unsigned are the same as Unsigned64
+%pythoncode %{
+  StringUnsignedPair=StringUnsigned64Pair
+  StringUnsignedPairVector=StringUnsigned64PairVector
+%}
 #endif
 
 %template(shared_ptr_string) std::shared_ptr<std::string>;

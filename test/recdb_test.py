@@ -6,7 +6,7 @@ import spatialnde2 as snde
 rec_len=100;
 
 recdb=snde.recdatabase();
-snde.setup_cpu(recdb,multiprocessing.cpu_count())
+snde.setup_cpu(recdb,[],multiprocessing.cpu_count())
 snde.setup_storage_manager(recdb)
 snde.setup_math_functions(recdb,[])
 recdb.startup()

@@ -68,7 +68,8 @@ namespace snde {
       
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							numvertices*100, // data_bytes for transfer
 							numvertices*(100), // flops
 							1, // max effective cpu cores
@@ -224,7 +225,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_kdtree_calculation_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.kdtree_calculation",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<kdtree_calculation>(rss,inst);
     });
     
@@ -233,7 +234,7 @@ namespace snde {
 
   SNDE_OCL_API std::shared_ptr<math_function> kdtree_calculation_function = define_kdtree_calculation_function();
   
-  static int registered_kdtree_calculation_function = register_math_function("spatialnde2.kdtree_calculation",kdtree_calculation_function);
+  static int registered_kdtree_calculation_function = register_math_function(kdtree_calculation_function);
 
 
   void instantiate_vertex_kdtree(std::shared_ptr<active_transaction> trans,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
@@ -257,6 +258,7 @@ namespace snde {
       false, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("instantiate_vertex_kdtree()"),
+      {},
       nullptr);
 
 
@@ -496,13 +498,15 @@ namespace snde {
       
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							numvertices*sizeof(snde_coord3)+treesize*sizeof(snde_kdnode)+num_search_points*sizeof(snde_coord3), // data_bytes for transfer
 							num_search_points*log(numvertices)*10.0, // flops
 							1, // max effective cpu cores
 							1), // useful_cpu_cores (min # of cores to supply
 #ifdef SNDE_OPENCL
-	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+	  std::make_shared<compute_resource_option_opencl>(std::set<std::string>(), // no tags
+							   0, //metadata_bytes
 							   numvertices*sizeof(snde_coord3)+treesize*sizeof(snde_kdnode)+num_search_points*sizeof(snde_coord3), // data_bytes for transfer
 							   0, // cpu_flops
 							   num_search_points*log(numvertices)*10.0, // gpuflops
@@ -581,7 +585,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_knn_calculation_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.knn_calculation",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<knn_calculation>(rss,inst);
     });
     
@@ -591,7 +595,7 @@ namespace snde {
 
 
   
-  static int registered_knn_calculation_function = register_math_function("spatialnde2.knn_calculation",knn_calculation_function);
+  static int registered_knn_calculation_function = register_math_function(knn_calculation_function);
 
   
   
