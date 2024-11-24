@@ -2137,7 +2137,8 @@ namespace snde {
 
   transaction::transaction() :
     our_state_reference(std::make_shared<rss_reference>()), // allocate the unitary reference to our state
-    prerequisite_state(std::make_shared<rss_reference>())
+    prerequisite_state(std::make_shared<rss_reference>()),
+    math(std::make_shared<transaction_math>())
   {
     snde_debug(SNDE_DC_MEMLEAK,"Transaction 0x%llx created",(unsigned long long)this);
   }
@@ -3462,6 +3463,77 @@ namespace snde {
     // set of math functions known to be (definitely) changed
     std::unordered_set<std::shared_ptr<instantiated_math_function>> changed_math_functions; 
 
+    // For math functions defined from python, we need to bind the
+    // pending math definition channels found in trans->math
+    // (class transaction_math), mark these channels as updated
+    // and enter them into the transaction.
+    {
+      std::map<std::shared_ptr<pending_math_definition>,std::map<size_t,std::pair<std::string,std::shared_ptr<reserved_channel>>>,std::owner_less<std::shared_ptr<pending_math_definition>>> new_functions_resparams;
+
+      for (auto && name_resv_reschan: math->pending_dict) {
+        std::string name;
+        std::pair<std::shared_ptr<reserved_channel>,std::shared_ptr<pending_math_definition_result_channel>> resv_reschan;
+        std::shared_ptr<reserved_channel> resv;
+        std::shared_ptr<pending_math_definition_result_channel> reschan;
+        std::tie(name,resv_reschan) = name_resv_reschan;
+        std::tie(resv,reschan) = resv_reschan;
+        
+        auto function_it = new_functions_resparams.find(reschan->definition);
+        if (function_it == new_functions_resparams.end()) {
+          bool junk;
+          std::tie(function_it,junk) = new_functions_resparams.emplace(reschan->definition,std::map<size_t,std::pair<std::string,std::shared_ptr<reserved_channel>>>());
+          
+        }
+
+        // At this point function_it is a valid iterator into
+        // new_functions_resparams.
+        // Add our result index and channel name into the entry.
+        function_it->second.emplace(reschan->result_channel_index,std::make_pair(name,resv));
+        
+        
+      }
+      // Now all the definitions should be in new_functions_resparams.
+
+      for (auto && def_indexmap: new_functions_resparams) {
+        std::shared_ptr<pending_math_definition> def;
+        std::map<size_t,std::pair<std::string,std::shared_ptr<reserved_channel>>> indexmap;
+        std::tie(def,indexmap) = def_indexmap;
+
+        size_t last_index = 0;
+        
+        for (auto && index_name_reschan: indexmap) {
+          size_t index;
+          std::pair<std::string,std::shared_ptr<reserved_channel>> name_reschan;
+          std::string name;
+          std::shared_ptr<reserved_channel> reschan;
+          std::tie(index,name_reschan) = index_name_reschan;
+          std::tie(name,reschan) = name_reschan;
+          std::shared_ptr<channelconfig> config = reschan->proposed_config();
+          {
+            std::lock_guard<std::mutex> trans_admin(admin);
+            if (name == config->channelpath) {
+              updated_channels.emplace(name,std::make_pair(reschan,config));
+            }
+          }
+          
+          // Now set the result_channel_paths in the instantiated_math_function.
+          while (index > def->instantiated->result_channel_paths.size()) {
+            // This return parameter is not set; add a null pointer.
+            def->instantiated->result_channel_paths.emplace_back(nullptr);           
+          }
+          
+          if (index == def->instantiated->result_channel_paths.size()) {
+            def->instantiated->result_channel_paths.emplace_back(std::make_shared<std::string>(name));
+            
+          }
+        }
+        def->evaluate_pending(def->instantiated->result_channel_paths);
+        def->instantiated->definition = def;
+        
+      }
+        
+
+    }
 
     // iterate through the updated channels and update the
     // recdb channels database

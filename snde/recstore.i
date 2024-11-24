@@ -45,6 +45,9 @@ snde_rawaccessible(snde::instantiated_math_function);
 snde_rawaccessible(snde::active_transaction);
 %shared_ptr(snde::transaction);
 snde_rawaccessible(snde::transaction);
+%shared_ptr(snde::transaction_math);
+snde_rawaccessible(snde::transaction_math);
+
 //%shared_ptr(std::map<std::string,snde::channel_state>);
 //snde_rawaccessible(std::map<std::string,snde::channel_state>);
 
@@ -63,6 +66,10 @@ snde_rawaccessible(snde::string_math_instance_parameter);
 snde_rawaccessible(snde::int_math_instance_parameter);
 %shared_ptr(snde::double_math_instance_parameter);
 snde_rawaccessible(snde::double_math_instance_parameter);
+%shared_ptr(snde::pending_math_definition_result_channel);
+snde_rawaccessible(snde::pending_math_definition_result_channel);
+%shared_ptr(snde::pending_math_definition);
+snde_rawaccessible(snde::pending_math_definition);
 
 
 %{
@@ -544,7 +551,46 @@ namespace snde {
   };
 
 
+class transaction_math {
+  public:
+    std::map<std::string,std::pair<std::shared_ptr<reserved_channel>,std::shared_ptr<pending_math_definition_result_channel>>> pending_dict; // Indexed by definition channel name
 
+    
+  };
+  %extend active_transaction_math {
+    void __setitem__(std::string name, std::shared_ptr<pending_math_definition_result_channel> result_chan)
+    {
+      auto dict_it = pending_dict.find(name);
+      if (dict_it != pending_dict.end()) {
+        pending_dict.erase(dict_it);
+      }
+
+      std::shared_ptr<reserved_channel> resvchan = std::make_shared<reserved_channel>();
+      std::shared_ptr<channelconfig> config = std::make_shared<channelconfig>(name,"pymath",false);
+      config->math_fcn = result_chan->definition->instantiated;
+      config->data_mutable = result_chan->definition->instantiated->is_mutable; // !!!Should probably be result index specific.
+      resvchan->end_atomic_proposed_config_update(config);
+      pending_dict.emplace(name,std::make_pair(resvchan,result_chan));
+    }
+
+    std::shared_ptr<pending_math_definition_result_channel> __getitem__(std::string name)
+    {
+      auto dict_it = pending_dict.find(name);
+      if (dict_it != pending_dict.end()) {
+        return dict_it->second.second;
+      }
+      throw snde_error("snde IndexError");
+    }
+
+    void __delitem__(std::string name)
+    {
+      auto dict_it = pending_dict.find(name);
+      if (dict_it != pending_dict.end()) {
+        pending_dict.erase(dict_it);
+      }
+    }
+  }
+  
   
   class transaction {
   public:
@@ -651,7 +697,8 @@ namespace snde {
     $1 = std::make_shared<PyObject *>($input);
 
   }
-  
+
+
   class active_transaction /* : public std::enable_shared_from_this<active_transaction> */ {
     // RAII interface to transaction
     // Don't use this directly from dataguzzler-python, because there
@@ -680,10 +727,16 @@ namespace snde {
 
     std::shared_ptr<transaction> end_transaction();
     std::shared_ptr<transaction> run_in_background_and_end_transaction(std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn, std::shared_ptr<void> params);
-
+    %pythoncode %{
+        
+      @property
+      def math(self):
+        
+                 
+        return self.trans.math
+                 
+    %}
   };
-  // !!!*** also need to implement trans.math object that can
-  // accept objects returned by recmath.i: instantiate_math()
 
   
   

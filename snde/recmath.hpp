@@ -54,6 +54,7 @@ namespace snde {
   class math_status;
   class math_function_status;
   class math_definition;
+  class pending_math_definition;
   class math_parameter;
   class instantiated_math_database;
   class instantiated_math_function;
@@ -520,6 +521,118 @@ namespace snde {
     virtual void perform_exec()=0;
 
   };
+
+  
+
+class pending_math_definition_result_channel {
+public:
+  //A pending_math_definition_result_channel is returned
+  //when you try to iterate over a pending_math_definition.
+  //This provides a way to separate out the different
+  //result_channels.
+
+  //A mutable _result_channel is returned by the
+  //pending_math_definition __iter__() method as an iterator.
+  //This iterator copies itself, returning immutable copies.
+
+  std::shared_ptr<pending_math_definition> definition;
+  size_t result_channel_index;
+
+  pending_math_definition_result_channel(std::shared_ptr<pending_math_definition> definition,size_t result_channel_index):
+    definition(definition),
+    result_channel_index(result_channel_index)
+  {
+    
+  }
+
+};
+
+
+class pending_math_definition: public math_definition {
+public:
+  //A pending_math_definition is returned when you use
+  //the python shorthand for instantiating a math function. This
+  //gets stored by the trans.math[] setitem method into the
+  //transaction and then the definition is finalized during
+  //_realize_transaction()
+  std::string function_name; //name of function (will need snde. prefix)
+  std::vector<std::string> args; //list of python interpretable string arguments
+
+  std::shared_ptr<instantiated_math_function> instantiated; //the (possibly incomplete) instantiated_math_function. Note that this can create a reference loop so it must be cleared when the pending part is no longer necessary.
+  std::vector<std::pair<std::string,std::shared_ptr<pending_math_definition_result_channel>>> intermediate_channels; //list of (channel_name,pending_math_definition or pending_math_definition_result_channel) for any required intermediate channels. Note that this can create a reference loop so it must be cleared when the pending part is no longer necessary.
+
+  pending_math_definition(std::string function_name,std::vector<std::string> args,std::vector<std::pair<std::string,std::shared_ptr<pending_math_definition_result_channel>>> intermediate_channels) :
+    math_definition(""),
+    function_name(function_name),
+    args(args),
+    instantiated(nullptr),
+    intermediate_channels(intermediate_channels)
+  {
+    
+
+  }
+
+  // Rule of 3
+  pending_math_definition(const pending_math_definition &) = delete;
+  pending_math_definition& operator=(const pending_math_definition &) = delete; 
+  virtual ~pending_math_definition()=default;  // virtual destructor required so we can be subclassed
+  
+  void evaluate_pending(std::vector<std::shared_ptr<std::string>> result_channel_paths)
+  {
+    definition_command = "";
+    if (result_channel_paths.size()==1 && result_channel_paths[0]){
+      definition_command += "trans.math[" + escape_to_quoted_string(*result_channel_paths[0]) +"] = ";
+    }
+    else {
+      definition_command += "(";
+      for (size_t num = 0; num < result_channel_paths.size(); num++) {
+        if (result_channel_paths[num]) {
+          definition_command += "trans.math[" + escape_to_quoted_string(*result_channel_paths[num]) +"],";
+        } else{
+          definition_command += "junk,";
+        }
+      }
+      definition_command += ") = ";
+    }
+
+    definition_command += function_name +"(";
+
+    for (auto && arg: args) {
+
+      definition_command += arg +",";
+    }
+
+    if (instantiated->is_mutable){
+
+      definition_command += "mutable = True,";
+    }
+    
+    if (instantiated->execution_tags.size() > 0) {
+      
+      definition_command += "execution_tags = [";
+      
+      for (auto && tag: instantiated->execution_tags) {
+        
+        definition_command += escape_to_quoted_string(tag) +",";
+      }
+      
+      definition_command += "],";
+    }
+
+    if (instantiated->extra_params) {
+      definition_command += "extra_params = extra_params_not_implemented_in_pending_math_definition,";
+    }
+    // Remove the final trailing comma
+    if (definition_command[definition_command.size() -1] == ','){
+      definition_command = definition_command.substr(0,definition_command.size() -1);
+    }
+    definition_command += ")";
+
+    // Clear out our storage to eliminate reference loops
+    instantiated = nullptr;
+    intermediate_channels.clear();
+  }
+};
 
 
   class math_parameter_mismatch: public snde_error {

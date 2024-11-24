@@ -655,7 +655,7 @@ namespace snde {
       // after execfunc set. 
       
       // Find this fcn in matstatus [mdonly_]pending_functions and remove it, adding it to the completed block
-      std::unordered_set<std::shared_ptr<instantiated_math_function>>::iterator pending_it;
+      std::unordered_set<std::shared_ptr<instantiated_math_function>>::iterator pending_it; 
       if (mdonly) {
 	pending_it = recstate->mathstatus.mdonly_pending_functions.find(fcn);
 	if (pending_it==recstate->mathstatus.mdonly_pending_functions.end()) {

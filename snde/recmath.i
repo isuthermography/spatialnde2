@@ -29,7 +29,11 @@ snde_rawaccessible(snde::string_math_instance_parameter);
 %shared_ptr(snde::int_math_instance_parameter);                  
 snde_rawaccessible(snde::int_math_instance_parameter);
 %shared_ptr(snde::double_math_instance_parameter);
-snde_rawaccessible(snde::double_math_instance_parameter);*/
+snde_rawaccessible(snde::double_math_instance_parameter);
+%shared_ptr(snde::pending_math_definition_result_channel);
+snde_rawaccessible(snde::pending_math_definition_result_channel);
+%shared_ptr(snde::pending_math_definition);
+snde_rawaccessible(snde::pending_math_definition);*/
 
 
 %shared_ptr(std::unordered_map<std::string,std::shared_ptr<snde::math_function>>);
@@ -68,6 +72,7 @@ namespace snde {
   class math_status;
   class math_function_status;
   class math_definition;
+  class pending_math_definition;
   class math_parameter;
   class instantiated_math_database;
   class instantiated_math_function;
@@ -187,8 +192,12 @@ class math_instance_parameter {
     // NOTE: Somehow get_compute_options() or similar needs to consider the types of the parameter arrays and select
     // or configure code appropriately.
     //virtual std::shared_ptr<executing_math_function> initiate_execution(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)=0; // usually returns a sub-class
+    %pythoncode %{
+      def __call__(self,*args,**kwargs):
+        return instantiate_math(self,*args,**kwargs)
+    %}
   };
-
+  
   // prototype extension code that is commented out here
   // is now implemented by snde_rawaccessible() macro
   // defined in spatialnde2.i
@@ -520,64 +529,76 @@ class math_instance_parameter {
   };
 
   
-  typedef std::unordered_map<std::string,std::shared_ptr<math_function>> math_function_registry_map;
   
-  std::shared_ptr<math_function_registry_map> math_function_registry();
-  int register_math_function(std::shared_ptr<math_function> fcn);
 
-}
 
-%pythoncode %{
-  class pending_math_definition(math_definition):
-    """A pending_math_definition is returned when you use
-    the python shorthand for instantiating a math function. This
-    gets stored by the trans.math[] setitem method into the
-    transaction and then the definition is finalized during
-    _realize_transaction()."""
+class pending_math_definition_result_channel {
+public:
+  //A pending_math_definition_result_channel is returned
+  //when you try to iterate over a pending_math_definition.
+  //This provides a way to separate out the different
+  //result_channels.
 
-    function_name = None # name of function (will need snde. prefix)
-    args = None # list of python interpretable string arguments
-					     
-    instantiated = None # the (possibly incomplete) instantiated_math_function
-    intermediate_channels = None # list of (channel_name,pending_math_definition or pending_math_definition_result_channel) for any required intermediate channels
-   
+  //A mutable _result_channel is returned by the
+  //pending_math_definition __iter__() method as an iterator.
+  //This iterator copies itself, returning immutable copies.
 
-    def __init__(self,function_name,args,intermediate_channels):
-      super().__init__("")
-      self.function_name = function_name
-      self.args = args
-      self.intermediate_channels = intermediate_channels
-      pass
+  std::shared_ptr<pending_math_definition> definition;
+  size_t result_channel_index;
 
+  pending_math_definition_result_channel(std::shared_ptr<pending_math_definition> definition,size_t result_channel_index):
+    definition(definition),
+    result_channel_index(result_channel_index)
+  {
+    
+  }
+
+  %pythoncode %{
     def __iter__(self):
       return pending_math_definition_result_channel(self,0)
-    pass
-
-  class pending_math_definition_result_channel:
-    """A pending_math_definition_result_channel is returned
-    when you try to iterate over a pending_math_definition.
-    This provides a way to separate out the different
-    result_channels.
-
-    A mutable _result_channel is returned by the
-    pending_math_definition __iter__() method as an iterator.
-    This iterator copies itself, returning immutable copies.
-    """
-
-    definition = None # pending_math_definition object
-    
-    result_channel_index = None
-
-    def __init__(self,definition,result_channel_index):
-      self.definition=definition
-      self.result_channel_index=result_channel_index
-      pass
-
+      
     def __next__(self):
       to_return = copy.copy(self)
       self.result_channel_index +=1
       return to_return
-    pass
+  %}
+};
+
+
+class pending_math_definition: public math_definition {
+public:
+  //A pending_math_definition is returned when you use
+  //the python shorthand for instantiating a math function. This
+  //gets stored by the trans.math[] setitem method into the
+  //transaction and then the definition is finalized during
+  //_realize_transaction()
+  std::string function_name; //name of function (will need snde. prefix)
+  std::vector<std::string> args; //list of python interpretable string arguments
+
+  std::shared_ptr<instantiated_math_function> instantiated; //the (possibly incomplete) instantiated_math_function. Note that this can create a reference loop so it must be cleared when the pending part is no longer necessary.
+  std::vector<std::pair<std::string,std::shared_ptr<pending_math_definition_result_channel>>> intermediate_channels; //list of (channel_name,pending_math_definition or pending_math_definition_result_channel) for any required intermediate channels. Note that this can create a reference loop so it must be cleared when the pending part is no longer necessary.
+
+  pending_math_definition(std::string function_name,std::vector<std::string> args,std::vector<std::pair<std::string,std::shared_ptr<pending_math_definition_result_channel>>> intermediate_channels) :
+    math_definition(""),
+    function_name(function_name),
+    args(args),
+    instantiated(nullptr),
+    intermediate_channels(intermediate_channels)
+  {
+    
+
+  }
+
+  // Rule of 3
+  pending_math_definition(const pending_math_definition &) = delete;
+  pending_math_definition& operator=(const pending_math_definition &) = delete; 
+  virtual ~pending_math_definition()=default;  // virtual destructor required so we can be subclassed
+  
+  void evaluate_pending(std::vector<std::shared_ptr<std::string>> result_channel_paths);
+};
+
+%pythoncode %{
+  
   def _convert_math_param(math_fcn,idx,arg,name_type,intermediate_channels):
     """
     math_fcn is a class math_function
@@ -655,7 +676,12 @@ class math_instance_parameter {
     math_params_parsible = [ param.generate_parsible() for param in math_params ]
     math_def = pending_math_definition(math_fcn.function_name,math_params_parsible,intermediate_channels)
     math_def.instantiated = math_fcn.instantiate(math_params,[ ],"/",mutable,False,False,math_def,execution_tags,extra_params)
-    return math_def
+    return pending_math_definition_result_channel(math_def,0)
     
 %}
 
+  typedef std::unordered_map<std::string,std::shared_ptr<math_function>> math_function_registry_map;
+  
+  std::shared_ptr<math_function_registry_map> math_function_registry();
+  int register_math_function(std::shared_ptr<math_function> fcn);
+}

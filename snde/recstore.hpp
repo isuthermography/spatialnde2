@@ -811,6 +811,13 @@ namespace snde {
 
   };
   
+  class transaction_math {
+  public:
+    std::map<std::string,std::pair<std::shared_ptr<reserved_channel>,std::shared_ptr<pending_math_definition_result_channel>>> pending_dict; // Indexed by definition channel name
+
+    // Note: extended in python swig bindings to act like a dictionary 
+  };
+  
   class transaction: public std::enable_shared_from_this<transaction> {
   public:
     // mutable until end of transaction when it is destroyed and converted to a globalrev structure
@@ -841,6 +848,10 @@ namespace snde {
     
     std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> transaction_background_end_fcn;
     std::shared_ptr<void> transaction_background_end_params;
+
+    std::shared_ptr<transaction_math> math;
+
+
     
     transaction();
     // rule of 3
@@ -900,6 +911,8 @@ namespace snde {
 					     bool *all_ready,
 					     bool ondemand_only);
 
+  
+  
   
   class active_transaction  : public std::enable_shared_from_this<active_transaction>  {
     // RAII interface to transaction
