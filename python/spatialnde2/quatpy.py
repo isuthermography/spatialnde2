@@ -74,7 +74,7 @@ def quaternion_apply_vector(quat, vec):
         raise ValueError("Vectors must have 3 components")
 
     # vec_as_quat = np.array([0.0, *vec[:3]])
-    zeros_shape = np.concatenate((vec.shape[:-1], (1,)))
+    zeros_shape = np.concatenate((np.array(vec.shape[:-1], dtype=np.uint32), np.array((1,),dtype=np.uint32)))
     vec_as_quat = np.concatenate([np.zeros(zeros_shape), vec], axis=-1)
 
     # print(f"vec to quat{vec_as_quat}")
