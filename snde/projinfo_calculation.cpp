@@ -244,7 +244,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_spatialnde2_projinfo_calculation_function()
   {
-    return std::make_shared<cpp_math_function>("snde.projinfo_calculation",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.projinfo_calculation",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<projinfo_calculation>(rss,inst);
     }); 
   }

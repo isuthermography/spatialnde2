@@ -479,7 +479,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_nd_accumulate_once_function()
   {
-    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>("snde.nd_accumulate_once",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>("snde.nd_accumulate_once",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       std::shared_ptr<executing_math_function> executing;
       
       executing = make_cppfuncexec_floatingtypes<nd_accumulate_once>(rss,inst);

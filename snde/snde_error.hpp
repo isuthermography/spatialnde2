@@ -171,6 +171,56 @@ namespace snde {
     //}
   };
 
+  class snde_indexerror: public snde_error {
+  public:
+    //index error so we can throw python IndexError from C++ code
+    // note that this class is not wrapped for python; instead
+    // there is a separate spatialnde2.snde_indexerror class
+    // defined in spatialnde2.i
+    template<typename ... Args>
+    snde_indexerror(std::string fmt, Args && ... args) : snde_error(fmt,std::forward<Args>(args) ...) { 
+      
+    }
+
+    snde_indexerror &operator=(const snde_indexerror &) = delete;
+    snde_indexerror(const snde_indexerror &orig) :
+      snde_error(orig)
+    {
+
+    }
+    
+    virtual ~snde_indexerror()
+    {
+
+    }
+
+  };
+
+  class snde_stopiteration: public snde_error {
+  public:
+    //index error so we can throw python IndexError from C++ code
+    // note that this class is not wrapped for python; instead
+    // there is a separate spatialnde2.snde_indexerror class
+    // defined in spatialnde2.i
+    template<typename ... Args>
+    snde_stopiteration(std::string fmt, Args && ... args) : snde_error(fmt,std::forward<Args>(args) ...) { 
+      
+    }
+
+    snde_stopiteration &operator=(const snde_stopiteration &) = delete;
+    snde_stopiteration(const snde_stopiteration &orig) :
+      snde_error(orig)
+    {
+
+    }
+    
+    virtual ~snde_stopiteration()
+    {
+
+    }
+
+  };
+
 #ifdef _WIN32
   static inline std::string GetWin32ErrorAsString(DWORD err)
   {

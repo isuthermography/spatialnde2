@@ -5,6 +5,7 @@
 
 %pythonbegin %{
 import sys
+import copy
 %}
 
 //%pythoncode %{
@@ -35,14 +36,24 @@ typedef unsigned long long uint64_t;
 
 
 // Exception handling
+// on non-win32 we only catch our own errors
+#ifndef WIN32
 %exception {
   try {
     $action
+  } catch (const snde::snde_indexerror &serr) {
+    PyErr_SetString(snde_indexerror_exc,serr.what());
+    SWIG_fail;
+  }catch (const snde::snde_stopiteration &serr) {
+    PyErr_SetString(snde_stopiteration_exc,serr.what());
+    SWIG_fail;
   } catch (const snde::snde_error &serr) {
     PyErr_SetString(snde_error_exc,serr.what());
     SWIG_fail;
   }
 }
+#endif
+
 #ifdef WIN32
 // on WIN32, unhandled exceptions can be very mysterious bugs
 // to track down because they may just cause it to silently crash.
@@ -51,6 +62,15 @@ typedef unsigned long long uint64_t;
 %exception {
   try {
     $action
+  } catch (const snde::snde_indexerror &serr) {
+    PyErr_SetString(snde_indexerror_exc,serr.what());
+    SWIG_fail;
+  } catch (const snde::snde_stopiteration &serr) {
+    PyErr_SetString(snde_stopiteration_exc,serr.what());
+    SWIG_fail;
+  } catch (const snde::snde_error &serr) {
+    PyErr_SetString(snde_error_exc,serr.what());
+    SWIG_fail;
   } catch (const std::exception &serr) {
     PyErr_SetString(PyExc_RuntimeError,serr.what());
     SWIG_fail;
@@ -191,6 +211,8 @@ namespace snde {
   
 
   static PyObject *snde_error_exc;
+  static PyObject *snde_indexerror_exc;
+  static PyObject *snde_stopiteration_exc;
 
   namespace snde {
     static std::unordered_map<unsigned,PyArray_Descr*> rtn_numpytypemap;
@@ -582,6 +604,14 @@ template <typename T>
   snde_error_exc = PyErr_NewException("spatialnde2.snde_error",NULL,NULL);
   Py_INCREF(snde_error_exc);
   PyModule_AddObject(m,"snde_error",snde_error_exc);
+
+  snde_indexerror_exc = PyErr_NewException("spatialnde2.snde_indexerror",PyExc_IndexError,NULL);
+  Py_INCREF(snde_indexerror_exc);
+  PyModule_AddObject(m,"snde_indexerror",snde_indexerror_exc);
+
+  snde_stopiteration_exc = PyErr_NewException("spatialnde2.snde_stopiteration",PyExc_StopIteration,NULL);
+  Py_INCREF(snde_stopiteration_exc);
+  PyModule_AddObject(m,"snde_stopiteration",snde_stopiteration_exc);
   
   PyObject *Globals = PyDict_New(); // for creating numpy dtypes
   PyObject *NumpyModule = PyImport_ImportModule("numpy");

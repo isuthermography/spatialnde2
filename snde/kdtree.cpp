@@ -225,7 +225,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_kdtree_calculation_function()
   {
-    return std::make_shared<cpp_math_function>("snde.kdtree_calculation",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.kdtree_calculation",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<kdtree_calculation>(rss,inst);
     });
     
@@ -585,7 +585,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_knn_calculation_function()
   {
-    return std::make_shared<cpp_math_function>("snde.knn_calculation",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.knn_calculation",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<knn_calculation>(rss,inst);
     });
     

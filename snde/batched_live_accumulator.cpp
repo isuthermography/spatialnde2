@@ -421,7 +421,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_batched_live_accumulator_function()
   {
-    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>("snde.batched_live_accumulator",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>("snde.batched_live_accumulator",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       std::shared_ptr<executing_math_function> executing;
       
       executing = make_cppfuncexec_floatingtypes<batched_live_accumulator>(rss,inst);

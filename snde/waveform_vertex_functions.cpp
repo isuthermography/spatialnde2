@@ -315,7 +315,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_waveform_interplines_function()
   {
-    return std::make_shared<cpp_math_function>("snde.waveform_interplines",[](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.waveform_interplines",1,[](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
       return make_cppfuncexec_floatingtypes<waveform_interplines>(rss, inst);
       }
     );
@@ -547,7 +547,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_waveform_vertlines_function()
   {
-    return std::make_shared<cpp_math_function>("snde.waveform_vertlines",[](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.waveform_vertlines",1,[](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
       return make_cppfuncexec_floatingtypes<waveform_vertlines>(rss, inst);
       }
     );
@@ -773,7 +773,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_waveform_points_function()
   {
-    return std::make_shared<cpp_math_function>("snde.waveform_points",[](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.waveform_points",1,[](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
       return make_cppfuncexec_floatingtypes<waveform_points>(rss, inst);
       }
     );

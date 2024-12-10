@@ -172,8 +172,9 @@ namespace snde {
   }
 
   
-  math_function::math_function(std::string function_name,const std::vector<std::pair<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution) :
+  math_function::math_function(std::string function_name, size_t num_results,const std::vector<std::pair<std::string,unsigned>> &param_names_types,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution) :
     function_name(function_name),
+    num_results(num_results),
     param_names_types(param_names_types),
     initiate_execution(initiate_execution)
   {
@@ -1294,12 +1295,24 @@ namespace snde {
   
   pending_math_definition_result_channel::pending_math_definition_result_channel(std::shared_ptr<pending_math_definition> definition,size_t result_channel_index):
     definition(definition),
-    result_channel_index(result_channel_index)
+    result_channel_index(result_channel_index),
+    existing_mode(false),
+    existing_mode_math_definition(""),
+    existing_mode_channel_name("")
   {
     
   }
 
 
+  pending_math_definition_result_channel::pending_math_definition_result_channel(std::string existing_mode_math_definition,std::string existing_mode_channel_name):
+    definition(nullptr),
+    result_channel_index(0),
+    existing_mode(true),
+    existing_mode_math_definition(existing_mode_math_definition),
+    existing_mode_channel_name(existing_mode_channel_name)
+  {
+
+  }
   
   python_math_definition::python_math_definition(std::string function_name,std::vector<std::string> args) :
     math_definition(""),
@@ -1374,14 +1387,18 @@ namespace snde {
   
   void pending_math_intermediate_channels::append(std::string channel_name, std::shared_ptr<pending_math_definition_result_channel> result_chan)
   {
+    if (result_chan->existing_mode){
+      throw snde_error("Invalid result_chan");
+    }
     intermediate_channels.push_back(std::make_pair(channel_name,result_chan));
 
   }
   
-  pending_math_definition::pending_math_definition(std::string function_name,std::vector<std::string> args,std::shared_ptr<pending_math_intermediate_channels> intermediate_channels) :
+  pending_math_definition::pending_math_definition(std::string function_name,std::vector<std::string> args,std::shared_ptr<pending_math_intermediate_channels> intermediate_channels,size_t num_results) :
     python_math_definition(function_name,args),
     instantiated(nullptr),
-    intermediate_channels(intermediate_channels->intermediate_channels)
+    intermediate_channels(intermediate_channels->intermediate_channels),
+    num_results(num_results)
   {
     
 

@@ -94,7 +94,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_spatialnde2_const_orientation_product_function()
   {
-    return std::make_shared<cpp_math_function>("snde.const_orientation_product",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.const_orientation_product",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<const_orientation_product>(rss,inst);
     }); 
   }
@@ -198,7 +198,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_spatialnde2_orientation_const_product_function()
   {
-    return std::make_shared<cpp_math_function>("snde.orientation_const_product",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.orientation_const_product",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<orientation_const_product>(rss,inst);
     }); 
   }
@@ -298,7 +298,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_spatialnde2_orientation_rec_product_function()
   {
-    return std::make_shared<cpp_math_function>("snde.orientation_rec_product",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.orientation_rec_product",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<orientation_rec_product>(rss,inst);
     }); 
   }
@@ -388,7 +388,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_spatialnde2_pose_follower_function()
   {
-    return std::make_shared<cpp_math_function>("snde.pose_follower",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.pose_follower",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<pose_follower>(rss,inst);
     }); 
   }

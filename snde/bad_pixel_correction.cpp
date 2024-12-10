@@ -192,7 +192,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_bad_pixel_correction_function()
   {
-    return std::make_shared<cpp_math_function>("snde.bad_pixel_correction",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.bad_pixel_correction",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       std::shared_ptr<executing_math_function> executing;
       executing = make_cppfuncexec_floatingtypes<bad_pixel_correction>(rss,inst);
 

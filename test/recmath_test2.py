@@ -45,7 +45,9 @@ recdb.add_math_function(transact,scaled_channel_function,False)
 testchan_config=snde.channelconfig("/test_channel", "main",False)
   
 testchan = recdb.reserve_channel(transact,testchan_config);
-transact.math["/scaled_channel2"] = scalar_multiply_function("/test_channel",scalefactor)
+
+(transact.math["/scaled_channel2"],) = scalar_multiply_function("/test_channel",scalefactor)
+
 # demonstrate alternative ways to create the recording
 
 test_rec_32 = snde.create_ndarray_ref(transact,testchan,snde.SNDE_RTN_FLOAT32)

@@ -545,7 +545,7 @@ namespace snde {
     
   std::shared_ptr<math_function> define_spatialnde2_offset_calibration_function()
   {
-    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>("snde.offset_calibration",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) -> std::shared_ptr<executing_math_function> {
+    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>("snde.offset_calibration",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) -> std::shared_ptr<executing_math_function> {
 	std::shared_ptr<offset_calibration> execfunc =  std::make_shared<offset_calibration>(rss,inst);
 
 	return execfunc;

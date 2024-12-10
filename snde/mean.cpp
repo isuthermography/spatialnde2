@@ -131,7 +131,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_mean_function()
   {
-    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>("snde.mean",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>("snde.mean",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       std::shared_ptr<executing_math_function> executing;
       
 	  executing = make_cppfuncexec_integertypes<mean>(rss, inst);

@@ -218,7 +218,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_colormap_function()
   {
-    return std::make_shared<cpp_math_function>("snde.colormap",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.colormap",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       std::shared_ptr<executing_math_function> executing;
 
       executing = make_cppfuncexec_floatingtypes<colormap_recording>(rss,inst);
@@ -433,7 +433,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_pointcloud_colormap_function()
   {
-    return std::make_shared<cpp_math_function>("snde.pointcloud_colormap",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.pointcloud_colormap",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<pointcloud_colormap_recording>(rss,inst);
       
     }); 
@@ -750,7 +750,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_fusion_colormapping_function()
   {
-    return std::make_shared<cpp_math_function>("snde.fusion_colormapping",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.fusion_colormapping",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       std::shared_ptr<executing_math_function> executing;
       
       executing = make_cppfuncexec_floatingtypes<fusion_colormapping>(rss,inst);

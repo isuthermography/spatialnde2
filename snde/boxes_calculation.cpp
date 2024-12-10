@@ -480,7 +480,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
   std::shared_ptr<math_function> define_spatialnde2_boxes_calculation_3d_function()
   {
-    return std::make_shared<cpp_math_function>("snde.boxes_calculation_3d",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.boxes_calculation_3d",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<boxes_calculation_3d>(rss,inst);
     }); 
     
@@ -997,7 +997,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
   
   std::shared_ptr<math_function> define_spatialnde2_boxes_calculation_2d_function()
   {
-    return std::make_shared<cpp_math_function>("snde.boxes_calculation_2d",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.boxes_calculation_2d",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<boxes_calculation_2d>(rss,inst);
     }); 
     

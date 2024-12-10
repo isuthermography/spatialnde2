@@ -220,7 +220,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_meshedpart_vertexarray_function()
   {
-    return std::make_shared<cpp_math_function>("snde.meshedpart_vertexarray",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.meshedpart_vertexarray",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<vertexarray_function>(rss,inst);
     });
     
@@ -432,7 +432,7 @@ namespace snde {
   std::shared_ptr<math_function> define_meshedparameterization_texvertexarray_function()
   {
 
-    return std::make_shared<cpp_math_function>("snde.meshedparameterization_texvertexarray",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.meshedparameterization_texvertexarray",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<texvertexarray_function>(rss,inst);
     });
   }

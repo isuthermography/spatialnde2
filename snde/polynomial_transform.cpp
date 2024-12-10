@@ -322,7 +322,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_polynomial_transform_function_float32()
   {
-    return std::make_shared<cpp_math_function>("snde.polynomial_transform_float32", [](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.polynomial_transform_float32",1,[](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
 
       if (!inst) {
 	// initial call with no instantiation to probe parameters; just use float32 case
@@ -389,7 +389,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_polynomial_transform_function_float64()
   {
-    return std::make_shared<cpp_math_function>("snde.polynomial_transform_float64",[](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.polynomial_transform_float64",1,[](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
 
       if (!inst) {
 	// initial call with no instantiation to probe parameters; just use float32 case

@@ -592,7 +592,26 @@ class transaction_math {
       if (dict_it != self->pending_dict.end()) {
         return dict_it->second.second;
       }
-      throw snde::snde_error("snde IndexError");
+      //if we don't find a pending math result,
+      // we will search for an existing math channel
+      // so we can display its information.
+      // This will go into a pending_math_definition_result_channel
+      // in "existing_mode"
+      std::shared_ptr<snde::recdatabase> recdb_strong = self->recdb.lock();
+      if (!recdb_strong) {
+        throw snde::snde_error("transaction_math object has exceeded lifetime of underlying recording database");
+      }
+
+      {
+        std::lock_guard<std::mutex> recdb_admin(recdb_strong->admin);
+        auto defined_it = recdb_strong->_instantiated_functions.defined_math_functions.find(name);
+        if (defined_it != recdb_strong->_instantiated_functions.defined_math_functions.end()) {
+          //found an existing math channel
+          std::shared_ptr<snde::instantiated_math_function> instantiated=defined_it->second;
+          return std::make_shared<snde::pending_math_definition_result_channel>(instantiated->definition->definition_command,name);
+        }
+      }
+      throw snde::snde_indexerror("no such math channel found");
     }
 
     void __delitem__(std::string name)

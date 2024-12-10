@@ -696,7 +696,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_spatialnde2_project_point_onto_parameterization_function()
   {
-    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>("snde.project_point_onto_parameterization",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) -> std::shared_ptr<executing_math_function> {
+    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>("snde.project_point_onto_parameterization",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) -> std::shared_ptr<executing_math_function> {
       if (!inst) {
 	// initial call with no instantiation to probe parameters; just use snde_imagedata case
 	return std::make_shared<project_point_onto_parameterization<snde_imagedata>>(rss,inst);

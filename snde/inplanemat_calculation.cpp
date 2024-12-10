@@ -216,7 +216,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_spatialnde2_inplanemat_calculation_function()
   {
-    return std::make_shared<cpp_math_function>("snde.inplanemat_calculation",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.inplanemat_calculation",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<inplanemat_calculation>(rss,inst);
     }); 
   }

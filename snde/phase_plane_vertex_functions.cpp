@@ -346,7 +346,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_phase_plane_line_triangle_vertices_alphas_function()
   {
-    return std::make_shared<cpp_math_function>("snde.phase_plane_line_triangle_vertices_alphas",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.phase_plane_line_triangle_vertices_alphas",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return make_cppfuncexec_complextypes<phase_plane_line_triangle_vertices_alphas>(rss,inst);
     });
     
@@ -468,7 +468,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_spatialnde2_phase_plane_endpoint_octagon_vertices_function()
   {
-    return std::make_shared<cpp_math_function>("snde.phase_plane_endpoint_octagon_vertices",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.phase_plane_endpoint_octagon_vertices",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<phase_plane_endpoint_octagon_vertices>(rss,inst);
     }); 
   }

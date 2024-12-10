@@ -1104,7 +1104,7 @@ namespace snde {
     //bool supports_cpu;
     //bool supports_opencl;
     //bool supports_cuda;
-    cpp_math_function(std::string function_name,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
+    cpp_math_function(std::string function_name,size_t num_results,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
     //		      bool supports_cpu,
     //		      bool supports_opencl,
     //		      bool supports_cuda);

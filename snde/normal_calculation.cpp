@@ -223,7 +223,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_spatialnde2_trinormals_function()
   {
-    return std::make_shared<cpp_math_function>("snde.trinormals",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.trinormals",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<normal_calculation_trinormals>(rss,inst);
     }); 
   }
@@ -459,7 +459,7 @@ namespace snde {
     
   std::shared_ptr<math_function> define_vertnormalarray_recording_function()
   {
-    return std::make_shared<cpp_math_function>("snde.vertnormalarray",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.vertnormalarray",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<normal_calculation_vertnormalarray>(rss,inst);
     });
     
@@ -692,7 +692,7 @@ namespace snde {
     
   std::shared_ptr<math_function> define_vertnormals_recording_function()
   {
-    return std::make_shared<cpp_math_function>("snde.vertnormals_recording",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.vertnormals_recording",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<normal_calculation_vertnormals>(rss,inst);
     });
     

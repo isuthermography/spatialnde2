@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
 
   
   std::shared_ptr<snde::ndarray_recording_ref> test_rec;  
-  std::shared_ptr<math_function> multiply_by_scalar_function = std::make_shared<cpp_math_function>("multiply_by_scalar",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+  std::shared_ptr<math_function> multiply_by_scalar_function = std::make_shared<cpp_math_function>("multiply_by_scalar",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
     return std::make_shared<multiply_by_scalar>(rss,inst);
   });
   

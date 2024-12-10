@@ -182,7 +182,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_dexela2923_image_transform_function()
   {
-    return std::make_shared<cpp_math_function>("snde.dexela2923_image_transform",[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.dexela2923_image_transform",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<dexela2923_image_transform>(rss,inst);
 
       
