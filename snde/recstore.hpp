@@ -813,6 +813,8 @@ namespace snde {
   
   class transaction_math {
   public:
+    std::weak_ptr<recdatabase> recdb;
+    std::weak_ptr<transaction> trans;
     std::map<std::string,std::pair<std::shared_ptr<reserved_channel>,std::shared_ptr<pending_math_definition_result_channel>>> pending_dict; // Indexed by definition channel name
 
     // Note: extended in python swig bindings to act like a dictionary 
@@ -853,7 +855,7 @@ namespace snde {
 
 
     
-    transaction();
+    transaction(std::shared_ptr<recdatabase> recdb);
     // rule of 3
     transaction& operator=(const transaction &) = delete; 
     transaction(const transaction &orig) = delete;
@@ -1041,12 +1043,33 @@ namespace snde {
     // will be passed when defining new recordings for the channel.
 
     std::mutex admin; // last in the locking order except before python GIL. Used to ensure there can only be one _config update at a time.
+
+    // Most channels are owned by their creator and the reserved_channel
+    // object is owned by their creator and the creator is responsible
+    // for making changes in a reasonable order and not having multiple
+    // proposed configurations simultaneously. In contrast, all
+    // math channels are owned centrally and therefore multiple
+    // simultaneous changes are more plausible. The recording database
+    // has a map of reserved_channels (reserved_math_channels)
+    // but because these are shared we don't want to propose changes
+    // to them because only one proposal can be handled at a time.
+    // Therefore, for math channels we clone the reserved_channel
+    // in reserve_math_channel() and return a clone with the
+    // math_actual_reschan pointing at the original and with
+    // the appropriate proposed_config set.
     
+    std::shared_ptr<reserved_channel> math_actual_reschan;
     std::shared_ptr<channelconfig> _proposed_config; // Atomic shared pointer to current proposed configuration (latest changes). Will be nullptr if the channel is deleted.
     std::shared_ptr<channelconfig> _realized_config; // Atomic shared pointer to current realized configuration (status as of the most recently realized transaction). Will be nullptr if the channel is deleted.
 
 
     std::shared_ptr<channel> chan; // Immutable
+
+    reserved_channel();
+    
+    reserved_channel(const reserved_channel& other);
+    reserved_channel& operator=(const reserved_channel&) =delete;
+    
     std::shared_ptr<channelconfig> proposed_config(); //Use this method to get the most recently assigned configuration.
     std::shared_ptr<channelconfig> realized_config(); // Use this method to safely get the current channelconfig pointer for the most recently realized transaction. Returns nullptr for a deleted channel.
 
@@ -1363,6 +1386,7 @@ namespace snde {
     
     std::shared_ptr<math_function_registry_map> _available_math_functions; // atomic shared pointer... use available_math_functions() accessor. 
     
+    std::unordered_map<std::string,std::shared_ptr<reserved_channel>> reserved_math_channels; // locked by admin lock
     
     recdatabase(std::shared_ptr<lockmanager> lockmgr=nullptr);
     recdatabase & operator=(const recdatabase &) = delete; 
@@ -1379,13 +1403,16 @@ namespace snde {
     std::shared_ptr<active_transaction> start_transaction(std::shared_ptr<measurement_time> timestamp=nullptr);
     std::shared_ptr<transaction> end_transaction(std::shared_ptr<active_transaction> act_trans);
     std::shared_ptr<transaction> run_in_background_and_end_transaction(std::shared_ptr<active_transaction> act_trans,std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn, std::shared_ptr<void> params);
+    std::shared_ptr<reserved_channel> reserve_math_channel(std::shared_ptr<transaction> trans,std::shared_ptr<channelconfig> new_config);
 
+    std::shared_ptr<reserved_channel> lookup_math_channel_recdb_locked(std::string channelname);
+    std::shared_ptr<reserved_channel> lookup_math_channel(std::string channelname);
     // add_math_function() must be called within a transaction
     std::vector<std::shared_ptr<reserved_channel>> add_math_function(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> new_function,bool hidden); // Use separate functions with/without storage manager because swig screws up the overload
 
     std::shared_ptr<instantiated_math_function> lookup_math_function(std::string fullpath);
     
-    void delete_math_function(std::shared_ptr<active_transaction> trans,std::vector<std::shared_ptr<reserved_channel>> chans,std::shared_ptr<instantiated_math_function> fcn);
+    void delete_math_function(std::shared_ptr<active_transaction> trans,std::vector<std::string> chans,std::shared_ptr<instantiated_math_function> fcn);
 
     void send_math_message(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> func, std::string name, std::shared_ptr<math_instance_parameter> msg);
     
@@ -1396,9 +1423,11 @@ namespace snde {
     std::shared_ptr<globalrevision> latest_globalrev(); // safe to call with or without recdb admin lock held. Returns latest globalrev which is ready and for which all prior globalrevs are ready
 
     std::shared_ptr<globalrevision> get_globalrev(uint64_t revnum);
-
+    std::shared_ptr<reserved_channel> _reserve_channel_create_new_recdb_locked(std::shared_ptr<channelconfig> new_config);
+    std::shared_ptr<reserved_channel> _reserve_channel_add_to_trans(std::shared_ptr<transaction> trans,std::shared_ptr<channelconfig> new_config,std::shared_ptr<reserved_channel> reservation);
     // Allocate channel with a specific name; returns nullptr if the name is inuse
     std::shared_ptr<reserved_channel> reserve_channel(std::shared_ptr<active_transaction> trans,std::shared_ptr<channelconfig> new_config); // must be called within a transaction
+    std::shared_ptr<reserved_channel> reserve_channel(std::shared_ptr<transaction> trans,std::shared_ptr<channelconfig> new_config); // must be called within a transaction
     void release_channel(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan); // must be called within a transaction
 
     // Define a new channel; throws an error if the channel is already in use.

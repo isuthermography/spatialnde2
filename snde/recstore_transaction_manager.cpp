@@ -61,8 +61,9 @@ namespace snde {
       
       assert(!trans);
       
-      trans=std::make_shared<ordered_transaction>();
+      trans=std::make_shared<ordered_transaction>(recdb);
       //trans = ordered_trans;
+      trans->math->trans=trans; // assign it here because the trans constructor can't access it's own shared pointer
       
       std::shared_ptr<globalrevision> previous_globalrev;
 
@@ -205,7 +206,8 @@ namespace snde {
 
   }
 
-  ordered_transaction::ordered_transaction() :
+  ordered_transaction::ordered_transaction(std::shared_ptr<recdatabase> recdb) :
+  transaction(recdb),
   globalrev_index(SNDE_INDEX_INVALID)
   {
 
@@ -265,8 +267,8 @@ namespace snde {
       
       
       
-      trans=std::make_shared<timed_transaction>();
-
+      trans=std::make_shared<timed_transaction>(recdb);
+      trans->math->trans=trans; // assign it here because the trans constructor can't access it's own shared pointer
 
       // acquire the transaction lock for our new transaction.
       // technically this violates the locking order but there is no
@@ -514,7 +516,8 @@ namespace snde {
 																							     
   }
   
-  timed_transaction::timed_transaction() :
+  timed_transaction::timed_transaction(std::shared_ptr<recdatabase> recdb) :
+    transaction(recdb),
     ended(false)
   {
 

@@ -9,13 +9,13 @@ import numpy as np
 import spatialnde2 as snde
 
 recdb=snde.recdatabase();
-snde.setup_cpu(recdb,multiprocessing.cpu_count())
+snde.setup_cpu(recdb,[],multiprocessing.cpu_count())
 snde.setup_storage_manager(recdb)
 snde.setup_math_functions(recdb,[])
-snde.setup_opencl(recdb,False,8,None) # limit to 8 parallel jobs. Could replace nullptr with OpenCL platform nameo
+snde.setup_opencl(recdb,[],False,8,None) # limit to 8 parallel jobs. Could replace nullptr with OpenCL platform nameo
 recdb.startup()
 
-kdtree_math_function = recdb.lookup_available_math_function("spatialnde2.kdtree_calculation")
+kdtree_math_function = recdb.lookup_available_math_function("snde.kdtree_calculation")
 
 kdtree_function = kdtree_math_function.instantiate([ snde.math_parameter_recording("/match_vertices"),  ],
                                                        [ snde.shared_string("/kdtree") ],
@@ -24,9 +24,10 @@ kdtree_function = kdtree_math_function.instantiate([ snde.math_parameter_recordi
                                                        False,
                                                        False,
                                                        snde.math_definition("kdtree definition"),
+                                                   [],
                                                        None)
 
-knn_math_function = recdb.lookup_available_math_function("spatialnde2.knn_calculation")
+knn_math_function = recdb.lookup_available_math_function("snde.knn_calculation")
 
 knn_function = knn_math_function.instantiate([ snde.math_parameter_recording("/match_vertices"),
                                                snde.math_parameter_recording("/kdtree"),
@@ -38,6 +39,7 @@ knn_function = knn_math_function.instantiate([ snde.math_parameter_recording("/m
                                              False,
                                              False,
                                              snde.math_definition("knn definition"),
+                                             [],
                                              None)
 
 

@@ -95,7 +95,7 @@ namespace snde2_fn_ex {
   
   std::shared_ptr<snde::math_function> define_scalar_multiply()
   {
-    return std::make_shared<snde::cpp_math_function>([] (std::shared_ptr<snde::recording_set_state> rss,std::shared_ptr<snde::instantiated_math_function> inst) {
+    return std::make_shared<snde::cpp_math_function>("spatialnde2_example_cpp_function.scalar_multiply_function",[] (std::shared_ptr<snde::recording_set_state> rss,std::shared_ptr<snde::instantiated_math_function> inst) {
       return snde::make_cppfuncexec_floatingtypes<scalar_multiply>(rss,inst);
     });
     
@@ -108,7 +108,7 @@ namespace snde2_fn_ex {
   // This should use the same python-accessible name for
   // maximum interoperability
 
-  static int registered_scalar_multiply_function = register_math_function("spatialnde2_example_cpp_function.scalar_multiply_function",scalar_multiply_function);
+  static int registered_scalar_multiply_function = register_math_function(scalar_multiply_function);
 
 };
 

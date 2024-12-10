@@ -190,7 +190,11 @@ namespace snde {
   {
 
   }
-
+  std::shared_ptr<math_definition> math_definition::rebuild(std::shared_ptr<instantiated_math_function> fcn)
+  {
+    return std::make_shared<math_definition>(*this);
+  }
+  
   bool math_definition::operator==(const math_definition &ref)
   {
     return definition_command==ref.definition_command;
@@ -341,25 +345,120 @@ namespace snde {
     return !(*this==ref);
   }
 
+  static std::shared_ptr<instantiated_math_function> _rdm_get_updated_fcn(std::unordered_map<std::shared_ptr<instantiated_math_function>,std::shared_ptr<instantiated_math_function>> *updated_fcns, std::shared_ptr<instantiated_math_function> key)
+  {
+    auto updated_it=updated_fcns->find(key);
+    if (updated_it==updated_fcns->end()) {
+      bool junk;
+      std::tie(updated_it,junk)=updated_fcns->emplace(key,key->clone(false)); // definition_changed is false because we will be replacing the definition with its rebuild() method later.
+    }
+    return updated_it->second;
+  }
+  
+  void instantiated_math_database::_rdm_remove_from_definition(std::unordered_map<std::shared_ptr<instantiated_math_function>,std::shared_ptr<instantiated_math_function>> *updated_fcns,size_t result_index,std::shared_ptr<instantiated_math_function> orig_fcn_ptr)
+  {
+    // recdb should be locked when calling this method.
+    std::shared_ptr<instantiated_math_function> clone=_rdm_get_updated_fcn(updated_fcns,orig_fcn_ptr);
+    std::string result_name=recdb_path_join(orig_fcn_ptr->channel_path_context,*orig_fcn_ptr->result_channel_paths.at(result_index));
+    // remove from the defined_math_functions, if present
+    auto defined_fcns_it=defined_math_functions.find(result_name);
 
+    if (defined_fcns_it != defined_math_functions.end() && defined_fcns_it->second == orig_fcn_ptr) {
+      // it matches... remove
+      defined_math_functions.erase(defined_fcns_it);
+    }
+    clone->result_channel_paths.at(result_index)=nullptr; // zero out the relevant result channel
+    clone->definition=clone->definition->rebuild(clone);
+  }
   // rebuild all_dependencies_of_channel hash table. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main recording database, and the main recording database admin lock must be locked when this is called. 
-  void instantiated_math_database::_rebuild_dependency_map()
+  void instantiated_math_database::_rebuild_dependency_map(std::shared_ptr<recdatabase> recdb)
   {
 
     all_dependencies_of_channel.clear();
     all_dependencies_of_function.clear();
     mdonly_functions.clear();
     
-    std::unordered_set<std::shared_ptr<instantiated_math_function>> all_fcns; 
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> all_fcns;
+    std::unordered_set<std::shared_ptr<instantiated_math_function>> extraneous_fcns;
+    std::unordered_map<std::shared_ptr<instantiated_math_function>,std::shared_ptr<instantiated_math_function>> updated_fcns; 
     
     for (auto&& channame_math_fcn_ptr: defined_math_functions) {
       std::shared_ptr<instantiated_math_function> fcn_ptr = channame_math_fcn_ptr.second;
 
       all_fcns.emplace(fcn_ptr);
+
+    }
+    // clean up any result_channel_paths that are no longer valid.
+    for (auto && fcn_ptr: all_fcns) {
+      size_t num_active_results_chans =0;
+      for (size_t resultpath_index=0;resultpath_index<fcn_ptr->result_channel_paths.size();resultpath_index++) {
+        std::shared_ptr<std::string> resultpath_ptr=fcn_ptr->result_channel_paths[resultpath_index];
+      	if (resultpath_ptr) {
+          std::string resultpath=recdb_path_join(fcn_ptr->channel_path_context,*resultpath_ptr);
+          std::shared_ptr<reserved_channel> reserved_current=recdb->lookup_math_channel_recdb_locked(resultpath);
+          if (reserved_current) {
+            std::shared_ptr<channelconfig> config_current=reserved_current->realized_config();
+            if (config_current->math_fcn == fcn_ptr) {
+              num_active_results_chans++;
+            }
+            else {
+              _rdm_remove_from_definition(&updated_fcns,resultpath_index,fcn_ptr);
+              // resultpath_ptr=nullptr;
+            }
+          } else {
+            _rdm_remove_from_definition(&updated_fcns,resultpath_index,fcn_ptr);
+            // resultpath_ptr=nullptr;
+          }
+        } else {
+          _rdm_remove_from_definition(&updated_fcns,resultpath_index,fcn_ptr);
+          // resultpath_ptr=nullptr;
+        }
+      }
+      if (num_active_results_chans==0) {
+        // All result channels disabled or turned off
+        extraneous_fcns.emplace(fcn_ptr);
+      }
+    }
+    all_fcns.clear();
+    for (auto&& fcn_ptr: extraneous_fcns) {
+      
+      //  Need to remove these from the instantiated math database and updated_fcns
+      // already removed from defined_math_functions by rdm_remove_from_definition(); other database entries are fully rebuilt below. 
+      auto updated_it = updated_fcns.find(fcn_ptr);
+      if (updated_it != updated_fcns.end()) {
+        updated_fcns.erase(updated_it);
+      }
+      
+    }
+    //  Need to replace updated_fcnsin the instantiated_mathdatabase
+    for (auto && updatedold_updatednew: updated_fcns) {
+      std::shared_ptr<instantiated_math_function> updatedold,updatednew;
+
+      std::tie(updatedold,updatednew)=updatedold_updatednew;
+
+      for (auto && result_channel_path_ptr: updatednew->result_channel_paths) {
+        if (result_channel_path_ptr) {
+          auto defined_it=defined_math_functions.find(recdb_path_join(updatedold->channel_path_context,*result_channel_path_ptr));
+          if (defined_it != defined_math_functions.end()) {
+            defined_math_functions.erase(defined_it);
+          }
+          
+        }
+      }
+    }
+    for (auto&& channame_math_fcn_ptr: defined_math_functions) {
+      std::shared_ptr<instantiated_math_function> fcn_ptr = channame_math_fcn_ptr.second;
+
+      all_fcns.emplace(fcn_ptr);
+
+    }
+   
+
+ 
+    for (auto && fcn_ptr: all_fcns) {
       if (fcn_ptr->mdonly) {
 	mdonly_functions.emplace(fcn_ptr);
       }
-      
       for (auto && parameter_ptr: fcn_ptr->parameters) {
 
 	std::set<std::string> prereqs = parameter_ptr->get_prerequisites(fcn_ptr->channel_path_context);
@@ -385,22 +484,32 @@ namespace snde {
       adf_it = all_dependencies_of_function.emplace(std::piecewise_construct,
 						    std::forward_as_tuple(fcn_ptr),
 						    std::forward_as_tuple()).first;
-      
+      size_t num_active_result_chans=0;
       for (auto && resultpath_ptr : fcn_ptr->result_channel_paths) {
-	if (resultpath_ptr) {
-	  // for this result channel, look up all dependent functions
-	  auto adc_it = all_dependencies_of_channel.find(recdb_path_join(fcn_ptr->channel_path_context,*resultpath_ptr));
-	  if (adc_it != all_dependencies_of_channel.end()) {
-	    // iterate over all dependencies
-	    for (auto && dep_fcn: adc_it->second) { // dep_fcn is a shared_ptr<instantiated_math_function>
-	      // mark dep_fcn as dependent on fcn_ptr
-	      adf_it->second.emplace(dep_fcn);
-	    }
-	  }
-	}
+        if (resultpath_ptr) {
+          
+          std::string resultpath=recdb_path_join(fcn_ptr->channel_path_context,*resultpath_ptr);
+          
+          std::shared_ptr<reserved_channel> reserved_current=recdb->lookup_math_channel_recdb_locked(resultpath);
+          std::shared_ptr<channelconfig> config_current=reserved_current->realized_config();
+           
+ 
+              
+          // for this result channel, look up all dependent functions
+          auto adc_it = all_dependencies_of_channel.find(resultpath);
+          if (adc_it != all_dependencies_of_channel.end()) {
+            // iterate over all dependencies
+            for (auto && dep_fcn: adc_it->second) { // dep_fcn is a shared_ptr<instantiated_math_function>
+              // mark dep_fcn as dependent on fcn_ptr
+              adf_it->second.emplace(dep_fcn);
+            }
+          }
+        }
       }
-    }
     
+
+    }
+   
   }
 
   math_function_status::math_function_status(bool self_dependent) :
@@ -1181,6 +1290,113 @@ namespace snde {
     return inst->result_channel_paths.size();
   }
 
+
+  
+  pending_math_definition_result_channel::pending_math_definition_result_channel(std::shared_ptr<pending_math_definition> definition,size_t result_channel_index):
+    definition(definition),
+    result_channel_index(result_channel_index)
+  {
+    
+  }
+
+
+  
+  python_math_definition::python_math_definition(std::string function_name,std::vector<std::string> args) :
+    math_definition(""),
+    function_name(function_name),
+    args(args) 
+  {
+    
+
+  }
+
+
+  std::shared_ptr<math_definition> python_math_definition::rebuild(std::shared_ptr<instantiated_math_function> fcn)
+  {
+    std::shared_ptr<python_math_definition> copy=std::make_shared<python_math_definition>(*this);
+    copy->evaluate(fcn,fcn->result_channel_paths);
+    return copy;
+  }
+
+  void python_math_definition::evaluate(std::shared_ptr<instantiated_math_function> instantiated,std::vector<std::shared_ptr<std::string>> result_channel_paths)
+  {
+    definition_command = "";
+    if (result_channel_paths.size()==1 && result_channel_paths[0]){
+      definition_command += "trans.math[" + escape_to_quoted_string(*result_channel_paths[0]) +"] = ";
+    }
+    else {
+      definition_command += "(";
+      for (size_t num = 0; num < result_channel_paths.size(); num++) {
+        if (result_channel_paths[num]) {
+          definition_command += "trans.math[" + escape_to_quoted_string(*result_channel_paths[num]) +"],";
+        } else{
+          definition_command += "junk,";
+        }
+      }
+      definition_command += ") = ";
+    }
+
+    definition_command += function_name +"(";
+
+    for (auto && arg: args) {
+
+      definition_command += arg +",";
+    }
+
+    if (instantiated->is_mutable){
+
+      definition_command += "mutable = True,";
+    }
+    
+    if (instantiated->execution_tags.size() > 0) {
+      
+      definition_command += "execution_tags = [";
+      
+      for (auto && tag: instantiated->execution_tags) {
+        
+        definition_command += escape_to_quoted_string(tag) +",";
+      }
+      
+      definition_command += "],";
+    }
+
+    if (instantiated->extra_params) {
+      definition_command += "extra_params = extra_params_not_implemented_in_pending_math_definition,";
+    }
+    // Remove the final trailing comma
+    if (definition_command[definition_command.size() -1] == ','){
+      definition_command = definition_command.substr(0,definition_command.size() -1);
+    }
+    definition_command += ")";
+
+
+  }
+  
+  void pending_math_intermediate_channels::append(std::string channel_name, std::shared_ptr<pending_math_definition_result_channel> result_chan)
+  {
+    intermediate_channels.push_back(std::make_pair(channel_name,result_chan));
+
+  }
+  
+  pending_math_definition::pending_math_definition(std::string function_name,std::vector<std::string> args,std::shared_ptr<pending_math_intermediate_channels> intermediate_channels) :
+    python_math_definition(function_name,args),
+    instantiated(nullptr),
+    intermediate_channels(intermediate_channels->intermediate_channels)
+  {
+    
+
+  }
+
+  void pending_math_definition::evaluate(std::shared_ptr<instantiated_math_function> instantiated,std::vector<std::shared_ptr<std::string>> result_channel_paths)
+  {
+    python_math_definition::evaluate(instantiated,result_channel_paths);
+
+      
+    // Clear out our storage to eliminate reference loops
+    instantiated = nullptr;
+    intermediate_channels.clear();
+  }
+  
   // Helper function for traverse_scenegraph_find_graphics_deps
   static bool tsfgd_helper(std::shared_ptr<recording_set_state> rss,std::string channel_fullpath,const std::vector<std::string> &processing_tags,const std::set<std::string> &filter_channels,std::shared_ptr<std::set<std::string>> *deps_out)
   {

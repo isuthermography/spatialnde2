@@ -43,7 +43,11 @@ typedef unsigned long long uint64_t;
     SWIG_fail;
   }
 }
-
+#ifdef WIN32
+// on WIN32, unhandled exceptions can be very mysterious bugs
+// to track down because they may just cause it to silently crash.
+// On other platforms, we don't want to catch these exceptions
+// because it makes it much harder to find the problems.
 %exception {
   try {
     $action
@@ -52,7 +56,7 @@ typedef unsigned long long uint64_t;
     SWIG_fail;
   }
 }
-
+#endif
 
 
 // Perform includes
@@ -539,6 +543,8 @@ template <typename T>
 %include "polynomial_transform.i"
 %include "geometry_processing.i"
 %include "recstore_transaction_manager.i"
+%include "dexela2923_image_transform.i"
+%include "bad_pixel_correction.i"
 
 #ifdef SNDE_OPENCL
 %include "opencl_utils.i"

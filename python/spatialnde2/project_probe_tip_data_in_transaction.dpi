@@ -37,6 +37,7 @@ projection = snde.project_point_onto_parameterization.instantiate( [ snde.math_p
                                                                    False,
                                                                    False,
                                                                    snde.math_definition("projection"),
+                                                                   [],
                                                                    None)
 recdb.add_math_function(transaction,projection,False)
 

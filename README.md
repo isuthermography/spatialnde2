@@ -20,6 +20,7 @@ globalrevision to be complete.
 - Owner IDs no longer are provided when configuring a channel (channelconfig() constructor) so that parameter has been removed.
 - Owner IDs are no longer required when creating a recording, so that parameter has been removed.
 - Reserving a channel now returns a reserved_channel object rather than a channel object. This new reserved_channel object contains your rights to the channel and needs to be passed as the channel object was before into the construction of a recording.
+- The instantiate() method of math_functions now has a new second-to-last parameter that is a set of computation tags for the math function. Pass {} in C++ or [] in python as an empty set of tags. 
 
 ## Prerequisites
 INSTALLING ALL PREREQUISITES IS STRONGLY RECOMMENDED as not all possible 

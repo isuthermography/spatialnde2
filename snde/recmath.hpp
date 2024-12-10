@@ -233,8 +233,10 @@ namespace snde {
 
     math_definition(std::string definition_command);
 
-    bool operator==(const math_definition &ref); // used in comparisons of instantiated_math_functions
-    bool operator!=(const math_definition &ref);
+    virtual ~math_definition()=default;
+    virtual std::shared_ptr<math_definition> rebuild(std::shared_ptr<instantiated_math_function> fcn);
+    virtual bool operator==(const math_definition &ref); // used in comparisons of instantiated_math_functions
+    virtual bool operator!=(const math_definition &ref);
   };
   
   class instantiated_math_function: public std::enable_shared_from_this<instantiated_math_function>  {
@@ -305,8 +307,10 @@ namespace snde {
     // Hash table here so that we can look up the math functions that are dependent on a given function (within this global revision; does not include ondemand dependencies or implict or explicit self-dependencies 
     std::unordered_map<std::shared_ptr<instantiated_math_function>,std::unordered_set<std::shared_ptr<instantiated_math_function>>> all_dependencies_of_function;
     std::unordered_set<std::shared_ptr<instantiated_math_function>> mdonly_functions; // all functions with mdonly set... updated by rebuild_dependency_map()
+
+    void _rdm_remove_from_definition(std::unordered_map<std::shared_ptr<instantiated_math_function>,std::shared_ptr<instantiated_math_function>> *updated_fcns,size_t result_index,std::shared_ptr<instantiated_math_function> orig_fcn_ptr);
     
-    void _rebuild_dependency_map(); // rebuild all_dependencies_of_channel and all_dependencies_of_function hash tables. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main recording database, and the main recording database admin lock must be locked when this is called. 
+    void _rebuild_dependency_map(std::shared_ptr<recdatabase> recdb); // rebuild all_dependencies_of_channel and all_dependencies_of_function hash tables. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main recording database, and the main recording database admin lock must be locked when this is called. 
 
   };
 
@@ -379,6 +383,8 @@ namespace snde {
     std::unordered_set<std::shared_ptr<instantiated_math_function>> completed_mdonly_functions; // pending functions where goal is metadata only and metadata is done (note that it is possible for fully ready functions to be in this list in some circumstances, for example if the full result was requested in another globalrev that references the same recording structure. 
     
     std::unordered_map<std::shared_ptr<instantiated_math_function>, std::unordered_map<std::string, std::shared_ptr<math_instance_parameter>>> math_messages; // Messages to dispatch to math functions in this rss only
+
+    
     
     math_status(std::shared_ptr<instantiated_math_database> math_functions,const std::map<std::string,channel_state> & channel_map);
 
@@ -538,100 +544,54 @@ public:
   std::shared_ptr<pending_math_definition> definition;
   size_t result_channel_index;
 
-  pending_math_definition_result_channel(std::shared_ptr<pending_math_definition> definition,size_t result_channel_index):
-    definition(definition),
-    result_channel_index(result_channel_index)
-  {
-    
-  }
+  pending_math_definition_result_channel(std::shared_ptr<pending_math_definition> definition,size_t result_channel_index);
+  
 
 };
 
+  class python_math_definition: public math_definition {
+  public:
+    std::string function_name; //name of function (will need snde. prefix)
+    std::vector<std::string> args; //list of python interpretable string arguments
 
-class pending_math_definition: public math_definition {
+    python_math_definition(std::string function_name,std::vector<std::string> args);
+  
+
+    virtual std::shared_ptr<math_definition> rebuild(std::shared_ptr<instantiated_math_function> fcn);
+  
+ 
+    virtual void evaluate(std::shared_ptr<instantiated_math_function> instantiated,std::vector<std::shared_ptr<std::string>> result_channel_paths);
+
+  };
+
+  class pending_math_intermediate_channels {
+  public:
+    // this class exists because the template below is too complicated for swig to handle. therefore this separate class can be managed with a shared pointer.
+    std::vector<std::pair<std::string,std::shared_ptr<pending_math_definition_result_channel>>> intermediate_channels; //list of (channel_name,pending_math_definition or pending_math_definition_result_channel) for any required intermediate channels. Note that this can create a reference loop so it must be cleared when the pending part is no longer necessary.
+    void append(std::string channel_name, std::shared_ptr<pending_math_definition_result_channel> result_chan);
+  };
+  
+class pending_math_definition: public python_math_definition {
 public:
   //A pending_math_definition is returned when you use
   //the python shorthand for instantiating a math function. This
   //gets stored by the trans.math[] setitem method into the
   //transaction and then the definition is finalized during
   //_realize_transaction()
-  std::string function_name; //name of function (will need snde. prefix)
-  std::vector<std::string> args; //list of python interpretable string arguments
-
+ 
   std::shared_ptr<instantiated_math_function> instantiated; //the (possibly incomplete) instantiated_math_function. Note that this can create a reference loop so it must be cleared when the pending part is no longer necessary.
   std::vector<std::pair<std::string,std::shared_ptr<pending_math_definition_result_channel>>> intermediate_channels; //list of (channel_name,pending_math_definition or pending_math_definition_result_channel) for any required intermediate channels. Note that this can create a reference loop so it must be cleared when the pending part is no longer necessary.
 
-  pending_math_definition(std::string function_name,std::vector<std::string> args,std::vector<std::pair<std::string,std::shared_ptr<pending_math_definition_result_channel>>> intermediate_channels) :
-    math_definition(""),
-    function_name(function_name),
-    args(args),
-    instantiated(nullptr),
-    intermediate_channels(intermediate_channels)
-  {
-    
-
-  }
+  pending_math_definition(std::string function_name,std::vector<std::string> args,std::shared_ptr<pending_math_intermediate_channels> intermediate_channels);
+ 
 
   // Rule of 3
   pending_math_definition(const pending_math_definition &) = delete;
   pending_math_definition& operator=(const pending_math_definition &) = delete; 
   virtual ~pending_math_definition()=default;  // virtual destructor required so we can be subclassed
   
-  void evaluate_pending(std::vector<std::shared_ptr<std::string>> result_channel_paths)
-  {
-    definition_command = "";
-    if (result_channel_paths.size()==1 && result_channel_paths[0]){
-      definition_command += "trans.math[" + escape_to_quoted_string(*result_channel_paths[0]) +"] = ";
-    }
-    else {
-      definition_command += "(";
-      for (size_t num = 0; num < result_channel_paths.size(); num++) {
-        if (result_channel_paths[num]) {
-          definition_command += "trans.math[" + escape_to_quoted_string(*result_channel_paths[num]) +"],";
-        } else{
-          definition_command += "junk,";
-        }
-      }
-      definition_command += ") = ";
-    }
-
-    definition_command += function_name +"(";
-
-    for (auto && arg: args) {
-
-      definition_command += arg +",";
-    }
-
-    if (instantiated->is_mutable){
-
-      definition_command += "mutable = True,";
-    }
-    
-    if (instantiated->execution_tags.size() > 0) {
-      
-      definition_command += "execution_tags = [";
-      
-      for (auto && tag: instantiated->execution_tags) {
-        
-        definition_command += escape_to_quoted_string(tag) +",";
-      }
-      
-      definition_command += "],";
-    }
-
-    if (instantiated->extra_params) {
-      definition_command += "extra_params = extra_params_not_implemented_in_pending_math_definition,";
-    }
-    // Remove the final trailing comma
-    if (definition_command[definition_command.size() -1] == ','){
-      definition_command = definition_command.substr(0,definition_command.size() -1);
-    }
-    definition_command += ")";
-
-    // Clear out our storage to eliminate reference loops
-    instantiated = nullptr;
-    intermediate_channels.clear();
-  }
+  virtual void evaluate(std::shared_ptr<instantiated_math_function> instantiated,std::vector<std::shared_ptr<std::string>> result_channel_paths);
+  
 };
 
 

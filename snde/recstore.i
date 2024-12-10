@@ -68,9 +68,12 @@ snde_rawaccessible(snde::int_math_instance_parameter);
 snde_rawaccessible(snde::double_math_instance_parameter);
 %shared_ptr(snde::pending_math_definition_result_channel);
 snde_rawaccessible(snde::pending_math_definition_result_channel);
+%shared_ptr(snde::python_math_definition);
+snde_rawaccessible(snde::python_math_definition);
 %shared_ptr(snde::pending_math_definition);
 snde_rawaccessible(snde::pending_math_definition);
-
+%shared_ptr(snde::pending_math_intermediate_channels);
+snde_rawaccessible(snde::pending_math_intermediate_channels);
 
 %{
 #include "snde/recstore.hpp"
@@ -553,40 +556,50 @@ namespace snde {
 
 class transaction_math {
   public:
+  //    std::weak_ptr<active_transaction> trans;
     std::map<std::string,std::pair<std::shared_ptr<reserved_channel>,std::shared_ptr<pending_math_definition_result_channel>>> pending_dict; // Indexed by definition channel name
 
     
   };
-  %extend active_transaction_math {
+  %extend transaction_math {
     void __setitem__(std::string name, std::shared_ptr<pending_math_definition_result_channel> result_chan)
     {
-      auto dict_it = pending_dict.find(name);
-      if (dict_it != pending_dict.end()) {
-        pending_dict.erase(dict_it);
+      auto dict_it = self->pending_dict.find(name);
+      if (dict_it != self->pending_dict.end()) {
+        self->pending_dict.erase(dict_it);
       }
 
-      std::shared_ptr<reserved_channel> resvchan = std::make_shared<reserved_channel>();
-      std::shared_ptr<channelconfig> config = std::make_shared<channelconfig>(name,"pymath",false);
+      std::shared_ptr<snde::transaction> trans_strong = self->trans.lock();
+      if (!trans_strong) {
+        throw snde::snde_error("transaction_math object has exceeded lifetime of underlying transaction");
+      }
+      std::shared_ptr<snde::recdatabase> recdb_strong = self->recdb.lock();
+      if (!recdb_strong) {
+        throw snde::snde_error("transaction_math object has exceeded lifetime of underlying recording database");
+      }
+      std::shared_ptr<snde::channelconfig> config = std::make_shared<snde::channelconfig>(name,"math",false);
+      config->math=true;
       config->math_fcn = result_chan->definition->instantiated;
       config->data_mutable = result_chan->definition->instantiated->is_mutable; // !!!Should probably be result index specific.
-      resvchan->end_atomic_proposed_config_update(config);
-      pending_dict.emplace(name,std::make_pair(resvchan,result_chan));
+      std::shared_ptr<snde::reserved_channel> resvchan = recdb_strong->reserve_math_channel(trans_strong,config);
+      
+      self->pending_dict.emplace(name,std::make_pair(resvchan,result_chan));
     }
 
     std::shared_ptr<pending_math_definition_result_channel> __getitem__(std::string name)
     {
-      auto dict_it = pending_dict.find(name);
-      if (dict_it != pending_dict.end()) {
+      auto dict_it = self->pending_dict.find(name);
+      if (dict_it != self->pending_dict.end()) {
         return dict_it->second.second;
       }
-      throw snde_error("snde IndexError");
+      throw snde::snde_error("snde IndexError");
     }
 
     void __delitem__(std::string name)
     {
-      auto dict_it = pending_dict.find(name);
-      if (dict_it != pending_dict.end()) {
-        pending_dict.erase(dict_it);
+      auto dict_it = self->pending_dict.find(name);
+      if (dict_it != self->pending_dict.end()) {
+        self->pending_dict.erase(dict_it);
       }
     }
   }
@@ -622,8 +635,14 @@ class transaction_math {
     //std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> transaction_background_end_fcn;
     std::shared_ptr<void> transaction_background_end_params;
     
-    transaction();
+    std::shared_ptr<transaction_math> math;
 
+
+    
+    transaction(std::shared_ptr<recdatabase> recdb);
+    // rule of 3
+    transaction& operator=(const transaction &) = delete; 
+    transaction(const transaction &orig) = delete;
     virtual ~transaction();
     
     void register_new_rec(std::shared_ptr<reserved_channel> chan,std::shared_ptr<recording_base> new_rec);
@@ -835,12 +854,16 @@ class transaction_math {
     // will be passed when defining new recordings for the channel.
 
      // std::mutex admin; // last in the locking order except before python GIL. Used to ensure there can only be one _config update at a time.
-    
+    std::shared_ptr<reserved_channel> math_actual_reschan;
     std::shared_ptr<channelconfig> _proposed_config; // Atomic shared pointer to current proposed configuration (latest changes). Will be nullptr if the channel is deleted.
     std::shared_ptr<channelconfig> _realized_config; // Atomic shared pointer to current realized configuration (status as of the most recently realized transaction). Will be nullptr if the channel is deleted.
 
 
     std::shared_ptr<channel> chan; // Immutable
+    reserved_channel();
+    
+    reserved_channel(const reserved_channel& other);
+    reserved_channel& operator=(const reserved_channel&) =delete;
     std::shared_ptr<channelconfig> proposed_config(); //Use this method to get the most recently assigned configuration.
     std::shared_ptr<channelconfig> realized_config(); // Use this method to safely get the current channelconfig pointer for the most recently realized transaction. Returns nullptr for a deleted channel.
 
@@ -1117,10 +1140,14 @@ class rss_reference {
     std::list<std::shared_ptr<globalrevision>> globalrev_mutablenotneeded_pending;
     bool globalrev_mutablenotneeded_mustexit;
 
+    std::unordered_map<std::string,std::shared_ptr<reserved_channel>> reserved_math_channels; // locked by admin lock
+    
     //recdatabase(std::shared_ptr<recording_storage_manager> default_storage_manager=nullptr,std::shared_ptr<lockmanager> lockmgr=nullptr);
     // default argument split into three separate entries here
     // to work around swig bug with default parameter
+    
     recdatabase(std::shared_ptr<lockmanager> lockmgr);
+    
     recdatabase();
 
     
@@ -1141,12 +1168,14 @@ class rss_reference {
     std::shared_ptr<transaction> end_transaction(std::shared_ptr<active_transaction> act_trans);
 
     std::shared_ptr<transaction> run_in_background_and_end_transaction(std::shared_ptr<active_transaction> act_trans,std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<void> params)> fcn, std::shared_ptr<void> params);
-
+    std::shared_ptr<reserved_channel> reserve_math_channel(std::shared_ptr<transaction> trans,std::shared_ptr<channelconfig> new_config);
+    std::shared_ptr<reserved_channel> lookup_math_channel_recdb_locked(std::string channelname);
+    std::shared_ptr<reserved_channel> lookup_math_channel(std::string channelname);
     
     // add_math_function() must be called within a transaction
     std::vector<std::shared_ptr<reserved_channel>> add_math_function(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> new_function,bool hidden); // Use separate functions with/without storage manager because swig screws up the overload
     std::shared_ptr<instantiated_math_function> lookup_math_function(std::string fullpath);
-    void delete_math_function(std::shared_ptr<active_transaction> trans,std::vector<std::shared_ptr<reserved_channel>> chans,std::shared_ptr<instantiated_math_function> fcn);
+    void delete_math_function(std::shared_ptr<active_transaction> trans,std::vector<std::string> chans,std::shared_ptr<instantiated_math_function> fcn);
     std::vector<std::shared_ptr<reserved_channel>> add_math_function_storage_manager(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager);
     void send_math_message(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> func, std::string name, std::shared_ptr<math_instance_parameter> msg);
 
@@ -1163,6 +1192,7 @@ class rss_reference {
     
 
     std::shared_ptr<reserved_channel> reserve_channel(std::shared_ptr<active_transaction> trans,std::shared_ptr<channelconfig> new_config); // must be called within a transaction
+    std::shared_ptr<reserved_channel> reserve_channel(std::shared_ptr<transaction> trans,std::shared_ptr<channelconfig> new_config); // must be called within a transaction
     void release_channel(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan); // must be called within a transaction
 
     // Define a new channel; throws an error if the channel is already in use

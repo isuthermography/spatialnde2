@@ -175,7 +175,11 @@ template <typename T>
     uint64_t globalrev_index; // globalrev index for this transaction. Immutable once published
     
     //ordered_transaction();
-
+    ordered_transaction(std::shared_ptr<recdatabase> recdb);
+    // rule of 3
+    ordered_transaction& operator=(const ordered_transaction &) = delete; 
+    ordered_transaction(const ordered_transaction &orig) = delete;
+    virtual ~ordered_transaction()=default;
   };
 
 
@@ -236,7 +240,7 @@ template <typename T>
     std::shared_ptr<measurement_time> timestamp;
     // std::atomic<bool> ended;
     bool ended;
-    timed_transaction();
+    timed_transaction(std::shared_ptr<recdatabase> recdb);
     // rule of 3
     timed_transaction& operator=(const timed_transaction &) = delete; 
     timed_transaction(const timed_transaction &orig) = delete;

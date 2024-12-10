@@ -9,7 +9,8 @@
 //#ifndef _WIN32
 //#include "shared_memory_allocator_posix.hpp"
 //#endif // !_WIN32
-  
+//***!!! Testing recmath_test2.py. Probably need to modify the intermediate_functions parameter of pending_math_definition to break it into two vectors or perhaps a shared pointer to a new class for transit through the python environment.
+
 namespace snde {
   
 
@@ -2135,11 +2136,13 @@ namespace snde {
   }
 #endif // 0 (obsolete code)
 
-  transaction::transaction() :
+  transaction::transaction(std::shared_ptr<recdatabase> recdb) :
     our_state_reference(std::make_shared<rss_reference>()), // allocate the unitary reference to our state
     prerequisite_state(std::make_shared<rss_reference>()),
     math(std::make_shared<transaction_math>())
   {
+    math->recdb = recdb;
+    // math->trans = shared_from_this(); // cannot call shared_from_this in the constructor; our caller must perform this assignment!!!
     snde_debug(SNDE_DC_MEMLEAK,"Transaction 0x%llx created",(unsigned long long)this);
   }
 
@@ -3512,7 +3515,9 @@ namespace snde {
           {
             std::lock_guard<std::mutex> trans_admin(admin);
             if (name == config->channelpath) {
-              updated_channels.emplace(name,std::make_pair(reschan,config));
+              //updated_channels is updated by Reserve_math_Channel
+              //updated_channels.emplace(name,std::make_pair(reschan,config));
+              new_recording_required.emplace(name,false);
             }
           }
           
@@ -3527,7 +3532,7 @@ namespace snde {
             
           }
         }
-        def->evaluate_pending(def->instantiated->result_channel_paths);
+        def->evaluate(def->instantiated,def->instantiated->result_channel_paths);
         def->instantiated->definition = def;
         
       }
@@ -3544,9 +3549,18 @@ namespace snde {
       bool math_fcn_changed=false;
       for (auto && channelpath_reservedchannel_config: updated_channels) {
 	const std::string &path=channelpath_reservedchannel_config.first;
-	const std::shared_ptr<reserved_channel> owner=channelpath_reservedchannel_config.second.first;
+	const std::shared_ptr<reserved_channel> owner_or_ref=channelpath_reservedchannel_config.second.first;
 	const std::shared_ptr<channelconfig> config=channelpath_reservedchannel_config.second.second;
-	 
+
+        std::shared_ptr<reserved_channel> owner=owner_or_ref;
+        // for math channels, the entry owner_or_ref can actually be
+        // a reference via the math_actual_reschan member
+        if (owner->math_actual_reschan){
+          owner=owner->math_actual_reschan;
+
+
+        }
+        assert(config==owner_or_ref->proposed_config());
 	std::map<std::string,std::shared_ptr<channel>>::iterator chan_it;
 	chan_it = recdb_strong->_channels.find(path);
       
@@ -3567,8 +3581,16 @@ namespace snde {
 	    throw snde_error("realize_transaction: provided empty reserved_channel for %s is not current (current owner is %s).", path.c_str(),old_owner->realized_config()->owner_name.c_str());
 	  }
 	}
-      
-      
+
+        if (old_owner) {
+          std::shared_ptr<channelconfig> old_realized = old_owner->realized_config();
+          if (old_realized && old_realized->math_fcn){
+            math_fcn_changed=true;
+          }
+        }
+        if (config->math_fcn) {
+          math_fcn_changed=true;
+        }
 	//recdb_strong->_channels.erase(chan_it);
 	// _deleted_channels.emplace(path,chan);
       
@@ -3592,6 +3614,7 @@ namespace snde {
 	if (config->math_fcn) {
 	  std::map<std::string,std::shared_ptr<instantiated_math_function>>::iterator conflict_it;
 	  bool success;
+          // snde_warning("defining math channel %s in realize_transaction()",path.c_str());
 	  std::tie(conflict_it,success)=recdb_strong->_instantiated_functions.defined_math_functions.emplace(path,config->math_fcn);
 	  if (!success) {
 	    snde_warning("prexisting math channel %s overridden in realize_transaction()",path.c_str());
@@ -3610,9 +3633,9 @@ namespace snde {
 	  }
 	}
       }
-
+    
       if (math_fcn_changed) {
-	recdb_strong->_instantiated_functions._rebuild_dependency_map();
+	recdb_strong->_instantiated_functions._rebuild_dependency_map(recdb_strong);
       }
   
       // Give every recording created in the transaction its revision index
@@ -4126,6 +4149,20 @@ namespace snde {
     std::atomic_store(&_realized_owner,new_owner);
   }
 
+  reserved_channel::reserved_channel()
+  {
+    std::shared_ptr<channelconfig> null_config;
+    std::atomic_store(&_proposed_config,null_config);
+    std::atomic_store(&_realized_config,null_config);
+  }
+  reserved_channel::reserved_channel(const reserved_channel& other):
+    chan(other.chan)
+  {
+    std::atomic_store(&_proposed_config,std::atomic_load(&other._proposed_config));
+    std::atomic_store(&_realized_config,std::atomic_load(&other._realized_config));
+
+  }
+  
   std::shared_ptr<channelconfig> reserved_channel::proposed_config()
   {
     return std::atomic_load(&_proposed_config);
@@ -5170,7 +5207,7 @@ namespace snde {
       this->lockmgr = std::make_shared<lockmanager>();
     }
 
-    _instantiated_functions._rebuild_dependency_map();
+    // _instantiated_functions._rebuild_dependency_map(shared_from_this());
 
     // instantiate mutablenotneeded thread
     globalrev_mutablenotneeded_thread = std::thread([this]() { globalrev_mutablenotneeded_code(); });
@@ -5253,6 +5290,47 @@ namespace snde {
     return act_trans->run_in_background_and_end_transaction(fcn,params);
   }
 
+  std::shared_ptr<reserved_channel> recdatabase::reserve_math_channel(std::shared_ptr<transaction> trans,std::shared_ptr<channelconfig> new_config)
+  {
+   
+    std::unique_lock<std::mutex> recdb_admin(admin);
+    auto rchan_it=reserved_math_channels.find(new_config->channelpath);
+    if (rchan_it!=reserved_math_channels.end()) {
+      // Found in database, make a reference to it and return the reference
+      std::shared_ptr<reserved_channel> chanref=std::make_shared<reserved_channel>(*rchan_it->second); 
+      chanref->math_actual_reschan=chanref;
+      // chanref->end_atomic_proposed_config_update(new_config); (redundant with _reserve_channel_add_to_trans() )
+      recdb_admin.unlock();
+      _reserve_channel_add_to_trans(trans,new_config,chanref);
+      return chanref;
+    }
+    // Not found in database; create and return
+    std::shared_ptr<reserved_channel> reservation= _reserve_channel_create_new_recdb_locked(new_config);
+    // add into database
+    
+    reserved_math_channels.emplace(new_config->channelpath,reservation);
+    recdb_admin.unlock();
+     _reserve_channel_add_to_trans(trans,new_config,reservation);
+     return reservation;
+   
+  }
+  
+  std::shared_ptr<reserved_channel> recdatabase::lookup_math_channel_recdb_locked(std::string channelname)
+  {
+    auto rchan_it=reserved_math_channels.find(channelname);
+    if (rchan_it==reserved_math_channels.end()) {
+      return nullptr;
+    }
+    return rchan_it->second;
+  }
+
+
+  std::shared_ptr<reserved_channel> recdatabase::lookup_math_channel(std::string channelname)
+  {
+    std::lock_guard<std::mutex> recdb_admin(admin);
+    return lookup_math_channel_recdb_locked(channelname);
+  }
+  
   std::vector<std::shared_ptr<reserved_channel>> recdatabase::add_math_function(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> new_function,bool hidden)
   {
     return add_math_function_storage_manager(trans,new_function,hidden,nullptr);
@@ -5271,7 +5349,7 @@ namespace snde {
     return def_fcn_it->second; 
   }
 
-  void recdatabase::delete_math_function(std::shared_ptr<active_transaction> trans,std::vector<std::shared_ptr<reserved_channel>> chans,std::shared_ptr<instantiated_math_function> fcn)
+  void recdatabase::delete_math_function(std::shared_ptr<active_transaction> trans,std::vector<std::string> chans,std::shared_ptr<instantiated_math_function> fcn)
   {
     // must be called within a transaction!
     std::vector<std::tuple<std::string,std::shared_ptr<channel>>> paths_and_channels;
@@ -5286,8 +5364,8 @@ namespace snde {
 	  std::shared_ptr<reserved_channel> chan;
 
 	  for (size_t chan_index=0; chan_index < chans.size();chan_index++) {
-	    if (chans[chan_index]->chan->channelpath == full_path) {
-	      chan=chans[chan_index];
+	    if (chans[chan_index] == full_path) {
+	      chan=lookup_math_channel_recdb_locked(full_path);
 	    }
 	  }
 	  if (!chan) {
@@ -5363,7 +5441,7 @@ namespace snde {
 	std::shared_ptr<channelconfig> channel_config=std::make_shared<channelconfig>(full_path,"math",hidden,storage_manager); // recdb pointer is owner of math recordings
 	channel_config->math_fcn = new_function;
 	channel_config->math=true;
-	std::shared_ptr<reserved_channel> channelptr = reserve_channel(trans,channel_config);
+	std::shared_ptr<reserved_channel> channelptr = reserve_math_channel(trans->trans,channel_config);
 	
 	if (!channelptr) {
 	  throw snde_error("Channel %s is already defined",full_path.c_str());
@@ -5406,7 +5484,7 @@ namespace snde {
     //    _instantiated_functions.defined_math_functions.emplace(full_path,new_function);
     //  }
 
-    _instantiated_functions._rebuild_dependency_map();
+    // _instantiated_functions._rebuild_dependency_map();
   
     return reserved_channels;
   }
@@ -5439,15 +5517,16 @@ namespace snde {
   }
 
   
-  std::shared_ptr<reserved_channel> recdatabase::reserve_channel(std::shared_ptr<active_transaction> trans,std::shared_ptr<channelconfig> new_config)
+  std::shared_ptr<reserved_channel> recdatabase::_reserve_channel_create_new_recdb_locked(std::shared_ptr<channelconfig> new_config)
   {
-    // Note that this is called with transaction lock held, but that is OK because transaction lock precedes recdb admin lock
+
+    // Note that this is called with the transaction lock and recdb_admin locks held
     std::shared_ptr<channel> new_chan;
     std::shared_ptr<reserved_channel> reservation = std::make_shared<reserved_channel>();
     reservation->end_atomic_proposed_config_update(new_config);
     
     {
-      std::lock_guard<std::mutex> recdb_lock(admin);
+      // std::lock_guard<std::mutex> recdb_lock(admin);
       
       std::map<std::string,std::shared_ptr<channel>>::iterator chan_it;
       
@@ -5463,12 +5542,19 @@ namespace snde {
 	reservation->chan=chan_it->second;
       }
     }
+    // recdb_admin->unlock();
+    return reservation;
+  }
+
+
+  std::shared_ptr<reserved_channel> recdatabase::_reserve_channel_add_to_trans(std::shared_ptr<transaction> trans,std::shared_ptr<channelconfig> new_config,std::shared_ptr<reserved_channel> reservation)
+  {
     {
       // add new_chan to current transaction
-      std::lock_guard<std::mutex> curtrans_lock(trans->trans->admin);
+      std::lock_guard<std::mutex> curtrans_lock(trans->admin);
 
       // verify recording not already updated in current transaction
-      if (trans->trans->new_recordings.find(new_config->channelpath) != trans->trans->new_recordings.end()) {
+      if (trans->new_recordings.find(new_config->channelpath) != trans->new_recordings.end()) {
 	throw snde_error("Replacing owner of channel %s in transaction where recording already updated",new_config->channelpath);
       }
       {
@@ -5477,15 +5563,40 @@ namespace snde {
 	reservation->end_atomic_proposed_config_update(new_config);
 	
       }
-      trans->trans->updated_channels.emplace(new_config->channelpath,std::make_pair(reservation,new_config));
-      trans->trans->new_recording_required.emplace(new_config->channelpath,true);
+      trans->updated_channels.emplace(new_config->channelpath,std::make_pair(reservation,new_config));
+      trans->new_recording_required.emplace(new_config->channelpath,true);
     }
 
     
     
     return reservation;
   }
+  
+  std::shared_ptr<reserved_channel> recdatabase::reserve_channel(std::shared_ptr<active_transaction> trans,std::shared_ptr<channelconfig> new_config)
+  {
+    // Note that this is called with transaction lock held, but that is OK because transaction lock precedes recdb admin lock
+    std::shared_ptr<reserved_channel> reservation;
+    {
+      std::lock_guard<std::mutex> recdb_admin(admin);
+    
+      reservation= _reserve_channel_create_new_recdb_locked(new_config);
+    }
+    return _reserve_channel_add_to_trans(trans->trans,new_config,reservation);
+  }
 
+  std::shared_ptr<reserved_channel> recdatabase::reserve_channel(std::shared_ptr<transaction> trans,std::shared_ptr<channelconfig> new_config)
+  {
+    // Note that this is called with transaction lock held, but that is OK because transaction lock precedes recdb admin lock
+    std::shared_ptr<reserved_channel> reservation;
+    {
+      std::lock_guard<std::mutex> recdb_admin(admin);
+    
+      reservation= _reserve_channel_create_new_recdb_locked(new_config);
+    }
+    return _reserve_channel_add_to_trans(trans,new_config,reservation);
+  }
+
+    
   void recdatabase::release_channel(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan) // must be called within a transaction
   {
   

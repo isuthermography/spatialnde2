@@ -305,7 +305,7 @@ namespace snde {
     // We need to make sure that our_state_reference goes away when the rss is complete. Use clear_osr_notify to trigger a call back.
     std::shared_ptr<recording_set_state> with_display_transforms_ref = with_display_transforms;
     
-    with_display_transforms->mathstatus.math_functions->_rebuild_dependency_map(); // (not automatically done on construction)
+    with_display_transforms->mathstatus.math_functions->_rebuild_dependency_map(recdb); // (not automatically done on construction)
 
     // For everything we copied in from the globalrev (above),
     // mark it in the completed_recordings map

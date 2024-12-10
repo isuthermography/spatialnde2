@@ -20,9 +20,9 @@ if not "recdb" in globals():
         recdb.transmgr = transmgr.upcast()
         pass
     
-    snde.setup_cpu(recdb,multiprocessing.cpu_count())
+    snde.setup_cpu(recdb,[],multiprocessing.cpu_count())
     if enable_opencl:
-        (opencl_context,opencl_devices_vec) = snde.setup_opencl(recdb,False,4,None)
+        (opencl_context,opencl_devices_vec) = snde.setup_opencl(recdb,[],False,4,None)
         if opencl_devices_vec is None:
             snde.snde_warning("snde.setup_opencl() did not find pyopencl: Python access to OpenCL context and devices will not be available")
             pass
