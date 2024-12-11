@@ -207,7 +207,7 @@ namespace snde {
 	      
 	      //fprintf(stderr,"Executing in OpenCL!\n");
 
-	      cl::Kernel phase_plane_vert_kern = build_typed_opencl_program<T>("spatialnde2.colormap",[] (std::string ocltypename) {
+	      cl::Kernel phase_plane_vert_kern = build_typed_opencl_program<T>("snde.colormap",[] (std::string ocltypename) {
 		// OpenCL templating via a typedef....
 		return std::make_shared<opencl_program>("phase_plane_vertices_alphas", std::vector<std::string>({ snde_types_h, geometry_types_h,vecops_h,"\ntypedef " + ocltypename + " ppvao_intype;\n", phase_plane_vertex_calcs_c }));
 	      })->get_kernel(opencl_resource->context,opencl_resource->devices.at(0));

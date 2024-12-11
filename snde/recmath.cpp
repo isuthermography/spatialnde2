@@ -372,7 +372,7 @@ namespace snde {
     clone->definition=clone->definition->rebuild(clone);
   }
   // rebuild all_dependencies_of_channel hash table. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main recording database, and the main recording database admin lock must be locked when this is called. 
-  void instantiated_math_database::_rebuild_dependency_map(std::shared_ptr<recdatabase> recdb)
+  void instantiated_math_database::_rebuild_dependency_map(std::shared_ptr<recdatabase> recdb,bool allow_non_reserved_math_channels)
   {
 
     all_dependencies_of_channel.clear();
@@ -407,8 +407,12 @@ namespace snde {
               // resultpath_ptr=nullptr;
             }
           } else {
-            _rdm_remove_from_definition(&updated_fcns,resultpath_index,fcn_ptr);
-            // resultpath_ptr=nullptr;
+            if (allow_non_reserved_math_channels) {
+              num_active_results_chans++;
+            } else {
+              _rdm_remove_from_definition(&updated_fcns,resultpath_index,fcn_ptr);
+              // resultpath_ptr=nullptr;
+            }
           }
         } else {
           _rdm_remove_from_definition(&updated_fcns,resultpath_index,fcn_ptr);
@@ -491,8 +495,8 @@ namespace snde {
           
           std::string resultpath=recdb_path_join(fcn_ptr->channel_path_context,*resultpath_ptr);
           
-          std::shared_ptr<reserved_channel> reserved_current=recdb->lookup_math_channel_recdb_locked(resultpath);
-          std::shared_ptr<channelconfig> config_current=reserved_current->realized_config();
+          //std::shared_ptr<reserved_channel> reserved_current=recdb->lookup_math_channel_recdb_locked(resultpath);
+          //std::shared_ptr<channelconfig> config_current=reserved_current->realized_config();
            
  
               

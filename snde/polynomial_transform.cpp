@@ -179,7 +179,7 @@ namespace snde {
 		  OutputType outjunk = 0.0;
 		  PolyType polyjunk = 0.0;
 
-		  cl::Kernel polynomial_transform_kern = build_typed_opencl_program<InputType, OutputType, PolyType>("spatialnde2.polynomial_transform", [](std::vector<std::string> ocltypenames) {
+		  cl::Kernel polynomial_transform_kern = build_typed_opencl_program<InputType, OutputType, PolyType>("snde.polynomial_transform", [](std::vector<std::string> ocltypenames) {
 		    // OpenCL templating via a typedef....
 		    return std::make_shared<opencl_program>("polynomial_transform_math_ocl", std::vector<std::string>({ snde_types_h,
 													       "\ntypedef " + ocltypenames.at(1) + " function_outtype;\n",

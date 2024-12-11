@@ -193,12 +193,12 @@ namespace snde {
       nullptr,
       0.0,
     }),
-    vertnormalarray_function(recdb->lookup_available_math_function("spatialnde2.vertnormalarray")),
-    colormapping_function(recdb->lookup_available_math_function("spatialnde2.colormap")),
-    fusion_colormapping_function(recdb->lookup_available_math_function("spatialnde2.fusion_colormapping")),
-    pointcloud_colormapping_function(recdb->lookup_available_math_function("spatialnde2.pointcloud_colormap")),
-    vertexarray_function(recdb->lookup_available_math_function("spatialnde2.meshedpart_vertexarray")),
-    texvertexarray_function(recdb->lookup_available_math_function("spatialnde2.meshedparameterization_texvertexarray"))
+    vertnormalarray_function(recdb->lookup_available_math_function("snde.vertnormalarray")),
+    colormapping_function(recdb->lookup_available_math_function("snde.colormap")),
+    fusion_colormapping_function(recdb->lookup_available_math_function("snde.fusion_colormapping")),
+    pointcloud_colormapping_function(recdb->lookup_available_math_function("snde.pointcloud_colormap")),
+    vertexarray_function(recdb->lookup_available_math_function("snde.meshedpart_vertexarray")),
+    texvertexarray_function(recdb->lookup_available_math_function("snde.meshedparameterization_texvertexarray"))
 
   {
     static std::mutex di_index_mutex; // created atomically on first access per c++ spec

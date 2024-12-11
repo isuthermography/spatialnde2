@@ -1123,9 +1123,62 @@ class rss_reference {
 
     
     globalrevision(uint64_t globalrev, std::shared_ptr<transaction> defining_transact, std::shared_ptr<recdatabase> recdb,const instantiated_math_database &math_functions,const std::map<std::string,channel_state> & channel_map_param,std::shared_ptr<rss_reference> prerequisite_state,uint64_t rss_unique_index);   
+    %pythoncode %{
+      @property
+      def rec(self):
+        return rec_helper(self)
+
+      @property
+      def ref(self):
+        return ref_helper(self)
+
+    %}
   };
   
+  %pythoncode %{
+    class rec_helper:
+      globalrev=None
+      def __init__(self,globalrev):
+        self.globalrev=globalrev
+        pass
 
+
+      def __getitem__(self,name):
+        return self.globalrev.get_recording(name)
+
+      def __str__(self):
+        return str(self.globalrev.list_recordings())
+
+      def __repr__(self):
+        return self.__str__()
+      pass
+
+    class ref_helper:
+      globalrev=None
+      def __init__(self,globalrev):
+        self.globalrev=globalrev
+        pass
+
+
+      def __getitem__(self,name):
+        if isinstance(name,tuple):
+          # actually a tuple of (name,array_index) or (name,array_name)
+          return self.globalrev.get_ndarray_ref(*name)
+          
+        return self.globalrev.get_ndarray_ref(name)
+
+      def __str__(self):
+        return str(self.globalrev.list_ndarray_refs())
+
+
+      def __repr__(self):
+        return self.__str__()
+      pass
+
+
+        
+
+  %}
   class recdatabase /* : public std::enable_shared_from_this<recdatabase> */ {
   public:
     //std::mutex admin; // Locks access to _channels and _deleted_channels and _math_functions, _globalrevs and repetitive_notifies. In locking order, precedes channel admin locks, available_compute_resource_database, globalrevision admin locks, recording admin locks, and Python GIL. 
@@ -1244,7 +1297,13 @@ class rss_reference {
     std::shared_ptr<math_function> lookup_available_math_function(std::string name);
     std::shared_ptr<std::vector<std::string>> list_available_math_functions();
 
+    %pythoncode %{
+      @property
+      def latest(self):
+        return self.latest_globalrev()
+        
 
+    %}
   };
 
   // unfortunately this %nothread (suggested by https://sourceforge.net/p/swig/mailman/swig-user/?viewmonth=200902&style=flat&viewday=4 ) doesn't work.

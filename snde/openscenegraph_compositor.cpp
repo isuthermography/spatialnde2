@@ -349,18 +349,20 @@ namespace snde {
 
   void osg_compositor::perform_ondemand_calcs(std::unique_lock<std::mutex> *adminlock)
   {
+    std::shared_ptr<globalrevision> globalrev; 
     assert(this_thread_ok_for_locked(SNDE_OSGRCS_ONDEMANDCALCS));
     // NOTE: This function shouldn't make ANY OpenSceneGraph/OpenGL calls, directly or indirectly (!!!)
 
     adminlock->unlock();
+    
+    std::shared_ptr<recdatabase> recdb_strong = recdb.lock();
+    if (!recdb_strong) {
+      adminlock->lock();
+      return;
+    }
     try {
-      std::shared_ptr<recdatabase> recdb_strong = recdb.lock();
-      if (!recdb_strong) {
-	adminlock->lock();
-	return;
-      }
       
-      std::shared_ptr<globalrevision> globalrev = recdb_strong->latest_globalrev(); // obtain latest ready globalrev
+      globalrev = recdb_strong->latest_globalrev(); // obtain latest ready globalrev
       
       //display->set_current_globalrev(globalrev); (redundant with display->update)
       
@@ -441,7 +443,13 @@ namespace snde {
 	
 	globalrev->wait_complete(); // wait for this globalrev to become complete before finishing render process
       }
-    
+    } catch (const std::exception &exc) {
+      snde_warning("Exception class %s caught in osg_compositor::perform_ondemand_calcs: getting complete globalrev %s",typeid(exc).name(),exc.what());
+      
+      
+    }
+
+    try {
       
     
       ColorIdx_by_channelpath.clear();
@@ -462,8 +470,19 @@ namespace snde {
       display_reqs = traverse_display_requirements(display,globalrev,channels_to_display);
       
       
-      display_transforms->update(recdb_strong,globalrev,display_reqs);
+    } catch (const std::exception &exc) {
+      snde_warning("Exception class %s caught in osg_compositor::perform_ondemand_calcs: colors and display requirements %s",typeid(exc).name(),exc.what());
       
+      
+    }
+    try {
+      display_transforms->update(recdb_strong,globalrev,display_reqs);
+    } catch (const std::exception &exc) {
+      snde_warning("Exception class %s caught in osg_compositor::perform_ondemand_calcs: display update %s",typeid(exc).name(),exc.what());
+      
+      
+    }
+    try {
       
       // perform all the transforms
       display_transforms->with_display_transforms->wait_complete(); 
@@ -473,7 +492,7 @@ namespace snde {
       // recordings in place.
       
     } catch (const std::exception &exc) {
-      snde_warning("Exception class %s caught in osg_compositor::perform_ondemand_calcs: %s",typeid(exc).name(),exc.what());
+      snde_warning("Exception class %s caught in osg_compositor::perform_ondemand_calcs: wait %s",typeid(exc).name(),exc.what());
       
       
     }
@@ -1127,11 +1146,11 @@ namespace snde {
 	  wake_up_compositor_locked(&adminlock);
 	}
       } else if (next_state == SNDE_OSGRCS_ONDEMANDCALCS) {
-	try {
+	//try {
 	  perform_ondemand_calcs(&adminlock);
-	} catch(const std::exception &e) {
-	  snde_warning("Exception in ondemand rendering calculations: %s",e.what());
-	}
+          //} catch(const std::exception &e) {
+	  //snde_warning("Exception in ondemand rendering calculations: %s",e.what());
+          //}
 	executed_something=true;
 	if (next_state == SNDE_OSGRCS_ONDEMANDCALCS) {
 	  // otherwise we don't want to interrupt a cleanup/exit command

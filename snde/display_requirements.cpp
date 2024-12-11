@@ -902,12 +902,12 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 
       if (samplesperpixel <= 0.5) {
 	// Plenty of Pixels -- plot the interpolated line
-	funcname = "spatialnde2.waveform_interplines";
+	funcname = "snde.waveform_interplines";
 	funcdescr = "c++ definition of waveform_interplines";
       }
       else {
 	// More data than pixels -- plot vertical lines
-	funcname = "spatialnde2.waveform_vertlines";
+	funcname = "snde.waveform_vertlines";
 	funcdescr = "c++ definition of waveform_vertlines";
 
 	idxstep = round(samplesperpixel);
@@ -993,7 +993,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 	
 	std::shared_ptr<snde::display_requirement> subreq2 = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_COLOREDTRANSPARENTPOINTS, typeid(*this), renderparams), rec, shared_from_this());
 
-	std::shared_ptr<instantiated_math_function> renderable_function2 = recdb->lookup_available_math_function("spatialnde2.waveform_points")->instantiate({
+	std::shared_ptr<instantiated_math_function> renderable_function2 = recdb->lookup_available_math_function("snde.waveform_points")->instantiate({
 	std::make_shared<math_parameter_recording>(chanpath),
 	std::make_shared<math_parameter_double_const>(renderparams->color.R),
 	std::make_shared<math_parameter_double_const>(renderparams->color.G),
@@ -1105,7 +1105,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       return nullptr; 
     }
     
-    std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_available_math_function("spatialnde2.phase_plane_endpoint_octagon_vertices")->instantiate({
+    std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_available_math_function("snde.phase_plane_endpoint_octagon_vertices")->instantiate({
 	std::make_shared<math_parameter_recording>(chanpath),
 	std::make_shared<math_parameter_double_const>(8.0f/horiz_pixels_per_chanunit),
 	std::make_shared<math_parameter_double_const>(8.0f/vert_pixels_per_chanunit)
@@ -1483,7 +1483,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     }
     
 
-    std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_available_math_function("spatialnde2.phase_plane_line_triangle_vertices_alphas")->instantiate({
+    std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_available_math_function("snde.phase_plane_line_triangle_vertices_alphas")->instantiate({
 	std::make_shared<math_parameter_recording>(chanpath),
 	std::make_shared<math_parameter_double_const>(color_renderparams->color.R),
 	std::make_shared<math_parameter_double_const>(color_renderparams->color.G),

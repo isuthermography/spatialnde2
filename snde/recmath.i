@@ -345,7 +345,7 @@ class math_instance_parameter {
     std::unordered_map<std::shared_ptr<instantiated_math_function>,std::unordered_set<std::shared_ptr<instantiated_math_function>>> all_dependencies_of_function;
     std::unordered_set<std::shared_ptr<instantiated_math_function>> mdonly_functions; // all functions with mdonly set... updated by rebuild_dependency_map()
     
-    void _rebuild_dependency_map(std::shared_ptr<recdatabase> recdb); // rebuild all_dependencies_of_channel and all_dependencies_of_function hash tables. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main recording database, and the main recording database admin lock must be locked when this is called. 
+    void _rebuild_dependency_map(std::shared_ptr<recdatabase> recdb,bool); // rebuild all_dependencies_of_channel and all_dependencies_of_function hash tables. Must be called any time any of the defined_math_functions changes. May only be called for the instantiated_math_database within the main recording database, and the main recording database admin lock must be locked when this is called. 
 
   };
 

@@ -136,7 +136,7 @@ namespace snde {
 	    if (opencl_resource) {
 
 	      //cl::Kernel colormap_kern = get_opencl_colormap_program<T>()->get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
-	      cl::Kernel colormap_kern = build_typed_opencl_program<T>("spatialnde2.colormap",[] (std::string ocltypename) {
+	      cl::Kernel colormap_kern = build_typed_opencl_program<T>("snde2.colormap",[] (std::string ocltypename) {
 		// OpenCL templating via a typedef....
 		return std::make_shared<opencl_program>("scale_colormap", std::vector<std::string>({ snde_types_h, geometry_types_h, colormap_h, "\ntypedef " + ocltypename + " sc_intype;\n", scale_colormap_c }));
 	      })->get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
@@ -641,7 +641,7 @@ namespace snde {
 	    if (opencl_resource) {
 
 	      //cl::Kernel colormap_kern = get_opencl_colormap_program<T>()->get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
-	      std::shared_ptr<opencl_program> colormap_prog = build_typed_opencl_program<T>("spatialnde2.fusion_colormap",[ complexflag ] (std::string ocltypename) {
+	      std::shared_ptr<opencl_program> colormap_prog = build_typed_opencl_program<T>("snde.fusion_colormap",[ complexflag ] (std::string ocltypename) {
 		// OpenCL templating via a typedef....
 		return std::make_shared<opencl_program>("fusion_colormap_kern", std::vector<std::string>({
 		      snde_types_h,

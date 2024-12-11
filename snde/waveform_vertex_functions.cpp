@@ -220,7 +220,7 @@ namespace snde {
 
 		//fprintf(stderr,"Executing in OpenCL!\n");
 
-		cl::Kernel waveform_interplines_vert_kern = build_typed_opencl_program<T>("spatialnde2.waveform_interplines", [](std::string ocltypename) {
+		cl::Kernel waveform_interplines_vert_kern = build_typed_opencl_program<T>("snde.waveform_interplines", [](std::string ocltypename) {
 		  // OpenCL templating via a typedef....
 		  return std::make_shared<opencl_program>("waveform_interplines", std::vector<std::string>({ snde_types_h, geometry_types_h, "\ntypedef " + ocltypename + " waveform_intype;\n", waveform_vertex_calcs_c }));
 		  })->get_kernel(opencl_resource->context, opencl_resource->devices.at(0));
@@ -449,7 +449,7 @@ namespace snde {
 
 		//fprintf(stderr,"Executing in OpenCL!\n");
 
-		cl::Kernel waveform_vertlines_vert_kern = build_typed_opencl_program<T>("spatialnde2.waveform_vertlines", [](std::string ocltypename) {
+		cl::Kernel waveform_vertlines_vert_kern = build_typed_opencl_program<T>("snde.waveform_vertlines", [](std::string ocltypename) {
 		  // OpenCL templating via a typedef....
 		  return std::make_shared<opencl_program>("waveform_vertlines", std::vector<std::string>({ snde_types_h, geometry_types_h, "\ntypedef " + ocltypename + " waveform_intype;\n", waveform_vertex_calcs_c }));
 		  })->get_kernel(opencl_resource->context, opencl_resource->devices.at(0));
@@ -685,7 +685,7 @@ namespace snde {
 
 		//fprintf(stderr,"Executing in OpenCL!\n");
 
-		cl::Kernel waveform_points_vert_kern = build_typed_opencl_program<T>("spatialnde2.waveform_points", [](std::string ocltypename) {
+		cl::Kernel waveform_points_vert_kern = build_typed_opencl_program<T>("snde.waveform_points", [](std::string ocltypename) {
 		  // OpenCL templating via a typedef....
 		  return std::make_shared<opencl_program>("waveform_points", std::vector<std::string>({ snde_types_h, geometry_types_h, "\ntypedef " + ocltypename + " waveform_intype;\n", waveform_vertex_calcs_c }));
 		  })->get_kernel(opencl_resource->context, opencl_resource->devices.at(0));

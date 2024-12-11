@@ -3635,7 +3635,7 @@ namespace snde {
       }
     
       if (math_fcn_changed) {
-	recdb_strong->_instantiated_functions._rebuild_dependency_map(recdb_strong);
+	recdb_strong->_instantiated_functions._rebuild_dependency_map(recdb_strong,false);
       }
   
       // Give every recording created in the transaction its revision index
