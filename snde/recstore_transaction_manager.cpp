@@ -46,9 +46,19 @@ namespace snde {
     snde::active_transaction transact(recdb);
     transact.end_transaction();
   }
+
+  std::shared_ptr<std::thread::id> ordered_transaction_manager::trans_thread_owner()
+  {
+    return std::atomic_load(&_trans_thread_owner);
+  }
+
   
   std::shared_ptr<transaction> ordered_transaction_manager::start_transaction(std::shared_ptr<recdatabase> recdb,std::shared_ptr<measurement_time> timestamp)
   {
+    std::shared_ptr<std::thread::id> owner=trans_thread_owner();
+    if (owner) {
+      throw snde_error("spatialnde2 ordered_transaction_manager: a single thread cannot have two transactions open simultaneously");
+    }
     std::unique_lock<movable_mutex> tr_lock_acquire(transaction_lock);
 
     tr_lock_acquire.swap(transaction_lock_holder); // transfer lock into holder
@@ -64,6 +74,7 @@ namespace snde {
       trans=std::make_shared<ordered_transaction>(recdb);
       //trans = ordered_trans;
       trans->math->trans=trans; // assign it here because the trans constructor can't access it's own shared pointer
+      std::atomic_store(&_trans_thread_owner,std::make_shared<std::thread::id>(std::this_thread::get_id()));
       
       std::shared_ptr<globalrevision> previous_globalrev;
 
@@ -97,7 +108,11 @@ namespace snde {
       std::lock_guard<std::mutex> manager_lock(admin);
       trans_local=trans;
       assert(trans && trans == ordered_trans);
-    
+      std::shared_ptr<std::thread::id> owner=trans_thread_owner();
+      
+      if (owner && *owner != std::this_thread::get_id()) {
+        throw snde_error("ordered_transaction_manager::end_transaction(): transaction must be ended in the same thread as it was started.");
+      }
     }
     
     // std::unique_lock<std::mutex> recdb_admin(recdb->admin);
@@ -107,6 +122,8 @@ namespace snde {
     
     {
       std::lock_guard<std::mutex> manager_lock(admin);
+      std::shared_ptr<std::thread::id> empty_id;
+      std::atomic_store(&_trans_thread_owner,empty_id);
       trans = nullptr;
     }
 
@@ -130,6 +147,14 @@ namespace snde {
 
   void ordered_transaction_manager::notify_background_end_fcn(std::shared_ptr<active_transaction> act_trans)
   {
+    std::shared_ptr<std::thread::id> owner=trans_thread_owner();
+      
+    if (*owner != std::this_thread::get_id()) {
+      throw snde_error("ordered_transaction_manager: run_in_background_and_end_transaction(): transaction must be ended in the same thread as it was started.");
+    }
+    owner = nullptr;
+    std::atomic_store(&_trans_thread_owner,owner);
+      
     // std::shared_ptr<ordered_transaction> ordered_trans = std::dynamic_pointer_cast<ordered_transaction>(act_trans->trans);
     transaction_manager_background_end_condition.notify_all();
   }

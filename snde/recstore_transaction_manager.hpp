@@ -236,6 +236,7 @@ namespace snde {
     movable_mutex transaction_lock; // ***!!! Before any dataguzzler-python module context locks, etc. Before the recdb admin lock. Note the distinction between this and the admin lock of the class transaction.
     std::unique_lock<movable_mutex> transaction_lock_holder;
     std::shared_ptr<ordered_transaction> trans; // only valid while transaction_lock is held. But changing/accessing also requires the transaction_manager admin lock
+    std::shared_ptr<std::thread::id> _trans_thread_owner; // atomic shared pointer; use trans_thread_owner() accessor
 
     std::mutex transaction_manager_background_end_lock; // last in the locking order except for transaction_background_end_lock. locks the condition variable and bool below. 
     std::condition_variable transaction_manager_background_end_condition;
@@ -247,6 +248,7 @@ namespace snde {
     std::weak_ptr<recdatabase> recdb;
     ordered_transaction_manager();
     virtual void startup(std::shared_ptr<recdatabase> recdb);
+    std::shared_ptr<std::thread::id> trans_thread_owner();
     virtual std::shared_ptr<transaction> start_transaction(std::shared_ptr<recdatabase> recdb,std::shared_ptr<measurement_time> timestamp=nullptr);
 
     virtual void end_transaction(std::shared_ptr<recdatabase> recdb,std::shared_ptr<transaction> trans);

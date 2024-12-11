@@ -691,8 +691,8 @@ public:
       return math_parameter_bool_const(arg)
     elif rtn_type == SNDE_RTN_SNDE_COORD or rtn_type == SNDE_RTN_FLOAT32 or rtn_type == SNDE_RTN_FLOAT64 or rtn_type == SNDE_RTN_FLOAT16:
       return math_parameter_double_const(arg)
-    elif rtn_type == SNDE_RTN_SNDE_INDEX:
-      return math_parameter_sndeindex_const(arg)
+    #elif rtn_type == SNDE_RTN_SNDE_INDEX:
+      #return math_parameter_sndeindex_const(arg)
     elif rtn_type == SNDE_RTN_UINT64 or rtn_type == SNDE_RTN_UINT32 or rtn_type == SNDE_RTN_UINT16 or rtn_type == SNDE_RTN_UINT8:
       return math_parameter_unsigned_const(arg)
     elif rtn_type == SNDE_RTN_INT64 or rtn_type == SNDE_RTN_INT32 or rtn_type == SNDE_RTN_INT16 or rtn_type == SNDE_RTN_INT8:

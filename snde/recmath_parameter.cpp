@@ -152,6 +152,12 @@ namespace snde {
   {
     return int_constant;
   }
+
+ snde_bool math_parameter_int_const::get_bool(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  // parameter_index human interpreted parameter number, starting at 1, for error messages only
+  {
+    return (snde_bool) int_constant;
+  }
   
   bool math_parameter_int_const::operator==(const math_parameter &ref) // used for comparing parameters to instantiated_math_functions
   {
@@ -189,6 +195,12 @@ namespace snde {
   // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
     return unsigned_constant;
+  }
+
+  snde_bool math_parameter_unsigned_const::get_bool(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index)
+  // parameter_index human interpreted parameter number, starting at 1, for error messages only
+  {
+    return (snde_bool) unsigned_constant;
   }
   
   bool math_parameter_unsigned_const::operator==(const math_parameter &ref) // used for comparing parameters to instantiated_math_functions

@@ -96,6 +96,7 @@ namespace snde {
     math_parameter_int_const(int64_t int_constant);
     virtual std::string generate_parsible(); // generate a parsible string for Python that can be used for redefining the math function.
     virtual int64_t get_int(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
+    virtual snde_bool get_bool(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
 
     virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
     virtual bool operator!=(const math_parameter &ref);
@@ -110,6 +111,7 @@ namespace snde {
     math_parameter_unsigned_const(uint64_t unsigned_constant);
     virtual std::string generate_parsible(); // generate a parsible string for Python that can be used for redefining the math function.
     virtual uint64_t get_unsigned(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index);
+    virtual snde_bool get_bool(std::shared_ptr<recording_set_state> rss, const std::string &channel_path_context,const std::shared_ptr<math_definition> &fcn_def, size_t parameter_index); // parameter_index human interpreted parameter number, starting at 1, for error messages only
 
     virtual bool operator==(const math_parameter &ref); // used for comparing parameters to instantiated_math_functions
     virtual bool operator!=(const math_parameter &ref);

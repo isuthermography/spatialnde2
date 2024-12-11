@@ -375,10 +375,40 @@ namespace snde {
     void assign_complexfloat64(size_t array_index,size_t idx,snde_complexfloat64 val); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
     void assign_complexfloat64(size_t array_index,size_t idx,snde_complexfloat64 val,bool fortran_order); // WARNING: if array is mutable by others, it should generally be locked for read when calling this function!
 
+    %pythoncode %{
+      @property
+      def array(self):
+        return array_helper(self)
+        
+      def __str__(self):
+        return f"multi_ndarray_recording for {self.info.name:s}.\nSee .array for embedded arrays and .metadata\n"
+
+      def __repr__(self):
+        return self.__str__()
+
+    %}
   };
 
   
+  %pythoncode %{
+    class array_helper:
+      recording = None
+      def __init__(self,recording):
+        self.recording = recording
+        pass
 
+      def __getitem__(self,name_or_index):
+        return self.recording.reference_ndarray(name_or_index)
+
+      def __str__(self):
+        return str(self.recording.list_arrays())
+
+      def __repr__(self):
+        return self.__str__()
+
+      pass
+
+  %}
   // output typemap for _ndarray_recording_ref
   // that turns it into a numpy PyObject for the .data attribute
   // getter (.shared_from_this()). Note the ::data that limits it
@@ -528,7 +558,15 @@ namespace snde {
     virtual void assign_complexfloat64(snde_index idx,snde_complexfloat64 val,bool fortran_order); // May overflow; if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
     virtual void assign_complexfloat64(snde_index idx,snde_complexfloat64 val); // if array is mutable by others, it should generally be locked for write when calling this function! Shouldn't be performed on an immutable array once the array is published. 
 
-    
+    %pythoncode %{
+      def __str__(self):
+        rec_name = self.rec.info.name
+        return f"ndarray_recording_ref {rec_name:s}.array[{self.rec_index:d}]\nSee .data and .rec.metadata\n"
+
+      def __repr__(self):
+        return self.__str__()
+
+    %}
 
   };
 
@@ -772,7 +810,34 @@ class transaction_math {
         
                  
         return self.trans.math
-                 
+
+
+
+      # context manager protocol
+      def __enter__(self):
+        return self
+
+      def __exit__(self,exc_type,exc_value,traceback):
+        transobj=self.end_transaction()
+        # copy bound methods from the transaction object
+        # into our active_transaction object so that
+        # they are readily available
+        setattr(self,"globalrev",transobj.globalrev)
+        setattr(self,"globalrev_wait",transobj.globalrev_wait)
+        setattr(self,"globalrev_available",transobj.globalrev_available)
+        setattr(self,"globalrev_nowait",transobj.globalrev_nowait)
+        pass
+
+      def __str__(self):
+        if hasattr(self,"globalrev"):
+          # after with statement
+          return "active_transaction post-end.\nSee .globalrev(), .globalrev_wait(), .globalrev_available(), .globalrev_nowait()\n"
+        else:
+          return "Active transaction object.\nSee recdb.reserve_channel(), recdb.create_recording(), and .math\n"
+        pass
+
+      def __repr__(self):
+        return self.__str__()
     %}
   };
 
@@ -1132,6 +1197,11 @@ class rss_reference {
       def ref(self):
         return ref_helper(self)
 
+      def __str__(self):
+        return f"globalrevision #{self.globalrev:d}.\nSee .rec for recordings and .ref for ndarray_recording_refs.\n"
+
+      def __repr__(self):
+        return self.__str__()
     %}
   };
   
@@ -1247,6 +1317,7 @@ class rss_reference {
     // add_math_function() must be called within a transaction
     std::vector<std::shared_ptr<reserved_channel>> add_math_function(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> new_function,bool hidden); // Use separate functions with/without storage manager because swig screws up the overload
     std::shared_ptr<instantiated_math_function> lookup_math_function(std::string fullpath);
+    std::vector<std::string> list_math_function_defs();
     void delete_math_function(std::shared_ptr<active_transaction> trans,std::vector<std::string> chans,std::shared_ptr<instantiated_math_function> fcn);
     std::vector<std::shared_ptr<reserved_channel>> add_math_function_storage_manager(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> new_function,bool hidden,std::shared_ptr<recording_storage_manager> storage_manager);
     void send_math_message(std::shared_ptr<active_transaction> trans,std::shared_ptr<instantiated_math_function> func, std::string name, std::shared_ptr<math_instance_parameter> msg);
@@ -1301,11 +1372,47 @@ class rss_reference {
       @property
       def latest(self):
         return self.latest_globalrev()
-        
+
+      @property      
+      def math(self):
+        return recdb_math_helper(self)
+
+      def __str__(self):
+        latest_ready = self.latest_globalrev()
+        latest_defined = self.latest_defined_globalrev()
+        return f"spatialnde2 recording database latest ready/defined = {latest_ready.globalrev:d}/{latest_defined.globalrev:d}\nLook at .latest for latest ready. See also .math\n"
+
+      def __repr__(self):
+        return self.__str__()
 
     %}
   };
 
+  %pythoncode %{
+    class recdb_math_helper:
+      recdb=None
+      def __init__(self,recdb):
+        self.recdb = recdb
+        pass
+
+      def __getitem__(self,name):
+        instantiated = self.recdb.lookup_math_function(name)
+        return instantiated
+
+      def __setitem__(self,name,pending_definition_channel):
+        with self.recdb.start_transaction() as trans:
+          trans.math[name] = pending_definition_channel
+          pass
+        pass
+
+      def __str__(self):
+        return str(self.recdb.list_math_function_defs())
+
+      def __repr__(self):
+        return self.__str__()
+
+      pass
+  %}
   // unfortunately this %nothread (suggested by https://sourceforge.net/p/swig/mailman/swig-user/?viewmonth=200902&style=flat&viewday=4 ) doesn't work.
   // instead it seems to affect things only beyond the %extend (?)
   // and then the %thread afterward is ineffective...

@@ -5348,7 +5348,22 @@ namespace snde {
     
     return def_fcn_it->second; 
   }
+  std::vector<std::string> recdatabase::list_math_function_defs()
+  {
+    std::lock_guard<std::mutex> recdb_admin(admin);
+    std::set<std::string> math_defs;
+    for (auto&& instantiated: _instantiated_functions.defined_math_functions) {
+      math_defs.emplace(instantiated.second->definition->definition_command);
+    }
 
+    std::vector<std::string> to_return;
+
+    for (auto&& def: math_defs) {
+      to_return.push_back(def);
+    }
+    return to_return;
+  }
+  
   void recdatabase::delete_math_function(std::shared_ptr<active_transaction> trans,std::vector<std::string> chans,std::shared_ptr<instantiated_math_function> fcn)
   {
     // must be called within a transaction!
