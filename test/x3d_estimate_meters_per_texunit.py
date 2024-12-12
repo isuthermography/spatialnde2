@@ -9,7 +9,7 @@ specimen_model_tree = "/graphics/specimen/"
 
 
 recdb=snde.recdatabase();
-snde.setup_cpu(recdb,multiprocessing.cpu_count())
+snde.setup_cpu(recdb,[],multiprocessing.cpu_count())
 snde.setup_storage_manager(recdb)
 snde.setup_math_functions(recdb,[])
 recdb.startup()

@@ -33,18 +33,18 @@ chanmetadata.AddMetaDatum(snde.metadatum("ande_array-axis0_units","Seconds"))
 chanmetadata.AddMetaDatum(snde.metadatum("ande_array-ampl_coord","Amplitude"))
 chanmetadata.AddMetaDatum(snde.metadatum("ande_array-ampl_units","Volts"))
 
-
-avg = snde.mean.instantiate( [ snde.math_parameter_recording("/live"),
-                               snde.math_parameter_indexvec_const([]),
-			       snde.math_parameter_bool_const(False)],
-                             [ snde.shared_string("/avg") ],
-                             "/",
-                             False,
-                             False,
-                             False,
-                             snde.math_definition("avg defintion"),
-                             None)
-recdb.add_math_function(transact,avg,False)
+transact.math["/avg"] = snde.mean("/live",[],False)
+# avg = snde.mean.instantiate( [ snde.math_parameter_recording("/live"),
+#                               snde.math_parameter_indexvec_const([]),
+#			       snde.math_parameter_bool_const(False)],
+#                             [ snde.shared_string("/avg") ],
+#                             "/",
+#                             False,
+#                             False,
+#                             False,
+#                             snde.math_definition("avg defintion"),
+#                             None)
+#recdb.add_math_function(transact,avg,False)
 
 chanmetadata = snde.constructible_metadata()
 chanmetadata.AddMetaDatum(snde.metadatum("ande_array-axis0_coord","X Axis"))
@@ -58,22 +58,31 @@ chanmetadata.AddMetaDatum(snde.metadatum("ande_array-axis1_scale",1, "mm"))
 chanmetadata.AddMetaDatum(snde.metadatum("ande_array-ampl_coord","Amplitude"))
 chanmetadata.AddMetaDatum(snde.metadatum("ande_array-ampl_units","Volts"))
 
-accum = snde.nd_accumulate_once.instantiate( [ snde.math_parameter_recording("/avg"),
-                                                                     snde.math_parameter_indexvec_const([20, 20]),
-								     snde.math_parameter_indexvec_const([int(np.ravel_multi_index(a, (20,20))) for a in itertools.product(np.arange(20), np.arange(20))]),
-                                                                     snde.math_parameter_sndeindex_const(400), 
-								     snde.math_parameter_bool_const(False),
-							   	     snde.math_parameter_bool_const(False),
-								     snde.math_parameter_bool_const(True),
-								     snde.math_parameter_metadata_const(chanmetadata)],
-                                                                   [ snde.shared_string("/accum") ],
-                                                                   "/",
-                                                                   False,
-                                                                   False,
-                                                                   False,
-                                                                   snde.math_definition("nd accumulator defintion"),
-                                                                   None)
-recdb.add_math_function(transact,accum,False)
+transact.math["/accum"] = snde.nd_accumulate_once("/avg",
+                                                  [20,20],
+                                                  [int(np.ravel_multi_index(a, (20,20))) for a in itertools.product(np.arange(20), np.arange(20))],
+                                                  400,
+                                                  False,
+                                                  False,
+                                                  True,
+                                                  chanmetadata)
+
+#accum = snde.nd_accumulate_once.instantiate( [ snde.math_parameter_recording("/avg"),
+#                                                                     snde.math_parameter_indexvec_const([20, 20]),
+#								     snde.math_parameter_indexvec_const([int(np.ravel_multi_index(a, (20,20))) for a in itertools.product(np.arange(20), np.arange(20))]),
+#                                                                    snde.math_parameter_sndeindex_const(400), 
+#								     snde.math_parameter_bool_const(False),
+#							   	     snde.math_parameter_bool_const(False),
+#								     snde.math_parameter_bool_const(True),
+#								     snde.math_parameter_metadata_const(chanmetadata)],
+#                                                                   [ snde.shared_string("/accum") ],
+#                                                                   "/",
+#                                                                   False,
+#                                                                   False,
+#                                                                   False,
+#                                                                   snde.math_definition("nd accumulator defintion"),
+#                                                                   None)
+#recdb.add_math_function(transact,accum,False)
 
 
 globalrev = transact.end_transaction().globalrev()

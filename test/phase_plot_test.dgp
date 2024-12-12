@@ -32,6 +32,7 @@ accumulator = snde.batched_live_accumulator.instantiate( [ snde.math_parameter_r
                                                          False,
                                                          False,
                                                          snde.math_definition("accumulator definition"),
+                                                         [],
                                                          None)
 recdb.add_math_function(transact,accumulator,False)
 

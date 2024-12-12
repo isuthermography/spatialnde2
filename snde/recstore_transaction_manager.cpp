@@ -56,7 +56,7 @@ namespace snde {
   std::shared_ptr<transaction> ordered_transaction_manager::start_transaction(std::shared_ptr<recdatabase> recdb,std::shared_ptr<measurement_time> timestamp)
   {
     std::shared_ptr<std::thread::id> owner=trans_thread_owner();
-    if (owner) {
+    if (owner && *owner == std::this_thread::get_id()) {
       throw snde_error("spatialnde2 ordered_transaction_manager: a single thread cannot have two transactions open simultaneously");
     }
     std::unique_lock<movable_mutex> tr_lock_acquire(transaction_lock);

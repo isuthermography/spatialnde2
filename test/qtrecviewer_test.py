@@ -52,9 +52,9 @@ else:
 rec_len=100;
 
 recdb=snde.recdatabase();
-snde.setup_cpu(recdb,multiprocessing.cpu_count())
+snde.setup_cpu(recdb,[],multiprocessing.cpu_count())
 snde.setup_storage_manager(recdb)
-snde.setup_opencl(recdb,False,2,None)
+snde.setup_opencl(recdb,[],False,2,None)
 snde.setup_math_functions(recdb,[])
 recdb.startup()
 

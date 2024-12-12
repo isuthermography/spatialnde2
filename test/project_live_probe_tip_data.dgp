@@ -128,19 +128,20 @@ recording with a new value (NOTE: Not particularly necessary to have this abstra
 new_synthetic_probe_impedance_rec_in_transaction(transact,np.nan)
 
 
-synthetic_probe_history = snde.batched_live_accumulator.instantiate( [ snde.math_parameter_recording("/synthetic_probe_impedance"),
-                                                                       snde.math_parameter_unsigned_const(30),
-                                                                       snde.math_parameter_unsigned_const(10),
-                                                                       snde.math_parameter_bool_const(False),
-                                                                       snde.math_parameter_bool_const(True)],
-                                                                     [ snde.shared_string("/synthetic_probe_history") ],
-                                                                     "/",
-                                                                     False,
-                                                                     False,
-                                                                     False,
-                                                                     snde.math_definition("synthetic_probe_history definition"),
-                                                                     None)
-recdb.add_math_function(transact,synthetic_probe_history,False)
+transact.math["/synthetic_probe_history"] = snde.batched_live_accumulator("/synthetic_probe_impedance",30,10,False,True)
+#synthetic_probe_history = snde.batched_live_accumulator.instantiate( [ snde.math_parameter_recording("/synthetic_probe_impedance"),
+#                                                                       snde.math_parameter_unsigned_const(30),
+#                                                                       snde.math_parameter_unsigned_const(10),
+#                                                                       snde.math_parameter_bool_const(False),
+#                                                                       snde.math_parameter_bool_const(True)],
+#                                                                     [ snde.shared_string("/synthetic_probe_history") ],
+#                                                                     "/",
+#                                                                     False,
+#                                                                     False,
+#                                                                     False,
+#                                                                     snde.math_definition("synthetic_probe_history definition"),
+#                                                                     None)
+#recdb.add_math_function(transact,synthetic_probe_history,False)
 
 
 include(snde,"project_probe_tip_data_in_transaction.dpi",

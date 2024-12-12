@@ -346,6 +346,50 @@ or the available n-dimensional array recording references with
 a recording or an n-dimensional array reference with ``globalrev.get_recording()``
 or ``globalrev.get_ndarray_ref()`` respectively. 
 
+Pythonic Interface to SpatialNDE2
+---------------------------------
+
+The SpatialNDE2 Python bindings provide a simplified shorthand
+"pythonic" interface to certain features. Specifically, quick ways
+to access the latest global revision, access recordings and ndarray
+references, and define math operations.
+
+You can obtain the most recent complete global revision with
+``recdb.latest`` (equivalent to ``recdb.latest_globalrev()``).
+Given a global revision ``g``, you can obtain the list of recordings in
+that global revision with ``g.rec``. Likewise, you can obtain the list of
+ndarray references with ``g.ref``. You can then obtain the recording by
+``g.rec[channel_path]``. Likewise, you can obtain the default ndarray reference in a recording with ``g.ref[channel_path]``, or a specific ndarray reference (indexed by integer array number or string array name) with ``g.ref[channel_path,index]``. Once you have a recording ``r``, you can list ndarray references within the recording by ``r.array``, and extract them with ``r.array[index]`` where index is the integer array number or string array name. Likewise, you can view metadata with ``r.metadata``.
+
+As above, once you have an ndarray reference ``a``, you can obtain the recording with ``a.rec`` and the metadata with ``a.rec.metadata``. You can access the data with ``a.data``. For recordings under construction, you can modify the data with ``a.data[...]=`` or look at the layout information with ``a.layout``.
+
+SpatialNDE2 ``active_transactions`` can be used as Python context managers via the ``with`` statement. For example, ::
+
+  with recdb.start_transaction() as trans:
+    new_ref = snde.create_ndarray_ref(transact,testchan,snde.SNDE_RTN_FLOAT32)
+    new_ref.allocated_storage(my_data.shape,False)
+    new_ref.data[...] = my_data
+    new_ref.rec.metadata = snde.constructible_metadata()
+    new_ref.rec.mark_data_and_metadata_ready()
+    pass
+  g = trans.globalrev()
+
+In addition, there is a shorthand for defining math functions: ::
+
+  with recdb.start_transaction as trans:
+    trans.math["/avg"] = snde.averaging_downsampler("/raw",10,True)
+    pass
+
+For a single-result-channel math function outside of a transaction,
+there is a similar shorthand that implicitly starts and ends
+the transaction: ::
+  
+  recdb.math["/avg"] = snde.averaging_downsampler("/raw",10,True)
+
+For either of the above shorthands, in addition to providing the
+mandatory parameters to the math functions, you can also provide
+keyword arguments: ``mutable`` (True/False enabling mutable math function output), ``execution_tags`` (a list of tag strings to match with compute resources), and ``extra_params`` (extra parameters passed to the math function).
+   
 .. _SNDEinDGPY:
 
 Using SpatialNDE2 in Dataguzzler-Python

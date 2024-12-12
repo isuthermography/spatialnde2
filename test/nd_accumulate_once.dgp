@@ -53,6 +53,7 @@ accumulator_2d = snde.nd_accumulate_once.instantiate( [ snde.math_parameter_reco
                                                                    False,
                                                                    False,
                                                                    snde.math_definition("nd accumulator defintion"),
+                                                                   [],
                                                                    None)
 recdb.add_math_function(transact,accumulator_2d,False)
 

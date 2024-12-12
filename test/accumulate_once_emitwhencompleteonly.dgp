@@ -36,6 +36,7 @@ accumulator_fortran_newaxis = snde.accumulate_once.instantiate( [ snde.math_para
                                                                 False,
                                                                 False,
                                                                 snde.math_definition("accumulator fortran newaxis definition"),
+                                                                [],
                                                                 None)
 recdb.add_math_function(transact,accumulator_fortran_newaxis,False)
 
@@ -51,6 +52,7 @@ accumulator_c_newaxis = snde.accumulate_once.instantiate(       [ snde.math_para
                                                                 False,
                                                                 False,
                                                                 snde.math_definition("accumulator c newaxis definition"),
+                                                                [],
                                                                 None)
 recdb.add_math_function(transact,accumulator_c_newaxis ,False)
 
@@ -65,6 +67,7 @@ accumulator_fortran_concat = snde.accumulate_once.instantiate( [  snde.math_para
                                                                 False,
                                                                 False,
                                                                 snde.math_definition("accumulator fortran concat definition"),
+                                                                [],
                                                                 None)
 recdb.add_math_function(transact,accumulator_fortran_concat,False)
 
@@ -80,6 +83,7 @@ accumulator_c_concat = snde.accumulate_once.instantiate(        [ snde.math_para
                                                                 False,
                                                                 False,
                                                                 snde.math_definition("accumulator c concat definition"),
+                                                                [],
                                                                 None)
 recdb.add_math_function(transact,accumulator_c_concat ,False)
 
@@ -99,6 +103,7 @@ bscan = snde.accumulate_once.instantiate(		        [ snde.math_parameter_recordi
                                                                 False,
                                                                 False,
                                                                 snde.math_definition("accumulator bscan definition"),
+                                                                [],
                                                                 None)
 recdb.add_math_function(transact,bscan ,False)
 
@@ -113,6 +118,7 @@ cscan = snde.accumulate_once.instantiate(		        [ snde.math_parameter_recordi
                                                                 False,
                                                                 False,
                                                                 snde.math_definition("accumulator cscan definition"),
+                                                                [],
                                                                 None)
 recdb.add_math_function(transact,cscan ,False)
 
