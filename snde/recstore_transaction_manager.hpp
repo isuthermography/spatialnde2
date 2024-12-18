@@ -1,5 +1,10 @@
+#ifndef SNDE_RECSTORE_TRANSACTION_MANAGER_HPP
+#define SNDE_RECSTORE_TRANSACTION_MANAGER_HPP
 #include <chrono>
 
+#ifdef SNDE_PYTHON_SUPPORT_ENABLED
+#include <Python.h>
+#endif
 
 namespace snde {
 
@@ -50,6 +55,12 @@ namespace snde {
     {
       throw snde_error("Invalid abstract base class comparison");
     }
+#ifdef SNDE_PYTHON_SUPPORT_ENABLED
+    virtual PyObject *Py_Downcast()
+    {
+      return nullptr;
+    }
+#endif
   };
 
   class measurement_time_ptr_less {
@@ -342,3 +353,5 @@ namespace snde {
   };
 
 };
+
+#endif //SNDE_RECSTORE_TRANSACTION_MANAGER_HPP

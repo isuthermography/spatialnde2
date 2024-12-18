@@ -44,7 +44,11 @@ snde_rawaccessible(snde::timed_transaction);
 #include "snde/recstore_transaction_manager.hpp"
 %}
 
-
+%typemap(out) PyObject* snde::measurement_time::Py_Downcast {
+  $result=$1;
+  Py_INCREF($result);
+  director = nullptr; // disable ownership release
+ }
 namespace snde {
 
   class ordered_transaction;
@@ -71,6 +75,7 @@ namespace snde {
     virtual const bool operator>(const std::shared_ptr<measurement_time> &rhs);
 
     virtual const bool operator>=(const std::shared_ptr<measurement_time> &rhs);
+    virtual PyObject *Py_Downcast();
   };
 #if SWIG_VERSION >= 0x040100 // Directors disabled for swig older than 4.1.0 because of uncompilable code
   %feature("director") measurement_clock;
