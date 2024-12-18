@@ -190,7 +190,7 @@ namespace snde {
     }); 
   }
 
-  SNDE_API std::shared_ptr<math_function> dexela2923_image_transform_function=define_dexela2923_image_transform_function();
+  SNDE_OCL_API std::shared_ptr<math_function> dexela2923_image_transform_function=define_dexela2923_image_transform_function();
   
   static int registered_dexela2923_image_transform_function = register_math_function(dexela2923_image_transform_function);
   
