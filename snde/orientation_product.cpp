@@ -26,7 +26,8 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							3*sizeof(snde_orientation3), // data_bytes for transfer
 							(50.0), // flops
 							1, // max effective cpu cores
@@ -93,14 +94,14 @@ namespace snde {
   
   std::shared_ptr<math_function> define_spatialnde2_const_orientation_product_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.const_orientation_product",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<const_orientation_product>(rss,inst);
     }); 
   }
   
   SNDE_API std::shared_ptr<math_function> const_orientation_product_function = define_spatialnde2_const_orientation_product_function();
   
-  static int registered_const_orientation_product_function = register_math_function("spatialnde2.const_orientation_product",const_orientation_product_function);
+  static int registered_const_orientation_product_function = register_math_function(const_orientation_product_function);
 
 
 
@@ -121,7 +122,8 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							3*sizeof(snde_orientation3), // data_bytes for transfer
 							(50.0), // flops
 							1, // max effective cpu cores
@@ -196,14 +198,14 @@ namespace snde {
   
   std::shared_ptr<math_function> define_spatialnde2_orientation_const_product_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.orientation_const_product",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<orientation_const_product>(rss,inst);
     }); 
   }
   
   SNDE_API std::shared_ptr<math_function> orientation_const_product_function = define_spatialnde2_orientation_const_product_function();
   
-  static int registered_orientation_const_product_function = register_math_function("spatialnde2.orientation_const_product",orientation_const_product_function);
+  static int registered_orientation_const_product_function = register_math_function(orientation_const_product_function);
 
 
 
@@ -227,7 +229,8 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							3*sizeof(snde_orientation3), // data_bytes for transfer
 							(50.0), // flops
 							1, // max effective cpu cores
@@ -295,14 +298,14 @@ namespace snde {
   
   std::shared_ptr<math_function> define_spatialnde2_orientation_rec_product_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.orientation_rec_product",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<orientation_rec_product>(rss,inst);
     }); 
   }
   
   SNDE_API std::shared_ptr<math_function> orientation_rec_product_function = define_spatialnde2_orientation_rec_product_function();
   
-  static int registered_orientation_rec_product_function = register_math_function("spatialnde2.orientation_rec_product",orientation_rec_product_function);
+  static int registered_orientation_rec_product_function = register_math_function(orientation_rec_product_function);
 
   
 
@@ -324,7 +327,8 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							3*sizeof(snde_orientation3), // data_bytes for transfer
 							(50.0), // flops
 							1, // max effective cpu cores
@@ -384,14 +388,14 @@ namespace snde {
   
   std::shared_ptr<math_function> define_spatialnde2_pose_follower_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.pose_follower",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<pose_follower>(rss,inst);
     }); 
   }
   
   SNDE_API std::shared_ptr<math_function> pose_follower_function = define_spatialnde2_pose_follower_function();
   
-  static int registered_pose_follower_function = register_math_function("spatialnde2.pose_follower",pose_follower_function);
+  static int registered_pose_follower_function = register_math_function(pose_follower_function);
 
 
   

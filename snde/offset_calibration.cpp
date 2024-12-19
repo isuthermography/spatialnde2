@@ -203,7 +203,8 @@ namespace snde {
 
 	  std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	    {
-	      std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	      std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							    0, //metadata_bytes 
 							    0, // data_bytes for transfer
 							    0.0, // flops
 							    1, // max effective cpu cores
@@ -269,7 +270,8 @@ namespace snde {
 
 	  std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	    {
-	      std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	      std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							    0, //metadata_bytes 
 							    0, // data_bytes for transfer
 							    0.0, // flops
 							    1, // max effective cpu cores
@@ -543,7 +545,7 @@ namespace snde {
     
   std::shared_ptr<math_function> define_spatialnde2_offset_calibration_function()
   {
-    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) -> std::shared_ptr<executing_math_function> {
+    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>("snde.offset_calibration",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) -> std::shared_ptr<executing_math_function> {
 	std::shared_ptr<offset_calibration> execfunc =  std::make_shared<offset_calibration>(rss,inst);
 
 	return execfunc;
@@ -557,7 +559,7 @@ namespace snde {
   
   SNDE_API std::shared_ptr<math_function> offset_calibration_function = define_spatialnde2_offset_calibration_function();
   
-  static int registered_offset_calibration_function = register_math_function("spatialnde2.offset_calibration",offset_calibration_function);
+  static int registered_offset_calibration_function = register_math_function(offset_calibration_function);
   
   
 

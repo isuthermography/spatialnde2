@@ -68,7 +68,8 @@ namespace snde {
 
     virtual std::shared_ptr<std::weak_ptr<recording_set_state>> applied_rss();
 
-    virtual void perform_notify()=0; // will be called once ALL criteria are satisfied. May be called in any thread or context; must return quickly. Shouldn't do more than acquire a non-heavily-contended lock and perform a simple operation. NOTE: WILL NEED TO SPECIFY WHAT EXISTING LOCKS IF ANY MIGHT BE HELD WHEN THIS IS CALLED
+    virtual void perform_notify()=0; // will be called once ALL criteria are satisfied. May be called in any thread or context; must return quickly. Shouldn't do more than acquire a non-heavily-contended lock and perform a simple operation. NOTE: WILL NEED TO SPECIFY WHAT EXISTING LOCKS IF ANY MIGHT BE HELD WHEN THIS IS CALLED. Specifically, transaction_manager locks may be held because this can be called inside _realize_transaction().
+ 
 
     // These next three methods are called when one of the criteria has been satisifed
     virtual void notify_metadataonly(const std::string &channelpath); // notify this notifier that the given mdonly channel has satisified metadataonly (not usually modified by subclass)
@@ -89,7 +90,7 @@ namespace snde {
 
     virtual std::shared_ptr<channel_notify> notify_copier(); // default implementation throws a snde_error. Derived classes should use channel_notify(criteria) superclass constructor
 
-    virtual void apply_to_transaction(std::shared_ptr<transaction> trans);  // apply this notification process to the globalrevision that will or has arisen from a particular transaction. WARNING: May trigger the notification immediately
+    virtual void apply_to_transaction(std::shared_ptr<transaction> trans);  // apply this notification process to the globalrevision that will or has arisen from a particular transaction. WARNING: May trigger the notification immediately. If you apply_to_transaction with no criteria, you will get notified when the rss is available
 
     virtual void apply_to_rss(std::shared_ptr<recording_set_state> rss); // apply this notification process to a particular recording_set_state. WARNING: May trigger the notification immediately
   };
@@ -117,7 +118,7 @@ namespace snde {
   public:
     //std::shared_ptr<std::promise<bool>> _promise;  // bool is true if the wait was interrupted e.g. by the interrupt() method. Atomic shared_ptr; use promise() accessor. 
 
-    // After construction, need to call .apply_to_rss() method!!!
+     // After construction, need to call .apply_to_rss() or .apply_to_transaction() method!!! ... if you apply_to_transaction with no criteria, you will get notified when the rss is available.
     promise_channel_notify(const std::vector<std::string> &mdonly_channels,const std::vector<std::string> &ready_channels,bool recordingset_complete);
     promise_channel_notify(const channel_notification_criteria &criteria_to_copy);
     
@@ -135,8 +136,8 @@ namespace snde {
     void interrupt();
 
   };
-  
 
+  
   
   class monitor_globalrevs /* : public std::enable_shared_from_this<monitor_globalrevs> */{
     // created by recdatabase::start_monitoring_globalrevs()

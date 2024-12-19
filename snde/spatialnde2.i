@@ -1,10 +1,11 @@
 /* SWIG interface for spatialnde2 */ 
 // swig -c++ -python spatialnde2.i
- 
-%module spatialnde2
+  
+%module(directors="1") spatialnde2
 
 %pythonbegin %{
 import sys
+import copy
 %}
 
 //%pythoncode %{
@@ -35,24 +36,47 @@ typedef unsigned long long uint64_t;
 
 
 // Exception handling
+// on non-win32 we only catch our own errors
+#ifndef WIN32
 %exception {
   try {
     $action
+  } catch (const snde::snde_indexerror &serr) {
+    PyErr_SetString(snde_indexerror_exc,serr.what());
+    SWIG_fail;
+  }catch (const snde::snde_stopiteration &serr) {
+    PyErr_SetString(snde_stopiteration_exc,serr.what());
+    SWIG_fail;
   } catch (const snde::snde_error &serr) {
     PyErr_SetString(snde_error_exc,serr.what());
     SWIG_fail;
   }
 }
+#endif
 
+#ifdef WIN32
+// on WIN32, unhandled exceptions can be very mysterious bugs
+// to track down because they may just cause it to silently crash.
+// On other platforms, we don't want to catch these exceptions
+// because it makes it much harder to find the problems.
 %exception {
   try {
     $action
+  } catch (const snde::snde_indexerror &serr) {
+    PyErr_SetString(snde_indexerror_exc,serr.what());
+    SWIG_fail;
+  } catch (const snde::snde_stopiteration &serr) {
+    PyErr_SetString(snde_stopiteration_exc,serr.what());
+    SWIG_fail;
+  } catch (const snde::snde_error &serr) {
+    PyErr_SetString(snde_error_exc,serr.what());
+    SWIG_fail;
   } catch (const std::exception &serr) {
     PyErr_SetString(PyExc_RuntimeError,serr.what());
     SWIG_fail;
   }
 }
-
+#endif
 
 
 // Perform includes
@@ -75,10 +99,11 @@ typedef unsigned long long uint64_t;
 %include "std_deque.i"
 %include "std_except.i"
 %include "std_pair.i"
+%include "std_set.i"
 %include "python/std_unordered_map.i"
 %include "std_multimap.i"
 %include "std_shared_ptr.i"
- 
+%include "attribute.i" 
 
 //numpy
 %include "numpy.i"
@@ -178,12 +203,16 @@ namespace snde {
 
 %template(shared_string_vector) std::vector<std::shared_ptr<std::string>>;
 
+%template(string_set) std::set<std::string>;
+
 %{
 #define SWIG_FILE_WITH_INIT
   //#include "snde/snde_error.hpp"
   
 
   static PyObject *snde_error_exc;
+  static PyObject *snde_indexerror_exc;
+  static PyObject *snde_stopiteration_exc;
 
   namespace snde {
     static std::unordered_map<unsigned,PyArray_Descr*> rtn_numpytypemap;
@@ -371,6 +400,7 @@ template <typename T>
 }
 
 
+
 %template(StringPair) std::pair<std::string,std::string>;
 %shared_ptr(std::vector<std::pair<std::string,std::string>>);
 %template(StringPairVector) std::vector<std::pair<std::string,std::string>>;
@@ -404,9 +434,9 @@ template <typename T>
 // types of the same size, so if longs are 64 bit better for us
 // ust to use "unsigned long"
 #ifdef SIZEOF_LONG_IS_8
-%template(StringUnsignedPair) std::pair<std::string,unsigned long>;
+%template(StringUnsigned64Pair) std::pair<std::string,unsigned long>;
 %shared_ptr(std::vector<std::pair<std::string,unsigned long>>);
-%template(StringUnsignedPairVector) std::vector<std::pair<std::string,unsigned long>>;
+%template(StringUnsigned64PairVector) std::vector<std::pair<std::string,unsigned long>>;
 %extend std::vector<std::pair<std::string,unsigned long>> {
   std::string __str__()
   {
@@ -432,9 +462,9 @@ template <typename T>
 
 
 #else
-%template(StringUnsignedPair) std::pair<std::string,unsigned long long >;
+%template(StringUnsigned64Pair) std::pair<std::string,unsigned long long >;
 %shared_ptr(std::vector<std::pair<std::string,unsigned long long>>);
-%template(StringUnsignedPairVector) std::vector<std::pair<std::string,unsigned long long>>;
+%template(StringUnsigned64PairVector) std::vector<std::pair<std::string,unsigned long long>>;
 %extend std::vector<std::pair<std::string,unsigned long long>> {
   std::string __str__()
   {
@@ -457,6 +487,20 @@ template <typename T>
     return strval;
   }
 }
+#endif
+
+
+#ifdef SIZEOF_LONG_IS_8
+// regular unsigned are different from Unsigned64
+%template(StringUnsignedPair) std::pair<std::string,unsigned>;
+//%shared_ptr(std::pair<std::string,unsigned>);
+%template(StringUnsignedPairVector) std::vector<std::pair<std::string,unsigned>>;
+#else
+// regular unsigned are the same as Unsigned64
+%pythoncode %{
+  StringUnsignedPair=StringUnsigned64Pair
+  StringUnsignedPairVector=StringUnsigned64PairVector
+%}
 #endif
 
 %template(shared_ptr_string) std::shared_ptr<std::string>;
@@ -519,6 +563,10 @@ template <typename T>
 %include "utils.i"
 %include "ande_file.i"
 %include "polynomial_transform.i"
+%include "geometry_processing.i"
+%include "recstore_transaction_manager.i"
+%include "dexela2923_image_transform.i"
+%include "bad_pixel_correction.i"
 
 #ifdef SNDE_OPENCL
 %include "opencl_utils.i"
@@ -556,6 +604,14 @@ template <typename T>
   snde_error_exc = PyErr_NewException("spatialnde2.snde_error",NULL,NULL);
   Py_INCREF(snde_error_exc);
   PyModule_AddObject(m,"snde_error",snde_error_exc);
+
+  snde_indexerror_exc = PyErr_NewException("spatialnde2.snde_indexerror",PyExc_IndexError,NULL);
+  Py_INCREF(snde_indexerror_exc);
+  PyModule_AddObject(m,"snde_indexerror",snde_indexerror_exc);
+
+  snde_stopiteration_exc = PyErr_NewException("spatialnde2.snde_stopiteration",PyExc_StopIteration,NULL);
+  Py_INCREF(snde_stopiteration_exc);
+  PyModule_AddObject(m,"snde_stopiteration",snde_stopiteration_exc);
   
   PyObject *Globals = PyDict_New(); // for creating numpy dtypes
   PyObject *NumpyModule = PyImport_ImportModule("numpy");
@@ -622,7 +678,7 @@ template <typename T>
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD2,(PyArray_Descr *)coord2_dtype);
   PyObject *cmat23_dtype = PyRun_String("dtype([('row', dtype([('coord', np.float64, 3), ]) , 2), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_CMAT23,(PyArray_Descr *)cmat23_dtype);
-  PyObject *orientation3_dtype = PyRun_String("dtype([('offset', np.float64, 4), ('quat', np.float64,4) ])",Py_eval_input,Globals,Globals);
+  PyObject *orientation3_dtype = PyRun_String("dtype([('quat', np.float64,4),('offset', np.float64, 4),  ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_ORIENTATION3,(PyArray_Descr *)orientation3_dtype);
 #else
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD,PyArray_DescrFromType(NPY_FLOAT32));
@@ -635,7 +691,7 @@ template <typename T>
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_COORD2,(PyArray_Descr *)coord2_dtype);
   PyObject *cmat23_dtype = PyRun_String("dtype([('row', dtype([('coord', np.float32, 3), ]) , 2), ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_CMAT23,(PyArray_Descr *)cmat23_dtype);
-  PyObject *orientation3_dtype = PyRun_String("dtype([('offset', np.float32, 4), ('quat', np.float32,4) ])",Py_eval_input,Globals,Globals);
+  PyObject *orientation3_dtype = PyRun_String("dtype([('quat', np.float32,4),('offset', np.float32, 4),  ])",Py_eval_input,Globals,Globals);
   snde::rtn_numpytypemap.emplace(SNDE_RTN_SNDE_ORIENTATION3,(PyArray_Descr *)orientation3_dtype);
 
   // !!!!!***** This needs to be adjusted to consider the various possible sizes for snde_index and snde_coord
@@ -671,5 +727,16 @@ template <typename T>
   Py_DECREF(np_dtype);
   Py_DECREF(Globals);
 
+%}
+
+%pythoncode %{
+  try:
+    import importlib.metadata
+    __version__ = importlib.metadata.version("spatialnde2")
+    pass
+  except ImportError:
+    # Python3.7 may not have importlib.metadata
+    pass
+  
 %}
 

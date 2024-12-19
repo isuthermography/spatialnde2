@@ -6,7 +6,7 @@ namespace snde {
 
 
   
-  typedef std::function<void(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)> geomproc_instantiator;
+  typedef std::function<void(std::shared_ptr<active_transaction> trans,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)> geomproc_instantiator;
 
   
   int register_geomproc_math_function(std::string tagname,geomproc_instantiator instantiator);
@@ -28,9 +28,9 @@ namespace snde {
   // tags (which are removed from the set). NOTE: Must be called while still in the transaction
   // in which the geometry is defined and loaded, and before meshedcurpart/texedcurpart are marked
   // as "data ready"
-  void instantiate_geomproc_math_functions(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom, std::shared_ptr<meshed_part_recording> meshedcurpart,std::shared_ptr<meshed_parameterization_recording> meshedcurparam,std::shared_ptr<textured_part_recording> texedcurpart,std::unordered_set<std::string> *processing_tags);
+  void instantiate_geomproc_math_functions(std::shared_ptr<active_transaction> trans,std::shared_ptr<loaded_part_geometry_recording> loaded_geom, std::shared_ptr<meshed_part_recording> meshedcurpart,std::shared_ptr<meshed_parameterization_recording> meshedcurparam,std::shared_ptr<textured_part_recording> texedcurpart,std::unordered_set<std::string> *processing_tags);
 
-  void load_geom_landmarks(std::shared_ptr<recdatabase> recdb,std::shared_ptr<transaction> trans, std::string landmarks_filename,std::shared_ptr<loaded_part_geometry_recording> loaded_geom, std::string ownername, void* owner_id);
+  void load_geom_landmarks(std::shared_ptr<recdatabase> recdb,std::shared_ptr<active_transaction> trans, std::string landmarks_filename,std::shared_ptr<loaded_part_geometry_recording> loaded_geom, std::string ownername);
 
   
 };

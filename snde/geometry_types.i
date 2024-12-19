@@ -49,8 +49,9 @@ typedef struct _snde_coord4 {
 
 typedef struct _snde_orientation3 {
   /* for point p, orientation represents q p q' + o  */
-  snde_coord4 offset; // 4th coordinate of offset always zero
-  snde_coord4 quat; // normalized quaternion ... represented as , i (x) component, j (y) component, k (z) component, real (w) component
+  snde_coord4 quat; // normalized quaternion ... represented as real (w) component, i (x) component, j (y) component, k (z) component, 
+  snde_coord4 offset; // 4th coordinate of offset always one
+  
 } snde_orientation3;
 
 // give structure a constructor per
@@ -228,8 +229,9 @@ ct_snde_bool=ctypes.c_char
 nt_snde_coord = np.dtype(np.float32)
 nt_snde_imagedata = np.dtype(np.float32)
 
-nt_snde_orientation3=np.dtype([("offset",nt_snde_coord,4), # fourth coordinate always zero
-			       ("quat",nt_snde_coord,4)])
+nt_snde_orientation3=np.dtype([("quat",nt_snde_coord,4),
+				 ("offset",nt_snde_coord,4), # fourth coordinate always one
+			       ])
   
 nt_snde_coord3=np.dtype((nt_snde_coord,3))
 nt_snde_coord2=np.dtype((nt_snde_coord,2))

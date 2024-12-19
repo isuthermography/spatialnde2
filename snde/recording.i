@@ -9,7 +9,7 @@ struct snde_recording_base {
   // Note that in a threaded environment you can't safely read the state without an assocated lock, or you can read a mirrored atomic state variable, such as in class recording. 
   
   char *name; // separate malloc(); must match full channelpath
-  uint64_t revision;
+  uint64_t revision; // assigned in _realize_transaction(). If not yet assigned it will have the value SNDE_REVISION_INVALID
   int state; // see SNDE_RECS... defines below
 
   snde_immutable_metadata *metadata; 
@@ -25,6 +25,7 @@ struct snde_recording_base {
   
 };
 
+#define SNDE_REVISION_INVALID ((uint64_t)(~((uint64_t)0)))
 
 // note distinction between states (SNDE_RECS_XXXX) and flags (SNDE_RECF_XXXX) 
 #define SNDE_RECS_INITIALIZING 0
@@ -147,3 +148,5 @@ struct snde_multi_ndarray_recording {
 #define SNDE_RTN_SNDE_KDNODE 59
 #define SNDE_RTN_SNDE_BOOL 60
 #define SNDE_RTN_SNDE_COMPLEXIMAGEDATA 61
+
+#define SNDE_RTN_CONSTRUCTIBLEMETADATA 62 // not usable for recordings, but used internally for math parameters.

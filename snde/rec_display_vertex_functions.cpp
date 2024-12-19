@@ -65,14 +65,16 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord3) + numtris*sizeof(snde_trivertnormals), // data_bytes for transfer
 							numtris*(10), // flops
 							1, // max effective cpu cores
 							1), // useful_cpu_cores (min # of cores to supply
 	  
 #ifdef SNDE_OPENCL
-	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+	  std::make_shared<compute_resource_option_opencl>(std::set<std::string>(), // no tags
+							   0, //metadata_bytes
 							   numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord3) + numtris*sizeof(snde_trivertnormals),
 							   0, // cpu_flops
 							   numtris*(10), // gpuflops
@@ -218,13 +220,13 @@ namespace snde {
   
   std::shared_ptr<math_function> define_meshedpart_vertexarray_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.meshedpart_vertexarray",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<vertexarray_function>(rss,inst);
     });
     
   }
   
-  static int registered_vertexarray_function = register_math_function("spatialnde2.meshedpart_vertexarray",define_meshedpart_vertexarray_function());
+  static int registered_vertexarray_function = register_math_function(define_meshedpart_vertexarray_function());
   
 
 
@@ -274,14 +276,16 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord2), // data_bytes for transfer
 							numtris*(10), // flops
 							1, // max effective cpu cores
 							1), // useful_cpu_cores (min # of cores to supply
 	  
 #ifdef SNDE_OPENCL
-	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+	  std::make_shared<compute_resource_option_opencl>(std::set<std::string>(), // no tags
+							   0, //metadata_bytes
 							   numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord2) ,
 							   0, // cpu_flops
 							   numtris*(10), // gpuflops
@@ -428,12 +432,12 @@ namespace snde {
   std::shared_ptr<math_function> define_meshedparameterization_texvertexarray_function()
   {
 
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.meshedparameterization_texvertexarray",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<texvertexarray_function>(rss,inst);
     });
   }
   
-  static int registered_texvertexarray_function = register_math_function("spatialnde2.meshedparameterization_texvertexarray",define_meshedparameterization_texvertexarray_function());
+  static int registered_texvertexarray_function = register_math_function(define_meshedparameterization_texvertexarray_function());
 
 
 

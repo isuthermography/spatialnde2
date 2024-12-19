@@ -5,7 +5,23 @@
 #include "snde/recstore_setup_opencl.hpp"
 
 namespace snde {
-  std::pair<cl::Context,std::vector<cl::Device>> setup_opencl(std::shared_ptr<recdatabase> recdb,bool primary_doubleprec, size_t max_parallel, const char *primary_platform_prefix_or_null)
+  static void add_opencl_device_tags(cl_device_type devtype, std::set<std::string> *tags)
+  {
+  
+    if (devtype & CL_DEVICE_TYPE_GPU) {
+      tags->emplace("GPU");
+    }
+    if (devtype & CL_DEVICE_TYPE_ACCELERATOR) {
+      tags->emplace("ACCELERATOR");
+    }
+    if (devtype & CL_DEVICE_TYPE_CPU) {
+      tags->emplace("CPU");
+    }
+  }
+  
+
+  
+  std::pair<cl::Context,std::vector<cl::Device>> setup_opencl(std::shared_ptr<recdatabase> recdb,std::set<std::string> tags,bool primary_doubleprec, size_t max_parallel, const char *primary_platform_prefix_or_null)
   {
     cl::Context context,context_dbl;
     std::vector<cl::Device> devices,devices_dbl;
@@ -55,8 +71,13 @@ namespace snde {
       
       // Each OpenCL device can impose an alignment requirement...
       add_opencl_alignment_requirements(recdb,devices);
+      std::set<std::string> primary_tags(tags);
+      primary_tags.emplace("OpenCL_Primary");
+      if (devices.size() > 0) {
+	add_opencl_device_tags(devices.at(0).getInfo<CL_DEVICE_TYPE>(),&primary_tags);
+      }
       
-      recdb->compute_resources->add_resource(std::make_shared<available_compute_resource_opencl>(recdb,recdb->compute_resources->cpu,context,devices,max_parallel)); // limit to max_parallel parallel jobs per GPU to limit contention
+      recdb->compute_resources->add_resource(std::make_shared<available_compute_resource_opencl>(recdb,primary_tags,recdb->compute_resources->cpu,context,devices,max_parallel)); // limit to max_parallel parallel jobs per GPU to limit contention
     }
     
     if (!opencl_check_doubleprec(devices)) {
@@ -70,7 +91,12 @@ namespace snde {
 	fprintf(stderr,"OpenCL Fallback:\n%s\n\n",clmsgs_dbl.c_str());
 	
 	add_opencl_alignment_requirements(recdb,devices_dbl);
-	recdb->compute_resources->add_resource(std::make_shared<available_compute_resource_opencl>(recdb,recdb->compute_resources->cpu,context_dbl,devices_dbl,max_parallel)); // limit to max_parallel parallel jobs per GPU to limit contention
+	std::set<std::string> fallback_tags(tags);
+	fallback_tags.emplace("OpenCL_Fallback");
+	if (devices.size() > 0) {
+	  add_opencl_device_tags(devices.at(0).getInfo<CL_DEVICE_TYPE>(),&fallback_tags);
+	}
+	recdb->compute_resources->add_resource(std::make_shared<available_compute_resource_opencl>(recdb,fallback_tags,recdb->compute_resources->cpu,context_dbl,devices_dbl,max_parallel)); // limit to max_parallel parallel jobs per GPU to limit contention
       }
     }
   

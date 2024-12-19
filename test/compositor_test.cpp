@@ -153,10 +153,10 @@ int main(int argc, char **argv)
 
 
   recdb=std::make_shared<snde::recdatabase>();
-  setup_cpu(recdb,std::thread::hardware_concurrency());
+  setup_cpu(recdb,{},std::thread::hardware_concurrency());
   //#warning "GPU acceleration temporarily disabled for viewer."
 #ifdef SNDE_OPENCL
-  setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
+  setup_opencl(recdb,{},false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
 #endif // SNDE_OPENCL
   setup_storage_manager(recdb);
   std::shared_ptr<graphics_storage_manager> graphman=std::make_shared<graphics_storage_manager>("/",recdb->lowlevel_alloc,recdb->alignment_requirements,recdb->lockmgr,1e-8,2e9);
@@ -169,14 +169,14 @@ int main(int argc, char **argv)
   std::shared_ptr<snde::active_transaction> transact = recdb->start_transaction(); // Transaction RAII holder
 
   
-  std::shared_ptr<loaded_part_geometry_recording> part_recording = x3d_load_geometry(recdb,graphman,argv[1],0,"main",(void *)&main,"/loaded_x3d/",nullptr, { /* "reindex_vertices", */ "reindex_tex_vertices" } ); 
+  std::shared_ptr<loaded_part_geometry_recording> part_recording = x3d_load_geometry(transact,graphman,argv[1],0,"main","/loaded_x3d/",nullptr, { /* "reindex_vertices", */ "reindex_tex_vertices" } ); 
   
-  pngchan_config=std::make_shared<snde::channelconfig>("/png channel", "main", (void *)&main,false);
-  std::shared_ptr<snde::channel> pngchan = recdb->reserve_channel(pngchan_config);
+  pngchan_config=std::make_shared<snde::channelconfig>("/png channel", "main",false);
+  std::shared_ptr<snde::reserved_channel> pngchan = recdb->reserve_channel(transact,pngchan_config);
 
-  png_rec = create_ndarray_ref(recdb,pngchan,(void *)&main,SNDE_RTN_UNASSIGNED);
+  png_rec = create_ndarray_ref(transact,pngchan,SNDE_RTN_UNASSIGNED);
 
-  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
+  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction()->globalrev_available();
   ReadPNG(png_rec,argv[2]);
   png_rec->rec->mark_metadata_done();
   png_rec->rec->mark_data_ready();

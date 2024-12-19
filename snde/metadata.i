@@ -175,6 +175,12 @@ public:
       
     }
 
+    std::string __repr__()
+    {
+      return self->to_string();
+      
+    }
+
   };
   
   static std::shared_ptr<constructible_metadata> MergeMetadata(std::shared_ptr<const constructible_metadata> baseline_md,std::shared_ptr<const constructible_metadata> override_md)

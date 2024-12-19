@@ -15,10 +15,14 @@
 #define QUATERNION_INLINE  inline
 #endif
 
+#define SNDE_QUAT_REAL 0
+#define SNDE_QUAT_I 1
+#define SNDE_QUAT_J 2
+#define SNDE_QUAT_K 3
 
 static QUATERNION_INLINE void snde_null_orientation3(snde_orientation3 *out)
 {
-  snde_orientation3 null_orientation = { { { 0.0f, 0.0f, 0.0f, 0.0f } }, { {0.0f, 0.0f, 0.0f, 1.0f} } }; /* null offset vector and unit (null) quaternion */
+  snde_orientation3 null_orientation = { { { 1.0f, 0.0f, 0.0f, 0.0f } }, { {0.0f, 0.0f, 0.0f, 1.0f} } }; /* null offset vector and unit (null) quaternion */
   *out=null_orientation;
 }
 
@@ -39,7 +43,7 @@ static QUATERNION_INLINE void snde_invalid_orientation3(snde_orientation3 *out)
 
 static QUATERNION_INLINE snde_bool quaternion_equal(const snde_coord4 a, const snde_coord4 b)
 {
-  return a.coord[0]==b.coord[0] && a.coord[1]==b.coord[1] && a.coord[2]==b.coord[2] && a.coord[3]==b.coord[3];
+  return (a.coord[0]==b.coord[0] && a.coord[1]==b.coord[1] && a.coord[2]==b.coord[2] && a.coord[3]==b.coord[3]) || (a.coord[0]==-b.coord[0] && a.coord[1]==-b.coord[1] && a.coord[2]==-b.coord[2] && a.coord[3]==-b.coord[3]);
 }
 
 static QUATERNION_INLINE snde_bool orientation3_equal(const snde_orientation3 a, const snde_orientation3 b)
@@ -64,12 +68,11 @@ static QUATERNION_INLINE void quaternion_normalize(const snde_coord4 unnormalize
   
 static QUATERNION_INLINE void quaternion_product(const snde_coord4 quat1, const snde_coord4 quat2,snde_coord4 *product)
 {
-    /* quaternion coordinates are i, j, k, real part */
-  product->coord[0]=quat1.coord[3]*quat2.coord[0] + quat1.coord[0]*quat2.coord[3] + quat1.coord[1]*quat2.coord[2] - quat1.coord[2]*quat2.coord[1];
-  product->coord[1]=quat1.coord[3]*quat2.coord[1] + quat1.coord[1]*quat2.coord[3] - quat1.coord[0]*quat2.coord[2] + quat1.coord[2]*quat2.coord[0];
-  product->coord[2]=quat1.coord[3]*quat2.coord[2] + quat1.coord[2]*quat2.coord[3] + quat1.coord[0]*quat2.coord[1] - quat1.coord[1]*quat2.coord[0];
-  product->coord[3]=quat1.coord[3]*quat2.coord[3] - quat1.coord[0]*quat2.coord[0] - quat1.coord[1]*quat2.coord[1] - quat1.coord[2]*quat2.coord[2];
-  
+    /* quaternion coordinates are real part, i, j, k */
+  product->coord[SNDE_QUAT_I]=quat1.coord[SNDE_QUAT_REAL]*quat2.coord[SNDE_QUAT_I] + quat1.coord[SNDE_QUAT_I]*quat2.coord[SNDE_QUAT_REAL] + quat1.coord[SNDE_QUAT_J]*quat2.coord[SNDE_QUAT_K] - quat1.coord[SNDE_QUAT_K]*quat2.coord[SNDE_QUAT_J];
+  product->coord[SNDE_QUAT_J]=quat1.coord[SNDE_QUAT_REAL]*quat2.coord[SNDE_QUAT_J] + quat1.coord[SNDE_QUAT_J]*quat2.coord[SNDE_QUAT_REAL] - quat1.coord[SNDE_QUAT_I]*quat2.coord[SNDE_QUAT_K] + quat1.coord[SNDE_QUAT_K]*quat2.coord[SNDE_QUAT_I];
+  product->coord[SNDE_QUAT_K]=quat1.coord[SNDE_QUAT_REAL]*quat2.coord[SNDE_QUAT_K] + quat1.coord[SNDE_QUAT_K]*quat2.coord[SNDE_QUAT_REAL] + quat1.coord[SNDE_QUAT_I]*quat2.coord[SNDE_QUAT_J] - quat1.coord[SNDE_QUAT_J]*quat2.coord[SNDE_QUAT_I];
+  product->coord[SNDE_QUAT_REAL]=quat1.coord[SNDE_QUAT_REAL]*quat2.coord[SNDE_QUAT_REAL] - quat1.coord[SNDE_QUAT_I]*quat2.coord[SNDE_QUAT_I] - quat1.coord[SNDE_QUAT_J]*quat2.coord[SNDE_QUAT_J] - quat1.coord[SNDE_QUAT_K]*quat2.coord[SNDE_QUAT_K];
 }
 
 
@@ -86,42 +89,24 @@ static QUATERNION_INLINE void quaternion_inverse(const snde_coord4 quat, snde_co
   {
     /* quaternion coordinates are i, j, k, real part */
 
-    quaternion_normalize(quat,inverse);
+    snde_coord normsq;
+  
+    normsq=(pow(quat.coord[0],2) + pow(quat.coord[1],2) + pow(quat.coord[2],2)+pow(quat.coord[3],2));
+  
 
-    // quaternion inverse is normalized with the i,j,k terms negated
-    inverse->coord[0]=-inverse->coord[0];
-    inverse->coord[1]=-inverse->coord[1];
-    inverse->coord[2]=-inverse->coord[2];
+    // quaternion inverse is the conjugate (the i,j,k terms negated) divided by the square of the magnitude.
+    inverse->coord[0]=quat.coord[0]/normsq;
+    inverse->coord[1]=-quat.coord[1]/normsq;
+    inverse->coord[2]=-quat.coord[2]/normsq;
+    inverse->coord[3]=-quat.coord[3]/normsq;
   }
 
 
 
 static QUATERNION_INLINE void quaternion_apply_vector(const snde_coord4 quat,const snde_coord4 vec,snde_coord4 *product)
-/* assumes quat is normalized, stored as 'i,j,k,w' components */
+/* assumes quat is normalized, stored as 'w,i,j,k' components */
 {
-  //snde_coord matrix[9];
-  
-  ///* first row */
-  //matrix[0]=pow(quat.coord[0],2)-pow(quat.coord[1],2)-pow(quat.coord[2],2)+pow(quat.coord[3],2);
-  //matrix[1]=2.0*(quat.coord[0]*quat.coord[1] - quat.coord[3]*quat.coord[2]);
-  //matrix[2]=2.0*(quat.coord[0]*quat.coord[2] + quat.coord[3]*quat.coord[1]);
-  ///* second row */
-  //matrix[3]=2.0*(quat.coord[0]*quat.coord[1] + quat.coord[3]*quat.coord[2]);
-  //matrix[4]=-pow(quat.coord[0],2) + pow(quat.coord[1],2) - pow(quat.coord[2],2) + pow(quat.coord[3],2);
-  //matrix[5]=2.0*(quat.coord[1]*quat.coord[2] - quat.coord[3]*quat.coord[0]);
-  ///* third row */
-  //matrix[6]=2.0*(quat.coord[0]*quat.coord[2] - quat.coord[3]*quat.coord[1]);
-  //matrix[7]=2.0*(quat.coord[1]*quat.coord[2] + quat.coord[3]*quat.coord[0]);
-  //matrix[8]=-pow(quat.coord[0],2) - pow(quat.coord[1],2) + pow(quat.coord[2],2) + pow(quat.coord[3],2);
-  //
-  //unsigned rowcnt,colcnt;
-  //
-  //for (rowcnt=0;rowcnt < 3; rowcnt++) {
-  //  product->coord[rowcnt]=0;
-  //  for (colcnt=0;colcnt < 3; colcnt++) {
-  //    product->coord[rowcnt] += matrix[rowcnt*3 + colcnt] * vec.coord[colcnt];
-  //  }
-  //}
+ 
 
 
   // quaternion times vector
@@ -135,24 +120,74 @@ static QUATERNION_INLINE void quaternion_apply_vector(const snde_coord4 quat,con
 #endif // __OPENCL_VERSION__
   
   snde_coord vnormsq = normsqvec3(&vec.coord[0]);
+  snde_coord4 quat_vec = {0.0,vec.coord[0],vec.coord[1],vec.coord[2]};
   
-  quaternion_product(quat,vec,&q1_times_v);
+  quaternion_product(quat,quat_vec,&q1_times_v);
   quaternion_inverse(quat,&q1_inverse);
   quaternion_product(q1_times_v,q1_inverse,product);
 
-  // last coordinate of output should calculate to roughly 0
+  // real part of output should calculate to roughly 0
 #ifndef __OPENCL_VERSION__
-  assert(product->coord[3]*product->coord[3] <= 1e-13f*vnormsq);
+  assert(product->coord[SNDE_QUAT_REAL]*product->coord[SNDE_QUAT_REAL] <= 1e-13f*vnormsq);
 #endif
   
-  // ... and be written as exactly 0.
+  
+
+  //move product from starting at the [1] element to starting at the [0] element
+  product->coord[0]=product->coord[1];
+  product->coord[1]=product->coord[2];
+  product->coord[2]=product->coord[3];
+  //result is a vector so last element is 0
   product->coord[3]=0.0f;
+}
+
+static QUATERNION_INLINE void quaternion_apply_position(const snde_coord4 quat,const snde_coord4  pos,snde_coord4 *product)
+/* assumes quat is normalized, stored as 'i,j,k,w' components */
+{
+ 
+
+  snde_coord4 quat_vec;
+
+  // quaternion times vector
+  //   = q1vq1'
+  snde_coord4 q1_times_v;
+  snde_coord4 q1_inverse;
+
+
+#ifndef __OPENCL_VERSION__
+  assert(pos.coord[3]==1.0f);
+#endif // __OPENCL_VERSION__
+  quat_vec.coord[0]=0.0;
+  quat_vec.coord[1]=pos.coord[0];
+  quat_vec.coord[2]=pos.coord[1];
+  quat_vec.coord[3]=pos.coord[2];
+   
+ 
+   
+  
+  snde_coord vnormsq = normsqvec3(&pos.coord[0]);
+  
+  quaternion_product(quat,quat_vec,&q1_times_v);
+  quaternion_inverse(quat,&q1_inverse);
+  quaternion_product(q1_times_v,q1_inverse,product);
+
+  // real part of output should calculate to roughly 0
+#ifndef __OPENCL_VERSION__
+  assert(product->coord[0]*product->coord[0] <= 1e-13f*vnormsq);
+#endif
+  
+  //move product from starting at the [1] element to starting at the [0] element
+  product->coord[0]=product->coord[1];
+  product->coord[1]=product->coord[2];
+  product->coord[2]=product->coord[3];
+  //result is a position so last element is 1
+  product->coord[3]=1.0f;
 }
 
 
 static QUATERNION_INLINE void quaternion_build_rotmtx(const snde_coord4 quat,snde_coord4 *rotmtx /* (array of 3 or 4 coord4's, interpreted as column-major). Does not write 4th column  */ )
 /*
-  assumes quat is normalized, stored as 'i,j,k,w' components
+  assumes quat is normalized, stored as 'w,i,j,k' components
   WARNING: when rotmtx is read out from python, it is a series
   of column vectors each of which is a snde_coord4. To get the
   actual matrix you need to extract the ["coord"] and then
@@ -174,7 +209,7 @@ static QUATERNION_INLINE void quaternion_build_rotmtx(const snde_coord4 quat,snd
 }
 
 static QUATERNION_INLINE void orientation_build_rotmtx(const snde_orientation3 orient,snde_coord4 *rotmtx /* (array of 4 coord4's, interpreted as column-major).  */ )
-/* assumes quat is normalized, stored as 'i,j,k,w' components */
+/* assumes quat is normalized, stored as 'w,i,j,k' components */
 {
   quaternion_build_rotmtx(orient.quat,rotmtx); // still need to do fourth column
 
@@ -188,7 +223,7 @@ static QUATERNION_INLINE void rotmtx_build_orientation(const snde_coord4 *rotmtx
 {
   // offset is easy
   orient->offset = rotmtx[3];
-  orient->offset.coord[3]=0.0f; // always leave last element of offset as zero
+  orient->offset.coord[3]=1.0f; // always leave last element of offset as 1.0
 
   // Figure out quat
   // From https://math.stackexchange.com/questions/893984/conversion-of-rotation-matrix-to-quaternion
@@ -215,15 +250,15 @@ static QUATERNION_INLINE void rotmtx_build_orientation(const snde_coord4 *rotmtx
   if (eta4_sqrt >= eta1_sqrt && eta4_sqrt >= eta2_sqrt && eta4_sqrt >= eta3_sqrt) {
     // eta4_sqrt largest: Use eqs 163, 164
     
-    orient->quat.coord[3]=0.5f*sqrt(eta4_sqrt); // eta4
+    orient->quat.coord[SNDE_QUAT_REAL]=0.5f*sqrt(eta4_sqrt); // eta4
     // In paper, matrix elements indexed (row, column) starting from 1
     // We index (column,row) starting from 0
     // vector part negated
-    orient->quat.coord[0]=-(1.0f/(4.0f*orient->quat.coord[3]))*(rotmtx[2].coord[1]-rotmtx[1].coord[2]); // eta1
+    orient->quat.coord[SNDE_QUAT_I]=-(1.0f/(4.0f*orient->quat.coord[SNDE_QUAT_REAL]))*(rotmtx[2].coord[1]-rotmtx[1].coord[2]); // eta1
 
-    orient->quat.coord[1]=-(1.0f/(4.0f*orient->quat.coord[3]))*(rotmtx[0].coord[2]-rotmtx[2].coord[0]); // eta2
+    orient->quat.coord[SNDE_QUAT_J]=-(1.0f/(4.0f*orient->quat.coord[SNDE_QUAT_REAL]))*(rotmtx[0].coord[2]-rotmtx[2].coord[0]); // eta2
 
-    orient->quat.coord[2]=-(1.0f/(4.0f*orient->quat.coord[3]))*(rotmtx[1].coord[0]-rotmtx[0].coord[1]); // eta3
+    orient->quat.coord[SNDE_QUAT_K]=-(1.0f/(4.0f*orient->quat.coord[SNDE_QUAT_REAL]))*(rotmtx[1].coord[0]-rotmtx[0].coord[1]); // eta3
     
   } else if (eta1_sqrt >= eta3_sqrt && eta1_sqrt >= eta2_sqrt) {
     // eta1_sqrt largest: Use eqs 166
@@ -231,23 +266,23 @@ static QUATERNION_INLINE void rotmtx_build_orientation(const snde_coord4 *rotmtx
     assert(eta1_sqrt >= eta4_sqrt);
 #endif
     
-    orient->quat.coord[0] = 0.5f*sqrt(eta1_sqrt); // eta1
-    orient->quat.coord[1] = (1.0f/(4.0f*orient->quat.coord[0]))*(rotmtx[1].coord[0] + rotmtx[0].coord[1]); // eta2
-    orient->quat.coord[2] = (1.0f/(4.0f*orient->quat.coord[0]))*(rotmtx[2].coord[0] + rotmtx[0].coord[2]); // eta3
+    orient->quat.coord[SNDE_QUAT_I] = 0.5f*sqrt(eta1_sqrt); // eta1
+    orient->quat.coord[SNDE_QUAT_J] = (1.0f/(4.0f*orient->quat.coord[SNDE_QUAT_I]))*(rotmtx[1].coord[0] + rotmtx[0].coord[1]); // eta2
+    orient->quat.coord[SNDE_QUAT_K] = (1.0f/(4.0f*orient->quat.coord[SNDE_QUAT_I]))*(rotmtx[2].coord[0] + rotmtx[0].coord[2]); // eta3
     // real part negated
-    orient->quat.coord[3] = -(1.0f/(4.0f*orient->quat.coord[0]))*(rotmtx[2].coord[1]-rotmtx[1].coord[2]); // eta4
+    orient->quat.coord[SNDE_QUAT_REAL] = -(1.0f/(4.0f*orient->quat.coord[SNDE_QUAT_I]))*(rotmtx[2].coord[1]-rotmtx[1].coord[2]); // eta4
     
   } else if (eta2_sqrt > eta3_sqrt) {
     // eta2_sqrt largest: Use eqs 167
 #ifndef __OPENCL_VERSION__
     assert(eta2_sqrt >= eta4_sqrt && eta2_sqrt >= eta1_sqrt);
 #endif
-    orient->quat.coord[1] = 0.5f*sqrt(eta2_sqrt); // eta2
+    orient->quat.coord[SNDE_QUAT_J] = 0.5f*sqrt(eta2_sqrt); // eta2
 
-    orient->quat.coord[0] = (1.0f/(4.0f*orient->quat.coord[1]))*(rotmtx[0].coord[1]+rotmtx[1].coord[0]); // eta1
-    orient->quat.coord[2] = (1.0f/(4.0f*orient->quat.coord[1]))*(rotmtx[2].coord[1]+rotmtx[1].coord[2]); // eta3
+    orient->quat.coord[SNDE_QUAT_I] = (1.0f/(4.0f*orient->quat.coord[SNDE_QUAT_J]))*(rotmtx[0].coord[1]+rotmtx[1].coord[0]); // eta1
+    orient->quat.coord[SNDE_QUAT_K] = (1.0f/(4.0f*orient->quat.coord[SNDE_QUAT_J]))*(rotmtx[2].coord[1]+rotmtx[1].coord[2]); // eta3
     // real part negated
-    orient->quat.coord[3] = -(1.0f/(4.0f*orient->quat.coord[1]))*(rotmtx[0].coord[2] - rotmtx[2].coord[0]); // eta4
+    orient->quat.coord[SNDE_QUAT_REAL] = -(1.0f/(4.0f*orient->quat.coord[SNDE_QUAT_J]))*(rotmtx[0].coord[2] - rotmtx[2].coord[0]); // eta4
     
   } else {
     // eta3_sqrt largest: Use eqs 168
@@ -255,11 +290,11 @@ static QUATERNION_INLINE void rotmtx_build_orientation(const snde_coord4 *rotmtx
     assert(eta3_sqrt >= eta4_sqrt && eta3_sqrt >= eta1_sqrt && eta3_sqrt >= eta2_sqrt);
 #endif
 
-    orient->quat.coord[2] = 0.5f*sqrt(eta3_sqrt); // eta3
-    orient->quat.coord[0] = (1.0f/(4.0f*orient->quat.coord[2]))*(rotmtx[0].coord[2] + rotmtx[2].coord[0]); // eta1
-    orient->quat.coord[1] = (1.0f/(4.0f*orient->quat.coord[2]))*(rotmtx[1].coord[2] + rotmtx[2].coord[1]); // eta2
+    orient->quat.coord[SNDE_QUAT_K] = 0.5f*sqrt(eta3_sqrt); // eta3
+    orient->quat.coord[SNDE_QUAT_I] = (1.0f/(4.0f*orient->quat.coord[SNDE_QUAT_K]))*(rotmtx[0].coord[2] + rotmtx[2].coord[0]); // eta1
+    orient->quat.coord[SNDE_QUAT_J] = (1.0f/(4.0f*orient->quat.coord[SNDE_QUAT_K]))*(rotmtx[1].coord[2] + rotmtx[2].coord[1]); // eta2
     // real part negated
-    orient->quat.coord[3] = -(1.0f/(4.0f*orient->quat.coord[2]))*(rotmtx[1].coord[0] - rotmtx[0].coord[1]); // eta4
+    orient->quat.coord[SNDE_QUAT_REAL] = -(1.0f/(4.0f*orient->quat.coord[SNDE_QUAT_K]))*(rotmtx[1].coord[0] - rotmtx[0].coord[1]); // eta4
     
     
   }
@@ -292,9 +327,24 @@ static QUATERNION_INLINE void rotmtx_build_orientation(const snde_coord4 *rotmtx
 
 static QUATERNION_INLINE int orientation_valid(const snde_orientation3 orient)
 {
-  if (isnan(orient.offset.coord[0]) || isnan(orient.quat.coord[0])) {
+  if (isnan(orient.offset.coord[0]) || isnan(orient.offset.coord[1]) || isnan(orient.offset.coord[2]) || isnan(orient.offset.coord[3]) || isnan(orient.quat.coord[0]) || isnan(orient.quat.coord[1]) || isnan(orient.quat.coord[2]) || isnan(orient.quat.coord[3])) {
     return FALSE;
   }
+  snde_coord norm;
+  
+  norm=sqrt(pow(orient.quat.coord[0],2) + pow(orient.quat.coord[1],2) + pow(orient.quat.coord[2],2)+pow(orient.quat.coord[3],2));
+  
+  if (fabs(norm-1.0) > 1e-3) {
+    // quaternion is way out of normalization
+    return FALSE;
+  }
+
+  if (fabs(orient.offset.coord[3]-1.0) > 1e-3) {
+    // last element of offset is way off 1.0
+    return FALSE;
+  }
+    
+  
   return TRUE;
 }
 
@@ -314,7 +364,7 @@ static QUATERNION_INLINE void orientation_inverse(const snde_orientation3 orient
   }
   
   quaternion_inverse(orient.quat,&inverse->quat);
-  quaternion_apply_vector(inverse->quat,orient.offset,&inverse->offset);
+  quaternion_apply_position(inverse->quat,orient.offset,&inverse->offset);
   inverse->offset.coord[0]=-inverse->offset.coord[0];
   inverse->offset.coord[1]=-inverse->offset.coord[1];
   inverse->offset.coord[2]=-inverse->offset.coord[2];
@@ -333,18 +383,18 @@ static QUATERNION_INLINE void orientation_apply_vector(const snde_orientation3 o
 static QUATERNION_INLINE void orientation_apply_position(const snde_orientation3 orient,const snde_coord4 pos,snde_coord4 *out)
 {
   /* for point p, q1pq1' + o1  */
-  snde_coord4 posvec;
+  //  snde_coord4 posvec;
   snde_coord4 rotated_point;
 
 #ifndef __OPENCL_VERSION__
   assert(pos.coord[3]==1.0f); // should be a position
 #endif
   
-  posvec=pos;
-  posvec.coord[3]=0.0f;
+  // posvec=pos;
+  // posvec.coord[3]=0.0f;
   
   // rotate point
-  quaternion_apply_vector(orient.quat,posvec,&rotated_point);
+  quaternion_apply_position(orient.quat,pos,&rotated_point);
 
   // add offset
   addcoordcoord4proj(rotated_point,orient.offset,out);
@@ -366,9 +416,9 @@ static QUATERNION_INLINE void orientation_orientation_multiply(const snde_orient
 
     quaternion_product_normalized(left.quat,right.quat,&product->quat);
     
-    quaternion_apply_vector(left.quat,right.offset,&rotated_right_offset);
+    quaternion_apply_position(left.quat,right.offset,&rotated_right_offset);
     addcoordcoord4proj(rotated_right_offset,left.offset,&product->offset);
-    
+    product->offset.coord[3]=1.0;
   }
 
 

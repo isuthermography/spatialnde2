@@ -391,8 +391,9 @@ typedef struct _snde_coord2 {
 
 typedef struct _snde_orientation3 {
   /* for point p, orientation represents q p q' + o  */
-  snde_coord4 offset; // 4th coordinate of offset always zero
-  snde_coord4 quat; // normalized quaternion ... represented as , i (x) component, j (y) component, k (z) component, real (w) component
+  snde_coord4 quat; // normalized quaternion ... represented as real (w) component, i (x) component, j (y) component, k (z) component, 
+  snde_coord4 offset; // 4th coordinate of offset always 1.0
+ 
 } snde_orientation3;
 
 typedef struct _snde_rgba {
@@ -453,8 +454,9 @@ typedef struct _snde_rgbd {
 typedef struct _snde_orientation2 {
   // i.e. rotate point coordinates (rhs) by angle,
   // then add offset
-  snde_coord offset[2];
   snde_coord angle; // radians
+  snde_coord offset[2];
+
 } snde_orientation2;
 
 

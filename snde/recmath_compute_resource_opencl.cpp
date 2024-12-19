@@ -7,14 +7,15 @@
 namespace snde {
 
 
-  compute_resource_option_opencl::compute_resource_option_opencl(size_t metadata_bytes,
+  compute_resource_option_opencl::compute_resource_option_opencl(std::set<std::string> execution_tags,
+								 size_t metadata_bytes,
 								 size_t data_bytes,
 								 snde_float64 cpu_flops,
 								 snde_float64 gpu_flops,
 								 size_t max_effective_cpu_cores,
 								 size_t useful_cpu_cores,
 								 bool requires_doubleprec) :
-    compute_resource_option(SNDE_CR_OPENCL,metadata_bytes,data_bytes),
+    compute_resource_option(SNDE_CR_OPENCL,execution_tags,metadata_bytes,data_bytes),
     cpu_flops(cpu_flops),
     gpu_flops(gpu_flops),
     max_effective_cpu_cores(max_effective_cpu_cores),
@@ -52,14 +53,15 @@ namespace snde {
 
   }
 
-  _compute_resource_option_cpu_combined_opencl::_compute_resource_option_cpu_combined_opencl(size_t metadata_bytes,
+  _compute_resource_option_cpu_combined_opencl::_compute_resource_option_cpu_combined_opencl(std::set<std::string> execution_tags,
+											     size_t metadata_bytes,
 											     size_t data_bytes,
 											     snde_float64 flops,
 											     size_t max_effective_cpu_cores,
 											     size_t useful_cpu_cores,
 											     std::shared_ptr<compute_resource_option> orig,
 											     std::shared_ptr<assigned_compute_resource> orig_assignment) :
-    _compute_resource_option_cpu_combined(metadata_bytes,data_bytes,flops,
+    _compute_resource_option_cpu_combined(execution_tags,metadata_bytes,data_bytes,flops,
 					 max_effective_cpu_cores,useful_cpu_cores,
 					  orig,orig_assignment)
   {
@@ -79,8 +81,8 @@ namespace snde {
     return orig_assignment_ocl; 
   }
 
-  available_compute_resource_opencl::available_compute_resource_opencl(std::shared_ptr<recdatabase> recdb,std::shared_ptr<available_compute_resource_cpu> controlling_cpu,cl::Context opencl_context,const std::vector<cl::Device> &opencl_devices,size_t max_parallel,std::shared_ptr<openclcachemanager> oclcache/*=nullptr*/) :
-    available_compute_resource(recdb,SNDE_CR_OPENCL),
+  available_compute_resource_opencl::available_compute_resource_opencl(std::shared_ptr<recdatabase> recdb,std::set<std::string> tags,std::shared_ptr<available_compute_resource_cpu> controlling_cpu,cl::Context opencl_context,const std::vector<cl::Device> &opencl_devices,size_t max_parallel,std::shared_ptr<openclcachemanager> oclcache/*=nullptr*/) :
+    available_compute_resource(recdb,SNDE_CR_OPENCL,tags),
     controlling_cpu(controlling_cpu),
     opencl_context(opencl_context),
     opencl_devices(opencl_devices),
@@ -167,7 +169,7 @@ namespace snde {
 	  std::shared_ptr<assigned_compute_resource_opencl> assigned_gpus = _assign_gpu(function_to_execute,compute_option_opencl->requires_doubleprec);
 
 	  // Create a combined resource we use to delegate the CPU portion 
-	  std::shared_ptr<_compute_resource_option_cpu_combined_opencl> combined_resource = std::make_shared<_compute_resource_option_cpu_combined_opencl>(compute_option_opencl->metadata_bytes,compute_option_opencl->data_bytes,compute_option_opencl->cpu_flops,compute_option_opencl->max_effective_cpu_cores,compute_option_opencl->useful_cpu_cores,compute_option,assigned_gpus);
+	  std::shared_ptr<_compute_resource_option_cpu_combined_opencl> combined_resource = std::make_shared<_compute_resource_option_cpu_combined_opencl>(std::set<std::string>({"CPU","OpenCL_Dispatch"}),compute_option_opencl->metadata_bytes,compute_option_opencl->data_bytes,compute_option_opencl->cpu_flops,compute_option_opencl->max_effective_cpu_cores,compute_option_opencl->useful_cpu_cores,compute_option,assigned_gpus);
 	  
 	  std::shared_ptr<pending_computation> combined_computation = std::make_shared<pending_computation>(function_to_execute,recstate,globalrev,SNDE_CR_PRIORITY_NORMAL);
 	  

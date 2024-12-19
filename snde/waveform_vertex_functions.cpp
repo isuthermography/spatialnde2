@@ -138,14 +138,16 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
       {
-	std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+						      0, //metadata_bytes 
 						      outlen * sizeof(snde_coord) * 3 * 6 + outlen * sizeof(snde_coord) * 3 * 6 * 4, // data_bytes for transfer
 						      0.0, // flops
 						      1, // max effective cpu cores
 						      1), // useful_cpu_cores (min # of cores to supply
 
 #ifdef SNDE_OPENCL
-	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+	  std::make_shared<compute_resource_option_opencl>(std::set<std::string>(), // no tags
+							   0, //metadata_bytes
 							   outlen * sizeof(snde_coord) * 3 * 6 + outlen * sizeof(snde_coord) * 3 * 6 * 4,
 							   0.0, // cpu_flops
 							   0.0, // gpuflops
@@ -218,7 +220,7 @@ namespace snde {
 
 		//fprintf(stderr,"Executing in OpenCL!\n");
 
-		cl::Kernel waveform_interplines_vert_kern = build_typed_opencl_program<T>("spatialnde2.waveform_interplines", [](std::string ocltypename) {
+		cl::Kernel waveform_interplines_vert_kern = build_typed_opencl_program<T>("snde.waveform_interplines", [](std::string ocltypename) {
 		  // OpenCL templating via a typedef....
 		  return std::make_shared<opencl_program>("waveform_interplines", std::vector<std::string>({ snde_types_h, geometry_types_h, "\ntypedef " + ocltypename + " waveform_intype;\n", waveform_vertex_calcs_c }));
 		  })->get_kernel(opencl_resource->context, opencl_resource->devices.at(0));
@@ -313,7 +315,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_waveform_interplines_function()
   {
-    return std::make_shared<cpp_math_function>([](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.waveform_interplines",1,[](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
       return make_cppfuncexec_floatingtypes<waveform_interplines>(rss, inst);
       }
     );
@@ -322,7 +324,7 @@ namespace snde {
 
   SNDE_OCL_API std::shared_ptr<math_function> waveform_interplines_function = define_waveform_interplines_function();
 
-  static int registered_waveform_interplines_function = register_math_function("spatialnde2.waveform_interplines", waveform_interplines_function);
+  static int registered_waveform_interplines_function = register_math_function( waveform_interplines_function);
 
 
 
@@ -365,14 +367,16 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
       {
-	std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+						      0, //metadata_bytes 
 						      outlen * sizeof(snde_coord) * 3 * 6 + outlen * sizeof(snde_coord) * 3 * 6 * 4, // data_bytes for transfer
 						      0.0, // flops
 						      1, // max effective cpu cores
 						      1), // useful_cpu_cores (min # of cores to supply
 
 #ifdef SNDE_OPENCL
-	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+	  std::make_shared<compute_resource_option_opencl>(std::set<std::string>(), // no tags
+							   0, //metadata_bytes
 							   outlen * sizeof(snde_coord) * 3 * 6 + outlen * sizeof(snde_coord) * 3 * 6 * 4,
 							   0.0, // cpu_flops
 							   0.0, // gpuflops
@@ -445,7 +449,7 @@ namespace snde {
 
 		//fprintf(stderr,"Executing in OpenCL!\n");
 
-		cl::Kernel waveform_vertlines_vert_kern = build_typed_opencl_program<T>("spatialnde2.waveform_vertlines", [](std::string ocltypename) {
+		cl::Kernel waveform_vertlines_vert_kern = build_typed_opencl_program<T>("snde.waveform_vertlines", [](std::string ocltypename) {
 		  // OpenCL templating via a typedef....
 		  return std::make_shared<opencl_program>("waveform_vertlines", std::vector<std::string>({ snde_types_h, geometry_types_h, "\ntypedef " + ocltypename + " waveform_intype;\n", waveform_vertex_calcs_c }));
 		  })->get_kernel(opencl_resource->context, opencl_resource->devices.at(0));
@@ -543,7 +547,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_waveform_vertlines_function()
   {
-    return std::make_shared<cpp_math_function>([](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.waveform_vertlines",1,[](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
       return make_cppfuncexec_floatingtypes<waveform_vertlines>(rss, inst);
       }
     );
@@ -552,7 +556,7 @@ namespace snde {
 
   SNDE_OCL_API std::shared_ptr<math_function> waveform_vertlines_function = define_waveform_vertlines_function();
 
-  static int registered_waveform_vertlines_function = register_math_function("spatialnde2.waveform_vertlines", waveform_vertlines_function);
+  static int registered_waveform_vertlines_function = register_math_function( waveform_vertlines_function);
 
 
 
@@ -598,14 +602,16 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
       {
-	std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+						      0, //metadata_bytes 
 						      outlen * sizeof(snde_coord) * 3 + outlen * sizeof(snde_coord) * 4, // data_bytes for transfer
 						      0.0, // flops
 						      1, // max effective cpu cores
 						      1), // useful_cpu_cores (min # of cores to supply
 
 #ifdef SNDE_OPENCL
-	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+	  std::make_shared<compute_resource_option_opencl>(std::set<std::string>(), // no tags
+							   0, //metadata_bytes
 							   outlen * sizeof(snde_coord) * 3 + outlen * sizeof(snde_coord) * 4,
 							   0.0, // cpu_flops
 							   0.0, // gpuflops
@@ -620,6 +626,7 @@ namespace snde {
 	//snde_debug(SNDE_DC_APP,"define_recs()");
 	// Use of "this" in the next line for the same reason as the typedefs, above
 	std::shared_ptr<multi_ndarray_recording> result_rec = create_recording_math<multi_ndarray_recording>(this->get_result_channel_path(0), this->rss, 2);
+	assert(result_rec->originating_state);
 	result_rec->define_array(0, SNDE_RTN_SNDE_COORD3, "pointcoord");
 	result_rec->define_array(1, SNDE_RTN_FLOAT32, "pointcoord_color");
 
@@ -678,7 +685,7 @@ namespace snde {
 
 		//fprintf(stderr,"Executing in OpenCL!\n");
 
-		cl::Kernel waveform_points_vert_kern = build_typed_opencl_program<T>("spatialnde2.waveform_points", [](std::string ocltypename) {
+		cl::Kernel waveform_points_vert_kern = build_typed_opencl_program<T>("snde.waveform_points", [](std::string ocltypename) {
 		  // OpenCL templating via a typedef....
 		  return std::make_shared<opencl_program>("waveform_points", std::vector<std::string>({ snde_types_h, geometry_types_h, "\ntypedef " + ocltypename + " waveform_intype;\n", waveform_vertex_calcs_c }));
 		  })->get_kernel(opencl_resource->context, opencl_resource->devices.at(0));
@@ -766,7 +773,7 @@ namespace snde {
 
   std::shared_ptr<math_function> define_waveform_points_function()
   {
-    return std::make_shared<cpp_math_function>([](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.waveform_points",1,[](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
       return make_cppfuncexec_floatingtypes<waveform_points>(rss, inst);
       }
     );
@@ -775,7 +782,7 @@ namespace snde {
 
   SNDE_OCL_API std::shared_ptr<math_function> waveform_points_function = define_waveform_points_function();
 
-  static int registered_waveform_points_function = register_math_function("spatialnde2.waveform_points", waveform_points_function);
+  static int registered_waveform_points_function = register_math_function( waveform_points_function);
 
 
 

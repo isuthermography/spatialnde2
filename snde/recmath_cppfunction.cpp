@@ -10,11 +10,11 @@ namespace snde {
 
 
 
-  cpp_math_function::cpp_math_function(std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution) :
+  cpp_math_function::cpp_math_function(std::string function_name, size_t num_results,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution) :
     //				       bool supports_cpu,
     //				       bool supports_opencl,
     //				       bool supports_cuda) :
-    math_function(std::vector<std::tuple<std::string,unsigned>>(),initiate_execution)
+    math_function(function_name,num_results,std::vector<std::pair<std::string,unsigned>>(),initiate_execution)
     //supports_cpu(supports_cpu),
     //supports_opencl(supports_opencl),
     //supports_cuda(supports_cuda)
@@ -45,9 +45,14 @@ namespace snde {
 									     bool ondemand,
 									     bool mdonly,
 									     std::shared_ptr<math_definition> definition,
+									     std::set<std::string> execution_tags,
 									     std::shared_ptr<math_instance_parameter> extra_params) 
   {
     //std::shared_ptr<cpp_math_function> cpp_fcn=std::dynamic_pointer_cast<cpp_math_function>(fcn);
+    // std::set<std::string> execution_tags_set;
+    // for (auto && execution_tag: execution_tags) {
+    // execution_tags_set.emplace(execution_tag);
+    // }
     return std::make_shared<instantiated_cpp_math_function>(parameters,
 							    result_channel_paths,
 							    channel_path_context,
@@ -56,6 +61,7 @@ namespace snde {
 							    mdonly,
 							    shared_from_this(),
 							    definition,
+							    execution_tags,
 							    extra_params);
     //							    supports_cpu,
     //							    supports_opencl,
@@ -70,9 +76,10 @@ namespace snde {
 								 bool mdonly,
 								 std::shared_ptr<math_function> fcn,
 								 std::shared_ptr<math_definition> definition,
+								 std::set<std::string> execution_tags,
 								 std::shared_ptr<math_instance_parameter> extra_params) :
 								 //bool enable_cpu,bool enable_opencl,bool enable_cuda) :
-    instantiated_math_function(parameters,result_channel_paths,channel_path_context,is_mutable,ondemand,mdonly,fcn,definition,extra_params)
+    instantiated_math_function(parameters,result_channel_paths,channel_path_context,is_mutable,ondemand,mdonly,fcn,definition,execution_tags,extra_params)
     //    enable_cpu(enable_cpu),
     //    enable_opencl(enable_opencl),
     //    enable_cuda(enable_cuda)

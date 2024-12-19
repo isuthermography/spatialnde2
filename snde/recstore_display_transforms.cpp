@@ -161,7 +161,7 @@ namespace snde {
     for (auto && channame_chanstate: *globalrev_channel_map) {
       initial_channel_map.emplace(std::piecewise_construct,
 				  std::forward_as_tuple(channame_chanstate.first),
-				  std::forward_as_tuple(channame_chanstate.second._channel,channame_chanstate.second.config,channame_chanstate.second.rec(),false));
+				  std::forward_as_tuple(channame_chanstate.second.chan,channame_chanstate.second.config,channame_chanstate.second.rec(),false));
 
       all_channels_by_name.emplace(std::piecewise_construct,
 				   std::forward_as_tuple(channame_chanstate.first),
@@ -225,7 +225,7 @@ namespace snde {
 
 	  renderableconfig = std::make_shared<channelconfig>(*dispreq->renderable_channelpath,
 											    "recstore_display_transform",
-							     (void *)recdb.get(), // math channels owned by recdb pointer
+							     
 											    true, // hidden
 											    nullptr); // storage_manager
 	  renderableconfig->math=true;
@@ -243,21 +243,32 @@ namespace snde {
 	// add to initial_mathdb
 	initial_mathdb.defined_math_functions.emplace(*dispreq->renderable_channelpath,renderableconfig->math_fcn);
 
-	// Get a class channel to represent this math function
-	std::shared_ptr<channel> rdt_channel;
-	std::unordered_map<std::string,std::shared_ptr<channel>>::iterator existing_channel = rdt_channels.find(*dispreq->renderable_channelpath);
+	// Get a class reserved_channel to represent this math function
+	std::shared_ptr<reserved_channel> rdt_channel;
+	std::unordered_map<std::string,std::shared_ptr<reserved_channel>>::iterator existing_channel = rdt_channels.find(*dispreq->renderable_channelpath);
 	if (existing_channel != rdt_channels.end()) {
 	  rdt_channel = existing_channel->second;
 	  {
 	    std::lock_guard<std::mutex> rdt_admin(rdt_channel->admin);
-	    rdt_channel->begin_atomic_config_update<channelconfig>();
-	    rdt_channel->end_atomic_config_update(renderableconfig);
+	    rdt_channel->begin_atomic_proposed_config_update<channelconfig>();
+	    rdt_channel->end_atomic_proposed_config_update(renderableconfig);
+
+	    rdt_channel->begin_atomic_realized_config_update<channelconfig>();
+	    rdt_channel->end_atomic_realized_config_update(renderableconfig);
 	  }
 	    
 	} else {
-	  rdt_channel=std::make_shared<channel>(renderableconfig);
-
-	  rdt_channel->latest_revision = starting_revision;
+	  rdt_channel=std::make_shared<reserved_channel>();
+	  rdt_channel->begin_atomic_proposed_config_update<channelconfig>();
+	  rdt_channel->end_atomic_proposed_config_update(renderableconfig);
+	  rdt_channel->begin_atomic_realized_config_update<channelconfig>();
+	  rdt_channel->end_atomic_realized_config_update(renderableconfig);
+	  std::shared_ptr<channel> pseudochannel=std::make_shared<channel>(*dispreq->renderable_channelpath,rdt_channel);
+	  pseudochannel->begin_atomic_realized_owner_update();
+	  pseudochannel->end_atomic_realized_owner_update(rdt_channel);
+	  rdt_channel->chan=pseudochannel;
+	  
+	  rdt_channel->chan->latest_revision = starting_revision;
 	  
 	}
 	
@@ -285,7 +296,16 @@ namespace snde {
 
     
     with_display_transforms = std::make_shared<recording_set_state>(recdb,initial_mathdb,initial_channel_map,nullptr,previous_globalrev->globalrev,rss_get_unique());
-    with_display_transforms->mathstatus.math_functions->_rebuild_dependency_map(); // (not automatically done on construction)
+
+
+    // We have to play transaction manager here because there isn't an actual transaction involved.
+    with_display_transforms->our_state_reference = std::make_shared<rss_reference>(with_display_transforms);
+
+    // snde_warning("rss 0x%lx gets new rss_reference", (unsigned long) with_display_transforms.get());
+    // We need to make sure that our_state_reference goes away when the rss is complete. Use clear_osr_notify to trigger a call back.
+    std::shared_ptr<recording_set_state> with_display_transforms_ref = with_display_transforms;
+    
+    with_display_transforms->mathstatus.math_functions->_rebuild_dependency_map(recdb,true); // (not automatically done on construction)
 
     // For everything we copied in from the globalrev (above),
     // mark it in the completed_recordings map
@@ -396,6 +416,11 @@ namespace snde {
       recdb->compute_resources->queue_computation(recdb,ready_rss,ready_fcn);
     }
 
+    // get notified when with_display_transforms is ready so that we can clear our_state_reference
+    std::shared_ptr<callback_channel_notify> clear_osr_notify = std::make_shared<callback_channel_notify>(std::vector<std::string>(),std::vector<std::string>(),true,[with_display_transforms_ref] (){with_display_transforms_ref->our_state_reference = nullptr;});
+    clear_osr_notify->apply_to_rss(with_display_transforms);
+
+    
     // Run any possibly needed completion notifications
     for (auto && complete_rss_complete_execfunc: may_need_completion_notification) {
       std::shared_ptr<recording_set_state> complete_rss;

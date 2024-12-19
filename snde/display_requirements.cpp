@@ -902,12 +902,12 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 
       if (samplesperpixel <= 0.5) {
 	// Plenty of Pixels -- plot the interpolated line
-	funcname = "spatialnde2.waveform_interplines";
+	funcname = "snde.waveform_interplines";
 	funcdescr = "c++ definition of waveform_interplines";
       }
       else {
 	// More data than pixels -- plot vertical lines
-	funcname = "spatialnde2.waveform_vertlines";
+	funcname = "snde.waveform_vertlines";
 	funcdescr = "c++ definition of waveform_vertlines";
 
 	idxstep = round(samplesperpixel);
@@ -978,6 +978,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
           true, // ondemand
           false, // mdonly
           std::make_shared<math_definition>(funcdescr),
+	  {}, // no tags so far
           nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
 
       
@@ -992,7 +993,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 	
 	std::shared_ptr<snde::display_requirement> subreq2 = std::make_shared<display_requirement>(chanpath, rendermode_ext(SNDE_SRM_COLOREDTRANSPARENTPOINTS, typeid(*this), renderparams), rec, shared_from_this());
 
-	std::shared_ptr<instantiated_math_function> renderable_function2 = recdb->lookup_available_math_function("spatialnde2.waveform_points")->instantiate({
+	std::shared_ptr<instantiated_math_function> renderable_function2 = recdb->lookup_available_math_function("snde.waveform_points")->instantiate({
 	std::make_shared<math_parameter_recording>(chanpath),
 	std::make_shared<math_parameter_double_const>(renderparams->color.R),
 	std::make_shared<math_parameter_double_const>(renderparams->color.G),
@@ -1012,6 +1013,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 	  true, // ondemand
 	  false, // mdonly
 	  std::make_shared<math_definition>("c++ definition of waveform_points"),
+	  {}, // no tags so far
 	  nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
 
 
@@ -1103,7 +1105,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       return nullptr; 
     }
     
-    std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_available_math_function("spatialnde2.phase_plane_endpoint_octagon_vertices")->instantiate({
+    std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_available_math_function("snde.phase_plane_endpoint_octagon_vertices")->instantiate({
 	std::make_shared<math_parameter_recording>(chanpath),
 	std::make_shared<math_parameter_double_const>(8.0f/horiz_pixels_per_chanunit),
 	std::make_shared<math_parameter_double_const>(8.0f/vert_pixels_per_chanunit)
@@ -1114,6 +1116,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       true, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("c++ definition of phase_plane_endpoint_octagon_vertices for rendering"),
+      {}, // no tags so far
       nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
     
     retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
@@ -1345,6 +1348,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
 	true, // ondemand
 	false, // mdonly
 	std::make_shared<math_definition>("c++ definition of colormapping"),
+	{}, // no tags so far
 	nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
       
       retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
@@ -1456,6 +1460,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       true, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("c++ definition of point cloud colormapping"),
+      {}, // no tags so far
       nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
     
     retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_POINTCLOUDCOLORMAP,typeid(*this),colormap_params),rec,shared_from_this()); // display_requirement
@@ -1478,7 +1483,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
     }
     
 
-    std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_available_math_function("spatialnde2.phase_plane_line_triangle_vertices_alphas")->instantiate({
+    std::shared_ptr<instantiated_math_function> renderable_function = recdb->lookup_available_math_function("snde.phase_plane_line_triangle_vertices_alphas")->instantiate({
 	std::make_shared<math_parameter_recording>(chanpath),
 	std::make_shared<math_parameter_double_const>(color_renderparams->color.R),
 	std::make_shared<math_parameter_double_const>(color_renderparams->color.G),
@@ -1494,6 +1499,7 @@ std::shared_ptr<display_requirement> multi_ndarray_recording_display_handler::ge
       true, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("c++ definition of phase plane line triangle vertices and alphas"),
+      {}, // no tags so far
       nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
     
     retval=std::make_shared<display_requirement>(chanpath,rendermode_ext(SNDE_SRM_COLOREDTRANSPARENTLINES,typeid(*this),color_renderparams),rec,shared_from_this()); // display_requirement
@@ -1801,6 +1807,7 @@ std::shared_ptr<display_requirement> fusion_ndarray_recording_display_handler::g
       true, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("c++ definition of fusion colormapping"),
+      {}, // no tags so far
       nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
     
     retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
@@ -1937,6 +1944,7 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
       true, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("c++ definition of vertex_arrays for rendering"),
+      {}, // no tags so far
       nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
     
     retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
@@ -1974,6 +1982,7 @@ std::shared_ptr<display_requirement> meshed_part_recording_display_handler::get_
       true, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("c++ definition of vertex normals for rendering"),
+      {}, // no tags so far
       nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
     
     retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
@@ -2032,6 +2041,7 @@ std::shared_ptr<display_requirement> meshed_parameterization_recording_display_h
     true, // ondemand
     false, // mdonly
     std::make_shared<math_definition>("c++ definition of texvertex_arrays for rendering"),
+    {}, // no tags so far
     nullptr); // extra instance parameters -- could have perhaps put indexvec, etc. here instead
   
   //retval->renderable_channelpath = std::make_shared<std::string>(renderable_channelpath);
@@ -2325,6 +2335,7 @@ std::shared_ptr<display_requirement> assembly_recording_display_handler::get_dis
     
     //std::string abspath = recdb_join_assembly_and_component_names(chanpath,std::get<0>(relpath_orientation));
     std::string abspath = recdb_path_join(recdb_path_context(chanpath),std::get<0>(relpath_orientation));
+
     
     std::shared_ptr<display_requirement> sub_requirement = traverse_display_requirement(display,base_rss,display->lookup_channel(abspath),SNDE_SRG_DEFAULT_3D,nullptr);
     retval->sub_requirements.push_back(sub_requirement);
@@ -2442,7 +2453,7 @@ std::shared_ptr<display_requirement> tracking_pose_recording_display_handler::ge
 
   
   //// this assertion is temporary for debugging purposes and needs to be removed!!!***
-  //assert(isnan(pose_params->channel_to_reorient_orientation.quat.coord[3]) || pose_params->channel_to_reorient_orientation.quat.coord[3] != 0.0);
+  //assert(isnan(pose_params->channel_to_reorient_orientation.quat.coord[3]) || pose_params->channel_to_reorient_orientation.quat.coord[0] != 0.0);
   //{
   //  snde_coord4 rotmtx[4];
   //  orientation_build_rotmtx(pose_params->channel_to_reorient_orientation,rotmtx);
@@ -2579,7 +2590,7 @@ std::shared_ptr<display_requirement> pose_channel_recording_display_handler::get
 
   
   //// this assertion is temporary for debugging purposes and needs to be removed!!!***
-  //assert(isnan(pose_params->channel_to_reorient_orientation.quat.coord[3]) || pose_params->channel_to_reorient_orientation.quat.coord[3] != 0.0);
+  //assert(isnan(pose_params->channel_to_reorient_orientation.quat.coord[3]) || pose_params->channel_to_reorient_orientation.quat.coord[0] != 0.0);
   //{
   //  snde_coord4 rotmtx[4];
   //  orientation_build_rotmtx(pose_params->channel_to_reorient_orientation,rotmtx);

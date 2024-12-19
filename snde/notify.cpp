@@ -191,6 +191,8 @@ namespace snde {
 
   }
 
+  // !!!*** This function looks to be redundant with notify_recordingset_complete... it seems to only be called once in recstore.cpp where the all_ready flag is already evaluated, except there we only look at recordings versus here we look for function completion too (???). Maybe the behavior is different for new_revision_optional or similar functions. 
+  
   void channel_notify::check_recordingset_complete(std::shared_ptr<recording_set_state> rss)
   {
     bool generate_notify=false;
@@ -348,20 +350,21 @@ namespace snde {
   // apply this notification process to the globalrevision that will or has arisen from a particular transaction. WARNING: May trigger the notification immediately
   {
     
-    std::unique_lock<std::mutex> trans_admin(trans->admin);
     
-    std::shared_ptr<globalrevision> globalrev = trans->_resulting_globalrevision.lock();
-    if (!globalrev) {
-      bool expired_pointer = invalid_weak_ptr_is_expired(trans->_resulting_globalrevision);
-      if (expired_pointer) {
-	// an expired pointer means that the globalrevision exists and has since expired,
-	// therefore it must be fully complete and we should just notify
-	std::atomic_store(&_applied_rss,std::make_shared<std::weak_ptr<recording_set_state>>(trans->_resulting_globalrevision)); // put the expired pointer in _applied_rss too
-	trans_admin.unlock();
-	perform_notify();
-	return;
-      }
-
+    //std::shared_ptr<globalrevision> globalrev = trans->_resulting_globalrevision.lock();
+    //if (!globalrev) {
+    //  bool expired_pointer = invalid_weak_ptr_is_expired(trans->_resulting_globalrevision);
+    //  if (expired_pointer) {
+	//// an expired pointer means that the globalrevision exists and has since expired,
+	//// therefore it must be fully complete and we should just notify
+    //	std::atomic_store(&_applied_rss,std::make_shared<std::weak_ptr<recording_set_state>>(trans->_resulting_globalrevision)); // put the expired pointer in _applied_rss too
+    //	trans_admin.unlock();
+    //	perform_notify();
+    //	return;
+    //}
+    std::shared_ptr<globalrevision> globalrev = trans->globalrev_nowait();
+    std::unique_lock<std::mutex> trans_admin(trans->admin);
+    if (!globalrev){
       // queue this channel notify for future application to the globalrev/rss once it exists.
       trans->pending_channel_notifies.push_back(shared_from_this());
 
@@ -501,7 +504,35 @@ namespace snde {
     
   }
 
+  callback_channel_notify::callback_channel_notify(const std::vector<std::string> &mdonly_channels,const std::vector<std::string> &ready_channels,bool recset_complete, std::function<void (void)> callback):
+    _callback(callback)
+  {
 
+    for (auto && mdonly_channel: mdonly_channels) {
+      criteria.add_metadataonly_channel(mdonly_channel);
+    }
+    for (auto && ready_channel: ready_channels) {
+      criteria.add_fullyready_channel(ready_channel);
+    }
+    if (recset_complete) {
+      criteria.add_recordingset_complete();
+    }
+  }
+  
+  callback_channel_notify::callback_channel_notify(const channel_notification_criteria &criteria_to_copy, std::function<void (void)> callback) :
+    channel_notify(criteria_to_copy),
+    _callback(callback)
+  {
+
+  }
+
+  void callback_channel_notify::perform_notify()
+  {
+    // not impossible that we would have a second (superfluous) notification
+    _callback();
+    
+  }
+  
   _unchanged_channel_notify::_unchanged_channel_notify(std::weak_ptr<recdatabase> recdb,std::shared_ptr<globalrevision> current_globalrev,std::shared_ptr<globalrevision> subsequent_globalrev,channel_state &current_channelstate,channel_state & sg_channelstate,bool mdonly) :
     recdb(recdb),
     current_globalrev(current_globalrev),
@@ -643,9 +674,6 @@ namespace snde {
     // function has exited, which is what would remove it from
     // pending_functions
     //assert(!globalrev->mathstatus.pending_functions.size());
-    
-    globalrev->atomic_prerequisite_state_clear(); // once we are ready, we no longer care about any prerequisite state, so that can be free'd as needed. 
-
 
     // Perform any moniitoring notifications
     if (globalrev->globalrev == recdb_strong->monitoring_notify_globalrev+1) {
@@ -672,6 +700,8 @@ namespace snde {
 	{
 	  std::lock_guard<std::mutex> complete_globalrev_admin(complete_globalrev->admin);
 	  complete_globalrev_mutable_recordings_lock = complete_globalrev->mutable_recordings_need_holder;
+	  complete_globalrev->prerequisite_state_clear(); // Prerequisite not needed now that we are complete
+	  complete_globalrev->our_state_reference = nullptr; // No self references now that we are complete.
 	}
 	
 	for (auto && monitor_globalrev_weak: recdb_strong->monitoring) {

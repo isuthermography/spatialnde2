@@ -93,7 +93,7 @@ namespace snde {
 
 	std::shared_ptr<math_function> define_spatialnde2_numpy_bgrtorgba_function()
 	{
-		return std::make_shared<cpp_math_function>([](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
+		return std::make_shared<cpp_math_function>("snde.numpy_bgrtorgba",1,[](std::shared_ptr<recording_set_state> rss, std::shared_ptr<instantiated_math_function> inst) {
 			return std::make_shared<numpy_bgrtorgba>(rss, inst);
 			});
 	}
@@ -102,7 +102,7 @@ namespace snde {
 	// (in CMakeLists.txt) make it move into the _ocl.so library)
 	SNDE_API std::shared_ptr<math_function> numpy_bgrtorgba_function = define_spatialnde2_numpy_bgrtorgba_function();
 
-	static int registered_numpy_bgrtorgba_function = register_math_function("spatialnde2.numpy_bgrtorgba", numpy_bgrtorgba_function);
+	static int registered_numpy_bgrtorgba_function = register_math_function( numpy_bgrtorgba_function);
 
 
 
