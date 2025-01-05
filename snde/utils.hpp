@@ -102,13 +102,22 @@ namespace snde {
   static inline void set_thread_name(std::thread *thr,std::string name)
   { // pass null for thr to set the name of the current thread
 #ifdef SPATIALNDE2_SET_THREAD_NAMES_PTHREAD
+#ifdef __APPLE__
+    // on apple, we can only set the thread name of the current thread
+    if (thr) {
+      snde_warning("Unable to set thread name %s from a different thread (MacOSX)", name.c_str());
+    }
+    else {
+      pthread_setname_np(name.c_str());
+    }
+#else // __APPLE__
     std::string shortname=name.substr(0,15); // 15 char limit per Linux man page
-    
     if (thr) {
       pthread_setname_np(thr->native_handle(),shortname.c_str());
     } else {
       pthread_setname_np(pthread_self(),shortname.c_str());      
     }
+#endif
 #endif // SPATIALNDE2_SET_THREAD_NAMES_PTHREAD
     
 #ifdef SPATIALNDE2_SET_THREAD_NAMES_WIN32

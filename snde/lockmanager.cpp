@@ -16,6 +16,52 @@
 
 namespace snde {
 
+  lockholder_index::lockholder_index() :
+  //infostore(nullptr),
+  //geom(nullptr),
+    //comp(nullptr),
+    //param(nullptr),
+#ifdef SNDE_MUTABLE_RECDB_SUPPORT
+    lic(nullptr),
+#endif // SNDE_MUTABLE_RECDB_SUPPORT
+    array(nullptr), write(false), startidx(SNDE_INDEX_INVALID), numelem(SNDE_INDEX_INVALID)
+  {
+
+  }
+
+  lockholder_index::lockholder_index(void **_array,bool _write, snde_index _startidx,snde_index _numelem) :
+    //infostore(nullptr),
+    //geom(nullptr),
+    //comp(nullptr), //
+    //param(nullptr),
+#ifdef SNDE_MUTABLE_RECDB_SUPPORT
+    lic(nullptr),
+#endif // SNDE_MUTABLE_RECDB_SUPPORT
+    array(_array), write(_write), startidx(_startidx), numelem(_numelem)
+  {
+
+  }
+
+#ifdef SNDE_MUTABLE_RECDB_SUPPORT
+    lockholder_index::lockholder_index(lockable_infostore_or_component *_lic,bool _write) :
+      //infostore(_infostore),
+      //geom(nullptr),
+      //comp(nullptr), param(nullptr),
+      lic(nullptr), array(nullptr), write(_write), startidx(0), numelem(SNDE_INDEX_INVALID)
+    {
+
+    }
+#endif // SNDE_MUTABLE_RECDB_SUPPORT
+
+
+  bool lockholder_index::operator==(const lockholder_index b) const
+  {
+    return /*b.infostore==infostore && */ /* b.geom==geom && */ /* b.comp==comp && b.param==param && */
+#ifdef SNDE_MUTABLE_RECDB_SUPPORT
+    b.lic==lic &&
+#endif // SNDE_MUTABLE_RECDB_SUPPORT
+    b.array==array && b.write==write && b.startidx==startidx && b.numelem==numelem;
+    }
 
   // These are defined here to avoid forward reference problems.
   // (really for lock_types.h) 

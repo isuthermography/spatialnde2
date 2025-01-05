@@ -23,6 +23,7 @@
 
 #include <map>
 #include <cstdio>
+#include <cstring>
 #include "snde/snde_types.h"
 
 #if defined(_MSC_VER) && _MSC_VER < 1900
@@ -258,7 +259,7 @@ namespace snde {
     char* errstr;
     {
       int buflen=1; // Make this big once tested
-#if (_POSIX_C_SOURCE >= 200112L) && !  _GNU_SOURCE
+#if ((_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && !_GNU_SOURCE) || __APPLE__
       int err=0;
       // XSI strerror_r()
       do {

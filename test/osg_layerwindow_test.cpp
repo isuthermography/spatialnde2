@@ -3,8 +3,12 @@
 
 #endif
 
+#ifdef __APPLE__
+#include <glut.h>
+#else
 #include <GL/glut.h>
 #include <GL/freeglut.h>
+#endif
 
 #include <osg/Array>
 #include <osg/MatrixTransform>

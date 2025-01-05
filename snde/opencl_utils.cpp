@@ -11,6 +11,7 @@
 #include <CL/cl2.hpp>
 #endif
 
+#include "snde/snde_error.hpp"
 #include "snde/utils.hpp"
 #include "snde/opencl_utils.hpp"
 #include "snde/recstore.hpp"

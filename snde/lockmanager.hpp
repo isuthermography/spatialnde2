@@ -1504,6 +1504,74 @@ typedef uint64_t snde_infostore_lock_mask_t;
     
   };
 
+class lockholder_index {
+public:
+
+  // Not permitted to actually use infostore, comp, or param
+  // pointers, as they may have expired.
+  //mutableinfostore *infostore;
+  //geometry *geom;
+  //component *comp;
+  //parameterization *param;
+#ifdef SNDE_MUTABLE_RECDB_SUPPORT
+  lockable_infostore_or_component *lic;
+#endif // SNDE_MUTABLE_RECDB_SUPPORT
+  void **array;
+  bool write;
+  snde_index startidx;
+  snde_index numelem;
+  lockholder_index();
+  lockholder_index(void **_array,bool _write, snde_index _startidx,snde_index _numelem);
+  
+  /*
+  lockholder_index(mutableinfostore *_infostore,bool _write) :
+    infostore(_infostore), geom(nullptr), comp(nullptr), param(nullptr), array(nullptr), write(_write), startidx(0), numelem(SNDE_INDEX_INVALID)
+  {
+
+  }
+  */
+  /*
+    lockholder_index(geometry *_geom,bool _write) :
+    infostore(nullptr), geom(_geom), comp(nullptr), param(nullptr), array(nullptr), write(_write), startidx(0), numelem(SNDE_INDEX_INVALID)
+  {
+
+  }
+  */
+  /*
+  lockholder_index(component *comp,bool _write) :
+    infostore(nullptr), geom(nullptr), comp(comp), param(nullptr), array(nullptr), write(_write), startidx(0), numelem(SNDE_INDEX_INVALID)
+  {
+
+  }
+
+  lockholder_index(parameterization *param,bool _write) :
+    infostore(nullptr), geom(nullptr), comp(nullptr), param(param), array(nullptr), write(_write), startidx(0), numelem(SNDE_INDEX_INVALID)
+  {
+
+  }
+  */
+  
+#ifdef SNDE_MUTABLE_RECDB_SUPPORT
+  lockholder_index(lockable_infostore_or_component *_lic,bool _write);
+#endif // SNDE_MUTABLE_RECDB_SUPPORT
+
+  
+  // equality operator for std::unordered_map
+  bool operator==(const lockholder_index b) const;
+};
+
+/* provide hash implementation for indices used for lockholder */
+
+struct lockholder_index_hash {
+  size_t operator()(const lockholder_index &x) const
+  {
+    return /*std::hash<void *>{}((void *)x.infostore)+std::hash<void *>{}((void *)x.geom)+std::hash<void *>{}((void *)x.comp)+std::hash<void *>{}((void *)x.param)*/
+#ifdef SNDE_MUTABLE_RECDB_SUPPORT
+  std::hash<void *>{}((void *)x.lic)+
+#endif // SNDE_MUTABLE_RECDB_SUPPORT
+               std::hash<void *>{}((void *)x.array) + std::hash<bool>{}(x.write) + std::hash<snde_index>{}(x.startidx) + std::hash<snde_index>{}(x.numelem);
+  }
+};
   
   class lockingprocess_thread {
   public:
@@ -2104,113 +2172,6 @@ typedef uint64_t snde_infostore_lock_mask_t;
 
 
 namespace snde {
-
-  class lockholder_index {
-  public:
-
-    // Not permitted to actually use infostore, comp, or param
-    // pointers, as they may have expired. 
-    //mutableinfostore *infostore;
-    //geometry *geom;
-    //component *comp;
-    //parameterization *param;
-#ifdef SNDE_MUTABLE_RECDB_SUPPORT
-    lockable_infostore_or_component *lic;
-#endif // SNDE_MUTABLE_RECDB_SUPPORT
-    void **array;
-    bool write;
-    snde_index startidx;
-    snde_index numelem;
-
-    lockholder_index() :
-      //infostore(nullptr),
-      //geom(nullptr),
-      //comp(nullptr),
-      //param(nullptr),
-#ifdef SNDE_MUTABLE_RECDB_SUPPORT
-      lic(nullptr),
-#endif // SNDE_MUTABLE_RECDB_SUPPORT
-      array(nullptr), write(false), startidx(SNDE_INDEX_INVALID), numelem(SNDE_INDEX_INVALID)
-    {
-
-    }
-    
-    lockholder_index(void **_array,bool _write, snde_index _startidx,snde_index _numelem) :
-      //infostore(nullptr),
-      //geom(nullptr),
-      //comp(nullptr), //
-      //param(nullptr),
-#ifdef SNDE_MUTABLE_RECDB_SUPPORT
-      lic(nullptr),
-#endif // SNDE_MUTABLE_RECDB_SUPPORT
-      array(_array), write(_write), startidx(_startidx), numelem(_numelem)
-    {
-
-    }
-    
-    /*
-    lockholder_index(mutableinfostore *_infostore,bool _write) :
-      infostore(_infostore), geom(nullptr), comp(nullptr), param(nullptr), array(nullptr), write(_write), startidx(0), numelem(SNDE_INDEX_INVALID)
-    {
-
-    }
-    */
-    /*
-      lockholder_index(geometry *_geom,bool _write) :
-      infostore(nullptr), geom(_geom), comp(nullptr), param(nullptr), array(nullptr), write(_write), startidx(0), numelem(SNDE_INDEX_INVALID)
-    {
-
-    }
-    */
-    /*
-    lockholder_index(component *comp,bool _write) :
-      infostore(nullptr), geom(nullptr), comp(comp), param(nullptr), array(nullptr), write(_write), startidx(0), numelem(SNDE_INDEX_INVALID)
-    {
-
-    }
-
-    lockholder_index(parameterization *param,bool _write) :
-      infostore(nullptr), geom(nullptr), comp(nullptr), param(param), array(nullptr), write(_write), startidx(0), numelem(SNDE_INDEX_INVALID)
-    {
-
-    }
-    */
-    
-#ifdef SNDE_MUTABLE_RECDB_SUPPORT
-    lockholder_index(lockable_infostore_or_component *_lic,bool _write) :
-      //infostore(_infostore),
-      //geom(nullptr),
-      //comp(nullptr), param(nullptr),
-      lic(nullptr), array(nullptr), write(_write), startidx(0), numelem(SNDE_INDEX_INVALID)
-    {
-
-    }
-#endif // SNDE_MUTABLE_RECDB_SUPPORT
-
-    
-    // equality operator for std::unordered_map
-    bool operator==(const lockholder_index b) const
-    {
-      return /*b.infostore==infostore && */ /* b.geom==geom && */ /* b.comp==comp && b.param==param && */
-#ifdef SNDE_MUTABLE_RECDB_SUPPORT
-	b.lic==lic &&
-#endif // SNDE_MUTABLE_RECDB_SUPPORT
-	b.array==array && b.write==write && b.startidx==startidx && b.numelem==numelem;
-    }
-  };
-
-  /* provide hash implementation for indices used for lockholder */
-  
-  struct lockholder_index_hash {
-    size_t operator()(const lockholder_index &x) const
-    {
-      return /*std::hash<void *>{}((void *)x.infostore)+std::hash<void *>{}((void *)x.geom)+std::hash<void *>{}((void *)x.comp)+std::hash<void *>{}((void *)x.param)*/
-#ifdef SNDE_MUTABLE_RECDB_SUPPORT
-	std::hash<void *>{}((void *)x.lic)+
-#endif // SNDE_MUTABLE_RECDB_SUPPORT
-			     std::hash<void *>{}((void *)x.array) + std::hash<bool>{}(x.write) + std::hash<snde_index>{}(x.startidx) + std::hash<snde_index>{}(x.numelem);
-    }
-  };
   
   struct voidpp_string_hash {
     size_t operator()(const std::pair<void **,std::string> &x) const

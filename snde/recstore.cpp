@@ -25,6 +25,11 @@ namespace snde {
 #endif // SNDE_HAVE_FLOAT16
       {typeid(uint64_t),SNDE_RTN_UINT64},
       {typeid(int64_t),SNDE_RTN_INT64},
+#if defined(__APPLE__) && defined(SIZEOF_LONG_IS_8)
+      // On Apple Clang the types for long and long long (int64) are different even though they represent the same thing
+      {typeid(unsigned long),SNDE_RTN_UINT64},
+      {typeid(long),SNDE_RTN_INT64},
+#endif
       {typeid(uint32_t),SNDE_RTN_UINT32},
       {typeid(int32_t),SNDE_RTN_INT32},
       {typeid(uint16_t),SNDE_RTN_UINT16},
@@ -3038,7 +3043,7 @@ namespace snde {
 	      for (auto && mdonly_channame2 : chan_notify->criteria.metadataonly_channels) {
 		other_channels += mdonly_channame2+";";
 	      }
-	      snde_warning("MDOnly notification requested on non-existent channel %s; other MDOnly channels=%s. Ignoring.",mdonly_channame,other_channels);
+	      snde_warning("MDOnly notification requested on non-existent channel %s; other MDOnly channels=%s. Ignoring.",mdonly_channame.c_str(),other_channels.c_str());
 	      continue;
 	    }
 
@@ -3062,7 +3067,7 @@ namespace snde {
 	      for (auto && fullyready_channame2 : chan_notify->criteria.fullyready_channels) {
 		other_channels += fullyready_channame2+";";
 	      }
-	      snde_warning("FullyReady notification requested on non-existent channel %s; other FullyReady channels=%s. Ignoring.",fullyready_channame,other_channels);
+	      snde_warning("FullyReady notification requested on non-existent channel %s; other FullyReady channels=%s. Ignoring.",fullyready_channame.c_str(),other_channels.c_str());
 	      continue;
 	    }
 	    
@@ -5026,11 +5031,13 @@ namespace snde {
 
 #ifdef SIZEOF_LONG_IS_8 // this is a SWIG workaround -- see spatialnde2.i
   std::shared_ptr<std::vector<std::pair<std::string,unsigned long>>> recording_set_state::list_recording_revisions()
+{
+  std::shared_ptr<std::vector<std::pair<std::string,unsigned long>>> retval = std::make_shared<std::vector<std::pair<std::string,unsigned long>>>();
 #else
   std::shared_ptr<std::vector<std::pair<std::string,unsigned long long>>> recording_set_state::list_recording_revisions()
-#endif    
-  {
-    std::shared_ptr<std::vector<std::pair<std::string,uint64_t>>> retval = std::make_shared<std::vector<std::pair<std::string,uint64_t>>>();
+{
+  std::shared_ptr<std::vector<std::pair<std::string,unsigned long long>>> retval = std::make_shared<std::vector<std::pair<std::string,unsigned long long>>>();
+#endif
     
     for (auto && channel_map_it: *recstatus.channel_map) {
       uint64_t revision=0;
@@ -5040,7 +5047,11 @@ namespace snde {
       retval->push_back(std::make_pair(channel_map_it.first,revision));
     }
     return retval;
+#ifdef SIZEOF_LONG_IS_8
   }
+#else
+  }
+#endif
 
   std::shared_ptr<std::vector<std::pair<std::string,std::string>>> recording_set_state::list_ndarray_refs()
     {
@@ -5426,7 +5437,7 @@ namespace snde {
 
 	auto check = msgs->second.find(name);
 	if (check != msgs->second.end()) {
-	  throw snde_error("send_math_message:  can only send specified message '%s' once in transaction", name);
+	  throw snde_error("send_math_message:  can only send specified message '%s' once in transaction", name.c_str());
 	}
 	else {
 	  msgs->second.emplace(std::make_pair(name, msg));
@@ -5570,7 +5581,7 @@ namespace snde {
 
       // verify recording not already updated in current transaction
       if (trans->new_recordings.find(new_config->channelpath) != trans->new_recordings.end()) {
-	throw snde_error("Replacing owner of channel %s in transaction where recording already updated",new_config->channelpath);
+	throw snde_error("Replacing owner of channel %s in transaction where recording already updated",new_config->channelpath.c_str());
       }
       {
 	std::lock_guard<std::mutex> chan_lock(reservation->admin);

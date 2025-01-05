@@ -383,7 +383,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
 	  // metadata code moved here so we can get max depth info 
 	  constructible_metadata metadata;
-	  metadata.AddMetaDatum(metadatum("snde_boxes3d_max_depth",max_depth));
+	  metadata.AddMetaDatum(metadatum("snde_boxes3d_max_depth",(uint64_t)max_depth));
 	  
 	  result_rec->metadata=std::make_shared<immutable_metadata>(metadata);
 	  result_rec->mark_metadata_done();
@@ -900,7 +900,7 @@ static inline  std::tuple<snde_index,std::set<snde_index>> enclosed_or_intersect
 
 	    // metadata code moved here so we can get max depth info 
 	    constructible_metadata metadata;
-	    metadata.AddMetaDatum(metadatum("snde_boxes2d_max_depth",max_depth));
+	    metadata.AddMetaDatum(metadatum("snde_boxes2d_max_depth",(uint64_t)max_depth));
 	    
 	    result_rec->metadata=std::make_shared<immutable_metadata>(metadata);
 	    result_rec->mark_metadata_done();

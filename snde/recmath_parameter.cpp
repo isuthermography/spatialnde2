@@ -237,7 +237,7 @@ namespace snde {
     return ssprintf("%llu",(unsigned long long)index_constant);
   }
   
-  snde_index math_parameter_sndeindex_const::get_unsigned(std::shared_ptr<recording_set_state> rss, const std::string& channel_path_context, const std::shared_ptr<math_definition>& fcn_def, size_t parameter_index)
+  uint64_t math_parameter_sndeindex_const::get_unsigned(std::shared_ptr<recording_set_state> rss, const std::string& channel_path_context, const std::shared_ptr<math_definition>& fcn_def, size_t parameter_index)
     // parameter_index human interpreted parameter number, starting at 1, for error messages only
   {
     return index_constant;

@@ -2,8 +2,12 @@
 #include <unistd.h>
 #endif
 
+#ifdef __APPLE__
+#include <glut.h>
+#else
 #include <GL/glut.h>
 #include <GL/freeglut.h>
+#endif
 
 #include <osg/Array>
 #include <osg/MatrixTransform>
@@ -231,9 +235,11 @@ int main(int argc, char **argv)
 
   glutMouseFunc(&png_viewer_mouse);
   glutMotionFunc(&png_viewer_motion);
-
+#ifdef __APPLE__
+  glutWMCloseFunc(&png_viewer_close);
+#else
   glutCloseFunc(&png_viewer_close);
-
+#endif
   glutKeyboardFunc(&png_viewer_kbd);
 
   rendercache = std::make_shared<osg_rendercache>();

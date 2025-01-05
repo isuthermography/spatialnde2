@@ -11,7 +11,7 @@
 #include <math.h>
 #include "snde/snde_types.h"
 
-#endif
+#endif // __OPENCL_VERSION__
 
 #if (defined(_MSC_VER) && !defined(__cplusplus))
 #define GEOTYPES_INLINE  __inline
@@ -37,7 +37,7 @@ typedef float snde_coord;
 #define M_PI_SNDE_COORD M_PI  // or CL_M_PI?
 #else
 #define M_PI_SNDE_COORD M_PI_F // or CL_M_PI_F?
-#endif
+#endif // SNDE_DOUBLEPREC_COORDS
 
   
   typedef float snde_rendercoord;
@@ -76,7 +76,7 @@ typedef float snde_coord;
   //  
   //  return copy.floatval;
   //}
-#else
+#else // __OPENCL_VERSION__ code that follows is for NOT OPENCL
   //#if 0 && defined(SNDE_OPENCL)
 
 //typedef cl_double snde_coord;
@@ -97,7 +97,7 @@ typedef float snde_rendercoord;
 typedef float snde_imagedata;
 typedef snde_complexfloat32 snde_compleximagedata;
 
-#if (defined(__STDC_VERSION__) && (__STDC_VERSION__>= 201112L) && !defined(__STDC_NO_ATOMICS__)) || (defined(__cplusplus) && defined(__clang__)) 
+#if (defined(__STDC_VERSION__) && (__STDC_VERSION__>= 201112L) && !defined(__STDC_NO_ATOMICS__)) //|| (defined(__cplusplus) && defined(__clang__)) 
   // Use C11 atomics when supported under C and also under C++ with clang
 #include <stdatomic.h>
   
@@ -149,7 +149,7 @@ static GEOTYPES_INLINE float atomicpixel_read(volatile  snde_atomicimagedata *sr
 }
 
   
-#else
+#else // code below is for NOT using C11 atomics
 #if defined(__GNUC__) || defined(__ATOMIC_ACQUIRE)
   // Gcc has its own atomics extensions that will work under c++
   // This should catch GCC and any other compiler that implements it based on
@@ -213,7 +213,7 @@ static GEOTYPES_INLINE float atomicpixel_read(volatile snde_atomicimagedata *src
 
   
   
-#else
+#else // code below is for NOT using C11 atomics and NOT using Gcc atomics
 #ifdef _WIN32
   #define WIN32_LEAN_AND_MEAN
   #define NOMINMAX
@@ -289,14 +289,14 @@ static GEOTYPES_INLINE float atomicpixel_read(volatile snde_atomicimagedata *src
   return floatvalue.floatval;
 }
   
-#else
+#else // NOT using C11 atomics, NOT using Gcc atomics, NOT using Win32 atomics
   
 #ifdef __cplusplus
   // worst-case drop down to a single C++11 mutex: Note that this is per compilation unit,
   // so synchronization aross modules is not ensured!
 #ifdef _MSC_VER
 #pragma message("No atomic support available from C++ compiler; Dropping down to std::mutex (may be very slow)")
-#else
+#else // _MSC_VER
 #warning No atomic support available from C++ compiler; Dropping down to std::mutex (may be very slow)
 #endif
 #include <mutex>
@@ -314,7 +314,7 @@ static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata
 
 // Note no atomicpixel_read implemented yet
   
-#else
+#else // NOT using C11 atomics, NOT using Gcc atomics, NOT using Win32 atomics, NOT using C++
 #warning No atomic support available from compiler; projection pixel corruption is possible!
 typedef float snde_atomicimagedata;
 static GEOTYPES_INLINE void atomicpixel_accumulate(volatile snde_atomicimagedata *var,float toadd)

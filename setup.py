@@ -55,7 +55,8 @@ class CMakePreBuild(Command):
                 extra_build_params += ["--", "/p:Configuration=RelWithDebInfo"] # Use RelWithDebInfo for visual studio
                 pass
             subprocess.call(["cmake", "--build", self.bdist_dir, "-j", "8"]+extra_build_params)
-            spatialnde2_dlls = [ dllname for dllname in os.listdir(os.path.join(self.bdist_dir,'spatialnde2')) if (dllname.endswith(platform_shlib_suffix) and not dllname.startswith('_')) or dllname.endswith('.lib') ] # Get dlls and .libs but not the extension itself -- which has a name that starts with an underscore
+            # print("dll dir", os.listdir(os.path.join(self.bdist_dir,'spatialnde2')))
+            spatialnde2_dlls = [ dllname for dllname in os.listdir(os.path.join(self.bdist_dir,'spatialnde2')) if (dllname.endswith(platform_shlib_suffix) and not dllname.startswith('_')) or dllname.endswith('.lib') or dllname.endswith('.dylib') ] # Get dlls and .libs but not the extension itself -- which has a name that starts with an underscore. .dylib is used on MACOSX
             self.distribution.package_data["spatialnde2"].extend(spatialnde2_dlls)
             pass
         pass
@@ -108,7 +109,7 @@ else:
 if os.path.exists("CMakeCache.txt"):
     package_directory = "."
     build_class = build # If we are in a build directory, just use the regular setuptools build class
-    spatialnde2_dlls = [ dllname for dllname in os.listdir('spatialnde2') if (dllname.endswith(platform_shlib_suffix) and not dllname.startswith('_')) or dllname.endswith('.lib') ] # Get dlls and .libs but not the extension itself -- which has a name that starts with an underscore
+    spatialnde2_dlls = [ dllname for dllname in os.listdir('spatialnde2') if (dllname.endswith(platform_shlib_suffix) and not dllname.startswith('_')) or dllname.endswith('.lib') or dllname.endswith('.dylib')] # Get dlls and .libs but not the extension itself -- which has a name that starts with an underscore. .dylib is used by MACOSX
     pass
 else:
     package_directory = "python"

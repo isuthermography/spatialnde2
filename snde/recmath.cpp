@@ -1430,8 +1430,8 @@ namespace snde {
       // Check if we are filtering this channel
       auto fc_it = filter_channels.find(channel_fullpath);
       bool filtering = (fc_it != filter_channels.end());
-      if (!filtering && (!rec || (rec->info_state & SNDE_RECS_FULLYREADY != SNDE_RECS_FULLYREADY))) {
-	// We are not filtering this channel and the recording is not present or not fully ready. 
+      if (!filtering && (!rec || ((rec->info_state & SNDE_RECS_FULLYREADY) != SNDE_RECS_FULLYREADY))) {
+	// We are not filtering this channel and the recording is not present or not fully ready.
 	(*deps_out)->emplace(channel_fullpath);
 	found_incomplete_deps = true;
       }
@@ -1487,7 +1487,7 @@ namespace snde {
 	std::shared_ptr<recording_base> rec=chan_it->second.rec();
 
 	if (rec){
-	  if (rec->info_state & SNDE_RECS_FULLYREADY != SNDE_RECS_FULLYREADY){
+	  if ((rec->info_state & SNDE_RECS_FULLYREADY) != SNDE_RECS_FULLYREADY){
 	    std::shared_ptr<recording_set_state> originating_rss;
 	    {
 	      std::lock_guard<std::mutex> rec_admin(rec->admin);
@@ -1519,7 +1519,7 @@ namespace snde {
 	std::shared_ptr<recording_base> rec=chan_it->second.rec();
 
 	if (rec){
-	  if (rec->info_state & SNDE_RECS_FULLYREADY != SNDE_RECS_FULLYREADY){
+	  if ((rec->info_state & SNDE_RECS_FULLYREADY) != SNDE_RECS_FULLYREADY){
 	    mathstatus_ptr->missing_prerequisites.emplace(chan_it->second.config);
 	    std::shared_ptr<recording_set_state> originating_rss;
 	    {
