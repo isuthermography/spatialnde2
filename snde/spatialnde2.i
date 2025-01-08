@@ -490,18 +490,18 @@ template <typename T>
 #endif
 
 
-#ifdef SIZEOF_LONG_IS_8
+//#ifdef SIZEOF_LONG_IS_8
 // regular unsigned are different from Unsigned64
 %template(StringUnsignedPair) std::pair<std::string,unsigned>;
 //%shared_ptr(std::pair<std::string,unsigned>);
 %template(StringUnsignedPairVector) std::vector<std::pair<std::string,unsigned>>;
-#else
-// regular unsigned are the same as Unsigned64
-%pythoncode %{
-  StringUnsignedPair=StringUnsigned64Pair
-  StringUnsignedPairVector=StringUnsigned64PairVector
-%}
-#endif
+//#else
+//// regular unsigned are the same as Unsigned64
+//%pythoncode %{
+//  StringUnsignedPair=StringUnsigned64Pair
+//  StringUnsignedPairVector=StringUnsigned64PairVector
+//%}
+//#endif
 
 %template(shared_ptr_string) std::shared_ptr<std::string>;
 
