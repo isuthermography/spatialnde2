@@ -36,7 +36,11 @@ set(SNDE_PYTHON_SUPPORT_ENABLED ON CACHE BOOL "Enable python support in SpatialN
 
 # Set installation location rules
 
-IF(APPLE)    # Apple
+IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  SET(MACOSX TRUE)
+ENDIF()
+
+IF(MACOSX)    # Apple
   SET(CMAKE_INSTALL_PREFIX "~/install" CACHE PATH "Prefix prepended to install directories.  Must be writable by your user!")
 ELSEIF(UNIX) # Linux (not Apple due to use of if/else-if construct)
   SET(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "Prefix prepended to install directories.  Must be writable by your user!")
@@ -51,7 +55,7 @@ ENDIF()
 # Create a variable to enable/disable installing into site-packages
 set(INSTALL_INTO_PYTHON_SITE_PACKAGES OFF CACHE BOOL "Install into the Python site-packages so that scripts run without setting PYTHONPATH (better to run the setup.py generated in the build directory manually)")
 
-if((NOT WIN32) AND (NOT APPLE))
+if((NOT WIN32) AND (NOT MACOSX))
   set(INSTALL_BINARIES_INTO_INSTALL_PREFIX OFF CACHE BOOL "Install binaries into the bin/ and lib/ or lib64/ directories under your selected prefix")
   include(GNUInstallDirs)
 endif()
@@ -282,11 +286,11 @@ set(SPATIALNDE2_LIBS spatialnde2 ${CMAKE_THREAD_LIBS_INIT} )
 set(SPATIALNDE2_OCL_LIBS spatialnde2_ocl )
 set(SPATIALNDE2_OSG_LIBS spatialnde2_osg )
 set(SPATIALNDE2_QT_LIBS spatialnde2_qt )
-IF(NOT WIN32)
-  set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} rt ) # -lrt required for shm_open() etc.
+IF(NOT WIN32 AND NOT MACOSX)
+  set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} rt) #-lrt required for shm_open() etc.
 ENDIF()
 
-IF (NOT WIN32)
+IF (NOT WIN32 AND NOT MACOSX)
 set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} atomic)
 ENDIF()
 
@@ -392,7 +396,7 @@ IF (SNDE_PYTHON_SUPPORT_ENABLED)
     target_link_libraries(spatialnde2 ${Python3_LIBRARIES})
 ENDIF (SNDE_PYTHON_SUPPORT_ENABLED)
 
-IF (NOT WIN32)
+IF (NOT WIN32 AND NOT MACOSX)
   target_link_libraries(spatialnde2 rt)
 ENDIF()
 
@@ -406,7 +410,8 @@ ENDIF()
 
 IF (OpenSceneGraph_FOUND)
   add_library(spatialnde2_osg SHARED ${SPATIALNDE2_OSG_SOURCES} )
-  target_link_libraries(spatialnde2_osg ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES} spatialnde2)
+  #add_dependencies(spatialnde2_osg OpenGL::GL )
+  target_link_libraries(spatialnde2_osg OpenGL::GL ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES} spatialnde2)
   IF (MSVC)
     target_link_libraries(spatialnde2_osg opengl32)
   ENDIF()
@@ -438,10 +443,15 @@ FILE(GLOB SPATIALNDE2_PY_MODULES "python/spatialnde2/*.py")
 # Set RPATH
 # the RPATH to be used when installing, but only if it's not a system directory
 LIST(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_FULL_LIBDIR}" isSystemDir)
-IF("${isSystemDir}" STREQUAL "-1")
-  set(CMAKE_INSTALL_RPATH "$ORIGIN;${APP_INSTALL_DIR}/lib;${CMAKE_INSTALL_FULL_LIBDIR}")
+IF(MACOSX)
+  SET(ORIGIN_LINKER_VARIABLE_NAME "@loader_path")
 ELSE()
-  set(CMAKE_INSTALL_RPATH "$ORIGIN;${APP_INSTALL_DIR}/lib")
+  SET(ORIGIN_LINKER_VARIABLE_NAME "$ORIGIN")
+ENDIF()
+IF("${isSystemDir}" STREQUAL "-1")
+  set(CMAKE_INSTALL_RPATH "${ORIGIN_LINKER_VARIABLE_NAME};${APP_INSTALL_DIR}/lib;${CMAKE_INSTALL_FULL_LIBDIR}")
+ELSE()
+  set(CMAKE_INSTALL_RPATH "${ORIGIN_LINKER_VARIABLE_NAME};${APP_INSTALL_DIR}/lib")
   
 ENDIF()
 
@@ -695,7 +705,7 @@ IF (GLUT_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   add_executable(osg_layerwindow_test test/osg_layerwindow_test.cpp)
   #add_dependencies(png_viewer OpenCL_Headers)
   add_dependencies(osg_layerwindow_test OpenGL::GL )
-  target_link_libraries(osg_layerwindow_test -lGL ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}  )
+  target_link_libraries(osg_layerwindow_test OpenGL::GL ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}  )
   IF(OpenCL_FOUND)
         target_link_libraries(osg_layerwindow_test ${SPATIALNDE2_OCL_LIBS})
   ENDIF()
@@ -705,7 +715,7 @@ IF (GLUT_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   add_executable(compositor_test test/compositor_test.cpp)
   #add_dependencies(png_viewer OpenCL_Headers)
   add_dependencies(compositor_test OpenGL::GL )
-  target_link_libraries(compositor_test -lGL ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}  )
+  target_link_libraries(compositor_test OpenGL::GL ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}  )
   IF(OpenCL_FOUND)
         target_link_libraries(compositor_test ${SPATIALNDE2_OCL_LIBS})
   ENDIF()
@@ -1029,7 +1039,7 @@ IF ((Qt5_FOUND AND SNDE_ENABLE_QT5) OR (Qt6_FOUND AND SNDE_ENABLE_QT6))
           DESTINATION ${APP_INSTALL_DIR}/lib)
 ENDIF()
 
-if((NOT WIN32) AND (NOT APPLE) AND INSTALL_BINARIES_INTO_INSTALL_PREFIX)
+if((NOT WIN32) AND (NOT MACOSX) AND INSTALL_BINARIES_INTO_INSTALL_PREFIX)
 install(TARGETS
         spatialnde2
         DESTINATION ${CMAKE_INSTALL_LIBDIR})

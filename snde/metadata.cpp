@@ -36,7 +36,7 @@ namespace snde {
 
   metadatum metadatum_index(std::string Name,snde_index indexval)
   {
-    return metadatum(Name,indexval);
+    return metadatum(Name,(uint64_t)indexval);
   }
 
   

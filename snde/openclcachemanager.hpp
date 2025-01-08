@@ -53,7 +53,7 @@ namespace snde {
     
     opencldirtyregion(snde_index regionstart,snde_index regionend,std::shared_ptr<recording_storage> owning_storage);
     opencldirtyregion& operator=(const opencldirtyregion &)=delete; /* copy assignment disabled */
-    opencldirtyregion(const opencldirtyregion &orig) = default;
+    opencldirtyregion(const opencldirtyregion &orig) = delete;
     
     bool attempt_merge(opencldirtyregion &later); // for now always returns false    
 

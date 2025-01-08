@@ -235,7 +235,7 @@ namespace snde {
   
   andefile_readrecording_base::andefile_readrecording_base(const std::set<std::string> &ande_classes,std::string h5path, H5::Group group, std::string recpath,std::shared_ptr<ande_loadrecording_map> filemap) :
     ande_classes(ande_classes),
-    file(file),
+    file(),
     h5path(h5path),
     group(group),
     recpath(recpath)
@@ -1024,7 +1024,7 @@ namespace snde {
 
       auto typenum_map_it = by_typenum->find(mnr_to_save->ndinfo(arraynum)->typenum);
       if (typenum_map_it==by_typenum->end()) {
-	throw snde_error("andefile_write_multi_ndarray_recording(): No HDF5 type found for channel %s type %s (%u)",mnr_to_save->info->name,rtn_typenamemap.at(mnr_to_save->ndinfo(arraynum)->typenum),mnr_to_save->ndinfo(arraynum)->typenum);
+	throw snde_error("andefile_write_multi_ndarray_recording(): No HDF5 type found for channel %s type %s (%u)",mnr_to_save->info->name,rtn_typenamemap.at(mnr_to_save->ndinfo(arraynum)->typenum).c_str(),mnr_to_save->ndinfo(arraynum)->typenum);
       }
       H5::DataType array_dtype = typenum_map_it->second.first();
       

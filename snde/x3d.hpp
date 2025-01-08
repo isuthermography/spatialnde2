@@ -362,7 +362,7 @@ namespace snde {
 	  in_string=true;
 	} else {
 	  if (mfstring[pos] > 127 || !isspace(mfstring[pos])) {
-	    throw x3derror("Invalid character %c in between MFString components (\'%s\')",mfstring[pos],mfstring);
+	    throw x3derror("Invalid character %c in between MFString components (\'%s\')",mfstring[pos],mfstring.c_str());
 	  }	  
 	}
 	last_was_escape=false;
@@ -381,7 +381,7 @@ namespace snde {
 	  StringBuf+=mfstring[pos];
 	  last_was_escape=false;
 	} else if (last_was_escape) {
-	  throw x3derror("Invalid escaped character %s in MFString \"%s\"" ,mfstring[pos],mfstring);	  
+	  throw x3derror("Invalid escaped character %s in MFString \"%s\"" ,mfstring[pos],mfstring.c_str());
 	} else {
 	  // not last_was_escape and we have a regular character
 	  StringBuf += mfstring[pos];
@@ -392,7 +392,7 @@ namespace snde {
     }
 
     if (in_string) {
-      throw x3derror("Unterminated string in MFString \"%s\"",mfstring);
+      throw x3derror("Unterminated string in MFString \"%s\"",mfstring.c_str());
     }
 
     return Strings;

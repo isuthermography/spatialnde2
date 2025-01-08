@@ -2,8 +2,12 @@
     #include <unistd.h>
 #endif
 
+#ifdef __APPLE__
+#include <glut.h>
+#else
 #include <GL/glut.h>
 #include <GL/freeglut.h>
+#endif
 
 #include <osg/Array>
 #include <osg/Geode>
@@ -193,9 +197,11 @@ int main(int argc, char **argv)
 
   glutMouseFunc(&x3d_viewer_mouse);
   glutMotionFunc(&x3d_viewer_motion);
-
+#ifdef __APPLE__
+  glutWMCloseFunc(&x3d_viewer_close);
+#else
   glutCloseFunc(&x3d_viewer_close);
-
+#endif
   glutKeyboardFunc(&x3d_viewer_kbd);
 
   // load the scene. (testing only)

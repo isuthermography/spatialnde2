@@ -726,7 +726,7 @@ namespace snde {
 	
       }
 
-      throw snde_error("Projection only supports real or complex imagedata: Can not project onto array of type %s",rtn_typenamemap.at(to_project_rec_ref->typenum));
+      throw snde_error("Projection only supports real or complex imagedata: Can not project onto array of type %s",rtn_typenamemap.at(to_project_rec_ref->typenum).c_str());
       
     });
 
