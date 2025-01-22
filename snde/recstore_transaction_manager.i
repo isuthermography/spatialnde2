@@ -47,7 +47,9 @@ snde_rawaccessible(snde::timed_transaction);
 %typemap(out) PyObject* snde::measurement_time::Py_Downcast {
   $result=$1;
   Py_INCREF($result);
+#if SWIG_VERSION >= 0x040100 // Directors disabled for swig older than 4.1.0 because of uncompilable code
   director = nullptr; // disable ownership release
+#endif
  }
 namespace snde {
 
