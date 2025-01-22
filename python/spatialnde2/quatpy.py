@@ -203,7 +203,7 @@ def angle_between_quaternions(quat1, quat2):
     '''
     quat1_norm = quaternion_normalize(quat1)
     quat2_norm = quaternion_normalize(quat2)
-    dot_product = np.inner(quat1_norm, quat2_norm)
+    dot_product = np.einsum('...i,...i',quat1_norm, quat2_norm)
     
     angle = 2 * np.arccos(dot_product) # returns the angle in radians
     return angle
