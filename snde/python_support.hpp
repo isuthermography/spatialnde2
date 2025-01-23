@@ -23,28 +23,42 @@ nothing if the SNDE_PYTHON_SUPPORT_ENABLED flag is not set or if the thread has 
 #define SNDE_EndDropPythonGILBlock }
 
 namespace snde {
+  // On WIN32 we link spatialnde2 with python and always
+  // drop the GIL if it is held in appropriate blocks.
+  
+  // On Mac and Linux we dynamically look up whether
+  // python symbols exist in our running binary, and
+  // if they do, we drop the GIL if it is held in
+  // appropriate blocks.
+  // This is necessary because on Mac, there is a difference
+  // between linking to a library and loading it as a
+  // module. If you both link to it and load it with
+  // different locations, you get a crash.
 
+  // The Mac/Linux behavior should probably be ported over
+  // to Windows, but there doesn't seem to be a simple
+  // Windows call for getting the address of a symbol
+  // without knowing the name of the dll it should be
+  // coming from. That name will change with python
+  // versions, making things messy.
+  
+#ifndef _WIN32
+  extern std::atomic<bool> python_syms_initialized;
+  extern std::mutex python_syms_write_lock; // Last in locking order
+  extern int (*python_Py_IsInitialized)(void);
+  extern PyGILState_STATE (*python_PyGILState_Check)(void);
+  extern PyThreadState * (*python_PyEval_SaveThread)(void);
+  extern void (*python_PyEval_RestoreThread)(PyThreadState *);
+  int python_getsyms();
+#endif // _WIN32
+  
   class DropPythonGIL {
   public:
 
-    DropPythonGIL(std::string caller, std::string file, int line) : 
-      _state(nullptr),
-      _caller(caller),
-      _file(file),
-      _line(line)
-    {
-      if (Py_IsInitialized() && PyGILState_Check()) {
-	snde_debug(SNDE_DC_PYTHON_SUPPORT, "Dropping GIL by %s in %s:%d", _caller.c_str(), _file.c_str(), _line);
-	_state = PyEval_SaveThread();
-      }
-    }
+    DropPythonGIL(std::string caller, std::string file, int line);
 
-    virtual ~DropPythonGIL() {
-      if (_state) {
-	snde_debug(SNDE_DC_PYTHON_SUPPORT, "Restoring GIL for %s in %s:%d", _caller.c_str(), _file.c_str(), _line);
-	PyEval_RestoreThread(_state);
-      }
-    }
+    virtual ~DropPythonGIL();
+    
 
     DropPythonGIL(const DropPythonGIL&) = delete;
     DropPythonGIL& operator=(const DropPythonGIL&) = delete;
@@ -58,7 +72,7 @@ namespace snde {
   };  
   
 
-  }
+}
 
 #else // SNDE_PYTHON_SUPPORT_ENABLED
 

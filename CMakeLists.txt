@@ -171,7 +171,7 @@ else()
   set(SHARED_LIBRARY_SUFFIX_PYTHON .so )
 endif()
 
-set(SPATIALNDE2_SOURCES snde/allocator.cpp snde/lockmanager.cpp snde/recmath_compute_resource.cpp snde/recmath.cpp snde/recmath_parameter.cpp snde/recstore.cpp snde/metadata.cpp snde/recstore_storage.cpp snde/recmath_cppfunction.cpp snde/notify.cpp snde/snde_error.cpp snde/graphics_storage.cpp snde/rec_display.cpp snde/recstore_display_transforms.cpp snde/graphics_recording.cpp snde/cached_recording.cpp snde/recstore_setup.cpp snde/rec_display_vertexarray.c snde/rec_display_texvertexarray.c snde/normal_calc.c snde/fusion_colormap.c snde/projinfo_calc.c snde/display_requirements.cpp snde/averaging_downsampler.cpp snde/mean.cpp snde/NumPy_BGRtoRGBA.cpp snde/NumPy_BGRtoGray16.cpp snde/batched_live_accumulator.cpp snde/nd_accumulate_once.cpp snde/accumulate_once.cpp snde/kdtree_knn.c snde/inplanemat_calculation.cpp snde/boxes_calculation.cpp snde/project_onto_parameterization.cpp snde/ande_file.cpp snde/geometry_processing.cpp snde/orientation_product.cpp snde/area_calc.c snde/units.cpp snde/offset_calibration.cpp snde/recstore_transaction_manager.cpp snde/bad_pixel_correction.cpp ) # snde/infostore_or_component.cpp snde/geometry.cpp snde/revision_manager.cpp snde/mutablerecstore.cpp )
+set(SPATIALNDE2_SOURCES snde/allocator.cpp snde/lockmanager.cpp snde/recmath_compute_resource.cpp snde/recmath.cpp snde/recmath_parameter.cpp snde/recstore.cpp snde/metadata.cpp snde/recstore_storage.cpp snde/recmath_cppfunction.cpp snde/notify.cpp snde/snde_error.cpp snde/graphics_storage.cpp snde/rec_display.cpp snde/recstore_display_transforms.cpp snde/graphics_recording.cpp snde/cached_recording.cpp snde/recstore_setup.cpp snde/rec_display_vertexarray.c snde/rec_display_texvertexarray.c snde/normal_calc.c snde/fusion_colormap.c snde/projinfo_calc.c snde/display_requirements.cpp snde/averaging_downsampler.cpp snde/mean.cpp snde/NumPy_BGRtoRGBA.cpp snde/NumPy_BGRtoGray16.cpp snde/batched_live_accumulator.cpp snde/nd_accumulate_once.cpp snde/accumulate_once.cpp snde/kdtree_knn.c snde/inplanemat_calculation.cpp snde/boxes_calculation.cpp snde/project_onto_parameterization.cpp snde/ande_file.cpp snde/geometry_processing.cpp snde/orientation_product.cpp snde/area_calc.c snde/units.cpp snde/offset_calibration.cpp snde/recstore_transaction_manager.cpp snde/bad_pixel_correction.cpp snde/python_support.cpp ) # snde/infostore_or_component.cpp snde/geometry.cpp snde/revision_manager.cpp snde/mutablerecstore.cpp )
 
 if (NOT WIN32)
   set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/shared_memory_allocator_posix.cpp )
@@ -221,8 +221,8 @@ IF(SNDE_PYTHON_SUPPORT_ENABLED)
     set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
 
     message(PYTHON_EXECUTABLE " " ${PYTHON_EXECUTABLE})
-
     find_package(Python3 COMPONENTS Interpreter Development)
+    include_directories(${Python3_INCLUDE_DIRS})
     find_package(SWIG)
 
     IF (Python3_FOUND)
@@ -366,10 +366,10 @@ IF (Eigen3_FOUND)
   include_directories(${EIGEN3_INCLUDE_DIR})
 ENDIF()
 
-IF (Python3_FOUND)
-    include_directories(${Python3_INCLUDE_DIRS})
-    set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} ${Python3_LIBRARIES})
-ENDIF(Python3_FOUND)
+#IF (Python3_FOUND)
+#    include_directories(${Python3_INCLUDE_DIRS})
+#    set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} ${Python3_LIBRARIES})
+#ENDIF(Python3_FOUND)
 
 IF (OpenThreads_FOUND)
   include_directories(${OPENTHREADS_INCLUDE_DIR})
@@ -392,7 +392,10 @@ add_dependencies(spatialnde2 OpenGL::GL )
 target_compile_definitions(spatialnde2 PRIVATE SPATIALNDE2_SHAREDLIB_EXPORT)
 target_link_libraries(spatialnde2 hdf5::hdf5 hdf5::hdf5_cpp )
 
-IF (SNDE_PYTHON_SUPPORT_ENABLED)
+# We explicitly link libspatialnde2 to Python only on WIN32
+# because otherwise we dynamically look up Python symbols
+# to see whether Python is loaded. (See python_support.hpp and .cpp)
+IF (SNDE_PYTHON_SUPPORT_ENABLED AND WIN32) 
     target_link_libraries(spatialnde2 ${Python3_LIBRARIES})
 ENDIF (SNDE_PYTHON_SUPPORT_ENABLED)
 
@@ -866,9 +869,18 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	ELSE()  
 	  set(SWIG_SPATIALNDE2_LINK_TARGETS Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools PNG::PNG hdf5::hdf5 hdf5::hdf5_cpp) # Libraries needed by swig_spatialnde2 that are swig targets
 	ENDIF()
-	
-	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${Python3_LIBRARIES} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${SPATIALNDE2_QT_LIBS} )
 
+        IF(NOT MACOSX)
+          
+	  set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${Python3_LIBRARIES} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${SPATIALNDE2_QT_LIBS} )
+        ELSE()
+          # On MACOSX extension modules should use
+          # -undefined dynamic_lookup and -bundle_loader instead
+          # of explicitly linking to libpython.
+          # Citation: https://blog.tim-smith.us/2015/09/python-extension-modules-os-x/
+          set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${SPATIALNDE2_QT_LIBS} ) 
+        ENDIF()
+        
 	IF (OpenCL_FOUND)
           IF (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"))
             set(SWIG_SPATIALNDE2_LINK_TARGETS ${SWIG_SPATIALNDE2_LINK_TARGETS} OpenCL::OpenCL)
