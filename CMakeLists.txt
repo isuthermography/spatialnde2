@@ -221,7 +221,7 @@ IF(SNDE_PYTHON_SUPPORT_ENABLED)
     set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
 
     message(PYTHON_EXECUTABLE " " ${PYTHON_EXECUTABLE})
-    find_package(Python3 COMPONENTS Interpreter Development)
+    find_package(Python3 COMPONENTS Interpreter Development Development.Module)
     include_directories(${Python3_INCLUDE_DIRS})
     find_package(SWIG)
 
@@ -397,7 +397,7 @@ target_link_libraries(spatialnde2 hdf5::hdf5 hdf5::hdf5_cpp )
 # to see whether Python is loaded. (See python_support.hpp and .cpp)
 IF (SNDE_PYTHON_SUPPORT_ENABLED AND WIN32) 
     target_link_libraries(spatialnde2 ${Python3_LIBRARIES})
-ENDIF (SNDE_PYTHON_SUPPORT_ENABLED)
+ENDIF()
 
 IF (NOT WIN32 AND NOT MACOSX)
   target_link_libraries(spatialnde2 rt)
@@ -864,10 +864,11 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	set(SPATIALNDE2_SWIG_SOURCES snde/spatialnde2.i  )
 	set_property(SOURCE snde/spatialnde2.i PROPERTY SWIG_MODULE_NAME spatialnde2_python)
 
+	set(SWIG_SPATIALNDE2_LINK_TARGETS )
         IF(SNDE_ENABLE_QT6)
-	  set(SWIG_SPATIALNDE2_LINK_TARGETS Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::UiTools PNG::PNG hdf5::hdf5 hdf5::hdf5_cpp) # Libraries needed by swig_spatialnde2 that are swig targets
+	  set(SWIG_SPATIALNDE2_LINK_TARGETS ${SWIG_SPATIALNDE2_LINK_TARGETS} Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::UiTools PNG::PNG hdf5::hdf5 hdf5::hdf5_cpp) # Libraries needed by swig_spatialnde2 that are swig targets
 	ELSE()  
-	  set(SWIG_SPATIALNDE2_LINK_TARGETS Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools PNG::PNG hdf5::hdf5 hdf5::hdf5_cpp) # Libraries needed by swig_spatialnde2 that are swig targets
+	  set(SWIG_SPATIALNDE2_LINK_TARGETS ${SWIG_SPATIALNDE2_LINK_TARGETS} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools PNG::PNG hdf5::hdf5 hdf5::hdf5_cpp) # Libraries needed by swig_spatialnde2 that are swig targets
 	ENDIF()
 
         IF(NOT MACOSX)
@@ -901,8 +902,9 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	  set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${LIBXML2_LIBRARIES})
 	ENDIF()
     
-	SWIG_ADD_LIBRARY(spatialnde2_python LANGUAGE python SOURCES ${SPATIALNDE2_SWIG_SOURCES} )
-	TARGET_LINK_LIBRARIES(spatialnde2_python ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${SWIG_SPATIALNDE2_LINK_TARGETS})
+	SWIG_ADD_LIBRARY(spatialnde2_python TYPE MODULE LANGUAGE python SOURCES ${SPATIALNDE2_SWIG_SOURCES} )
+	TARGET_LINK_LIBRARIES(spatialnde2_python PUBLIC ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${SWIG_SPATIALNDE2_LINK_TARGETS})
+	TARGET_LINK_LIBRARIES(spatialnde2_python PRIVATE Python3::Module)
 	
 	add_dependencies(spatialnde2 OpenCL_Headers)
     ELSE ()
