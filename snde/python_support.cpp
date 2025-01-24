@@ -1,4 +1,6 @@
+#ifndef _WIN32
 #include <dlfcn.h>
+#endif
 #include <atomic>
 #include <mutex>
 #include "python_support.hpp"

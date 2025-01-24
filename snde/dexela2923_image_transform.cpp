@@ -78,8 +78,10 @@ namespace snde {
 	//std::unordered_map<std::string,metadatum> metadata;
 	//snde_debug(SNDE_DC_APP,"metadata()");
 	//metadata.emplace("Test_metadata_entry",metadatum("Test_metadata_entry",3.14));
-	
-	result_rec->rec->metadata=rawimage->rec->metadata;
+		std::shared_ptr<constructible_metadata> new_metadata=std::make_shared<constructible_metadata>(rawimage->rec->metadata);
+		new_metadata->AddMetaDatum(metadatum("ande_array-axis0_offset",-3072/2,"pixels"));
+		new_metadata->AddMetaDatum(metadatum("ande_array-axis1_offset",3888/2,"pixels"));
+	result_rec->rec->metadata=new_metadata;
 	result_rec->rec->mark_metadata_done();
 	
 	return std::make_shared<lock_alloc_function_override_type>([ this,result_rec,rawimage ]() {
@@ -126,7 +128,7 @@ namespace snde {
 
 #ifdef SNDE_OPENCL
 	    std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(this->compute_resource);
-	    if (0 &&opencl_resource) {
+	    if (opencl_resource) {
 
 	      cl::Kernel dexela2923_kern = dexela2923_image_transform_function_opencl.get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
 	      
