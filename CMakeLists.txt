@@ -905,7 +905,9 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	SWIG_ADD_LIBRARY(spatialnde2_python TYPE MODULE LANGUAGE python SOURCES ${SPATIALNDE2_SWIG_SOURCES} )
 	TARGET_LINK_LIBRARIES(spatialnde2_python PUBLIC ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${SWIG_SPATIALNDE2_LINK_TARGETS})
 	TARGET_LINK_LIBRARIES(spatialnde2_python PRIVATE Python3::Module)
-	
+	# On MACOSX, consider removing the python module target line above, and instead
+	# accommodating undefined symbols with this line below.
+	#target_link_options(spatialnde2_python PRIVATE -Wl,-undefined -Wl,dynamic_lookup )					  
 	add_dependencies(spatialnde2 OpenCL_Headers)
     ELSE ()
         message(WARNING "NumPy not found. Cannot build SWIG Python Wrapper.")
