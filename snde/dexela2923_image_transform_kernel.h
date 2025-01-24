@@ -26,20 +26,18 @@ static DEXELA_INLINE void dexela2923_image_transform_row_strippos(uint16_t *rawi
   for (stripcnt=0; stripcnt < 6; stripcnt++) {
 
     //# Lower left detector
-    result_rec[(1944+row)*3072 + stripcnt*256 + strippos ]=rawimage[srcoffset+stripcnt*4];
-//#	result_rec[(1944+row)*3072 + stripcnt*256 + strippos ]=rawimage[row*256*6*4+stripcnt*256*4+strippos];
+    result_rec[(3887-row)*3072 + stripcnt*256 + strippos ]=	rawimage[srcoffset+stripcnt*4+3];
 	
     //# Lower right detector
-    result_rec[(1944+row)*3072 + 1536 + stripcnt*256 + strippos ]=rawimage[srcoffset+stripcnt*4+1];
-//#    result_rec[(1944+row)*3072 + 1536 + stripcnt*256 + strippos ]=rawimage[row*256*6*4+stripcnt*256*4+strippos+1];
-
+    result_rec[(3887-row)*3072 + 1536 + stripcnt*256 + strippos ]=rawimage[srcoffset+stripcnt*4+2];
+	
     //# Upper right detector
-    result_rec[(1943-row)*3072 + 3071 - stripcnt*256 - strippos ]=rawimage[srcoffset+stripcnt*4+2];
-//#    result_rec[(1943-row)*3072 + 3071 - stripcnt*256 - strippos ]=rawimage[row*256*6*4+stripcnt*256*4+strippos+2];
+    result_rec[(row)*3072 + 3071 - stripcnt*256 - strippos ]=	rawimage[srcoffset+stripcnt*4+1];
 
     //# Upper left detector
-    result_rec[(1943-row)*3072 + 1535 - stripcnt*256 - strippos ]=rawimage[srcoffset+stripcnt*4+3];
-//#    result_rec[(1943-row)*3072 + 1535 - stripcnt*256 - strippos ]=rawimage[row*256*6*4+stripcnt*256*4+strippos+3];
+    result_rec[(row)*3072 + 1535 - stripcnt*256 - strippos ]=rawimage[srcoffset+stripcnt*4];
+	
+
 
 
   }
