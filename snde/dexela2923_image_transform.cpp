@@ -18,7 +18,7 @@ namespace snde {
 
 
   
-  static opencl_program dexela2923_image_transform_function_opencl("dexela2923_image_transform", { snde_types_h, geometry_types_h,  dexela2923_image_transform_kernel_h });
+  static opencl_program dexela2923_image_transform_function_opencl("dexela2923_image_transform_kernel", { snde_types_h, geometry_types_h,  dexela2923_image_transform_kernel_h });
 #endif // SNDE_OPENCL
 
   
@@ -99,7 +99,8 @@ namespace snde {
 	    throw snde_error("dexela2923_image_transform:invalid input array size or layout");
 	  }
 	  
-	  result_rec->allocate_storage({3888,3072},true); // Note fortran order flag 
+	  result_rec->allocate_storage({3072,3888},true); // Note fortran order flag 
+      
 	  
 #ifdef SNDE_OPENCL
 	  std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(this->compute_resource);
@@ -125,7 +126,7 @@ namespace snde {
 
 #ifdef SNDE_OPENCL
 	    std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(this->compute_resource);
-	    if (opencl_resource) {
+	    if (0 &&opencl_resource) {
 
 	      cl::Kernel dexela2923_kern = dexela2923_image_transform_function_opencl.get_kernel(opencl_resource->context,opencl_resource->devices.at(0));
 	      
@@ -157,11 +158,13 @@ namespace snde {
 	      uint16_t *result_pointer = result_rec->shifted_arrayptr();
 	    
 	      // !!!*** OpenCL version must generate fortran-ordered
+          //recdb.latest.ref["/reorg"].data
 	      // output
+          memset(result_pointer,0,3888*3072*2);
 	      for (snde_index row=0;row < 1944; row++){
-		for (snde_index strippos=0;strippos < 256; strippos++){		 
-		  dexela2923_image_transform_row_strippos_fliprotate(raw_pointer,result_pointer,row,strippos);
-		}
+		    for (snde_index strippos=0;strippos < 256; strippos++){		 
+		      dexela2923_image_transform_row_strippos(raw_pointer,result_pointer,row,strippos);
+              }
 	      }
 #ifdef SNDE_OPENCL
 	    }
