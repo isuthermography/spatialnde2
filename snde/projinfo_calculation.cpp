@@ -71,14 +71,16 @@ namespace snde {
 
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							numtris*(sizeof(snde_triangle) + 2*sizeof(snde_cmat23)) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord3), // data_bytes for transfer
 							numtris*(200.0), // flops
 							1, // max effective cpu cores
 							1), // useful_cpu_cores (min # of cores to supply
 	  
 #ifdef SNDE_OPENCL
-	  std::make_shared<compute_resource_option_opencl>(0, //metadata_bytes
+	  std::make_shared<compute_resource_option_opencl>(std::set<std::string>(), // no tags
+							   0, //metadata_bytes
 							   numtris*(sizeof(snde_triangle)+2*sizeof(snde_cmat23)) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord3),
 							   0, // cpu_flops
 							   numtris*(200.0), // gpuflops
@@ -242,17 +244,17 @@ namespace snde {
 
   std::shared_ptr<math_function> define_spatialnde2_projinfo_calculation_function()
   {
-    return std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    return std::make_shared<cpp_math_function>("snde.projinfo_calculation",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       return std::make_shared<projinfo_calculation>(rss,inst);
     }); 
   }
   
   SNDE_OCL_API std::shared_ptr<math_function> projinfo_calculation_function = define_spatialnde2_projinfo_calculation_function();
   
-  static int registered_projinfo_calculation_function = register_math_function("spatialnde2.projinfo_calculation",projinfo_calculation_function);
+  static int registered_projinfo_calculation_function = register_math_function(projinfo_calculation_function);
   
   
-  void instantiate_projinfo(std::shared_ptr<recdatabase> recdb,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
+  void instantiate_projinfo(std::shared_ptr<active_transaction> trans,std::shared_ptr<loaded_part_geometry_recording> loaded_geom,std::unordered_set<std::string> *remaining_processing_tags,std::unordered_set<std::string> *all_processing_tags)
   {
     std::string context = recdb_path_context(loaded_geom->info->name);
 
@@ -271,10 +273,11 @@ namespace snde {
       false, // ondemand
       false, // mdonly
       std::make_shared<math_definition>("instantiate_projinfo()"),
+      {},
       nullptr);
 
 
-    recdb->add_math_function(instantiated,true); // trinormals are generally hidden by default
+    trans->recdb->add_math_function(trans,instantiated,true); // trinormals are generally hidden by default
     loaded_geom->processed_relpaths.emplace("projinfo","projinfo");
 
   }

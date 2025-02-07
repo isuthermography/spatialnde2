@@ -18,9 +18,12 @@
 #include <stdexcept>
 #include <cstring>
 #include <cstdarg>
+#include <ctime>
+#include <iomanip>
 
 #include <map>
 #include <cstdio>
+#include <cstring>
 #include "snde/snde_types.h"
 
 #if defined(_MSC_VER) && _MSC_VER < 1900
@@ -169,6 +172,56 @@ namespace snde {
     //}
   };
 
+  class snde_indexerror: public snde_error {
+  public:
+    //index error so we can throw python IndexError from C++ code
+    // note that this class is not wrapped for python; instead
+    // there is a separate spatialnde2.snde_indexerror class
+    // defined in spatialnde2.i
+    template<typename ... Args>
+    snde_indexerror(std::string fmt, Args && ... args) : snde_error(fmt,std::forward<Args>(args) ...) { 
+      
+    }
+
+    snde_indexerror &operator=(const snde_indexerror &) = delete;
+    snde_indexerror(const snde_indexerror &orig) :
+      snde_error(orig)
+    {
+
+    }
+    
+    virtual ~snde_indexerror()
+    {
+
+    }
+
+  };
+
+  class snde_stopiteration: public snde_error {
+  public:
+    //index error so we can throw python IndexError from C++ code
+    // note that this class is not wrapped for python; instead
+    // there is a separate spatialnde2.snde_indexerror class
+    // defined in spatialnde2.i
+    template<typename ... Args>
+    snde_stopiteration(std::string fmt, Args && ... args) : snde_error(fmt,std::forward<Args>(args) ...) { 
+      
+    }
+
+    snde_stopiteration &operator=(const snde_stopiteration &) = delete;
+    snde_stopiteration(const snde_stopiteration &orig) :
+      snde_error(orig)
+    {
+
+    }
+    
+    virtual ~snde_stopiteration()
+    {
+
+    }
+
+  };
+
 #ifdef _WIN32
   static inline std::string GetWin32ErrorAsString(DWORD err)
   {
@@ -206,7 +259,7 @@ namespace snde {
     char* errstr;
     {
       int buflen=1; // Make this big once tested
-#if (_POSIX_C_SOURCE >= 200112L) && !  _GNU_SOURCE
+#if ((_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && !_GNU_SOURCE) || __APPLE__
       int err=0;
       // XSI strerror_r()
       do {
@@ -290,7 +343,11 @@ namespace snde {
   void snde_warning(std::string fmt, Args && ... args)
   {
     std::string warnstr = ssprintf(fmt,std::forward<Args>(args) ...);
-    fprintf(stderr,"SNDE WARNING: %s\n",warnstr.c_str());
+    std::time_t time_now = std::time(nullptr);
+    std::tm* tm = std::localtime(&time_now);
+    char timebuf[80];
+    strftime(timebuf, sizeof(timebuf), "%Y-%M-%d %H:%M:%S", tm);
+    fprintf(stderr,"[%s] SNDE WARNING: %s\n", timebuf ,warnstr.c_str());
   }
 
   SNDE_API extern unsigned initial_debugflags;
@@ -303,7 +360,11 @@ namespace snde {
     
     if (dbgclass & current_debugflags()) {
       std::string warnstr = ssprintf(fmt,std::forward<Args>(args) ...);
-      fprintf(stderr,"SNDE DEBUG: %s\n",warnstr.c_str());
+      std::time_t time_now = std::time(nullptr);
+      std::tm* tm = std::localtime(&time_now);
+      char timebuf[80];
+      strftime(timebuf, sizeof(timebuf), "%Y-%M-%d %H:%M:%S", tm);
+      fprintf(stderr,"[%s] SNDE DEBUG: %s\n", timebuf, warnstr.c_str());
     }
   }
     // defines for dbgclass/current_debugflags
@@ -321,7 +382,9 @@ namespace snde {
 #define SNDE_DC_X3D (1<<10)
 #define SNDE_DC_OPENCL (1<<11)
 #define SNDE_DC_OPENCL_COMPILATION (1<<12)
-#define SNDE_DC_ALL ((1<<13)-1)
+#define SNDE_DC_PYTHON_SUPPORT (1<<13)
+#define SNDE_DC_MEMLEAK (1<<14)
+#define SNDE_DC_ALL ((1<<15)-1)
 
    
 }

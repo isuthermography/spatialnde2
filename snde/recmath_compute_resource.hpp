@@ -11,6 +11,7 @@
 #include <thread>
 #include <atomic>
 #include <cstdlib>
+#include <set>
 
 
 
@@ -58,7 +59,9 @@ namespace snde {
     // A list of shared_ptrs to these are returned from the executing math_function's perform_compute_options() method
     // they are immutable once published
   public:
-    compute_resource_option(unsigned type, size_t metadata_bytes,size_t data_bytes); // metadata_bytes and data_bytes are transfer requirement estimate -- intended to decide about transfer to a cluster node or similar
+    std::set<std::string> execution_tags;
+    
+    compute_resource_option(unsigned type,std::set<std::string> execution_tags, size_t metadata_bytes,size_t data_bytes); // metadata_bytes and data_bytes are transfer requirement estimate -- intended to decide about transfer to a cluster node or similar
 
     // Rule of 3
     compute_resource_option(const compute_resource_option &) = delete;  // CC and CAO are deleted because we don't anticipate needing them. 
@@ -76,7 +79,7 @@ namespace snde {
 
   class compute_resource_option_cpu: public compute_resource_option {
   public:
-    compute_resource_option_cpu(size_t metadata_bytes,
+    compute_resource_option_cpu(std::set<std::string> execution_tags,size_t metadata_bytes,
 				size_t data_bytes,
 				snde_float64 flops,
 				size_t max_effective_cpu_cores,
@@ -95,7 +98,8 @@ namespace snde {
     // option has been dispatched, it needs a CPU core to dispatch as well. So it gets one of these
     // structures as a wrapper and placed at the front of the priority list.
   public:
-    _compute_resource_option_cpu_combined(size_t metadata_bytes,
+    _compute_resource_option_cpu_combined(std::set<std::string> execution_tags,
+					  size_t metadata_bytes,
 					  size_t data_bytes,
 					  snde_float64 flops,
 					  size_t max_effective_cpu_cores,
@@ -193,9 +197,9 @@ namespace snde {
     std::weak_ptr<available_compute_resource_database> acrd;
     
     std::multimap<uint64_t,std::tuple<std::weak_ptr<pending_computation>,std::shared_ptr<compute_resource_option>>> prioritized_computations;  // indexed by (global revision)*8, plus priority reductions 0..(SNDE_CR_PRIORITY_REDUCTION_LIMIT-1) added. So  lowest number means highest priority. The values are weak_ptrs, so the same pending_computation can be assigned to multiple compute_resources. When the pending_computation is dispatched the strong shared_ptr to it must be cleared atomically with the dispatch so it appears null in any other maps. As we go to compute, we will just keep popping off the first element
-
+    std::set<std::string> tags; // a list of execution tags that will preferentially be handled by this compute resource
     
-    available_compute_resource(std::shared_ptr<recdatabase> recdb,unsigned type);
+    available_compute_resource(std::shared_ptr<recdatabase> recdb,unsigned type,std::set<std::string> tags);
     // Rule of 3
     available_compute_resource(const available_compute_resource &) = delete;
     available_compute_resource& operator=(const available_compute_resource &) = delete; 
@@ -229,7 +233,7 @@ namespace snde {
     std::vector<std::shared_ptr<std::condition_variable>> thread_triggers; // mapped according to functions_using_cores  (use shared_ptrs because condition_variable is not MoveConstructable)
     std::vector<std::tuple<std::shared_ptr<recording_set_state>,std::shared_ptr<math_function_execution>,std::shared_ptr<assigned_compute_resource_cpu>>> thread_actions; // mapped according to first thread assigned to a particular math function
     
-    available_compute_resource_cpu(std::shared_ptr<recdatabase> recdb,size_t total_cpu_cores_available);
+    available_compute_resource_cpu(std::shared_ptr<recdatabase> recdb,std::set<std::string> tags,size_t total_cpu_cores_available);
 
 
     virtual void start(); // set the compute resource going

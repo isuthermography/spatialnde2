@@ -11,7 +11,7 @@ namespace snde {
       const uint64_t &originating_rss_unique_id=std::get<2>(key);
       const memallocator_regionid &id=std::get<3>(key);
 
-      return std::hash<std::string>()(recpath)^std::hash<uint64_t>()(recrev)^std::hash<uint64_t>()(originating_rss_unique_id),std::hash<memallocator_regionid>()(id);
+      return std::hash<std::string>()(recpath)^std::hash<uint64_t>()(recrev)^std::hash<uint64_t>()(originating_rss_unique_id)^std::hash<memallocator_regionid>()(id);
     }
   };
 

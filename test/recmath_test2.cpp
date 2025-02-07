@@ -37,7 +37,8 @@ public:
     snde_index numentries = recording->layout.flattened_length();
     std::vector<std::shared_ptr<compute_resource_option>> option_list =
       {
-	std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	std::make_shared<compute_resource_option_cpu>(std::set<std::string>(),
+						      0, //metadata_bytes 
 						      numentries*sizeof(snde_float32)*2, // data_bytes for transfer
 						      (snde_float64)numentries, // flops
 						      1, // max effective cpu cores
@@ -104,7 +105,7 @@ int main(int argc, char *argv[])
   size_t len=100;
 
   std::shared_ptr<snde::recdatabase> recdb=std::make_shared<snde::recdatabase>();
-  setup_cpu(recdb,std::thread::hardware_concurrency());
+  setup_cpu(recdb,{},std::thread::hardware_concurrency());
   setup_storage_manager(recdb);
   setup_math_functions(recdb,{});
   recdb->startup();
@@ -114,7 +115,7 @@ int main(int argc, char *argv[])
   std::shared_ptr<snde::ndtyped_recording_ref<snde_float64>> test_rec_64;
 
 
-  std::shared_ptr<math_function> multiply_by_scalar_function = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+  std::shared_ptr<math_function> multiply_by_scalar_function = std::make_shared<cpp_math_function>("multiply_by_scalar",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
     std::shared_ptr<executing_math_function> executing;
     executing = make_cppfuncexec_floatingtypes<multiply_by_scalar>(rss,inst);
     if (!executing) {
@@ -133,28 +134,29 @@ int main(int argc, char *argv[])
     false,
     false,
     std::make_shared<math_definition>("c++ definition"),
+    {},
     nullptr);
   
   
   
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
 
-  recdb->add_math_function(scaled_channel_function,false);
+  recdb->add_math_function(transact,scaled_channel_function,false);
   
-  std::shared_ptr<snde::channelconfig> testchan_config=std::make_shared<snde::channelconfig>("/test_channel", "main", (void *)&main,false);
+  std::shared_ptr<snde::channelconfig> testchan_config=std::make_shared<snde::channelconfig>("/test_channel", "main",false);
   
-  std::shared_ptr<snde::channel> testchan = recdb->reserve_channel(testchan_config);
+  std::shared_ptr<snde::reserved_channel> testchan = recdb->reserve_channel(transact,testchan_config);
 
   // demonstrate alternative ways to create the recording
-  test_rec_32 = std::dynamic_pointer_cast<ndtyped_recording_ref<float>>(create_ndarray_ref(recdb,testchan,(void *)&main,SNDE_RTN_FLOAT32));
-  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
+  test_rec_32 = std::dynamic_pointer_cast<ndtyped_recording_ref<float>>(create_ndarray_ref(transact,testchan,SNDE_RTN_FLOAT32));
+  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction()->globalrev_available();
 
 
   std::shared_ptr<snde::active_transaction> transact2=recdb->start_transaction(); // Transaction RAII holder
 
 
-  test_rec_64 = create_typed_ndarray_ref<snde_float64>(recdb,testchan,(void *)&main);
-  std::shared_ptr<snde::globalrevision> globalrev2 = transact2->end_transaction();
+  test_rec_64 = create_typed_ndarray_ref<snde_float64>(transact2,testchan);
+  std::shared_ptr<snde::globalrevision> globalrev2 = transact2->end_transaction()->globalrev_available();
 
   
   test_rec_32->rec->metadata=std::make_shared<snde::immutable_metadata>();

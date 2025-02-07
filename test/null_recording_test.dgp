@@ -1,0 +1,24 @@
+# This is a simple example of using dataguzzler-python
+# with the spatialnde2 recording database. 
+
+# To use: pass the name of an .x3d file as the first command-line parameter 
+# and the name of a k4a recording as the second command line parameter
+
+from dataguzzler_python import dgpy
+import spatialnde2 as snde
+import threading
+import time
+
+include(dgpy,"dgpy_startup.dpi") # If you get a NameError here, be sure you are executing this file with dataguzzler-python
+
+include(dgpy,"Qt.dpi",prefer_pyqt=False) 
+
+include(snde,"recdb.dpi",enable_opencl=False)
+include(snde,"recdb_gui.dpi")
+
+
+transact = recdb.start_transaction()	
+
+live_channel = recdb.define_channel(transact,"/nullrecording","main")
+
+globalrev = transact.end_transaction()

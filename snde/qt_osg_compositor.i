@@ -5,7 +5,7 @@
 %shared_ptr(snde::qt_osg_compositor_view_tracking_pose_recording);
 snde_rawaccessible(snde::qt_osg_compositor_view_tracking_pose_recording);
 
-
+// The following line is critical for all QWidget-derived classes.  See snde_qt.i for more info.
 snde_qwidget_inheritor(snde::qt_osg_compositor); // also implicitly performs snde_qobject_inheritor() magic
 
 namespace snde {
@@ -93,14 +93,14 @@ namespace snde {
     std::string channel_to_reorient; // string is a path name, absolute or relative, treating the path of the tracking_pose_recording with a trailing slash as a group context
     virtual snde_orientation3 get_channel_to_reorient_pose(std::shared_ptr<recording_set_state> rss) const;
     
-    qt_osg_compositor_view_tracking_pose_recording(std::shared_ptr<recdatabase> recdb,std::shared_ptr<recording_storage_manager> storage_manager,std::shared_ptr<transaction> defining_transact,std::string chanpath,std::shared_ptr<recording_set_state> _originating_rss,uint64_t new_revision,size_t info_structsize,std::string channel_to_reorient,std::string component_name,QSharedPointer<qt_osg_compositor> compositor);
+    qt_osg_compositor_view_tracking_pose_recording(struct recording_params params,size_t info_structsize,std::string channel_to_reorient,std::string component_name,QSharedPointer<qt_osg_compositor> compositor);
     
   };
   
 
   // template for qoc_view_tracking_pose_recording arguments
   template <class T>
-    std::shared_ptr<T> create_recording_qoc_view_tracking_pose_info(std::shared_ptr<recdatabase> recdb,std::shared_ptr<channel> chan,void *owner_id,std::string channel_to_reorient,std::string component_name,QSharedPointer<qt_osg_compositor> compositor);
+    std::shared_ptr<T> create_recording_qoc_view_tracking_pose_info(std::shared_ptr<active_transaction> trans,std::shared_ptr<reserved_channel> chan,std::string channel_to_reorient,std::string component_name,QSharedPointer<qt_osg_compositor> compositor);
   %{
 #define create_recording_qoc_view_tracking_pose_info create_recording
    %}

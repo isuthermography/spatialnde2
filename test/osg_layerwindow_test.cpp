@@ -3,8 +3,12 @@
 
 #endif
 
+#ifdef __APPLE__
+#include <glut.h>
+#else
 #include <GL/glut.h>
 #include <GL/freeglut.h>
+#endif
 
 #include <osg/Array>
 #include <osg/MatrixTransform>
@@ -187,19 +191,19 @@ int main(int argc, char **argv)
   
   
   recdb=std::make_shared<snde::recdatabase>();
-  setup_cpu(recdb,std::thread::hardware_concurrency());
+  setup_cpu(recdb,{},std::thread::hardware_concurrency());
   setup_storage_manager(recdb);
   setup_math_functions(recdb, {});
   recdb->startup();
 
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
 
-  pngchan_config=std::make_shared<snde::channelconfig>("png channel", "main", (void *)&main,false);
-  std::shared_ptr<snde::channel> pngchan = recdb->reserve_channel(pngchan_config);
+  pngchan_config=std::make_shared<snde::channelconfig>("png channel", "main",false);
+  std::shared_ptr<snde::reserved_channel> pngchan = recdb->reserve_channel(transact,pngchan_config);
   
-  png_rec = create_ndarray_ref(recdb,pngchan,(void *)&main,SNDE_RTN_UNASSIGNED);
+  png_rec = create_ndarray_ref(transact,pngchan,SNDE_RTN_UNASSIGNED);
   
-  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
+  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction()->globalrev_available();
 
   png_rec->rec->metadata=std::make_shared<snde::immutable_metadata>();
   ReadPNG(png_rec,argv[1]);

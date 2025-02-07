@@ -1,0 +1,48 @@
+# This is a simple example of using dataguzzler-python
+# with the spatialnde2 recording database. 
+
+# To use: pass the name of an .x3d file as the first command-line parameter 
+# and the name of a k4a recording as the second command line parameter
+
+from dataguzzler_python import dgpy
+import spatialnde2 as snde
+import threading
+import time
+import math
+import numpy as np
+
+include(dgpy,"dgpy_startup.dpi") # If you get a NameError here, be sure you are executing this file with dataguzzler-python
+
+include(dgpy,"Qt.dpi",prefer_pyqt=False)
+
+transaction_clock=snde.measurement_clock_cpp_steady("")
+transmgr=snde.timed_transaction_manager(transaction_clock,0.25)
+include(snde,"recdb.dpi",
+       
+        transmgr=transmgr,
+        enable_opencl=True)
+include(snde,"recdb_gui.dpi")
+
+include(dgpy,"matplotlib.dpi")
+
+
+transact = recdb.start_transaction(transaction_clock.get_current_time());
+testchan = recdb.define_channel(transact,"/test channel", "main");
+test_ref = snde.create_ndarray_ref(transact,testchan,snde.SNDE_RTN_FLOAT32)
+globalrev = transact.end_transaction().globalrev_available()
+
+test_rec_metadata = snde.constructible_metadata()
+test_rec_metadata.AddMetaDatum(snde.metadatum_dbl("nde_axis0_inival",0.0));
+rec_len=20
+test_ref.rec.metadata = test_rec_metadata;
+test_ref.rec.mark_metadata_done()
+test_ref.allocate_storage([ rec_len ],False);
+
+for cnt in range(rec_len):
+    test_ref.assign_double([cnt],100.0*math.sin(cnt))
+    pass
+
+test_ref.rec.mark_data_ready()
+
+globalrev.wait_complete();
+

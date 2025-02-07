@@ -23,6 +23,10 @@ endif()
 # Select coordinate precision: single vs. double
 set(SNDE_DOUBLEPREC_COORDS OFF CACHE BOOL "Use double precision for geometric coordinates rather than single precision" )
 
+# Enable Python Integration with SpatialNDE2 Core Library Functions
+# This adds a Python library dependency to the spatialnde2 libraries
+set(SNDE_PYTHON_SUPPORT_ENABLED ON CACHE BOOL "Enable python support in SpatialNDE2 libraries -- builds SWIG bindings and includes support functions for dropping the GIL in Qt code")
+
 # There is no realloc functionality on win32.  We could implement code that would replicate the capability
 # however, this would create an inconsistency with existing pointers that are floating around elsewhere out of the
 # control of the shared memory allocator.  So, instead, we just allocate way more address space than we expect to need.
@@ -32,7 +36,11 @@ set(SNDE_DOUBLEPREC_COORDS OFF CACHE BOOL "Use double precision for geometric co
 
 # Set installation location rules
 
-IF(APPLE)    # Apple
+IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  SET(MACOSX TRUE)
+ENDIF()
+
+IF(MACOSX)    # Apple
   SET(CMAKE_INSTALL_PREFIX "~/install" CACHE PATH "Prefix prepended to install directories.  Must be writable by your user!")
 ELSEIF(UNIX) # Linux (not Apple due to use of if/else-if construct)
   SET(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "Prefix prepended to install directories.  Must be writable by your user!")
@@ -47,7 +55,7 @@ ENDIF()
 # Create a variable to enable/disable installing into site-packages
 set(INSTALL_INTO_PYTHON_SITE_PACKAGES OFF CACHE BOOL "Install into the Python site-packages so that scripts run without setting PYTHONPATH (better to run the setup.py generated in the build directory manually)")
 
-if((NOT WIN32) AND (NOT APPLE))
+if((NOT WIN32) AND (NOT MACOSX))
   set(INSTALL_BINARIES_INTO_INSTALL_PREFIX OFF CACHE BOOL "Install binaries into the bin/ and lib/ or lib64/ directories under your selected prefix")
   include(GNUInstallDirs)
 endif()
@@ -163,7 +171,7 @@ else()
   set(SHARED_LIBRARY_SUFFIX_PYTHON .so )
 endif()
 
-set(SPATIALNDE2_SOURCES snde/allocator.cpp snde/lockmanager.cpp snde/recmath_compute_resource.cpp snde/recmath.cpp snde/recmath_parameter.cpp snde/recstore.cpp snde/metadata.cpp snde/recstore_storage.cpp snde/recmath_cppfunction.cpp snde/notify.cpp snde/snde_error.cpp snde/graphics_storage.cpp snde/rec_display.cpp snde/recstore_display_transforms.cpp snde/graphics_recording.cpp snde/cached_recording.cpp snde/recstore_setup.cpp snde/rec_display_vertexarray.c snde/rec_display_texvertexarray.c snde/normal_calc.c snde/fusion_colormap.c snde/projinfo_calc.c snde/display_requirements.cpp snde/averaging_downsampler.cpp snde/mean.cpp snde/NumPy_BGRtoRGBA.cpp snde/NumPy_BGRtoGray16.cpp snde/batched_live_accumulator.cpp snde/nd_accumulate_once.cpp snde/accumulate_once.cpp snde/kdtree_knn.c snde/inplanemat_calculation.cpp snde/boxes_calculation.cpp snde/project_onto_parameterization.cpp snde/ande_file.cpp snde/geometry_processing.cpp snde/orientation_product.cpp snde/area_calc.c snde/units.cpp snde/offset_calibration.cpp ) # snde/infostore_or_component.cpp snde/geometry.cpp snde/revision_manager.cpp snde/mutablerecstore.cpp )
+set(SPATIALNDE2_SOURCES snde/allocator.cpp snde/lockmanager.cpp snde/recmath_compute_resource.cpp snde/recmath.cpp snde/recmath_parameter.cpp snde/recstore.cpp snde/metadata.cpp snde/recstore_storage.cpp snde/recmath_cppfunction.cpp snde/notify.cpp snde/snde_error.cpp snde/graphics_storage.cpp snde/rec_display.cpp snde/recstore_display_transforms.cpp snde/graphics_recording.cpp snde/cached_recording.cpp snde/recstore_setup.cpp snde/rec_display_vertexarray.c snde/rec_display_texvertexarray.c snde/normal_calc.c snde/fusion_colormap.c snde/projinfo_calc.c snde/display_requirements.cpp snde/averaging_downsampler.cpp snde/mean.cpp snde/NumPy_BGRtoRGBA.cpp snde/NumPy_BGRtoGray16.cpp snde/batched_live_accumulator.cpp snde/nd_accumulate_once.cpp snde/accumulate_once.cpp snde/kdtree_knn.c snde/inplanemat_calculation.cpp snde/boxes_calculation.cpp snde/project_onto_parameterization.cpp snde/ande_file.cpp snde/geometry_processing.cpp snde/orientation_product.cpp snde/area_calc.c snde/units.cpp snde/offset_calibration.cpp snde/recstore_transaction_manager.cpp snde/bad_pixel_correction.cpp snde/python_support.cpp ) # snde/infostore_or_component.cpp snde/geometry.cpp snde/revision_manager.cpp snde/mutablerecstore.cpp )
 
 if (NOT WIN32)
   set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/shared_memory_allocator_posix.cpp )
@@ -199,22 +207,30 @@ find_package(Threads REQUIRED)
 # Always first go for the python found
 # in the command path. But allow this to be
 # overridden if need be
-find_program(PYTHON_EXECUTABLE
-  NAMES python python3
-  PATHS ENV PATH
-  DOC "Python executable, defining version and ABI to use for build"
-  NO_DEFAULT_PATH )
-set(PYTHON_MANUAL_COMPONENT_SELECTION FALSE CACHE BOOL "Manually select python installation components" )
-if(PYTHON_MANUAL_COMPONENT_SELECTION)
-  set(Python3_ARTIFACTS_INTERACTIVE TRUE )
-endif()
+IF(SNDE_PYTHON_SUPPORT_ENABLED)
+    find_program(PYTHON_EXECUTABLE
+      NAMES python python3
+      PATHS ENV PATH
+      DOC "Python executable, defining version and ABI to use for build"
+      NO_DEFAULT_PATH )
+    set(PYTHON_MANUAL_COMPONENT_SELECTION FALSE CACHE BOOL "Manually select python installation components" )
+    if(PYTHON_MANUAL_COMPONENT_SELECTION)
+      set(Python3_ARTIFACTS_INTERACTIVE TRUE )
+    endif()
 
-set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
+    set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
 
-message(PYTHON_EXECUTABLE " " ${PYTHON_EXECUTABLE})
+    message(PYTHON_EXECUTABLE " " ${PYTHON_EXECUTABLE})
+    find_package(Python3 COMPONENTS Interpreter Development Development.Module)
+    include_directories(${Python3_INCLUDE_DIRS})
+    find_package(SWIG)
 
-find_package(Python3 COMPONENTS Interpreter Development)
-find_package(SWIG)
+    IF (Python3_FOUND)
+        message(STATUS "Python3: " ${Python3_VERSION})
+        set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_PYTHON_SUPPORT_ENABLED ) 
+    ENDIF (Python3_FOUND)
+ENDIF(SNDE_PYTHON_SUPPORT_ENABLED)
+
 find_package(PNG)
 set(HDF5_USE_STATIC_LIBRARIES OFF )
 find_package(HDF5 REQUIRED COMPONENTS C CXX )
@@ -250,10 +266,10 @@ IF (OpenCL_FOUND)
   set(SPATIALNDE2_OCL_SOURCES snde/opencl_utils.cpp snde/openclcachemanager.cpp snde/recmath_compute_resource_opencl.cpp snde/recstore_setup_opencl.cpp )
 
   # Display functions, etc. use OpenCL if it is available. 
-  set(SPATIALNDE2_OCL_SOURCES ${SPATIALNDE2_OCL_SOURCES} snde/rec_display_colormap.cpp snde/normal_calculation.cpp snde/rec_display_vertex_functions.cpp snde/kdtree.cpp snde/projinfo_calculation.cpp snde/waveform_vertex_functions.cpp snde/phase_plane_vertex_functions.cpp snde/area_calculation.cpp snde/polynomial_transform.cpp)
+  set(SPATIALNDE2_OCL_SOURCES ${SPATIALNDE2_OCL_SOURCES} snde/rec_display_colormap.cpp snde/normal_calculation.cpp snde/rec_display_vertex_functions.cpp snde/kdtree.cpp snde/projinfo_calculation.cpp snde/waveform_vertex_functions.cpp snde/phase_plane_vertex_functions.cpp snde/area_calculation.cpp snde/polynomial_transform.cpp snde/dexela2923_image_transform.cpp )
 ELSE()
   # Otherwise built into the main library
-  set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/rec_display_colormap.cpp snde/normal_calculation.cpp snde/rec_display_vertex_functions.cpp snde/kdtree.cpp snde/projinfo_calculation.cpp snde/waveform_vertex_functions.cpp snde/phase_plane_vertex_functions.cpp snde/area_calculation.cpp snde/polynomial_transform.cpp)
+  set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/rec_display_colormap.cpp snde/normal_calculation.cpp snde/rec_display_vertex_functions.cpp snde/kdtree.cpp snde/projinfo_calculation.cpp snde/waveform_vertex_functions.cpp snde/phase_plane_vertex_functions.cpp snde/area_calculation.cpp snde/polynomial_transform.cpp snde/dexela2923_image_transform.cpp )
 ENDIF()
 
 
@@ -266,19 +282,15 @@ ENDIF()
 include_directories( BEFORE . )  # So that #include "snde/..." works during the build
 include_directories( BEFORE ${CMAKE_CURRENT_BINARY_DIR}/include )  # So that #include "snde/..." works during the build for python generated headers
 
-IF (Python3_FOUND)
-    message(STATUS "Python3: " ${Python3_VERSION})
-ENDIF (Python3_FOUND)
-
 set(SPATIALNDE2_LIBS spatialnde2 ${CMAKE_THREAD_LIBS_INIT} )
 set(SPATIALNDE2_OCL_LIBS spatialnde2_ocl )
 set(SPATIALNDE2_OSG_LIBS spatialnde2_osg )
 set(SPATIALNDE2_QT_LIBS spatialnde2_qt )
-IF(NOT WIN32)
-  set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} rt ) # -lrt required for shm_open() etc.
+IF(NOT WIN32 AND NOT MACOSX)
+  set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} rt) #-lrt required for shm_open() etc.
 ENDIF()
 
-IF (NOT WIN32)
+IF (NOT WIN32 AND NOT MACOSX)
 set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} atomic)
 ENDIF()
 
@@ -354,9 +366,10 @@ IF (Eigen3_FOUND)
   include_directories(${EIGEN3_INCLUDE_DIR})
 ENDIF()
 
-IF (Python3_FOUND)
-    include_directories(${Python3_INCLUDE_DIRS})
-ENDIF(Python3_FOUND)
+#IF (Python3_FOUND)
+#    include_directories(${Python3_INCLUDE_DIRS})
+#    set(SPATIALNDE2_LIBS ${SPATIALNDE2_LIBS} ${Python3_LIBRARIES})
+#ENDIF(Python3_FOUND)
 
 IF (OpenThreads_FOUND)
   include_directories(${OPENTHREADS_INCLUDE_DIR})
@@ -379,7 +392,14 @@ add_dependencies(spatialnde2 OpenGL::GL )
 target_compile_definitions(spatialnde2 PRIVATE SPATIALNDE2_SHAREDLIB_EXPORT)
 target_link_libraries(spatialnde2 hdf5::hdf5 hdf5::hdf5_cpp )
 
-IF (NOT WIN32)
+# We explicitly link libspatialnde2 to Python only on WIN32
+# because otherwise we dynamically look up Python symbols
+# to see whether Python is loaded. (See python_support.hpp and .cpp)
+IF (SNDE_PYTHON_SUPPORT_ENABLED AND WIN32) 
+    target_link_libraries(spatialnde2 ${Python3_LIBRARIES})
+ENDIF()
+
+IF (NOT WIN32 AND NOT MACOSX)
   target_link_libraries(spatialnde2 rt)
 ENDIF()
 
@@ -393,7 +413,8 @@ ENDIF()
 
 IF (OpenSceneGraph_FOUND)
   add_library(spatialnde2_osg SHARED ${SPATIALNDE2_OSG_SOURCES} )
-  target_link_libraries(spatialnde2_osg ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES} spatialnde2)
+  #add_dependencies(spatialnde2_osg OpenGL::GL )
+  target_link_libraries(spatialnde2_osg OpenGL::GL ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES} spatialnde2)
   IF (MSVC)
     target_link_libraries(spatialnde2_osg opengl32)
   ENDIF()
@@ -420,15 +441,20 @@ FILE(GLOB SPATIALNDE2_C_HEADERS "snde/*.h")
 
 # SpatialNDE2 dataguzzler-python .dpi include files
 FILE(GLOB SPATIALNDE2_DPI_FILES "python/spatialnde2/*.dpi")
-
+FILE(GLOB SPATIALNDE2_PY_MODULES "python/spatialnde2/*.py")
 
 # Set RPATH
 # the RPATH to be used when installing, but only if it's not a system directory
 LIST(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_FULL_LIBDIR}" isSystemDir)
-IF("${isSystemDir}" STREQUAL "-1")
-  set(CMAKE_INSTALL_RPATH "$ORIGIN;${APP_INSTALL_DIR}/lib;${CMAKE_INSTALL_FULL_LIBDIR}")
+IF(MACOSX)
+  SET(ORIGIN_LINKER_VARIABLE_NAME "@loader_path")
 ELSE()
-  set(CMAKE_INSTALL_RPATH "$ORIGIN;${APP_INSTALL_DIR}/lib")
+  SET(ORIGIN_LINKER_VARIABLE_NAME "$ORIGIN")
+ENDIF()
+IF("${isSystemDir}" STREQUAL "-1")
+  set(CMAKE_INSTALL_RPATH "${ORIGIN_LINKER_VARIABLE_NAME};${APP_INSTALL_DIR}/lib;${CMAKE_INSTALL_FULL_LIBDIR}")
+ELSE()
+  set(CMAKE_INSTALL_RPATH "${ORIGIN_LINKER_VARIABLE_NAME};${APP_INSTALL_DIR}/lib")
   
 ENDIF()
 
@@ -499,9 +525,9 @@ ENDIF (LibXml2_FOUND AND EIGEN3_FOUND AND PNG_FOUND)
 
 
 IF (Python3_FOUND)
-    set(PYTHONGENHEADERS snde/snde_types.h snde/geometry_types.h snde/geometry_ops.h snde/vecops.h snde/quaternion.h snde/normal_calc.c snde/projinfo_calc.c snde/rec_display_vertexarray.c snde/rec_display_texvertexarray.c snde/colormap.h snde/scale_colormap.c snde/fusion_colormap.c snde/kdtree_knn.c snde/waveform_vertex_functions.cpp snde/phase_plane_vertex_calcs.c snde/polynomial_transform.c snde/area_calc.c) #  snde/testkernel.c snde/osg_vertexarray.c snde/osg_texvertexarray.c snde/normal_calc.c snde/projinfo_calc.c snde/colormap.h snde/scale_colormap.c snde/dummy_scale_colormap.c )
+    set(PYTHONGENHEADERS snde/snde_types.h snde/geometry_types.h snde/geometry_ops.h snde/vecops.h snde/quaternion.h snde/normal_calc.c snde/projinfo_calc.c snde/rec_display_vertexarray.c snde/rec_display_texvertexarray.c snde/colormap.h snde/scale_colormap.c snde/fusion_colormap.c snde/kdtree_knn.c snde/waveform_vertex_functions.cpp snde/phase_plane_vertex_calcs.c snde/polynomial_transform.c snde/area_calc.c snde/dexela2923_image_transform_kernel.h ) #  snde/testkernel.c snde/osg_vertexarray.c snde/osg_texvertexarray.c snde/normal_calc.c snde/projinfo_calc.c snde/colormap.h snde/scale_colormap.c snde/dummy_scale_colormap.c )
   
-    set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/include/snde/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/vecops_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/quaternion_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/projinfo_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/rec_display_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/rec_display_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/fusion_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/kdtree_knn_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/waveform_vertex_calcs_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/phase_plane_vertex_calcs_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/polynomial_transform_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/area_calc_c.h) # ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h  ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
+    set(PYTHONGENERATEDHEADERS ${CMAKE_CURRENT_BINARY_DIR}/include/snde/snde_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/geometry_types_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/geometry_ops_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/vecops_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/quaternion_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/projinfo_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/rec_display_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/rec_display_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/colormap_h.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/scale_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/fusion_colormap_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/kdtree_knn_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/waveform_vertex_calcs_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/phase_plane_vertex_calcs_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/polynomial_transform_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/area_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/dexela2923_image_transform_kernel_h.h ) # ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/osg_texvertexarray_c.h ${CMAKE_CURRENT_BINARY_DIR}/normal_calc_c.h ${CMAKE_CURRENT_BINARY_DIR}/projinfo_calc_c.h  ${CMAKE_CURRENT_BINARY_DIR}/dummy_scale_colormap_c.h )
 
     add_custom_command(OUTPUT ${PYTHONGENERATEDHEADERS}
             DEPENDS ${PYTHONGENHEADERS} 
@@ -524,6 +550,8 @@ IF (Python3_FOUND)
             COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/phase_plane_vertex_calcs.c ${CMAKE_CURRENT_BINARY_DIR}/include/snde/phase_plane_vertex_calcs_c.h
             COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/polynomial_transform.c ${CMAKE_CURRENT_BINARY_DIR}/include/snde/polynomial_transform_c.h
             COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/area_calc.c ${CMAKE_CURRENT_BINARY_DIR}/include/snde/area_calc_c.h
+            
+            COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/dexela2923_image_transform_kernel.h ${CMAKE_CURRENT_BINARY_DIR}/include/snde/dexela2923_image_transform_kernel_h.h
 
             #COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/testkernel.c ${CMAKE_CURRENT_BINARY_DIR}/testkernel_c.h
             #COMMAND ${Python3_EXECUTABLE} snde/file2header.py snde/osg_vertexarray.c ${CMAKE_CURRENT_BINARY_DIR}/osg_vertexarray_c.h
@@ -551,7 +579,7 @@ IF (Python3_FOUND)
   # openscenegraph or qt, for example
   IF(WIN32)
     add_custom_command(OUTPUT ${PYTHONPKGFILES}
-    DEPENDS compile_configuration pyproject.toml setup.py setup.cfg spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES} 
+    DEPENDS compile_configuration pyproject.toml setup.py setup.cfg spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${SPATIALNDE2_PY_MODULES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES} 
     # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
     
     COMMAND ${CMAKE_COMMAND} -E copy setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
@@ -577,6 +605,8 @@ IF (Python3_FOUND)
     COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_C_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_DPI_FILES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_PY_MODULES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+
     COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${CYTHON_PXD_FILES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     
@@ -593,7 +623,7 @@ IF (Python3_FOUND)
 
   ELSE()
     add_custom_command(OUTPUT ${PYTHONPKGFILES}
-    DEPENDS compile_configuration pyproject.toml setup.py setup.cfg spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES}
+    DEPENDS compile_configuration pyproject.toml setup.py setup.cfg spatialnde2_python ${CMAKE_CURRENT_BINARY_DIR}/_spatialnde2_python${SHARED_LIBRARY_SUFFIX_PYTHON} ${CMAKE_CURRENT_BINARY_DIR}/compile_definitions.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_include_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_library_dirs.txt ${CMAKE_CURRENT_BINARY_DIR}/compile_libraries.txt ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}spatialnde2_qt${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2_python.py ${SPATIALNDE2_CPP_HEADERS} ${SPATIALNDE2_C_HEADERS} ${SPATIALNDE2_DPI_FILES} ${SPATIALNDE2_PY_MODULES} ${PYTHONGENERATEDHEADERS} ${CYTHON_PXD_FILES}
     # NOTE: If adding an extra header build command, remember to also add too PYTHONGENHEADERS and PYTHONGENERATEDHEADERS, above!!!
     
     COMMAND ${CMAKE_COMMAND} -E copy setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
@@ -616,6 +646,7 @@ IF (Python3_FOUND)
     COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_C_HEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_DPI_FILES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
+    COMMAND ${CMAKE_COMMAND} -E copy ${SPATIALNDE2_PY_MODULES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     COMMAND ${CMAKE_COMMAND} -E copy ${PYTHONGENERATEDHEADERS} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/snde/
     COMMAND ${CMAKE_COMMAND} -E copy ${CYTHON_PXD_FILES} ${CMAKE_CURRENT_BINARY_DIR}/spatialnde2/
     
@@ -677,7 +708,7 @@ IF (GLUT_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   add_executable(osg_layerwindow_test test/osg_layerwindow_test.cpp)
   #add_dependencies(png_viewer OpenCL_Headers)
   add_dependencies(osg_layerwindow_test OpenGL::GL )
-  target_link_libraries(osg_layerwindow_test -lGL ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}  )
+  target_link_libraries(osg_layerwindow_test OpenGL::GL ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}  )
   IF(OpenCL_FOUND)
         target_link_libraries(osg_layerwindow_test ${SPATIALNDE2_OCL_LIBS})
   ENDIF()
@@ -687,7 +718,7 @@ IF (GLUT_FOUND AND PNG_FOUND AND OpenThreads_FOUND AND OpenSceneGraph_FOUND)
   add_executable(compositor_test test/compositor_test.cpp)
   #add_dependencies(png_viewer OpenCL_Headers)
   add_dependencies(compositor_test OpenGL::GL )
-  target_link_libraries(compositor_test -lGL ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}  )
+  target_link_libraries(compositor_test OpenGL::GL ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${OPENSCENEGRAPH_LIBRARIES} ${GLUT_LIBRARIES}  ${PNG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}  )
   IF(OpenCL_FOUND)
         target_link_libraries(compositor_test ${SPATIALNDE2_OCL_LIBS})
   ENDIF()
@@ -796,7 +827,7 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	message(STATUS ${Python3_LIBRARIES})
 	include(${SWIG_USE_FILE})
 	# BUG: If python version >= 3 need -py3 -DPY_VERSION_HEX=0x03060000 additional flags to SWIG command
-	set(CMAKE_SWIG_FLAGS "-threads" )
+	set(CMAKE_SWIG_FLAGS "-threads" ) # "-debug-tmsearch" )
 	# We enforce a private SWIG_TYPE_TABLE because the swig type table
 	# isn't thread-safe and we are designed to be used in a highly
 	# threaded environment. This limits interoperability between
@@ -833,17 +864,29 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	set(SPATIALNDE2_SWIG_SOURCES snde/spatialnde2.i  )
 	set_property(SOURCE snde/spatialnde2.i PROPERTY SWIG_MODULE_NAME spatialnde2_python)
 
+	set(SWIG_SPATIALNDE2_LINK_TARGETS )
         IF(SNDE_ENABLE_QT6)
-	  set(SWIG_SPATIALNDE2_LINK_TARGETS Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::UiTools PNG::PNG hdf5::hdf5 hdf5::hdf5_cpp) # Libraries needed by swig_spatialnde2 that are swig targets
+	  set(SWIG_SPATIALNDE2_LINK_TARGETS ${SWIG_SPATIALNDE2_LINK_TARGETS} Qt6::Core Qt6::Gui Qt6::OpenGL Qt6::UiTools PNG::PNG hdf5::hdf5 hdf5::hdf5_cpp) # Libraries needed by swig_spatialnde2 that are swig targets
 	ELSE()  
-	  set(SWIG_SPATIALNDE2_LINK_TARGETS Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools PNG::PNG hdf5::hdf5 hdf5::hdf5_cpp) # Libraries needed by swig_spatialnde2 that are swig targets
+	  set(SWIG_SPATIALNDE2_LINK_TARGETS ${SWIG_SPATIALNDE2_LINK_TARGETS} Qt5::Core Qt5::Gui Qt5::OpenGL Qt5::UiTools PNG::PNG hdf5::hdf5 hdf5::hdf5_cpp) # Libraries needed by swig_spatialnde2 that are swig targets
 	ENDIF()
-	
-	set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${Python3_LIBRARIES} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${SPATIALNDE2_QT_LIBS} )
 
+        IF(NOT MACOSX)
+          
+	  set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${Python3_LIBRARIES} ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${SPATIALNDE2_QT_LIBS} )
+        ELSE()
+          # On MACOSX extension modules should use
+          # -undefined dynamic_lookup and -bundle_loader instead
+          # of explicitly linking to libpython.
+          # Citation: https://blog.tim-smith.us/2015/09/python-extension-modules-os-x/
+          set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SPATIALNDE2_LIBS} ${SPATIALNDE2_OSG_LIBS} ${SPATIALNDE2_QT_LIBS} ) 
+        ENDIF()
+        
 	IF (OpenCL_FOUND)
+          IF (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"))
             set(SWIG_SPATIALNDE2_LINK_TARGETS ${SWIG_SPATIALNDE2_LINK_TARGETS} OpenCL::OpenCL)
-	    set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${SPATIALNDE2_OCL_LIBS})
+          ENDIF()
+          set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${SPATIALNDE2_OCL_LIBS})
 	ENDIF()
 
 	#IF(NOT WIN32)
@@ -859,9 +902,12 @@ IF(SWIG_FOUND AND Python3_FOUND )
 	  set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${LIBXML2_LIBRARIES})
 	ENDIF()
     
-	SWIG_ADD_LIBRARY(spatialnde2_python LANGUAGE python SOURCES ${SPATIALNDE2_SWIG_SOURCES} )
-	TARGET_LINK_LIBRARIES(spatialnde2_python ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${SWIG_SPATIALNDE2_LINK_TARGETS})
-	
+	SWIG_ADD_LIBRARY(spatialnde2_python TYPE MODULE LANGUAGE python SOURCES ${SPATIALNDE2_SWIG_SOURCES} )
+	TARGET_LINK_LIBRARIES(spatialnde2_python PUBLIC ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${SWIG_SPATIALNDE2_LINK_TARGETS})
+	TARGET_LINK_LIBRARIES(spatialnde2_python PRIVATE Python3::Module)
+	# On MACOSX, consider removing the python module target line above, and instead
+	# accommodating undefined symbols with this line below.
+	#target_link_options(spatialnde2_python PRIVATE -Wl,-undefined -Wl,dynamic_lookup )					  
 	add_dependencies(spatialnde2 OpenCL_Headers)
     ELSE ()
         message(WARNING "NumPy not found. Cannot build SWIG Python Wrapper.")
@@ -893,7 +939,7 @@ foreach(dep in LISTS ${SWIG_SPATIALNDE2_LINK_TARGETS})
 
 
   ## Work around FindHDF5 problem where the link target name is hdf5-shared instead of hdf5
-  #set(THIS_PROCESSED1_EVALUATED_LINK_TARGET $<IF:$<STREQUAL:"hdf5-shared",${THIS_RAW_EVALUATED_LINK_TARGET}>,"hdf5",${THIS_RAW_EVALUATED_LINK_TARGET}> ) 
+  #set(THIS_PROCESSED1_EVALUATED_LINK_TARGET $<IF:$<STREQUAL:"hdf5-shared",${THIS_RAW_EVALUATED_LINK_TARGET}>,"hdf5",${THIS_RAW_EVALUATED_LINK_TARGET}> )
   #
   #set(THIS_PROCESSED2_EVALUATED_LINK_TARGET $<IF:$<STREQUAL:"hdf5_cpp-shared",${THIS_PROCESSED1_EVALUATED_LINK_TARGET}>,"hdf5_cpp",${THIS_PROCESSED1_EVALUATED_LINK_TARGET}> ) 
 
@@ -1009,7 +1055,7 @@ IF ((Qt5_FOUND AND SNDE_ENABLE_QT5) OR (Qt6_FOUND AND SNDE_ENABLE_QT6))
           DESTINATION ${APP_INSTALL_DIR}/lib)
 ENDIF()
 
-if((NOT WIN32) AND (NOT APPLE) AND INSTALL_BINARIES_INTO_INSTALL_PREFIX)
+if((NOT WIN32) AND (NOT MACOSX) AND INSTALL_BINARIES_INTO_INSTALL_PREFIX)
 install(TARGETS
         spatialnde2
         DESTINATION ${CMAKE_INSTALL_LIBDIR})

@@ -2,6 +2,26 @@
 On Windows platform see WINDOWS_ANACONDA_BUILD.txt for the recommended 
 build/install procedure
 
+# IMPORTANT: Backward incompatible changes in SpatialNDE2 version 0.8
+Version 0.8 introduces a number of backward incompatible changes:
+
+- Functions such as creating a recording or defining a channel or math function that
+are part of a recording database transaction now all require the active_transaction
+pointer as a parameter (usually the first argument; often replacing recdb)
+- end_transaction() no longer returns a globalrevision object. Instead it returns a
+transaction object. You can call .globalrev_available() on the transaction object
+to wait for the globalrevision object to exist, or .globalrev() to wait for the
+globalrevision to be complete.
+- The definition of snde_orientation3 and its embedded quaternion (and behavior of functions in quaternion.h) have changed
+  - The quaternion is now first in the structure and the offset is now second (previously it was the other way around).
+  - The first element of the quaternion is now the real part and it is followed by the three imaginary parts (previously the real part was last).
+  - The final element of the offset is now 1.0 (previously it was 0.0).
+- Python data access to ndarray refs is now by .data attribute rather than .data() method.
+- Owner IDs no longer are provided when configuring a channel (channelconfig() constructor) so that parameter has been removed.
+- Owner IDs are no longer required when creating a recording, so that parameter has been removed.
+- Reserving a channel now returns a reserved_channel object rather than a channel object. This new reserved_channel object contains your rights to the channel and needs to be passed as the channel object was before into the construction of a recording.
+- The instantiate() method of math_functions now has a new second-to-last parameter that is a set of computation tags for the math function. Pass {} in C++ or [] in python as an empty set of tags. 
+
 ## Prerequisites
 INSTALLING ALL PREREQUISITES IS STRONGLY RECOMMENDED as not all possible 
 combinations of missing prerequisites may have been tested

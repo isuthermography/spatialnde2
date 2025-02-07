@@ -137,7 +137,8 @@ namespace snde {
 
 	  std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	    {
-	      std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	      std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							    0, //metadata_bytes 
 							    0, // data_bytes for transfer
 							    0.0, // flops
 							    1, // max effective cpu cores
@@ -194,7 +195,8 @@ namespace snde {
 	  
 	  std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	    {
-	      std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	      std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							    0, //metadata_bytes 
 							    num_elements * sizeof(T) * (numavgs+1), // data_bytes for transfer
 							    num_elements*(numavgs+1)*1.0, // flops
 							    1, // max effective cpu cores
@@ -312,7 +314,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_averaging_downsampler_function()
   {
-    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
+    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>("snde.averaging_downsampler",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) {
       std::shared_ptr<executing_math_function> executing;
       
 	  executing = make_cppfuncexec_integertypes<averaging_temporal_downsampler>(rss, inst);
@@ -337,7 +339,7 @@ namespace snde {
   SNDE_API std::shared_ptr<math_function> averaging_downsampler_function=define_averaging_downsampler_function();
 
   
-  static int registered_averaging_downsampler_function = register_math_function("spatialnde2.averaging_downsampler",averaging_downsampler_function);
+  static int registered_averaging_downsampler_function = register_math_function(averaging_downsampler_function);
   
   
   

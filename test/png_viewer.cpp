@@ -2,8 +2,12 @@
 #include <unistd.h>
 #endif
 
+#ifdef __APPLE__
+#include <glut.h>
+#else
 #include <GL/glut.h>
 #include <GL/freeglut.h>
+#endif
 
 #include <osg/Array>
 #include <osg/MatrixTransform>
@@ -187,9 +191,9 @@ int main(int argc, char **argv)
   
   
   recdb=std::make_shared<snde::recdatabase>();
-  setup_cpu(recdb,std::thread::hardware_concurrency());
+  setup_cpu(recdb,{},std::thread::hardware_concurrency());
 #ifdef SNDE_OPENCL
-  setup_opencl(recdb, false, 8, nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
+  setup_opencl(recdb,{}, false, 8, nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
   //#warning "GPU acceleration temporarily disabled for viewer."
 #endif
   setup_storage_manager(recdb);
@@ -198,12 +202,12 @@ int main(int argc, char **argv)
 
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
 
-  pngchan_config=std::make_shared<snde::channelconfig>("/png channel", "main", (void *)&main,false);
-  std::shared_ptr<snde::channel> pngchan = recdb->reserve_channel(pngchan_config);
+  pngchan_config=std::make_shared<snde::channelconfig>("/png channel", "main",false);
+  std::shared_ptr<snde::reserved_channel> pngchan = recdb->reserve_channel(transact,pngchan_config);
   
-  png_rec = create_ndarray_ref(recdb,pngchan,(void *)&main,SNDE_RTN_UNASSIGNED);
+  png_rec = create_ndarray_ref(transact,pngchan,SNDE_RTN_UNASSIGNED);
   
-  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
+  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction()->globalrev_available();
 
   png_rec->rec->metadata=std::make_shared<snde::immutable_metadata>();
   ReadPNG(png_rec,argv[1]);
@@ -231,9 +235,11 @@ int main(int argc, char **argv)
 
   glutMouseFunc(&png_viewer_mouse);
   glutMotionFunc(&png_viewer_motion);
-
+#ifdef __APPLE__
+  glutWMCloseFunc(&png_viewer_close);
+#else
   glutCloseFunc(&png_viewer_close);
-
+#endif
   glutKeyboardFunc(&png_viewer_kbd);
 
   rendercache = std::make_shared<osg_rendercache>();

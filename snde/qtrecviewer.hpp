@@ -65,7 +65,8 @@ namespace snde {
     std::shared_ptr<display_channel> FindDisplayChan(std::string channame);
     std::shared_ptr<display_channel> FindDisplayChan(QTRecSelector *Selector);
     
-    void set_selected(QTRecSelector *Selector);
+    void set_selected(QTRecSelector* Selector);
+    void set_selected(std::string channame);
     void deselect_other_selectors(QTRecSelector *Selected);
 
     snde_orientation3 get_camera_pose(std::string channelpath);

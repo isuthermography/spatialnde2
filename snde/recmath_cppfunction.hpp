@@ -685,7 +685,7 @@ namespace snde {
     // likewise if you override compute_options, this one should not do much and finish quickly
     virtual std::pair<std::vector<std::shared_ptr<compute_resource_option>>,std::shared_ptr<define_recs_function_override_type>> compute_options(Ts...)
     {
-      std::vector<std::shared_ptr<compute_resource_option>> option_list = { std::make_shared<compute_resource_option_cpu>(0,0,0.0,1,1) };
+      std::vector<std::shared_ptr<compute_resource_option>> option_list = { std::make_shared<compute_resource_option_cpu>(std::set<std::string>(),0,0,0.0,1,1) };
       return std::make_pair(option_list,nullptr);
     }
 
@@ -1104,7 +1104,7 @@ namespace snde {
     //bool supports_cpu;
     //bool supports_opencl;
     //bool supports_cuda;
-    cpp_math_function(std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
+    cpp_math_function(std::string function_name,size_t num_results,std::function<std::shared_ptr<executing_math_function>(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> instantiated)> initiate_execution);
     //		      bool supports_cpu,
     //		      bool supports_opencl,
     //		      bool supports_cuda);
@@ -1121,6 +1121,7 @@ namespace snde {
 								    bool ondemand,
 								    bool mdonly,
 								    std::shared_ptr<math_definition> definition,
+								    std::set<std::string> execution_tags,
 								    std::shared_ptr<math_instance_parameter> extra_params);
     
     // initiate_execution is now a function pointer member of our superclass
@@ -1147,6 +1148,7 @@ namespace snde {
 				   bool mdonly,
 				   std::shared_ptr<math_function> fcn,
 				   std::shared_ptr<math_definition> definition,
+				   std::set<std::string> execution_tags,
 				   std::shared_ptr<math_instance_parameter> extra_params);
 				   //bool enable_cpu,bool enable_opencl,bool enable_cuda);
     

@@ -11,6 +11,7 @@
 #include <CL/cl2.hpp>
 #endif
 
+#include "snde/snde_error.hpp"
 #include "snde/utils.hpp"
 #include "snde/opencl_utils.hpp"
 #include "snde/recstore.hpp"
@@ -245,7 +246,13 @@ namespace snde {
 	//context=clCreateContext(props,1,&device,pfn_notify,user_data,&errcode_ret);
 	selected_devices.push_back(device);
 	
-	context=cl::Context(selected_devices,props,pfn_notify,user_data);
+    try {
+        context = cl::Context(selected_devices, props, pfn_notify, user_data);
+    }
+    catch (const cl::Error& e) {
+        snde_warning("Error %d creating OpenCL Context: %s.", (int)e.err(), e.what());
+        return std::make_tuple(cl::Context(), std::vector<cl::Device>(), std::string("Unable to Create OpenCL Context."));
+    }
 	
 	//if (errcode_ret != CL_SUCCESS) {
 	//summary.append("\nclCreateContext() failed (error "+std::to_string(errcode_ret)+")\n");	

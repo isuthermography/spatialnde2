@@ -16,11 +16,25 @@
 #endif
 
 #include "snde/openscenegraph_renderer.hpp"
+#ifdef __APPLE__
+//GLDEBUGPROC not defined
+typedef void (*GLDEBUGPROC)(GLenum source,
+            GLenum type,
+            GLuint id,
+            GLenum severity,
+            GLsizei length,
+            const GLchar *message,
+            const void *userParam);
+#endif
 
 namespace snde {
 
 
-  static void GLAPIENTRY OGLMessageCallback( GLenum source,
+  static void
+#ifdef WIN32
+  GLAPIENTRY
+#endif
+  OGLMessageCallback( GLenum source,
 				      GLenum type,
 				      GLuint id,
 				      GLenum severity,

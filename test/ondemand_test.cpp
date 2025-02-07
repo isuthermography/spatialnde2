@@ -5,8 +5,12 @@
 #include <unistd.h>
 #endif
 
+#ifdef __APPLE__
+#include <glut.h>
+#else
 #include <GL/glut.h>
 #include <GL/freeglut.h>
+#endif
 
 #include <osg/Array>
 #include <osg/MatrixTransform>
@@ -173,18 +177,18 @@ int main(int argc, char **argv)
   glutInit(&argc,argv);
   
   recdb=std::make_shared<snde::recdatabase>();
-  setup_cpu(recdb,std::thread::hardware_concurrency());
+  setup_cpu(recdb,{},std::thread::hardware_concurrency());
   setup_storage_manager(recdb);
   setup_math_functions(recdb,{});
   recdb->startup();
 
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
 
-  testchan_config=std::make_shared<snde::channelconfig>("/test channel", "main", (void *)&main,false);
-  std::shared_ptr<snde::channel> testchan = recdb->reserve_channel(testchan_config);
+  testchan_config=std::make_shared<snde::channelconfig>("/test channel", "main",false);
+  std::shared_ptr<snde::reserved_channel> testchan = recdb->reserve_channel(transact,testchan_config);
   
-  test_rec = create_ndarray_ref(recdb,testchan,(void *)&main,SNDE_RTN_FLOAT64);
-  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
+  test_rec = create_ndarray_ref(transact,testchan,SNDE_RTN_FLOAT64);
+  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction()->globalrev_available();
 
   test_rec->allocate_storage({100,120}, true);
 
@@ -224,9 +228,12 @@ int main(int argc, char **argv)
 
   glutMouseFunc(&test_viewer_mouse);
   glutMotionFunc(&test_viewer_motion);
-
+    
+#ifdef __APPLE__
+  glutWMCloseFunc(&test_viewer_close);
+#else
   glutCloseFunc(&test_viewer_close);
-
+#endif
   glutKeyboardFunc(&test_viewer_kbd);
 
   rendercache = std::make_shared<osg_rendercache>();

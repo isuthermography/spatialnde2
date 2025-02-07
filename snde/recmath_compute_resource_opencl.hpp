@@ -12,7 +12,8 @@ namespace snde {
 
   class compute_resource_option_opencl: public compute_resource_option {
   public:
-    compute_resource_option_opencl(size_t metadata_bytes,
+    compute_resource_option_opencl(std::set<std::string> execution_tags,
+				   size_t metadata_bytes,
 				   size_t data_bytes,
 				   snde_float64 cpu_flops,
 				   snde_float64 gpu_flops,
@@ -38,7 +39,8 @@ namespace snde {
     // option has been dispatched, it needs a CPU core to dispatch as well. So it gets one of these
     // structures as a wrapper and placed at the front of the priority list.
   public:
-    _compute_resource_option_cpu_combined_opencl(size_t metadata_bytes,
+    _compute_resource_option_cpu_combined_opencl(std::set<std::string> execution_tags,
+						 size_t metadata_bytes,
 						 size_t data_bytes,
 						 snde_float64 flops,
 						 size_t max_effective_cpu_cores,
@@ -60,7 +62,7 @@ namespace snde {
 
     class available_compute_resource_opencl: public available_compute_resource {
   public: 
-    available_compute_resource_opencl(std::shared_ptr<recdatabase> recdb,std::shared_ptr<available_compute_resource_cpu> controlling_cpu,cl::Context opencl_context,const std::vector<cl::Device> &opencl_devices,size_t max_parallel,std::shared_ptr<openclcachemanager> oclcache=nullptr);
+      available_compute_resource_opencl(std::shared_ptr<recdatabase> recdb,std::set<std::string> tags,std::shared_ptr<available_compute_resource_cpu> controlling_cpu,cl::Context opencl_context,const std::vector<cl::Device> &opencl_devices,size_t max_parallel,std::shared_ptr<openclcachemanager> oclcache=nullptr);
     virtual void start(); // set the compute resource going
     virtual bool dispatch_code(std::unique_lock<std::mutex> &acrd_admin_lock);
     virtual std::tuple<int,bool,std::string> get_dispatch_priority(); // Get the dispatch priority of this compute resource. Smaller or more negative numbers are higher priority. See SNDE_ACRP_XXXX, above. Returns (dispatch_priority,fallback_flag,fallback_message)

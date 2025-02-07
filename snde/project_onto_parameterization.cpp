@@ -139,7 +139,8 @@ namespace snde {
       
       std::vector<std::shared_ptr<compute_resource_option>> option_list =
 	{
-	  std::make_shared<compute_resource_option_cpu>(0, //metadata_bytes 
+	  std::make_shared<compute_resource_option_cpu>(std::set<std::string>(), // no tags
+							0, //metadata_bytes 
 							numtris*sizeof(snde_triangle) + numedges*sizeof(snde_edge) + numverts*sizeof(snde_coord3) + numtris*sizeof(snde_trivertnormals) + numtris*sizeof(snde_cmat23), // data_bytes for transfer
 							0., // flops
 							1, // max effective cpu cores
@@ -695,7 +696,7 @@ namespace snde {
   
   std::shared_ptr<math_function> define_spatialnde2_project_point_onto_parameterization_function()
   {
-    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>([] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) -> std::shared_ptr<executing_math_function> {
+    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>("snde.project_point_onto_parameterization",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) -> std::shared_ptr<executing_math_function> {
       if (!inst) {
 	// initial call with no instantiation to probe parameters; just use snde_imagedata case
 	return std::make_shared<project_point_onto_parameterization<snde_imagedata>>(rss,inst);
@@ -725,7 +726,7 @@ namespace snde {
 	
       }
 
-      throw snde_error("Projection only supports real or complex imagedata: Can not project onto array of type %s",rtn_typenamemap.at(to_project_rec_ref->typenum));
+      throw snde_error("Projection only supports real or complex imagedata: Can not project onto array of type %s",rtn_typenamemap.at(to_project_rec_ref->typenum).c_str());
       
     });
 
@@ -739,7 +740,7 @@ namespace snde {
   // (in CMakeLists.txt) make it move into the _ocl.so library)
   SNDE_API std::shared_ptr<math_function> project_point_onto_parameterization_function = define_spatialnde2_project_point_onto_parameterization_function();
   
-  static int registered_project_point_onto_parameterization_function = register_math_function("spatialnde2.project_point_onto_parameterization",project_point_onto_parameterization_function);
+  static int registered_project_point_onto_parameterization_function = register_math_function(project_point_onto_parameterization_function);
   
   
 

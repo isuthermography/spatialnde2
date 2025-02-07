@@ -23,8 +23,12 @@ namespace snde {
 	if (pos >= url.size()-2) {
 	  return nullptr; // parse error
 	}
-	std::string hexstr="" + url[pos+1] + url[pos+2];
-	(*retval) += strtol(hexstr.c_str(),NULL,16);
+    char hexcstr[3];
+    hexcstr[0] = url[pos+1];
+    hexcstr[1] = url[pos+2];
+    hexcstr[2] = 0;
+	//std::string hexstr="" + url[pos+1] + url[pos+2];
+	(*retval) += strtol(hexcstr,NULL,16);
       } else if (url[pos]==':') {
 	// Can't handle colons at all
 	return nullptr;

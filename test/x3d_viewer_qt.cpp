@@ -45,9 +45,9 @@ int main(int argc, char **argv)
        
   std::shared_ptr<recdatabase> recdb; 
   recdb=std::make_shared<snde::recdatabase>();
-  setup_cpu(recdb,std::thread::hardware_concurrency());
+  setup_cpu(recdb,{},std::thread::hardware_concurrency());
 #ifdef SNDE_OPENCL
-      setup_opencl(recdb,false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
+  setup_opencl(recdb,{},false,8,nullptr); // limit to 8 parallel jobs. Could replace nullptr with OpenCL platform name
   //#warning "GPU acceleration temporarily disabled for viewer."
 #endif
   setup_storage_manager(recdb);
@@ -60,9 +60,9 @@ int main(int argc, char **argv)
   std::shared_ptr<snde::active_transaction> transact=recdb->start_transaction(); // Transaction RAII holder
 
   
-  std::shared_ptr<loaded_part_geometry_recording> part_recording = x3d_load_geometry(recdb,graphman,argv[1],0,"main",(void *)&main,"/loaded_x3d/",nullptr,{ /* "reindex_vertices", */ "reindex_tex_vertices" } ); 
+  std::shared_ptr<loaded_part_geometry_recording> part_recording = x3d_load_geometry(transact,graphman,argv[1],0,"main","/loaded_x3d/",nullptr,{ /* "reindex_vertices", */ "reindex_tex_vertices" } ); 
 
-  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction();
+  std::shared_ptr<snde::globalrevision> globalrev = transact->end_transaction()->globalrev();
   
 
   QCoreApplication::setAttribute(Qt::AA_UseDesktopOpenGL); // OpenSceneGraph requires UseDesktopOpenGL, I think
