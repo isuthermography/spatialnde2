@@ -88,11 +88,11 @@ ENDIF()
 
 set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_WIN32_SHMEM_SIZE=${SNDE_WIN32_SHMEM_SIZE})
 
-## Application is C++11 (now 14)
+## Application is C++11 (now 17)
 if (MSVC)
     set(CMAKE_CXX_STANDARD 20)
 else (MSVC)
-    set(CMAKE_CXX_STANDARD 14)
+    set(CMAKE_CXX_STANDARD 17)
 endif (MSVC)
 
 if(NOT MSVC)
@@ -266,10 +266,10 @@ IF (OpenCL_FOUND)
   set(SPATIALNDE2_OCL_SOURCES snde/opencl_utils.cpp snde/openclcachemanager.cpp snde/recmath_compute_resource_opencl.cpp snde/recstore_setup_opencl.cpp )
 
   # Display functions, etc. use OpenCL if it is available. 
-  set(SPATIALNDE2_OCL_SOURCES ${SPATIALNDE2_OCL_SOURCES} snde/rec_display_colormap.cpp snde/normal_calculation.cpp snde/rec_display_vertex_functions.cpp snde/kdtree.cpp snde/projinfo_calculation.cpp snde/waveform_vertex_functions.cpp snde/phase_plane_vertex_functions.cpp snde/area_calculation.cpp snde/polynomial_transform.cpp snde/dexela2923_image_transform.cpp )
+  set(SPATIALNDE2_OCL_SOURCES ${SPATIALNDE2_OCL_SOURCES} snde/rec_display_colormap.cpp snde/normal_calculation.cpp snde/rec_display_vertex_functions.cpp snde/kdtree.cpp snde/projinfo_calculation.cpp snde/waveform_vertex_functions.cpp snde/phase_plane_vertex_functions.cpp snde/area_calculation.cpp snde/polynomial_transform.cpp snde/dexela2923_image_transform.cpp snde/arithmetic.cpp )
 ELSE()
   # Otherwise built into the main library
-  set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/rec_display_colormap.cpp snde/normal_calculation.cpp snde/rec_display_vertex_functions.cpp snde/kdtree.cpp snde/projinfo_calculation.cpp snde/waveform_vertex_functions.cpp snde/phase_plane_vertex_functions.cpp snde/area_calculation.cpp snde/polynomial_transform.cpp snde/dexela2923_image_transform.cpp )
+  set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/rec_display_colormap.cpp snde/normal_calculation.cpp snde/rec_display_vertex_functions.cpp snde/kdtree.cpp snde/projinfo_calculation.cpp snde/waveform_vertex_functions.cpp snde/phase_plane_vertex_functions.cpp snde/area_calculation.cpp snde/polynomial_transform.cpp snde/dexela2923_image_transform.cpp snde/arithmetic.cpp)
 ENDIF()
 
 
@@ -397,7 +397,7 @@ target_link_libraries(spatialnde2 hdf5::hdf5 hdf5::hdf5_cpp )
 # to see whether Python is loaded. (See python_support.hpp and .cpp)
 IF (SNDE_PYTHON_SUPPORT_ENABLED AND WIN32) 
     target_link_libraries(spatialnde2 ${Python3_LIBRARIES})
-ENDIF()
+ENDIF (SNDE_PYTHON_SUPPORT_ENABLED AND WIN32)
 
 IF (NOT WIN32 AND NOT MACOSX)
   target_link_libraries(spatialnde2 rt)

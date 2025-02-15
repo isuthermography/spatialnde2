@@ -3,6 +3,8 @@
 
 #include <utility>
 #include <typeindex>
+#include <variant>
+#include <optional>
 
 //#if __cplusplus < 201402L
 //#error This header requires C++14! (for std::index_sequence)
@@ -1097,8 +1099,18 @@ namespace snde {
     }
   }
 
+  // Use of variants to identify parameters so as to instantiate the correct type of a math function
+ using ref_float_var = std::optional<std::variant<std::shared_ptr<ndtyped_recording_ref<snde_float32>>,std::shared_ptr<ndtyped_recording_ref<snde_float64>>
+#ifdef SNDE_HAVE_FLOAT16
+    ,std::shared_ptr<ndtyped_recording_ref<snde_float16>>
+#endif // SNDE_HAVE_FLOAT16
+                                                    >>;
   
 
+  std::shared_ptr<ndarray_recording_ref>  math_param_ref(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,snde_index param_num);
+  
+  ref_float_var math_param_ref_float(std::shared_ptr<ndarray_recording_ref> param_ref_val);
+  
   class cpp_math_function: public math_function {
   public:
     //bool supports_cpu;
