@@ -115,13 +115,18 @@ namespace snde {
               "  snde_index left_index = 0;\n"
               "  snde_index right_index = 0;\n"
               "  snde_index result_index = 0;\n"
+
+              
               "  for (dim=0; dim < NDIM; dim++) {\n"
-              "    dim_indexes[dim] = idx / result_dims[dim];\n"
-              "    idx = idx % result_dims[dim];\n"
+              
+              "    dim_indexes[dim] = idx % result_dims[dim];\n"
+              "    idx = idx / result_dims[dim];\n"
+              // "  printf(\"idx = %u \\n\",(unsigned)idx);\n"
               "    left_index += dim_indexes[dim]*left_strides[dim];\n"
               "    right_index += dim_indexes[dim]*right_strides[dim];\n"
               "    result_index += dim_indexes[dim]*result_strides[dim];\n"
               "  }\n"
+             
               "  result[result_index] = perform_op(left[left_index], right[right_index]);\n"
               "}\n"
             }));
@@ -213,6 +218,9 @@ namespace snde {
 
           }
 
+        } else {
+          left_broadcast.push_back(false);
+          right_broadcast.push_back(false);
         }
         num_elements *= outdims.at(dimnum);
          
@@ -277,6 +285,17 @@ namespace snde {
                   // exec code
                   Op binary_op;
                   size_t ndim = outdims.size();
+                  std::vector<snde_index> left_strides(left->layout.strides);
+                  std::vector<snde_index> right_strides(right->layout.strides);
+                  for (size_t dimcnt; dimcnt<ndim; dimcnt++) {
+                    if (left_broadcast.at(dimcnt)) {
+                      left_strides.at(dimcnt) = 0;
+                    }
+                    if (right_broadcast.at(dimcnt)) {
+                      right_strides.at(dimcnt) = 0;
+                    }
+                  }
+                  
 #ifdef SNDE_OPENCL
                   std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(this->compute_resource);
                   if (opencl_resource) {
@@ -296,12 +315,12 @@ namespace snde {
 		      throw openclerror(err, "Error transferring kernel data");
 		    }
                     cl::Buffer left_strides_mem(opencl_resource->context,CL_MEM_READ_ONLY,sizeof(snde_index)*ndim);
-                    err = opencl_resource->queues.at(0).enqueueWriteBuffer(left_strides_mem, CL_FALSE, 0, sizeof(snde_index) * ndim, left->layout.strides.data(), &Events);
+                    err = opencl_resource->queues.at(0).enqueueWriteBuffer(left_strides_mem, CL_FALSE, 0, sizeof(snde_index) * ndim, left_strides.data(), &Events);
 		    if (err != CL_SUCCESS) {
 		      throw openclerror(err, "Error transferring kernel data");
 		    }
                     cl::Buffer right_strides_mem(opencl_resource->context,CL_MEM_READ_ONLY,sizeof(snde_index)*ndim);
-                    err = opencl_resource->queues.at(0).enqueueWriteBuffer(right_strides_mem, CL_FALSE, 0, sizeof(snde_index) * ndim, left->layout.strides.data(), &Events);
+                    err = opencl_resource->queues.at(0).enqueueWriteBuffer(right_strides_mem, CL_FALSE, 0, sizeof(snde_index) * ndim, right_strides.data(), &Events);
 		    if (err != CL_SUCCESS) {
 		      throw openclerror(err, "Error transferring kernel data");
 		    }
