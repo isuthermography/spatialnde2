@@ -2203,7 +2203,7 @@ namespace snde {
 	  // Only true for non-math recordings
 	  std::shared_ptr<recording_base> new_recording=channelname_reservedchannel_newrecording.second.second;
 	  if ((new_recording->info_state & SNDE_RECS_FULLYREADY) != SNDE_RECS_FULLYREADY) {
-	    throw snde_error("New recording on channel %s is not FULLYREADY; waiting might deadlock. Use globalrev_wait() instead of globalrev() if you really want to wait." , channelname_reservedchannel_newrecording.first.c_str());
+	    throw snde_error("New recording on channel %s is not FULLYREADY; waiting might deadlock. Use globalrev_wait() instead of globalrev() if you really want to wait. Otherwise call globalrev_available()." , channelname_reservedchannel_newrecording.first.c_str());
 	  }
 	}
       }

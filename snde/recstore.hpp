@@ -661,7 +661,8 @@ namespace snde {
 
     virtual void allocate_storage(std::vector<snde_index> dimlen, bool fortran_order=false);
     virtual std::shared_ptr<recording_storage> allocate_storage_in_named_array(std::string storage_array_name,const std::vector<snde_index> &dimlen, bool fortran_order=false);
-
+    template <typename T>
+    std::shared_ptr<ndtyped_recording_ref<T>> reference_typed_ndarray();
     
     inline snde_multi_ndarray_recording *mndinfo() {return (snde_multi_ndarray_recording *)rec->info;}
     inline snde_ndarray_info *ndinfo() {return &((snde_multi_ndarray_recording *)rec->info)->arrays[rec_index];}
@@ -2209,7 +2210,17 @@ namespace snde {
     
   }
   
-
+  template <typename T>
+  std::shared_ptr<ndtyped_recording_ref<T>> ndarray_recording_ref::reference_typed_ndarray()
+  {
+   
+    std::shared_ptr<ndtyped_recording_ref<T>> typed_ref = std::dynamic_pointer_cast<ndtyped_recording_ref<T>>(shared_from_this());
+    
+    if (!typed_ref) {
+      throw snde_error("reference_typed_ndarray(): Cannot cast ndarray with type %s to type %s",rtn_typenamemap.at(typenum).c_str(),rtn_typenamemap.at(rtn_typemap.at(typeid(T))).c_str());
+    }
+    return typed_ref; 
+  }
   
 };
 
