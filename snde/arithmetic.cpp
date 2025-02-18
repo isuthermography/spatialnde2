@@ -26,25 +26,32 @@ namespace snde {
   template <typename Type1, typename Type2> class addition;
   template <typename Type1, typename Type2> class subtraction;
 
-  template <typename Type1,typename Type2>
+  template <typename Type1,typename Type2,typename Enable = void>
   struct larger_float {
     typedef snde_float32 type;
   };
 
-  template <typename Type1>
-  struct larger_float<Type1,snde_float64> {
-    typedef snde_float64 type;
-  };
   
-  template <typename Type1>
-  struct larger_float<snde_float64,Type1> {
-    typedef snde_float64 type;
+  template <typename Type1,typename Type2>
+  struct larger_float<Type1,Type2,typename std::enable_if<(std::is_floating_point<Type1>::value && std::is_floating_point<Type2>::value && sizeof(Type1) >= sizeof(Type2))>> {
+    typedef Type1 type;
   };
 
-  template <>
-  struct larger_float<snde_float64,snde_float64> {
-    typedef snde_float64 type;
+  template <typename Type1,typename Type2>
+  struct larger_float<Type1,Type2,typename std::enable_if<(std::is_floating_point<Type1>::value && std::is_floating_point<Type2>::value && sizeof(Type1) < sizeof(Type2))>> {
+    typedef Type2 type;
   };
+
+  template <typename Type1,typename Type2>
+  struct larger_float<Type1,Type2,typename std::enable_if<(std::is_floating_point<Type1>::value && !std::is_floating_point<Type2>::value)>> {
+    typedef Type1 type;
+  };
+
+  template <typename Type1,typename Type2>
+  struct larger_float<Type1,Type2,typename std::enable_if<(!std::is_floating_point<Type1>::value && std::is_floating_point<Type2>::value)>> {
+    typedef Type2 type;
+  };
+
 
   template <typename result_type, typename Type1, typename Type2, typename Enable=void>
   struct make_signed_if_any_signed {
