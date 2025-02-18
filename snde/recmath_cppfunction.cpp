@@ -141,6 +141,63 @@ namespace snde {
     }
     return ref_float_var();
   }
-    
+  
+  ref_signed_var math_param_ref_signed(std::shared_ptr<ndarray_recording_ref> param_ref_val)
+  {
+    assert(param_ref_val); // Won't ever happen because get_ndarray_recording_ref() now throws the exception itself
+    switch (param_ref_val->ndinfo()->typenum) {
+    case SNDE_RTN_INT8:
+      return ref_signed_var(param_ref_val->reference_typed_ndarray<int8_t>());
 
+    case SNDE_RTN_INT16:
+      return ref_signed_var(param_ref_val->reference_typed_ndarray<int16_t>());
+
+    case SNDE_RTN_INT32:
+      return ref_signed_var(param_ref_val->reference_typed_ndarray<int32_t>());
+                           
+
+    case SNDE_RTN_INT64:
+      return ref_signed_var(param_ref_val->reference_typed_ndarray<int64_t>());
+
+    }
+    return ref_signed_var();
+  }
+
+  ref_unsigned_var math_param_ref_unsigned(std::shared_ptr<ndarray_recording_ref> param_ref_val)
+  {
+    assert(param_ref_val); // Won't ever happen because get_ndarray_recording_ref() now throws the exception itself
+    switch (param_ref_val->ndinfo()->typenum) {
+    case SNDE_RTN_UINT8:
+      return ref_unsigned_var(param_ref_val->reference_typed_ndarray<uint8_t>());
+
+    case SNDE_RTN_UINT16:
+      return ref_unsigned_var(param_ref_val->reference_typed_ndarray<uint16_t>());
+
+    case SNDE_RTN_UINT32:
+      return ref_unsigned_var(param_ref_val->reference_typed_ndarray<uint32_t>());
+                           
+
+    case SNDE_RTN_UINT64:
+      return ref_unsigned_var(param_ref_val->reference_typed_ndarray<uint64_t>());
+
+    }
+    return ref_unsigned_var();
+  }
+
+  ref_integer_var math_param_ref_integer(std::shared_ptr<ndarray_recording_ref> param_ref_val)
+  {
+    ref_signed_var param_signed = math_param_ref_signed(param_ref_val);
+    ref_unsigned_var param_unsigned = math_param_ref_unsigned(param_ref_val);
+    ref_integer_var combined = variant_merge(param_signed,param_unsigned);
+    return combined;
+  }
+
+  // Real, meaning floating point or integer
+  ref_real_var math_param_ref_real(std::shared_ptr<ndarray_recording_ref> param_ref_val)
+  {
+    ref_float_var param_float = math_param_ref_float(param_ref_val);
+    ref_integer_var param_integer = math_param_ref_integer(param_ref_val);
+    ref_real_var combined = variant_merge(param_float,param_integer);
+    return combined;
+  }
 };

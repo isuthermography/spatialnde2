@@ -24,6 +24,7 @@
 namespace snde {
 
   template <typename Type1, typename Type2> class addition;
+  template <typename Type1, typename Type2> class subtraction;
 
   template <typename Type1,typename Type2>
   struct larger_float {
@@ -44,17 +45,64 @@ namespace snde {
   struct larger_float<snde_float64,snde_float64> {
     typedef snde_float64 type;
   };
+
+  template <typename result_type, typename Type1, typename Type2, typename Enable=void>
+  struct make_signed_if_any_signed {
+
+
+  };
   
+  template <typename result_type, typename Type1, typename Type2>
+  struct make_signed_if_any_signed<result_type, Type1, Type2,typename std::enable_if<(std::is_signed<Type1>::value || std::is_signed<Type2>::value)>::type> {
+    typedef typename std::make_signed<result_type>::type type;
+
+  };
+  template <typename result_type, typename Type1, typename Type2>
+  struct make_signed_if_any_signed<result_type, Type1, Type2,typename std::enable_if<(!std::is_signed<Type1>::value && !std::is_signed<Type2>::value)>::type> {
+    typedef result_type type;
+
+  };
+  
+  template <typename Type1, typename Type2, typename Enable = void>
+  struct larger_int {
+    typedef void type;
+
+  };
+
+
+
+  template <typename Type1, typename Type2>
+  struct larger_int<Type1, Type2, typename std::enable_if<(sizeof(Type2) > sizeof(Type1))>::type> {
+    typedef Type2 type;
+  };
+  template <typename Type1, typename Type2>
+  struct larger_int<Type1, Type2, typename std::enable_if<(sizeof(Type2) <= sizeof(Type1))>::type> {
+    typedef Type1 type;
+  };
+    
   template <typename Op, typename Type1, typename Type2,  typename Enable = void>
   struct arithmetic_result_type {
     typedef Type1 result_type;
   };
 
   template <typename Op, typename Type1, typename Type2>
-  struct arithmetic_result_type<Op,Type1,Type2, typename std::enable_if<std::is_floating_point<Type2>::value>::type> {
+  struct arithmetic_result_type<Op,Type1,Type2, typename std::enable_if<(std::is_floating_point<Type1>::value || std::is_floating_point<Type2>::value)>::type> {
     typedef typename larger_float<Type2,Type1>::type result_type;
   };
 
+
+  template <typename Type1, typename Type2>
+  struct arithmetic_result_type<addition<Type1,Type2>,Type1,Type2, typename std::enable_if<(!std::is_floating_point<Type1>::value && !std::is_floating_point<Type2>::value)>::type> {
+    typedef typename make_signed_if_any_signed<typename larger_int<Type2,Type1>::type, Type1, Type2>::type result_type;
+  };
+
+  template <typename Type1, typename Type2>
+  struct arithmetic_result_type<subtraction<Type1,Type2>,Type1,Type2, typename std::enable_if<(!std::is_floating_point<Type1>::value && !std::is_floating_point<Type2>::value)>::type> {
+    typedef typename std::make_signed<typename larger_int<Type2,Type1>::type>::type result_type;
+  };
+  
+
+  
   class arithmetic_operation {
   public:
     const std::string name;
@@ -111,22 +159,33 @@ namespace snde {
               "{\n"
               "  snde_index idx=get_global_id(0);\n"
               "  snde_index dim_indexes[NDIM];\n"
-              "  unsigned dim;\n"
+              "  int dim;\n"
               "  snde_index left_index = 0;\n"
               "  snde_index right_index = 0;\n"
               "  snde_index result_index = 0;\n"
 
+              "  if (result_strides[0] < result_strides[NDIM-1]) {\n"
+              "    // Fortran order\n"
+              "    for (dim=0; dim < NDIM; dim++) {\n"
               
-              "  for (dim=0; dim < NDIM; dim++) {\n"
-              
-              "    dim_indexes[dim] = idx % result_dims[dim];\n"
-              "    idx = idx / result_dims[dim];\n"
+              "      dim_indexes[dim] = idx % result_dims[dim];\n"
+              "      idx = idx / result_dims[dim];\n"
               // "  printf(\"idx = %u \\n\",(unsigned)idx);\n"
-              "    left_index += dim_indexes[dim]*left_strides[dim];\n"
-              "    right_index += dim_indexes[dim]*right_strides[dim];\n"
-              "    result_index += dim_indexes[dim]*result_strides[dim];\n"
-              "  }\n"
-             
+              "      left_index += dim_indexes[dim]*left_strides[dim];\n"
+              "      right_index += dim_indexes[dim]*right_strides[dim];\n"
+              "      result_index += dim_indexes[dim]*result_strides[dim];\n"
+              "    }\n"
+              "  } else {\n"
+              "    // C order\n"
+              "    for (dim=NDIM-1; dim >=0 ; dim++) {\n"
+              
+              "      dim_indexes[dim] = idx % result_dims[dim];\n"
+              "      idx = idx / result_dims[dim];\n"
+              // "  printf(\"idx = %u \\n\",(unsigned)idx);\n"
+              "      left_index += dim_indexes[dim]*left_strides[dim];\n"
+              "      right_index += dim_indexes[dim]*right_strides[dim];\n"
+              "      result_index += dim_indexes[dim]*result_strides[dim];\n"
+              "    }\n"
               "  result[result_index] = perform_op(left[left_index], right[right_index]);\n"
               "}\n"
             }));
@@ -160,6 +219,33 @@ namespace snde {
 
 
   };
+
+
+  template <typename Type1, typename Type2>
+  class subtraction: public arithmetic_binary_operation{
+  public:
+    typedef typename arithmetic_result_type<subtraction,Type1,Type2>::result_type result_type;
+    
+
+    subtraction() :
+      arithmetic_binary_operation("subtraction",
+                           "result_type perform_op(Type1 left, Type2 right)\n"
+                           "{\n"
+                           "return left-right;\n"
+                           "}\n")
+    {
+
+    }
+    
+    result_type perform_op(Type1 left, Type2 right)
+    {
+      return left-right;
+    }
+
+
+  };
+
+  
   template <typename Op,typename Type1,typename Type2> //T is the data type we are operating on. O is the operation we are performing
   class arithmetic_binary_op: public recmath_cppfuncexec<std::shared_ptr<ndtyped_recording_ref<Type1>>,std::shared_ptr<ndtyped_recording_ref<Type2>>> {
   public:
@@ -298,7 +384,7 @@ namespace snde {
                   
 #ifdef SNDE_OPENCL
                   std::shared_ptr<assigned_compute_resource_opencl> opencl_resource = std::dynamic_pointer_cast<assigned_compute_resource_opencl>(this->compute_resource);
-                  if (opencl_resource) {
+                  if (opencl_resource &&  num_elements > 10000) {
 
 	     
                     std::shared_ptr<opencl_program> arithmetic_prog = binary_op.template op_program<Op,Type1,Type2>(ndim);
@@ -422,6 +508,8 @@ namespace snde {
   
     
   };
+  template <typename Type1, typename Type2>
+  using addition_op = arithmetic_binary_op<addition<Type1,Type2>,Type1,Type2>;
 
 
   std::shared_ptr<math_function> define_addition_function()
@@ -437,17 +525,13 @@ namespace snde {
       std::shared_ptr<ndarray_recording_ref> param0_ref = math_param_ref(rss,inst,0);
       std::shared_ptr<ndarray_recording_ref> param1_ref = math_param_ref(rss,inst,1);
       
-      ref_float_var param0_float = math_param_ref_float(param0_ref);
-      ref_float_var param1_float = math_param_ref_float(param1_ref);
-      if (param0_float.has_value() && param1_float.has_value()) {
-        return std::visit([rss,inst](auto && param0, auto && param1) -> std::shared_ptr<executing_math_function> {
-            using Type1 = typename std::decay_t<decltype(param0)>::element_type::dtype;
-            using Type2 = typename std::decay_t<decltype(param1)>::element_type::dtype;
-            return std::make_shared<arithmetic_binary_op<addition<Type1,Type2>,Type1,Type2>>(rss,inst);
+      ref_real_var param0 = math_param_ref_real(param0_ref);
+      ref_real_var param1 = math_param_ref_real(param1_ref);
 
-          }, param0_float.value(),param1_float.value());
-
-
+      
+      if (param0.has_value() && param1.has_value()) {
+        
+        return make_cppfuncexec_twovariants<addition_op>(rss,inst,param0,param1);
       } else {
         throw math_parameter_mismatch("Recording parameters are not compatible with the addition operation");
       }
@@ -464,7 +548,52 @@ namespace snde {
   
   static int registered_addition_function = register_math_function(addition_function);
   
+
+
+
+
+
+
+
+  template <typename Type1, typename Type2>
+  using subtraction_op = arithmetic_binary_op<subtraction<Type1,Type2>,Type1,Type2>;
+
+
+  std::shared_ptr<math_function> define_subtraction_function()
+  {
+    std::shared_ptr<math_function> newfunc = std::make_shared<cpp_math_function>("snde.subtraction",1,[] (std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst) -> std::shared_ptr<executing_math_function>  {
+      std::shared_ptr<executing_math_function> executing;
+
+      if (!inst) {
+        // initial call with no instantiation to probe parameters; just use int32 case
+        return std::make_shared<arithmetic_binary_op<subtraction<snde_float32,snde_float32>,snde_float32,snde_float32>>(rss,inst);
+      }
+      
+      std::shared_ptr<ndarray_recording_ref> param0_ref = math_param_ref(rss,inst,0);
+      std::shared_ptr<ndarray_recording_ref> param1_ref = math_param_ref(rss,inst,1);
+      
+      ref_real_var param0 = math_param_ref_real(param0_ref);
+      ref_real_var param1 = math_param_ref_real(param1_ref);
+
+      
+      if (param0.has_value() && param1.has_value()) {
+        
+        return make_cppfuncexec_twovariants<subtraction_op>(rss,inst,param0,param1);
+      } else {
+        throw math_parameter_mismatch("Recording parameters are not compatible with the subtraction operation");
+      }
+    
+      return nullptr;
+    });
+
+    return newfunc;
+    
+  }
+
+  SNDE_OCL_API std::shared_ptr<math_function> subtraction_function=define_subtraction_function();
+
   
+  static int registered_subtraction_function = register_math_function(subtraction_function);
   
   
 };

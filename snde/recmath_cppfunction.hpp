@@ -1100,16 +1100,86 @@ namespace snde {
   }
 
   // Use of variants to identify parameters so as to instantiate the correct type of a math function
- using ref_float_var = std::optional<std::variant<std::shared_ptr<ndtyped_recording_ref<snde_float32>>,std::shared_ptr<ndtyped_recording_ref<snde_float64>>
+
+
+  template <typename ...Args>
+  struct optvariant_union;
+
+  template <typename ...Args1,typename ...Args2>
+  struct optvariant_union<std::optional<std::variant<Args1...>>,std::optional<std::variant<Args2...>>> {
+
+    using type = std::optional<std::variant<Args1...,Args2...>>;
+  };
+
+  template <typename ...Variants>
+  void variant_merge(Variants... args)
+  {
+    throw snde_error("variant_merge not implemented for this many parameters");
+  }
+
+  template <typename Var1,typename Var2>
+  typename optvariant_union<Var1,Var2>::type variant_merge(Var1 val1,Var2 val2)
+  {
+    if (val1.has_value()) {
+      return typename optvariant_union<Var1,Var2>::type::value_type(std::visit([] (auto &arg) -> typename optvariant_union<Var1,Var2>::type::value_type { return std::move(arg); },val1.value()));
+    }
+    if (val2.has_value()) {
+      return typename optvariant_union<Var1,Var2>::type::value_type(std::visit([] (auto &arg) -> typename optvariant_union<Var1,Var2>::type::value_type { return std::move(arg); },val2.value()));
+    }
+    return typename optvariant_union<Var1,Var2>::type();
+  }
+
+  template <typename Var1,typename Var2,typename Var3>
+  typename optvariant_union<typename optvariant_union<Var1,Var2>::type,Var3>::type variant_merge(Var1 val1,Var2 val2,Var3 val3)
+  {
+    auto val12 = variant_merge(val1,val2);
+    return variant_merge(val12,val3);
+    
+  }
+  
+  using ref_float_var = std::optional<std::variant<std::shared_ptr<ndtyped_recording_ref<snde_float32>>,std::shared_ptr<ndtyped_recording_ref<snde_float64>>
 #ifdef SNDE_HAVE_FLOAT16
     ,std::shared_ptr<ndtyped_recording_ref<snde_float16>>
 #endif // SNDE_HAVE_FLOAT16
                                                     >>;
+  using ref_signed_var = std::optional<std::variant<std::shared_ptr<ndtyped_recording_ref<int8_t>>,std::shared_ptr<ndtyped_recording_ref<int16_t>>,std::shared_ptr<ndtyped_recording_ref<int32_t>>,std::shared_ptr<ndtyped_recording_ref<int64_t>>>>;
+
+  using ref_unsigned_var = std::optional<std::variant<std::shared_ptr<ndtyped_recording_ref<uint8_t>>,std::shared_ptr<ndtyped_recording_ref<uint16_t>>,std::shared_ptr<ndtyped_recording_ref<uint32_t>>,std::shared_ptr<ndtyped_recording_ref<uint64_t>>>>;
+
+  using ref_integer_var = typename optvariant_union<ref_signed_var,ref_unsigned_var>::type;
+
+  using ref_real_var = typename optvariant_union<ref_float_var,ref_integer_var>::type;
+  
+  template <template <typename...> class CppFuncClass,typename Arg0, typename Arg1, typename... ExtraArgs>
+  std::shared_ptr<executing_math_function> make_cppfuncexec_twovariants(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,Arg0 variant0, Arg1 variant1)
+  {
+    if (!inst) {
+      // initial call with no instantiation to probe parameters; just use float32 case
+      return std::make_shared<CppFuncClass<snde_float32,snde_float32,ExtraArgs...>>(rss,inst);
+
+    }
+    return std::visit([rss,inst](auto && variant0, auto && variant1) -> std::shared_ptr<executing_math_function> {
+            using Type1 = typename std::decay_t<decltype(variant0)>::element_type::dtype;
+            using Type2 = typename std::decay_t<decltype(variant1)>::element_type::dtype;
+            return std::make_shared<CppFuncClass<Type1,Type2,ExtraArgs...>>(rss,inst);
+
+          }, variant0.value(),variant1.value());
+
+  }
   
 
   std::shared_ptr<ndarray_recording_ref>  math_param_ref(std::shared_ptr<recording_set_state> rss,std::shared_ptr<instantiated_math_function> inst,snde_index param_num);
   
   ref_float_var math_param_ref_float(std::shared_ptr<ndarray_recording_ref> param_ref_val);
+
+  ref_signed_var math_param_ref_signed(std::shared_ptr<ndarray_recording_ref> param_ref_val);
+
+  ref_unsigned_var math_param_ref_unsigned(std::shared_ptr<ndarray_recording_ref> param_ref_val);
+
+  ref_integer_var math_param_ref_integer(std::shared_ptr<ndarray_recording_ref> param_ref_val);
+
+  // Real, meaning floating point or integer
+  ref_real_var math_param_ref_real(std::shared_ptr<ndarray_recording_ref> param_ref_val);
   
   class cpp_math_function: public math_function {
   public:
