@@ -193,6 +193,7 @@ namespace snde {
               "      right_index += dim_indexes[dim]*right_strides[dim];\n"
               "      result_index += dim_indexes[dim]*result_strides[dim];\n"
               "    }\n"
+              "  }\n"
               "  result[result_index] = perform_op(left[left_index], right[right_index]);\n"
               "}\n"
             }));
