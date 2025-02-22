@@ -11,21 +11,21 @@
   $result = PyTuple_New(2);
   pyopencl = PyImport_ImportModule("pyopencl");
   //if (!pyopencl) SWIG_fail; /* raise exception up */
-  if (pyopencl) {
+  if (pyopencl) { 
     clContext=PyObject_GetAttrString(pyopencl,"Context");
     clContext_from_int_ptr=PyObject_GetAttrString(clContext,"from_int_ptr");
 
     clDevice=PyObject_GetAttrString(pyopencl,"Device");
     clDevice_from_int_ptr=PyObject_GetAttrString(clDevice,"from_int_ptr");
 
-    Context=PyObject_CallFunction(clContext_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)($1.first.get())),Py_True);
+    Context=PyObject_CallFunction(clContext_from_int_ptr,(char *)"LO",(long long)((intptr_t)($1.first.get())),Py_True);
     PyTuple_SetItem($result,0,Context);
     
     Vector=PyTuple_New($1.second.size());
     PyTuple_SetItem($result,1,Vector);
     
     for (cnt=0;cnt < $1.second.size();cnt++) {
-      PyTuple_SetItem(Vector,cnt,PyObject_CallFunction(clDevice_from_int_ptr,(char *)"KO",(unsigned long long)((uintptr_t)($1.second.operator[](cnt).get())),Py_True));    
+      PyTuple_SetItem(Vector,cnt,PyObject_CallFunction(clDevice_from_int_ptr,(char *)"LO",(long long)((intptr_t)($1.second.operator[](cnt).get())),Py_True));    
     }
     
     

@@ -179,12 +179,12 @@ namespace snde {
 		  OutputType outjunk = 0.0;
 		  PolyType polyjunk = 0.0;
 
-		  cl::Kernel polynomial_transform_kern = build_typed_opencl_program<InputType, OutputType, PolyType>("snde.polynomial_transform", [](std::vector<std::string> ocltypenames) {
+		  cl::Kernel polynomial_transform_kern = build_typed_opencl_program<InputType, OutputType, PolyType>("snde.polynomial_transform", (std::function<std::shared_ptr<opencl_program>(std::string,std::string,std::string)>)[](std::string oclintypename,std::string oclouttypename, std::string oclpolytypename) {
 		    // OpenCL templating via a typedef....
 		    return std::make_shared<opencl_program>("polynomial_transform_math_ocl", std::vector<std::string>({ snde_types_h,
-													       "\ntypedef " + ocltypenames.at(1) + " function_outtype;\n",
-													       "\ntypedef " + ocltypenames.at(0) + " function_inputtype;\n",
-													       "\ntypedef " + ocltypenames.at(2) + " function_polytype;\n",
+													       "\ntypedef " + oclouttypename + " function_outtype;\n",
+													       "\ntypedef " + oclintypename + " function_inputtype;\n",
+													       "\ntypedef " + oclpolytypename + " function_polytype;\n",
 													       polynomial_transform_c }));
 		    })->get_kernel(opencl_resource->context, opencl_resource->devices.at(0));
 

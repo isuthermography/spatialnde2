@@ -88,11 +88,11 @@ ENDIF()
 
 set(SPATIALNDE2_COMPILE_DEFINITIONS ${SPATIALNDE2_COMPILE_DEFINITIONS} -DSNDE_WIN32_SHMEM_SIZE=${SNDE_WIN32_SHMEM_SIZE})
 
-## Application is C++11 (now 14)
+## Application is C++11 (now 17)
 if (MSVC)
     set(CMAKE_CXX_STANDARD 20)
 else (MSVC)
-    set(CMAKE_CXX_STANDARD 14)
+    set(CMAKE_CXX_STANDARD 17)
 endif (MSVC)
 
 if(NOT MSVC)
@@ -201,7 +201,28 @@ ENDIF(WIN32)
 # Find dependencies
 find_package(LibXml2)
 find_package(Eigen3 3.3)
-find_package(OpenCL)
+if(MACOSX)
+  # On MACOSX we do NOT use FindOpenCL like we do on other platforms because
+  # that uses the system framework that is not interoperable with PyOpenCL.
+  # Instead, we attempt to identify it directly from (usually) anaconda.
+  set(OpenCL_FOUND TRUE CACHE BOOL "Set to true to enable OpenCL on MACOSX")
+  set(OpenCL_INCLUDE_DIR CACHE STRING "OpenCL include directory")
+  set(OpenCL_LIBRARY CACHE STRING "OpenCL library path")
+  set(OpenCL_LIBRARIES OpenCL)
+
+  # Search for an anaconda libOpenCL
+  if(NOT DEFINED OpenCL_INCLUDE_DIR OR "${OpenCL_INCLUDE_DIR}" STREQUAL "")
+    if(DEFINED ENV{CONDA_PREFIX})
+      if(EXISTS $ENV{CONDA_PREFIX}/lib/libOpenCL${CMAKE_SHARED_LIBRARY_SUFFIX})
+        set(OpenCL_INCLUDE_DIR $ENV{CONDA_PREFIX}/include)
+        set(OpenCL_LIBRARY $ENV{CONDA_PREFIX}/lib/libOpenCL${CMAKE_SHARED_LIBRARY_SUFFIX})
+      endif()
+    endif()
+  endif()
+      
+else()
+  find_package(OpenCL)
+endif()
 find_package(Threads REQUIRED)
 
 # Always first go for the python found
@@ -266,10 +287,10 @@ IF (OpenCL_FOUND)
   set(SPATIALNDE2_OCL_SOURCES snde/opencl_utils.cpp snde/openclcachemanager.cpp snde/recmath_compute_resource_opencl.cpp snde/recstore_setup_opencl.cpp )
 
   # Display functions, etc. use OpenCL if it is available. 
-  set(SPATIALNDE2_OCL_SOURCES ${SPATIALNDE2_OCL_SOURCES} snde/rec_display_colormap.cpp snde/normal_calculation.cpp snde/rec_display_vertex_functions.cpp snde/kdtree.cpp snde/projinfo_calculation.cpp snde/waveform_vertex_functions.cpp snde/phase_plane_vertex_functions.cpp snde/area_calculation.cpp snde/polynomial_transform.cpp snde/dexela2923_image_transform.cpp )
+  set(SPATIALNDE2_OCL_SOURCES ${SPATIALNDE2_OCL_SOURCES} snde/rec_display_colormap.cpp snde/normal_calculation.cpp snde/rec_display_vertex_functions.cpp snde/kdtree.cpp snde/projinfo_calculation.cpp snde/waveform_vertex_functions.cpp snde/phase_plane_vertex_functions.cpp snde/area_calculation.cpp snde/polynomial_transform.cpp snde/dexela2923_image_transform.cpp snde/arithmetic.cpp )
 ELSE()
   # Otherwise built into the main library
-  set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/rec_display_colormap.cpp snde/normal_calculation.cpp snde/rec_display_vertex_functions.cpp snde/kdtree.cpp snde/projinfo_calculation.cpp snde/waveform_vertex_functions.cpp snde/phase_plane_vertex_functions.cpp snde/area_calculation.cpp snde/polynomial_transform.cpp snde/dexela2923_image_transform.cpp )
+  set(SPATIALNDE2_SOURCES ${SPATIALNDE2_SOURCES} snde/rec_display_colormap.cpp snde/normal_calculation.cpp snde/rec_display_vertex_functions.cpp snde/kdtree.cpp snde/projinfo_calculation.cpp snde/waveform_vertex_functions.cpp snde/phase_plane_vertex_functions.cpp snde/area_calculation.cpp snde/polynomial_transform.cpp snde/dexela2923_image_transform.cpp snde/arithmetic.cpp)
 ENDIF()
 
 
@@ -397,7 +418,7 @@ target_link_libraries(spatialnde2 hdf5::hdf5 hdf5::hdf5_cpp )
 # to see whether Python is loaded. (See python_support.hpp and .cpp)
 IF (SNDE_PYTHON_SUPPORT_ENABLED AND WIN32) 
     target_link_libraries(spatialnde2 ${Python3_LIBRARIES})
-ENDIF()
+ENDIF (SNDE_PYTHON_SUPPORT_ENABLED AND WIN32)
 
 IF (NOT WIN32 AND NOT MACOSX)
   target_link_libraries(spatialnde2 rt)
@@ -405,7 +426,11 @@ ENDIF()
 
 IF (OpenCL_FOUND)
   add_library(spatialnde2_ocl SHARED ${SPATIALNDE2_OCL_SOURCES} )
-  target_link_libraries(spatialnde2_ocl OpenCL::OpenCL spatialnde2)
+  if(MACOSX)
+    target_link_libraries(spatialnde2_ocl ${OpenCL_LIBRARIES} spatialnde2)
+  else()
+    target_link_libraries(spatialnde2_ocl OpenCL::OpenCL spatialnde2)
+  endif()
   target_compile_definitions(spatialnde2_ocl PRIVATE SPATIALNDE2_OCL_SHAREDLIB_EXPORT)
 ENDIF()
 
@@ -883,7 +908,7 @@ IF(SWIG_FOUND AND Python3_FOUND )
         ENDIF()
         
 	IF (OpenCL_FOUND)
-          IF (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"))
+          IF (NOT MACOSX)
             set(SWIG_SPATIALNDE2_LINK_TARGETS ${SWIG_SPATIALNDE2_LINK_TARGETS} OpenCL::OpenCL)
           ENDIF()
           set(SWIG_SPATIALNDE2_LINK_LIBRARIES ${SWIG_SPATIALNDE2_LINK_LIBRARIES} ${SPATIALNDE2_OCL_LIBS})

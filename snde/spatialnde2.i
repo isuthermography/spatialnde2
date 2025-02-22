@@ -566,6 +566,8 @@ template <typename T>
 %include "geometry_processing.i"
 %include "recstore_transaction_manager.i"
 %include "dexela2923_image_transform.i"
+%include "arithmetic.i"
+
 %include "bad_pixel_correction.i"
 
 #ifdef SNDE_OPENCL

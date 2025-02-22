@@ -291,13 +291,63 @@ namespace snde {
   extern std::shared_ptr<typed_opencl_program_database> *_typed_opencl_program_registry; // default-initialized to nullptr, locked by _typed_opencl_program_mutex()
   std::mutex &_typed_opencl_program_mutex();
 
-  template <typename T> 
-  std::shared_ptr<opencl_program> build_typed_opencl_program(std::string category,std::function<std::shared_ptr<opencl_program>(std::string ocltypename)> buildfunc)
+  template <typename... Args>
+  struct typevec_from_types;
+  
+
+    
+  template <typename T,typename... Args>
+  struct typevec_from_types<T,Args...> {
+    std::vector<std::type_index> operator()() const
+    {
+      std::vector<std::type_index> ret;
+      ret.push_back(typeid(T));
+
+
+      std::vector<std::type_index> remaining_vec = typevec_from_types<Args...>()();
+      ret.insert(ret.end(),remaining_vec.begin(),remaining_vec.end());
+
+      return ret;
+    
+    }
+
+  };
+
+  template <typename T>
+  struct typevec_from_types<T> {
+    std::vector<std::type_index> operator()() const
+    {
+      auto ret = std::vector<std::type_index>();
+      ret.push_back(typeid(T));
+      return ret;
+    }
+  };
+  
+  //  template <typename T>
+  static inline std::string ocltypename_from_type(std::type_index ti)
+  {
+
+    auto typemap_it = rtn_typemap.find(ti);
+    if (typemap_it == rtn_typemap.end()) {
+      throw snde_error("Can't dynamically build typed opencl programs without typemap entry");
+    }
+    auto ocltypemap_it = rtn_ocltypemap.find(typemap_it->second);
+    if (ocltypemap_it == rtn_ocltypemap.end()) {
+      throw snde_error("Can't dynamically build typed opencl programs without OpenCL typemap entry");
+    }
+
+    std::string ocltypename = ocltypemap_it->second;
+    return ocltypename;
+  }
+  
+  
+  template <typename... Types, typename... typenamestringargs> //typenamestringargs should be the same length as Types, but each entry is a string which is used for the ocltypename lambda parameters 
+  std::shared_ptr<opencl_program> build_typed_opencl_program(std::string category,std::function<std::shared_ptr<opencl_program>(typenamestringargs... ocltypenames)> buildfunc)
   {
     
-    std::vector<std::type_index> typevec;
+    std::vector<std::type_index> typevec=typevec_from_types<Types...>()();
     
-    typevec.push_back(typeid(T));
+    //    typevec.push_back(typeid(T));
 
     std::mutex &regmutex = _typed_opencl_program_mutex();
     
@@ -321,19 +371,19 @@ namespace snde {
     
     // if we made it here we did not find a suitable program already. 
     
-    auto typemap_it = rtn_typemap.find(typeid(T));
-    if (typemap_it == rtn_typemap.end()) {
-      throw snde_error("Can't dynamically build typed opencl programs typemap entry");
-    }
-    auto ocltypemap_it = rtn_ocltypemap.find(typemap_it->second);
-    if (ocltypemap_it == rtn_ocltypemap.end()) {
-      throw snde_error("Can't dynamically build typed opencl programs without OpenCL typemap entry");
-    }
+    //    auto typemap_it = rtn_typemap.find(typeid(T));
+    // if (typemap_it == rtn_typemap.end()) {
+    //  throw snde_error("Can't dynamically build typed opencl programs without typemap entry");
+    //}
+    // auto ocltypemap_it = rtn_ocltypemap.find(typemap_it->second);
+    //if (ocltypemap_it == rtn_ocltypemap.end()) {
+    //  throw snde_error("Can't dynamically build typed opencl programs without OpenCL typemap entry");
+    //}
 
-    std::string ocltypename = ocltypemap_it->second;
+    //std::string ocltypename = ocltypemap_it->second;
     
     // OpenCL templating via a typedef....
-    std::shared_ptr<opencl_program> new_program=buildfunc(ocltypename);
+    std::shared_ptr<opencl_program> new_program=buildfunc((ocltypename_from_type(typeid(Types)))...);
 
     {
       std::lock_guard<std::mutex> reglock(regmutex);
@@ -355,81 +405,6 @@ namespace snde {
       return reg_it->second.at(typevec); 
     }
   }
-
-  
-  template <typename... Args>
-  std::shared_ptr<opencl_program> build_typed_opencl_program(std::string category, std::function<std::shared_ptr<opencl_program>(std::vector<std::string> ocltypenames)> buildfunc)
-  {
-
-    std::vector<std::type_index> typevec;
-
-    //Iterate all of the template arguments and populate the vector with the typeid for each argument
-    // https://stackoverflow.com/questions/31368699/iterating-variadic-template-types
-    int dummy[] = { 0, (void(typevec.push_back(typeid(Args))), 0)... };
-
-
-    std::mutex& regmutex = _typed_opencl_program_mutex();
-
-    {
-      std::lock_guard<std::mutex> reglock(regmutex);
-
-      std::shared_ptr<typed_opencl_program_database> reg = _typed_opencl_program_registry_reglocked();
-
-      
-
-      typed_opencl_program_database::iterator reg_it = reg->find(category);
-
-      if (reg_it != reg->end()) {
-	std::unordered_map<std::vector<std::type_index>,std::shared_ptr<opencl_program>,OpenCLProgramDatabaseHash>::iterator typemap_it = reg_it->second.find(typevec);
-
-	if (typemap_it != reg_it->second.end()) {
-	  return typemap_it->second; // return program 
-	}
-      }
-    }
-    // if we made it here we did not find a suitable program already. 
-    std::vector<std::string> ocltypenames;
-
-    // Loop all the templates and build the type name map
-    for (const auto p : typevec ) {
-
-      auto typemap_it = rtn_typemap.find(p);
-      if (typemap_it == rtn_typemap.end()) {
-	throw snde_error("Can't dynamically build typed opencl programs typemap entry");
-      }
-      auto ocltypemap_it = rtn_ocltypemap.find(typemap_it->second);
-      if (ocltypemap_it == rtn_ocltypemap.end()) {
-	throw snde_error("Can't dynamically build typed opencl programs without OpenCL typemap entry");
-      }
-
-      ocltypenames.push_back(ocltypemap_it->second);
-
-    }
-
-    // OpenCL templating via a typedef....
-    std::shared_ptr<opencl_program> new_program = buildfunc(ocltypenames);
-
-    {
-      std::lock_guard<std::mutex> reglock(regmutex);
-
-      // construct new database (so that old one is still safe to use in background)
-      std::shared_ptr<typed_opencl_program_database> new_reg = std::make_shared<typed_opencl_program_database>(*_typed_opencl_program_registry_reglocked());
-
-      typed_opencl_program_database::iterator reg_it = new_reg->find(category);
-
-      if (reg_it == new_reg->end()) {
-	reg_it = std::get<0>(new_reg->emplace(category, std::unordered_map<std::vector<std::type_index>,std::shared_ptr<opencl_program>,OpenCLProgramDatabaseHash>()));
-
-      }
-
-
-      reg_it->second.emplace(typevec, new_program);
-      *_typed_opencl_program_registry = new_reg;
-
-      return reg_it->second.at(typevec);
-    }
-  }
-
 
 }
 

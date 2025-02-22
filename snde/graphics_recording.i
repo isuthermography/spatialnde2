@@ -273,7 +273,7 @@ namespace snde {
   
   // Note customized pseudo-templates for extra create_recording arguments are defined at the
   // bottom of recstore.i
-  //%template(create_pose_channel_recording) create_recording_size_t_string<pose_channel_recording>;
+  %template(create_pose_channel_recording) create_recording_string<pose_channel_recording>;
   %template(create_textured_part_recording) create_recording_textured_part_info<textured_part_recording>;  
   %template(create_assembly_recording) create_recording_const_vector_of_string_orientation_pairs<assembly_recording>;
   
